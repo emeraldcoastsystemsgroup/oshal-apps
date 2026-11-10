@@ -17,6 +17,8 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the computer bridge gains lan-discover and lan-control (bridge/oshal_phone_lan.py): the person's own computer finds TVs and streaming sticks on its home network and presses their buttons (Samsung Tizen, Roku, Android TV); Smart Home's TVs section and Jarvis use them. A device registered without a computer resolves to one of the caller's own computers or is refused in words; the fixed fallback computer id is gone. No route, tool or permission changed.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (Roger, 2026-11-09: "rdp and we do support that but never really have a use for it"): nothing implements /api/rdp/sessions, so the RDP card keeps its setup scripts, Copy setup script and Check RDP port, the Connection Concierge offers Check RDP port only, and the description no longer promises live RDP desktops. No route, tool or permission changed.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: Jarvis routing words (backlog P4-16k): device-concierge adds 'android', 'ipad' and 'iphone' (not 'phone' or 'device', words of this application's name that would take "Find my phone" and "My phone number changed"). "Connect my Android phone so I can control it from here" and "Register my iPad as a device I can drive from Jarvis" scored here but claimed nothing, because every keyword was a phrase; both reach Phone & Device Control now. No route, tool or permission changed.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Your devices reads again. tools/session-computer.js called isTvNode without importing it, so the page answered "Your devices could not be read: isTvNode is not defined" (Roger's phone, 2026-11-08 and 2026-11-09) whenever a saved Android phone or TV was not reachable through its computer and the person had a connected, controllable Android node with another name. The import is added, and tests/phone-control-module-names.test.cjs fails when any browser module of a store package calls a name that is neither declared, imported nor a browser global. No route, tool or permission changed.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: Bluetooth pairing asks first (open-work audit 2026-11-10; Orbit Add hub 2.6 items 1-2): the bridge holds every pairing request until the person presses Allow or Reject on the page (no answer in 30 s is Reject, one Allow per window, a device that paired in the window without an Allow is removed when it closes), trusts and reconnects only devices the person allowed (ble-pair-answer, ble-keep for a device paired before), and the tests name no house address.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -39,7 +41,7 @@ description: >-
   check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
   (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and
   Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
-version: 1.5.2
+version: 1.5.4
 status: active
 scope: person
 chatBot: device-concierge

@@ -15,6 +15,7 @@
   23 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: the master resume opens as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel. Save to master resume is the one main button; it saves the document's text back through the same whitelisted master save. Tailored job packets keep the classic preview and editor. Without AI Office the master opens in the classic view and says why.
   24 | maintainer@emeraldcoastsystemsgroup.com | The design standard audit on production (412x743, 1440x900): the page declares its contract (editor, first action type, the preview as its work surface; DS-00), contains overscroll (DS-37), and the document frame's radius is on the scale (10px, DS-17).
   25 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: move Add career materials (work samples, LinkedIn exports, job emails) into Resume Studio (#materialsSheet + #materials deep-link) with drop-zone upload and Back dismissal; use 100dvh geometry and scale radii/typography.
+  26 | maintainer@emeraldcoastsystemsgroup.com | More gains "Master record (everything saved)" (1.51.0): the read-only page with every role, bullet, skill and history record Career keeps, with Download and Print.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -138,6 +139,7 @@
       <p id="err" role="alert" hidden></p>
     </nav>
     <div class="ck-menu" id="moreMenu" popover role="menu">
+      <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Master record (everything saved)</a>
       <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
       <a role="menuitem" data-career-tool="career-board" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a>
       <button type="button" role="menuitem" id="openMaterials">Add career materials…</button>

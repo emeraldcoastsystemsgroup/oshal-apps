@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: manifest 1.5.0; a device registered without a computer by a person with no computer of their own is refused in words (400 computer_required), never given a fixed computer.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the Connection Concierge never offers Connect in console (hidden until an RDP session backend exists): an RDP question over HTTP gets Check RDP port only, or Use this computer first with no computer chosen, and a model reply naming connect_rdp is dropped by the route's own sanitizer. Red on 1.5.0, whose planner put Connect in console first. Manifest 1.5.1.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: manifest 1.5.2 (device-concierge routing words).
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: manifest 1.5.3 (the missing isTvNode import on Your devices).
  */
 'use strict';
 
@@ -115,7 +116,7 @@ test('a phone record is the caller\'s own, deduplicated by computer, platform an
   assert.equal((await call('DELETE', `/devices/${id}`, { person: 'bob' })).status, 404);
   assert.equal((await call('DELETE', `/devices/${id}`)).status, 204);
   assert.equal((await call('GET', `/devices/${id}`)).status, 404);
-  const tv = await call('POST', '/devices', { body: { name: 'Living Room Fire TV', platform: 'android', form: 'tv', computerNodeId: NODE, address: '192.168.1.138:5555' } });
+  const tv = await call('POST', '/devices', { body: { name: 'Living Room Fire TV', platform: 'android', form: 'tv', computerNodeId: NODE, address: '192.168.1.60:5555' } });
   assert.equal(tv.status, 201);
   assert.equal(tv.json.device.form, 'tv');
   assert.equal((await call('GET', `/devices/${tv.json.device.id}`)).json.device.form, 'tv');
@@ -167,7 +168,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.5.2');
+  assert.equal(manifest.version, '1.5.4');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
   ]);
@@ -209,15 +210,15 @@ test('command-plan translates move, click, drag, type, key and screen into owner
   })).status, 400);
 
   const autoTv = await call('POST', '/devices', {
-    body: { name: 'Living Room Fire TV', address: '192.168.1.138' }
+    body: { name: 'Living Room Fire TV', address: '192.168.1.60' }
   });
   assert.equal(autoTv.status, 201);
   assert.equal(autoTv.json.device.platform, 'android');
   assert.equal(autoTv.json.device.form, 'tv');
-  assert.equal(autoTv.json.device.address, '192.168.1.138:5555');
+  assert.equal(autoTv.json.device.address, '192.168.1.60:5555');
   assert.equal(autoTv.json.device.computerNodeId, NODE);
 
-  const execPrompt = await call('POST', '/devices/192.168.1.138/execute', {
+  const execPrompt = await call('POST', '/devices/192.168.1.60/execute', {
     body: { prompt: 'move down one and select', mode: 'background' }
   });
   assert.equal(execPrompt.status, 200);
@@ -243,11 +244,11 @@ test('command-plan translates move, click, drag, type, key and screen into owner
   assert.deepEqual(navTurn.json.actions, [{ kind: 'key', key: 'Down' }, { kind: 'key', key: 'Select' }]);
 
   const regTurn = await call('POST', '/concierge/turn', {
-    body: { mode: 'phone', prompt: 'register Fire TV 192.168.1.138' }
+    body: { mode: 'phone', prompt: 'register Fire TV 192.168.1.60' }
   });
   assert.equal(regTurn.status, 200);
   assert.equal(regTurn.json.actions[0].kind, 'register_device');
-  assert.equal(regTurn.json.actions[0].address, '192.168.1.138:5555');
+  assert.equal(regTurn.json.actions[0].address, '192.168.1.60:5555');
 });
 
 test('the Connection Concierge never offers Connect in console, which nothing can serve yet', async () => {

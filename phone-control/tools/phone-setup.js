@@ -11,11 +11,12 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Fire TV / Android TV Wi-Fi subnet scanner (adb-scan-tv), end-to-end SHA-256 verified oshal TV APK staging & installation (stage-chunk + adb-install-apk), copyable push script, #connect-tv deep-link focus, and integrated Connection Troubleshooting Concierge with 1-click fixes.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: surface #deviceKindGuide (iPhone vs Android clarity), pairAndroid host-scoped adb-connect ignoring already-connected Fire TVs, and prefill the phone IP into #connectAddress with main Wireless debugging port prompt when mDNS discovery is unavailable on the subnet.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: auto-probe the first usable Linux computer on startup, auto-register connected ADB TVs and phones into Phones & TVs, and pass serverUrl + minted joinCode to adb-install-apk for zero-touch TV provisioning.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: while the iPhone pairing window is open the page reads it every 2 s and asks about each device waiting to pair (Allow / Reject, renderPairingQuestion); a device paired before oshal asked shows Keep instead of Add.
  */
 
 import { bridgeMatches, bridgeSupport, computerStanding } from '/api/phone-control/ui/computer-link.js';
 import { mountConnectConcierge } from '/api/phone-control/ui/phone-concierge.js';
-import { mountRdpAndTvBle, resolveCompanionApk, stageCompanionApk } from '/api/phone-control/ui/phone-rdp.js';
+import { keepBleDevice, mountRdpAndTvBle, renderPairingQuestion, resolveCompanionApk, stageCompanionApk } from '/api/phone-control/ui/phone-rdp.js';
 
 const PAIR_WINDOW_SECONDS = 120;
 const WAIT_POLL_MS = 5000;
@@ -670,14 +671,17 @@ function renderBle(ctx, phones) {
   if (!phones.length) { body.replaceChildren(emptyRow(4, 'No iPhone paired with this computer yet.')); return; }
   body.replaceChildren(...phones.map((phone) => {
     const row = document.createElement('tr');
-    const state = `${phone.paired ? 'paired' : 'not paired'}, ${phone.connected ? 'connected' : 'not connected'}`;
+    const before = phone.paired && phone.allowed === false;
+    const state = `${phone.paired ? 'paired' : 'not paired'}, ${phone.connected ? 'connected' : 'not connected'}${before ? ', paired before oshal asked' : ''}`;
     for (const text of [`${phone.name} (${phone.address})`, state]) {
       const cell = document.createElement('td'); cell.textContent = text; row.append(cell);
     }
-    row.append(actionCell(phone.paired, () => ctx.run(async () => {
-      const device = await saveAndOpenPhone(ctx, 'ios', phone.address, phone.name);
-      ctx.say('iphoneStatus', `${device.name} added.`);
-    }, 'iphoneStatus', 'Adding the iPhone')));
+    row.append(before
+      ? actionCell(true, () => ctx.run(() => keepBleDevice(ctx, 'iphoneStatus', phone), 'iphoneStatus', 'Keeping the device'), 'Keep')
+      : actionCell(phone.paired, () => ctx.run(async () => {
+        const device = await saveAndOpenPhone(ctx, 'ios', phone.address, phone.name);
+        ctx.say('iphoneStatus', `${device.name} added.`);
+      }, 'iphoneStatus', 'Adding the iPhone')));
     row.append(actionCell(phone.paired, () => openBleRemoveDialog(ctx, phone), 'Remove'));
     return row;
   }));
@@ -703,9 +707,13 @@ async function pairIphone(ctx) {
     ctx.say('iphoneStatus', left
       ? `On the iPhone: Settings → Bluetooth, tap OSHAL-KB under Other Devices, then Pair. ${left} s left.`
       : 'The pairing window closed.');
-    if (!left) clearInterval(ctx.view.windowTimer);
-    if (left && left % 6 === 0 && !ctx.view.busy) {
-      void ctx.bridge('ble-devices', {}, 20000).then((reply) => reply.ok && renderBle(ctx, reply.phones));
+    if (!left) { clearInterval(ctx.view.windowTimer); renderPairingQuestion(ctx, 'iphoneStatus', []); }
+    if (left && left % 2 === 0 && !ctx.view.busy) {
+      void ctx.bridge('ble-devices', {}, 20000).then((reply) => {
+        if (!reply.ok) return;
+        renderBle(ctx, reply.phones);
+        renderPairingQuestion(ctx, 'iphoneStatus', reply.pairing || []);
+      });
     }
   }, 1000);
 }

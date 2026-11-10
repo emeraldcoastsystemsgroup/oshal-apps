@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin the 1.27.0 Test Lab application seam the same way: POST /test-lab/applications and DELETE /test-lab/applications/:postingId/:tag each match exactly one binding, that binding needs career.change, and both live in career-test-lab-applications.ts. The DELETE-binding census grows by exactly that one removal.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove JavaScript module import closure is inspected and the declared native tool-only reader has genuine registration source, without relaxing any HTTP authorization census.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-scoped generated-queue purge once to career.change and keep the DELETE-binding census exact.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Pin the read-only Master record (1.51.0): GET /master-record-ui to app.open and GET /master-record to career.read, each bound once and served by career-master-record-routes.ts, so the page and its data stay on the permissions every Career assignment already grants.
  */
 
 import test from 'node:test';
@@ -140,4 +141,14 @@ test('the catalog reader refuses a binding it cannot read instead of skipping it
   assert.ok(http.length >= 90, `read ${http.length} http bindings`);
   assert.ok(http.every((binding) => /^[A-Z]+$/.test(binding.method) && binding.path.startsWith('/') && binding.allOf.length >= 1));
   assert.equal(new Set(http.map((binding) => binding.id)).size, http.length, 'binding ids are unique');
+});
+
+test('the read-only Master record is bound once, its page to app.open and its data to career.read', () => {
+  const rows = bindings.resolvedRoutes();
+  for (const [pattern, id, permission] of [['/master-record-ui', 'master-record-ui', 'app.open'], ['/master-record', 'master-record-read', 'career.read']]) {
+    const served = rows.filter((row) => row.method === 'GET' && row.pattern === pattern);
+    assert.equal(served.length, 1, `GET ${pattern} is registered once and mounted once`);
+    assert.ok(served[0].file.endsWith('career-master-record-routes.ts'), `GET ${pattern} lives in career-master-record-routes.ts`);
+    assert.deepEqual(served[0].matches.map((m) => ({ id: m.id, allOf: m.allOf })), [{ id, allOf: [permission] }]);
+  }
 });

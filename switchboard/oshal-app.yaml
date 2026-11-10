@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.6.5: the open Streams post saves its edited title, body, tags and variants before Jarvis or the concierge reads it, and redraws the saved post when their change returns (shared document handoff), keeping edits still in progress.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): Workspaces offers New workspace and a Personal desk before any account is connected (the route never needed one), and every Connect accounts link opens the Connections page at the top level instead of inside Switchboard's frame; the primary button takes the theme's on-accent ink. Calendar: 44px named day buttons, a plain Pipeline legend, and a save button that follows Status. Compose: Write variants waits for a network, chips show aria-pressed with an inverted fill, Generate is secondary, and a network that cannot post gets Copy. Streams: a named refresh, a Workspace field on New post, phone stages in one sideways row with imports under More. Every primary is the solid accent.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.6.7: UX audit batch 7 (switchboard-stage MERGE, switchboard-threads MERGE, switchboard-inbox FIX-LAYOUT, switchboard-today FIX-LAYOUT): fold Stage into Compose (Same text everywhere switch + confirmed Send to all chosen networks fan-out) and Threads into Inbox (?group=person segmented view) while retaining both surface ids for business-experience; phone list-detail + Back on Inbox, single Connect accounts sheet and time-of-day greeting on Today, and plain Connect links in route notes. Guard: tests/switchboard-ux-batch7.test.js.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: publishing with an attached image works. Compose's Attach to posts sends the generated image with Publish, Schedule and Send to all; the route uploads it to X (v2 chunked media upload on api.twitter.com, the X connection's API host, already declared) and posts with its media id; Streams and the Calendar executor carry a post's mediaRef on the same path. /publish answered 501 "Attaching generated media on publish is not yet supported" and Streams/Calendar dropped the image. Guard: tests/switchboard-publish-media.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — switchboard (the merged comms + social command center)
@@ -67,7 +68,7 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.6.7
+version: 0.7.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml

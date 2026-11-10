@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | A record read that meets another writer's commit while it scans is read again (twice at most): the kernel refuses a scan that spans two revisions with "conflict: scoped collection revision changed", and on 2026-11-09 that failed the paper autopilot's strategy lookup twice while the person's portfolio watcher saved its own record in the same minute. Reads only; writes are unchanged.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Declare separate owner-bound combined allocation/protection studies.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Declare owner-isolated position-backstop policy/state/study and expected-funding record kinds.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep heavy planning evidence separate from recent preview listings, count records without loading payloads, and preserve the first concurrent planning approval with insert-once semantics.
@@ -13,6 +14,22 @@ export function fingerprint(value: unknown): string {
  const canonical=(v:any):any=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
  return createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 }
+/** A scan the kernel refused because another writer committed while it read (the owner's other jobs write this table). */
+function revisionConflict(error:unknown):boolean {
+ return /scoped collection revision changed/.test(String((error as {message?:unknown})?.message??''));
+}
+/**
+ * @description Run a read, again (twice at most) when another writer committed while it scanned. A read changes nothing,
+ * so looking again is safe; any other failure, or a third conflict, is the caller's.
+ * @param {AppContext} ctx Package context. @param {string} text Statement. @param {unknown[]} values Parameters.
+ * @returns {Promise<any[]>} Rows.
+ */
+async function readRows(ctx:AppContext,text:string,values:unknown[]):Promise<any[]> {
+ for(let attempt=1;;attempt++){
+  try{return (await ctx.pool.query(text,values)).rows;}
+  catch(error){if(attempt>=3||!revisionConflict(error))throw error;}
+ }
+}
 export async function listRecords(ctx:AppContext,owner:string,kind:RecordKind,limit=500):Promise<Data[]> {
  if(!Number.isInteger(limit)||limit<1||limit>500)throw new PortfolioError(400,'record_limit_invalid','Invalid internal record page limit.');
  const rows=(await ctx.pool.query(`SELECT record_id, payload, created_at FROM oshal_trading_portfolio_records WHERE user_sub=$1 AND kind=$2 ORDER BY created_at DESC LIMIT ${limit===500?501:limit}`,[owner,kind])).rows;
@@ -21,7 +38,7 @@ export async function listRecords(ctx:AppContext,owner:string,kind:RecordKind,li
 }
 export async function getRecord(ctx:AppContext,owner:string,kind:RecordKind,id:unknown):Promise<Data> {
  if(typeof id!=='string'||id.length>100)throw new PortfolioError(400,'record_required','Select a saved record.');
- const row=(await ctx.pool.query('SELECT record_id, payload, created_at FROM oshal_trading_portfolio_records WHERE user_sub=$1 AND kind=$2 AND record_id=$3',[owner,kind,id])).rows[0];
+ const row=(await readRows(ctx,'SELECT record_id, payload, created_at FROM oshal_trading_portfolio_records WHERE user_sub=$1 AND kind=$2 AND record_id=$3',[owner,kind,id]))[0];
  if(!row)throw new PortfolioError(404,'record_not_found','This saved record was not found for your account.');
  return {...JSON.parse(String(row.payload)),id:String(row.record_id),createdAt:new Date(row.created_at).toISOString()};
 }

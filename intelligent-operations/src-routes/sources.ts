@@ -1,6 +1,8 @@
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Lane M2 (1.8.0): when removeSource discards a source that scheduled discovery (operations_processing_config id='discovery') is configured to use, clear sourceId and set enabled: false so scheduled discovery stops failing every interval; removedSourceIds also carries removed source URIs so topology reconstruction drops removed scans. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved source (backlog P5-55b, 2026-11-09: the stopped fleet observer's six made-up installations stayed in Operations, and only a failed sample replay's clean-up could take a source out). removeSource marks one of the caller's own sources discarded, as replay-store.js discardReplay does, so every read that starts from the saved sources drops it: Sources, Systems and its Monitored installations, the desks, the processing tick and its silence watch; removedSourceIds lets the attention and systems summaries Jarvis reads drop it too. Nothing it recorded is deleted: alerts, readings, telemetry, scans and investigations stay, and a source registered in Sources comes back with its history when the same definition is saved there again. It takes confirm: true, names the source by id or by an exact name only one saved source has, refuses a desk's own source (the next tick saves it again) and answers 404 for a source that is not the caller's. */
 // @ts-nocheck
 import {DESKS} from './desks';
+import {processingTransaction} from './pipeline';
 const fail=(status,message)=>{throw Object.assign(Error(message),{status});};
 const ID=/^[a-f0-9]{64}$/,KEYS=['sourceId','name','confirm'];
 /** The input's shape: one way to name the source, a bounded name, and the explicit confirmation. */
@@ -34,16 +36,31 @@ export async function removeSource(ctx,owner,input){
  checked(input);
  const saved=await ctx.store.query('sources');if(!Array.isArray(saved))throw Error('Malformed store response');
  const source=chosen(saved,input);
- if(source.discardedAt)return {removed:false,alreadyRemoved:true,sourceId:source.id,name:source.name,discardedAt:source.discardedAt};
+ const clearDiscovery=async(at)=>{
+  if(!ctx?.pool||typeof ctx.pool.connect!=='function')return;
+  await processingTransaction(ctx.pool,async c=>{
+   const held=(await c.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,'discovery'])).rows[0]?.record;
+   if(held&&held.sourceId===source.id){
+    const next={...held,enabled:false,sourceId:null,revision:(held.revision||0)+1,updatedAt:at};
+    await c.query('UPDATE operations_processing_config SET revision=$3, record=$4 WHERE user_sub=$1 AND id=$2',[owner,'discovery',next.revision,JSON.stringify(next)]);
+   }
+  });
+ };
+ if(source.discardedAt){await clearDiscovery(source.discardedAt);return {removed:false,alreadyRemoved:true,sourceId:source.id,name:source.name,discardedAt:source.discardedAt};}
  const desk=DESKS.find(d=>d.uri===source.source);
  if(desk)fail(409,source.name+' is the '+desk.label+' desk\'s own source, which the next processing tick saves again, so it cannot be removed.');
  const discardedAt=new Date().toISOString();
  await ctx.store.put('sources',source.id,{...source,discardedAt});
+ await clearDiscovery(discardedAt);
  return {removed:true,sourceId:source.id,name:source.name,discardedAt,kept:'Its alerts, readings, telemetry, scans and investigations stay.'};
 }
 /**
- * @description The ids of the caller's removed sources, for the reads that do not start from the saved sources (the installation standing behind the attention and systems summaries).
+ * @description The ids and source URIs of the caller's removed sources, for the reads that do not start from the saved sources (the installation standing and topology graph behind the attention and systems summaries).
  * @param store The caller's own document store.
- * @returns A Set of source ids.
+ * @returns A Set of removed source ids and source URIs.
  */
-export async function removedSourceIds(store){const saved=await store.query('sources');return new Set((Array.isArray(saved)?saved:[]).filter(s=>s?.discardedAt).map(s=>s.id));}
+export async function removedSourceIds(store){
+ const saved=await store.query('sources'),out=new Set();
+ for(const s of Array.isArray(saved)?saved:[])if(s?.discardedAt){if(s.id)out.add(s.id);if(s.source)out.add(s.source);}
+ return out;
+}

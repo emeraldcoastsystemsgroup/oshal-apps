@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1 (Monitoring Trust M2 rework): update monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: verify package code never touches oshal.current_sub or set_config, enrollment prepare with headless/Windows/macOS/config-pack and optional device trust metadata, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (Monitoring Trust M2): register monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: shared monitoring scope across operators and monitoring service principals, automatic idempotent migration of legacy personal-scope records, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (oshal-kernel ADR-216, lane S2): register monitor-enroll-otlp (tests/otlp-ingest.test.cjs: an OpenTelemetry Collector's OTLP/JSON metrics as one heartbeat, the six alerts evaluated with the rules' windows, logs and traces ignored, 410, Disconnect with the history kept) and monitor-enroll-token-controls (tests/installations-screen.test.cjs: the card's last delivery, Rotate token and Disconnect in Chromium); monitored-installations also expects an OTLP-only installation to go silent and recover; monitor-enroll-prepare now expects an OpenTelemetry agent answered with /ingest/otlp/<id> and both prefixes declared; monitor-enroll-screen expects the OpenTelemetry install line.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (oshal-kernel ADR-216, lane S1): register monitor-enroll-prepare (tests/enroll-prepare.test.cjs: the prepare route the kernel runs as the approving person, on real SQL and the real percolator) and monitor-enroll-screen (tests/installations-screen.test.cjs: Monitor an installation in Chromium); remove-source now expects 410 {gone} for a removed source's alerts, the producer tokens naming it revoked from its card, and a source saved again taking reports.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: register remove-source (tests/remove-source.test.cjs over the real router and SQL, and the Systems card in Chromium in tests/installations-screen.test.cjs): backlog P5-55b, the stopped fleet observer's six made-up installations, and no way to take a source out.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register search-disk-guard (tests/search-disk-guard.test.cjs: the installer's search disk check judged against a real OpenSearch); the engine container contract also expects the installer to refuse to finish until the running search reports the free-space watermarks and no index-create block; monitoring-desks also expects every rule index a fresh person's tick published to be gone once the engine fixture closes (the leak that filled the gate's test search on 2026-11-09).
 # 30 | maintainer@emeraldcoastsystemsgroup.com | Register the four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): monitoring-desks (tests/desks.test.cjs, tests/desks-authorization.test.cjs: defaults, activation on the tick, the desk reads, topic routing, composites) and monitoring-desks-screen (tests/desks-screen.test.cjs: the four tabs at 390x844 and 412x915); first-use-processing now expects the first tick to activate the desks.
@@ -133,6 +137,7 @@ cases:
       - A full evidence window seals in a few KB and any window stays under the investigation input ceiling.
       - A bank that refuses readings never makes a live installation look dead.
       - Nothing stays on screen after access is withdrawn.
+      - An installation that reports only through OpenTelemetry goes silent ten minutes after its last delivery, is raised once from its last report, and its next delivery resolves the silence.
     prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete the rules index. }
@@ -811,12 +816,95 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/remove-source.test.cjs, tests/installations-screen.test.cjs] }
     expected:
       - A removal without confirm true, with both names or an unknown key is 400; another person's is 404.
-      - After removal Sources, Systems, the systems summary and the attention list no longer name it, and its alerts answer 404.
+      - After removal Sources, Systems, the systems summary and the attention list no longer name it, and its alerts answer 410 {gone} (a source that never existed, and another person's, answer 404).
+      - Removing it on its Systems card revokes, at the kernel, every producer token of Operations whose route names it and no other; a failed revoke is said with Revoke again, which retries.
       - Its installation row, day history and stream are still in SQL; saving it again shows its earlier reports.
       - A shared name is 409, an unknown name 404, a desk's own source 409 and its card offers no removal.
       - The Systems card posts {sourceId, confirm true} only on the second press and goes when the server says removed.
+      - Saved again, the source takes reports again (202).
     prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role; close the browser and the loopback fixture server. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 768 }
+    installation: never
+  - id: monitor-enroll-prepare
+    name: Enrolment prepare for a monitored installation (ADR-216)
+    purpose: "Verify (oshal-kernel ADR-216, lane S1) through the real router, real SQL with forced owner policies, the real percolator on the disposable search and a store per person that POST /installations/enroll, which the kernel runs as the person approving a server's code, creates the source urn:operations:source:<name> with the id Sources gives it, its Alertmanager mapping, the policy whose rule lists moved from wire_producer.py (critical captured, warning recorded) and a first processing configuration with the chain on, records what the server said of itself and answers the one /ingest/alertmanager/<id> route the kernel mints a token for; that the same name again reuses the source with its history, mapping and an edited policy; that a removed source is never reused and its route stays 410; that processing switched off stays off and only gains the source; that an OpenTelemetry Collector is answered with its /ingest/otlp/<id> route, the label <name> otel and the same mapping, policy and processing, and the same name again keeps its source; that a malformed name or client (including a client name past 80 characters), a full processing list and the engine down are refused with nothing written; that a long name fits the kernel's 80-character label, a spaced name is URI-encoded, a desk's own source starts from its desk's default; and that the manifest declares producers.enroll as the kernel validates it, on records.write."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/enroll-prepare.test.cjs] }
+    expected:
+      - A first enrolment answers {route /ingest/alertmanager/<id>, label <name> alertmanager, name, open Systems} with the source, mapping, 25-rule policy and a first processing configuration saved.
+      - The same name again answers the same route; nothing is published again and the installation's reports stay.
+      - After its source is removed the name gets a new source id; the removed id still answers 410.
+      - A processing schedule switched off stays off with every saved choice, and its list gains the source.
+      - An OpenTelemetry Collector answers {route /ingest/otlp/<id>, label <name> otel}; the same source moved to Prometheus answers its Alertmanager route.
+      - Bad names and clients are 400, a full list 409, the engine down 503, each with no source, mapping, policy, processing or enrolment written.
+      - producers.enroll is {action Monitor this installation, prepare /installations/enroll, routes [/ingest/alertmanager/, /ingest/otlp/]}; POST /installations/enroll and POST /ingest/otlp/:sourceId are bound to records.write.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete the rule indexes the test published. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 512 }
+    installation: never
+  - id: monitor-enroll-screen
+    name: Monitor an installation on Systems (ADR-216)
+    purpose: "Verify in Chromium over the shipped Systems page, against a fixture that answers the kernel's producer-token list and revoke, a confirmation and an offline enrolment file as the kernel does, that Monitor an installation shows the one-line installs for the page's own origin with Copy, that each installation card says when and with what its server was enrolled and when its producer token expires, that a server approved but not reporting is listed as waiting for its token, then as collected, and one with no token after a day is told to start again, that Download an enrolment file sends the person's confirmed request for Operations, saves oswarm-enrollment.json with the kernel's answer and shows the line that redeems it without ever showing the code, refuses a name the kernel would refuse before sending it and says a refusal, and that the panel fits 412x915 with 44px buttons and no sideways scroll."
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/installations-screen.test.cjs] }
+    expected:
+      - The three install lines are curl -fsSL <origin>/monitor/install.sh piped to sudo bash, to sudo bash -s -- --agent otel, and to bash -s -- --kubernetes; Copy puts the line on the clipboard.
+      - The card line reads Enrolled <when> with the Prometheus stack on <host>. Its producer token expires <when>.
+      - The waiting list moves from waiting for the server to collect its token to Its token was collected without a reload.
+      - The offline request is {app intelligent-operations, name} with x-oshal-confirm; the saved file holds swarm, app, name, code and expiresAt; the page text never holds the code.
+      - At 412x915 the page does not scroll sideways and every visible panel button is at least 44px high.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the browser and the loopback fixture server. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 768 }
+    installation: never
+  - id: monitor-enroll-otlp
+    name: An OpenTelemetry Collector reports to Operations (ADR-216)
+    purpose: "Verify (oshal-kernel ADR-216, lane S2) through real SQL with forced owner policies, the real router and, for the policy, the real percolator on the disposable search, that POST /ingest/otlp/:sourceId reads an OpenTelemetry Collector's OTLP/JSON hostmetrics and httpcheck metrics onto the heartbeat's keys as one heartbeat per delivery, so the card, its checks, the charts and the telemetry banks read them and checks a collector cannot read say Not reported by its collector; that SiteDown, SiteSlow, DiskFull, DiskHigh, MemoryLow and LoadHigh fire only after the Prometheus rules' windows (5, 10, 10, 30, 10 and 15 minutes) from when the breach began and resolve when the reading clears; that a breach unread for over two minutes starts again and nothing fires without its reading; that a failed admit is owed to the next delivery and a firing alert is repeated so the card keeps it; that a critical goes through the source's policy captured and a warning recorded; that logs and traces answer 200 {} and are ignored, a missing x-oshal-producer-path is metrics and an unknown one 400, malformed bodies 400 and over 256 KiB 413 with nothing recorded; that the router answers 200 {}, 410 {gone} for a removed source and 404 for an unknown one; and that Disconnect stops watching an installation that was reporting and keeps its chart history."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/otlp-ingest.test.cjs] }
+    expected:
+      - A delivery's readings show on the card as Answers in 0.25 s, 87% used, 40% used and 10% busy, load 0.50 on 2 CPUs, with health healthy and Postgres, containers and backups Not reported by its collector.
+      - With all six breached, SiteDown fires at 5 minutes, SiteSlow, DiskFull and MemoryLow at 10, LoadHigh at 15 and DiskHigh at 30, each from the first breach; one clear delivery resolves all six.
+      - A failed admit fires on the next delivery as the same occurrence; a firing alert is still on the card 12 hours later.
+      - DiskFull becomes captured evidence work and DiskHigh recorded only.
+      - Logs, traces and bad bodies record nothing; the router answers 200 {}, 410 and 404.
+      - Disconnect answers {forgotten, disconnected}, closes what was firing with closed_by disconnect and keeps the day's chart history.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete the rule indexes the test published. }
+    limits: { timeoutMs: 240000, maxMemoryMb: 512 }
+    installation: never
+  - id: monitor-enroll-token-controls
+    name: A monitored installation's producer token on its card (ADR-216)
+    purpose: "Verify in Chromium over the shipped Systems page, against a fixture that answers the kernel's producer-token list, revoke and rotate as the kernel does, that each installation card shows its producer token's last delivery and status and when the first was accepted, and when a replaced token stops; that Rotate token asks the kernel to rotate the current token, not the one it replaced, once, and says the server picks it up within 5 minutes; that Disconnect takes two presses with what goes and what stays said first, revokes every producer token naming the source, then stops the watch with {stopWatching, sourceId, disconnect: true} and drops the card, while a revoke that fails changes nothing and says so; that a kernel listing no delivery fields shows no delivery line and no Rotate token but still offers Disconnect, and a card with no token offers neither; and that the controls fit 412x915 with 44px targets."
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/installations-screen.test.cjs] }
+    expected:
+      - The line reads Last delivery <when>: accepted (HTTP 202). First accepted <when>. The token it replaced stops working <when>.
+      - Rotate token posts /api/v1/producer-tokens/<current id>/rotate once and the line says Rotation requested; the server picks it up within 5 minutes.
+      - Disconnect revokes every token naming the source and posts {stopWatching true, sourceId, disconnect true}; a refused revoke posts nothing.
+      - At 412x915 nothing scrolls sideways and every control is at least 44px high.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the browser and the loopback fixture server. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 768 }
+    installation: never
+  - id: monitoring-trust-m2
+    name: Device trust controls, enrollment metadata and removed-source cleanup (M2)
+    purpose: "Verify (Monitoring Trust Build Lane M2 rework, 1.8.1) that package code never touches oshal.current_sub, set_config, or system:monitoring; that POST /installations/enroll accepts headless, Windows, macOS, and config-pack enrollments with optional device trust metadata in the caller's own scope; that removing a source excludes its topology scans from systemsSummary and disables scheduled discovery bound to that source; and in Chromium over the shipped Systems page that Systems renders headless/config-pack install lines, pending self-registered device approval with Ed25519 key fingerprint and CIDR editing, and per-card allowed address controls."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/monitoring-trust-m2.test.cjs] }
+    expected:
+      - Zero files in src-routes, routes, or experience call set_config or name oshal.current_sub, system:monitoring, or monitoring-scope.
+      - Enrolling Windows, macOS, and config-pack installations records optional device trust metadata (fingerprint, publicKey, allowedIps, observedIp, tool) in the caller's own scope.
+      - Removing a source drops its topology assets from systemsSummary and sets enabled false and sourceId null on scheduled discovery bound to it.
+      - Systems displays the headless/config-pack disclosure, approves a pending device with its Ed25519 key fingerprint and edited CIDRs, updates an installation token's allowed addresses, and fits 412x915 without horizontal scroll.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role, delete rule indexes and close the browser. }
     limits: { timeoutMs: 180000, maxMemoryMb: 768 }
     installation: never

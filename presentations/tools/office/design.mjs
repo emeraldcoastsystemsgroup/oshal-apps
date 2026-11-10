@@ -4,6 +4,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.3, §4.3, §4.4, §4.10, §5.1; Google Docs, Word and ONLYOFFICE, REFP CONVENTIONS §5.1). One app row: Back to your documents, the document's name with its menu (New, Open, Rename, Duplicate, Export, Delete), Undo, Redo, Save while there is something to save and Export as the one primary once there is content; an existing document on a phone opens to read with one Edit. The phone's bottom bar is Format, Insert, Comment, Concierge and More (Slides or Sheets first for a deck or a workbook); each opens an opaque sheet with Done that the phone's Back closes. On a desktop Slides sit in a 240px left pane and Format and Concierge are tabs of one docked 320px right pane, so the canvas is never covered and Zoom Fit refits when a pane changes. With documents saved, the first screen is your documents, newest first, with one New at the bottom right. A selection raises a bar at the selection: Cut, Copy, Paste, Comment and More. Every confirm is in the page.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, any platform: the shared planned-control helper is optional (fallbackPlanned builds the same markup and inert press), so the editor still starts where /shared/ui/js/planned-control.js is not served, as on the store gate's pinned platform.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): replace all seven AI Office planned controls with working Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view, and Share controls while retaining RP-ALL-01 Summarize.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): remove duplicate greyed Summarize planned control from the AI Office Concierge prompt strip because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  */
 import{clone,uid,plain}from'./model.mjs';
 import{state,notify,status,dirty,pristine,editable,currentPage,currentItem,edit,api}from'./state.mjs';
@@ -130,7 +131,7 @@ function bindPanesAndFormat({root,foundation,layers,act,planned,sheet}){
   openGenerationAssistant({foundation:{showPanel(){}},element:$('office-ai'),model:state.model});
  }
  const prompts=make('div','office-prompts'),draft=make('button','office-chip','Generate a draft');draft.type='button';draft.onclick=act(()=>generate());
- prompts.append(draft,planned('RP-ALL-01','Summarize',{className:'office-chip'}));
+ prompts.append(draft);
  $('office-ai').querySelector('.ef-assistant-composer')?.before(prompts);
  new MutationObserver(()=>{syncPane();requestAnimationFrame(fit);}).observe(root,{attributes:true,attributeFilter:['data-editor-concierge']});
  const formatTabs=make('div','office-format-tabs');formatTabs.setAttribute('role','tablist');formatTabs.setAttribute('aria-label','Format');

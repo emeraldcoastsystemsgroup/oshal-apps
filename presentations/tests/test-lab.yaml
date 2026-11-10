@@ -635,7 +635,7 @@ cases:
     expected:
       - Nothing saved opens a Word page with the caret on line 1 and no create-or-open box; typing lands in the document and Export becomes the one primary; Save is secondary.
       - The bottom bar is Format, Insert, Comment, Concierge and More in one row; Slides comes first for a presentation.
-      - Format, Insert, More, Concierge and Export open as opaque modal sheets from the bottom and the browser's Back closes each inside the editor; Highlight follows Text colour; RP-ALL-01 Summarize remains an inert planned control.
+      - Format, Insert, More, Concierge and Export open as opaque modal sheets from the bottom and the browser's Back closes each inside the editor; Highlight follows Text colour; Concierge renders the kernel's live Summarize prompt chip with no duplicate RP-ALL-01 placeholder.
       - Delete asks in the page and no native dialog opens; with a document saved the first screen is Your documents with one New at the bottom right; an existing document opens to read with one Edit, and Edit shows the tools.
       - At 1440x900 the Slides pane is 240px, the Format | Concierge pane is beside the canvas and the whole slide stays in view with Format, with Concierge and with a selected shape (red on 2.18.8, where the inspector floated over the canvas).
       - A text selection raises Cut, Copy, Paste, Comment and More on the float layer next to it, never over it, and Cut removes the selected words.

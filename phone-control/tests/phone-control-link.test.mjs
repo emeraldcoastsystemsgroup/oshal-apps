@@ -174,7 +174,7 @@ test('computers and phones are described from what the kernel and the bridge sai
   for (const platform of ['linux', 'Linux', '', undefined]) {
     assert.equal(bridgeSupport({ name: 'Spark', platform }).ok, true, String(platform));
   }
-  assert.match(bridgeCommand('adb-connect-tv', { address: '192.168.1.138' }), / adb-connect-tv --b64 /);
+  assert.match(bridgeCommand('adb-connect-tv', { address: '192.168.1.60' }), / adb-connect-tv --b64 /);
   assert.match(bridgeCommand('ble-remove', { address: '7C:4B:26:00:00:01' }), / ble-remove --b64 /);
   assert.match(bridgeCommand('setup-mirror'), / setup-mirror --b64 e30=$/);
   assert.match(bridgeCommand('mirror-start'), / mirror-start --b64 e30=$/);

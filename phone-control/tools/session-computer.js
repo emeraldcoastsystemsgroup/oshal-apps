@@ -5,9 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.4.0 computer & session OS controls: direct computer pointer/keyboard control in touch or mouse-pad mode (RP-PHC-01), special keys & chords including Ctrl+Alt+Del, Super and F1-F12 (RP-PHC-02), multi-monitor enumeration & display switching (RP-PHC-05), capability-gated privacy screen / remote input block (RP-PHC-09), and session-end OS lock (RP-PHC-10).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add wheel scrollOnComputer and keyOnComputer, dispatch touch-drag swipes on Swarm-enrolled Android nodes, invert scroll sign for Android Accessibility swipe semantics, and trigger fast post-action frame wakeups.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: import isTvNode from computer-link.js. enrolledAndroidFor called it without importing it, so Your devices answered "could not be read: isTvNode is not defined" whenever a saved Android phone or TV was not reachable through its computer and the person had a connected, controllable Android node whose name did not contain that phone's name (Roger's phone, 2026-11-08 and 2026-11-09).
  */
 
-import { computerPoint, computerStanding, desktopControlSupport, fromBase64, isAndroidNode, toBase64 } from '/api/phone-control/ui/computer-link.js';
+import { computerPoint, computerStanding, desktopControlSupport, fromBase64, isAndroidNode, isTvNode, toBase64 } from '/api/phone-control/ui/computer-link.js';
 import { sendRdpInput } from '/api/phone-control/ui/phone-rdp.js';
 
 const ANDROID_SPECIAL = { Escape: 'BACK', Tab: 'TAB', Return: 'ENTER', Backspace: 'BACKSPACE', Home: 'HOME' };

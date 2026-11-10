@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 7 | maintainer@emeraldcoastsystemsgroup.com | A master save never stores the credential line base_document() shows in place of an empty headline as the headline. Live 2026-11-09 02:35 the save before a Chat rail message wrote it into a master whose headline was empty, which no one had edited. Guard: tests/career-resume-office.test.mjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Include recorded active additional work in private fit context without copying it into the core resume.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Allow complete existing large skills and role-bullet lists in master edits and share a model-free snapshot mapping with bounded editor reads.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Retain source-backed education, certifications and licenses through complete bounded intake and additive enrichment; refuse oversized or unsupported qualification evidence before publishing.
@@ -904,6 +905,15 @@ def _bounded_master_list(items, max_items: int, max_chars: int, label: str) -> l
     return bounded
 
 
+def _headline_stand_in(profile_block: dict, value: str) -> bool:
+    """True when a saved document hands back the credential line base_document() showed in place of
+    an empty headline. That line is the profile's credential, not a headline the person wrote, so a
+    save that carries it unchanged leaves the headline empty."""
+    stored = str(profile_block.get("headline") or "").strip()
+    credential = str(profile_block.get("credential") or "").strip()
+    return not stored and bool(credential) and value == credential
+
+
 def _apply_master_texts(raw: dict, resume: dict, changelog: list) -> bool:
     """Apply only the whitelisted text fields the payload actually carries."""
     profile_block = raw.setdefault("profile", {})
@@ -912,6 +922,8 @@ def _apply_master_texts(raw: dict, resume: dict, changelog: list) -> bool:
         if key not in resume:
             continue
         value = _bounded_master_str(resume.get(key), limit, key)
+        if key == "headline" and _headline_stand_in(profile_block, value):
+            continue
         if str(profile_block.get(target, "") or "") != value:
             profile_block[target] = value
             changelog.append(f"{key} updated")

@@ -158,7 +158,13 @@ follow, are written up in
 **Resume Studio's master resume is a Word document** (1.49.0): it opens in AI Office's own editor with
 AI Office's standard Concierge beside it, and **Save to master resume** writes it back through the
 whitelisted `resume base-save`. The heading contract and the rules each assistant follows are in
-[docs/career-and-office.md](docs/career-and-office.md).
+[docs/career-and-office.md](docs/career-and-office.md). Since 1.51.0 saving the document never changes the
+master by itself: the Skills line is read back only on the " · " the document writes (a semicolon is part
+of a skill), and the credential line shown in place of an empty headline is never saved as the headline.
+Also since 1.51.0 a résumé upload works on the native kernel, whose request arrives as one bounded Buffer with
+no stream events: the upload route bounds that body (8 MiB plus the multipart envelope) and no longer waits for
+`req.once('aborted')`, as the artifacts upload has since 358d21a9 (guards: `tests/career-resume-native-upload.test.mjs`,
+`tests/native/career-resume-bridge-proof.mjs`).
 
 Version 1.27.3 serves the native board at the package root and keeps generated routes aligned
 with their TypeScript sources. Board summaries expose actual `applied` and `interviewing` counts
@@ -953,3 +959,41 @@ The owner APIs are GET/POST `/experience-bank` and GET `/experience-library`.
 They retain the existing read/change/open permissions. `career_experience_bank`
 provides summary IDs and revision to Jarvis; `career_draft` accepts explicitly
 selected IDs/revision. The legacy portfolio draft tool remains an opt-in alias.
+
+## Master record (1.51.0)
+
+**Master record** (Resume, next to Additional experience; Resume Studio's **⋯** (More) menu, "Master record
+(everything saved)"; `/cockpit/?app=career-hunter&screen=career-master-record`) shows everything Career keeps
+for the signed-in person, top to bottom:
+
+- the counts;
+- the profile: name, credential, headline, location, citizenship, clearance, contact, links, headline
+  options, summary and core competencies;
+- **Experience**: each role with its numbered bullets, the skills tagged on it and its stories;
+- **Skills** by group, with each group's proficiency;
+- **Additional experience**: the library's entries, including the saved independent portfolio;
+- **Education and certifications** (and licenses when there are any);
+- **Evidence**: metrics, the project ledger, named accounts, speaking and employers;
+- **History, newest first**: the date, what was added and the person's own words (a Resume Studio save is
+  labelled as one), then the Strengthen answers and the dates of the snapshots taken before a change;
+- **Linked documents**: the résumé and the detailed work addendum the profile links, kept outside Career;
+- last, on screen only, the notes Career keeps for writing (framing notes, gaps to collect, locked facts).
+
+**Download** saves one Markdown file of all of it except those writing notes (the page builds the file,
+because the kernel does not pass a package's download header). **Print or save as PDF** is in the page's
+**⋯** (More) menu. The mailing address used on application forms is not part of the record.
+
+The page reads only the caller's own folder: `career_db.json`, `enrichment_log.jsonl`, `experience-bank.json`,
+the `gap_themes` table of the owner database (opened read-only, immutable on the native kernel's pin) and the
+names of the files in `backups/` (a snapshot is never opened). Nothing is written, no engine runs and no model
+is called; a person with no store gets an empty record and no folder is made for them. A source that is a
+link, or larger than Career's own writers keep it, refuses the whole record instead of showing one that
+silently lacks it.
+
+The concierge reads the same record through `career_master_record`: `GET /master-record?page=N`, pages whose
+whole JSON answer is at most 12 KB, whose texts together are exactly the Download, each with the counts, the
+page link and a `revision`. Asked for everything, the Career bot answers with the counts and the page link
+rather than pasting the record. The page (`GET /master-record-ui`) is bound to `app.open`, the data route and
+the tool to `career.read`: no permission or role changed. Guards: `tests/career-master-record.test.mjs`,
+`tests/career-master-record-routes.test.mjs`, `tests/browser/career-master-record-proof.mjs`,
+`tests/career-persona-wording.test.mjs`, `tests/career-catalog-route-bindings.test.mjs`.

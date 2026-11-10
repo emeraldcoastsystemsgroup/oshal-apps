@@ -1,3 +1,4 @@
+# CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Register portfolio-record-read-conflict: a saved-record read that meets another writer mid-scan is read again (1.53.9).
 # CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Register account-values-upsert: the five-minute account observation upsert keeps EXCLUDED inside DO UPDATE SET and updates only on newer timestamps.
 # CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Register design-standard-landing: the Accounts landing's design-standard rules (contract, real-capital hero only for real accounts, tile as card, roster in Settings, scales, phone bottom bar).
 # CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Register delayed Quant and native account navigation regressions against shipped browser code.
@@ -1782,5 +1783,20 @@ cases:
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Roll back disposable PostgreSQL transaction or discard isolated records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: portfolio-record-read-conflict
+    name: A saved-record read that meets another writer mid-scan is read again
+    purpose: Prove getRecord, and the paper autopilot's strategy lookup through it, read again (twice at most) when the kernel refuses a scan because the scoped collection's revision changed under it, as the paper tick met on production 2026-11-09 while the same person's portfolio watcher saved its record; a pool double raises the kernel's exact words.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-portfolio-store-read-conflict.test.js] }
+    expected:
+      - One conflict and then the record answers the record after one more read of the same owner-bound statement.
+      - The paper autopilot's strategy lookup answers the assignment after two conflicts.
+      - A third conflict in a row, and any other failure at once, is the caller's.
+      - A missing record still answers 404 after a conflict, and a book with no strategy still reads as none.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
     limits: { timeoutMs: 30000 }
     installation: never

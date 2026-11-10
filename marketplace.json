@@ -123,7 +123,7 @@
       "suite": "ai-creative",
       "displayName": "Brand Graphics",
       "description": "Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing.",
-      "version": "1.3.2",
+      "version": "1.4.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -136,7 +136,8 @@
         },
         "optional": {
           "apps": [
-            "vids"
+            "vids",
+            "create"
           ],
           "tools": [],
           "connectors": []
@@ -159,7 +160,7 @@
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
       "description": "Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training.",
-      "version": "1.10.1",
+      "version": "1.10.2",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -267,8 +268,8 @@
       "name": "finance",
       "suite": "ai-finance",
       "displayName": "Finance",
-      "description": "Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.4.2",
+      "description": "Your household money in one place: link your banks and brokerages via Plaid to see balances, net worth and spending, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Read-only aggregation; money movement is explicit-confirm gated.",
+      "version": "1.4.3",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -486,8 +487,8 @@
       "name": "career-hunter",
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
-      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose optional additional experience, generate and review its resume and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.",
-      "version": "1.50.0",
+      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose optional additional experience, generate and review its resume and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it. Your Master record page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
+      "version": "1.51.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -533,7 +534,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.1",
+      "version": "2.20.2",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1281,7 +1282,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.14.0",
+      "version": "1.14.1",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -1488,8 +1489,8 @@
       "name": "intelligent-trades",
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
-      "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.53.7",
+      "description": "Your stock portfolio and trading desk. Connect your brokerage account (Charles Schwab) to see its positions, day change and how it performed over a week, a month or a year against the S&P 500; research stocks; and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
+      "version": "1.53.9",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1750,7 +1751,7 @@
       "suite": "ai-productivity",
       "displayName": "Switchboard",
       "description": "Every line, one board. Switchboard pulls your mail, DMs, texts, calls, and social mentions into a single prioritized stream — the Today board — so you triage your whole day in one place instead of app-hopping. The Streams desk manages your outbound posts CMS-style: drafts move through review, approval, scheduling, and publish with per-channel variants and revision history. Reads run on your own connector tokens; ranking and drafting run on the communications bot with cost captured per user. Nothing is sent or posted without your say-so.",
-      "version": "0.6.7",
+      "version": "0.7.0",
       "theme": "forest",
       "dependencies": {
         "apps": [
@@ -1820,7 +1821,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, four member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.1.8",
+      "version": "1.1.9",
       "theme": "daylight",
       "dependencies": {
         "apps": [
@@ -1953,7 +1954,7 @@
       "suite": "ai-finance",
       "displayName": "Venture Plan",
       "description": "Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. Bots supply assumptions with a source, a band and a confidence; a deterministic engine does every calculation. Every number is either computed and traceable, or visibly a labelled guess you should go replace with a quote.",
-      "version": "1.5.3",
+      "version": "1.5.4",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -3511,7 +3512,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.5.3",
+      "version": "1.8.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3687,7 +3688,7 @@
       "suite": "ai-creative",
       "displayName": "Motion Studio",
       "description": "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3754,7 +3755,7 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3796,7 +3797,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.5.2",
+      "version": "1.5.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3830,7 +3831,7 @@
       "suite": "ai-knowledge",
       "displayName": "Ambient Recall",
       "description": "Ask what someone said across your own ambient transcripts, maintain your continuously learned personal profile (identity, address, contact details, preferences, and household facts), and build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted receipts with assistant-voice playback, open asks and commitments beside their source quotes, per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 against the oshal design standard (docs/ux/design-standard.md §3.1, §4.4, §4.10, §5.1; CapCut and InShot, REFP CONVENTIONS §5.3). At 412x743 with real touch and at 1440x900: the page declares its contract and its work; the empty timeline holds the one primary, Add a clip, which opens the real picker; with a clip on the timeline Export is the one primary and Save is never the primary; one tool row marked data-ds-toolrow, More last; a tool opens an opaque modal sheet that the browser's Back closes inside the editor; Delete project asks in the page (no native dialog); the manifest's dark category look is graphite.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Video 1.14.0 (RP-VID-01..10): verify zero RP-VID planned placeholders remain and that Stickers, Filters, Speed, Effects, Chroma key, Remove background, Stabilize, Auto captions, Voice, Sound effects and 720p/1080p/4K 30/60fps Export controls operate live inside opaque modal sheets while preserving single-primary (DS-24) and RP-ALL-01 Summarize.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Video 1.14.1 (RP-ALL-01): verify the duplicate greyed RP-ALL-01 Summarize placeholder is removed and the kernel's live Summarize prompt chip is present.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,7 +62,8 @@ for (const [size, options] of [['phone 412x743', PHONE], ['desktop 1440x900', DE
     const row = page.locator('[data-ds-toolrow]');
     assert.equal(await row.count(), 1);
     assert.equal(await page.locator('[data-ds-backlog^="RP-VID-"]').count(), 0, 'zero RP-VID placeholders anywhere');
-    assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(), 1, 'kernel-owned RP-ALL-01 Summarize stays untouched');
+    assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(), 0, 'no duplicate greyed RP-ALL-01 Summarize placeholder');
+    assert.equal(await page.locator('[data-concierge-prompt="Summarize"]').count(), 1, 'kernel-owned live Summarize prompt is present');
     const labels = await row.locator('button').evaluateAll(buttons => buttons.map(button => button.querySelector('.video-word')?.textContent ?? button.textContent));
     assert.equal(labels.at(-1), 'More', 'More is the last item of the row');
     for (const label of ['Add', 'Text', 'Audio', 'Stickers', 'Filters']) assert.ok(labels.includes(label), `${label} is live in the row`);
@@ -135,10 +137,10 @@ test('Delete project asks in the page, never in a native dialog', async t => {
   assert.deepEqual(errors, []);
 });
 
-test('the manifest declares graphite and version 1.14.0', async () => {
+test('the manifest declares graphite and version 1.14.1', async () => {
   const manifest = await readFile(new URL('../oshal-app.yaml', import.meta.url), 'utf8');
   assert.match(manifest, /^theme: graphite$/m);
-  assert.match(manifest, /^version: 1\.14\.0$/m);
+  assert.match(manifest, /^version: 1\.14\.1$/m);
 });
 
 test('Add media withholds Generate a clip when no Vids worker is online and offers it when one is online', async t => {

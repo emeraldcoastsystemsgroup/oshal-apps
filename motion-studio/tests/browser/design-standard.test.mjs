@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.2, §3.3, §4.3, §4.4, §4.8, §4.10, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved Motion opens on a blank composition whose one primary is Add layer, and the first layer saves it as 1920×1080, 10 s, 30 fps; + Add holds Text, Shape, Solid, Photo and Camera or light with Video and Audio greyed; the phone's bottom bar is Layers · Add · Properties · Concierge · More and a sheet stays clear of it; the phone's Back closes an open sheet and stays in the app; with no layer chosen the panel shows the composition's size, frame rate, duration, background and work area and a greyed Motion blur; a diamond on a property row adds a key at the current time and opens its editor; Undo and Redo step back and forth; a saved composition makes the list the first screen with one + New; Delete asks in the page, never in a browser dialog. Real routes over disposable PostgreSQL, the real framed compositor and the kernel's shared editor from OSHAL_PLATFORM_ROOT.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: verify live Video… and Audio… menu items in + Add and live Motion blur shutter controls in Composition settings with zero RP-MOT placeholders.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1, RP-ALL-01: verify no duplicate greyed RP-ALL-01 Summarize placeholder is injected beside the kernel's live Summarize prompt chip.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,6 +36,8 @@ test('a blank composition opens with Add layer as its one primary; + Add holds l
  assert.deepEqual((await menu.locator('[role=menuitem]').allTextContents()).map(text=>text.trim()),['Text','Shape','Solid','Photo…','Video…','Audio…','Camera or light…']);
  const planned=await menu.locator('[data-ds-not-yet]').count();
  assert.equal(planned,0,'RP-MOT-01 placeholders are replaced by live Video… and Audio…');
+ assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(),0,'no duplicate greyed RP-ALL-01 Summarize placeholder');
+ assert.equal(await page.locator('[data-concierge-prompt="Summarize"]').count(),1,'kernel-owned live Summarize prompt is present');
  const sheet=await page.locator('dialog[open]').boundingBox(),row=await page.locator('.motion-toolrow').boundingBox();assert.equal(overlaps(sheet,row),false,'the menu sheet stays clear of the bottom bar '+JSON.stringify({sheet,row}));
  await press(page.getByRole('menuitem',{name:'Text',exact:true}));await page.locator('#revision').filter({hasText:'revision 2'}).waitFor({timeout:90000});
  const saved=await page.evaluate(async()=>{const id=document.getElementById('projects').value,body=JSON.parse(await (await fetch('/api/motion-studio/projects/'+id)).text()),comp=Object.values(body.project.document.items).find(item=>item.kind.type==='Comp').kind;return{width:comp.width,height:comp.height,layers:comp.layers.map(l=>l.name),title:body.project.title};});

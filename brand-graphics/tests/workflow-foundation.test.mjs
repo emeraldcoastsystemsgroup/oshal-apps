@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual brief editor and shared shell with catalog-checked editable handoffs and no generation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The design standard: one copy of each field (Title in the brief, Source link in Properties), the connected editors in ⋯ More, and the first pane named Saved.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Resize (RP-BRG-02) hands 9:16 or 1:1 to Video Studio with the format named first in the brief, Schedule or post (RP-BRG-05) hands the brief to Switchboard Compose (offer prepare-post), and a scene's Edit on canvas (RP-BRG-07) hands that scene to AI Office's canvas, each through the cockpit's catalog-checked hand-off and with no POST. Red on 1.3.2 (the three were greyed).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,7 +18,8 @@ const APP='brand-graphics',SURFACE='/api/'+APP+'/review';
 let browser;
 before(async()=>{browser=await chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
-function plan(){return{apps:[{integrationSources:[{app:APP,surfaces:[{url:SURFACE}],offers:[{id:'prepare-document',label:'Prepare a document',sourceApp:APP,targetApp:'presentations',targetAction:'prepare-brief',contextType:'research-brief',version:1,state:'available',fields:['title','notes','sourceUrl'],surface:'office',surfaceUrl:'/api/presentations/sections/ui'}]}]}]};}
+function plan(){const offer=(id,targetApp,targetAction,contextType,surface,surfaceUrl)=>({id,label:id,sourceApp:APP,targetApp,targetAction,contextType,version:1,state:'available',fields:['title','notes','sourceUrl'],surface,surfaceUrl});
+ return{apps:[{integrationSources:[{app:APP,surfaces:[{url:SURFACE}],offers:[offer('prepare-document','presentations','prepare-brief','research-brief','office','/api/presentations/sections/ui'),offer('prepare-episode','video','prepare-brief','research-brief','video-studio','/api/video/app'),offer('prepare-post','switchboard','prepare-post','communication-brief','switchboard-compose','/api/switchboard/compose')]}]}]};}
 async function fixture(t,width=1280){
  const app=express(),requests=[];
  app.use((req,res,next)=>{requests.push({method:req.method,path:req.path});if(!['GET','HEAD'].includes(req.method))return res.status(405).json({error:'no_generation_in_fixture'});next();});
@@ -54,4 +56,21 @@ test('phone navigation and properties preserve the editable brief without overfl
  const link=frame.locator('[data-editor-property="sourceUrl"]');await link.fill('https://example.test/phone');await link.press('Tab');await frame.getByRole('button',{name:'Close inspector',exact:true}).click();
  assert.equal(await frame.locator('#sourceUrl').inputValue(),'https://example.test/phone');assert.equal(await frame.locator('#title').inputValue(),'Saved title');assert.equal(await frame.locator('#notes').inputValue(),'Saved source notes');assert.equal(await frame.locator('html').evaluate(el=>el.scrollWidth>innerWidth),false);
  assert.equal(requests.some(item=>item.method==='POST'),false);assert.deepEqual(errors,[]);
+});
+
+test('Resize hands 9:16 to Video Studio, Schedule or post hands the brief to Switchboard Compose, a scene opens on AI Office\'s canvas',async t=>{
+ const{page,frame,requests,errors}=await fixture(t);
+ await frame.locator('#title').fill('Launch');await frame.locator('#notes').fill('An intro for the launch');
+ await frame.getByRole('button',{name:'More',exact:true}).click();await frame.getByRole('menuitem',{name:'Resize for other formats',exact:true}).click();
+ const sheet=frame.locator('dialog.brand-resize');await sheet.waitFor();assert.equal(await sheet.getByRole('button').filter({hasText:/^(16:9 wide|9:16 vertical|1:1 square)/}).count(),3);
+ await sheet.getByRole('button').filter({hasText:'9:16 vertical'}).click();await page.waitForFunction(()=>window.navigations.length===1);
+ let handoff=await page.evaluate(()=>window.handoffs.at(-1));assert.equal(handoff.offer,'prepare-episode');assert.match(handoff.context.notes,/^Format: 9:16 vertical \(Shorts, Reels and TikTok\)\n\nAn intro for the launch$/);
+ await frame.locator('#status').filter({hasText:'Choose 9:16 under Aspect there'}).waitFor();
+ await frame.getByRole('button',{name:'More',exact:true}).click();await frame.getByRole('menuitem',{name:'Schedule or post',exact:true}).click();await page.waitForFunction(()=>window.navigations.length===2);
+ handoff=await page.evaluate(()=>window.handoffs.at(-1));assert.equal(handoff.offer,'prepare-post');assert.deepEqual(handoff.context,{title:'Launch',notes:'An intro for the launch',sourceUrl:''});
+ assert.equal((await page.evaluate(()=>window.navigations.at(-1))).options.name,'switchboard-compose');
+ await frame.getByRole('button',{name:'Add scene',exact:true}).click();await frame.locator('[data-editor-property="sceneText"]').fill('The logo resolves out of light');await frame.locator('[data-editor-property="sceneText"]').press('Tab');
+ await frame.getByRole('button',{name:'Scene 1 actions',exact:true}).click();await frame.getByRole('menuitem',{name:'Edit on canvas',exact:true}).click();await page.waitForFunction(()=>window.navigations.length===3);
+ handoff=await page.evaluate(()=>window.handoffs.at(-1));assert.equal(handoff.offer,'prepare-document');assert.equal(handoff.context.title,'Scene 1');assert.match(handoff.context.notes,/^The logo resolves out of light\nDuration: 5 seconds\.\nFrom the brand brief "Launch"\.$/);
+ assert.equal(requests.some(item=>item.method==='POST'),false,'hand-offs render and save nothing');assert.deepEqual(errors,[]);
 });

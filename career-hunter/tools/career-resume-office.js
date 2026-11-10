@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: Resume Studio opens the master resume as an editable Word document in AI Office's own editor, with AI Office's standard Concierge beside it. Career keeps only the mapping between its master resume and that document (headings, paragraphs, bullets) and saves the document back through the existing whitelisted master save. No AI Office code is copied: the editor is AI Office's page, reached through its documented document routes and the shared document handoff.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Reading the document back splits the Skills line only on the " · " this file writes, and an untouched Skills line keeps the master's list exactly. Live 2026-11-09 02:35 the save before a Chat rail message split a skill holding two semicolons into three skills (a new "Additional Skills" group) in a master nobody had edited. Guard: tests/career-resume-office.test.mjs.
  */
 (function (root) {
   'use strict';
@@ -90,6 +91,15 @@
   /** Keep the master's own wording when only whitespace differs, so an untouched field is never "changed". */
   const keep = (next, prior) => (squash(next) === squash(prior) ? prior : next);
   const keepList = (next, prior) => (JSON.stringify(next.map(squash)) === JSON.stringify(strings(prior).map(squash)) ? prior : next);
+  /**
+   * The Skills section's skills. resumeToModel writes them as one line joined by " · ", so that is the
+   * only separator read back: a semicolon or comma is part of a skill's own text. A line that still
+   * says exactly what the master's list says keeps that list, even a skill holding the separator.
+   */
+  function readSkills(lines, prior) {
+    if (squash(lines.join(' · ')) === squash(strings(prior).join(' · '))) return prior;
+    return keepList(lines.flatMap((line) => line.split(/\s*·\s*/)).map((item) => item.trim()).filter(Boolean), prior);
+  }
 
   /**
    * @description Read an edited Word document back into the master resume. Only the fields the master
@@ -110,7 +120,7 @@
     resume.headline = keep(found.lead.join(' '), prior.headline || '');
     resume.summary = keep(found.summary.join('\n\n'), prior.summary || '');
     resume.competencies = keepList(found.competencies, prior.competencies);
-    resume.skills = keepList(found.skills.flatMap((line) => line.split(/\s*[·;]\s*/)).map((item) => item.trim()).filter(Boolean), prior.skills);
+    resume.skills = readSkills(found.skills, prior.skills);
     resume.clearance = keep(found.clearance.join(' '), prior.clearance || '');
     found.roles.forEach((role, index) => {
       resume.experience[index].bullets = keepList(role.bullets, roles[index].bullets);

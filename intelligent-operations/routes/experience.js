@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sourceDefinition = sourceDefinition;
 exports.inventorySnapshot = inventorySnapshot;
 exports.createOperationsExperienceRoutes = createOperationsExperienceRoutes;
+/** CHANGE LOG: 52 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): POST /ingest/otlp/:sourceId, where an enrolled OpenTelemetry Collector reports (otlp.ts ingestOtlp, on the existing records.write grant beside the Alertmanager ingest), answering the collector the empty ExportMetricsServiceResponse {}; its JSON is read up to the producer door's 256 KiB, where every other route keeps 70 kb. POST /ingest/mapping with stopWatching and disconnect is the card's Disconnect, after the page revoked the producer tokens. */
+/** CHANGE LOG: 51 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): POST /installations/enroll, the prepare route the kernel runs as the person approving a monitored installation's code (enroll.ts prepareInstallation, on the existing records.write grant), with the detection engine held to the tick's deadline. The Alertmanager ingest is given the removed sources too, so a removed source answers 410 {gone} instead of 404; read takes withRemoved for that one caller. GET /telemetry carries the enrolments (what each server said of itself) for Systems, and the monitor-enroll.js asset is served. */
 /** CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | POST /sources/remove removes one of the caller's own saved sources and keeps its history (sources.ts removeSource, P5-55b), bound to the existing records.write grant; /attention and /summary/systems pass the removed source ids so a removed installation is no longer named; each installation /telemetry returns says whether its source can be removed (a desk's own source cannot), so Systems offers Remove this source only where it works. */
 /** CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | The four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): GET /desks (the static desk catalog), GET /desks/<desk> (one desk's firing now, sources, rules, runbooks and settings; also each desk's Jarvis tool), POST /desks/<desk>/policy (its rule toggles), and the desks.js asset. Each desk route is its own path so authorization.yaml binds it to that desk's permission alone. */
 /** CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | Wire isolated recorded-window replay (RP-OPS-01), uploaded CloudEvents/OTLP batch replay (RP-OPS-02), and sandbox run clean-up into POST /replays while filtering discarded sandbox runs from reads. */
@@ -69,6 +71,8 @@ const external_evidence_1 = require("./external-evidence");
 const incident_trace_1 = require("./incident-trace");
 const desks_1 = require("./desks");
 const sources_1 = require("./sources");
+const enroll_1 = require("./enroll");
+const otlp_1 = require("./otlp");
 const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = require("node:crypto");
 const express_1 = require("express");
@@ -136,6 +140,8 @@ function createOperationsExperienceRoutes(ctx) {
         throw Error('Native Operations context required');
     ctx.authorization.registerResource('application', { authorize: async ({ actor, grant, fields }) => actor.isActive && Boolean(actor.sub?.trim()) && Boolean(actor.issuer?.trim()) && grant.scope === 'own' && fields.length === 0 });
     const router = (0, express_1.Router)();
+    // The OpenTelemetry route takes what the producer door passes on (256 KiB); every other route keeps 70 kb.
+    router.use((0, express_1.json)({ limit: otlp_1.OTLP_MAX_BYTES, type: req => String(req.url || '').startsWith(otlp_1.OTLP_PREFIX) && /json/i.test(String(req.headers['content-type'] || '')) }));
     router.use((0, express_1.json)({ limit: '70kb' }));
     router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
     const root = node_fs_1.default.realpathSync(ctx.appPackageDir);
@@ -149,21 +155,22 @@ function createOperationsExperienceRoutes(ctx) {
     };
     router.get('/app', asset('experience/index.html'));
     router.get('/evaluation', asset('deploy/evidence/recorded-bgl.json'));
-    for (const file of ['desks.js', 'computers.js', 'cloud-inventory.js', 'console.js', 'skin.css', 'runbooks.js', 'git-explorer.js', 'provisioning.js', 'swarms.js', 'live-cluster.js', 'git-promotion.js', 'command-helper.js', 'anomaly-controls.js', 'response.js', 'operator-workspace.js', 'incident-trace.js', 'external-evidence.js', 'pod-console.js', 'rca-library.js', 'resource-tree.js', 'ticket-sync.js', 'experience.js', 'experience.css', 'explorer.js', 'graph-space.js', 'lifecycle.js', 'processing-controls.js', 'telemetry-controls.js', 'policy-workbench.js'])
+    for (const file of ['desks.js', 'computers.js', 'cloud-inventory.js', 'console.js', 'skin.css', 'runbooks.js', 'git-explorer.js', 'provisioning.js', 'swarms.js', 'live-cluster.js', 'git-promotion.js', 'command-helper.js', 'anomaly-controls.js', 'response.js', 'operator-workspace.js', 'incident-trace.js', 'external-evidence.js', 'pod-console.js', 'rca-library.js', 'resource-tree.js', 'ticket-sync.js', 'experience.js', 'experience.css', 'explorer.js', 'graph-space.js', 'lifecycle.js', 'processing-controls.js', 'telemetry-controls.js', 'policy-workbench.js', 'monitor-enroll.js'])
         router.get('/assets/' + file, asset('experience/' + file));
     router.get('/assets/operations.css', asset('ui/operations.css'));
     router.get('/assets/replay-scenarios.js', asset('ui/replay-scenarios.js'));
     router.get('/assets/response-artifacts.js', asset('ui/response-artifacts.js'));
     router.get('/assets/anomaly-detector.js', asset('ui/anomaly-detector.js'));
+    // A 410 says gone in its own word (ADR-216: a removed source's delivery), so a producer reads why it must stop.
     const handle = fn => async (req, res) => { try {
         await fn(req, res);
     }
     catch (error) {
-        res.status(error.status || 503).json({ error: error.status ? error.message : 'Operations storage is unavailable. Retry after reconnecting.', ...(error.installHint ? { installHint: error.installHint } : {}) });
+        res.status(error.status || 503).json(error.status === 410 ? { gone: error.message } : { error: error.status ? error.message : 'Operations storage is unavailable. Retry after reconnecting.', ...(error.installHint ? { installHint: error.installHint } : {}) });
     } };
-    // A discarded sample-replay source or sandbox replay run is gone from every read.
-    const read = async (name) => { const rows = await ctx.store.query(name); if (!Array.isArray(rows))
-        throw Error('Malformed store response'); return ['sources', 'replays'].includes(name) ? rows.filter(r => !r?.discardedAt) : rows; };
+    // A discarded sample-replay source, removed source or sandbox replay run is gone from every read; withRemoved keeps them for the one route that must tell a removed source from an unknown one.
+    const read = async (name, withRemoved = false) => { const rows = await ctx.store.query(name); if (!Array.isArray(rows))
+        throw Error('Malformed store response'); return ['sources', 'replays'].includes(name) && !withRemoved ? rows.filter(r => !r?.discardedAt) : rows; };
     router.get('/records', handle(async (req, res) => {
         const [sources, events, inventory] = await Promise.all(['sources', 'events', 'inventory'].map(read));
         const intake = await (0, intake_1.intakeRecords)(ctx.pool, req.oidc?.user?.sub);
@@ -214,13 +221,17 @@ function createOperationsExperienceRoutes(ctx) {
     router.post('/runbooks/remove', handle(async (req, res) => res.json(await (0, runbooks_1.removeRunbook)(ctx.pool, req.oidc?.user?.sub, req.body))));
     router.get('/ingest/mapping/:sourceId', handle(async (req, res) => res.json(await (0, ingest_1.ingestMapping)(ctx.pool, req.oidc?.user?.sub, req.params.sourceId) || { mapped: false })));
     // Stopping the watch on a retired installation rides this route's existing write binding: a new route would change the catalog and suspend every assignment.
-    router.post('/ingest/mapping', handle(async (req, res) => res.json(req.body?.stopWatching === true ? await (0, ingest_1.stopWatching)(ctx.pool, req.oidc?.user?.sub, await read('sources'), req.body?.sourceId) : await (0, ingest_1.saveIngestMapping)(ctx.pool, req.oidc?.user?.sub, req.body, await read('sources')))));
-    router.post('/ingest/alertmanager/:sourceId', handle(async (req, res) => { const delivered = await (0, ingest_1.ingestAlertmanager)(ctx.pool, req.oidc?.user?.sub, await read('sources'), req.params.sourceId, req.body); res.status(delivered.results.some(r => r.status >= 500) ? 503 : 202).json(delivered); }));
+    router.post('/ingest/mapping', handle(async (req, res) => res.json(req.body?.stopWatching === true ? await (0, ingest_1.stopWatching)(ctx.pool, req.oidc?.user?.sub, await read('sources'), req.body?.sourceId, Date.now, { disconnect: req.body?.disconnect === true }) : await (0, ingest_1.saveIngestMapping)(ctx.pool, req.oidc?.user?.sub, req.body, await read('sources')))));
+    router.post('/ingest/alertmanager/:sourceId', handle(async (req, res) => { const delivered = await (0, ingest_1.ingestAlertmanager)(ctx.pool, req.oidc?.user?.sub, await read('sources', true), req.params.sourceId, req.body); res.status(delivered.results.some(r => r.status >= 500) ? 503 : 202).json(delivered); }));
+    // OTLP/HTTP answers an accepted export with an empty ExportMetricsServiceResponse; what was read stays in the logs, never in the collector's.
+    router.post('/ingest/otlp/:sourceId', handle(async (req, res) => { await (0, otlp_1.ingestOtlp)(ctx.pool, req.oidc?.user?.sub, await read('sources', true), req.params.sourceId, req.body, { path: req.headers['x-oshal-producer-path'] }); res.status(200).json({}); }));
     router.get('/topology/discovery', handle(async (req, res) => res.json(await (0, discovery_1.discoveryConfig)(ctx.pool, req.oidc?.user?.sub))));
     router.post('/topology/discovery', handle(async (req, res) => res.json(await (0, discovery_1.saveDiscoveryConfig)(ctx.pool, req.oidc?.user?.sub, req.body, (await read('sources')).map(s => s.id)))));
     router.post('/topology/correlate', handle(async (req, res) => res.json(await (0, topology_store_1.correlateDeliveries)(ctx.pool, req.oidc?.user?.sub, req.body))));
     const engine = (0, detection_engine_1.detectionEngine)(ctx);
     const tickEngine = (0, detection_engine_1.detectionEngine)(ctx, processing_tick_1.ENGINE_MS);
+    // ADR-216: the kernel runs this as the person approving a server's code and mints a token for the route it answers. The engine is held to the tick's deadline: the kernel ends a package call at 60 s.
+    router.post('/installations/enroll', handle(async (req, res) => res.json(await (0, enroll_1.prepareInstallation)(ctx, req.oidc?.user?.sub, req.body, { engine: tickEngine, define: sourceDefinition }))));
     router.get('/replays', handle(async (req, res) => res.json({ runs: (await read('replays')).sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 10), limit: 10 })));
     // Sample replay preflight, isolated window/batch replays (RP-OPS-01..02) and clean-up ride the existing replay write.
     router.post('/replays', handle(async (req, res) => res.json(req.body?.preflight ? await (0, replay_store_1.preflightReplay)(engine, req.oidc?.user?.sub, req.body.preflight) : req.body?.windowReplay ? await (0, replay_sandbox_1.windowReplay)(ctx, engine, req.oidc?.user?.sub, req.body.windowReplay) : req.body?.batchReplay ? await (0, replay_sandbox_1.batchReplay)(ctx, engine, req.oidc?.user?.sub, req.body.batchReplay) : req.body?.discardRun ? await (0, replay_sandbox_1.discardReplayRun)(ctx, req.oidc?.user?.sub, req.body.discardRun) : req.body?.discard ? await (0, replay_store_1.discardReplay)(ctx, req.oidc?.user?.sub, req.body.discard) : await (0, replay_store_1.completeReplay)(ctx, req.oidc?.user?.sub, req.body))));
@@ -229,7 +240,10 @@ function createOperationsExperienceRoutes(ctx) {
         installations = (await (0, installations_1.installationRecords)(ctx.pool, req.oidc?.user?.sub, sources, Number(req.query?.days) || 1)).map(row => ({ ...row, removable: !(0, desks_1.deskOf)(sources, row.sourceId) }));
         watch = await (0, installations_1.watchStatus)(ctx.pool, req.oidc?.user?.sub);
     }
-    catch { } res.json({ ...streams, installations, watch }); }));
+    catch { } let enrollments = null; try {
+        enrollments = await (0, enroll_1.enrollmentRecords)(ctx.store, sources);
+    }
+    catch { } res.json({ ...streams, installations, watch, enrollments }); }));
     router.post('/telemetry/configure', handle(async (req, res) => {
         const source = (await read('sources')).find(s => s.id === req.body?.sourceId);
         if (!source)

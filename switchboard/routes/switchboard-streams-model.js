@@ -19,6 +19,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams CMS core: 8-state editorial machine (draft/in_review/approved/scheduled/published/rejected/failed/archived) with an explicit action table; edit gating (draft+in_review only); platform canon (twitter→x) and per-platform limits; fail-closed new-post/patch/schedule validators; buildPublishPlan (any empty/over-limit publishable variant rejects the WHOLE publish; instagram/threads are honest 'skipped no_binding', never fake success); runPublishPlan (exactly one send per channel, independent failures); summarizePublish (≥1 ok = published, all-fail or skipped-only = failed).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: buildPublishPlan keeps a variant's attached image (mediaRef) on its plan entry and runPublishPlan hands it to the publisher, so a Streams post with an image publishes it (X uploads it) instead of posting the text alone.
  *
  * @module switchboard-streams-model
  */
@@ -236,7 +237,8 @@ function buildPublishPlan(variants) {
         const limit = exports.LIMITS[platform];
         if (body.length > limit)
             return { plan: [], skipped: [], error: `${platform} variant is ${body.length} chars (max ${limit})` };
-        plan.push({ platform, body });
+        // The variant's attached image travels with it to the publisher (never dropped on the way).
+        plan.push(v?.mediaRef ? { platform, body, mediaRef: v.mediaRef } : { platform, body });
     }
     return { plan, skipped };
 }
@@ -244,14 +246,14 @@ function buildPublishPlan(variants) {
  * @description Run the plan: exactly one publish call per channel, in plan order, each
  * channel INDEPENDENT — a rejection or thrown error on one never blocks the rest.
  * @param plan - The validated plan entries.
- * @param publishFn - (platform, body) → the publisher's result ({ ok, ... }).
+ * @param publishFn - (platform, body, mediaRef) → the publisher's result ({ ok, ... }).
  * @returns One result per plan entry, in order.
  */
 async function runPublishPlan(plan, publishFn) {
     const results = [];
     for (const entry of plan) {
         try {
-            const r = await publishFn(entry.platform, entry.body);
+            const r = await publishFn(entry.platform, entry.body, entry.mediaRef ?? null);
             results.push({ ...r, platform: entry.platform, ok: r?.ok === true });
         }
         catch (err) {

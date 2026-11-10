@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | AI Office 2.19.0 against the oshal design standard (docs/ux/design-standard.md §3.1, §3.3, §4.3, §4.4, §4.10, §5.1; Google Docs, Word and ONLYOFFICE, REFP CONVENTIONS §5.1). At 412x743 with real touch and at 1440x900: the page declares its contract and its work; with nothing saved it opens on a blank Word page with the caret on line 1 and no "create or open" box; typing lands in the document, then Export is the one primary and Save is never it; one app row (Back, the name and its menu, Undo, Redo, Save, Export); the phone's bottom bar is Format, Insert, Comment, Concierge and More (Slides first for a presentation); every pane opens as an opaque sheet that the phone's Back closes inside the editor; Format has Text and Paragraph tabs with the planned Highlight after Text colour; the planned controls (RP-OFF-01..07, RP-ALL-01) are greyed, aria-disabled, linked to their backlog ids and inert; Delete asks in the page; with a document saved the first screen is Your documents with one New, and an existing document opens to read on a phone with one Edit; on a desktop the Format | Concierge pane is docked and Zoom Fit keeps the whole slide in view whichever pane is open (the inspector used to float over the canvas and clip the slide's right third); a text selection raises Cut, Copy, Paste and Comment at the selection. Real routes over disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT. Red on store main d88f3ed9 (AI Office 2.18.8).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view and Share are now real controls in the same slots with zero RP-OFF-* planned attributes; RP-ALL-01 Summarize remains an inert planned control.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: verify the docked desktop Concierge composer stays pinned within 20px of the bottom of the right rail with zero outer rail/page scrollbar even when conversation messages scroll.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): verify the Concierge sheet renders the kernel's live Summarize prompt chip with zero duplicate greyed RP-ALL-01 placeholders.
  */
 import{test}from'node:test';import assert from'node:assert/strict';import{createRequire}from'node:module';
 import{fixture}from'./fixture.mjs';
@@ -42,7 +43,7 @@ test('phone: a blank Word page with the caret on line 1, one app row, the bottom
  assert.ok(Math.max(...rows.map(row=>row.top))<Math.min(...rows.map(row=>row.bottom)),'one row: '+JSON.stringify(rows));assert.ok(Math.max(...rows.map(row=>row.right))<=412,'nothing runs off the edge');
 });
 
-test('phone: Format, Insert, Concierge, More and Export open as opaque sheets that Back closes; RP-OFF-01..07 are live controls and RP-ALL-01 remains inert',{timeout:120000},async t=>{
+test('phone: Format, Insert, Concierge, More and Export open as opaque sheets that Back closes; RP-OFF-01..07 and Summarize are live controls with zero planned placeholders',{timeout:120000},async t=>{
  const{page}=await open(t,PHONE);
  await page.keyboard.type('Tabs');
  await page.locator('.office-bottom-bar').getByRole('button',{name:'Format',exact:true}).tap();await openLayer(page).waitFor();
@@ -61,9 +62,8 @@ test('phone: Format, Insert, Concierge, More and Export open as opaque sheets th
  await backStaysInApp(page);
  await page.locator('.office-bottom-bar').getByRole('button',{name:'Concierge',exact:true}).tap();await openLayer(page).waitFor();
  assert.equal(await page.locator('dialog.ds-layer[open] textarea').isVisible(),true,'the concierge composer is in the sheet');
- assert.equal(await page.locator('dialog.ds-layer[open] [data-ds-backlog="RP-ALL-01"]').isVisible(),true,'the planned Summarize prompt sits above it');
- const html=await page.evaluate(()=>document.body.innerHTML.length);const target=await page.locator('dialog.ds-layer[open] [data-ds-backlog="RP-ALL-01"]').boundingBox();await page.touchscreen.tap(target.x+target.width/2,target.y+target.height/2);await page.waitForTimeout(300);
- assert.equal(await openLayer(page).count(),1,'a planned control opens nothing and closes nothing');assert.equal(await page.evaluate(()=>document.body.innerHTML.length),html,'and changes nothing');
+ assert.equal(await page.locator('dialog.ds-layer[open] [data-ds-backlog="RP-ALL-01"]').count(),0,'no duplicate greyed RP-ALL-01 Summarize placeholder');
+ assert.equal(await page.locator('dialog.ds-layer[open] [data-concierge-prompt="Summarize"]').isVisible(),true,'the kernel live Summarize prompt sits above the composer');
  await backStaysInApp(page);
  await page.locator('#office-export').tap();await openLayer(page).waitFor();
  assert.equal(await page.locator('dialog.ds-layer[open] [data-ds-not-yet]').count(),0,'Export has no planned placeholders');

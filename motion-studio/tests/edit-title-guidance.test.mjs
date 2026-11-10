@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Both approval-held edit tools and the Motion editor persona say the optional title renames the project and is omitted unless the person asked for a rename. An installed concierge handoff run proposed an ordinary edit whose title was an action heading, which POST /projects/{id}/operations saves as the project's new title (title: body.title ?? base.title).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1 (RP-ALL-01): verify Motion Studio's editor foundation adapter does not inject a duplicate greyed Summarize planned chip above the kernel's live Concierge prompts.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,4 +38,10 @@ test('the Motion editor persona carries the same rule', () => {
 test('the operations route keeps the saved title when title is omitted', () => {
   const route = readFileSync(new URL('routes/application.mjs', root), 'utf8');
   assert.match(route, /title:body\.title\?\?base\.title/);
+});
+
+test('the motion editor foundation adapter does not inject a duplicate greyed RP-ALL-01 Summarize chip', () => {
+  const adapter = readFileSync(new URL('tools/editor-foundation-adapter.mjs', root), 'utf8');
+  assert.doesNotMatch(adapter, /backlog:\s*['"]RP-ALL-01['"]/);
+  assert.doesNotMatch(adapter, /motion-prompts/);
 });

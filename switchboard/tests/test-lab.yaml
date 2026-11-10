@@ -15,6 +15,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): register the Workspaces surface regression case.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): register the calendar, compose and streams P2 surface case.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7: register switchboard-ux-batch7 covering Stage merge into Compose, Threads merge into Inbox (?group=person), and Inbox/Today layout guards.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: register publish-media: an attached image is uploaded to X (chunked v2 upload on api.twitter.com) and the post names its media id; a refused upload posts nothing; Streams, Stage and the Calendar executor carry the image; the Composer offers Attach to posts.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -223,6 +224,35 @@ cases:
       - With no account connected Inbox withholds CHANNELS and WORKSPACES above the empty state, names #refreshBtn, and shares the Gmail, Outlook, Slack, LinkedIn, X, Facebook dot-and-word legend with Today.
       - Opening /api/switchboard/inbox?group=person selects By person and reads /api/switchboard/threads/items while /api/switchboard/threads redirects there and business-experience keeps resolving switchboard-threads.
       - Today hides #sbTopnav when framed, puts All apps first standalone with one named #refreshBtn, greets by local hour, and omits raw /utilities paths from Today and Threads route messages.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: publish-media
+    name: Publish with an attached image
+    purpose: >-
+      Verify publishing with media works: POST /compose/publish with a mediaRef uploads the image to X through the chunked v2 media upload
+      (initialize, appends under the kernel egress's 1 MiB body limit, finalize, STATUS while processing) on the X connector's API host and posts
+      with media.media_ids; X refusing the upload (no media.write) answers in words with nothing posted; Streams, Stage and the Calendar executor
+      hand the image to the same publisher; the Composer attaches the generated image and sends it.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-publish-media.test.js
+    expected:
+      - An attached PNG is uploaded in order (initialize, three appends, finalize) to api.twitter.com with no Authorization under the kernel, and POST /2/tweets carries media.media_ids with the uploaded id.
+      - While X reports pending or in_progress the upload's STATUS is polled before posting.
+      - X answering 403 to the upload returns x_media_not_allowed with "Reconnect X in Connections" and "Nothing was posted", and no post is sent.
+      - An unreadable reference, a non-image, a BMP and an image over 5 MB are refused before any request.
+      - Outside the kernel every upload step carries the Bearer token; LinkedIn and Facebook refuse an image with media_unsupported and send nothing.
+      - Streams' publish plan, Stage's fan-out and publishTo (the Calendar executor's path) carry the image to X.
+      - The Composer has Attach to posts and Remove, and Publish, Schedule and Send to all send the image as mediaRef for X.
     prerequisites:
       - runner:node-test
     sideEffects: none

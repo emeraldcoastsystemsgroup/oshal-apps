@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The season cut reaches the studio. Runs the SHIPPED compiled GET /series handler and the SHIPPED surface function: the season artifact is returned per series, a framework without the kernel's season columns still renders the panel instead of 502-ing, the read stays owner-scoped, and the surface distinguishes "on Drive" / "on the node" / "still stitching" / "no season" instead of implying a delivery that did not happen.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Pin actual database errors in the compiled handler and validate the shipped artifact-link helper alongside season rendering.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | 1.14.1 (RP-ALL-01): verify Video's editor foundation adapter does not inject a duplicate greyed Summarize planned chip above the kernel's live Concierge prompts.
  *
  * Node built-ins only; no install. Express and the framework's @/ modules are outside the claimed
  * boundary and are replaced by seam stubs (the store's compiled-route pattern); the pool is a
@@ -193,4 +194,10 @@ test('the surface reports the season honestly in all four states', () => {
 
   assert.match(seasonLine({ seasonDriveUrl: null, seasonPath: null, status: 'assembling' }), /stitching/);
   assert.equal(seasonLine({ seasonDriveUrl: null, seasonPath: null, status: 'done' }), '');
+});
+
+test('the video editor foundation adapter does not inject a duplicate greyed RP-ALL-01 Summarize chip', () => {
+  const adapter = fs.readFileSync(path.join(PKG, 'tools', 'editor', 'editor-foundation-adapter.mjs'), 'utf8');
+  assert.doesNotMatch(adapter, /backlog:\s*['"]RP-ALL-01['"]/);
+  assert.doesNotMatch(adapter, /video-prompts/);
 });

@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-216: a delivery to a removed source answers 410 {gone} (it was 404), so the kernel's producer door can end that source's producer tokens on its route's own answer; a source that never existed, and another person's, stay 404; a source saved again takes reports again. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved source (1.5.3, backlog P5-55b: the stopped fleet observer's six made-up installations stayed in Operations) through the real router, real SQL with forced owner policies and a store per person, as the kernel keeps one: the remove takes confirm: true and one way to name the source, another person cannot remove it, Sources, Systems' installations, the systems summary and the attention list drop it (the summaries were red before: they read every installation row), its alerts are refused, its installation row, day history and stream stay, a retry answers the first removal, saving the same definition again brings it back with its history, an ambiguous or unknown name is refused, and a desk's own source is refused and never offered. Also the tool and route bindings: held for approval, records.write, which a reader lacks. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
@@ -46,13 +47,18 @@ test('a removed source leaves every read, its alerts are refused, its history st
   const telemetry=(await alice.call('GET','/telemetry')).body;assert.deepEqual(telemetry.installations.map(i=>[i.sourceId,i.removable]),[[kept.id,true]],'Systems drops its installation');
   const systems=(await alice.call('GET','/summary/systems')).body;assert.doesNotMatch(systems.summary,/OSHAL SaaS/);assert.deepEqual(systems.installations.map(i=>i.name),[KEPT.name]);
   const silentAfter=(await alice.call('GET','/attention')).body.items.find(i=>i.label==='Monitored installations that stopped reporting');assert.equal(silentAfter.count,0,'the attention list no longer names it');
-  assert.equal((await alice.call('POST','/ingest/alertmanager/'+fleet.id,{alerts:[beat(FLEET.environment)]})).status,404,'its alerts are refused');
+  // ADR-216: 410, not 404, so the kernel's producer door can end the source's producer tokens on its own route's answer.
+  const gone=await alice.call('POST','/ingest/alertmanager/'+fleet.id,{alerts:[beat(FLEET.environment)]});
+  assert.deepEqual([gone.status,gone.body],[410,{gone:'This source was removed in Operations.'}],'its alerts are refused as gone');
+  assert.equal((await alice.call('POST','/ingest/alertmanager/'+'f'.repeat(64),{alerts:[beat(FLEET.environment)]})).status,404,'a source that never existed is still not found');
+  assert.equal((await bob.call('POST','/ingest/alertmanager/'+fleet.id,{alerts:[beat(FLEET.environment)]})).status,404,'another person learns nothing about it');
   const history=(await f.inspect.query("SELECT id FROM operations_processing_config WHERE user_sub='alice' AND (id=$1 OR id LIKE $2)",['installation:'+fleet.id,'installation-day:'+fleet.id+':%'])).rows;
   assert.ok(history.some(r=>r.id==='installation:'+fleet.id)&&history.some(r=>r.id.startsWith('installation-day:')),'its installation row and day history stay');
   assert.equal((await f.inspect.query("SELECT count(*)::int AS n FROM operations_streams WHERE user_sub='alice' AND id=$1",[fleet.id])).rows[0].n,1,'its stream stays');
   assert.equal((await alice.call('POST','/sources',FLEET)).status,201);
   const back=(await alice.call('GET','/telemetry')).body.installations.find(i=>i.sourceId===fleet.id);
   assert.ok(back&&back.reports>=1&&back.firstHeardAt,'saving the same source again brings it back with its history');
+  assert.equal((await alice.call('POST','/ingest/alertmanager/'+fleet.id,{alerts:[beat(FLEET.environment)]})).status,202,'and its reports are taken again');
  }finally{await alice.close();await bob.close();await f.close();}
 });
 

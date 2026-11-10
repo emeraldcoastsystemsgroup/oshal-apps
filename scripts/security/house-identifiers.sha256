@@ -1,0 +1,12 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | House identifiers removed from the store tree (open-work audit 2026-11-10): the household's LAN addresses, the street address and the owner's phone number. Salted digests only, in the kernel's scheme (oshal-kernel ops/test_no_personal_data.py, same salt and word normalization), so the list never names what it guards. Read by scripts/no-house-identifiers.test.mjs.
+#
+# <sha256 of SALT, 0x1f, the words joined by one space>  <word count>  <anchor>  <kind>
+aed0538185b1c7fb03d99a66f7f8a74dbdb4af3ab375ec78d26902a3eadacb03  4  1ef7  a person's street address
+522c90e5d1596c0ec41a92650e87d178f6565ec30dbbd7d40db841edf925a7b3  3  f27f  a person's phone number
+24cd48c2d3a6dd9c7c2f8bebcf5361fbf1f32eeba9f7cf5168757a8eb71a85b9  4  5a13  a house LAN address (TV)
+a2f504c77c6a6bdaf856a4e5d1d90b35eac30e5178e6e9cba8a634ce4e2c32ce  4  5a13  a house LAN address (phone)
+58e5d7f7e41e8f48c5ddc2d4c775e5b48eb844bc5435c10f1ad5282eed490cf4  4  5a13  a house LAN address (computer)

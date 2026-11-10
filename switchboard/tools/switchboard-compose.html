@@ -15,7 +15,12 @@
        refusals were written into the editable post text before.
      2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-stage merge): fold Stage into Compose
        with a 44px Same text everywhere switch and a confirmed Send to all chosen networks fan-out bar posting to
-       /api/switchboard/stage/broadcast. -->
+       /api/switchboard/stage/broadcast.
+     3 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: a generated image can be attached to the posts. "Attach to posts"
+       under the preview puts it in an Attached image bar (thumbnail, Remove) above the variants; each X card says it posts
+       with the image and Publish, Schedule and Send to all carry it as mediaRef, so the route uploads it to X with the post.
+       A network that posts text only here says "Posts without the image" on its card. The route answered 501 for any
+       media before, so the image could only be downloaded. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -207,6 +212,16 @@
   .imgnote { display:none; margin-top:12px; padding:11px 14px; border-radius:var(--r-sm); font-size:12.5px;
     background:color-mix(in srgb,var(--warn) 10%,transparent); border:1px solid color-mix(in srgb,var(--warn) 34%,transparent); color:var(--warn); }
   .imgnote.show { display:block; }
+  /* the attached image (0.7.0): one bar above the variants, the thumbnail and Remove */
+  .attachbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:18px 0 0; padding:10px 12px; border:1px solid var(--line);
+    border-radius:var(--r-md); background:var(--card); }
+  .attachbar[hidden] { display:none; }
+  .attachbar img { width:64px; height:64px; object-fit:cover; border-radius:var(--r-sm); border:1px solid var(--line); flex:none; }
+  .attachbar .awords { flex:1; min-width:160px; font-size:13px; line-height:1.4; color:var(--text); }
+  .attachbar .awords small { display:block; color:var(--muted); font-size:12px; }
+  .vcard .medianote { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:7px; }
+  .vcard .medianote[hidden] { display:none; }
+  .vcard .medianote img { width:28px; height:28px; object-fit:cover; border-radius:6px; border:1px solid var(--line); }
 
   /* variant cards */
   .grouplbl { font-size:11px; font-weight:650; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin:26px 2px 12px; }
@@ -351,10 +366,18 @@
       <div class="frame"><img id="imgOut" alt="Generated preview" /></div>
       <div class="pmeta">
         <span id="imgModel"></span>
+        <button type="button" class="btn sm" id="imgAttach"><svg><use href="#i-check"/></svg> Attach to posts</button>
         <a id="imgDl" download="switchboard-image.png"><svg style="width:13px;height:13px;vertical-align:-2px"><use href="#i-dl"/></svg> Download</a>
       </div>
     </div>
   </section>
+
+  <!-- the attached image: goes with the posts that can carry it (X) -->
+  <div class="attachbar" id="attachBar" role="group" aria-label="Attached image" hidden>
+    <img id="attachThumb" alt="Attached image" />
+    <span class="awords">Attached image<small id="attachWords">Goes with your X post when you publish, schedule or send it.</small></span>
+    <button type="button" class="btn sm" id="attachRemove"><svg><use href="#i-x"/></svg> Remove</button>
+  </div>
 
   <!-- variants -->
   <div id="variantsWrap"></div>
@@ -388,7 +411,7 @@
     threads:  { label:"Threads",   v:"--threads", icon:"#i-at" }
   };
 
-  var state = { workspace:"", targets:[], selected:{}, preview:false, sameText:false, sending:false };
+  var state = { workspace:"", targets:[], selected:{}, preview:false, sameText:false, sending:false, media:null };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
@@ -503,6 +526,7 @@
       +   '<span class="vmeter tnum'+(m.over?" over":"")+'">'+m.text+'</span>'
       + '</div>'
       + '<textarea>'+esc(v.text||"")+'</textarea>'
+      + (canPost ? '<div class="medianote" hidden></div>' : '')
       + '<div class="res"></div>'
       + '<div class="vbar">'
       +   '<button class="btn sm regen"><svg><use href="#i-refresh"/></svg> Regenerate</button>'
@@ -520,7 +544,30 @@
       + '</div>';
     wireCard(card, v.platform, v.limit);
     if(declined) showRes(card, false, declinedMessage(b.label, v.notice));
+    syncCardMedia(card);
     return card;
+  }
+  // ── the attached image ────────────────────────────────────────────────────────
+  // X uploads the image with the post; the other networks post text only here, and their cards say so.
+  function carriesMedia(platform){ return platform==="x"||platform==="twitter"; }
+  function mediaFor(platform){ return state.media && carriesMedia(platform) ? state.media : null; }
+  function syncCardMedia(card){
+    var note=card.querySelector(".medianote"); if(!note) return;
+    var platform=card.dataset.platform, label=(BRAND[platform]||{label:platform}).label;
+    note.hidden=!state.media;
+    note.innerHTML = !state.media ? "" : carriesMedia(platform)
+      ? '<img alt="" src="'+esc(state.media)+'"><span>Posts with the attached image</span>'
+      : '<span>Posts without the image: '+esc(label)+' takes text only here</span>';
+    var ask=card.querySelector(".confirmwrap .warnpub");
+    if(ask) ask.textContent = mediaFor(platform) ? "Post now with the image?" : "Post now?";
+  }
+  function setMedia(dataUrl){
+    state.media = dataUrl || null;
+    var bar=$("attachBar"); bar.hidden=!state.media;
+    if(state.media) $("attachThumb").src=state.media; else $("attachThumb").removeAttribute("src");
+    $("imgAttach").innerHTML = state.media ? '<svg><use href="#i-check"/></svg> Attached' : '<svg><use href="#i-check"/></svg> Attach to posts';
+    $("imgAttach").disabled = !!state.media && $("imgOut").src===state.media;
+    Array.prototype.forEach.call(document.querySelectorAll("#variantsWrap .vcard"), syncCardMedia);
   }
   function declinedMessage(label, notice){
     return "The bot did not write the "+label+" post"+(notice ? ": "+notice : ".")+" Write it yourself or Regenerate.";
@@ -565,7 +612,7 @@
     if(state.preview){ showRes(card,true,"Preview — would schedule for "+new Date(dt).toLocaleString()); return; }
     var iso=new Date(dt).toISOString();
     fetch("/api/switchboard/calendar/posts",{ method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" },
-      body:JSON.stringify({ platform:platform, body:text, scheduledAt:iso, status:"scheduled", workspaceId:state.workspace||null }) })
+      body:JSON.stringify({ platform:platform, body:text, scheduledAt:iso, status:"scheduled", workspaceId:state.workspace||null, mediaRef:mediaFor(platform) }) })
       .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
       .then(function(x){ showRes(card, x.ok, x.ok ? ("Scheduled for "+new Date(iso).toLocaleString()+" — see Calendar") : (x.j.message||x.j.error||"Schedule failed")); })
       .catch(function(){ showRes(card,false,"Schedule failed"); });
@@ -646,12 +693,13 @@
     if(!text){ showRes(card,false,"Nothing to publish"); return; }
     if(state.preview){ showRes(card,false,"Preview only — connect the account to publish"); return; }
     var doc=card.querySelector(".doconfirm"); doc.disabled=true; doc.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Posting…';
-    api("/publish",{ method:"POST", body:JSON.stringify({ platform:platform, text:text, workspaceId:state.workspace, confirm:true }) })
+    var media=mediaFor(platform);
+    api("/publish",{ method:"POST", body:JSON.stringify(media ? { platform:platform, text:text, workspaceId:state.workspace, mediaRef:media, confirm:true } : { platform:platform, text:text, workspaceId:state.workspace, confirm:true }) })
       .then(function(r){ return r.json().then(function(j){ return { status:r.status, j:j }; }); })
       .then(function(res){
         card.querySelector(".confirmwrap").classList.remove("show");
         card.querySelector(".pubbtn").classList.remove("hide");
-        if(res.j && res.j.ok){ showRes(card,true,"Published to "+(BRAND[platform]?BRAND[platform].label:platform)+(res.j.tweetId?" · "+res.j.tweetId:"")); }
+        if(res.j && res.j.ok){ showRes(card,true,"Published to "+(BRAND[platform]?BRAND[platform].label:platform)+(res.j.mediaId?" with the image":"")+(res.j.tweetId?" · "+res.j.tweetId:"")); }
         else { showRes(card,false, (res.j&&(res.j.message||res.j.error))||("Publish failed ("+res.status+")")); }
       })
       .catch(function(){ showRes(card,false,"Publish request failed"); })
@@ -671,6 +719,7 @@
       .then(function(res){
         if(res.j && res.j.image){
           $("imgOut").src=res.j.image; $("imgDl").href=res.j.image;
+          $("imgAttach").disabled=false; $("imgAttach").innerHTML='<svg><use href="#i-check"/></svg> '+(state.media?"Attach this one instead":"Attach to posts");
           $("imgModel").textContent = res.j.provider ? ("via "+res.j.provider+(res.j.model?" · "+res.j.model:"")) : "";
           $("imgPreview").classList.add("show");
         } else {
@@ -681,6 +730,9 @@
       .catch(function(){ $("imgNote").textContent="Image request failed."; $("imgNote").classList.add("show"); })
       .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Generate'; });
   });
+
+  $("imgAttach").addEventListener("click", function(){ var src=$("imgOut").getAttribute("src"); if(src) setMedia(src); });
+  $("attachRemove").addEventListener("click", function(){ setMedia(null); });
 
   // ── confirmed multi-network fan-out (merged from Stage) ─────────────────────
   function publishableCards(){
@@ -701,7 +753,7 @@
   function doBroadcast(){
     if(state.sending) return;
     var cs=publishableCards();
-    var posts=cs.map(function(c){ return { platform:c.dataset.platform, text:c.querySelector("textarea").value.trim() }; })
+    var posts=cs.map(function(c){ var p={ platform:c.dataset.platform, text:c.querySelector("textarea").value.trim() }, m=mediaFor(p.platform); if(m) p.mediaRef=m; return p; })
       .filter(function(p){ return !!p.text; });
     var sum=$("broadcastSummary");
     if(!posts.length){

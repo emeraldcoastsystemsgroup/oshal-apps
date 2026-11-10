@@ -1,3 +1,4 @@
+/** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Lane M2 (1.8.1): readGraph accepts removed source ids/URIs and filters out topology scans whose sourceId or source_uri is removed so removed sources do not leave stale or unknown assets in systemsSummary. */
 /** CHANGE LOG: bounded history | maintainer@emeraldcoastsystemsgroup.com | Reconstruct from each collection's scans since its latest complete scan, so periodic live discovery cannot outgrow the 200-scan budget (it would have within a day at five-minute intervals). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Journal immutable topology scans and persist correlation against exact event-time observations. */
 // @ts-nocheck
@@ -17,18 +18,22 @@ export async function saveScan(pool,owner,source,input){
   return {status:201,retry:false,scan};
  });
 }
-export async function readGraph(pool,owner,at=new Date().toISOString(),collectionId=null){
+export async function readGraph(pool,owner,at=new Date().toISOString(),collectionId=null,removed=new Set()){
+ if(at instanceof Set||Array.isArray(at)){removed=at;at=new Date().toISOString();}
+ const drop=removed instanceof Set?removed:new Set(Array.isArray(removed)?removed:[]);
  ownerRequired(owner);at=instant(at);if(collectionId!==null&&!clean(collectionId))fail(400,'Invalid collection scope.');
  const values=[owner,at];let sql="SELECT id, source_uri, collection_id, observed_at, record->>'complete' AS complete FROM operations_topology_scans WHERE user_sub=$1 AND observed_at<=$2";
  if(collectionId!==null){values.push(collectionId);sql+=' AND collection_id=$3';}
  // A complete scan replaces its collection, so only each collection's scans from its latest complete one onward
  // shape the graph; periodic live discovery would otherwise outgrow the reconstruction budget within a day.
- const index=(await pool.query(sql+' LIMIT 20001',values)).rows;if(index.length>20000)fail(503,'Topology history exceeds its index budget. Select a narrower collection scope.');
+ const rawIndex=(await pool.query(sql+' LIMIT 20001',values)).rows;if(rawIndex.length>20000)fail(503,'Topology history exceeds its index budget. Select a narrower collection scope.');
+ const index=drop.size?rawIndex.filter(row=>!drop.has(row.source_uri)):rawIndex;
  const time=v=>new Date(v).getTime(),key=row=>row.source_uri+'\u0000'+row.collection_id,base=new Map();
  for(const row of index)if(row.complete==='true'&&(!base.has(key(row))||time(row.observed_at)>base.get(key(row))))base.set(key(row),time(row.observed_at));
  const ids=index.filter(row=>!base.has(key(row))||time(row.observed_at)>=base.get(key(row))).map(row=>row.id);
  if(ids.length>200)fail(503,'Topology history exceeds the 200-scan reconstruction budget. Select a narrower collection scope.');
- const scans=ids.length?(await pool.query('SELECT record FROM operations_topology_scans WHERE user_sub=$1 AND id IN ('+ids.map((_,i)=>'$'+(i+2)).join(',')+')',[owner,...ids])).rows.map(r=>r.record):[];
+ const rawScans=ids.length?(await pool.query('SELECT record FROM operations_topology_scans WHERE user_sub=$1 AND id IN ('+ids.map((_,i)=>'$'+(i+2)).join(',')+')',[owner,...ids])).rows.map(r=>r.record):[];
+ const scans=drop.size?rawScans.filter(s=>!drop.has(s?.sourceId)&&!drop.has(s?.source)):rawScans;
  scans.sort((a,b)=>a.observedAt.localeCompare(b.observedAt)||a.id.localeCompare(b.id));
  const graph=reconstruct(scans,at);return {...graph,revision:hash(scans.map(s=>[s.id,s.payloadHash])),scanIds:scans.map(s=>s.id),limits:{scans:200,assets:2000,relationships:5000}};
 }

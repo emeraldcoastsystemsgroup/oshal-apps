@@ -129,15 +129,15 @@ function replyForBridgeCall(verb, args) {
   }
   if (verb === 'adb-pair') return { ok: true, verb: 'adb-pair', paired: args.address, adb: 'Successfully paired' };
   if (verb === 'adb-connect') {
-    if (args.host === '192.168.1.172') return { ok: true, verb: 'adb-connect', serial: '192.168.1.172:36007', adb: 'connected to 192.168.1.172:36007' };
+    if (args.host === '192.168.1.70') return { ok: true, verb: 'adb-connect', serial: '192.168.1.70:36007', adb: 'connected to 192.168.1.70:36007' };
     return { ok: false, error: 'not_found', message: 'No paired phone advertised Wireless debugging on this network.' };
   }
-  if (verb === 'adb-info' && args.serial === '192.168.1.172:36007') {
-    return { ok: true, verb: 'adb-info', serial: '192.168.1.172:36007', manufacturer: 'samsung', model: 'SM-S936U', android: '16', width: 1080, height: 2340 };
+  if (verb === 'adb-info' && args.serial === '192.168.1.70:36007') {
+    return { ok: true, verb: 'adb-info', serial: '192.168.1.70:36007', manufacturer: 'samsung', model: 'SM-S936U', android: '16', width: 1080, height: 2340 };
   }
   return {
     ok: true, verb: 'status', version: '1.4.1',
-    adb: { ready: true, version: '34.0.4', devices: [{ serial: '192.168.1.138:5555', state: 'device', model: 'AFTMD001', wireless: true }] },
+    adb: { ready: true, version: '34.0.4', devices: [{ serial: '192.168.1.60:5555', state: 'device', model: 'AFTMD001', wireless: true }] },
     bluetooth: { ready: true, adapter: { address: 'AA:BB:CC:DD:EE:FF', name: 'Spark' }, bluez: '5.72' },
     ble: { registered: true, advertising: true, phones: [{ address: '7C:4B:26:2B:6C:02', name: 'iPhone', paired: true, connected: true }] },
     mirror: { ready: true, version: '1.68.2', running: false, receiverName: 'OSHAL Mirror (Spark)', hasFrame: false, message: 'AirPlay ready' },
@@ -151,7 +151,7 @@ before(async () => {
   const actor = { issuer: 'https://issuer.example', sub: 'roger' };
   store.savePhone(db, actor, {
     name: 'Living Room Fire TV', platform: 'android', form: 'tv',
-    computerNodeId: SPARK.id, address: '192.168.1.138:5555'
+    computerNodeId: SPARK.id, address: '192.168.1.60:5555'
   });
   store.savePhone(db, actor, {
     name: "Roger's iPhone", platform: 'ios',
@@ -238,13 +238,13 @@ def fake_adb_shell(serial, cmd, timeout=20):
     return 0, '\\n'.join(lines), ''
 
 ctx = types.SimpleNamespace(**{**vars(b.MIRROR_CTX), 'adb_call': fake_adb_call, 'adb_shell': fake_adb_shell, 'run': lambda *a, **kw: (1, b'', b'')})
-r_drm = m.verb_adb_frame(ctx, {'serial': '192.168.1.138:5555'})
+r_drm = m.verb_adb_frame(ctx, {'serial': '192.168.1.60:5555'})
 assert r_drm['protectedSurface'] is True and r_drm['activePackage'] == 'com.amazon.firetv.youtube.tv'
 mode['val'] = 'sleep'
-r_sleep = m.verb_adb_frame(ctx, {'serial': '192.168.1.138:5555'})
+r_sleep = m.verb_adb_frame(ctx, {'serial': '192.168.1.60:5555'})
 assert r_sleep['protectedSurface'] is False and r_sleep['screenAsleep'] is True
 mode['val'] = 'home'
-r_home = m.verb_adb_frame(ctx, {'serial': '192.168.1.138:5555'})
+r_home = m.verb_adb_frame(ctx, {'serial': '192.168.1.60:5555'})
 assert r_home['protectedSurface'] is False and r_home['screenAsleep'] is False
 
 ble_src = open(${JSON.stringify(path.join(PKG, 'bridge', 'oshal_phone_ble.py'))}, encoding='utf-8').read()
@@ -267,32 +267,32 @@ import oshal_phone_mirror as m
 os.environ['OSHAL_AVAHI_BIN'] = 'avahi-browse'
 color = bytes.fromhex(${JSON.stringify(COLOR_PNG.toString('hex'))})
 avahi_out = '\\n'.join([
-    '=;wlP9s9;IPv4;tv;_adb-tls-connect._tcp;local;firetv.local;192.168.1.138;5555;"name=AFTMD001"',
-    '=;wlP9s9;IPv4;adb-R3GY;_adb-tls-connect._tcp;local;Android.local;192.168.1.172;36007;"name=SM-S936U"',
-    '=;enP7s7;IPv4;adb-R3GY;_adb-tls-connect._tcp;local;Android.local;192.168.1.172;36007;"name=SM-S936U"',
+    '=;wlP9s9;IPv4;tv;_adb-tls-connect._tcp;local;firetv.local;192.168.1.60;5555;"name=AFTMD001"',
+    '=;wlP9s9;IPv4;adb-R3GY;_adb-tls-connect._tcp;local;Android.local;192.168.1.70;36007;"name=SM-S936U"',
+    '=;enP7s7;IPv4;adb-R3GY;_adb-tls-connect._tcp;local;Android.local;192.168.1.70;36007;"name=SM-S936U"',
 ])
 b.subprocess.run = lambda *a, **kw: types.SimpleNamespace(returncode=0, stdout=avahi_out, stderr='')
-b.list_devices = lambda: ([{'serial': '192.168.1.138:5555', 'state': 'device', 'model': 'AFTMD001', 'wireless': True}], 0)
+b.list_devices = lambda: ([{'serial': '192.168.1.60:5555', 'state': 'device', 'model': 'AFTMD001', 'wireless': True}], 0)
 calls = []
 def fake_adb(args, timeout=30, binary=False, data=None):
     calls.append(list(args))
     if args == ['mdns', 'services']:
         return 0, 'List of discovered mdns services\\n', ''
-    if args[0] == 'connect' and args[1] == '192.168.1.172:36007':
-        return 0, 'connected to 192.168.1.172:36007\\n', ''
-    if args[:2] == ['-s', '192.168.1.172:45021']:
-        return 1, (b'' if binary else ''), "adb: device '192.168.1.172:45021' not found"
-    if args[:2] == ['-s', '192.168.1.172:36007'] and args[-2:] == ['screencap', '-p']:
+    if args[0] == 'connect' and args[1] == '192.168.1.70:36007':
+        return 0, 'connected to 192.168.1.70:36007\\n', ''
+    if args[:2] == ['-s', '192.168.1.70:45021']:
+        return 1, (b'' if binary else ''), "adb: device '192.168.1.70:45021' not found"
+    if args[:2] == ['-s', '192.168.1.70:36007'] and args[-2:] == ['screencap', '-p']:
         return 0, color, ''
     return 0, (b'' if binary else ''), ''
 
 b.adb_call = fake_adb
-assert b.discover_connect_address('192.168.1.172') == '192.168.1.172:36007'
-assert b.discover_connect_address(None) == '192.168.1.172:36007'
+assert b.discover_connect_address('192.168.1.70') == '192.168.1.70:36007'
+assert b.discover_connect_address(None) == '192.168.1.70:36007'
 ctx = types.SimpleNamespace(**{**vars(b.MIRROR_CTX), 'adb_call': fake_adb, 'adb_device_call': b.adb_device_call, 'run': lambda *a, **kw: (1, b'', b'')})
-fr = m.verb_adb_frame(ctx, {'serial': '192.168.1.172:45021'})
-assert fr['ok'] is True and fr['serial'] == '192.168.1.172:36007'
-assert ['connect', '192.168.1.172:36007'] in calls
+fr = m.verb_adb_frame(ctx, {'serial': '192.168.1.70:45021'})
+assert fr['ok'] is True and fr['serial'] == '192.168.1.70:36007'
+assert ['connect', '192.168.1.70:36007'] in calls
 print(json.dumps({'ok': True}))
 `;
   const out = JSON.parse(execFileSync('python3', ['-B', '-c', pyScript], { encoding: 'utf8' }).trim());
@@ -304,18 +304,18 @@ test('SQLite store updates rotated Android Wireless Debugging port in place with
   const actor = { issuer: 'https://issuer.example', sub: 'roger-rot' };
   const first = store.savePhone(rotDb, actor, {
     name: 'samsung SM-S936U', platform: 'android', form: 'phone',
-    computerNodeId: SPARK.id, address: '192.168.1.172:45021'
+    computerNodeId: SPARK.id, address: '192.168.1.70:45021'
   });
   assert.equal(first.created, true);
   const second = store.savePhone(rotDb, actor, {
     name: 'samsung SM-S936U', platform: 'android', form: 'phone',
-    computerNodeId: SPARK.id, address: '192.168.1.172:36007'
+    computerNodeId: SPARK.id, address: '192.168.1.70:36007'
   });
   assert.equal(second.created, false);
   assert.equal(second.phone.id, first.phone.id);
-  assert.equal(second.phone.address, '192.168.1.172:36007');
-  const updated = store.updatePhone(rotDb, actor, first.phone.id, { address: '192.168.1.172:41535' });
-  assert.equal(updated.address, '192.168.1.172:41535');
+  assert.equal(second.phone.address, '192.168.1.70:36007');
+  const updated = store.updatePhone(rotDb, actor, first.phone.id, { address: '192.168.1.70:41535' });
+  assert.equal(updated.address, '192.168.1.70:41535');
   assert.equal(store.listPhones(rotDb, actor).length, 1);
 });
 
@@ -337,7 +337,7 @@ test('computer-link supports pre-mirror touchpad gestures, protectedSurface fram
     ok: true, id: 'f1', sha256: sha, mime: 'image/png', bytes: BLACK_PNG.length, chunks: 1, index: 0,
     data: BLACK_PNG.toString('base64'), deviceWidth: 1920, deviceHeight: 1080,
     protectedSurface: true, screenAsleep: false, activePackage: 'com.amazon.firetv.youtube.tv', activeActivity: 'MainActivity'
-  }), '192.168.1.138:5555', 720, 'adb-frame');
+  }), '192.168.1.60:5555', 720, 'adb-frame');
   assert.equal(frame.protectedSurface, true);
   assert.equal(frame.activePackage, 'com.amazon.firetv.youtube.tv');
 
@@ -467,7 +467,7 @@ test('Add a device shows iPhone vs Android guide, Samsung Auto Blocker pairing s
   await page.waitForFunction(() => (document.getElementById('androidStatus')?.textContent || '').includes('Connect your Android phone'));
   assert.equal(state.bridgeCalls.some((c) => c.verb === 'adb-install-apk'), false, 'never installs Fire TV APK onto already-connected Fire TV');
 
-  await page.locator('#connectAddress').fill('192.168.1.172');
+  await page.locator('#connectAddress').fill('192.168.1.70');
   await page.locator('#pushAndroidApkBtn').click();
   await page.waitForFunction(() => (document.getElementById('androidStatus')?.textContent || '').includes('No Android Orbit APK is staged'));
   assert.equal(state.bridgeCalls.some((c) => c.verb === 'adb-install-apk'), false, 'never substitutes Fire TV APK when Orbit APK is absent');
@@ -479,15 +479,15 @@ test('Add a device shows iPhone vs Android guide, Samsung Auto Blocker pairing s
   await page.waitForFunction(() => (document.getElementById('androidStatus')?.textContent || '').includes('192.168.1.42:_____'));
   assert.equal(await page.locator('#connectAddress').inputValue(), '192.168.1.42:');
   assert.ok(state.bridgeCalls.some((c) => c.verb === 'adb-connect' && c.args.host === '192.168.1.42'));
-  assert.equal(state.bridgeCalls.some((c) => c.verb === 'adb-info' && c.args.serial === '192.168.1.138:5555'), false, 'must never grab already-connected Fire TV');
+  assert.equal(state.bridgeCalls.some((c) => c.verb === 'adb-info' && c.args.serial === '192.168.1.60:5555'), false, 'must never grab already-connected Fire TV');
 
   state.bridgeCalls = [];
   await page.locator('#connectAddress').fill('');
-  await page.locator('#pairAddress').fill('192.168.1.172:37123');
+  await page.locator('#pairAddress').fill('192.168.1.70:37123');
   await page.locator('#pairCode').fill('654321');
   await page.locator('#pairSend').click();
   await page.waitForFunction(() => (document.getElementById('stageTitle')?.textContent || '') === 'samsung SM-S936U');
-  assert.ok(state.bridgeCalls.some((c) => c.verb === 'adb-connect' && c.args.host === '192.168.1.172'));
-  assert.ok(state.bridgeCalls.some((c) => c.verb === 'adb-info' && c.args.serial === '192.168.1.172:36007'));
+  assert.ok(state.bridgeCalls.some((c) => c.verb === 'adb-connect' && c.args.host === '192.168.1.70'));
+  assert.ok(state.bridgeCalls.some((c) => c.verb === 'adb-info' && c.args.serial === '192.168.1.70:36007'));
   await page.close();
 });

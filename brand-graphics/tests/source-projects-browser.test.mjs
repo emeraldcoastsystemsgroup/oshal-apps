@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com | Actual Chromium -> owned typed HTTP -> disposable FORCE-RLS SQL. Provider/legacy evidence reads are named seams.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Sort GET source-project JSON keys like native oshald BTreeMap serialization so reopen never marks clean sources dirty.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | The shared editor no longer draws Properties while the inspector is on screen (desktop F12), so the proof presses it only when it is shown.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 Comments (RP-BRG-06) through the same real boundary: the page's Comments sheet posts a thread on a scene, a reply and Resolve; each lands in the owner-scoped SQL revision (FORCE RLS, non-superuser role); Undo does not take a posted comment back; a reload reopens the source with its resolved thread and reply; the assistant's add-comment operation goes through the typed edits route; another owner's key reads nothing. Red on 1.3.2 (no Comments control, and the model refuses a comments field).
  */
 import{test,before,after}from'node:test';import assert from'node:assert/strict';import{randomUUID}from'node:crypto';import{fileURLToPath}from'node:url';import{resolve}from'node:path';
 import{fixture,dependencies}from'./fixtures/editor-source-postgres.fixture.mjs';
@@ -30,4 +31,37 @@ test('saved selectable scenes reopen from SQL and assistant edits preserve concu
  await edit(1,'Assistant source edit');await page.evaluate(()=>window.__oshalDocumentSession.refresh());assert.equal(await page.locator('[data-editor-property="sceneText"]').inputValue(),'Assistant source edit');await page.getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.locator('[data-editor-property="sceneText"]').inputValue(),'Focused scene text saved without blur');await page.getByRole('button',{name:'Redo',exact:true}).click();assert.equal(await page.locator('[data-editor-property="sceneText"]').inputValue(),'Assistant source edit');
  await page.locator('#notes').fill('Keep my concurrent browser draft');await edit(2,'Second assistant edit');const refusal=await page.evaluate(async()=>{try{await window.__oshalDocumentSession.refresh();return'';}catch(e){return e.message;}});assert.match(refusal,/while you were editing/);assert.equal(await page.locator('#notes').inputValue(),'Keep my concurrent browser draft');
  allowed=false;const denied=await context.request.get(origin+'/api/'+APP+'/source-projects/'+id);assert.equal(denied.status(),403);assert.equal(generations,0);assert.deepEqual(errors,[]);await saveReviewScreens(page,'brand-graphics');
+});
+
+test('comments on a scene, with a reply and Resolve, are saved in the owner-scoped SQL revisions and reopen from SQL',async t=>{
+ const{pool,admin}=await fixture(t,PREFIX),actor={issuer:'https://fixture.example',sub:'comment-person',principalId:'comment-principal',tenantIds:['comment-tenant'],isActive:true};
+ const ctx={appPackageDir:root,pool,authorization:{currentActor:()=>actor,registerResource(){},authorize:async({permission})=>({allowed:['app.open','source.read','source.create','source.change','source.delete'].includes(permission)})},intent:async name=>{assert.equal(name,'auth.application');return{app:APP,roles:['source-editor'],principal:{id:actor.principalId,issuer:actor.issuer,subject:actor.sub,tenant:actor.tenantIds[0],state:'active'}};}};
+ const app=express();app.use('/api/'+APP,createSourceProjectRoutes(ctx));app.get('/api/'+APP+'/review',(_q,res)=>res.sendFile(resolve(root,'tools/review.html')));app.get('/api/'+APP+'/home-summary',(_q,res)=>res.json({metrics:[],items:[]}));app.get('/api/vids/jobs',(_q,res)=>res.json({workers:[],jobs:[]}));
+ app.use('/shared/ui',express.static(resolve(platform,'src/shared/ui')));app.use('/cockpit',express.static(resolve(platform,'src/pages/cockpit')));app.get('/api/swarm/apps/home-plan',(_q,res)=>res.json({apps:[]}));app.use((_q,res)=>res.status(404).json({error:'outside_source_fixture'}));
+ const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));const context=await browser.newContext({viewport:{width:412,height:915},isMobile:true,hasTouch:true});t.after(async()=>{await context.close();server.closeAllConnections();await new Promise(done=>server.close(done));});
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(8000);const origin='http://127.0.0.1:'+server.address().port;await page.goto(origin+'/api/'+APP+'/review');
+ const latest=async()=>(await admin.query('SELECT * FROM '+PREFIX+'_revisions ORDER BY revision DESC LIMIT 1')).rows[0];
+ const saved=revision=>page.locator('#status').filter({hasText:'Saved source revision '+revision+'.'}).waitFor({state:'attached'});
+ await page.locator('#title').fill('Commented storyboard');await page.locator('#notes').fill('Brief with comments');await page.getByRole('button',{name:'Add scene',exact:true}).click();
+ // On a phone Comment is in ⋯ More; the chosen scene is the comment's target.
+ const openComments=async()=>{await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('menuitem',{name:'Comments',exact:true}).click();const sheet=page.locator('dialog.source-comments');await sheet.waitFor();return sheet;};
+ let sheet=await openComments();assert.match(await sheet.locator('.source-comment-scope').innerText(),/On scene 1, Scene 1/);
+ await sheet.getByLabel('Add a comment',{exact:true}).fill('Hold the logo one beat longer');await sheet.getByRole('button',{name:'Comment',exact:true}).click();await saved(1);await sheet.locator('.source-comment').first().waitFor();
+ let row=await latest();assert.equal(row.revision,1);assert.equal(row.model.comments.length,1);const thread=row.model.comments[0],scene=row.model.scenes[0].id;assert.equal(thread.target,scene);assert.equal(thread.text,'Hold the logo one beat longer');assert.equal(thread.resolved,false);
+ await sheet.getByRole('button',{name:'Reply',exact:true}).click();await sheet.getByLabel('Reply to this comment',{exact:true}).fill('Done in scene 1');await sheet.locator('.source-comment-form').filter({has:page.getByLabel('Reply to this comment')}).getByRole('button',{name:'Reply',exact:true}).click();await saved(2);
+ await sheet.locator('.source-comment-reply').filter({hasText:'Done in scene 1'}).waitFor();row=await latest();assert.equal(row.revision,2);assert.equal(row.model.comments[0].replies[0].text,'Done in scene 1');
+ await sheet.getByRole('button',{name:'Resolve',exact:true}).click();await saved(3);await sheet.locator('.source-comment-resolved summary').filter({hasText:'Resolved (1)'}).waitFor();row=await latest();assert.equal(row.revision,3);assert.equal(row.model.comments[0].resolved,true);
+ await sheet.getByRole('button',{name:'Close',exact:true}).click();await sheet.waitFor({state:'detached'});
+ // Undo steps back over Add scene (a snapshot taken before any comment existed): the scene goes, the posted comment stays.
+ await page.getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await page.locator('.source-scene').count(),0);
+ await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('menuitem',{name:'Save source',exact:true}).click();await saved(4);
+ row=await latest();assert.equal(row.model.scenes.length,0);assert.equal(row.model.comments.length,1,'Undo never takes a posted comment back');assert.equal(row.model.comments[0].resolved,true);
+ // The assistant's typed operation through the real edits route, at the current revision.
+ const added=await context.request.post(origin+'/api/'+APP+'/source-projects/'+row.project_id+'/edits',{data:{baseRevision:row.revision,requestKey:randomUUID(),operations:[{op:'add-comment',comment:{id:randomUUID(),target:'brief',text:'Assistant note on the brief',at:new Date().toISOString()}}]}});assert.equal(added.status(),200,await added.text());
+ await page.reload();await page.locator('.ef-tools').getByRole('button',{name:'Saved',exact:true}).click();await page.getByRole('button',{name:/Commented storyboard · revision 5/}).click();await page.locator('#status').filter({hasText:/Opened source revision/}).waitFor();
+ sheet=await openComments();assert.match(await sheet.locator('.source-comment-scope').innerText(),/On the brief/);
+ await sheet.locator('.source-comment').filter({hasText:'Assistant note on the brief'}).waitFor();await sheet.locator('.source-comment-resolved summary').click();
+ const resolved=sheet.locator('.source-comment-resolved .source-comment');assert.match(await resolved.innerText(),/Hold the logo one beat longer[\s\S]*on a removed scene[\s\S]*Done in scene 1/);
+ const other=await pool.connect();try{await other.query('BEGIN READ ONLY');await other.query("SELECT set_config('"+PREFIX+".owner_key',$1,true)",['another-owner']);assert.equal((await other.query('SELECT count(*)::int AS n FROM '+PREFIX+'_revisions')).rows[0].n,0,'another owner reads no comment');await other.query('ROLLBACK');}finally{other.release();}
+ assert.deepEqual(errors,[]);
 });

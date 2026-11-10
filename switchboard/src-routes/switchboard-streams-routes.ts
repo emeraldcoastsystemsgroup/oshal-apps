@@ -24,6 +24,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams pane: posts/variants/revisions stores (lazy DDL + owner-RLS + import-dedup unique), list-with-counts + CRUD + revision snapshots on every edit, the 8-state transition endpoint, schedule (future-only), confirm-gated publish with a claim CAS (double-fire cannot double-post), per-channel results recorded on variants, honest 'skipped no_binding' for instagram/threads, idempotent imports from the LinkedIn assistant + Content Studio stores, and the opt-in due-post executor riding the same publish core as the route.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | DELETE /posts/:id {confirm:true}: the owner removes a post with its variants and revisions (live 2026-10-11 a draft could only be archived, so test posts piled up in Archived). A scheduled post or one being published right now is refused with the step to take first.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: the publish core passes each variant's attached image (mediaRef) to publishTo, which uploads it to X with the post; it was read and then dropped.
  *
  * @module switchboard-streams-routes
  */
@@ -519,7 +520,7 @@ export async function publishPostCore(ctx: AppContext, sub: string, postId: stri
     await ctx.pool.query('UPDATE oshal_switchboard_stream_posts SET publish_claimed_at = NULL WHERE user_sub = $1 AND post_id = $2', [sub, postId]);
     return { code: 400, body: { error: planned.error } };
   }
-  const results = await runPublishPlan(planned.plan, (platform, text) => publishTo(ctx, sub, platform, text));
+  const results = await runPublishPlan(planned.plan, (platform, text, mediaRef) => publishTo(ctx, sub, platform, text, mediaRef));
   await recordChannelOutcomes(ctx.pool, sub, postId, results, planned.skipped);
   const summary = summarizePublish(results, planned.skipped);
   await ctx.pool.query(

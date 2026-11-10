@@ -1,3 +1,4 @@
+/* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): an installation that reports only through an OpenTelemetry Collector (POST /ingest/otlp/:sourceId) goes silent ten minutes after its last delivery, InstallationSilent is raised once from its last report, and its next delivery resolves the silence, through the same watch and the same row as a Prometheus heartbeat. Red on 1.6.0: there was no OTLP route to report through. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Guard what a fifth review proved (2026-11-04): a blank or unjudgeable list holds, a heartbeat repeated after Prometheus died clears nothing, a resolve evaluated ahead of its firing is still told, the newest undecided rows are named, and a failed read of the mark does not blank it. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Guard what a fourth review proved on the real stack (2026-11-04): only the worker's decisions reach the phone, an engine outage still names a critical once, a resolve is believed by what the heartbeat lists from a settled Prometheus, the watch clears what no resolve ever came for, a stop tells nobody anything cleared, a message fits the shortest rail, and each failing step is its own news. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard what a third review proved on the real stack (2026-11-04): the phone message is owed until the rail takes it and says the latest word, nothing after the watch can hold up an alarm, a timed-out alert is not a recovery, a blip that becomes an outage gets its evidence, a tick answers in time, and Jarvis says when the watch has stopped. */
@@ -8,6 +9,7 @@ const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),
 const {hash}=require('../routes/intake.js'),{publishPolicy,promoteRefired}=require('../routes/pipeline.js'),{processingTick,ENGINE_MS}=require('../routes/processing-tick.js'),{processingConfig,saveProcessingConfig,processPending}=require('../routes/processing-worker.js');
 const {capturePendingEvidence}=require('../routes/evidence-worker.js'),{prepareInvestigation}=require('../routes/investigations.js');
 const {saveIngestMapping,ingestAlertmanager,watchInstallations,stopWatching,clearNotices}=require('../routes/ingest.js');
+const {ingestOtlp}=require('../routes/otlp.js');
 const {readingsOf,assess,installationRecords,watchStatus}=require('../routes/installations.js'),{attentionSummary,systemsSummary}=require('../routes/attention.js');
 const {readGraph}=require('../routes/topology-store.js'),{configureStream,ingestTelemetry}=require('../routes/telemetry-store.js');
 
@@ -550,3 +552,24 @@ test('a failed read of the mark in a tick past its time does not blank the mark'
  const tick=await processingTick(ctx,slow,owner,read,800);gate.fail=null;assert.equal(tick.body.correlation.deferred,true);
  const after=await mark();assert.equal(after.error,undefined,'no fallback was saved as the mark');assert.ok(after.through>=before.through);assert.match(told.join(' '),/ContainerMissing \(kernel\)/,'and the alert was told');
 }));
+
+/** One OpenTelemetry Collector delivery: a host's disk and memory, as hostmetrics sends them in OTLP/JSON. */
+const otlpBody=()=>({resourceMetrics:[{resource:{attributes:[{key:'host.name',value:{stringValue:'gsq-test'}}]},scopeMetrics:[{metrics:[
+ {name:'system.filesystem.utilization',gauge:{dataPoints:[{attributes:[{key:'mountpoint',value:{stringValue:'/'}}],asDouble:0.5}]}},
+ {name:'system.memory.utilization',gauge:{dataPoints:[{attributes:[{key:'state',value:{stringValue:'used'}}],asDouble:0.4}]}}]}]}]});
+test('an installation that reports only through OpenTelemetry goes silent, is raised once, and its next delivery ends the silence',async()=>{
+ const x=await world();
+ const otlp=at=>ingestOtlp(x.pool,x.owner,x.sources,x.source.id,otlpBody(),{clock:()=>at});
+ try{
+  assert.equal((await otlp(T0)).heartbeat.recorded,true);
+  assert.deepEqual([(await x.view(T0)).state,(await x.view(T0)).checks.find(c=>c.id==='disk').reading],['reporting','50% used']);
+  for(let m=1;m<10;m++)assert.deepEqual((await x.watch(T0+m*MIN)).silenced,[],'not before ten minutes');
+  assert.deepEqual((await x.watch(T0+10*MIN)).silenced,['gsq-test'],'silent ten minutes after its last delivery');
+  assert.equal((await x.view(T0+10*MIN)).state,'silent');
+  const [raised]=await silences(x,'firing');assert.equal(raised.normalized.time,iso(T0),'from its last report');
+  assert.deepEqual((await x.watch(T0+11*MIN)).silenced,[],'once');
+  const back=await otlp(T0+14*MIN);assert.equal(back.heartbeat.silence.minutes,14,'its next delivery ends the silence');
+  assert.equal((await x.view(T0+14*MIN)).state,'reporting');
+  const [resolved]=await silences(x,'resolved');assert.equal(resolved.normalized.time,iso(T0+14*MIN-1),'timed by the delivery that ended it');
+ }finally{await x.close();}
+});

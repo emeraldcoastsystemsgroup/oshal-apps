@@ -1,3 +1,4 @@
+/** CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): a heartbeat may say which checks its producer reads (annotations reports, check ids separated by spaces; the OpenTelemetry route sends it): every other check reads "Not reported", unknown rather than a problem, and the overall health is judged on the checks it reads, so a collector that has no backup, Postgres or container facts is not called degraded or unknown for them. Forgetting an installation also forgets the OpenTelemetry route's alert clocks, and Disconnect forgets the card while keeping its chart history and readings (keepHistory), so the same name enrolled again brings them back. */
 /** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | installationStanding leaves out the installations of sources the person removed (sources.ts removeSource, P5-55b): the attention and systems summaries read every installation row rather than the saved sources, so a removed source still showed as stopped reporting to Jarvis and on the attention list. Its rows and history stay in place. */
 /** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | A heartbeat may carry the probe's threshold file (annotations thresholds, a JSON object of at most 4 KiB, and thresholds_file, its path on the host): the row keeps the last snapshot with when it was reported, and the desk's Settings shows it read-only. The package reads no host file; a beat without the annotation keeps the earlier snapshot. */
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fifth review proved (2026-11-04). A list that is present but blank means Prometheus has not settled or cannot store, because a settled one always lists its own heartbeat, so it holds; only a beat with no list at all falls back. An item the list cannot carry makes the whole list unjudgeable rather than a false all-clear. Prometheus must be seen moving: its uptime has to change on this side, so a heartbeat Alertmanager repeats after Prometheus died cannot clear anything. An alert on a row not reporting is not called clearing, so attention still counts it. */
@@ -64,8 +65,11 @@ export function readingsOf(annotations){
  for(const key of NUMBERS){const raw=a[key];if(typeof raw!=='string'||!raw.trim())continue;const n=Number(raw.trim());if(Number.isFinite(n))values[key]=n;}
  const containers=pairs(a.containers);
  if(Object.keys(containers).length)values.containers_running=Object.values(containers).filter(v=>v===1).length;
- return {values,containers,targets:pairs(a.targets),alerts:alertList(a.alerts),host:bounded(a.host,128),url:origin(a.site_url)};
+ return {values,containers,targets:pairs(a.targets),alerts:alertList(a.alerts),host:bounded(a.host,128),url:origin(a.site_url),...(typeof a.reports==='string'?{reports:reportedChecks(a.reports)}:{})};
 }
+/** The checks a heartbeat says its producer reads: known check ids only, each once. */
+const CHECK_IDS=['site','kernel','postgres','containers','disk','memory','processor','backup','offsite','updates','monitoring'];
+function reportedChecks(raw){return [...new Set(raw.trim().split(/\s+/).filter(id=>CHECK_IDS.includes(id)))];}
 const THRESHOLDS_MAX=4096;
 /** @description The probe's threshold file as one heartbeat reported it: the thresholds annotation parsed as a JSON object (at most 4 KiB, scalars and one level of objects, no hostile keys) and thresholds_file as the path it was read from. Anything else is null: the package never reads a host file and never invents a threshold. @param annotations The alert's annotations. @param at When the beat arrived. @returns {reportedAt,file,body} or null. */
 export function thresholdsOf(annotations,at){
@@ -101,7 +105,11 @@ export function assess(readings){
  add('updates','Updates and restarts',!known('reboot_required')&&!known('updates_pending')?'unknown':waiting.length?'warn':'ok',!known('reboot_required')&&!known('updates_pending')?'Not reported':[...waiting,other>0?Math.round(other)+' other updates waiting':null].filter(Boolean).join(', ')||'Nothing waiting');
  const targets=readings?.targets||{},jobs=Object.keys(targets),blind=jobs.filter(job=>targets[job]!==1);
  add('monitoring','Its own monitoring',!jobs.length?'unknown':blind.length?'bad':'ok',!jobs.length?'Not reported':blind.length?'Cannot read '+blind.join(', ')+': those checks are blind':'Reads all '+jobs.length+' of its sources');
- return {health:checks.some(x=>x.state==='bad')?'degraded':checks.every(x=>x.state==='unknown')||checks.some(x=>x.state==='unknown'&&CORE.includes(x.id))?'unknown':'healthy',checks};
+ // A producer that says what it reads (the OpenTelemetry route) is judged on that: the rest is not reported, not missing.
+ const reads=Array.isArray(readings?.reports)?new Set(readings.reports):null;
+ if(reads)for(const c of checks)if(!reads.has(c.id))Object.assign(c,{state:'unknown',reading:'Not reported by its collector'});
+ const core=c=>CORE.includes(c.id)&&(!reads||reads.has(c.id));
+ return {health:checks.some(x=>x.state==='bad')?'degraded':checks.every(x=>x.state==='unknown')||checks.some(x=>x.state==='unknown'&&core(x))?'unknown':'healthy',checks};
 }
 
 function addToHistory(row,now,values){
@@ -235,8 +243,8 @@ export async function clearedAlerts(pool,owner,source,mapping,row,now){
  return out;
 }
 /** @description Every alert on a row being retired, closed so no symptom stands forever. The label keeps it off the phone: nothing cleared, the server was retired. */
-export function retiringAlerts(mapping,row,now){
- return Object.entries(row?.alerts||{}).map(([fingerprint,a])=>{const alert=closingAlert(mapping,row,fingerprint,a,now);return {fingerprint,seenAt:a.lastSeenAt,alert:{...alert,labels:{...alert.labels,closed_by:'stop-watching'}}};});
+export function retiringAlerts(mapping,row,now,closedBy='stop-watching'){
+ return Object.entries(row?.alerts||{}).map(([fingerprint,a])=>{const alert=closingAlert(mapping,row,fingerprint,a,now);return {fingerprint,seenAt:a.lastSeenAt,alert:{...alert,labels:{...alert.labels,closed_by:closedBy}}};});
 }
 /** @description A cleared alert's resolve is on record: drop it from the card, unless it fired again meanwhile. */
 export async function settleCleared(pool,owner,source,fingerprint,seenAt){
@@ -289,14 +297,17 @@ export async function clearNotices(pool,owner,sourceId,ids){
  if(!ids.length)return;
  await processingTransaction(pool,async c=>{const id=stateKey(sourceId),row=await held(c,owner,id);if(row)await put(c,owner,id,true,{...row,notices:(row.notices||[]).filter(n=>!ids.includes(n.id))});});
 }
-/** @description Forget one installation (a retired server): its state, history, readings in the telemetry banks and its host in Systems go; its source, its alerts and their investigations stay, and an evidence packet already pinned keeps its copy. @returns The record that was forgotten, or null. */
-export async function forgetInstallation(pool,owner,source,scope){
+/** @description Forget one installation (a retired server): its state, history, readings in the telemetry banks and its host in Systems go; its source, its alerts and their investigations stay, and an evidence packet already pinned keeps its copy. With keepHistory (Disconnect) only the card, its alert clocks and its host go; the charts and readings stay for the same source enrolled again. @returns The record that was forgotten, or null. */
+export async function forgetInstallation(pool,owner,source,scope,{keepHistory=false}={}){
  ownerRequired(owner);
  return processingTransaction(pool,async c=>{
   const row=await held(c,owner,stateKey(source.id));
   await c.query('DELETE FROM operations_processing_config WHERE user_sub=$1 AND id=$2',[owner,stateKey(source.id)]);
-  await c.query('DELETE FROM operations_processing_config WHERE user_sub=$1 AND id LIKE $2',[owner,dayKey(source.id,'%')]);
+  // The OpenTelemetry route's alert clocks (otlp.ts) go with the card: a server enrolled again starts them afresh.
+  await c.query('DELETE FROM operations_processing_config WHERE user_sub=$1 AND id=$2',[owner,'otlp-evaluation:'+source.id]);
   if(scope)await c.query('DELETE FROM operations_topology_scans WHERE user_sub=$1 AND source_uri=$2 AND collection_id=$3',[owner,source.source,'installation:'+scope]);
+  if(keepHistory)return row;
+  await c.query('DELETE FROM operations_processing_config WHERE user_sub=$1 AND id LIKE $2',[owner,dayKey(source.id,'%')]);
   for(const table of ['operations_telemetry_0','operations_telemetry_1','operations_telemetry_2'])await c.query('DELETE FROM '+table+' WHERE user_sub=$1 AND source_id=$2',[owner,source.id]);
   await c.query('DELETE FROM operations_streams WHERE user_sub=$1 AND id=$2',[owner,source.id]);
   return row;

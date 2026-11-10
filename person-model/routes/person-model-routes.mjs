@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the native Ambient Recall workspace (/api/person-model/app) and bounded UI assets inside the caller's authenticated package mount.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add Continuous Profile Learning and Eavesdrop Business Cards endpoints (GET/POST /api/person-model/profile-cards, GET/POST /api/person-model/recall) backed by OSHAL_PACKAGE_DATA_DIR.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: no house identifier in the defaults (open-work audit 2026-11-10): the owner's address comes only from OSHAL_OWNER_ADDRESS (no address fact without it), and the sample household facts and cards name no street address, no LAN address, no room device name and no real phone number. Guarded store-wide by scripts/no-house-identifiers.test.mjs.
  */
 
 import fs from 'node:fs';
@@ -63,7 +64,7 @@ function validQuery(query) {
 function defaultSelfProfile() {
   const stamp = '2026-11-08T06:00:00Z';
   const fullName = process.env.OSHAL_OWNER_FULL_NAME || 'Workspace Owner';
-  const address = process.env.OSHAL_OWNER_ADDRESS || '4399 Old Bayou Trail, Destin, FL 32541';
+  const address = process.env.OSHAL_OWNER_ADDRESS || '';
   const email = process.env.OSHAL_OWNER_EMAIL || 'maintainer@emeraldcoastsystemsgroup.com';
   const phone = process.env.OSHAL_OWNER_PHONE || '(850) 555-0142';
   return {
@@ -79,12 +80,12 @@ function defaultSelfProfile() {
     continuousLearningEnabled: true,
     updatedAt: stamp,
     facts: [
-      { id: 'fact-address', category: 'identity', text: `Primary residence and mailing address: ${address}`, source: 'continuous-learning', learnedAt: stamp },
+      ...(address ? [{ id: 'fact-address', category: 'identity', text: `Primary residence and mailing address: ${address}`, source: 'continuous-learning', learnedAt: stamp }] : []),
       { id: 'fact-contact', category: 'contact', text: `Primary contact: ${email} · ${phone}`, source: 'continuous-learning', learnedAt: stamp },
       { id: 'fact-org', category: 'work', text: 'Founder of Emerald Coast Systems Group (Verified Workspace Operator)', source: 'continuous-learning', learnedAt: stamp },
       { id: 'fact-dev', category: 'preference', text: 'Prefers high-effort reasoning in Blue Developer mode with 30-minute thinking ceiling and instant <100ms Blue/Green promotion', source: 'continuous-learning', learnedAt: stamp },
       { id: 'fact-invariant', category: 'architecture', text: 'Core platform invariant: Every workflow is a ticket, and every ticket is a workflow', source: 'continuous-learning', learnedAt: stamp },
-      { id: 'fact-home', category: 'household', text: 'Smart Home devices include Samsung Family Hub refrigerator (View Inside optical shelf assessment) and Living Room Fire TV (192.168.1.138:5555)', source: 'continuous-learning', learnedAt: stamp },
+      { id: 'fact-home', category: 'household', text: 'Smart Home devices include a refrigerator with an inside camera and a TV with the oshal app', source: 'continuous-learning', learnedAt: stamp },
     ],
   };
 }
@@ -96,7 +97,7 @@ function defaultBusinessCards() {
       profileId: 'voice-ella',
       name: 'Ella',
       role: 'Family · Student Athlete',
-      organization: 'Destin Household',
+      organization: 'Household',
       email: '',
       phone: '',
       relationship: 'Family',
@@ -114,16 +115,16 @@ function defaultBusinessCards() {
       profileId: 'voice-sam',
       name: 'Sam',
       role: 'Family · Household Member',
-      organization: 'Destin Household',
+      organization: 'Household',
       email: '',
       phone: '',
       relationship: 'Family',
       source: 'eavesdrop',
       utterances: 9,
       lastHeardAt: '2026-11-07T19:40:00Z',
-      topics: ['school trip', 'movie night', 'living room fire tv'],
+      topics: ['school trip', 'movie night', 'family tv'],
       openCommitments: ['Check itinerary for the upcoming school trip'],
-      recentQuotes: [{ quote: 'Can we put the game show on the Living Room Fire TV tonight?', capturedAt: '2026-11-07T19:40:00Z' }],
+      recentQuotes: [{ quote: 'Can we put the game show on the TV tonight?', capturedAt: '2026-11-07T19:40:00Z' }],
       notes: 'Built automatically from household ambient voice diarization and transcript topics.',
       updatedAt: '2026-11-07T19:40:00Z',
     },
@@ -134,7 +135,7 @@ function defaultBusinessCards() {
       role: 'Capture Lead · Federal Programs',
       organization: 'Agentic Federal / Partner Network',
       email: 'maintainer@emeraldcoastsystemsgroup.com',
-      phone: '(678) 343-4240',
+      phone: '(850) 555-0199',
       relationship: 'Colleague',
       source: 'eavesdrop',
       utterances: 22,

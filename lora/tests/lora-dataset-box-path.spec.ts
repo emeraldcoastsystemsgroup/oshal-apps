@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the box-path quoting of the dataset import against real PowerShell. LoRA 1.7.0's first live import failed New-Item with DriveNotFound ($env:String): the curated directory, image and caption paths were single-quoted literals, so the default root "$env:USERPROFILE/lora-characters" was never expanded on the GPU box, and every earlier proof pointed LORA_BOX_ROOT at a literal temp directory that no quoting could break. This suite keeps the DEFAULT root, runs the shipped directory/move/write statements through powershell.exe with USERPROFILE pointed at a fresh temp directory, and asserts the files at the EXPANDED path with the exact caption bytes. It also pins psBoxPath as a validator, not an escaper: every quote, backtick, stray $, wildcard, newline, control character and ".." is refused. On a non-win32 host the shell case prints one loud PLATFORM SKIP line rather than passing vacuously.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: LORA_CONTROLLER_URL has no default any more (it named a house LAN address), so the spec sets its own loopback callback address before the dispatcher loads.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // The box root is read once at module load. This guard exists to exercise the DEFAULT root
 // ($env:USERPROFILE/lora-characters), so a LORA_BOX_ROOT left in the shell is removed first.
 vi.hoisted(() => { delete process.env.LORA_BOX_ROOT; });
+vi.hoisted(() => { process.env.LORA_CONTROLLER_URL ||= 'http://127.0.0.1:9'; });
 vi.mock('@/shared/logger', () => ({ createChildLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }));
 vi.mock('@/app/routes/remote-client-routes', () => ({ remoteClientRegistry: { listClients: () => [], enqueueTask: vi.fn() } }));
 

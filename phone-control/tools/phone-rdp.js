@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: support Swarm-enrolled Android nodes in renderScreenItems and renderDeviceSwitcher.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: mint Swarm join codes for zero-touch APK provisioning, launch com.oshal.remote with serverUrl and joinCode extras, and wire #stagePushApkBtn for one-click stage APK updates.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console stays hidden until an RDP session backend exists (nothing implements /api/rdp/sessions; the page marks the button and its sign-in fields hidden), so the Any RDP Host steps and the Check RDP port refusal no longer send the person to it. The session viewer below is kept for that backend.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: a device waiting to pair with OSHAL-KB is asked about here (renderPairingQuestion: its name, the end of its address, the number when it has one, Allow / Reject through ble-pair-answer), the window is read every 2 s while it is open, and a device paired before oshal asked has Keep (ble-keep) instead of Add.
  */
 
 import { bytesToBase64, isAndroidNode, isTvNode, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
@@ -332,6 +333,59 @@ async function probeRdpHost(ctx) {
   $('rdpWorkLink').hidden = false;
 }
 
+/**
+ * @description Show each device waiting to pair with OSHAL-KB under a status line, with Allow and Reject. The bridge
+ * answers nothing by itself (oshal_phone_ble.py PairingGate); no answer in 30 s is Reject.
+ * @param {object} ctx Page context. @param {string} statusId The status line the question sits under.
+ * @param {Array<{address:string,name:string,passkey?:string,secondsLeft:number}>} requests From ble-devices.
+ * @returns {void}
+ */
+export function renderPairingQuestion(ctx, statusId, requests) {
+  const status = ctx.$(statusId);
+  let box = ctx.$(`${statusId}Pairing`);
+  if (!box) {
+    box = document.createElement('div');
+    box.id = `${statusId}Pairing`;
+    box.className = 'ks-help';
+    box.setAttribute('role', 'alert');
+    status.after(box);
+  }
+  box.hidden = !requests.length;
+  box.replaceChildren(...requests.map((request) => {
+    const item = document.createElement('p');
+    const number = request.passkey ? ` It should show ${request.passkey}.` : '';
+    item.textContent = `A device wants to pair with OSHAL-KB: ${request.name || 'a device with no name'}, address ending ${String(request.address).slice(-5)}.${number} ${request.secondsLeft} s to answer. `;
+    for (const [label, allow] of [['Allow', true], ['Reject', false]]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = allow ? 'ks-btn ks-btn-sm ks-btn-primary' : 'ks-btn ks-btn-sm';
+      button.textContent = label;
+      button.addEventListener('click', () => ctx.run(async () => {
+        const reply = await ctx.bridge('ble-pair-answer', { address: request.address, allow }, 20000);
+        await ctx.remember('pair', `${label} pairing of ${request.name || request.address}`, reply);
+        if (!reply.ok) { ctx.fail(statusId, 'ble_pair_answer', reply); return; }
+        renderPairingQuestion(ctx, statusId, []);
+        ctx.say(statusId, allow ? `${request.name || 'The device'} is allowed. The pairing window closes.` : `${request.name || 'The device'} was turned away.`);
+      }, statusId, `${label} the pairing`));
+      item.append(button, ' ');
+    }
+    return item;
+  }));
+}
+
+/**
+ * @description Keep a device that was paired with this computer before oshal asked (ble-keep); until then the bridge
+ * neither trusts nor reconnects it. @param {object} ctx Page context. @param {string} statusId Status line.
+ * @param {{address:string,name:string}} device The paired device. @returns {Promise<void>}
+ */
+export async function keepBleDevice(ctx, statusId, device) {
+  const kept = await ctx.bridge('ble-keep', { address: device.address }, 20000);
+  await ctx.remember('keep', `Keep the Bluetooth pairing of ${device.name}`, kept);
+  if (!kept.ok) { ctx.fail(statusId, 'ble_keep', kept); return; }
+  ctx.say(statusId, `${device.name} is kept. Press Add to use it.`);
+  await ctx.readStatus();
+}
+
 async function pairTvBluetooth(ctx, renderBleRows) {
   if (!(await ctx.install('tvBleStatus'))) return;
   const started = await ctx.bridge('ensure', {}, 60000);
@@ -352,9 +406,13 @@ async function pairTvBluetooth(ctx, renderBleRows) {
     ctx.say('tvBleStatus', left
       ? `Using your physical Fire TV remote: Settings → Controllers & Bluetooth Devices → Other Bluetooth Devices → Add Bluetooth Devices → OSHAL-KB. ${left} s left.`
       : 'The Bluetooth pairing window closed.');
-    if (!left) clearInterval(ctx.view.tvBleTimer);
-    if (left && left % 6 === 0 && !ctx.view.busy) {
-      void ctx.bridge('ble-devices', {}, 20000).then((r) => r.ok && renderBleRows(r.phones || []));
+    if (!left) { clearInterval(ctx.view.tvBleTimer); renderPairingQuestion(ctx, 'tvBleStatus', []); }
+    if (left && left % 2 === 0 && !ctx.view.busy) {
+      void ctx.bridge('ble-devices', {}, 20000).then((r) => {
+        if (!r.ok) return;
+        renderBleRows(r.phones || []);
+        renderPairingQuestion(ctx, 'tvBleStatus', r.pairing || []);
+      });
     }
   }, 1000);
 }
@@ -367,7 +425,8 @@ function renderTvBleTable(ctx, phones, saveAndOpenPhone, openBleRemoveDialog) {
   }
   body.replaceChildren(...phones.map((item) => {
     const row = document.createElement('tr');
-    const state = `${item.paired ? 'paired' : 'not paired'}, ${item.connected ? 'connected' : 'not connected'}`;
+    const before = item.paired && item.allowed === false;
+    const state = `${item.paired ? 'paired' : 'not paired'}, ${item.connected ? 'connected' : 'not connected'}${before ? ', paired before oshal asked' : ''}`;
     for (const text of [`${item.name} (${item.address})`, state]) {
       const cell = document.createElement('td');
       cell.textContent = text;
@@ -377,12 +436,13 @@ function renderTvBleTable(ctx, phones, saveAndOpenPhone, openBleRemoveDialog) {
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'ks-btn ks-btn-sm';
-    addBtn.textContent = 'Add as TV';
+    addBtn.textContent = before ? 'Keep' : 'Add as TV';
     addBtn.disabled = !item.paired;
     addBtn.addEventListener('click', () => ctx.run(async () => {
+      if (before) { await keepBleDevice(ctx, 'tvBleStatus', item); return; }
       const device = await saveAndOpenPhone(ctx, 'ios', item.address, item.name, 'tv');
       ctx.say('tvBleStatus', `${device.name} added as a Bluetooth TV.`);
-    }, 'tvBleStatus', 'Adding Bluetooth TV'));
+    }, 'tvBleStatus', before ? 'Keeping the device' : 'Adding Bluetooth TV'));
     addCell.append(addBtn);
     const rmCell = document.createElement('td');
     const rmBtn = document.createElement('button');

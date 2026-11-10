@@ -14,6 +14,8 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the verbs lan-discover and lan-control (TVs and streaming sticks on this computer's home network) from oshal_phone_lan.py, which ships beside the other bridge files; uninstall also forgets the saved TV pairings.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: version tracks package (Connect in console hidden in the page); no verb changed.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: version tracks package (device-concierge routing words); no verb changed.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: version tracks package (the page's missing isTvNode import); no verb changed.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer (the person's Allow or Reject for a device waiting to pair with OSHAL-KB) and ble-keep (keep a device that was paired before oshal asked); oshal_phone_ble.py no longer answers or trusts a pairing by itself.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -27,7 +29,7 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.5.2'
+VERSION = '1.5.4'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py')
@@ -814,6 +816,7 @@ VERBS = {
     'ble-status': ble_passthrough('status', ()), 'ble-sync': ble_passthrough('sync', ('address', 'waitS')),
     'ble-pair-window': ble_passthrough('pair-window', ('seconds',)),
     'ble-devices': ble_passthrough('devices', ()), 'ble-remove': ble_passthrough('forget', ('address',)),
+    'ble-pair-answer': ble_passthrough('pair-answer', ('address', 'allow')), 'ble-keep': ble_passthrough('keep', ('address',)),
     'ble-type': ble_passthrough('type', ('text', 'enter', 'address')),
     'ble-key': ble_passthrough('key', ('key', 'address')),
     'ble-mouse': ble_passthrough('mouse', ('dx', 'dy', 'click', 'rehome', 'address')),
@@ -848,6 +851,8 @@ HELP = {
     'ble-sync': 'reconnect Bluetooth and center pointer [address=MAC]',
     'ble-pair-window': 'open pairing window [seconds=120]', 'ble-devices': 'paired iPhones',
     'ble-remove': 'forget paired device: address=...', 'ble-type': 'type on iPhone: text=... [enter=true]',
+    'ble-pair-answer': 'answer a device waiting to pair: address=... allow=true|false',
+    'ble-keep': 'keep a device paired before oshal asked: address=...',
     'ble-key': 'key=Home|Spotlight|VolumeUp|VolumeDown|Enter|Escape|Backspace|Tab|Up|Down|Left|Right',
     'ble-mouse': 'move iPhone pointer: dx= dy= [click=true] [rehome=true]',
     'ble-move': 'move iPhone pointer: nx=0..1 ny=0..1',

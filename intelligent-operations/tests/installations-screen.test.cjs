@@ -1,3 +1,5 @@
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): Monitor an installation adds the OpenTelemetry install line (--agent otel). Each card carries its producer token's controls: the last delivery and its status and when the first was accepted, as the kernel lists them; Rotate token posts the person's own rotation for the current token and says the server picks it up within 5 minutes; Disconnect takes two presses with what goes and what stays said first, revokes every producer token naming the source, then posts {stopWatching, sourceId, disconnect: true} and the card goes; a revoke that fails stops it before anything else changes. A kernel that lists none of the delivery fields shows no delivery line and no Rotate token. It fits a phone at 412x915 with 44px targets. The fixture answers the kernel's rotate route as the kernel does. Red on 1.6.0: the card had none of these controls and the panel two lines. */
+/* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 (1.6.0): the fixture answers the kernel's producer-token list and revoke, a confirmation and an offline enrolment file as the kernel does. Removing a source revokes every producer token of this application whose route names it, and no other; a failed revoke is said in the Monitor an installation panel with a Revoke again that retries. Monitor an installation: the install lines for the page's own origin with Copy, each card's enrolment line, the waiting servers moving from approved to collected, an expired approval told to start again, the enrolment file through a confirmation (saved, its code never on the page, a bad name not sent, a refusal said), and the panel at 412x915. */
 /* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Remove this source (1.5.3, P5-55b) on the shipped Systems page: two presses with what goes and what stays said before the second, the post carries {sourceId, confirm: true}, the card goes and the records reload; a desk's own source is never offered; a refusal stays on the card in the server's words, and a 403 takes the offer away. The fixture answers POST /sources/remove like the server. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Settle the initial navigation frame before positioning the near-bottom stop press; prove its real pointer target before testing the second-press safeguard. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved on these screens (2026-11-04): an alert reported cleared and being confirmed turns nothing red and says so, a critical stays on the tile and the edge as a server goes Late and on an alerts-only server, the empty sentence says what the read shows and names a source waiting for its first report, a refusal and the second press's sentence clear the sticky bars in the page's own tab, hash changes and tab returns cannot pile reads up, a refused stop reads at once and a stop that went through takes the card even if the next read fails, a failed Refresh records keeps the rows and the reading and recovers on its own, and an announcement under failed reads says so. */
@@ -30,11 +32,17 @@ const sureName=/^Delete its history and stop watching/;
 async function pressStop(page,card){await card.getByRole('button',{name:'Stop watching this installation'}).click();const sure=card.getByRole('button',{name:sureName});await sure.waitFor();await page.waitForTimeout(450);await sure.click();}
 const readNow=page=>page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
 async function page(run,initial,options={}){
- const http=require('node:http'),fs=require('node:fs'),{chromium}=dependency('playwright');let body={streams:[],limits:{},installations:initial,watch:options.watch===undefined?{lastTickAt:new Date(Date.now()-40000).toISOString(),ageSeconds:40,overdue:false,graceUntil:null}:options.watch};let status=200,postStatus=null,removeStatus=null,removeError='';const requests=[];
+ const http=require('node:http'),fs=require('node:fs'),{chromium}=dependency('playwright');let body={streams:[],limits:{},installations:initial,enrollments:options.enrollments||[],watch:options.watch===undefined?{lastTickAt:new Date(Date.now()-40000).toISOString(),ageSeconds:40,overdue:false,graceUntil:null}:options.watch};let status=200,postStatus=null,removeStatus=null,removeError='',revokeStatus=null,offlineStatus=null,tokens=(options.tokens||[]).slice();const requests=[];
  const source={id:'source-a',name:'gsq-staging',environment:'gsq-staging',source:'urn:ops:a',mapping:{environment:'/data/environment'}};
  const event={id:'event-a',sourceId:'source-a',decision:'validated',receivedAt:new Date().toISOString(),ingestion:'transactional',reasons:[],normalized:{time:new Date().toISOString(),data:{alertType:'DiskHigh',environment:'gsq-staging',severity:'warning',status:'firing',resource:{kind:'host',scope:'gsq-staging',id:'gsq-staging'}}}};
  const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost'),json=(b,s=200)=>{res.writeHead(s,{'Content-Type':'application/json'});res.end(JSON.stringify(b));};requests.push([req.method,url.pathname+url.search]);
-  if(url.pathname==='/api/auth/user')return options.account===null?json({error:'Not here'},404):json(options.account||{authenticated:true,subject:'sub-1',displayName:'Test Person'});if(url.pathname==='/api/tickets')return json({tickets:[]});if(url.pathname==='/api/v1/agent/schedules')return json({schedules:[]});if(url.pathname==='/api/v1/peer-inbox')return json({delegations:[]});
+  if(url.pathname==='/api/auth/user')return options.account===null?json({error:'Not here'},404):json(options.account||{authenticated:true,subject:'sub-1',displayName:'Test Person'});/* The kernel's own routes the Systems page calls with the person's session: producer tokens (ADR-197), a confirmation and an offline enrolment file (ADR-216), answered as the kernel answers them. */
+  if(url.pathname==='/api/v1/producer-tokens'&&req.method==='GET')return json({producerTokens:tokens,limit:64});
+  if(/^\/api\/v1\/producer-tokens\/[^/]+\/rotate$/.test(url.pathname)&&req.method==='POST'){const id=decodeURIComponent(url.pathname.split('/')[4]);requests.push(['ROTATE',id]);const held=tokens.find(t=>t.tokenId===id);if(!held)return json({refused:'not_found',detail:'no such producer token'},404);held.rotateRequested=true;return json({tokenId:id,rotateRequested:true});}
+  if(url.pathname.startsWith('/api/v1/producer-tokens/')&&req.method==='DELETE'){const id=decodeURIComponent(url.pathname.split('/').pop());requests.push(['REVOKE',id]);if(revokeStatus)return json({refused:'unavailable',detail:'the store did not answer'},revokeStatus);tokens=tokens.filter(t=>t.tokenId!==id);return json({revoked:id});}
+  if(url.pathname==='/confirmations'&&req.method==='POST')return json({confirmation:'confirm-1'});
+  if(url.pathname==='/api/v1/producer-enrollments/offline'&&req.method==='POST'){let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{requests.push(['OFFLINE',raw,req.headers['x-oshal-confirm']||null]);if(offlineStatus)return json({refused:'invalid_request',detail:'Intelligent Operations did not prepare this installation: that name is taken'},offlineStatus);const asked=JSON.parse(raw);json({swarm:'http://'+req.headers.host,app:asked.app,name:asked.name,code:'oshal_enroll_'+'c'.repeat(64),expiresAt:Date.now()+86400000});});return;}
+  if(url.pathname==='/api/tickets')return json({tickets:[]});if(url.pathname==='/api/v1/agent/schedules')return json({schedules:[]});if(url.pathname==='/api/v1/peer-inbox')return json({delegations:[]});
   const prefix='/api/intelligent-operations',route=url.pathname.slice(prefix.length);
   if(url.pathname.startsWith(prefix)&&!route.startsWith('/assets/')&&route!=='/app'){
    if(route==='/telemetry')return status===200?json(body):json({error:'refused'},status);
@@ -53,7 +61,7 @@ async function page(run,initial,options={}){
   const origin='http://127.0.0.1:'+server.address().port,base=origin+'/api/intelligent-operations/app';
   /** The page inside a real same-origin iframe, the way the shell hosts it. */
   const framed=async hash=>{await tab.route(origin+'/wrapper',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><html><body style="margin:0;height:100vh"><iframe id="f" src="'+base+hash+'" style="width:100%;height:100%;border:0"></iframe></body></html>'}));await tab.goto(origin+'/wrapper');return (await tab.waitForSelector('#f')).contentFrame();};
-  await run({page:tab,context,base,framed,requests,errors,set:next=>{body={...body,...next};},refuse:code=>{status=code;},refusePost:code=>{postStatus=code;},refuseRemove:(code,error)=>{removeStatus=code;removeError=error;}});assert.deepEqual(errors,[]);
+  await run({page:tab,context,base,framed,requests,errors,set:next=>{body={...body,...next};},refuse:code=>{status=code;},refusePost:code=>{postStatus=code;},refuseRemove:(code,error)=>{removeStatus=code;removeError=error;},refuseRevoke:code=>{revokeStatus=code;},refuseOffline:code=>{offlineStatus=code;},tokens:()=>tokens});assert.deepEqual(errors,[]);
  }finally{await browser?.close();server.closeAllConnections();await new Promise(r=>server.close(r));}
 }
 test('Systems proves the installation is watched: heard when, every check in words, what is firing, the charts',async()=>page(async({page,base,requests})=>{
@@ -647,6 +655,56 @@ test('Remove this source takes two presses, says what stays, posts confirm true 
  assert.ok(recordReads()>=2,'the records reload, so Sources drops the source too');
  assert.equal(await desk.isVisible(),true,'the other card stays');
 },[well(),well({sourceId:'source-desk',name:'spark/platform-ops',removable:false})]));
+/** A producer token as the kernel lists it (never the token itself). */
+const token=(tokenId,route,extra={})=>({tokenId,label:'gsq alertmanager',app:'intelligent-operations',route,createdAt:Date.now()-86400000,expiresAt:Date.now()+89*86400000,...extra});
+test('Removing a source on Systems revokes that source\'s producer tokens at the kernel and no other, and a failed revoke says so and can be retried',async()=>page(async({page,base,requests,refuseRevoke,tokens})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]');await card.waitFor();
+ refuseRevoke(503);
+ await card.getByRole('button',{name:'Remove this source'}).click();await card.getByRole('button',{name:/^Remove .* from Operations$/}).click();await card.waitFor({state:'detached'});
+ const said=page.locator('#monitor-enroll .monitor-revoke');await said.waitFor();
+ assert.match(await said.textContent(),/^Removed gsq <b>staging<\/b>\. Its 2 producer tokens could not be revoked \(HTTP 503: the store did not answer\)\. Its reports are refused all the same\.Revoke again$/);
+ assert.deepEqual(requests.filter(([m])=>m==='REVOKE').map(([,id])=>id),['producer-token-a','producer-token-a2'],'every token naming the removed source\'s route, and no other');
+ refuseRevoke(null);await said.getByRole('button',{name:'Revoke again'}).click();
+ await page.waitForFunction(()=>/^Removed .*\. Its 2 producer tokens were revoked\.$/.test(document.querySelector('#monitor-enroll .monitor-revoke')?.textContent||''));
+ assert.deepEqual(tokens().map(t=>t.tokenId).sort(),['producer-token-b','producer-token-c'],'the desk\'s token and another application\'s stay');
+},[well(),well({sourceId:'source-desk',name:'spark/platform-ops',removable:false})],{tokens:[token('producer-token-a','/ingest/alertmanager/source-a'),token('producer-token-a2','/ingest/otlp/source-a'),token('producer-token-b','/ingest/alertmanager/source-desk'),token('producer-token-c','/ingest/alertmanager/source-a',{app:'another-app'})]}));
+const enrolment=(sourceId,name,extra={})=>({sourceId,name,agent:'prometheus',platform:'linux',host:name,version:'0.1.0',preparedAt:new Date(Date.now()-60000).toISOString(),firstPreparedAt:new Date(Date.now()-60000).toISOString(),...extra});
+test('Monitor an installation gives this installation\'s install lines with Copy, says how each card was enrolled, and follows a server from approved to collected',async()=>page(async({page,base,tokens})=>{
+ const origin=new URL(base).origin;await page.goto(base+'#systems');const panel=page.locator('#monitor-enroll');await panel.getByRole('heading',{name:'Monitor an installation'}).waitFor();
+ assert.deepEqual(await panel.locator('.monitor-line code').allTextContents(),['curl -fsSL '+origin+'/monitor/install.sh | sudo bash','curl -fsSL '+origin+'/monitor/install.sh | sudo bash -s -- --agent otel','curl -fsSL '+origin+'/monitor/install.sh | bash -s -- --kubernetes']);
+ await panel.getByRole('button',{name:'Copy the line for a kubernetes cluster'}).click();await panel.locator('.monitor-status',{hasText:'Copied.'}).waitFor();
+ assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'curl -fsSL '+origin+'/monitor/install.sh | bash -s -- --kubernetes');
+ const line=page.locator('.installation[data-source="source-a"] .installation-enrolment');await line.waitFor();
+ assert.match(await line.textContent(),/^Enrolled .+ with the Prometheus stack on droplet-1\. Its producer token expires .+\.$/);
+ const waiting=panel.locator('.monitor-waiting li');await waiting.first().waitFor();
+ assert.deepEqual((await waiting.allTextContents()).map(t=>t.replace(/Approved .+?(?=; waiting|, but its)/,'Approved …')),['web-7 Approved …; waiting for the server to collect its token.','web-8 Approved …, but its server never collected a token and the code has expired. Run the install line on the server again.'],'a server reporting is not waiting; one that collected nothing for a day is told to start again');
+ tokens().push(token('producer-token-w','/ingest/alertmanager/source-w',{createdAt:Date.now()-5000}));await readNow(page);
+ await page.waitForFunction(()=>/^web-7 Its token was collected .+; waiting for its first report\.$/.test(document.querySelector('#monitor-enroll .monitor-waiting li')?.textContent||''));
+},[well({host:'droplet-1'})],{tokens:[token('producer-token-a','/ingest/alertmanager/source-a')],enrollments:[enrolment('source-a','droplet-1'),enrolment('source-w','web-7'),enrolment('source-x','web-8',{preparedAt:new Date(Date.now()-2*86400000).toISOString()})],context:{permissions:['clipboard-read','clipboard-write']}}));
+test('Download an enrolment file confirms, asks the kernel for one, saves oswarm-enrollment.json and never shows its code; a bad name or a refusal is said',async()=>page(async({page,base,requests,refuseOffline})=>{
+ const origin=new URL(base).origin;await page.goto(base+'#systems');const panel=page.locator('#monitor-enroll');await panel.getByText('No browser or terminal on the server? Download an enrolment file').click();
+ const name=panel.getByLabel('Name of the installation'),go=panel.getByRole('button',{name:'Download an enrolment file'});
+ await name.fill('café');await go.click();await panel.locator('.monitor-status',{hasText:'Name the installation in 1 to 80 plain characters'}).waitFor();
+ assert.ok(!requests.some(([m])=>m==='OFFLINE'),'a name the kernel would refuse is not sent');
+ await name.fill('web-9');const [saved]=await Promise.all([page.waitForEvent('download'),go.click()]);
+ assert.equal(saved.suggestedFilename(),'oswarm-enrollment.json');
+ const file=JSON.parse(require('node:fs').readFileSync(await saved.path(),'utf8'));
+ assert.deepEqual({...file,expiresAt:typeof file.expiresAt},{swarm:origin,app:'intelligent-operations',name:'web-9',code:'oshal_enroll_'+'c'.repeat(64),expiresAt:'number'});
+ assert.deepEqual(requests.filter(([m])=>m==='OFFLINE').map(([,b,c])=>[JSON.parse(b),c]),[[{app:'intelligent-operations',name:'web-9'},'confirm-1']],'the person\'s confirmed request, for this application');
+ const result=panel.locator('.monitor-file-result');await result.waitFor();
+ assert.match(await result.locator('p').first().textContent(),/^Saved oswarm-enrollment\.json for web-9\. Copy it to the server and run this there, beside the file\. It works once, until .+\.$/);
+ assert.equal(await result.locator('code').textContent(),'curl -fsSL '+origin+'/monitor/install.sh | sudo bash -s -- --file oswarm-enrollment.json');
+ assert.ok(!(await page.locator('body').textContent()).includes('oshal_enroll_'),'the code is only in the file');
+ refuseOffline(400);await go.click();
+ await panel.locator('.monitor-status',{hasText:'No enrolment file was made: HTTP 400: Intelligent Operations did not prepare this installation: that name is taken.'}).waitFor();
+ assert.equal(await result.isVisible(),false,'a refusal leaves no line to run');
+},[well()]));
+test('Monitor an installation fits a phone: no sideways scroll at 412x915 and every button is a 44px target',async()=>page(async({page,base})=>{
+ await page.goto(base+'#systems');const panel=page.locator('#monitor-enroll');await panel.locator('.monitor-line').first().waitFor();await panel.getByText('No browser or terminal on the server? Download an enrolment file').click();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no sideways scroll');
+ for(const box of await panel.locator('button').evaluateAll(b=>b.filter(x=>x.offsetParent).map(x=>x.getBoundingClientRect().height)))assert.ok(box>=44,'a '+box+'px button');
+ const code=await panel.locator('.monitor-line code').first().boundingBox(),card=await panel.boundingBox();assert.ok(code.x+code.width<=card.x+card.width+1,'the line wraps inside the panel');
+},[well()],{viewport:{width:412,height:915}}));
 test('A refused removal stays on the card in the server\'s words, and a role that cannot write loses the offer',async()=>page(async({page,base,refuseRemove})=>{
  await page.goto(base+'#systems');const card=page.locator('.installation');await card.waitFor();
  refuseRemove(409,'2 saved sources are named "gsq"; remove the one you mean from Systems, or by its id.');
@@ -656,3 +714,45 @@ test('A refused removal stays on the card in the server\'s words, and a role tha
  await page.waitForFunction(()=>document.querySelector('.installation-remove [role=alert]')?.textContent==='Your role cannot remove a source. It stays.');
  assert.equal(await card.getByRole('button',{name:'Remove this source'}).count(),0,'the offer goes with the role');
 },[well()]));
+/** A token as a kernel that records deliveries lists it (ADR-216 K2). */
+const recorded=(tokenId,route,extra={})=>token(tokenId,route,{firstDeliveryAt:Date.now()-3600000,lastDelivery:{at:Date.now()-30000,status:202},rotateRequested:false,successorId:null,retiresAt:null,...extra});
+test('Each card shows its producer token\'s last delivery, and Rotate token asks the kernel to rotate the current one and says when the server picks it up',async()=>page(async({page,base,requests,tokens})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]');await card.waitFor();
+ const line=card.locator('.installation-delivery');await line.waitFor();
+ assert.match(await line.textContent(),/^Last delivery .+: accepted \(HTTP 202\)\. First accepted .+\. The token it replaced stops working .+\.$/);
+ await card.getByRole('button',{name:'Rotate token'}).click();
+ await page.waitForFunction(()=>/First accepted .+\. Rotation requested; the server picks it up within 5 minutes\. The token it replaced/.test(document.querySelector('.installation[data-source="source-a"] .installation-delivery')?.textContent||''));
+ assert.deepEqual(requests.filter(([m])=>m==='ROTATE').map(([,id])=>id),['producer-token-new'],'the current token, not the one it replaced');
+ assert.equal(await card.getByRole('button',{name:'Rotate token'}).count(),0,'asked once; the line says so until the server rotates');
+ assert.equal(tokens().find(t=>t.tokenId==='producer-token-new').rotateRequested,true);
+},[well()],{tokens:[recorded('producer-token-new','/ingest/otlp/source-a'),recorded('producer-token-old','/ingest/otlp/source-a',{createdAt:Date.now()-90*86400000,successorId:'producer-token-new',retiresAt:Date.now()+600000})]}));
+test('Disconnect takes two presses with what goes and what stays said first, revokes the source\'s tokens, stops the watch with its history kept and drops the card; a failed revoke changes nothing',async()=>page(async({page,base,requests,refuseRevoke})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]');await card.waitFor();
+ refuseRevoke(503);
+ await card.getByRole('button',{name:'Disconnect',exact:true}).click();
+ const note=card.locator('.installation-disconnect-sure .operator-note');await note.waitFor();
+ assert.match(await note.textContent(),/revokes this installation's producer token.*raises no InstallationSilent.*Its source, chart history, readings, alerts and investigations stay/);
+ await card.getByRole('button',{name:/^Disconnect gsq/}).click();
+ const said=card.locator('.installation-access [role=alert]');await said.waitFor();
+ assert.equal(await said.textContent(),'Not disconnected: its producer token could not be revoked (HTTP 503: the store did not answer). Nothing else changed.');
+ assert.equal(posted(requests),false,'the watch was not touched');assert.equal(await card.isVisible(),true);
+ refuseRevoke(null);
+ await card.getByRole('button',{name:'Disconnect',exact:true}).click();await card.getByRole('button',{name:'Keep it connected'}).waitFor();
+ await card.getByRole('button',{name:/^Disconnect gsq/}).click();await card.waitFor({state:'detached'});
+ assert.deepEqual(requests.filter(([m])=>m==='REVOKE').map(([,id])=>id),['producer-token-a','producer-token-a','producer-token-a2'],'every token naming the source, after the refused first try');
+ assert.deepEqual(requests.filter(([m])=>m==='BODY').map(([,b])=>JSON.parse(b)),[{stopWatching:true,sourceId:'source-a',disconnect:true}]);
+},[well()],{tokens:[recorded('producer-token-a','/ingest/alertmanager/source-a'),recorded('producer-token-a2','/ingest/alertmanager/source-a',{createdAt:Date.now()-5000}),token('producer-token-b','/ingest/alertmanager/source-desk')]}));
+test('A kernel that records no deliveries shows no delivery line and no Rotate token, but still offers Disconnect; a card with no token offers neither',async()=>page(async({page,base})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]');await card.waitFor();
+ await card.getByRole('button',{name:'Disconnect',exact:true}).waitFor();
+ assert.equal(await card.locator('.installation-delivery').isVisible(),false);assert.equal(await card.getByRole('button',{name:'Rotate token'}).count(),0);
+ const bare=page.locator('.installation[data-source="source-b"]');await bare.waitFor();
+ assert.equal(await bare.locator('.installation-access').isVisible(),false,'nothing to rotate or disconnect');
+},[well(),well({sourceId:'source-b',name:'gsq-other'})],{tokens:[token('producer-token-a','/ingest/alertmanager/source-a')]}));
+test('The token controls fit a phone: no sideways scroll at 412x915, every one a 44px target, the confirmation inside the card',async()=>page(async({page,base})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]');await card.waitFor();
+ await card.getByRole('button',{name:'Disconnect',exact:true}).click();await card.getByRole('button',{name:/^Disconnect gsq/}).waitFor();
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no sideways scroll');
+ for(const box of await card.locator('.installation-access button').evaluateAll(b=>b.filter(x=>x.offsetParent).map(x=>x.getBoundingClientRect().height)))assert.ok(box>=44,'a '+box+'px button');
+ const sure=await card.locator('.installation-disconnect-sure').boundingBox(),outer=await card.boundingBox();assert.ok(sure.x+sure.width<=outer.x+outer.width+1,'inside the card');
+},[well()],{viewport:{width:412,height:915},tokens:[recorded('producer-token-a','/ingest/otlp/source-a')]}));

@@ -5,6 +5,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: Rebuilt on main together with Career 1.47.3; no change to the toolbar, setup or ribbon.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: the Social Signals tile is merged into Social's Workspace · Engage (UX audit 2026-11-06, social--social-signals): its tile is removed here and the signals setup step opens the Workspace.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: Prepare & submit, Application status and Approvals are stages of the Job Board (career-hunter 1.48.0, UX audit 2026-11-06), so their tiles left this toolbar.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band borrows Career's Master record (career-hunter 1.51.0), the read-only page with every role, bullet, skill and history record, with Download and Print.
 #
 # A group carries NO code. It binds four installed applications into one front
 # door with one toolbar and a setup dashboard:
@@ -40,7 +41,7 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.1.8
+version: 1.1.9
 status: active
 scope: public
 theme: daylight
@@ -93,6 +94,7 @@ toolbar:
   - { app: career-hunter,   surface: career-insights,       group: Review }
   - { app: career-hunter,   surface: career-resume-studio,  group: Resume }
   - { app: career-hunter,   surface: career-experience-library, group: Resume }
+  - { app: career-hunter,   surface: career-master-record,  group: Resume }
   - { app: career-hunter,   surface: career-strengthen,     group: Resume }
   - { app: career-hunter,   surface: career-profile-studio, group: Presence }
   - { app: portrait-studio, surface: portrait-studio,       group: Presence }

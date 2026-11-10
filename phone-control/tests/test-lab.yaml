@@ -9,6 +9,8 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: readiness 1.5.0, and phone-control-lan registers the bridge's TV module suite (Python unittest against local protocol fakes, run by tests/phone-control-lan.test.mjs). A real TV is never pressed by a test: the live press is the operator's own, on their own TV.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: readiness 1.5.1; phone-control-rp-browser now proves Connect in console and its sign-in fields are hidden, the RDP card's Check RDP port answers through the bridge, the page makes no /api/rdp/sessions call, and the Connection Concierge never offers Connect in console.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: readiness 1.5.2 (device-concierge routing words 'android', 'ipad' and 'iphone', backlog P4-16k).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: readiness 1.5.3, and phone-control-module-names registers the guard that every name a phone-control browser module uses resolves to a declaration, an import or a browser global (red on 1.5.2, whose session-computer.js called isTvNode without importing it).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: readiness 1.5.4, and phone-control-ble-pairing registers the Bluetooth pairing suite: the real bridge process against a scripted BlueZ on a private dbus-daemon (no pairing is answered or trusted until the person allows it).
 version: 1
 cases:
   - id: package-readiness
@@ -19,7 +21,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.5.2 with its store open.
+      - The installed phone-control package answers its identity and version 1.5.4 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -76,6 +78,31 @@ cases:
     installation: never
     regressionTests:
       - { level: unit, file: tests/phone-control-honesty.test.cjs }
+
+  - id: phone-control-module-names
+    name: Every name a browser module uses resolves
+    purpose: Go red when a page module calls a name that is neither declared, imported nor a browser global, or leaves a name a sibling module exports to the browser global of that name. 1.5.2 called isTvNode without importing it and Your devices could not be read.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-module-names.test.cjs
+    expected:
+      - Every tools/*.js and tools/*.mjs parses under the store's pinned TypeScript checker with no unresolved name in running code.
+      - No module leaves a sibling module's export to a browser global of the same name.
+      - session-computer.js with isTvNode taken out of its import is reported at its isTvNode call; a module calling close() that a sibling exports is reported.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/phone-control-module-names.test.cjs }
 
   - id: phone-control-ux-batch7
     name: Merged Connect sheet, full-frame session sheet UX, and real UxPlay mirroring guard
@@ -249,6 +276,35 @@ cases:
     installation: never
     regressionTests:
       - { level: integration, file: tests/phone-control-lan.test.mjs }
+
+  - id: phone-control-ble-pairing
+    name: Bluetooth pairing asks first and trusts only what the person allowed
+    purpose: Prove the resident Bluetooth bridge (bridge/oshal_phone_ble.py serve) answers no pairing by itself. Against a scripted BlueZ on a private dbus-daemon (tests/python/fake_bluez.py), each pairing request is held and listed with its name and number until Allow or Reject, no answer is Rejected after the limit, one Allow closes the window and turns the other requests away, only an allowed device is Trusted and written to the 0600 allow-list, a device paired before is never trusted or reconnected until Keep, and a device that paired in the window without an Allow is removed when the window closes.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-ble-pairing.test.mjs
+    expected:
+      - A RequestConfirmation from a device nobody allowed stays pending, is listed with its passkey, and is answered org.bluez.Error.Rejected after OSHAL_BLE_PAIR_ANSWER_S; the device is never Trusted.
+      - pair-answer allow=true answers the held request, sets Trusted on that device only, writes it to ble-allowed.json (mode 0600), rejects the other waiting request and any later one, and the window closes.
+      - Reading status and the device list, syncing and closing the window never set Trusted on a device that was paired before; sync on it answers not_allowed; keep trusts it and lets it reconnect.
+      - A device BlueZ pairs without asking the agent (Just Works) is listed as waiting within a second, is removed when nobody answers, and is kept and Trusted on Allow; a second one after that Allow is removed.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+      - runtime:python3-dbus
+      - runtime:dbus-daemon
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The private bus, the scripted BlueZ, the bridge process and the throwaway home are removed after each case.
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-ble-pairing.test.mjs }
 
   - id: phone-control-runner
     name: Under the kernel's real package runner

@@ -1,3 +1,5 @@
+/** CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): Disconnect. The Systems card revokes the installation's producer tokens at the kernel, then asks stopWatching with disconnect: the watch stops even though the installation was reporting a moment ago (its token is gone, so no report can bring the card back), what it owed is closed as for a retired server, and its chart history and readings stay (forgetInstallation keepHistory) for the same name enrolled again. */
+/** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): a delivery to a source the person removed answers 410 Gone with REMOVED, where it was 404 like an unknown source (the route passed only sources not removed). The kernel's producer door is to end a token whose own route answers 410, so a removed source's server stops for good with no second step; the caller now passes the removed sources too. */
 /** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved on the real stack (2026-11-04). Whether a resolve can be believed is asked per alert, from what the heartbeat says Prometheus lists. The watch also clears what no resolve ever came for, as after a reboot. Stopping the watch closes everything on the row, with a label that keeps it off the phone, because a retired server cleared nothing. */
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a third review proved on the real stack (2026-11-04). A resolve Alertmanager delivered because Prometheus died is not admitted: it waits on the card until Prometheus has been back long enough to fire it again, so 'cleared' means cleared. Stop watching refuses an installation that is still reporting, because the next report would bring back an empty card and hide what is firing for up to 4 hours; it admits what is held first, and leaves the scans alone when another revision of the source still reports on them. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | What an independent review proved (2026-11-03). A failed admit no longer loses the alarm: a silence and a recovery each stay owed in the installation's row and are retried until admit succeeds, one source's failure no longer stops the others, and stopping the watch resolves first. InstallationSilent names the host the heartbeats filed, not the scope. */
@@ -13,6 +15,8 @@ const KINDS=['kubernetes-pod','container','workload','host'],LABEL=/^[A-Za-z_][A
 const SCHEMA='urn:oshal:operations:alert:1',MAX_ALERTS=100;
 const ownerRequired=owner=>{if(typeof owner!=='string'||!owner)fail(401,'A verified caller is required.');};
 const key=sourceId=>'ingest:'+sourceId;
+/** What a delivery to a removed source is told, with 410 Gone. */
+export const REMOVED='This source was removed in Operations.';
 
 /** @description The owner's Alertmanager mapping for one saved source revision, or null. */
 export async function ingestMapping(pool,owner,sourceId){
@@ -52,10 +56,12 @@ export function alertEvent(mapping,alert){
    resource:{kind:mapping.resourceKind,scope:mapping.scope,id:typeof labels[mapping.idLabel]==='string'?labels[mapping.idLabel]:''}}};
 }
 
-/** @description Admit an Alertmanager webhook delivery for one mapped source: every alert goes through intake; nothing else runs. */
+/** @description Admit an Alertmanager webhook delivery for one mapped source: every alert goes through intake; nothing else runs. A source the person removed answers 410, so its delivery is refused for good and its producer token can be ended. */
 export async function ingestAlertmanager(pool,owner,sources,sourceId,body,clock=Date.now){
  ownerRequired(owner);
  const source=sources.find(s=>s.id===sourceId);if(!source)fail(404,'No such source in your scope.');
+ // A removed source is gone, not unknown: ADR-216 decision 7 has the kernel's producer door revoke a token whose own route answers 410.
+ if(source.discardedAt)fail(410,REMOVED);
  const mapping=await ingestMapping(pool,owner,sourceId);if(!mapping)fail(409,'Map this source for Alertmanager first.');
  if(!body||typeof body!=='object'||!Array.isArray(body.alerts))fail(400,'An Alertmanager webhook body with alerts is required.');
  if(body.alerts.length>MAX_ALERTS)fail(413,'At most '+MAX_ALERTS+' alerts per delivery.');
@@ -86,8 +92,8 @@ function silenceAlert(mapping,fingerprint,since,status,now,source,resourceId){
  return {status,fingerprint,startsAt:since,...(status==='resolved'?{endsAt:new Date(now).toISOString()}:{}),labels:{alertname:SILENT,[mapping.severityLabel]:'critical',[mapping.idLabel]:resourceId||mapping.scope},annotations:{summary:source.name+' has stopped reporting',description:'Operations has not received this installation\'s heartbeat for '+minutes+' minutes. The server, its monitoring or the path to this Operations is down.'}};
 }
 
-/** Admit each resolve this installation owes, timed by its stored end so a retry is the same event, and clear it only once admitted. */
-async function settleResolves(pool,owner,source,mapping,owed){
+/** @description Admit each resolve this installation owes, timed by its stored end so a retry is the same event, and clear it only once admitted. The OpenTelemetry route settles a beat's owed resolves with it too. */
+export async function settleResolves(pool,owner,source,mapping,owed){
  for(const o of owed){await admit(pool,owner,source,alertEvent(mapping,silenceAlert(mapping,o.fingerprint,o.since,'resolved',Date.parse(o.endedAt),source,o.resourceId)),{sameOccurrence:true});await settleResolve(pool,owner,source,o.fingerprint);}
 }
 /** Admit one cleared alert's resolve, then drop it from the card. */
@@ -114,18 +120,19 @@ export async function watchInstallations(pool,owner,sources,clock=Date.now){
 }
 export {clearNotices};
 
-/** @description Stop watching a retired installation. One still reporting is refused: its next report would bring back a card with nothing firing on it. What it owes is resolved first, so a failure leaves everything in place for a second press and no symptom stands forever. */
-export async function stopWatching(pool,owner,sources,sourceId,clock=Date.now){
+/** @description Stop watching a retired installation. One still reporting is refused: its next report would bring back a card with nothing firing on it. What it owes is resolved first, so a failure leaves everything in place for a second press and no symptom stands forever. With disconnect (the card's Disconnect, after it revoked the installation's producer tokens) a reporting one is taken too, and its chart history and readings stay. */
+export async function stopWatching(pool,owner,sources,sourceId,clock=Date.now,{disconnect=false}={}){
  ownerRequired(owner);const source=sources.find(s=>s.id===sourceId);if(!source)fail(404,'No such source in your scope.');
  const mapping=await ingestMapping(pool,owner,sourceId),held=await installationRow(pool,owner,sourceId);
- if(held&&!['silent','never'].includes(installationState(held,clock())))fail(409,source.name+' is still reporting, so there is nothing to stop. Stop its monitoring first; this offer comes back once it has been silent for 10 minutes.');
+ // Disconnect has just revoked the installation's producer tokens at the kernel, so a report cannot bring the card back.
+ if(!disconnect&&held&&!['silent','never'].includes(installationState(held,clock())))fail(409,source.name+' is still reporting, so there is nothing to stop. Stop its monitoring first; this offer comes back once it has been silent for 10 minutes.');
  if(mapping&&held){
-  for(const closed of retiringAlerts(mapping,held,clock()))await admitCleared(pool,owner,source,mapping,closed);
+  for(const closed of retiringAlerts(mapping,held,clock(),disconnect?'disconnect':'stop-watching'))await admitCleared(pool,owner,source,mapping,closed);
   if(held.owedResolves?.length)await settleResolves(pool,owner,source,mapping,held.owedResolves);
   if(held.state==='silent')await admit(pool,owner,source,alertEvent(mapping,silenceAlert(mapping,held.silenceFingerprint,held.silentSince,'resolved',clock(),source,held.resourceId)),{sameOccurrence:true});
  }
  // The scans are filed by source URI and scope, so a second revision of this source reporting on the same scope keeps them.
  let shared=false;
  for(const other of sources)if(other.id!==sourceId&&other.source===source.source&&(await installationRow(pool,owner,other.id))?.scope===mapping?.scope)shared=true;
- return {forgotten:Boolean(await forgetInstallation(pool,owner,source,shared?null:mapping?.scope||null)),sourceId};
+ return {forgotten:Boolean(await forgetInstallation(pool,owner,source,shared?null:mapping?.scope||null,{keepHistory:disconnect})),sourceId,...(disconnect?{disconnected:true}:{})};
 }

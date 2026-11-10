@@ -28,6 +28,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Initial Stage module: GET / (surface) + POST /broadcast (confirm-gated fan-out of exact approved per-channel texts through Compose's exported publishTo — one compose, N channel submissions, per-channel failure isolation, workspace-scope guard). Validation + fan-out mechanics live in the pure switchboard-stage-fanout module so store-CI tests the compiled bytes.
+ * 2026-11-10 01:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: Send to all chosen networks carries each post's attached image (mediaRef) to publishTo; X uploads it with the post.
  *
  * @module switchboard-stage-routes
  */
@@ -125,7 +126,7 @@ function createStageRoutes(ctx) {
     const assetRoot = ctx.appPackageDir ? path.join(ctx.appPackageDir, 'tools') : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
     // Surface: the broadcast composer.
     router.get('/', servePage(assetRoot, 'switchboard-stage.html'));
-    /** POST /broadcast { posts:[{platform,text}], workspaceId?, confirm } — fan out the exact approved texts. */
+    /** POST /broadcast { posts:[{platform,text,mediaRef?}], workspaceId?, confirm } — fan out the exact approved texts (and attached image). */
     router.post('/broadcast', async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -156,7 +157,7 @@ function createStageRoutes(ctx) {
                     return;
                 }
             }
-            const { results, summary } = await (0, switchboard_stage_fanout_1.runFanout)(plan.posts, (platform, text) => (0, switchboard_compose_routes_1.publishTo)(ctx, sub, platform, text));
+            const { results, summary } = await (0, switchboard_stage_fanout_1.runFanout)(plan.posts, (platform, text, mediaRef) => (0, switchboard_compose_routes_1.publishTo)(ctx, sub, platform, text, mediaRef));
             logger.info({ sub, summary }, 'Stage broadcast fan-out completed');
             res.status(summary.sent > 0 ? 200 : 502).json({ results, summary });
         }

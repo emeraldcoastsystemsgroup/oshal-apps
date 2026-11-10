@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 39 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: register resume-native-upload (a request shaped like the kernel's, gate-run) and native-resume-upload (the kernel's own request constructor, parser and response): a new person's résumé upload answered "req.once is not a function" on the native kernel.
+# 38 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: register master-record (the reader and the compiled route over made-up stores) and master-record-browser (the page at 412x915 and 1280x900); resume-office-mapping expects the untouched document to change nothing; persona-wording expects the counts-and-link answer and no routing words.
 # 37 | maintainer@emeraldcoastsystemsgroup.com | 1.48.1: ux-audit-screens also runs the live Job Board's stage guard (career-job-lists-stages).
 # 36 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit-screens (UX audit 2026-11-06): the real Career screens in Chromium over synthetic fixtures (recruiters, experience library, Resume Studio, Career Review, Job Board stages, To approve, Strengthen, Mobile, Search, Settings, Submission activity, Companies) and the recruiter read-after-write route guard.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | Register the nightly source review: evidence-only repairs, respected refusals, the public-only guard, budgets and the Companies page report.
@@ -1111,6 +1113,7 @@ cases:
         - tests/career-persona-wording.test.mjs
     expected:
       - intelligent-career's chatBot is career-hunter, and its persona's Speaking to the person rule names career_database, profile.present, system state and On Screen Now as never said.
+      - A request for the whole record is answered with the counts and the Master record page link, never pasted; the tool is read-only on career.read and no routing word carries the master record.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -1703,6 +1706,7 @@ cases:
         - tests/career-resume-office.test.mjs
     expected:
       - The headline and bullet edits land in career_db.json with roles, titles and unsent fields intact; a removed role refuses the save in words.
+      - With an empty headline and a skill holding semicolons, the untouched document says Matches your master resume on open and on Save, sends nothing, and a forced save changes no byte, snapshot or history; a bullet edit saves only that bullet.
     prerequisites: [runner:node-test, fixture:career-python]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the temporary career profiles."}
@@ -1727,4 +1731,86 @@ cases:
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "The Office fixture drops its database and role; the temporary profile is removed."}
     limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: master-record
+    name: The Master record reads everything Career keeps, read-only, and pages it for the concierge
+    purpose: >-
+      Over made-up stores written the way Career writes them, the reader (lib/career-master-record.js) and the compiled
+      route (routes/career-master-record-routes.js) over loopback HTTP: every bullet once under its role, every skill
+      under its group, the history newest first with its dates, Strengthen answers and snapshot dates; nothing written;
+      links and oversized files refused; concierge pages of at most 12 KB that together are the Markdown.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-master-record.test.mjs
+        - tests/career-master-record-routes.test.mjs
+    expected:
+      - The counts match the fixture, every bullet appears once under its role and every skill under its group, and the history reads newest first with its dates; the private writing notes are on the record but not in the Markdown.
+      - A read-only folder reads whole with the database opened immutable and every byte unchanged; a linked or oversized source refuses the record; another person's folder is never touched.
+      - Anonymous callers get 401; every page answer is at most 12 KB and the pages joined equal the Markdown with each bullet once; Alice never sees Bob; a person with no store gets an empty record and no folder.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary stores."}
+    limits: {timeoutMs: 60000}
+    installation: never
+  - id: master-record-browser
+    name: The Master record page at phone and desktop size
+    purpose: >-
+      The real tools/career-master-record.html in Chromium at 412x915 and 1280x900, answered by the real compiled route
+      and reader over a made-up store: bullets and history dates on screen, Download saves one .md, Print or save as
+      PDF is in More, and nothing scrolls sideways.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/career-master-record-proof.mjs
+    expected:
+      - Every bullet and history date is visible; the downloaded .md holds every bullet, skill and history record and none of the private writing notes; Print calls the browser's print; Download is the one primary; nothing scrolls sideways at either size.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the temporary store."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: resume-native-upload
+    name: A résumé uploads through the native kernel's buffered request
+    purpose: >-
+      Live 2026-11-09 a new person's résumé upload answered "req.once is not a function" on the native kernel, whose
+      request carries the whole body as a Buffer and has no stream events. The compiled upload route is driven with a
+      request shaped like the kernel's and the native port marker.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-resume-native-upload.test.mjs
+    expected:
+      - The résumé is accepted (202), stored and handed to indexing with the store lease; an oversized buffered body is refused 413 before parsing; every upload reservation is returned once.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary stores."}
+    limits: {timeoutMs: 60000}
+    installation: never
+  - id: native-resume-upload
+    name: Native protocol résumé upload
+    purpose: Exercise the compiled résumé upload route with the real native request constructor, router, multipart parser and response adapter from a verified bridge fixture.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native/career-resume-bridge-proof.mjs
+    expected:
+      - One résumé in a complete buffered native multipart request is accepted, stored and handed to indexing without IncomingMessage events; a second file is refused 413.
+    prerequisites:
+      - runner:node-test
+      - fixture:native-host-process-bridge
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary résumé store; no engine runs and no provider requests.
+    limits:
+      timeoutMs: 60000
     installation: never

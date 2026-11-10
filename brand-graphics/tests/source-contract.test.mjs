@@ -1,4 +1,5 @@
-/** CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Exercise fresh contract identities, backend/schema refusals and real uncached GETs. */
+/** CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Exercise fresh contract identities, backend/schema refusals and real uncached GETs.
+ * CHANGE LOG: 1.4.0 | maintainer@emeraldcoastsystemsgroup.com | Comment threads (RP-BRG-06) as typed operations: add, reply, resolve, remove and replace; a pre-1.4.0 model without comments validates and gains an empty list; duplicates, blank text, bad times, unknown fields and the thread/reply/text limits are refused. Red on 1.3.2. */
 /** The published operation grammar executes through the actual typed source validator. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,4 +55,32 @@ test('two actual protected contract GETs issue distinct uncached keys without SQ
  const url='http://127.0.0.1:'+server.address().port+'/api/brand-graphics/source-projects/contract';
  const keys=[];for(let n=0;n<2;n++){const response=await fetch(url);assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');const body=await response.json();keys.push(body.requestKey);assert.match(body.requestKey,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);assert.deepEqual(body.operations,CONTRACT.operations);}
  assert.notEqual(keys[0],keys[1]);allowed=false;assert.equal((await fetch(url)).status,403);assert.equal(connections,0);
+});
+
+test('comment threads are typed operations with replies and resolve; older models validate; bounds refuse',async()=>{
+ const {COMMENT_LIMITS}=await import('../routes/source-model.mjs');
+ const before=initial();assert.deepEqual(before.comments,[],'a model saved before comments existed validates with an empty list');
+ const c='44444444-4444-4444-8444-444444444444',r='55555555-5555-4555-8555-555555555555',at='2026-11-10T01:00:00.000Z';
+ let next=apply(before,[{op:'add-comment',comment:{id:c,target:id,text:'Hold the logo longer',at}}]);
+ assert.deepEqual(next.comments,[{id:c,target:id,text:'Hold the logo longer',at,resolved:false,replies:[]}]);assert.deepEqual(before.comments,[],'apply never mutates its input');
+ next=apply(next,[{op:'reply-comment',id:c,reply:{id:r,text:'Done',at}},{op:'resolve-comment',id:c,resolved:true}]);
+ assert.equal(next.comments[0].resolved,true);assert.deepEqual(next.comments[0].replies,[{id:r,text:'Done',at}]);
+ assert.equal(apply(next,[{op:'resolve-comment',id:c,resolved:false}]).comments[0].resolved,false,'Reopen');
+ assert.deepEqual(apply(next,[{op:'remove-comment',id:c}]).comments,[]);
+ assert.deepEqual(apply(next,[{op:'replace-comments',comments:[]}]).comments,[]);
+ assert.equal(apply(next,[{op:'add-comment',comment:{id:'66666666-6666-4666-8666-666666666666',target:'brief',text:'On the brief',at}}]).comments.length,2);
+ for(const operation of [
+  {op:'add-comment',comment:{id:c,target:'brief',text:'duplicate id',at}},
+  {op:'add-comment',comment:{id:'77777777-7777-4777-8777-777777777777',target:'brief',text:'   ',at}},
+  {op:'add-comment',comment:{id:'77777777-7777-4777-8777-777777777777',target:'brief',text:'x',at:'yesterday'}},
+  {op:'add-comment',comment:{id:'77777777-7777-4777-8777-777777777777',target:'not-a-scene',text:'x',at}},
+  {op:'add-comment',comment:{id:'77777777-7777-4777-8777-777777777777',target:'brief',text:'x',at,author:'someone else'}},
+  {op:'add-comment',comment:{id:'77777777-7777-4777-8777-777777777777',target:'brief',text:'x'.repeat(COMMENT_LIMITS.text+1),at}},
+  {op:'reply-comment',id:'88888888-8888-4888-8888-888888888888',reply:{id:r,text:'no such thread',at}},
+  {op:'resolve-comment',id:c,resolved:'yes'},
+  {op:'replace-comments',comments:Array.from({length:COMMENT_LIMITS.threads+1},(_,n)=>({id:'99999999-9999-4999-8999-'+String(n).padStart(12,'0'),target:'brief',text:'t',at}))},
+ ])assert.throws(()=>apply(next,[operation]),undefined,JSON.stringify(operation).slice(0,80));
+ const full=apply(next,[{op:'replace-comments',comments:[{...next.comments[0],replies:Array.from({length:COMMENT_LIMITS.replies},(_,n)=>({id:'aaaaaaaa-aaaa-4aaa-8aaa-'+String(n).padStart(12,'0'),text:'r',at}))}]}]);
+ assert.throws(()=>apply(full,[{op:'reply-comment',id:c,reply:{id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',text:'one too many',at}}]));
+ for(const name of ['add-comment','reply-comment','resolve-comment','remove-comment','replace-comments'])assert.equal(CONTRACT.operations[name].op,name,'the published contract names '+name);
 });

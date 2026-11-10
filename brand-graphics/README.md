@@ -1,5 +1,17 @@
 # brand-graphics — an OSHAL app package
 
+1.4.0 makes the seven reference functions work (they were greyed "Not available yet" controls):
+
+| Control | What it does | Limit |
+|---|---|---|
+| Templates (beside the build kinds) | Six prefilled briefs with storyboards; a choice opens as a new unsaved brief. | Nothing renders until Render. |
+| Brand kit (under the brief) | Writes the person's Create brand kit (colors, fonts, voice, logo) into the brief the render reads. Without a saved kit it opens Create's Brand Kit; without Create it is not shown. | The render reads words: colors and mood steer it; a logo is a direction, not a placed image. |
+| Comment (app row; ⋯ More on a phone) | Threads on the brief or a scene, replies, Resolve and Reopen, saved with the source (typed operations `add-comment`, `reply-comment`, `resolve-comment`, `remove-comment`, `replace-comments`). | Each comment change is one source revision (100 per source). Sources are personal, so comments are the owner's notes. |
+| Download (app row, Recorded work rows) | Downloads a finished build's MP4 from Vids. | Shown only while Vids holds the file; on an installation where Vids keeps no exports the page says so. |
+| Resize for other formats (⋯ More) | 16:9 renders here; 9:16 and 1:1 hand the brief to Video Studio with the format named first. | Choose the same Aspect in Video Studio. |
+| Schedule or post (⋯ More) | Hands the brief to Switchboard Compose (offer `prepare-post`), which posts now or on its calendar after an explicit confirmation. | The rendered video is not attached by Switchboard. |
+| Edit on canvas (a scene's ⋯) | Opens that scene on AI Office's canvas (offer `prepare-document`). | |
+
 1.2.3 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

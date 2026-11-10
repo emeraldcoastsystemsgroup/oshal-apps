@@ -21,6 +21,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-23 03:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial calendar module: the Content Calendar model (oshal_switchboard_scheduled_posts, lazy DDL + owner-RLS) + week-grid surface + scheduled-post CRUD (GET /calendar, GET/POST /calendar/posts, PATCH/DELETE /calendar/posts/:id). Workspace-scoped reads. No LLM in the path; the scheduled-time publish executor is deferred (not faked).
  * 2026-07-31 12:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Comment-only truth sweep: the scheduled-post executor SHIPPED in this module (the "calendar scheduled-post executor (closes the deferral)" commit) but this header and the package README still said it was NOT part of the slice. Header + README corrected to the as-built state; no code change.
+ * 2026-11-10 01:30:00 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: the scheduled-post executor publishes a post's attached image (media_ref) through publishTo with the post; it published the text alone before and dropped the image without a word.
  *
  * @module switchboard-calendar-routes
  */
@@ -333,12 +334,13 @@ let executorStarted = false;
 async function runDuePosts(ctx: AppContext): Promise<void> {
   await runWithSystemIdentity(async () => {
     const due = (await ctx.pool.query(
-      `SELECT post_id, user_sub, platform, body FROM oshal_switchboard_scheduled_posts
+      `SELECT post_id, user_sub, platform, body, media_ref FROM oshal_switchboard_scheduled_posts
        WHERE status = 'scheduled' AND scheduled_at <= now() ORDER BY scheduled_at LIMIT 25`,
-    )).rows as Array<{ post_id: string; user_sub: string; platform: string; body: string }>;
+    )).rows as Array<{ post_id: string; user_sub: string; platform: string; body: string; media_ref: string | null }>;
     for (const p of due) {
       try {
-        const r = (await publishTo(ctx, p.user_sub, p.platform, p.body)) as { ok?: boolean; error?: string; message?: string };
+        // The post's attached image goes with it on the same path Compose uses (never dropped).
+        const r = (await publishTo(ctx, p.user_sub, p.platform, p.body, p.media_ref)) as { ok?: boolean; error?: string; message?: string };
         if (r.ok) {
           await ctx.pool.query("UPDATE oshal_switchboard_scheduled_posts SET status='published', published_at=now(), attempts=attempts+1, updated_at=now() WHERE post_id=$1", [p.post_id]);
           logger.info({ postId: p.post_id, platform: p.platform }, 'Scheduled post published');

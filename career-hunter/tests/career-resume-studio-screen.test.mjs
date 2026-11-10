@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Resume Studio, grade D). The real tools/career-resume-studio.html in Chromium over a synthetic fixture: with no résumé indexed the page is one empty state whose primary uploads the résumé (POST /resume/upload, field "resume") and then says it is indexing, with no Save anywhere; with a résumé, Save is a secondary button disabled until a change, and a refused save is told beside it in a role=alert with its fix (the 422 the audit hit); the paper stays white with dark ink when the platform's automatic glass marks it in a dark theme; the cross-links live in More.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: More leads with Master record (everything saved), the read-only page with every role, bullet, skill and history record.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,7 +62,8 @@ test('with a résumé: Save is secondary, enabled only by a change, and a refusa
     await alert.waitFor();
     assert.match(await alert.innerText(), /Upload your résumé first/);
     assert.equal(await page.locator('nav a:visible').count(), 0, 'no raw links in the toolbar');
-    assert.deepEqual(await page.locator('#moreMenu a').allInnerTexts(), ['Additional experience library', 'Prepare & submit']);
+    assert.deepEqual(await page.locator('#moreMenu a').allInnerTexts(), ['Master record (everything saved)', 'Additional experience library', 'Prepare & submit']);
+    assert.equal(await page.locator('#moreMenu a[data-career-tool="career-master-record"]').getAttribute('href'), '/api/career-hunter/master-record-ui');
   } finally { await context.close(); }
 });
 

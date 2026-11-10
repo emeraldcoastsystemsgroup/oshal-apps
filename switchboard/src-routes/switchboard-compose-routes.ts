@@ -17,7 +17,7 @@
  *                                recordStoryboardImageCost. Depends on a configured image provider
  *                                (STORYBOARD_IMAGE_PROVIDER, default `codex` = the swarm OpenAI key).
  *   • POST /compose/publish    — publish the EXACT approved text to X / LinkedIn / Facebook via the
- *                                caller's connector token. Deterministic (no LLM in the path) and
+ *                                caller's connector token, with the attached image (mediaRef) on X. Deterministic (no LLM in the path) and
  *                                gated behind the explicit-write confirmation (no-post guard) — the
  *                                same three real bindings social-routes POST /post uses.
  *
@@ -40,6 +40,7 @@
  *
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /variants hands the author's text to the variant reader, whose topic words mark a reply that opens like a refusal ("I cannot publish this without thanking the team: the new board is live.") as the post it is, not a decline.
  * 2026-10-12 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: the LinkedIn variant changed the master's facts (the master said the team 'fixed the concierge answers'; the variant said '15 app layouts. 1 concierge fix. Done.'). Every variant prompt now carries VARIANT_FACTS_RULE: the rewrite keeps every fact, number and claim as the source states it and adds none, changing only form and length. Guard: tests/switchboard-compose-variants.test.js.
+ * 2026-11-10 01:30:00 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: publishing with an attached image works. POST /publish answered 501 "Attaching generated media on publish is not yet supported" for any mediaRef; now publishTo takes the post's mediaRef (an image data URL), X uploads it with the chunked v2 media upload on api.twitter.com (switchboard-media) and posts with media.media_ids, and X's 401/403 on the upload answers "reconnect X; nothing was posted". A network that posts only text here (LinkedIn, Facebook off the kernel) refuses an attached image in words (501 media_unsupported) instead of dropping it. Guard: tests/switchboard-publish-media.test.js.
  *
  * @module switchboard-compose-routes
  */
@@ -56,6 +57,7 @@ import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/sha
 import { resolveStoryboardImageProvider, recordStoryboardImageCost, type StoryboardImageResult } from '@/features/video-generation';
 import { isNotConnected, kernelEgress, readConnections, usableConnections } from './switchboard-kernel-egress';
 import { readVariantReply, VARIANT_ANSWER_SHAPE } from './switchboard-variant-reply';
+import { readMediaRef, uploadToX, type XFetch } from './switchboard-media';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -218,26 +220,48 @@ async function generateComposeImage(ctx: AppContext, sub: string, prompt: string
   return { dataUrl: `data:image/png;base64,${result.image.toString('base64')}`, model: result.model, provider: provider.id };
 }
 
-/** Publish approved text to X/Twitter via the connector token (POST /2/tweets). Mirrors social-routes. */
-async function publishToX(ctx: AppContext, sub: string, text: string): Promise<Record<string, unknown>> {
+/**
+ * @description Publish approved text to X (POST /2/tweets), with the attached image when the post carries one: the
+ * image is uploaded first (switchboard-media, chunked v2 upload) and the post names its media id. A refused upload
+ * posts nothing. Under the kernel the egress applies the caller's twitter connection; the package sends no Authorization.
+ * @param ctx - App context (pool for the broker token outside the kernel). @param sub - Owner sub.
+ * @param text - The exact approved text. @param mediaRef - The attached image's reference, if any.
+ * @returns { ok, target, tweetId, mediaId? } or { ok:false, code, error, message }.
+ */
+async function publishToX(ctx: AppContext, sub: string, text: string, mediaRef?: string | null): Promise<Record<string, unknown>> {
   if (text.length > 280) return { ok: false, code: 400, error: 'too_long', message: `Tweet is ${text.length} chars (max 280).` };
+  const media = mediaRef ? readMediaRef(mediaRef) : null;
+  if (media && 'ok' in media) return media;
   const kernel = kernelEgress();
   const noConnection = { ok: false, code: 409, error: 'no_twitter_connection', message: 'Connect X at /utilities first.' };
   const token = kernel ? null : await getValidAccessToken(ctx.pool, sub, 'twitter');
   if (!kernel && !token) return noConnection;
+  const auth: Record<string, string> = kernel ? {} : { Authorization: `Bearer ${token}` };
+  const xfetch: XFetch = (url, init) => fetch(url, { ...init, headers: { ...auth, ...(init.headers || {}) } });
+  let mediaId: string | null = null;
   let r: Awaited<ReturnType<typeof fetch>>;
   try {
-    // Under the kernel the egress applies the caller's twitter connection; the package sends no Authorization.
-    r = await fetch('https://api.twitter.com/2/tweets', {
-      method: 'POST', headers: kernel ? { 'Content-Type': 'application/json' } : { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+    if (media) {
+      const uploaded = await uploadToX(xfetch, media);
+      if (!uploaded.ok) return uploaded;
+      mediaId = uploaded.mediaId;
+    }
+    r = await xfetch('https://api.twitter.com/2/tweets', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mediaId ? { text, media: { media_ids: [mediaId] } } : { text }),
     });
   } catch (err) {
     if (kernel && isNotConnected(err)) return noConnection;
     throw err;
   }
   const j = (await r.json().catch(() => ({}))) as { data?: { id?: string } };
-  if (r.status >= 200 && r.status < 300) return { ok: true, target: 'x', tweetId: j?.data?.id ?? null };
+  if (r.status >= 200 && r.status < 300) return { ok: true, target: 'x', tweetId: j?.data?.id ?? null, ...(mediaId ? { mediaId } : {}) };
   return { ok: false, code: 502, status: r.status, error: JSON.stringify(j).slice(0, 300) };
+}
+
+/** The honest answer for an image on a network this package posts only text to (nothing is sent). */
+function mediaUnsupported(label: string): Record<string, unknown> {
+  return { ok: false, code: 501, error: 'media_unsupported', message: `${label} posts from Switchboard carry text only. Remove the image to post the text, or post the image on ${label}. Nothing was posted.` };
 }
 
 /** Publish approved text to LinkedIn via the connector token (UGC Posts / w_member_social). Mirrors social-routes. */
@@ -286,10 +310,13 @@ async function publishToFacebook(ctx: AppContext, sub: string, text: string): Pr
  * @param sub - The owning user's OIDC subject (the account being published from).
  * @param platform - x | twitter | linkedin | facebook.
  * @param text - The exact text to publish.
+ * @param mediaRef - The post's attached image (a data URL, switchboard-media), or nothing. X uploads and attaches it;
+ *   a network this package posts only text to refuses in words instead of dropping it.
  * @returns { ok, target?, ...ids } on success, or { ok:false, code, error, message } on failure.
  */
-export function publishTo(ctx: AppContext, sub: string, platform: string, text: string): Promise<Record<string, unknown>> {
-  if (platform === 'x' || platform === 'twitter') return publishToX(ctx, sub, text);
+export function publishTo(ctx: AppContext, sub: string, platform: string, text: string, mediaRef?: string | null): Promise<Record<string, unknown>> {
+  if (platform === 'x' || platform === 'twitter') return publishToX(ctx, sub, text, mediaRef);
+  if (mediaRef && PUBLISHABLE.has(platform)) return Promise.resolve(mediaUnsupported(PLATFORMS[platform]?.label || platform));
   if (platform === 'facebook') return publishToFacebook(ctx, sub, text);
   if (platform === 'linkedin') return publishToLinkedIn(ctx, sub, text);
   return Promise.resolve({ ok: false, code: 400, error: 'unsupported_platform', message: 'Publish supports x, linkedin, facebook.' });
@@ -378,7 +405,7 @@ export function createComposeRoutes(ctx: AppContext): Router {
     }
   });
 
-  /** POST /publish { platform, text, workspaceId?, mediaRef?, confirm } — publish the exact approved text. */
+  /** POST /publish { platform, text, workspaceId?, mediaRef?, confirm } — publish the exact approved text (with its attached image on X). */
   router.post('/publish', async (req: Request, res: Response) => {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
@@ -388,19 +415,14 @@ export function createComposeRoutes(ctx: AppContext): Router {
     if (!text) { res.status(400).json({ error: 'text required' }); return; }
     if (!PUBLISHABLE.has(platform)) { res.status(400).json({ error: 'unsupported_platform', message: 'Publish supports x, linkedin, facebook.' }); return; }
     if (!hasExplicitWriteConfirmation(body)) { res.status(428).json(confirmationRequiredPayload('no-post', `Publishing to ${PLATFORMS[platform]?.label || platform}`)); return; }
-    // Attaching a generated image to a published post has NO real binding here (social-routes has no
-    // media-upload path). Refuse rather than silently drop the media and claim success.
-    if (body.mediaRef) {
-      res.status(501).json({ error: 'media_attach_unsupported', message: 'Attaching generated media on publish is not yet supported — publish the text and attach the downloaded image in-platform. (X media/upload + LinkedIn asset register are follow-ups.)' });
-      return;
-    }
     try {
       const ws = await workspaceProviders(ctx.pool, sub, String(body.workspaceId || '').trim() || null);
       if (ws && ws.size && !platformProviders(platform).some((p) => ws.has(p))) {
         res.status(403).json({ error: 'workspace_mismatch', message: `${PLATFORMS[platform]?.label || platform} is not one of this workspace's accounts.` });
         return;
       }
-      const result = await publishTo(ctx, sub, platform, text);
+      // An attached image goes with the post (X uploads it first); a network that cannot carry it refuses in words.
+      const result = await publishTo(ctx, sub, platform, text, typeof body.mediaRef === 'string' ? body.mediaRef : null);
       res.status(result.ok ? 200 : ((result.code as number) || 502)).json(result);
     } catch (err) {
       logger.error({ err, platform }, 'Compose publish failed');

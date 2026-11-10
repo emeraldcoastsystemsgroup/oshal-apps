@@ -1,3 +1,4 @@
+# 2.20.2 | maintainer@emeraldcoastsystemsgroup.com | Remove the duplicate greyed RP-ALL-01 Summarize planned chip from the AI Office Concierge prompt strip so only the kernel's live Summarize and Suggest improvements prompt chips appear alongside Generate a draft.
 # 2.20.1 | maintainer@emeraldcoastsystemsgroup.com | Pin the AI Office Concierge composer flush to the bottom of the docked right rail and phone sheet with flex layout so prompt chips never overflow into a floating gap and only the conversation log scrolls.
 # 2.19.0 | maintainer@emeraldcoastsystemsgroup.com | The oshal design standard (docs/ux/design-standard.md §3, §4, §5.1; Google Docs, Word and ONLYOFFICE, REFP CONVENTIONS §5.1): with nothing saved the editor opens on a blank Word page with the caret on line 1, and once there are documents on Your documents (newest first, one New at the bottom right: Blank document, Presentation, Spreadsheet); an existing document on a phone opens to read with one Edit. One app row (Back, the name and its menu with New, Open, Rename, Duplicate, Export, Delete, Undo, Redo, Save while there is something to save, Export the one primary once there is content); the Format select and the Create/Generate bar are gone, Generate lives in Insert and the Concierge. The phone's bottom bar is Format, Insert, Comment, Concierge and More (Slides or Sheets first), each an opaque sheet with Done that Back closes; Format has Text and Paragraph tabs. On a desktop Slides are a 240px pane and Format | Concierge one docked 320px pane, so the inspector no longer covers the slide and Zoom Fit keeps it whole whichever pane is open. A selection raises Cut, Copy, Paste, Comment and More at the selection. Planned controls for Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view, Share and Summarize (RP-OFF-01..07, RP-ALL-01). In-page confirms replace the browser's. No route permission, binding or authorization.yaml change.
 # 2.18.7 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06: 291 px of bars): one app bar row (title with its save state, Save, More); Create, Format and New, Generate, File, Export, Undo, Redo and the Insert toolbar wait in More, where Office's menus open in place.
@@ -70,7 +71,7 @@ rating:
       degrade: disable
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.1
+version: 2.20.2
 lastingStorage: true
 testing:
   version: 1

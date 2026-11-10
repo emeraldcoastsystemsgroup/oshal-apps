@@ -5,6 +5,7 @@
 # 0.4.2 | maintainer@emeraldcoastsystemsgroup.com | At 1440x900 Your publications fills the app: the editor's desktop grid kept the list in its second column, an implicit 267px strip at the right with the rest of the app empty (the trial check of 0.4.1, 2026-11-06). Guard: tests/browser/design-standard.test.mjs, "Your publications takes the whole width".
 # 0.5.0 | maintainer@emeraldcoastsystemsgroup.com | Starter templates, multi-select and grouping, image background cutout, proportional format resize, Create brand kit integration, forced-RLS pinned comments, social post scheduling and publishing behind explicit confirmation, and item animation presets with collapsible timeline and H.264 MP4 video export (RP-PUB-01..08).
 # 0.5.1 | maintainer@emeraldcoastsystemsgroup.com | Snapshot-load referenced revision, blob, chunk, output, and comment-reply rows before native SQL updates and cascade deletes across video jobs, social posts, comments, and document removal.
+# 0.5.2 | maintainer@emeraldcoastsystemsgroup.com | B8-06: sync .frame-handle disabled state in controls() so a selected frame's Move handle drawn while busy at open or save enables immediately when the locked operation finishes.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.3.5: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
 # 0.3.4 | maintainer@emeraldcoastsystemsgroup.com | Use an obviously synthetic UUIDv4 request example while requiring a fresh identifier for each new request.
 # 0.3.1 | maintainer@emeraldcoastsystemsgroup.com | Share the pinned native concierge, live saved-document refresh, same-session manual follow-up and controller-owned approval cards.
@@ -19,7 +20,7 @@ displayName: Publishing Studio
 description: >-
   Original-owned bounded English print and animated layouts, starter templates, linked stories,
   styles, masters, subject cutouts, comments, social scheduling and native Typst PDF/PNG/MP4 output.
-version: 0.5.1
+version: 0.5.2
 runtime: process
 lastingStorage: true
 status: active

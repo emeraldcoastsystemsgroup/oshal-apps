@@ -7,6 +7,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §4.4, §4.8, §5.1; CONVENTIONS §5.5; Roger F6). What you type in a text frame is drawn in that frame on the page at once (the story's own font, size, weight, colour and alignment; master headers and page numbers too), while the renderer still owns exact flow and the PDF: a rendered revision shows its pages, a draft shows the drawn text. Typing in the Text sheet edits the story as you type (one undo step per burst). Render & preflight and Download PDF run on the current draft and save it first by themselves, so neither waits for Save revision; Download PDF renders when the revision has no render yet. With no publication the editor shows one blank Letter page (nothing saved yet); its first Add text frame makes an untitled Letter publication and puts the frame on it, ready to type. Nothing is selected until a frame is tapped, so the tool row shows the page's tools. Choices that would lose a draft confirm in the page, never in a browser dialog; a selection change with unapplied form fields is refused with how to fix it. Previews are still asked for only when the opened revision was rendered (B8 round 3, no 409s).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7, touch (the round-2 trial check, 2026-11-06: a swipe over the page dragged the story frame and never scrolled): a finger scrolls the page and a tap selects a frame; only the chosen frame's Move handle drags it by touch, as in the reference editors (Canva's selected element, Acrobat's deliberate grab); a mouse still drags outlines directly. Previews are asked for only when the opened revision was rendered (no 409 per page).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: support multi-select and group selection/drag, nullable metadata cleanup in localApply, Liberation Sans and Liberation Mono font stacks, MP4 export download, and shell hooks for comments and timeline (RP-PUB-01..08).
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (B8-06): sync .frame-handle disabled state in controls() so a frame whose Move handle was drawn while busy at open becomes enabled as soon as loading or saving completes.
  */
 import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
 let editorFoundation;
@@ -306,6 +307,7 @@ function controls(){
   const node=$(id);if(node.tagName==='FORM')for(const control of node.elements)control.disabled=blocked;else node.disabled=blocked;
  }
  for(const node of document.querySelectorAll('#fmt-align button'))node.disabled=blocked;
+ for(const node of document.querySelectorAll('.frame-handle'))node.disabled=blocked;
  for(const form of ['new','asset-upload'])for(const control of $(form).elements)control.disabled=state.busy;
  for(const node of document.querySelectorAll('#documents button,#page-rail button'))node.disabled=state.busy;
  for(const id of ['reopen','open-history','restore-history','delete-document','history'])$(id).disabled=state.busy||!d;

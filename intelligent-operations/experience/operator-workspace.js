@@ -1,3 +1,5 @@
+/* CHANGE LOG: monitor-enroll S2 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): each installation card carries its producer token's controls from the Monitor an installation panel (monitor-enroll.js access): the last delivery, Rotate token and Disconnect; a card that was disconnected goes at once and the records are read again. */
+/* CHANGE LOG: monitor enroll | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): Systems mounts Monitor an installation (monitor-enroll.js) under the installation cards and hands it each read's rows and enrolments; each card says how and when its server was enrolled and when its producer token expires; a source removed from its card has its producer tokens revoked at the kernel, the outcome said in that panel. */
 /* CHANGE LOG: remove source | maintainer@emeraldcoastsystemsgroup.com | Remove this source (1.5.3, P5-55b): each monitored installation card whose source can go (not a desk's own) offers it under Stop watching. The first press opens a note that says what goes and what stays, and the second press is its own button below the note, ignoring a double click and a held key; it posts {sourceId, confirm: true} to /sources/remove. The card goes when the server says removed, the records reload so Sources drops it too, and a refusal stays on the card in words (403 hides the offer as a role that cannot write). Nothing is deleted, so no timer guards it. */
 /* CHANGE LOG: ux audit topology | maintainer@emeraldcoastsystemsgroup.com | Topology is the Graph view of Systems (UX audit 2026-11-06): a jump to the graph stays inside the Systems frame instead of asking the rail for the removed Topology tile. */
 /* CHANGE LOG: ux audit stale checks | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Systems, FIX-BROKEN): while an installation is Silent each check that last read OK shows Stale in secondary ink with a clock (its last OK time on hover; the silence warning above says since when), never a green OK. */
@@ -257,6 +259,8 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  let rows=[],watch=null,readAt=0,begun=0,accepted=0,waiting=0,failedFor=0,countedAt=0,days=1,poll=null,ticker=null,stale=false,noWrite=false,account=null,unreported=[],unreportedFor='',frame=null,brief=null,lastLoad=Promise.resolve();
  const armed=new Map(),stopErrors=new Map(),stopKept=new Map(),said=new Map(),live=new Map(),announcer=document.getElementById('installations-standing');
  const removing=new Set(),removeErrors=new Map();
+ // Monitor an installation (ADR-216): its panel follows these reads, and a new enrolment file reads them again.
+ const enrol=root.OperationsMonitorEnroll?.mount({panel:document.getElementById('monitor-enroll'),onChange:why=>{if(why==='enrolled')void load();else render();}});
  const age=row=>Number.isFinite(row.ageSeconds)?row.ageSeconds+(Date.now()-readAt)/1000:null;
  const watchAge=()=>Number.isFinite(watch?.ageSeconds)?watch.ageSeconds+(Date.now()-readAt)/1000:null;
  /** A read is made only while the tab is visible and a screen that shows monitoring is on it. */
@@ -334,25 +338,26 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
    if(r.status===401){clear();onRefused?.(401);return;}
    if(r.status===403){noWrite=true;fail('Your role cannot remove a source. It stays.');return;}
    if(!r.ok){const why=await r.json().then(b=>b?.error||'',()=>'');fail(why?'Not removed: '+why:'Could not remove this source (HTTP '+r.status+').');return;}
-   rows=rows.filter(other=>other.sourceId!==id);render();onRemoved?.(id);await load();
+   rows=rows.filter(other=>other.sourceId!==id);render();onRemoved?.(id);void enrol?.revokeFor(id,row.name);await load();
   }catch{fail('Could not remove this source: this page could not reach Operations.');}
  }
  /** @description One installation's card, built once and filled in place on every read. @param first Its first row. @returns The article. */
  function card(first){
   const id=first.sourceId,article=el('article'),head=el('header','','installation-head'),who=el('div'),state=el('div','','installation-standing'),name=el('h3'),where=el('p','','operator-note installation-where'),badge=el('span'),heardLine=el('strong','','installation-heard'),since=el('small'),alarm=el('p'),live=el('div','','installation-live');
+  const access=enrol?.access?.(id,name,{disconnected:gone=>{rows=rows.filter(other=>other.sourceId!==gone);render();void load();}});
   const table=el('table','','installation-table installation-checks'),thead=el('thead'),hr=el('tr'),body=el('tbody'),firingTitle=el('h4'),list=el('ul','','installation-firing'),quiet=el('p'),rangeTitle=el('h4'),grid=el('div','','installation-charts'),more=el('details','','operator-advanced'),feed=el('p'),charts=CHARTS.map(def=>chart(def,text=>{live.textContent=text;})),stop=stopArea(id,name),remove=removeArea(id,name);
   let series={},view=null;
   const fillTable=()=>{const held=root.getSelection?.();if(held&&!held.isCollapsed&&(more.contains(held.anchorNode)||more.contains(held.focusNode)))return;const next=chartTable(series,view),old=more.querySelector('table');if(old)old.replaceWith(next);else more.append(next);};
-  live.setAttribute('aria-live','polite');heardLine.dataset.heard=id;name.tabIndex=-1;who.append(el('p','Monitored installation','eyebrow'),name,where);state.append(badge,heardLine,since);head.append(who,state);
+  const enrolled=el('p');live.setAttribute('aria-live','polite');heardLine.dataset.heard=id;name.tabIndex=-1;who.append(el('p','Monitored installation','eyebrow'),name,where,enrolled);state.append(badge,heardLine,since);head.append(who,state);
   for(const h of ['Check','Reading','State'])hr.append(el('th',h));thead.append(hr);table.append(thead,body);grid.append(...charts.map(c=>c.figure));more.append(el('summary','Show these charts as a table'));more.addEventListener('toggle',()=>{if(more.open)fillTable();});
-  article.append(head,alarm,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,stop,remove,live);
+  article.append(head,alarm,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,...(access?[access.node]:[]),stop,remove,live);
   return filled(article,row=>{
    const now=shown(row),h=row.history||{},end=h.now??readAt,label=RANGES.find(r=>r[0]===h.days)?.[1]||RANGES[0][1],place=[row.host,row.url].filter(Boolean).join(' · ');series=h.series||{};view={bucket:(h.bucketMinutes||15)*60000,since:h.since??end-(h.days||1)*86400000,now:end,first:Date.parse(row.firstHeardAt)||0,last:Date.parse(row.lastHeardAt)||0,lastKnown:now==='silent',reported:row.reports>0,label};
-   article.className='card installation '+now+(!stale&&now!=='silent'&&criticalOf(row).length?' alerting':'')+' health-'+(stale?'unknown':criticalOf(row).length?'degraded':HEALTH[row.health]?row.health:'unknown');put(name,row.name);put(where,place);where.hidden=!place;paintBadge(badge,now);put(heardLine,heard(row));put(since,row.reports?row.reports.toLocaleString()+' reports since '+when(row.firstHeardAt):'No heartbeat yet: this server only sends alerts.');
+   article.className='card installation '+now+(!stale&&now!=='silent'&&criticalOf(row).length?' alerting':'')+' health-'+(stale?'unknown':criticalOf(row).length?'degraded':HEALTH[row.health]?row.health:'unknown');put(name,row.name);put(where,place);where.hidden=!place;say(enrolled,'operator-note installation-enrolment',enrol?.line(row)||'');paintBadge(badge,now);put(heardLine,heard(row));put(since,row.reports?row.reports.toLocaleString()+' reports since '+when(row.firstHeardAt):'No heartbeat yet: this server only sends alerts.');
    say(alarm,now==='silent'?'installation-alarm':'installation-warning',alarmText(row,now));sync(body,staleChecks(row,now),'check',c=>c.id,checkRow);
    put(firingTitle,now==='silent'?'Open alerts':row.firing.length&&row.firing.every(a=>a.clearing)?(stale?'Reported cleared at the last read':'Reported cleared, being confirmed'):stale?'Firing at the last read':now==='late'?'Firing at its last report':'Firing now');sync(list,row.firing,'fingerprint',a=>a.fingerprint,firingRow);list.hidden=!row.firing.length;say(quiet,'operator-note',row.firing.length?'':quietText(now));
    put(rangeTitle,label);charts.forEach((c,i)=>c.draw(series[CHARTS[i][0]]||[],view));if(more.open)fillTable();
-   say(feed,'installation-warning',row.feedError?'The readings could not all be saved beside the evidence: '+row.feedError:'');fills.get(stop)(row);fills.get(remove)(row);
+   say(feed,'installation-warning',row.feedError?'The readings could not all be saved beside the evidence: '+row.feedError:'');access?.fill(row);fills.get(stop)(row);fills.get(remove)(row);
   });
  }
  async function stopWatching(row){
@@ -423,7 +428,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  function read(){
   const mine=++begun,at=Date.now(),control=new AbortController();waiting=mine;live.set(mine,control);
   const due=root.setTimeout(()=>{if(waiting===mine)waiting=0;if(live.has(mine)&&mine>accepted)readFailed(at);},READ_DEADLINE_MS),cap=root.setTimeout(()=>control.abort(),READ_ABORT_MS);
-  lastLoad=(async()=>{try{const r=await fetch(API+'/telemetry?days='+days,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:control.signal});if(mine<=accepted)return;if([401,403].includes(r.status)){const code=r.status;clear();onRefused?.(code);return;}if(!r.ok)throw Error('HTTP '+r.status);const body=await r.json();if(mine<=accepted)return;if(!Array.isArray(body.installations))throw Error('Installations are unavailable.');rows=body.installations;watch=body.watch||null;readAt=Date.now();accepted=mine;dropReads(mine-1);stale=false;failedFor=0;render();onRead?.();}catch{if(live.has(mine)&&mine>accepted)readFailed(at);}finally{root.clearTimeout(due);root.clearTimeout(cap);live.delete(mine);if(waiting===mine)waiting=0;}})();
+  lastLoad=(async()=>{try{const r=await fetch(API+'/telemetry?days='+days,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:control.signal});if(mine<=accepted)return;if([401,403].includes(r.status)){const code=r.status;clear();onRefused?.(code);return;}if(!r.ok)throw Error('HTTP '+r.status);const body=await r.json();if(mine<=accepted)return;if(!Array.isArray(body.installations))throw Error('Installations are unavailable.');rows=body.installations;watch=body.watch||null;readAt=Date.now();accepted=mine;dropReads(mine-1);stale=false;failedFor=0;enrol?.update(rows,body.enrollments);render();onRead?.();}catch{if(live.has(mine)&&mine>accepted)readFailed(at);}finally{root.clearTimeout(due);root.clearTimeout(cap);live.delete(mine);if(waiting===mine)waiting=0;}})();
   if(!poll){poll=root.setInterval(pollRead,POLL_MS);ticker=root.setInterval(tick,TICK_MS);}return lastLoad;
  }
  /** An explicit read (the range changed, a stop went through, the records were refreshed): what is still out there answers an older question, so it stops without counting as failed. */
@@ -431,7 +436,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  function readIfOpen(){if(poll&&showing())void read();}
  /** The poll and the wake check leave a read inside its deadline to finish. */
  function pollRead(){if(!waiting)readIfOpen();}
- function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();removing.clear();removeErrors.clear();said.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
+ function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();removing.clear();removeErrors.clear();said.clear();enrol?.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
  /* Going back and forth must not pile reads up: the browser holds six connections to this origin, and a read out for its full 65 seconds holds one. */
  document.addEventListener('visibilitychange',pollRead);root.addEventListener('hashchange',pollRead);
  return {load,clear,loaded:()=>lastLoad,summary,heardFor};

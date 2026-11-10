@@ -1,3 +1,5 @@
+# CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): POST /ingest/otlp/:sourceId, where an enrolled OpenTelemetry Collector reports through the kernel's producer door as the token's owner, under the existing records.write grant beside the Alertmanager ingest. No permission, role or grant changed.
+# CHANGE LOG: 31 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): POST /installations/enroll, the prepare route the kernel runs as the person approving a monitored installation's code, under the existing records.write grant beside the source save it extends; the Monitor an installation script (/assets/monitor-enroll.js, GET and HEAD) under app.open. No permission, role or grant changed.
 # CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved source (1.5.3, P5-55b): POST /sources/remove and the Jarvis tool ops-remove-source under the existing records.write grant, beside the source save it undoes. No permission, role or grant changed.
 # CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | The four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): permissions desk.app, desk.security, desk.platform, desk.release (read, viewer) and desk.<x>.write (write, editor) on the same own-scoped application resource; roles ops-app, ops-security, ops-platform, ops-release, each granting app.open and its desk's two permissions, because a role that cannot open the page cannot see its desk (closure is transitive); operator keeps everything. Each desk's read route and Jarvis tool bind to its desk.<x>, its policy save to desk.<x>.write; the desk catalog and the desks.js asset carry no record and ride app.open.
 # CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Admit the Your computers page script through existing own app.open reads for GET and HEAD.
@@ -225,6 +227,14 @@ bindings:
     - id: computers-asset-get
       method: GET
       path: /assets/computers.js
+      allOf: [app.open]
+    - id: monitor-enroll-asset-get
+      method: GET
+      path: /assets/monitor-enroll.js
+      allOf: [app.open]
+    - id: monitor-enroll-asset-head
+      method: HEAD
+      path: /assets/monitor-enroll.js
       allOf: [app.open]
     - id: computers-asset-head
       method: HEAD
@@ -663,6 +673,11 @@ bindings:
       path: /sources/remove
       allOf:
         - records.write
+    - id: installations-enroll
+      method: POST
+      path: /installations/enroll
+      allOf:
+        - records.write
     - id: write-1
       method: POST
       path: /events
@@ -731,6 +746,10 @@ bindings:
     - id: ingest-alertmanager
       method: POST
       path: /ingest/alertmanager/:sourceId
+      allOf: [records.write]
+    - id: ingest-otlp
+      method: POST
+      path: /ingest/otlp/:sourceId
       allOf: [records.write]
     - id: topology-discovery-get
       method: GET

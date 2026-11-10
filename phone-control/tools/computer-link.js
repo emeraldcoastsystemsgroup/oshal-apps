@@ -11,13 +11,15 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: accept desktop.control, app.open, and screen.capture in computerStanding for Swarm-enrolled Android phones/TVs, send { app, target } in openApp, and add readScreen and isAndroidNode/isTvNode helpers.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add executeDevice package client helper for POST /api/phone-control/devices/:id/execute.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the closed verbs lan-discover and lan-control (TVs and streaming sticks on the home network), and the installer carries oshal_phone_lan.py. The install command passes its checked JSON once, single-quoted, instead of base64 over base64 (gzipped files already arrive as base64): with the fifth file it is ~75 KB instead of ~100 KB, under Linux's 128 KiB single-argument limit with room to grow. Smart Home's TVs section imports this module to install or update the bridge the same way this page does.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer and ble-keep (a Bluetooth pairing waits for the person's Allow; a device paired before oshal asked is kept by the person).
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
 export const RDP_STORAGE_KEY = 'oshal.pc.hasRdp';
 export const VERBS = Object.freeze([
   'version', 'status', 'setup-adb', 'setup-mirror', 'mirror-start', 'mirror-stop', 'mirror-frame', 'mirror-ui', 'uninstall',
-  'ensure', 'stop', 'ble-status', 'ble-sync', 'ble-pair-window', 'ble-devices', 'ble-remove', 'ble-type', 'ble-key', 'ble-mouse',
+  'ensure', 'stop', 'ble-status', 'ble-sync', 'ble-pair-window', 'ble-devices', 'ble-remove', 'ble-pair-answer', 'ble-keep',
+  'ble-type', 'ble-key', 'ble-mouse',
   'ble-move', 'ble-tap', 'ble-swipe', 'ble-drag', 'ble-scroll', 'ble-open', 'ble-calibrate', 'rdp-probe',
   'screen-info', 'pointer-move', 'pointer-click', 'pointer-drag', 'keyboard-type', 'keyboard-key',
   'adb-pair', 'adb-connect', 'adb-connect-tv', 'adb-scan-tv',

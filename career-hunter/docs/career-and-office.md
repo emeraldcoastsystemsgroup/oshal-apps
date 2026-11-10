@@ -17,18 +17,32 @@ only the mapping between that document and the master resume.
 ## The document's shape (the contract Career reads back)
 
 - **Title** paragraph: the person's name (not saved; the profile owns it).
-- The paragraph under it (Heading 2): the **headline**.
+- The paragraph under it (Heading 2): the **headline**. When the profile has no headline, the document shows the
+  credential line here instead, and saving never stores that line as the headline (1.51.0).
 - One **Heading 1** per section, with these exact names: Summary, Core competencies, Skills, Experience,
   Education, Certifications, Clearance.
 - **Experience**: one **Heading 2** per role ("Title — Employer"), its dates in the next paragraph,
   then one **bullet** paragraph per bullet. Roles are matched by position.
-- **Skills**: one paragraph, items separated by " · ".
+- **Skills**: one paragraph, items separated by " · ". Only that separator is read back: a semicolon or a comma is
+  part of a skill's own text, and an untouched Skills line keeps the master's list exactly (1.51.0).
 
 On Save to master resume, Career takes only headline, summary, competencies, skills, clearance and each
 role's bullets. Role titles, employers and dates stay the profile's: a changed role heading is kept in
 the document only and the save says so. A document with a different number of roles than the profile is
 refused in words. A section with another name (for example "Volunteering") stays in the document only.
 Education and certifications are source statements and are not written from the document.
+
+An untouched document always matches the master, so Save to master resume (or the save before an assistant
+reads) sends nothing and the master, its snapshots and its history stay as they were. Live on 2026-11-09 the save
+before a Chat rail message stored the credential line as the headline and split a skill holding two semicolons
+into three skills; both readings are fixed, in `tools/career-resume-office.js` and in the engine's whitelist save
+(`engine/jobhunter/profile.py`), which every master save goes through.
+
+## Everything saved: the Master record
+
+The Word document holds the résumé fields only. Resume Studio's **⋯** (More) menu opens **Master record (everything
+saved)**: every role, bullet and skill, additional experience, education and certifications, evidence and the
+dated history of what was added, read-only, with Download and Print (see the package README, "Master record").
 
 ## Rules for the assistants
 
@@ -65,7 +79,9 @@ preview and editor.
 ## Guards
 
 - `tests/career-resume-office.test.mjs`: the document passes AI Office's model validation, maps back
-  exactly, and an edited document saved through the real `resume base-save` keeps the profile valid.
+  exactly, and an edited document saved through the real `resume base-save` keeps the profile valid. With an
+  empty headline and a skill holding semicolons, the untouched document says "Matches your master resume" on open
+  and on Save, sends nothing, and a forced save changes no byte, snapshot or history record.
 - `tests/career-resume-office-browser.spec.mjs` (lane-run; needs the disposable PostgreSQL at 35689 and a
   kernel platform export): edit the headline, ask the Concierge to tighten a bullet, approve, save,
   re-open and see both; another person cannot read the document; the phone layout.

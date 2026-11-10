@@ -85,7 +85,7 @@ test('every Android argument is checked before adb is touched', () => {
     ['adb-pair', { address: '192.168.1.42:99999', code: '123456' }, 'bad_address'],
     ['adb-pair', { address: '192.168.1.42:37123', code: '12345' }, 'bad_code'],
     ['adb-connect-tv', { address: 'not an address' }, 'bad_address'],
-    ['adb-connect-tv', { address: '192.168.1.138:99999' }, 'bad_address'],
+    ['adb-connect-tv', { address: '192.168.1.60:99999' }, 'bad_address'],
     ['adb-connect-tv', { address: '' }, 'bad_address'],
     ['adb-tap', { serial: '-H 1.2.3.4', x: 1, y: 1 }, 'bad_serial'],
     ['adb-tap', { serial: '10.0.0.2:5555', x: -1, y: 1 }, 'bad_argument'],
@@ -110,8 +110,8 @@ test('every Android argument is checked before adb is touched', () => {
   assert.match(words.message, /cannot type ï\. Nothing was sent\./);
   const pyCheck = spawnSync('python3', ['-B', '-I', '-c',
     `import sys; sys.path.insert(0, ${JSON.stringify(BRIDGE)}); import oshal_phone_bridge as b; `
-    + 'assert b.tv_address("192.168.1.138") == "192.168.1.138:5555"; '
-    + 'assert b.tv_address("192.168.1.138:5556") == "192.168.1.138:5556"; '
+    + 'assert b.tv_address("192.168.1.60") == "192.168.1.60:5555"; '
+    + 'assert b.tv_address("192.168.1.60:5556") == "192.168.1.60:5556"; '
     + 'assert b.ANDROID_KEYS["OK"] == 23 and b.ANDROID_KEYS["PLAY_PAUSE"] == 85'], { env, encoding: 'utf8' });
   assert.equal(pyCheck.status, 0, pyCheck.stderr);
   assert.ok(VERBS.includes('ble-remove') && VERBS.includes('adb-connect-tv'));
@@ -318,7 +318,7 @@ test('ble-calibrate learns cursor gain into ble-profiles.json, Fire TV NAMED_KEY
     'assert res["ok"] is True and click_calls[0][0] == "tap" and click_calls[0][1]["nx"] == 0.5 and click_calls[0][1]["ny"] == 0.5',
     'ctx.need_serial = lambda a: a["serial"]',
     'ctx.verb_adb_info = lambda a: {"ok": True, "width": 1920, "height": 1080}',
-    'assert oshal_phone_ops.detect_dimensions(ctx, "android", "192.168.1.138:5555", {}) == (1920, 1080, True)'
+    'assert oshal_phone_ops.detect_dimensions(ctx, "android", "192.168.1.60:5555", {}) == (1920, 1080, True)'
   ].join('\n');
   const done = spawnSync('python3', ['-B', '-I', '-c', py], { env, encoding: 'utf8', timeout: 30000 });
   assert.equal(done.status, 0, done.stderr + done.stdout);

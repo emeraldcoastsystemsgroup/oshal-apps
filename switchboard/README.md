@@ -1,5 +1,7 @@
 # Switchboard
 
+0.7.0 publishes with an attached image. In Compose, **Attach to posts** under a generated image puts it in an Attached image bar (thumbnail, **Remove**); Publish, Schedule and Send to all carry it, and the route uploads it to X with the v2 chunked media upload (`switchboard-media`, on api.twitter.com, the X connection's API host) before posting with its media id. Streams variants and scheduled Calendar posts with a `mediaRef` publish the same way. X needs the connection to allow media upload (the `media.write` scope): a connection made without it is refused by X and Compose says to reconnect X; nothing is posted without the image. LinkedIn and Facebook posts here carry text only, and refuse an image in words. Guard: `tests/switchboard-publish-media.test.js` (Test Lab `publish-media`).
+
 0.6.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 **Every line, one board.** The merged comms + social command center — Social +
@@ -51,7 +53,8 @@ surface, mounted under its own prefix by `switchboard-routes.ts`. Every read tak
   variants written **on the communications-bot** (`executeBotOrInline`, cost captured — no controller
   LLM) → real **image generation** (the video-generation storyboard image provider) → **publish**
   the exact approved text to X / LinkedIn via the connector token, behind the `no-post` explicit-write
-  confirmation gate.
+  confirmation gate. An attached image (`mediaRef`, an image data URL) is uploaded to X first and
+  posted with the text (0.7.0).
 - **Threads** (`/threads`, `/threads/items`) — one chronological timeline per **counterpart**:
   everything already ingested into the shared inbox store (mail + inbox-fed social mentions) folded
   per person. Identity is the package's existing model — the from-address email when present, display
@@ -168,8 +171,8 @@ all 11 cockpit themes and still renders if opened on its own. Platform brand mar
 - **Reply provider parity + assisted drafts** — the durable confirmed path currently covers
   Gmail rows already present in the shared inbox store. Outlook/social reply adapters and
   communications-bot drafting (with cost captured) remain separate follow-ups.
-- **Stage media** — attaching a generated image to a fan-out publish (blocked on the same
-  X media/upload + LinkedIn asset-register follow-ups Compose's `/publish` documents).
+- **LinkedIn and Facebook media** — X carries an attached image since 0.7.0; LinkedIn's asset
+  register and a Facebook Page photo are not wired, so those posts refuse an image in words.
 - **Carve/retire** the three predecessor packages once the panes are signed off.
 
 ## Tests

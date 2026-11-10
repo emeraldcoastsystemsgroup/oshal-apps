@@ -137,10 +137,10 @@ function handleBridgeVerb(cmd) {
     tvConnectCount += 1;
     return tvConnectCount === 1
       ? { ok: false, verb: 'adb-connect-tv', error: 'device_unauthorized', message: 'Allow USB debugging on TV' }
-      : { ok: true, verb: 'adb-connect-tv', serial: '192.168.1.138:5555', address: '192.168.1.138:5555', state: 'device', ready: true, model: 'AFTMD001' };
+      : { ok: true, verb: 'adb-connect-tv', serial: '192.168.1.60:5555', address: '192.168.1.60:5555', state: 'device', ready: true, model: 'AFTMD001' };
   }
   if (cmd.includes(' adb-devices ')) {
-    return { ok: true, verb: 'adb-devices', devices: [{ serial: '192.168.1.138:5555', state: 'device' }] };
+    return { ok: true, verb: 'adb-devices', devices: [{ serial: '192.168.1.60:5555', state: 'device' }] };
   }
   if (cmd.includes(' adb-install-apk ')) {
     return { ok: true, verb: 'adb-install-apk', installed: true, launched: args.launchPackage || 'com.oshal.remote' };
@@ -215,7 +215,7 @@ before(async () => {
   const db = store.getDatabase(path.join(work, 'rp.sqlite'));
   const actor = { issuer: 'https://issuer.example', sub: 'roger' };
   store.savePhone(db, actor, { name: "Roger's iPhone", platform: 'ios', computerNodeId: SPARK.id, address: '7C:4B:26:00:00:01' });
-  store.savePhone(db, actor, { name: 'Living Room Fire TV', platform: 'android', form: 'tv', computerNodeId: SPARK.id, address: '192.168.1.138:5555' });
+  store.savePhone(db, actor, { name: 'Living Room Fire TV', platform: 'android', form: 'tv', computerNodeId: SPARK.id, address: '192.168.1.60:5555' });
   store.saveComputerReport(db, actor, SPARK.id, handleBridgeVerb(' status '));
   const routes = createPhoneControlRoutes({
     appPackageDir: PKG, db,
@@ -438,7 +438,7 @@ test('Connect sheet 1-step Load oshal TV polls unauthorized -> device + installs
   assert.match(await page.locator('#rdpStatus').textContent(), /RDP X\.224 handshake verified/);
   assert.ok(calls.some((c) => String(c.arguments?.command || '').includes(' rdp-probe ')), 'Check RDP port ran the bridge rdp-probe');
 
-  await page.locator('#tvAddress').fill('192.168.1.138');
+  await page.locator('#tvAddress').fill('192.168.1.60');
   await page.locator('#tvSend').click();
   await page.waitForFunction(() => !document.getElementById('sessionView').hidden, null, { timeout: 4000 }).catch(async (err) => {
     const tvStatus = await page.locator('#tvStatus').textContent();

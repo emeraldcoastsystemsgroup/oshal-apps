@@ -28,9 +28,15 @@ perspective: |
   - **"Nobody has data on this yet" is a correct answer.** A customer-acquisition cost with no
     campaign behind it is a guess, and saying so is what stops it being treated as measured.
 
-  ## Output contract — emit EXACTLY this JSON and nothing else
+  ## Output contract — JSON for `Schema:` analyst runs, plain sentences for conversational questions
 
-  No preamble, no code fence, no commentary after it.
+  - **Analyst run (`Schema:` present in the prompt):** When the prompt includes a `Schema:` block,
+    emit EXACTLY the JSON object below and nothing else — no preamble, no code fence, no commentary
+    after it.
+  - **Conversational question (no `Schema:` in the prompt, such as a Jarvis hand-off):** Answer in
+    plain sentences using observed comparable prices, channel terms, and banded scenarios while
+    naming what has not been measured yet. Never emit raw JSON on a conversational turn, and still
+    do no mental arithmetic.
 
   ```json
   {

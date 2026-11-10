@@ -1,3 +1,4 @@
+/** CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Lane M2 (1.8.0): pass removed source ids/URIs into readGraph(pool, owner, removed) in systemsSummary so topology scans of removed sources no longer contribute unknown assets. */
 /** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Both summaries take the ids of the sources the person removed (P5-55b) and leave their installations out, so Jarvis and the attention list stop naming a removed source as stopped reporting. */
 /** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Alerts an engine outage keeps waiting are on the attention list, because an outage no longer sends them to review (fifth review, 2026-11-04). */
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved (2026-11-04). A rail that keeps refusing is on the attention list, because a green tick and a card that names the alert said nothing about the phone having stopped. An alert reported cleared and being confirmed no longer counts as a critical alert firing. */
@@ -61,7 +62,7 @@ const local=v=>v||null;
 /** @description Inventory health for Jarvis: counts by health, the degraded and unknown assets (at most 25), and scheduled discovery's state. @param pool Owner-scoped SQL. @param owner The caller. @param now Milliseconds now. @param removed Ids of the sources the person removed; their installations are not named. @returns The summary sentence, the installations, counts, issues and discovery. */
 export async function systemsSummary(pool,owner,now=Date.now(),removed=new Set()){
  requireOwner(owner);
- const graph=await readGraph(pool,owner),discovery=await discoveryConfig(pool,owner),assets=graph.assets||[],installations=await installationStanding(pool,owner,()=>now,removed);
+ const graph=await readGraph(pool,owner,removed),discovery=await discoveryConfig(pool,owner),assets=graph.assets||[],installations=await installationStanding(pool,owner,()=>now,removed);
  const by=h=>assets.filter(a=>a.health===h);
  const pick=a=>({name:a.name,kind:a.kind,provider:a.provider,scope:a.scope,health:a.health,namespace:a.properties?.namespace||null,pressure:a.properties?.pressure||null,observedAt:local(a.observedAt)});
  const issues=[...by('degraded'),...by('unknown')].slice(0,25).map(pick);

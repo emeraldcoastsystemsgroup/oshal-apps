@@ -7,6 +7,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: forget removes one paired device from this computer's adapter (BlueZ RemoveDevice).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: mark paired devices Trusted=True for automatic BLE HID reconnection, keep advertisement alive, detect AssistiveTouch-off state, and add calibrated tap, swipe, drag and scroll HID mouse operations with unchanged REPORT_MAP.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add Generic Attribute Service 0x1801 (Service Changed 0x2A05) with BlueZ registration fallback, actively reconnect bonded devices via BlueZ Device1.Connect() on startup/demand/ble-sync, center pointer on sync, and eliminate BLE HID mouse report flooding for smooth iOS AssistiveTouch swipes.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the pairing agent no longer says yes by itself (open-work audit 2026-11-10; Orbit Add hub section 2.6 items 1-2). It answered every request with PIN 0000 / passkey 0 / confirm and marked the device Trusted, and every paired or bonded device on the adapter (the person's own mouse and headphones too) was marked Trusted on start, on each device list and when the window closed. Now each pairing request is held (PairingGate) until the person answers it with pair-answer, no answer in OSHAL_BLE_PAIR_ANSWER_S (30) seconds rejects it, only one Allow per window (the window then closes), a pairing BlueZ completes without asking the agent (Just Works with NoInputNoOutput) is asked about the same way after the fact and removed unless allowed, a device that paired in the window without an Allow is removed when the window closes, and only allowed devices (ble-allowed.json, 0600, beside ble-profiles.json) are trusted or reconnected; keep adds a device that was paired before.
 """Resident BLE HID peripheral for phone-control (`python3 -I oshal_phone_ble.py serve <runtime folder>`)."""
 
 import fcntl, hashlib, json, os, re, signal, socket, sys, threading, time
@@ -71,6 +72,104 @@ def ble_profiles_path():
     return os.path.join(base, 'oshal-phone-bridge', 'ble-profiles.json')
 
 
+def ble_allowed_path():
+    return os.path.join(os.path.dirname(ble_profiles_path()), 'ble-allowed.json')
+
+
+def answer_seconds():
+    try:
+        return max(1.0, min(120.0, float(os.environ.get('OSHAL_BLE_PAIR_ANSWER_S', '30'))))
+    except ValueError:
+        return 30.0
+
+
+class PairingGate:
+    """Holds each pairing request until the person answers it, and keeps the devices they allowed."""
+
+    def __init__(self, path, clock=time.time, limit=None):
+        self.path, self.clock = path, clock
+        self.limit = answer_seconds() if limit is None else limit
+        self.pending, self.granted = {}, False
+        try:
+            with open(path, 'r', encoding='utf-8') as handle:
+                listed = json.load(handle).get('allowed', [])
+        except (OSError, ValueError, AttributeError):
+            listed = []
+        self.allowed = {str(a).upper() for a in listed if ADDRESS_RE.match(str(a))}
+
+    def _save(self):
+        os.makedirs(os.path.dirname(self.path), mode=0o700, exist_ok=True)
+        part = self.path + '.part'
+        fd = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            json.dump({'allowed': sorted(self.allowed)}, handle)
+        os.chmod(part, 0o600)
+        os.replace(part, self.path)
+
+    def is_allowed(self, address):
+        return str(address or '').upper() in self.allowed
+
+    def allow(self, address):
+        self.allowed.add(address.upper())
+        self._save()
+
+    def forget(self, address):
+        if self.is_allowed(address):
+            self.allowed.discard(str(address).upper())
+            self._save()
+
+    def open(self):
+        self.granted = False
+
+    def hold(self, address, name, passkey, accept, reject, window_open):
+        address = str(address or '').upper()
+        if self.is_allowed(address):
+            accept()
+            return 'allowed'
+        if not window_open or self.granted or not ADDRESS_RE.match(address) or (address not in self.pending and len(self.pending) >= 4):
+            reject()
+            return 'refused'
+        earlier = self.pending.pop(address, None)
+        if earlier:
+            earlier['reject']()
+        self.pending[address] = {'name': str(name or '')[:80], 'passkey': passkey, 'until': self.clock() + self.limit,
+                                 'accept': accept, 'reject': reject}
+        return 'held'
+
+    def answer(self, address, allow):
+        address = str(address or '').strip().upper()
+        if not ADDRESS_RE.match(address):
+            return {'ok': False, 'error': 'bad_address', 'message': 'Name the device by its Bluetooth address.'}
+        self.expire()
+        held = self.pending.pop(address, None)
+        if not held:
+            return {'ok': False, 'error': 'no_request', 'message': 'No device is waiting to pair with that address now.'}
+        if not bool_arg(allow):
+            held['reject']()
+            return {'ok': True, 'answered': 'rejected', 'address': address}
+        self.allow(address)
+        self.granted = True
+        held['accept']()
+        self.reject_all()
+        return {'ok': True, 'answered': 'allowed', 'address': address}
+
+    def expire(self):
+        now = self.clock()
+        for address in [a for a, held in self.pending.items() if now >= held['until']]:
+            self.pending.pop(address)['reject']()
+        return False
+
+    def reject_all(self):
+        for address in list(self.pending):
+            self.pending.pop(address)['reject']()
+
+    def requests(self):
+        now = self.clock()
+        return [dict({'address': a, 'name': h['name'], 'secondsLeft': max(0, int(h['until'] - now))},
+                     **({'passkey': f"{int(h['passkey']):06d}"} if h['passkey'] is not None else {}))
+                for a, h in sorted(self.pending.items())]
+
+
 def span_for(landscape=False, span_x=None, span_y=None, address=None, phones=None):
     if span_x is not None and span_y is not None:
         return max(100, min(2400, int(span_x))), max(100, min(2400, int(span_y)))
@@ -111,34 +210,38 @@ NAMED_KEYS = {
 }
 
 
+class Rejected(dbus.exceptions.DBusException):
+    _dbus_error_name = 'org.bluez.Error.Rejected'
+
+
 class Agent(dbus.service.Object):
-    def __init__(self, bus, path):
-        self.bus = bus
+    """Asks the person about every pairing: nothing is answered or trusted until they allow it (PairingGate)."""
+
+    def __init__(self, bus, path, peripheral=None):
+        self.bus, self.peripheral = bus, peripheral
         dbus.service.Object.__init__(self, bus, path)
 
-    def _trust(self, device):
-        try:
-            dbus.Interface(self.bus.get_object(BLUEZ, device), PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
-        except dbus.exceptions.DBusException:
-            pass
+    def _ask(self, device, passkey, ok, err, value=None):
+        def accept():
+            self.peripheral.trust(device)
+            ok() if value is None else ok(value)
+        self.peripheral.ask(device, passkey, accept, lambda: err(Rejected('The person did not allow this pairing.')))
 
     @dbus.service.method(AGENT_IFACE, in_signature='', out_signature='')
     def Release(self):
         pass
 
-    @dbus.service.method(AGENT_IFACE, in_signature='os', out_signature='')
-    def AuthorizeService(self, device, uuid):
-        self._trust(device)
+    @dbus.service.method(AGENT_IFACE, in_signature='os', out_signature='', async_callbacks=('ok', 'err'))
+    def AuthorizeService(self, device, uuid, ok, err):
+        self._ask(device, None, ok, err)
 
-    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='s')
-    def RequestPinCode(self, device):
-        self._trust(device)
-        return '0000'
+    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='s', async_callbacks=('ok', 'err'))
+    def RequestPinCode(self, device, ok, err):
+        self._ask(device, None, ok, err, '0000')
 
-    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='u')
-    def RequestPasskey(self, device):
-        self._trust(device)
-        return dbus.UInt32(0)
+    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='u', async_callbacks=('ok', 'err'))
+    def RequestPasskey(self, device, ok, err):
+        self._ask(device, None, ok, err, dbus.UInt32(0))
 
     @dbus.service.method(AGENT_IFACE, in_signature='ouq', out_signature='')
     def DisplayPasskey(self, device, passkey, entered):
@@ -148,14 +251,13 @@ class Agent(dbus.service.Object):
     def DisplayPinCode(self, device, pincode):
         pass
 
-    @dbus.service.method(AGENT_IFACE, in_signature='ou', out_signature='')
-    def RequestConfirmation(self, device, passkey):
-        self._trust(device)
-        print(f'pairing confirmed for {device}', flush=True)
+    @dbus.service.method(AGENT_IFACE, in_signature='ou', out_signature='', async_callbacks=('ok', 'err'))
+    def RequestConfirmation(self, device, passkey, ok, err):
+        self._ask(device, int(passkey), ok, err)
 
-    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='')
-    def RequestAuthorization(self, device):
-        self._trust(device)
+    @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='', async_callbacks=('ok', 'err'))
+    def RequestAuthorization(self, device, ok, err):
+        self._ask(device, None, ok, err)
 
     @dbus.service.method(AGENT_IFACE, in_signature='', out_signature='')
     def Cancel(self):
@@ -312,7 +414,8 @@ class Peripheral:
         self.bus, self.adapter_path = bus, adapter_path
         self.adapter = bus.get_object(BLUEZ, adapter_path)
         self.props = dbus.Interface(self.adapter, PROP_IFACE)
-        self.agent = Agent(bus, AGENT_PATH)
+        self.agent = Agent(bus, AGENT_PATH, self)
+        self.gate, self.paired_at_open = PairingGate(ble_allowed_path()), set()
         self.advertisement = Advertisement(bus, self)
         self.app, self.report_flag, self.include_gatt = None, 'encrypt-notify', True
         self.registered = self.advertising = self.ad_pending = False
@@ -320,7 +423,6 @@ class Peripheral:
 
     def start(self):
         self.props.Set(ADAPTER_IFACE, 'Powered', dbus.Boolean(True))
-        self.trust_paired_devices()
         self.register(self.report_flag)
         self.ensure_advertising(force=True)
 
@@ -341,18 +443,67 @@ class Peripheral:
             return
         self.failed('advertisement', error)
 
-    def trust_paired_devices(self):
+    def devices(self):
         try:
             objects = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE).GetManagedObjects()
         except dbus.exceptions.DBusException:
-            return
-        for path, ifaces in objects.items():
-            dev = ifaces.get(DEVICE_IFACE)
-            if dev and str(dev.get('Adapter', '')) == self.adapter_path and (dev.get('Paired') or dev.get('Bonded')) and not dev.get('Trusted'):
-                try:
-                    dbus.Interface(self.bus.get_object(BLUEZ, path), PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
-                except dbus.exceptions.DBusException:
-                    pass
+            return {}
+        return {str(path): ifaces[DEVICE_IFACE] for path, ifaces in objects.items()
+                if DEVICE_IFACE in ifaces and str(ifaces[DEVICE_IFACE].get('Adapter', '')) == self.adapter_path}
+
+    def trust(self, device):
+        try:
+            dbus.Interface(self.bus.get_object(BLUEZ, device), PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
+        except dbus.exceptions.DBusException:
+            pass
+
+    def ask(self, device, passkey, accept, reject):
+        dev = self.devices().get(str(device), {})
+        held = self.gate.hold(str(dev.get('Address', '')), str(dev.get('Alias', dev.get('Name', ''))), passkey,
+                              accept, reject, self.window_until > time.time())
+        print(f'pairing request {device}: {held}', flush=True)
+        if held == 'held':
+            GLib.timeout_add(int(self.gate.limit * 1000) + 50, self.gate.expire)
+
+    def remove_path(self, path):
+        try:
+            dbus.Interface(self.adapter, ADAPTER_IFACE).RemoveDevice(dbus.ObjectPath(path))
+            print(f'removed {path}: nobody allowed its pairing', flush=True)
+        except dbus.exceptions.DBusException as err:
+            print(f'remove {path}: {err}', flush=True)
+
+    def watch_window(self):
+        """A pairing BlueZ completes without asking the agent (Just Works) is asked about after the fact."""
+        if self.window_until <= time.time():
+            return False
+        for path, dev in self.devices().items():
+            addr = str(dev.get('Address', '')).upper()
+            if not (dev.get('Paired') or dev.get('Bonded')) or addr in self.paired_at_open or addr in self.gate.pending \
+                    or self.gate.is_allowed(addr):
+                continue
+            held = self.gate.hold(addr, str(dev.get('Alias', dev.get('Name', ''))), None, lambda p=path: self.trust(p),
+                                  lambda p=path: self.remove_path(p), True)
+            print(f'paired without asking {path}: {held}', flush=True)
+            if held == 'held':
+                GLib.timeout_add(int(self.gate.limit * 1000) + 50, self.gate.expire)
+        return True
+
+    def answer_pairing(self, address, allow):
+        reply = self.gate.answer(address, allow)
+        if reply.get('answered') == 'allowed':
+            GLib.timeout_add_seconds(5, lambda: self.close_window() and False)
+        return reply
+
+    def keep(self, address):
+        want = str(address or '').strip().upper()
+        if not ADDRESS_RE.match(want):
+            return {'ok': False, 'error': 'bad_address', 'message': 'Name the device by its Bluetooth address.'}
+        for path, dev in self.devices().items():
+            if str(dev.get('Address', '')).upper() == want and (dev.get('Paired') or dev.get('Bonded')):
+                self.gate.allow(want)
+                self.trust(path)
+                return {'ok': True, 'kept': want}
+        return {'ok': False, 'error': 'not_paired', 'message': 'That device is not paired with this computer.'}
 
     def connect_bonded(self, address=None):
         want = str(address or '').strip().upper()
@@ -370,13 +521,12 @@ class Peripheral:
             addr = str(dev.get('Address', '')).upper()
             if not (dev.get('Paired') or dev.get('Bonded')) or (want and addr != want):
                 continue
+            if not self.gate.is_allowed(addr):
+                if want:
+                    return {'ok': False, 'error': 'not_allowed', 'message': 'That device was paired before oshal asked. Press Keep next to it in Phone & Device Control if it is yours.'}
+                continue
             matched.append(addr)
             obj = self.bus.get_object(BLUEZ, path)
-            if not dev.get('Trusted'):
-                try:
-                    dbus.Interface(obj, PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
-                except dbus.exceptions.DBusException:
-                    pass
             if not dev.get('Connected'):
                 attempted.append(addr)
                 try:
@@ -427,7 +577,6 @@ class Peripheral:
                 'powered': bool(vals.get('Powered')), 'pairable': bool(vals.get('Pairable'))}
 
     def phones(self):
-        self.trust_paired_devices()
         mgr = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE)
         found = []
         for _, ifaces in mgr.GetManagedObjects().items():
@@ -435,8 +584,13 @@ class Peripheral:
             if dev and str(dev.get('Adapter', '')) == self.adapter_path and (dev.get('Paired') or dev.get('Connected')):
                 found.append({'address': str(dev.get('Address', '')), 'name': str(dev.get('Alias', '')),
                               'paired': bool(dev.get('Paired')), 'bonded': bool(dev.get('Bonded', False)),
-                              'trusted': bool(dev.get('Trusted', False)), 'connected': bool(dev.get('Connected'))})
+                              'trusted': bool(dev.get('Trusted', False)), 'connected': bool(dev.get('Connected')),
+                              'allowed': self.gate.is_allowed(dev.get('Address', ''))})
         return sorted(found, key=lambda item: (not item['connected'], item['name']))
+
+    def pairing(self):
+        self.gate.expire()
+        return self.gate.requests()
 
     def forget(self, address):
         if not isinstance(address, str) or not ADDRESS_RE.match(address):
@@ -446,6 +600,7 @@ class Peripheral:
             dev = ifaces.get(DEVICE_IFACE)
             if dev and str(dev.get('Adapter', '')) == self.adapter_path and str(dev.get('Address', '')).upper() == address.upper():
                 dbus.Interface(self.adapter, ADAPTER_IFACE).RemoveDevice(path)
+                self.gate.forget(address)
                 return {'ok': True, 'removed': address}
         return {'ok': False, 'error': 'not_paired', 'message': 'That device is not paired with this computer.'}
 
@@ -454,7 +609,7 @@ class Peripheral:
         sub = {name: rep.notifying for name, rep in self.app.reports.items()} if self.app else {}
         return {'ok': True, 'registered': self.registered, 'advertising': self.advertising, 'problem': self.problem,
                 'reportSecurity': self.report_flag, 'adapter': self.adapter_state(), 'subscribed': sub,
-                'phones': self.phones(), 'pairWindowSeconds': max(0, int(self.window_until - time.time())),
+                'phones': self.phones(), 'pairing': self.pairing(), 'pairWindowSeconds': max(0, int(self.window_until - time.time())),
                 'pid': os.getpid(), 'code': CODE_SHA256}
 
     def open_window(self, seconds):
@@ -462,8 +617,12 @@ class Peripheral:
         if self.window_until <= time.time():
             mgr.RegisterAgent(dbus.ObjectPath(AGENT_PATH), 'NoInputNoOutput')
             mgr.RequestDefaultAgent(dbus.ObjectPath(AGENT_PATH))
+            self.gate.open()
+            self.paired_at_open = {str(d.get('Address', '')).upper() for d in self.devices().values() if d.get('Paired') or d.get('Bonded')}
         self.props.Set(ADAPTER_IFACE, 'Pairable', dbus.Boolean(True))
         self.ensure_advertising()
+        if self.window_until <= time.time():
+            GLib.timeout_add(1000, self.watch_window)
         self.window_until = time.time() + seconds
         GLib.timeout_add_seconds(seconds, self.close_window_when_due)
         return {'ok': True, 'pairWindowSeconds': seconds, 'name': 'OSHAL-KB'}
@@ -477,7 +636,15 @@ class Peripheral:
         if not self.window_until:
             return
         self.window_until = 0
-        self.trust_paired_devices()
+        self.gate.reject_all()
+        for path, dev in self.devices().items():
+            addr = str(dev.get('Address', '')).upper()
+            if (dev.get('Paired') or dev.get('Bonded')) and addr not in self.paired_at_open and not self.gate.is_allowed(addr):
+                try:
+                    dbus.Interface(self.adapter, ADAPTER_IFACE).RemoveDevice(dbus.ObjectPath(path))
+                    print(f'removed {addr}: it paired in the window without an Allow', flush=True)
+                except dbus.exceptions.DBusException:
+                    pass
         try:
             dbus.Interface(self.bus.get_object(BLUEZ, '/org/bluez'), AGENT_MANAGER_IFACE).UnregisterAgent(dbus.ObjectPath(AGENT_PATH))
         except dbus.exceptions.DBusException:
@@ -773,7 +940,9 @@ def answer(peripheral, kb, req):
     handlers = {
         'status': lambda: MainThread.call(peripheral.status),
         'sync': lambda: kb.sync(req.get('address'), req.get('waitS')),
-        'devices': lambda: {'ok': True, 'phones': MainThread.call(peripheral.phones)},
+        'devices': lambda: MainThread.call(lambda: {'ok': True, 'phones': peripheral.phones(), 'pairing': peripheral.pairing()}),
+        'pair-answer': lambda: MainThread.call(lambda: peripheral.answer_pairing(req.get('address'), req.get('allow'))),
+        'keep': lambda: MainThread.call(lambda: peripheral.keep(req.get('address'))),
         'forget': lambda: MainThread.call(lambda: peripheral.forget(req.get('address'))),
         'pair-window': lambda: MainThread.call(lambda: peripheral.open_window(max(30, min(300, int(req.get('seconds', 120)))))),
         'home': lambda: kb.home(req.get('address')),

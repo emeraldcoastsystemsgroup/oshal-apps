@@ -109,7 +109,7 @@ before(async () => {
   const actor = { issuer: 'https://issuer.example', sub: 'alice' };
   store.savePhone(db, actor, {
     name: 'Living Room Fire TV', platform: 'android', form: 'tv',
-    computerNodeId: COMPUTERS[3].id, address: '192.168.1.138:5555'
+    computerNodeId: COMPUTERS[3].id, address: '192.168.1.60:5555'
   });
   store.savePhone(db, actor, {
     name: "Roger's iPhone", platform: 'ios',

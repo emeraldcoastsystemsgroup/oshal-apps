@@ -1,8 +1,10 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify the shared property adapter produces valid owned publishing edits without losing styled content or accepting out-of-page geometry.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (B8-06): verify workbench.mjs controls() syncs .frame-handle disabled state so a frame selected while busy at open enables its Move handle once loading finishes.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {initial, apply} from '../routes/model.mjs';
 import {publishingProperties, publishingPropertyOperation} from '../tools/editor-foundation-adapter.mjs';
 
@@ -41,4 +43,11 @@ test('linked frame sizing remains constrained by the renderer contract', () => {
   assert.throws(() => publishingPropertyOperation(model, page, frame, 'width', 300));
   const operation = publishingPropertyOperation(model, page, frame, 'y', 70);
   assert.equal(apply(model, [operation]).pages[0].frames[0].y, 70);
+});
+
+test('controls() syncs .frame-handle disabled state when busy clears after loadDocument or save (B8-06)', () => {
+  const workbench = readFileSync(new URL('../tools/workbench.mjs', import.meta.url), 'utf8');
+  const controlsBlock = workbench.match(/function controls\(\)\{[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.ok(controlsBlock, 'controls() exists in workbench.mjs');
+  assert.match(controlsBlock, /querySelectorAll\(['"]\.frame-handle['"]\)[\s\S]*?\.disabled\s*=\s*blocked/, 'controls() syncs .frame-handle.disabled to blocked');
 });

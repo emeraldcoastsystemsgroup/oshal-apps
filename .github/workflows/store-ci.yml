@@ -80,6 +80,8 @@
 # 70 | maintainer@emeraldcoastsystemsgroup.com | Job `home` (Smart Home 1.4.0): its suites never ran in the gate. The route and manifest suites (kernel egress, connect copy, audience view, TVs and streaming sticks: plans, records, the network-TV /control refusal), the weather, inspection and guide suites, and its phone-width pages in Chromium (empty state, hubs, the TVs section driven against the compiled routes). Job `phone-control` already picks up tests/phone-control-lan.test.mjs (the bridge's TV module against protocol fakes) through its .test.mjs glob.
 # 71 | maintainer@emeraldcoastsystemsgroup.com | Two packages' suites that sat outside every glob now run. Job `kalshi`: tests/audience-view.test.cjs (the company view reads only its own four routes and nothing under an audience view; a .cjs suite the tests/*.test.js glob never matched) and tests/browser/kalshi-phone-layout.test.cjs (no tab wider than the screen at 412 x 915 or in the 392 px cockpit frame, in Chromium, with the same KALSHI_BROWSER_DEPS as the Settings/Alerts browser step). Job `embodied`: tests/audience-view.test.cjs, the family view over the package's real GET /tasks mount and GET /home-summary. It was red, 6 of 11, unseen: the mount had gained the plant routes (ADR-203 D9) and the suite's import allowlist had not, so the fix was the allowlist, not the routes.
 # 72 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/jarvis-routing-words.test.mjs: the kernel's routing scoring (scripts/jarvis-routing.mjs, mirrored from oshal-kernel jarvis_routing.rs) over every manifest here, pinning the routing words of backlog P4-16. Review of PR #823: reverting twelve packages' words turned nothing red, and Eats' "sushi place" made "place" an Eats word that took stock and shopping orders unseen.
+# 73 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/jarvis-catalog-descriptions.test.mjs: Jarvis names an application from its catalog description (oshal-kernel ADR-212), so what Intelligent Trades 1.53.8 and Finance 1.4.3 now say about the person's portfolio (period performance in Trades, holdings as of the last sync and no performance in Finance) is checked against the tools each declares. "How did my stocks do last week?" went to Finance in kernel scoreboard round 3 (adr212-40c4ddd8).
+# 74 | maintainer@emeraldcoastsystemsgroup.com | Job `attribution` also runs scripts/no-house-identifiers.test.mjs: no tracked file names the household (its LAN addresses, street address or the owner's phone number), checked against salted digests in scripts/security/house-identifiers.sha256 (open-work audit 2026-11-10; Phone & Device Control's tests, Ambient Recall's default profile and LoRA Studio's callback default carried them).
 
 name: store-ci
 
@@ -361,6 +363,8 @@ jobs:
           node-version: '22'
       - name: Refuse model attribution in tracked files
         run: node --test scripts/check-no-model-attribution.test.mjs
+      - name: Refuse house identifiers in tracked files
+        run: node --test scripts/no-house-identifiers.test.mjs
 
   public-snapshot:
     name: the public store cut clears its publish gates
@@ -437,6 +441,10 @@ jobs:
       # that scoring over every manifest here.
       - name: Routing words reach their own requests and take no other package's
         run: node --test scripts/jarvis-routing-words.test.mjs
+      # Jarvis names an application from its catalog description (oshal-kernel ADR-212); a description that promises
+      # what no declared tool does, or leaves out what one does, sends the person's request to the wrong application.
+      - name: Catalog descriptions state what their declared tools do for the person's portfolio
+        run: node --test scripts/jarvis-catalog-descriptions.test.mjs
       # The platform left these four as inert migrated declarations that opened nothing on the native
       # kernel; each must declare a concierge or workflow bound to a declared or imported inline bot.
       - name: Run Operations experience and transactional intake contracts

@@ -115,7 +115,7 @@ async function seedPersonADevices(personA, compA, pkgVersion) {
   await new Promise((resolve) => setTimeout(resolve, 250));
   const savedTv = await api('POST', '/api/phone-control/devices', {
     token: personA.token,
-    body: { name: 'Fire TV Stick 4K', platform: 'android', form: 'tv', computerNodeId: compA.nodeId, address: '192.168.1.138:5555' }
+    body: { name: 'Fire TV Stick 4K', platform: 'android', form: 'tv', computerNodeId: compA.nodeId, address: '192.168.1.60:5555' }
   });
   assert.equal(savedTv.status, 201, savedTv.text);
   const savedIos = await api('POST', '/api/phone-control/devices', {

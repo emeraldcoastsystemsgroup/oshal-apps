@@ -18,6 +18,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: a general question about the workspace claims no Venture Plan bot; the manifest and persona words agree; no one-word keyword reads as an everyday assistant word and no phrase carries a number word; the venture questions still claim the package.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.4: the BOM, market, and operations analyst personas scope their JSON output contract to run prompts carrying "Schema:" and answer conversational questions without "Schema:" in plain sentences.
  */
 'use strict';
 const test = require('node:test');
@@ -107,4 +108,14 @@ test('the questions Venture Plan answers still claim it', () => {
     ["What's the landed cost and import duty?", 'landed cost'],
     ['How long is the lead time for mold tooling?', 'lead time'],
   ]) assert.equal(claims(request), by, request);
+});
+
+test('each analyst persona scopes its JSON output contract to prompts carrying Schema: and answers conversational questions in plain sentences', () => {
+  for (const file of ['personas/venture-bom-analyst.yaml', 'personas/venture-market-analyst.yaml', 'personas/venture-ops-analyst.yaml']) {
+    const persona = yaml.load(fs.readFileSync(path.join(PKG, file), 'utf8')) || {};
+    const text = String(persona.perspective || '');
+    assert.match(text, /`Schema:`/, `${file} names the Schema: prompt marker used by venture-bots.ts`);
+    assert.match(text, /conversational question[\s\S]*plain sentences/i, `${file} instructs plain sentences for conversational hand-offs without Schema:`);
+    assert.doesNotMatch(text, /^  ## Output contract — emit EXACTLY this JSON and nothing else$/m, `${file} no longer demands raw JSON unconditionally`);
+  }
 });

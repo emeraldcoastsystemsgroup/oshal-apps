@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the read-only Master record (1.51.0): its page to app.open, its data route and the career_master_record tool to career.read. No new permission and no role change, so every assignment grants what it granted before.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-private additional experience library to existing open/read/change grants and expose its read-only selection tool.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Bind the reserved owner-run cancellation control and Jarvis tool to existing career.change authority.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Bind bounded master reads/approved edits and native score-run receipts to the existing owner read/change grants.
@@ -106,6 +107,9 @@ bindings:
     - { id: experience-library-ui, method: GET, path: /experience-library, allOf: [app.open] }
     - { id: experience-bank-read, method: GET, path: /experience-bank, allOf: [career.read] }
     - { id: experience-bank-write, method: POST, path: /experience-bank, allOf: [career.change] }
+    # The Master record (career-master-record-routes): the page, and everything Career keeps for the caller, read-only.
+    - { id: master-record-ui, method: GET, path: /master-record-ui, allOf: [app.open] }
+    - { id: master-record-read, method: GET, path: /master-record, allOf: [career.read] }
     # Board, search and job detail (career-board-routes, career-browse-routes, career-job-guide).
     - { id: jobs, method: GET, path: /jobs, allOf: [career.read] }
     - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
@@ -223,6 +227,7 @@ bindings:
     - { id: career_database, allOf: [career.read] }
     - { id: career_draft, allOf: [career.execute] }
     - { id: career_experience_bank, allOf: [career.read] }
+    - { id: career_master_record, allOf: [career.read] }
     - { id: career_draft_oshal, allOf: [career.execute] }
     - { id: career_score, allOf: [career.execute] }
     - { id: career_refresh, allOf: [career.execute] }

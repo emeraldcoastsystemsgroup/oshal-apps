@@ -1,9 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (RP-BRG-04 Download): each recorded build carries its Vids job id (a UUID, only when it is one) and its status, so the page can ask Vids for that finished build's file. Still one bounded owner SELECT per figure; nothing is written.
+ */
 /** Saved brand-graphics evidence. GET is owner-scoped, bounded, and side-effect free. */
 const express_1 = require("express");
 const clip = (v, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
+const JOB = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The build's Vids job id (only a UUID) and its status, for the page's Download. */
+const buildOf = (r) => ({ ...(JOB.test(String(r.job_id ?? '')) ? { jobId: String(r.job_id).toLowerCase() } : {}), status: clip(r.status, 40) });
 const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
 function createHomeSummaryRoutes(ctx) {
     const router = (0, express_1.Router)();
@@ -17,16 +27,16 @@ function createHomeSummaryRoutes(ctx) {
         const now = new Date();
         const result = await Promise.allSettled([
             "SELECT count(*) FILTER (WHERE status IN ('queued','running'))::text AS active, count(*) FILTER (WHERE status='failed')::text AS failed, count(*) FILTER (WHERE status='done' AND updated_at > $2::timestamptz - interval '120 hours')::text AS five FROM vids_jobs WHERE user_sub = $1 AND insert_mode='brand' AND created_at <= $2 AND updated_at <= $2",
-            "SELECT idea, status, updated_at FROM vids_jobs WHERE user_sub = $1 AND insert_mode='brand' AND created_at <= $2 AND updated_at <= $2 ORDER BY updated_at DESC, job_id LIMIT 3"
+            "SELECT job_id, idea, status, updated_at FROM vids_jobs WHERE user_sub = $1 AND insert_mode='brand' AND created_at <= $2 AND updated_at <= $2 ORDER BY updated_at DESC, job_id LIMIT 3"
         ].map(text => ctx.pool.query({ text, values: [String(sub), now], query_timeout: 1800 })));
         const rows = (i) => { const r = result[i]; return r.status === 'fulfilled' ? r.value.rows : []; };
         const metrics = [[0, "active", "brand-active", "Brand jobs in progress"], [0, "failed", "brand-failed", "Failed brand jobs"], [0, "five", "brand-done-5d", "Done jobs updated / 5d"]].map(([i, key, id, label]) => ({ id, label, value: result[Number(i)].status === 'fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable' }));
         const items = [];
-        const item = (title, detail, body, actions, tone = 'neutral') => {
+        const item = (title, detail, body, actions, tone = 'neutral', build = {}) => {
             const text = clip(title, 120), notes = clip(detail + '\n' + body, 2000);
-            items.push({ text, detail: clip(detail), tone, fix: "brand-graphics", actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
+            items.push({ text, detail: clip(detail), tone, fix: "brand-graphics", ...build, actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
         };
-        rows(1).forEach(r => item(r.idea, clip(r.status) + ' · updated ' + date(r.updated_at), clip(r.idea, 1500), ['prepare-document', 'prepare-episode'], r.status === 'failed' ? 'warn' : 'neutral'));
+        rows(1).forEach(r => item(r.idea, clip(r.status) + ' · updated ' + date(r.updated_at), clip(r.idea, 1500), ['prepare-document', 'prepare-episode'], r.status === 'failed' ? 'warn' : 'neutral', buildOf(r)));
         const failed = result.filter(r => r.status === 'rejected').length;
         if (failed)
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "brand-graphics" });

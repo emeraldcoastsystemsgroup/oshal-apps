@@ -1,3 +1,7 @@
+/* CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.1: Monitoring Trust M2 rework (data stays in existing owner scope; removed-source topology/discovery cleanup and Systems device trust controls). */
+/* CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.0: Monitoring Trust M2 shared monitoring scope, legacy personal-scope migration, removed-source topology/discovery cleanup, and Systems device trust controls. */
+/* CHANGE LOG: 19 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.7.0: an OpenTelemetry Collector reports to POST /ingest/otlp/:sourceId (oshal-kernel ADR-216, lane S2), which rides records.write like every other write. */
+/* CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.6.0: enrolling a monitored installation with a one-time code (oshal-kernel ADR-216, lane S1); the prepare route POST /installations/enroll rides records.write like every other write. */
 /* CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.3: every Jarvis tool still reads except ops-remove-source (P5-55b), which is held for the person's approval and takes confirm: true. */
 /* CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.2: the engine installer refuses to finish until the running search reports the free-space watermarks and no index-create block. */
 /* CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.1: the detection engine's search judges disk pressure by free space (engine/container/compose.yaml). */
@@ -100,7 +104,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.5.3');
+  assert.equal(manifest.version, '1.8.1');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

@@ -8,6 +8,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read canonical required membership and keep Career configuration and sources conspicuous without changing the group's declarative contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Pin the released group version, 1.1.6.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Approvals, Prepare & submit and Application status are stages of the Job Board (career-hunter 1.48.0), so the group delegates five destinations and the board carries the rest; pin 1.1.8.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band carries Career's Master record (career-hunter 1.51.0), borrowed from the member's own surface.
  */
 'use strict';
 const { test } = require('node:test');
@@ -32,6 +33,14 @@ test('Career group retains the destinations delegated from the global Career nav
   for (const surface of delegated) assert.ok(group.toolbar.some(item => item.app === 'career-hunter' && item.surface === surface), surface);
 });
 
+test('the Resume band carries the Master record, borrowed from Career by surface name', () => {
+  const item = group.toolbar.find(entry => entry.app === 'career-hunter' && entry.surface === 'career-master-record');
+  assert.equal(item?.group, 'Resume');
+  const surface = members.get('career-hunter').ui.static.find(entry => entry.toolName === 'career-master-record');
+  assert.equal(surface?.iframeUrl, '/api/career-hunter/master-record-ui');
+  assert.equal(surface.group, 'Resume');
+});
+
 test('every shipped toolbar reference resolves once to its declared member rather than a copied URL', () => {
   const seen = new Set();
   for (const item of group.toolbar) {
@@ -45,7 +54,7 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.8');
+  assert.equal(group.version, '1.1.9');
   assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social', 'print-ingest']);
   for (const surface of ['career-settings', 'career-companies']) {
     const item = group.toolbar.find(item => item.app === 'career-hunter' && item.surface === surface);

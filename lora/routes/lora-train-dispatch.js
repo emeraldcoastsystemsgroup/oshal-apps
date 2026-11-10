@@ -16,6 +16,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Download the staged image with an empty signed POST to /api/lora/ingest/dataset-download/:id. The worker's GET was refused by the kernel's application-authorization layer under ADR-149 enforce (authorization_identity_required), and the signed-package-callbacks rail that now admits worker requests accepts POST only.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Quote box-side paths as PowerShell expandable strings through one validating helper (psBoxPath). The dataset import wrapped its curated directory, image and caption paths in psLiteral (single quotes), so the default box root "$env:USERPROFILE/lora-characters" reached the worker unexpanded and the first live run failed New-Item with DriveNotFound ($env:String); the training and validation commands had always double-quoted the same root. The helper admits exactly a box path (an optional leading $env:NAME, then letters, digits, space and _ . : ( ) - / \), refuses every quote, backtick, further $, newline, control character and "..", and now also quotes the interpreter, script, --box-root and --dataset paths so a malformed root fails at dispatch instead of being pasted into a shell. The write fragment is exported so a real-PowerShell guard can run the shipped statements.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Export hasEdgeWorker(): whether pickEdgeClient would find an online GPU edge worker right now, for the studio's one read-only GET /worker. The studio withholds Train, Validate, Improve and Overnight where none is registered (UX audit 2026-11-06), from the same selection the dispatch uses, so the page never offers an action the dispatch would refuse as box_required.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: LORA_CONTROLLER_URL has no default (open-work audit 2026-11-10: the default named a house LAN address); a command that needs the callback address refuses in words until the installation sets it.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_DATASET_IMAGE_BYTES = exports.LORA_DIRECTOR_AGENT_ID = void 0;
@@ -90,7 +91,8 @@ exports.LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
  *     share a pool, a curated set or a scorecard directory. The parent directory of all of them is
  *     overridable per box via LORA_BOX_ROOT.
  *  6. CALLBACK. The box reports results back to the controller at LORA_CONTROLLER_URL
- *     (http://localhost:35457). Each dispatch hands its task a short-lived callback grant in the
+ *     (set it to the address the training computer reaches this installation at; a dispatch
+ *     refuses while it is unset). Each dispatch hands its task a short-lived callback grant in the
  *     OSHAL_LORA_CALLBACK_GRANT environment variable (lora-callback-grants.ts); the box scripts sign
  *     every callback with it. The fleet SWARM_SERVICE_SECRET is no longer a callback credential.
  * ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -107,7 +109,7 @@ const BOX_ROOT = process.env.LORA_BOX_ROOT || '$env:USERPROFILE/lora-characters'
  */
 const SUBJECT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 /** Where the box reports results back to (the controller, reachable from the box). */
-const CONTROLLER_URL = process.env.LORA_CONTROLLER_URL || 'http://localhost:35457';
+const CONTROLLER_URL = process.env.LORA_CONTROLLER_URL || '';
 /** Largest source image the worker may place in a curated training set. */
 exports.MAX_DATASET_IMAGE_BYTES = 10 * 1024 * 1024;
 const DATASET_FILENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,100}\.(?:png|jpe?g|webp)$/i;
@@ -268,6 +270,9 @@ function psBoxPath(value) {
 }
 /** Accept only an HTTP(S) callback origin without credentials, query data, or fragments. */
 function controllerCallbackUrl() {
+    if (!CONTROLLER_URL) {
+        throw new Error('LORA_CONTROLLER_URL is not set: name the address the training computer reaches this installation at');
+    }
     let parsed;
     try {
         parsed = new URL(CONTROLLER_URL);

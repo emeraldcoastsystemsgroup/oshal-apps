@@ -1,3 +1,5 @@
+# CHANGE LOG: 51 | maintainer@emeraldcoastsystemsgroup.com | 1.53.9: a saved-record read that meets another writer's commit mid-scan is read again (twice at most). Production 2026-11-09 15:20Z and 17:20Z: the paper autopilot's strategy lookup failed with "conflict: scoped collection revision changed" while the person's portfolio watcher saved its watch record in the same minute. Reads only; no order path, route, tool or authorization changes.
+# CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | 1.53.8: the description says what Jarvis hands this application for the person's portfolio: the connected Schwab account's positions, day change and its performance over a week, a month or a year against the S&P 500 (the Trading Performance tool). Jarvis names an application from its description (kernel ADR-212); "How did my stocks do last week?" went to Finance, whose description also claimed the person's brokerages and holdings, in kernel scoreboard round 3 (adr212-40c4ddd8) and on production, while only this application reports a period's performance. Description and version only; no route, tool or authority changes.
 # CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | 1.53.7: compare bound timestamptz parameters in the five-minute account observation upsert predicate so native package SQL never evaluates EXCLUDED outside DO UPDATE SET; orderAuthority and broker execution gates stay untouched.
 # CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | 1.53.6: the design standard on the Accounts landing (UX audit decision intelligent-trades--intelligent-trades-home), UI files only and nothing in the orderAuthority closure: the page declares its dashboard contract; the real-capital hero is drawn only once a real account is connected; an account tile is a card, not a button around its buttons; the connected-login roster and Discover accounts open from Settings; sizes and radii on the standard's scales, no wash, no hover lift, 44px controls; on a phone the four sections are one bottom bar.
 # CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: admit validated daily strategies on connected account pages, guarantee a 252-session research window default without changing orderAuthority, default monthly presets to whole shares, and add saved-strategy assignment controls on local paper accounts.
@@ -141,10 +143,12 @@ rating:
       degrade: disable
 displayName: Intelligent Trades
 description: >-
-  Research stocks, track connected brokerage accounts and test strategies in a separate
-  paper book, with a decision trail from signals to orders. Trading actions follow the
-  connected account's supported controls. Cash equities. No crypto.
-version: 1.53.7
+  Your stock portfolio and trading desk. Connect your brokerage account (Charles Schwab)
+  to see its positions, day change and how it performed over a week, a month or a year
+  against the S&P 500; research stocks; and test strategies in a separate paper book,
+  with a decision trail from signals to orders. Trading actions follow the connected
+  account's supported controls. Cash equities. No crypto.
+version: 1.53.9
 lastingStorage: true
 status: active
 

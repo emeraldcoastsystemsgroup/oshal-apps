@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The design standard on this brief and storyboard editor (docs/ux/design-standard.md; UX audit decision APP--APP; REFP CONVENTIONS §5.6/§5.7), in a real Chromium over the real page, the real shared editor (OSHAL_PLATFORM_ROOT) and loopback stand-ins for the routes: the page declares its contract and the brief is the work; framed in Today the name is not repeated; there is exactly one primary in the app row (Render where Vids answers, Open episode workflow where it does not) and a Render press with no render computer online says why and sends nothing; one copy of each field; the ⋯ More menu, the scene row menu and a phone pane are layers the browser's Back closes; "discard unsaved changes?" asks in the page; every planned control of the application's backlog is in its place, greyed, says "Not available yet" and does nothing when pressed. Every case fails on the page before this change.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Controls on the general sizing (Roger F14, 2026-11-06, Stories: "open episode workflow buttons are large, refresh evidence... its just not following the general sizing of objects"). At 412x915 with touch every button the page draws keeps its label on one line and hugs it (44px, 16px at 600, radius 10, the one primary included, which wrapped to two lines in a 232px slot), and Undo, Redo and More are icon buttons with no fill or edge; at 1440x900 the app row is a 36px toolbar at 15px, content buttons stay 44px at 15px with Refresh evidence on one line (it was two lines, 187x50), and a saved source project is a list row, not a bordered button three lines tall. At 1080x800, where the Saved pane is 180px, a label too long for it stays on one line inside the pane. Red on 1.4.0 / 1.3.0.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (open-work audit 2026-11-10): the seven RP-BRG functions are working controls, not greyed placeholders. The page draws no [data-ds-not-yet] control; Templates opens a gallery whose choice becomes a new unsaved brief with its storyboard and sends nothing; Brand kit writes the person's Create kit into the brief (hidden when Create does not answer, "Make a brand kit" without a saved kit); Download appears only for a finished build whose file Vids holds, and says why when Vids keeps none; Comment posts a thread on the brief that is saved with the source (the POST carries it), and the ⋯ More menu holds Resize for other formats and Schedule or post as real rows, a scene's menu Edit on canvas. Red on 1.3.2 (greyed controls), green on 1.4.0.
  */
 import {test,before,after} from 'node:test';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {resolve} from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url)),APP=root.split('/').filter(Boolean).at(-1),platform=process.env.OSHAL_PLATFORM_ROOT;
@@ -16,7 +17,7 @@ const NAME=APP==='brand-graphics'?'Brand Graphics':'Creative Studio';
 let browser;before(async()=>{browser=await chromium.launch({headless:true});});after(async()=>{await browser?.close();});
 
 /** The page on loopback, framed by a Today-like page (its .tool-view-header names the app), with recorded routes. */
-async function fixture(t,{width=1440,height=900,phone=false,vids=null,builds=0,project=null}={}){
+async function fixture(t,{width=1440,height=900,phone=false,vids=null,builds=0,project=null,kit=null,artifact=null,items=null}={}){
  const app=express(),requests=[];app.use(express.json());app.use((req,_res,next)=>{requests.push(req.method+' '+req.path);next();});
  let saved=project;
  app.get('/today',(_q,res)=>res.type('html').send(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0"><div class="tool-view-container"><div class="tool-view-header" style="height:56px">${NAME}</div><iframe id="app" src="/api/${APP}/review" style="border:0;width:100vw;height:calc(100vh - 56px)"></iframe></div></body></html>`));
@@ -24,7 +25,11 @@ async function fixture(t,{width=1440,height=900,phone=false,vids=null,builds=0,p
  app.get('/api/'+APP+'/source-project-editor.mjs',(_q,res)=>res.type('text/javascript').sendFile(resolve(root,'tools/source-project-editor.mjs')));
  app.get('/api/'+APP+'/source-projects',(_q,res)=>res.json({projects:saved?[{id:saved.id,title:saved.model.title,revision:1}]:[]}));
  app.post('/api/'+APP+'/source-projects',(req,res)=>{saved={id:'11111111-1111-4111-8111-111111111111',model:req.body.model};res.json({project:{id:saved.id,revision:1}});});
- app.get('/api/'+APP+'/home-summary',(_q,res)=>res.json({metrics:[{id:'a',label:'In progress',value:'0'}],items:Array.from({length:builds},(_,i)=>({text:'Build '+(i+1),detail:'done · updated 2026-11-05T10:00:00Z',actions:[{context:{title:'Built',notes:'Built notes'}}]}))}));
+ app.get('/api/'+APP+'/home-summary',(_q,res)=>res.json({metrics:[{id:'a',label:'In progress',value:'0'}],items:items??Array.from({length:builds},(_,i)=>({text:'Build '+(i+1),detail:'done · updated 2026-11-05T10:00:00Z',actions:[{context:{title:'Built',notes:'Built notes'}}]}))}));
+ // Create's brand kit (kit: an answer body, or a status number for a refusal) and Vids' file for a finished build (artifact: a body).
+ app.get('/api/create/brand-kit',(_q,res)=>typeof kit==='number'?res.status(kit).json({error:'fixture_refusal'}):kit?res.json(kit):res.status(404).json({error:'not_installed'}));
+ app.get('/api/vids/jobs/:job/artifact',(req,res)=>artifact?res.json(artifact(req.params.job)):res.status(404).json({error:'not_installed'}));
+ app.get('/api/vids/jobs/:job/artifact/video.mp4',(_q,res)=>res.type('video/mp4').send(Buffer.from('fixture-mp4-bytes')));
  app.get('/api/vids/jobs',(_q,res)=>vids?res.json(vids):res.status(404).json({error:'not_installed'}));
  app.post('/api/vids/brand',(_q,res)=>res.status(503).json({error:'No Vids worker is registered.'}));
  app.use('/shared/ui',express.static(resolve(platform,'src/shared/ui')));app.use('/cockpit',express.static(resolve(platform,'src/pages/cockpit')));
@@ -39,14 +44,8 @@ async function fixture(t,{width=1440,height=900,phone=false,vids=null,builds=0,p
 const back=page=>page.goBack({timeout:1500}).catch(()=>{}).then(()=>page.waitForTimeout(300));
 /** The visible primaries (the accent-filled .primary buttons). */
 const primaries=frame=>frame.evaluate(()=>[...document.querySelectorAll('button')].filter(b=>b.checkVisibility()&&b.classList.contains('primary')).map(b=>b.textContent.trim()));
-/** A planned control: greyed, inert, named "<label>, not available yet", linked to its backlog id. */
-async function assertPlanned(frame,requests,locator,id){
- assert.equal(await locator.getAttribute('aria-disabled'),'true');assert.equal(await locator.getAttribute('data-ds-backlog'),id);assert.match(await locator.getAttribute('aria-label'),/not available yet$/);
- const before=requests.length,html=await frame.locator('body').innerHTML();await locator.click({force:true});await frame.waitForTimeout(300);assert.equal(requests.length,before,`${id} sent a request`);
- return html;
-}
 
-test('framed at 1440x900: contract, one primary in one app row, the name once, one copy of each field, planned controls in place',async t=>{
+test('framed at 1440x900: contract, one primary in one app row, the name once, one copy of each field, every reference function a working control (no greyed control)',async t=>{
  const {frame,requests,errors,dialogs}=await fixture(t,{builds:1});
  assert.equal(await frame.locator('html').getAttribute('data-ds-category'),'editor');assert.equal(await frame.locator('html').getAttribute('data-ds-first-action'),'type');
  assert.equal(await frame.locator('[data-ds-work] #notes').count(),1,'the brief text is inside the declared work');
@@ -57,19 +56,21 @@ test('framed at 1440x900: contract, one primary in one app row, the name once, o
  assert.equal(await frame.locator('.source-project-actions').evaluate(el=>new Set([...el.querySelectorAll('button')].filter(b=>b.checkVisibility()).map(b=>Math.round(b.getBoundingClientRect().top))).size),1,'the app row is one row');
  // One copy of each field: no Title property, one visible Source link.
  assert.equal(await frame.locator('[data-editor-property="title"]').count(),0);assert.equal(await frame.locator('[data-editor-property="sourceUrl"]').count(),1);assert.equal(await frame.locator('#sourceUrl').isVisible(),false);
- // The planned controls, in their reference places.
- const P=BACKLOG.prefix;
- await assertPlanned(frame,requests,frame.locator('.brief-choices [data-ds-not-yet]'),P+'-01');
- await assertPlanned(frame,requests,frame.locator('.brief-kit [data-ds-not-yet]'),P+'-03');
- await assertPlanned(frame,requests,frame.locator('.source-project-actions [data-ds-backlog="'+P+'-06"]'),P+'-06');
- await assertPlanned(frame,requests,frame.locator('.source-project-actions [data-ds-backlog="'+P+'-04"]'),P+'-04');
+ // No greyed "Not available yet" control anywhere: each reference function is a working control in its reference place.
+ assert.equal(await frame.locator('[data-ds-not-yet]').count(),0,'no planned (greyed) control remains');
+ assert.equal(await frame.getByText('Not available yet').count(),0);
+ assert.equal(await frame.locator('.brief-choices #templates').isEnabled(),true,'Templates beside the build kinds works');
+ assert.equal(await frame.locator('#brandKit').isVisible(),false,'Brand kit is not drawn where Create does not answer');
+ assert.equal(await frame.locator('.source-project-actions').getByRole('button',{name:'Comments',exact:true}).isEnabled(),true,'Comment in the app row works');
+ assert.equal(await frame.locator('.source-project-actions a.source-download').isVisible(),false,'Download is not drawn before a finished file exists');
  await frame.getByRole('button',{name:'More',exact:true}).click();const menu=frame.getByRole('menu');await menu.waitFor();
- for(const id of [P+'-02',P+'-05']){const row=menu.locator(`[data-ds-backlog="${id}"]`);assert.match(await row.innerText(),/Not available yet/);assert.equal(await row.getAttribute('aria-disabled'),'true');}
- await menu.locator(`[data-ds-backlog="${P}-02"]`).click({force:true});await frame.waitForTimeout(200);assert.equal(await menu.isVisible(),true,'a planned row is not a choice: the menu stays');
+ for(const name of ['Resize for other formats','Schedule or post'])assert.equal(await menu.getByRole('menuitem',{name,exact:true}).isEnabled(),true,name+' is a real ⋯ More row');
  await frame.locator('body').press('Escape');await menu.waitFor({state:'hidden'});
  await frame.getByRole('button',{name:'Add scene',exact:true}).click();await frame.getByRole('button',{name:'Scene 1 actions',exact:true}).click();
- const sceneMenu=frame.getByRole('menu');await sceneMenu.waitFor();const tool=sceneMenu.locator(`[data-ds-backlog="${P}-07"]`);assert.match(await tool.innerText(),new RegExp(BACKLOG.scene));
- assert.deepEqual(await sceneMenu.getByRole('menuitem').evaluateAll(items=>items.map(i=>i.textContent.replace('Not available yet','').trim())),['Move up','Move down','Duplicate',BACKLOG.scene,'Delete'],'Delete is last');
+ const sceneMenu=frame.getByRole('menu');await sceneMenu.waitFor();
+ assert.deepEqual(await sceneMenu.getByRole('menuitem').evaluateAll(items=>items.map(i=>i.textContent.trim())),['Move up','Move down','Duplicate',BACKLOG.scene,'Delete'],'Delete is last');
+ assert.equal(await sceneMenu.getByRole('menuitem',{name:BACKLOG.scene,exact:true}).isEnabled(),true,'Edit on canvas is a real scene row');
+ await frame.locator('body').press('Escape');
  assert.equal(requests.filter(r=>!r.startsWith('GET')).length,0);assert.deepEqual(dialogs,[]);assert.deepEqual(errors,[]);
 });
 
@@ -142,4 +143,52 @@ test('at 1080x800 (the 180px Saved pane): a label too long for its pane stays on
   assert.equal(b.lines,1,`${b.name} keeps one line (${b.w}x${b.h})`);assert.equal(b.inside,true,`${b.name} stays inside its pane`);
  }
  assert.deepEqual(errors,[]);
+});
+
+test('Templates: a gallery of prefilled briefs opens one as a new unsaved brief with its storyboard; Back closes it; nothing is sent',async t=>{
+ const {page,frame,requests,errors,dialogs}=await fixture(t,{width:412,height:915,phone:true});
+ await frame.getByRole('button',{name:'Templates',exact:true}).click();const gallery=frame.locator('dialog.brand-templates');await gallery.waitFor();
+ assert.equal(await gallery.locator('.brand-template').count(),6);await back(page);await gallery.waitFor({state:'detached'});assert.match(page.url(),/\/today$/,'Back closed the gallery, not the app');
+ await frame.getByRole('button',{name:'Templates',exact:true}).click();await frame.locator('dialog.brand-templates [data-template="countdown"]').click();
+ await frame.locator('#status').filter({hasText:'Event countdown bumper'}).waitFor();
+ assert.equal(await frame.locator('#title').inputValue(),'Event countdown bumper');assert.match(await frame.locator('#notes').inputValue(),/counting down/);
+ assert.equal(await frame.locator('.brief-kinds [data-mode="graphic"]').getAttribute('aria-checked'),'true','the template sets Graphic bumper');
+ assert.equal(await frame.locator('.source-scene').count(),2,'the storyboard comes with it');
+ assert.equal(requests.filter(r=>!r.startsWith('GET')).length,0,'opening a template saves and renders nothing');assert.deepEqual(dialogs,[]);assert.deepEqual(errors,[]);
+});
+
+test('Brand kit: the person\'s Create kit is written into the brief once; without a kit it opens Create; refused by Create it is not drawn',async t=>{
+ const kit={kit:{version:1,name:'Northwind',colors:{primary:'#1d4ed8',secondary:'#f59e0b',accent:'#ef4444',dark:'#111827',light:'#ffffff'},extras:[],fonts:{heading:'Georgia',body:'Calibri'},voice:'Warm and plain',logo:null},revision:1,words:{phrase:'royal blue, amber and red'}};
+ const {frame,errors}=await fixture(t,{kit});
+ const button=frame.getByRole('button',{name:'Use my brand kit',exact:true});await button.waitFor();await frame.locator('#notes').fill('An intro for the launch');
+ await button.click();await button.click();
+ const notes=await frame.locator('#notes').inputValue();assert.match(notes,/^An intro for the launch\n\nBrand kit: Northwind\. Colors: royal blue, amber and red \(#1d4ed8, #f59e0b, #ef4444\)\. Headings in Georgia, body text in Calibri\. Voice: Warm and plain\.$/);
+ assert.equal(notes.match(/Brand kit:/g).length,1,'a second press replaces the line instead of adding another');
+ await frame.getByRole('button',{name:'Undo',exact:true}).click();assert.doesNotMatch(await frame.locator('#notes').inputValue(),/Brand kit:/,'Undo takes it out');assert.deepEqual(errors,[]);
+ const none=await fixture(t,{kit:{kit:null,revision:0,words:null}});await none.frame.getByRole('button',{name:'Make a brand kit',exact:true}).waitFor();
+ const refused=await fixture(t,{kit:403});await refused.frame.waitForTimeout(300);assert.equal(await refused.frame.locator('#brandKit').isVisible(),false);
+});
+
+test('Download: shown only for a finished build whose file Vids holds; where Vids keeps none it says why',async t=>{
+ const job='7c9e6679-7425-40de-944b-e07fc1f90ae7',item={text:'Launch intro',detail:'done · updated 2026-11-05T10:00:00Z',jobId:job,status:'done',actions:[{context:{title:'Launch intro',notes:'n'}}]};
+ const {page,frame,errors}=await fixture(t,{items:[item],artifact:id=>({artifact:{jobId:id,previewUrl:'/api/vids/jobs/'+id+'/artifact/video.mp4'},attach:{available:true}})});
+ const link=frame.locator('.source-project-actions a.source-download');await link.waitFor();assert.equal(await link.getAttribute('href'),'/api/vids/jobs/'+job+'/artifact/video.mp4');
+ const row=frame.locator('#records a.brand-download');assert.equal(await row.count(),1);
+ const [file]=await Promise.all([page.waitForEvent('download'),row.click()]);assert.equal(file.suggestedFilename(),'brand-build.mp4');assert.deepEqual(errors,[]);
+ const kept=await fixture(t,{items:[item],artifact:()=>({artifact:null,attach:{available:false,detail:'Video exports cannot be kept on this installation yet.'}})});
+ await kept.frame.locator('#records').getByText('Download: Video exports cannot be kept on this installation yet.').waitFor();
+ assert.equal(await kept.frame.locator('.source-project-actions a.source-download').isVisible(),false);assert.equal(await kept.frame.locator('#records a.brand-download').count(),0);
+});
+
+test('Comment: a thread on the brief is saved with the source, and the app row counts open threads',async t=>{
+ const {frame,requests,errors}=await fixture(t);let posted=null;
+ frame.page().on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/api/'+APP+'/source-projects'))posted=r.postDataJSON();});
+ await frame.locator('#title').fill('Launch');await frame.locator('#notes').fill('An intro for the launch');
+ await frame.locator('.source-project-actions').getByRole('button',{name:'Comments',exact:true}).click();const sheet=frame.locator('dialog.source-comments');await sheet.waitFor();
+ await sheet.getByLabel('Add a comment',{exact:true}).fill('Make the logo hold one beat longer');await sheet.getByRole('button',{name:'Comment',exact:true}).click();
+ await sheet.locator('.source-comment').filter({hasText:'Make the logo hold one beat longer'}).waitFor();
+ assert.equal(requests.filter(r=>r==='POST /api/'+APP+'/source-projects').length,1,'posting a comment saved the source');
+ assert.equal(posted.model.comments.length,1);assert.equal(posted.model.comments[0].target,'brief');assert.equal(posted.model.comments[0].text,'Make the logo hold one beat longer');assert.equal(posted.model.comments[0].resolved,false);
+ await sheet.getByRole('button',{name:'Close',exact:true}).click();
+ assert.equal(await frame.locator('.source-project-actions').getByRole('button',{name:'Comments, 1 open',exact:true}).count(),1);assert.deepEqual(errors,[]);
 });

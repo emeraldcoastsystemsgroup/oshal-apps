@@ -4,8 +4,10 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Reproduce same-name cross-owner worker storage collisions and require immutable character namespaces with explicit existing-model compatibility.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: LORA_CONTROLLER_URL has no default any more (it named a house LAN address), so the spec sets its own loopback callback address before the dispatcher loads.
  */
 import { describe, expect, it, vi } from 'vitest';
+vi.hoisted(() => { process.env.LORA_CONTROLLER_URL ||= 'http://127.0.0.1:9'; });
 vi.mock('@/shared/logger', () => ({ createChildLogger: () => ({ info() {}, warn() {}, error() {} }) }));
 vi.mock('@/app/routes/remote-client-routes', () => ({ remoteClientRegistry: {} }));
 import { buildTrainCommand, buildValidateCommand, buildImproveCommand, buildOvernightCommand } from '../src-routes/lora-train-dispatch';

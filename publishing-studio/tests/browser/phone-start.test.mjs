@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Publishing Studio on a phone with real touch (Roger, trial.oswarm.ai, 2026-11-06, F6 "another shifty app in demo", and the trial check: a two-row toolbar, no visible first action and two empty-looking boxes): the app bar is one row (Save revision and More) and content starts within 74 px of the frame (120 px with the 46 px Today row); with no publication the one primary action is New publication and no dead document control is drawn; one tap creates and opens a publication; a choice in More runs and closes it. Real routes, the real publishing engine over disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7 (the round-2 trial check, 2026-11-06: with a publication open a touch swipe never scrolled the page, 822-843 px below the fold, and a swipe over the page dragged the story frame into an unsaved draft; four console 409s from revisions/1/preview/1-4): a CDP touch swipe that starts on a frame, on the page margin or beside the page scrolls the editor and moves nothing; a tap selects the frame and only its Move handle drags it; opening an unrendered publication asks for no preview.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the design-standard screen (docs/ux/design-standard.md §3.1, §5.1): with nothing saved the first screen is one blank Letter page whose one first action is Add text frame, in one app row whose only disabled controls are Undo and Redo; one tap makes an untitled Letter publication with a text frame and asks for no preview; More is a menu that closes on its choice. The touch guards of 0.3.7 are unchanged and open a four-page brochure made through the real route; nothing is chosen until a frame is tapped, so its Move handle appears with the tap.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (B8-06): verify .frame-handle is enabled once locked creation completes even before re-selecting the frame.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +26,11 @@ const scrolled = page => page.evaluate(() => Math.round(document.querySelector('
 const frame = (page, id = 'frame1') => page.evaluate(id => { const rect = document.querySelector(`#spread .selection-box[data-item="${id}"]`), box = rect.getBoundingClientRect(); return {x: rect.getAttribute('x'), y: rect.getAttribute('y'), cx: Math.round(box.left + box.width / 2), cy: Math.round(box.top + Math.min(box.height / 2, 120))}; }, id);
 
 async function open(t) {
-  const f = await fixture({http: true, extend: app => app.use('/shared/ui', express.static(resolve(platform, 'src/shared/ui')))});
+  const f = await fixture({http: true, extend: app => {
+    app.get('/shared/ui/js/package-tool-cards.js', (_q, r) => r.sendFile('src/api/jarvis-package-tools.js', {root: platform}));
+    app.use('/shared/ui', express.static(resolve(platform, 'src/shared/ui')));
+    app.use('/cockpit/css/themes', express.static(resolve(platform, 'src/pages/cockpit/css/themes')));
+  }});
   t.after(() => f.close());
   const browser = await chromium.launch({headless: true}); t.after(() => browser.close());
   const context = await browser.newContext(PHONE), page = await context.newPage(), errors = [], refused = [];
@@ -70,6 +75,7 @@ test('one tap on Add text frame makes a Letter publication with a frame; a choic
   await page.locator('#revision').filter({hasText: 'Revision 1'}).waitFor({state: 'attached', timeout: 60000});
   await page.locator('dialog[open] #story-text').waitFor();
   assert.equal(await page.locator('#document-title').textContent(), 'Untitled publication');
+  assert.equal(await page.locator('#spread .frame-handle').isDisabled(), false, 'Move handle is synced enabled after locked creation finishes (B8-06)');
   assert.deepEqual(page.refused, [], 'no request is refused, and no preview is asked for before a render');
   await page.locator('dialog[open] .ds-layer-done').tap();
   await page.locator('#more-menu').tap();

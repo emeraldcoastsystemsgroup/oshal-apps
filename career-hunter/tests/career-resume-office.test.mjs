@@ -4,12 +4,13 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the master resume as a Word document (tools/career-resume-office.js): the document Career makes passes AI Office's own model validation, an untouched document maps back to exactly the master, and an edited document saved through the REAL `resume base-save` engine path keeps the career profile valid (roles, titles, unsent fields intact). A changed role heading, a removed role and an extra section are said, never silently saved.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Saving the document never changes the master by itself (live 2026-11-09 02:35, a Send in the Chat rail): with an empty headline the document shows the credential line in its place, and the save stored that line as the headline; a skill holding two semicolons came back as three skills in a new "Additional Skills" group. Over a profile with both, the untouched document says "Matches your master resume" on open and on Save, Save sends nothing, and even a forced save through the real `resume base-save` changes no byte, backup or history; a real bullet edit saves only that bullet. A skill containing the " · " separator survives an untouched round trip.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import Module, { createRequire } from 'node:module';
+import Module, { createRequire, registerHooks } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,9 +44,9 @@ function engine(verb, store, extra = {}) {
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout.trim());
 }
-function store(name) {
+function store(name, data = profile) {
   const dir = path.join(fixtureRoot, name); fs.mkdirSync(dir, { recursive: true });
-  const careerDb = path.join(dir, 'career_db.json'); fs.writeFileSync(careerDb, JSON.stringify(profile, null, 2));
+  const careerDb = path.join(dir, 'career_db.json'); fs.writeFileSync(careerDb, JSON.stringify(data, null, 2));
   return { dir, careerDb };
 }
 const paragraphs = (model) => model.pages[0].blocks;
@@ -107,4 +108,104 @@ test('a removed role refuses the save in words; an extra section stays in the do
   const extra = office.resumeToModel(master.resume, master.meta);
   paragraphs(extra).push({ ...find(extra, 'Summary'), id: 'extra-heading', runs: [{ ...find(extra, 'Summary').runs[0], text: 'Volunteering' }] });
   assert.match(office.modelToResume(extra, master.resume).notes.join(' '), /"Volunteering" stays in this document only/);
+});
+
+// ── Saving the document never changes the master by itself (live 2026-11-09 02:35) ─────────────
+// An empty headline (the document shows the credential line in its place) and a skill holding two
+// semicolons: the two things the 02:35 save changed in a master nobody had edited.
+const quiet = {
+  profile: { name: 'Sam Fixture', credential: 'Sam Fixture, PMP, CSM, SAFe Agilist', headline: '', location: 'Testville',
+    clearance: '', citizenship: 'US', experience_summary: 'Leads delivery teams.' },
+  roles: [{ title: 'Program Lead', org: 'Acme', start: '2020-01', end: null,
+    deliverables: ['Ran the platform program for 40 engineers', 'Cut release time in half'] }],
+  skills: {
+    Delivery: { items: ['Agile delivery; Scrum ceremonies; SAFe release trains for 40 engineers', 'Kanban'] },
+    Tools: { items: ['Jira', 'Confluence'] },
+  },
+};
+
+// The page imports the shared document handoff by its served path; here it answers for the open document.
+const handoff = { recordId: null };
+globalThis.__careerOfficeHandoff = handoff;
+registerHooks({ resolve(specifier, context, next) {
+  if (specifier !== '/shared/ui/js/document-handoff.js') return next(specifier, context);
+  const source = 'export async function beginDocumentHandoff(){return {context:{recordId:globalThis.__careerOfficeHandoff.recordId}};}\n'
+    + 'export async function refreshOpenDocument(){}';
+  return { url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true };
+} });
+
+/** AI Office's document routes as the host calls them, over one person's in-memory documents. */
+function fakeOffice() {
+  const documents = new Map(), reply = (status, body) => ({ ok: status < 400, status, json: async () => body });
+  return async (url, init = {}) => {
+    const method = init.method || 'GET', one = url.match(/^\/api\/presentations\/editor\/documents\/([^/]+)$/);
+    if (url === '/api/presentations/editor/documents' && method === 'GET') {
+      return reply(200, { documents: [...documents.values()].map(({ id, kind, title }) => ({ id, kind, title })) });
+    }
+    if (url === '/api/presentations/editor/documents' && method === 'POST') {
+      const { model } = JSON.parse(init.body), id = `doc-${documents.size + 1}`;
+      documents.set(id, { id, kind: model.kind, title: model.title, revision: 1, model });
+      return reply(201, { document: documents.get(id) });
+    }
+    if (one && method === 'GET' && documents.has(one[1])) return reply(200, { document: documents.get(one[1]) });
+    return reply(404, { error: `not in fixture: ${method} ${url}` });
+  };
+}
+
+/** Open the master in createHost with the fake AI Office behind the page's fetch and a stand-in frame. */
+async function withHost(master, saves, work) {
+  const prior = { fetch: globalThis.fetch, document: globalThis.document }, statuses = [];
+  globalThis.fetch = fakeOffice();
+  globalThis.document = { createElement: () => ({ setAttribute(k, v) { this[k] = v; }, getAttribute(k) { return this[k] ?? null; }, remove() {} }) };
+  try {
+    const host = office.createHost({ host: { hidden: true, append() {} }, readMaster: async () => master,
+      saveMaster: async (resume) => { saves.push(resume); return { ok: true, changed: true, changelog: [] }; },
+      status: (text) => statuses.push(text) });
+    handoff.recordId = await host.open(master);
+    return await work(host, statuses);
+  } finally {
+    globalThis.fetch = prior.fetch;
+    if (prior.document === undefined) delete globalThis.document; else globalThis.document = prior.document;
+  }
+}
+
+test('an empty headline and a skill with semicolons: the untouched document matches the master and Save changes nothing', async () => {
+  const s = store('untouched', quiet), before = fs.readFileSync(s.careerDb), master = engine('base', s);
+  assert.equal(master.resume.headline, quiet.profile.credential, 'the document shows the credential line where the empty headline is');
+  const mapped = office.modelToResume(office.resumeToModel(master.resume, master.meta), master.resume);
+  assert.deepEqual(mapped.resume.skills, master.resume.skills, 'a skill holding semicolons stays one skill');
+  assert.ok(office.sameResume(mapped.resume, master.resume));
+  const saves = [];
+  await withHost(master, saves, async (host, statuses) => {
+    assert.deepEqual(statuses, ['Matches your master resume'], 'opening the untouched document says it matches');
+    assert.equal((await host.saveToMaster()).changed, false, 'Save to master resume says Matches your master resume');
+  });
+  assert.deepEqual(saves, [], 'nothing is sent to the master save');
+  const forced = engine('base-save', s, { CH_RESUME_DOC: JSON.stringify({ resume: mapped.resume }) });
+  assert.equal(forced.ok, true, JSON.stringify(forced));
+  assert.equal(forced.changed, false, `a forced save of the untouched document changes nothing: ${JSON.stringify(forced.changelog)}`);
+  assert.ok(fs.readFileSync(s.careerDb).equals(before), 'the master file is byte for byte unchanged');
+  assert.equal(fs.existsSync(path.join(s.dir, 'backups')), false, 'no snapshot was taken');
+  assert.equal(fs.existsSync(path.join(s.dir, 'enrichment_log.jsonl')), false, 'no history record was written');
+});
+
+test('a real edit saves only that edit: the credential line shown for an empty headline is never saved as the headline', () => {
+  const s = store('one-edit', quiet), master = engine('base', s), model = office.resumeToModel(master.resume, master.meta);
+  setText(find(model, 'Cut release time in half'), 'Cut release time from 6 weeks to 3');
+  const mapped = office.modelToResume(model, master.resume);
+  const saved = engine('base-save', s, { CH_RESUME_DOC: JSON.stringify({ resume: mapped.resume }) });
+  assert.equal(saved.ok, true, JSON.stringify(saved));
+  assert.deepEqual(saved.changelog, ['role 1 (Program Lead) bullets updated (2)']);
+  const after = JSON.parse(fs.readFileSync(s.careerDb, 'utf8'));
+  assert.equal(after.profile.headline, '', 'the headline stays empty');
+  assert.deepEqual(after.skills, quiet.skills, 'every skill stays in its own group, and no group is added');
+  assert.deepEqual(after.roles[0].deliverables, ['Ran the platform program for 40 engineers', 'Cut release time from 6 weeks to 3']);
+});
+
+test('a skill holding the separator survives an untouched round trip; an edited line still reads semicolons as text', () => {
+  const data = { ...quiet, skills: { Methods: { items: ['Lean · Six Sigma', 'Kaizen'] } } };
+  const master = engine('base', store('separator', data)), model = office.resumeToModel(master.resume, master.meta);
+  assert.deepEqual(office.modelToResume(model, master.resume).resume.skills, ['Lean · Six Sigma', 'Kaizen']);
+  setText(find(model, 'Lean · Six Sigma · Kaizen'), 'Lean · Six Sigma · Kaizen · Value streams; flow mapping');
+  assert.deepEqual(office.modelToResume(model, master.resume).resume.skills.slice(-1), ['Value streams; flow mapping']);
 });

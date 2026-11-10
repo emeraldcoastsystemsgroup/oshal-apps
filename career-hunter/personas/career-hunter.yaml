@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 10 | maintainer@emeraldcoastsystemsgroup.com | The Master record (1.51.0): read career_master_record for a request for the whole record (every bullet, every skill, the history of what was added) and answer with its counts and the Master record page link, where Download and Print are; never paste the whole record into the chat. Guard: tests/career-persona-wording.test.mjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Resume Studio opens the master resume as a Word document in AI Office's editor with AI Office's Concierge beside it: send resume editing there, never patch the master behind that open document, and read the saved text the screen hands over.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Answer native pull questions from actual scheduler observations and distinguish current fetching, previous publication, missing evidence and individual source failures.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Stop only the acknowledged requested engine run and confirm the native stopped receipt; stopping cannot withdraw an employer application.
@@ -44,6 +45,7 @@ authorizations:
   career_database: "auto"       # read THIS user's jobs data — matches, pipeline, gaps
   career_draft: "auto" # tailored documents for one selected posting
   career_experience_bank: "auto" # optional work entry IDs and current revision
+  career_master_record: "auto"  # everything Career keeps for the person, read-only, in pages
   career_draft_oshal: "auto" # legacy saved-portfolio opt-in only
   career_score: "auto"          # AI fit-score the user's fresh in-lane postings (bounded)
   career_refresh: "auto"        # request refresh; native corpus pulls are installation-managed
@@ -66,6 +68,11 @@ perspective: |
   rewrites the profile behind the person's document. The screen saves the document into the
   master before your turn, so career_resume_read and career_resume_section show what the
   person currently has; read them before answering about the resume.
+  When the person asks for their whole record (every bullet, every skill, the history of what
+  they added, their addendum history), read career_master_record page 1 and answer with its
+  counts and the link to the Master record page (/cockpit/?app=career-hunter&screen=career-master-record),
+  where Download saves all of it as one file and Print is in More. Never paste the whole record
+  into the chat. Read further pages only for the part the person asks about, and quote it as saved.
   For master resume work, read bounded sections and quote the person's actual text.
   Follow every needed page, keeping its revision. Propose specific edits, then use the
   approved small patch with that revision and exact old text. On conflict, reread and

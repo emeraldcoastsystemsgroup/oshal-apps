@@ -67,8 +67,15 @@
 <!-- The design standard (docs/ux/design-standard.md; UX audit decision brand-graphics--brand-graphics; REFP CONVENTIONS §5.6): the brief is
      the work and starts right under the one app row (Undo, Redo, Comment, Save source, the one primary, ⋯ More); the name is
      not repeated under the Today bar; one copy of each field (Title and Brief in the brief, Source link in Properties); the
-     scenes are list rows with a ⋯ row menu; the counters are one line; functions both reference products have and this
-     page lacks are greyed "Not available yet" controls in their reference places (§4.10, DS-45). -->
+     scenes are list rows with a ⋯ row menu; the counters are one line.
+     1.4.0 (audit 2026-11-10, RP-BRG-01..07): the seven reference functions that were greyed "Not available yet" work.
+     Templates opens a gallery of prefilled briefs and storyboards as a new editable brief. Brand kit writes the person's
+     Create brand kit (colors, fonts, logo, voice) into the brief the render reads; without Create it is not shown, without
+     a saved kit it opens Create's Brand Kit. Comment holds threads with replies and Resolve, saved with the source.
+     Download is a link to a finished build's file, shown only while Vids holds one. Resize keeps 16:9 here (the brand
+     render is Google Vids' 16:9 canvas) and hands 9:16 or 1:1 to Video Studio, which renders those. Schedule or post
+     hands the brief to Switchboard Compose, which posts now or on its calendar after an explicit confirmation. A scene's
+     Edit on canvas opens that scene on AI Office's canvas. -->
 <style>
 :root{--accent:var(--ds-accent-ink,var(--accent-primary));--ink:var(--ds-ink,var(--text-primary));--muted:var(--ds-ink-2,var(--text-muted));--border:var(--ds-edge,var(--border-color));--line:var(--ds-line-control,var(--border-color))}
 *{box-sizing:border-box}html,body{overscroll-behavior:contain}body{margin:0;background:var(--ds-page,var(--bg-primary));color:var(--ink);font:400 16px/24px system-ui,sans-serif}
@@ -97,7 +104,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .source-icon{min-width:44px;padding:0;font-size:18px;line-height:24px;border-color:transparent;background:transparent}.source-icon:hover:not(:disabled){background:var(--ds-surface-3,var(--bg-card-hover))}
 .source-project-actions button{min-height:var(--ds-control-h,44px);padding:0 12px}
 /* A label never wraps and never runs out of its pane: where a pane is narrower than a label (the 180px Saved pane beside an open concierge or under 1100px) it ends in an ellipsis. */
-.library-links>button,.brief-doc button,.source-story>button,.brief-primary>button{max-width:100%;overflow:hidden;text-overflow:ellipsis}.brief-primary{min-width:0;max-width:100%}.source-project-actions .source-icon{min-width:var(--ds-control-h,44px);padding:0}.source-project-actions [data-ds-not-yet]{background:var(--ds-surface-2,var(--bg-tertiary))}
+.library-links>button,.brief-doc button,.source-story>button,.brief-primary>button{max-width:100%;overflow:hidden;text-overflow:ellipsis}.brief-primary{min-width:0;max-width:100%}.source-project-actions .source-icon{min-width:var(--ds-control-h,44px);padding:0}
 .source-phone{display:none}
 .source-story{margin-top:24px}.source-scenes{display:grid}.source-scene{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid var(--ds-hairline,var(--border))}
 .source-scene-pick{flex:1;min-width:0;justify-content:flex-start;text-align:left;border-color:transparent;background:transparent;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -107,7 +114,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .source-menu{position:fixed;inset:auto;margin:0;min-width:240px;padding:4px 0;border:1px solid var(--ds-hairline,var(--border-color));border-radius:var(--ds-radius-l,14px);background:var(--ds-surface,var(--bg-primary));color:var(--ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
 .source-menu .source-menu-item{white-space:normal;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;width:100%;min-height:44px;padding:8px 16px;border:0;border-radius:0;background:transparent;text-align:left;font-weight:400}
 .source-menu .source-menu-item:hover{background:var(--ds-surface-3,var(--bg-card-hover))}.source-menu .source-destructive{color:var(--ds-bad,var(--status-error))}
-.source-menu [data-ds-not-yet] .ds-not-yet-note{font-size:12px;line-height:16px}
 .source-confirm{width:min(440px,calc(100% - 32px));padding:16px 24px 24px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:var(--ds-radius-xl,20px);background:var(--ds-surface,var(--bg-primary));color:var(--ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
 .source-confirm::backdrop{background:rgb(0 0 0 / .40)}.source-confirm h2{margin:0}.source-confirm p{margin:8px 0 0}.source-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
 .source-tertiary{border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline}.source-confirm-go{background:var(--ds-bad,var(--status-error));border-color:var(--ds-bad,var(--status-error));color:var(--ds-page,#fff)}
@@ -122,9 +128,23 @@ main.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .layout{display:cont
 .ef-editor .ef-viewport>.panel{overflow:auto}.ef-editor .ef-header-slot>header{display:flex;align-items:center;gap:16px;margin:0;padding:2px 16px;min-height:48px}
 .ef-editor .ef-header-slot>header>.source-project-actions{flex:1}
 .ef-editor textarea#notes{min-height:max(240px,40dvh)}.ef-editor .brief-inspector h2{font-size:16px}
+/* 1.4.0: the Download link sits in the app row as an icon; the comments and template sheets use the in-page dialog's look. */
+.source-project-actions a.source-download{display:inline-flex;align-items:center;justify-content:center;min-width:var(--ds-control-h,44px);min-height:var(--ds-control-h,44px);border-radius:var(--ds-radius-m,10px);color:var(--ink);text-decoration:none;font-size:18px;line-height:24px}
+.source-project-actions a.source-download[hidden]{display:none}.source-project-actions a.source-download:hover{background:var(--ds-surface-3,var(--bg-card-hover))}
+.source-comments,.brand-templates,.brand-resize{width:min(560px,calc(100% - 32px));max-height:min(80dvh,720px);overflow:auto}
+.source-comment-scope{color:var(--muted);font-size:14px;line-height:20px}.source-comment-list{display:grid;gap:8px;margin-top:12px}
+.source-comment{padding:12px;border:1px solid var(--ds-hairline,var(--border));border-radius:var(--ds-radius-m,10px)}.source-comment-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.source-comment-meta{margin:4px 0 0;font-size:12px;line-height:16px;color:var(--muted)}.source-comment-replies{margin:8px 0 0 16px;display:grid;gap:8px}.source-comment-reply{border-left:2px solid var(--ds-hairline,var(--border));padding-left:8px}
+.source-comment-actions,.source-comment-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:8px}.source-comment-form textarea{min-height:0;flex:1 1 240px}.source-comment-form .source-confirm-actions{width:100%;margin-top:8px}
+.source-comment-resolved{margin-top:12px}.source-comment-resolved>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600}.source-comment-label{margin-top:16px}
+.brand-template-list{display:grid;gap:8px;margin-top:12px}.brand-template{display:block;width:100%;height:auto;min-height:44px;padding:12px;text-align:left;white-space:normal;font-weight:400}
+.brand-template strong{display:block;font-weight:600}.brand-template span{display:block;color:var(--muted);font-size:14px;line-height:20px}
+.brand-resize-list{display:grid;gap:8px;margin-top:12px}.brand-resize-list button{height:auto;min-height:44px;padding:8px 12px;text-align:left;white-space:normal;font-weight:400}.brand-resize-list button strong{display:block;font-weight:600}
+.records td .brand-download{display:inline-flex;align-items:center;min-height:44px;margin-left:8px;font-weight:600}
+@media(max-width:800px){.source-comments,.brand-templates,.brand-resize{width:100%;max-width:100%;margin:auto 0 0;border-radius:20px 20px 0 0}}
 @media(max-width:800px){.source-menu{left:0;right:0;bottom:0;top:auto;width:100%;min-width:0;max-height:70dvh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px))}
 .ef-editor input,.ef-editor textarea,.ef-editor select{font-size:16px}.source-wide{display:none}.source-phone{display:flex}.source-project-actions{gap:4px}.ef-editor .ef-header-slot>header{padding:2px 8px}.ef-editor .ef-viewport>.panel{padding:8px 16px 16px}}
-</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><a class="own-tab-all" href="/cockpit/" target="_top" data-ef-phone="brand">All apps</a><h1 data-ef-phone="brand">Brand Graphics</h1></header><div class="layout"><section class="panel" id="libraryPanel"><p id="metrics" class="brief-metrics" aria-label="Saved work"></p><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><div class="library-links"><button id="refresh" type="button">Refresh evidence</button><a href="/cockpit/?app=vids" target="_top">Open Vids Studio</a></div></section><section class="panel" id="briefPanel"><div class="brief-doc" data-ds-work><div class="brief-choices"><div class="brief-kinds" role="radiogroup" aria-label="Build"><button type="button" role="radio" aria-checked="true" data-mode="intro">Brand intro</button><button type="button" role="radio" aria-checked="false" data-mode="graphic">Graphic bumper</button></div><button type="button" data-ds-not-yet data-ds-backlog="RP-BRG-01" data-ds-label="Templates">Templates</button></div><label>Title<input id="title" maxlength="120" placeholder="Name this brief"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="What should the intro say and show?"></textarea></label><div class="brief-kit"><button type="button" data-ds-not-yet data-ds-backlog="RP-BRG-03" data-ds-label="Brand kit">Brand kit</button></div><p id="briefState" class="brief-state"></p><input id="sourceUrl" type="url" maxlength="2000" hidden><select id="mode" hidden aria-label="Build"><option value="intro">Brand intro</option><option value="graphic">Graphic bumper</option></select><p id="status" role="status" aria-live="polite"></p><p class="hint" id="renderHint">Render uses your Vids render computer and may use provider credits.</p></div></section></div><button id="render" class="primary" type="button">Render this brand brief</button></main><script type="module" src="/shared/ui/js/planned-control.js"></script><script type="module">
+</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><a class="own-tab-all" href="/cockpit/" target="_top" data-ef-phone="brand">All apps</a><h1 data-ef-phone="brand">Brand Graphics</h1></header><div class="layout"><section class="panel" id="libraryPanel"><p id="metrics" class="brief-metrics" aria-label="Saved work"></p><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><div class="library-links"><button id="refresh" type="button">Refresh evidence</button><a href="/cockpit/?app=vids" target="_top">Open Vids Studio</a></div></section><section class="panel" id="briefPanel"><div class="brief-doc" data-ds-work><div class="brief-choices"><div class="brief-kinds" role="radiogroup" aria-label="Build"><button type="button" role="radio" aria-checked="true" data-mode="intro">Brand intro</button><button type="button" role="radio" aria-checked="false" data-mode="graphic">Graphic bumper</button></div><button type="button" id="templates">Templates</button></div><label>Title<input id="title" maxlength="120" placeholder="Name this brief"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="What should the intro say and show?"></textarea></label><div class="brief-kit"><button type="button" id="brandKit" hidden>Brand kit</button></div><p id="briefState" class="brief-state"></p><input id="sourceUrl" type="url" maxlength="2000" hidden><select id="mode" hidden aria-label="Build"><option value="intro">Brand intro</option><option value="graphic">Graphic bumper</option></select><p id="status" role="status" aria-live="polite"></p><p class="hint" id="renderHint">Render uses your Vids render computer and may use provider credits.</p></div></section></div><button id="render" class="primary" type="button">Render this brand brief</button></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {requestHandoff} from '/cockpit/js/app-workflows.js';
 // Audience view (ADR-164 D6): under a view this module mounts nothing, binds nothing and reads nothing; without an
@@ -149,20 +169,82 @@ function applyBriefProperty(key,value,expected){
   field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));
 }
 
-async function continueBrief(offer,button){
+async function continueBrief(offer,button,extra={}){
   try{
     await briefEditor?.flushPending();
     if(!notes.value.trim())throw Error('Write or select a brief before opening its editor.');
     if(button)button.disabled=true;
-    await requestHandoff(app,offer,{title:title.value.trim(),notes:sourceEditor?.handoffNotes()??notes.value.trim(),sourceUrl:sourceUrl.value.trim()},()=>{status.textContent='Opening the receiving editor…';});
-    status.textContent='Brief handed to the receiving editor.';
+    const brief=sourceEditor?.handoffNotes()??notes.value.trim(),handed=extra.format?('Format: '+extra.format+'\n\n'+brief).slice(0,2000):brief;
+    await requestHandoff(app,offer,{title:title.value.trim(),notes:handed,sourceUrl:sourceUrl.value.trim()},()=>{status.textContent='Opening the receiving editor…';});
+    status.textContent=extra.after||'Brief handed to the receiving editor.';
   }catch(error){
     status.textContent=error.message;
     if(error.cockpitUrl){const link=document.createElement('a');link.href=error.cockpitUrl;link.target='_top';link.textContent='Open this studio in the cockpit';status.append(' ',link);}
   }finally{if(button)button.disabled=false;}
 }
+// Templates (RP-BRG-01): prefilled briefs and storyboards. A choice opens as a NEW unsaved source the person edits and saves;
+// nothing is rendered or spent. Spoken and on-screen words stay filter-safe (no company names), as the brand rules ask.
+const TEMPLATES=[
+ {id:'launch',name:'Product launch intro',summary:'A logo reveal, the product in one line, the date.',mode:'intro',title:'Product launch intro',notes:'A confident 10-second intro for a product launch. Open on the logo, show the product in one line, end on the launch date. Calm, premium, no hype words.',scenes:[{title:'Logo reveal',text:'The logo resolves out of light streaks on a dark field.',duration:3},{title:'The product in one line',text:'One short line that says what the product does.',duration:4},{title:'Launch date',text:'The date and where to find it, held long enough to read.',duration:3}]},
+ {id:'recap',name:'Weekly recap opener',summary:'A steady news-style open for a recurring update.',mode:'intro',title:'Weekly recap opener',notes:'An evening-news style opener for a weekly recap. Serious music bed, the week number, one headline theme. Percentages and industry names only, never company names.',scenes:[{title:'Station ident',text:'The brand mark sweeps in with a low music hit.',duration:3},{title:'This week',text:'Week number and the one theme of the week.',duration:4},{title:'Into the recap',text:'A clean wipe into the first story.',duration:2}]},
+ {id:'countdown',name:'Event countdown bumper',summary:'A short bumper that counts down to a start time.',mode:'graphic',title:'Event countdown bumper',notes:'A silent 8-second bumper counting down to an event start. Bold numerals, the event name once, the start time at the end.',scenes:[{title:'Countdown',text:'Five to one in bold numerals, one per beat.',duration:5},{title:'Starts now',text:'The event name and its start time.',duration:3}]},
+ {id:'offer',name:'Offer announcement bumper',summary:'A bright bumper for a limited-time offer.',mode:'graphic',title:'Offer announcement bumper',notes:'A bright 6-second bumper announcing a limited-time offer. The offer in five words or fewer, the end date, one call to action.',scenes:[{title:'The offer',text:'The offer in five words or fewer.',duration:3},{title:'Ends soon',text:'The end date and one call to action.',duration:3}]},
+ {id:'podcast',name:'Podcast episode intro',summary:'Show name, episode title and the host, over a music bed.',mode:'intro',title:'Podcast episode intro',notes:'A warm 12-second podcast intro. The show name, this episode\'s title and the host\'s first name, over a relaxed music bed.',scenes:[{title:'Show name',text:'The show name on the brand colors.',duration:4},{title:'This episode',text:'Episode number and title.',duration:4},{title:'Your host',text:'The host\'s first name and one line about the episode.',duration:4}]},
+ {id:'teaser',name:'Social teaser',summary:'A 6-second teaser cut for a social feed.',mode:'graphic',title:'Social teaser',notes:'A punchy 6-second teaser for a social feed. One question that makes people stop, then the brand mark. Readable with the sound off.',scenes:[{title:'The question',text:'One short question on screen, large type.',duration:4},{title:'Brand mark',text:'The logo with the handle underneath.',duration:2}]}];
+/** @description An opaque in-page sheet the browser's Back closes (same look and Back rule as the editor's asks). */
+function pageSheet(className,title,lede,build,backCloses){
+ const dialog=document.createElement('dialog'),heading=document.createElement('h2'),intro=document.createElement('p'),body=document.createElement('div'),row=document.createElement('div'),close=document.createElement('button');
+ dialog.className='source-confirm '+className;heading.id=className+'-'+crypto.randomUUID().slice(0,8);heading.textContent=title;intro.className='hint';intro.textContent=lede;dialog.setAttribute('aria-labelledby',heading.id);
+ row.className='source-confirm-actions';close.type='button';close.className='source-tertiary';close.textContent='Close';row.append(close);dialog.append(heading,intro,body,row);document.body.append(dialog);
+ const history=backCloses?backCloses({isOpen:()=>dialog.open,close:()=>finish(true)}):{opened(){},closed(){return Promise.resolve();}};
+ function finish(fromBack=false){if(!dialog.open)return;dialog.close();if(!fromBack)history.closed();dialog.remove();}
+ close.onclick=()=>finish();dialog.addEventListener('cancel',e=>{e.preventDefault();finish();});dialog.addEventListener('click',e=>{if(e.target===dialog)finish();});
+ build(body,finish);dialog.showModal();history.opened();return dialog;
+}
+let sheetBack=null;
+function openTemplates(){
+ pageSheet('brand-templates','Templates','Each opens as a new brief with its storyboard. Nothing is rendered until you press Render.',(body,finish)=>{
+  const list=document.createElement('div');list.className='brand-template-list';
+  for(const template of TEMPLATES){const b=document.createElement('button');b.type='button';b.className='brand-template';b.dataset.template=template.id;const name=document.createElement('strong'),line=document.createElement('span');name.textContent=template.name;line.textContent=template.summary+' · '+template.scenes.length+' scenes · '+(template.mode==='intro'?'Brand intro':'Graphic bumper');b.append(name,line);
+   b.onclick=async()=>{finish();try{if(sourceEditor){await sourceEditor.fromTemplate(template);}else{title.value=template.title;notes.value=template.notes;document.querySelector('#mode').value=template.mode;syncKinds?.();notes.dispatchEvent(new Event('input',{bubbles:true}));status.textContent='Template "'+template.name+'" is in the brief.';}}catch(error){status.textContent=error.message;}};list.append(b);}
+  body.append(list);},sheetBack);
+}
+document.querySelector('#templates').addEventListener('click',openTemplates);
+// Brand kit (RP-BRG-03): the person's own kit from Create, written into the brief the render reads. Create answers who may
+// read it; without Create the control is not shown, and without a saved kit it opens Create's Brand Kit page.
+const kitButton=document.querySelector('#brandKit');
+function kitLine(answer){const kit=answer.kit,parts=['Brand kit: '+(kit.name||'my brand')+'.'];if(answer.words?.phrase)parts.push('Colors: '+answer.words.phrase+' ('+['primary','secondary','accent'].map(r=>kit.colors[r]).join(', ')+').');parts.push('Headings in '+kit.fonts.heading+', body text in '+kit.fonts.body+'.');if(kit.voice)parts.push('Voice: '+kit.voice+'.');if(kit.logo)parts.push('Show the brand logo.');return parts.join(' ');}
+function applyKit(answer){
+ const line=kitLine(answer),kept=notes.value.split('\n').filter(row=>!row.startsWith('Brand kit:')).join('\n').trim(),next=(kept?kept+'\n\n':'')+line;
+ if(next.length>2000){status.textContent='The brief is too long to add the brand kit. Shorten it, then press Use my brand kit again.';return;}
+ notes.value=next;notes.dispatchEvent(new Event('input',{bubbles:true}));const named=['colors','fonts',...(answer.kit.voice?['voice']:[]),...(answer.kit.logo?['logo']:[])];status.textContent='Your brand kit\'s '+named.slice(0,-1).join(', ')+' and '+named.at(-1)+' are in the brief, which the render reads. Undo takes them out.';
+}
+async function loadKit(){
+ let response;try{response=await fetch('/api/create/brand-kit',{credentials:'same-origin',cache:'no-store'});}catch{kitButton.hidden=true;return;}
+ const answer=response.ok?await response.json().catch(()=>null):null;if(!answer){kitButton.hidden=true;return;}
+ kitButton.hidden=false;
+ if(answer.kit){kitButton.textContent='Use my brand kit';kitButton.title='Adds your Create brand kit to the brief';kitButton.onclick=()=>applyKit(answer);}
+ else{kitButton.textContent='Make a brand kit';kitButton.title='Opens Create\'s Brand Kit page';kitButton.onclick=()=>{window.top.location.href='/cockpit/?app=create&screen=create-brand';};}
+}
+// Resize (RP-BRG-02): a brand build renders on Google Vids' 16:9 canvas; Video Studio renders 9:16 and 1:1, so those go there.
+function openResize(){
+ pageSheet('brand-resize','Resize for other formats','Brand builds render 16:9 here. Video Studio renders vertical and square from the same brief.',(body,finish)=>{
+  const list=document.createElement('div');list.className='brand-resize-list';
+  const choice=(name,line,run)=>{const b=document.createElement('button');b.type='button';const n=document.createElement('strong'),l=document.createElement('span');n.textContent=name;l.textContent=line;b.append(n,l);b.onclick=()=>{finish();run();};list.append(b);};
+  choice('16:9 wide','Render it here with Render this brand brief.',()=>{status.textContent='16:9 is this page\'s format: press Render this brand brief.';document.querySelector('#render')?.focus();});
+  for(const [ratio,label,use] of [['9:16','vertical','Shorts, Reels and TikTok'],['1:1','square','feeds']])choice(ratio+' '+label,'Open in Video Studio for '+use+'.',()=>continueBrief('prepare-episode',null,{format:ratio+' '+label+' ('+use+')',after:'Video Studio has the brief. Choose '+ratio+' under Aspect there, then render.'}));
+  body.append(list);},sheetBack);
+}
+// Edit on canvas (RP-BRG-07): one scene opens on AI Office's canvas, where text, images and shapes are placed and arranged.
+async function sceneOnCanvas(scene){
+ try{await briefEditor?.flushPending();const text=[scene.text||scene.title,'Duration: '+scene.duration+' seconds.',title.value.trim()?'From the brand brief "'+title.value.trim()+'".':''].filter(Boolean).join('\n');
+  await requestHandoff(app,'prepare-document',{title:scene.title.slice(0,120),notes:text.slice(0,2000),sourceUrl:sourceUrl.value.trim()},()=>{status.textContent='Opening this scene on AI Office\'s canvas…';});status.textContent='The scene is on AI Office\'s canvas.';}
+ catch(error){status.textContent=error.message;}
+}
 // The one primary of the app row, set up by the page (see the primary script below).
 const primary=document.createElement('span');primary.className='brief-primary';
+// Download (RP-BRG-04): the app row's link to the newest finished build whose file Vids holds; shown only while one exists.
+const downloadLink=document.createElement('a');downloadLink.textContent='⤓';downloadLink.setAttribute('aria-label','Download the latest finished build');downloadLink.title='Download the latest finished build';downloadLink.download='brand-build.mp4';
 let syncKinds=null;
 const episode=document.createElement('button');episode.type='button';episode.textContent='Open episode workflow';episode.onclick=()=>continueBrief('prepare-episode',episode);
 const render=document.querySelector('#render');primary.append(render);
@@ -189,10 +271,12 @@ async function mountBriefWorkspace(){
   briefEditor=createEditorFoundation({root,navigationLabel:'Saved',ai:sourceAssistant.element,navigation:panels[0],viewport:panels[1],inspector,header:root.querySelector('header'),
     getState:()=>sourceEditor?.getState()??({documentId:briefIdentity,revision:0,title:title.value||'New brief',dirty:Boolean(notes.value||title.value),readOnly:false,status:'Brief draft · generation is a separate action'}),
     getSelection:()=>sourceEditor?.getSelection()??({kind:'brief',ids:['current']}),getProperties:briefProperties,applyProperty:applyBriefProperty,actions:{save:()=>sourceEditor?.save(),undo:()=>sourceEditor?.undo(),redo:()=>sourceEditor?.redo()}});
-  const editorModule=await import('/api/brand-graphics/source-project-editor.mjs');
+  const editorModule=await import('/api/brand-graphics/source-project-editor.mjs');sheetBack=editorModule.backCloses;
   sourceEditor=editorModule.installSourceEditor({app,kind:'brand',viewport:panels[1],navigation:panels[0],header:root.querySelector('header'),foundation:()=>briefEditor,primary,
-    menu:()=>[{label:'Edit brief as document',run:()=>continueBrief('prepare-document')},{label:'Open episode workflow',run:()=>continueBrief('prepare-episode'),hidden:primary.contains(episode)}],
-    planned:{comment:'RP-BRG-06',download:'RP-BRG-04',resize:'RP-BRG-02',schedule:'RP-BRG-05',sceneTool:{backlog:'RP-BRG-07',label:'Edit on canvas'}},
+    menu:()=>[{label:'Edit brief as document',run:()=>continueBrief('prepare-document')},{label:'Open episode workflow',run:()=>continueBrief('prepare-episode'),hidden:primary.contains(episode)},
+     {label:'Resize for other formats',run:()=>openResize()},
+     {label:'Schedule or post',run:()=>continueBrief('prepare-post',null,{after:'Switchboard Compose has the brief. Post it now or put it on the calendar there; it asks you to confirm before anything posts.'})}],
+    sceneRows:scene=>[{label:'Edit on canvas',run:()=>sceneOnCanvas(scene)}],comments:true,download:downloadLink,
     readBrief:()=>({title:title.value,notes:notes.value,sourceUrl:sourceUrl.value,mode:document.getElementById('mode')?.value||'episode'}),
     writeBrief:model=>{title.value=model.title;notes.value=model.notes;sourceUrl.value=model.sourceUrl;if(document.getElementById('mode')){document.getElementById('mode').value=model.mode;syncKinds?.();}},message:text=>{status.textContent=text;},onChange:()=>{sourceAssistant?.refresh();showBriefState();}});
   briefEditor.refresh();sourceAssistant.refresh();backClosesPanes(root,editorModule.backCloses);showBriefState();
@@ -211,7 +295,16 @@ await mountBriefWorkspace().catch(error=>{status.textContent='The shared editor 
 const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
 // The counters are one meta line, and a counter with no figure is not shown (§5.4).
 function meta(host,list){host.replaceChildren();const known=(list||[]).filter(m=>/^\d+$/.test(String(m.value).trim()));if(!known.length)return;const shown=known.every(m=>Number(m.value)===0)?['No brand builds yet.']:known.map(m=>m.value+' '+String(m.label).toLowerCase());shown.forEach((text,n)=>{if(n)host.append(' · ');const span=document.createElement('span');span.className='metric';span.textContent=text;host.append(span);});}
-async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();meta(metrics,data.metrics);const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}sourceEditor?.showDownload(rows.length>0);if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.type='button';b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}}wrap.append(table);list.append(wrap);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
+/** @description The file Vids holds for one finished build, or why there is none ({file:url}|{none:detail}|null where Vids does not answer). */
+async function buildFile(jobId){try{const r=await fetch('/api/vids/jobs/'+encodeURIComponent(jobId)+'/artifact',{credentials:'same-origin',cache:'no-store'});if(!r.ok)return null;const j=await r.json();if(j.artifact?.previewUrl)return{file:j.artifact.previewUrl};return{none:j.attach?.available===false?(j.attach.detail||'Vids keeps no file here.'):'No file has been attached to this build in Vids Studio yet.'};}catch{return null;}}
+async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();meta(metrics,data.metrics);const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}
+ sourceEditor?.showDownload(false);downloadLink.removeAttribute('href');let newest=null,why=null;
+ if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();
+  for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.type='button';b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}
+   if(item.status==='done'&&item.jobId){const found=await buildFile(item.jobId);if(found?.file){const a=document.createElement('a');a.className='brand-download';a.href=found.file;a.download='brand-build.mp4';a.textContent='Download';a.setAttribute('aria-label','Download '+item.text);c3.append(a);newest??=found.file;}else if(found?.none)why??=found.none;}}
+  wrap.append(table);list.append(wrap);}
+ if(newest){downloadLink.href=newest;sourceEditor?.showDownload(true);}else if(why)notes.unshift('Download: '+why);
+ for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 // Render needs a render computer: a registered Vids worker (POST /api/vids/brand answers 503 without one). Where Vids does
 // not answer this person, Render is withheld and Open episode workflow is the one primary (§1: no control that cannot work
 // here). Where Vids answers with no worker online, Render stays the primary and a press says why (the decision's item 6).
@@ -222,6 +315,7 @@ async function checkWorker(){const hint=document.querySelector('#renderHint'),re
  if(hint)hint.textContent=workerReady?'Render uses your Vids render computer and may use provider credits.':'Render needs a Vids render computer online. Your brief stays saved here.';}
 document.querySelector('#refresh').addEventListener('click',()=>{refresh();checkWorker();});document.querySelector('#render').addEventListener('click',async()=>{const button=document.querySelector('#render');let brief;try{await briefEditor?.flushPending();brief=sourceEditor?.handoffNotes()??notes.value.trim();}catch(error){status.textContent=error.message;return;}if(!brief){status.textContent='Write a brief first.';return;}if(workerReady===false){status.textContent='No render computer is online, so nothing was rendered. Vids Studio lists the render computers; your brief stays saved here.';return;}button.disabled=true;try{const r=await fetch('/api/vids/brand',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brief,brandMode:document.querySelector('#mode').value,confirm:true})});const j=await r.json();if(!r.ok)throw Error(j.error||'Render could not start');status.textContent='Brand build queued. Its saved progress shows under Saved.';await refresh();}catch(e){status.textContent=e.message;}finally{button.disabled=false;}});
 await checkWorker();
+await loadKit();
 await refresh();
 }
 </script></body></html>

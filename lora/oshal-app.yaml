@@ -13,6 +13,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: + New character carries data-ef-floating (kernel PR #197) so the shell orb rests above it on a phone.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0, RP-LORA-01 & UX sweep: multi-photo Upload photos from this device with crop/framing and per-photo captioning in Step 2 Dataset, owner-scoped dataset previews, and DS-00..DS-45 finish compliance.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.10.1: portable native/PostgreSQL bytea staging (decode($5, 'hex') + migrations/native/008-lora-dataset-staging-bytea.sql) and preview decoding for RP-LORA-01 dataset uploads.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: LORA_CONTROLLER_URL has no default (open-work audit 2026-11-10): the old default named a house LAN address; a dispatch now refuses in words until the installation sets the address its training computer reaches it at.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
@@ -70,7 +71,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.10.1
+version: 1.10.2
 status: active
 
 source:

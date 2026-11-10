@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify Ambient Recall (person-model) unhidden tile contract, canonical readiness probe, empty-state rendering across projection/recall/asks/people/trends, and pre-promotion 404 grace.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify Ambient Recall 1.2.1 Continuous Profile Learning & Eavesdrop Business Cards routes (GET/POST /api/person-model/profile-cards, POST /api/person-model/recall), concierge tools, and Profile & Cards UI tab.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the manifest pin follows the version (Ambient Recall's routing words 'say', 'said' and 'meeting', backlog P4-16h).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: the owner's address is the test's own OSHAL_OWNER_ADDRESS (an example address), never a default in the package; the manifest pin follows the version.
  */
 'use strict';
 
@@ -35,6 +36,7 @@ const { chromium } = require(path.join(TOOLCHAIN, 'playwright'));
 const { createPersonModelSurfaceRoutes } = require('../routes/person-model-routes.mjs');
 
 function createAmbientTestApp() {
+  process.env.OSHAL_OWNER_ADDRESS = '1 Example Way, Springfield';
   const app = express();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'person-model-test-'));
   const state = { mode: 'empty', requests: [], dataDir };
@@ -67,7 +69,7 @@ test('person-model manifest unhides Ambient Recall tile, declares lastingStorage
   assert.equal(manifest.name, 'person-model');
   assert.equal(manifest.displayName, 'Ambient Recall');
   assert.equal(manifest.status, 'active');
-  assert.equal(manifest.version, '1.2.2');
+  assert.equal(manifest.version, '1.2.3');
   assert.equal(manifest.lastingStorage, true);
   assert.equal(manifest.ui?.static?.[0]?.toolName, 'ambient-recall');
   assert.equal(manifest.ui?.static?.[0]?.iframeUrl, '/api/person-model/app');
@@ -122,14 +124,14 @@ test('Ambient Recall UI fetches projection/recall/asks/people/trends, supports C
   // Recall owner's continuously learned profile & address directly from the Recall bar
   await page.fill('#q', 'What is my address and learned profile?');
   await page.click('#go');
-  assert.match(await page.locator('[data-testid="recall-headline"]').innerText(), /4399 Old Bayou Trail, Destin, FL 32541/);
+  assert.match(await page.locator('[data-testid="recall-headline"]').innerText(), /1 Example Way, Springfield/);
 
   // Navigate to Profile & Cards tab and verify Continuous Profile Learning + Business Cards
   await page.click('[data-tab="cards"]');
   await page.locator('[data-testid="self-profile-card"]').waitFor({ state: 'visible' });
   const heroText = await page.locator('[data-testid="self-profile-card"]').innerText();
   assert.match(heroText, /Workspace Owner/);
-  assert.match(heroText, /4399 Old Bayou Trail, Destin, FL 32541/);
+  assert.match(heroText, /1 Example Way, Springfield/);
 
   // Teach a new continuous-learning fact
   await page.fill('#teach-fact-input', 'Preferred departure airport is VPS (Destin-Fort Walton Beach)');

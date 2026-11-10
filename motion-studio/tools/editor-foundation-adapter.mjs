@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3, phones (Roger, trial.oswarm.ai, 2026-11-06, F7, and the trial check: no blank composition, an empty "Create or open a composition to start" box, dead playback buttons, 244 px of bars): with no composition open the empty state's one primary action is New composition (the rail's own Create composition form and its defaults), with Open a saved one as a link to More; the time slider, playback, work area and timeline wait until a composition is open; the app bar is the status and More (the saved-composition list, Undo, Export and the Project menu); the first pane is named Layers.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.2, §3.3, §4.3, §4.4, §4.10, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved the editor opens on a blank untitled 1920×1080, 10 s, 30 fps composition whose one primary, Add layer, sits on the empty stage; the composition is saved at its first edit.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: replace Video, Audio and Motion blur placeholders with live Video… and Audio… imports, audio mute/levels controls with keyframe diamonds, composition motion-blur shutter controls, and per-layer motion-blur switches.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1 (RP-ALL-01): remove duplicate greyed Summarize planned control from Motion Studio's Concierge panel because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  */
 const number = (key, label, value, group = 'Transform', unit = '') => ({ key, label, value, type: 'number', step: 'any', group, unit });
 const readable = value => typeof value === 'number' && Number.isFinite(value);
@@ -380,7 +381,7 @@ function createRefresh({ $, root, adapter, dom, home, homeList, newButton, docMe
 /** Lay Motion Studio's native workbench out to the design standard over the shared editor. */
 export async function bindMotionFoundation(adapter) {
   const { createEditorFoundation } = await import('/shared/ui/js/editor-foundation.js');
-  const { plannedControl } = await import('/shared/ui/js/planned-control.js').catch(() => ({ plannedControl: null })), $ = id => document.getElementById(id);
+  const $ = id => document.getElementById(id);
   const root = document.body, main = document.querySelector('main'), navigation = main.querySelector('aside'), inspector = main.querySelector('aside:last-child'), center = main.querySelector('.center'), header = document.querySelector('header');
   const layers = createLayers(document), wide = () => !matchMedia('(max-width:800px)').matches, act = work => async () => { try { await work(); } catch (error) { adapter.problem(error); } };
   const sheet = (title, nodes, extra = [], options = {}) => { const layer = layers.create(title, 'ds-sheet' + (options.half ? ' ds-half' : ''), options); layer.body.append(...extra); return layers.open(layer, { nodes }); };
@@ -408,7 +409,6 @@ export async function bindMotionFoundation(adapter) {
   main.hidden = true; root.classList.add('motion-foundation');
   const side = root.querySelector('.ef-inspector'); side.querySelector('.ef-properties').before(dom.keyEditor, dom.layerHead);
   root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide'));
-  if (plannedControl) { const prompts = make('div', 'motion-prompts'); prompts.append(plannedControl(document, { backlog: 'RP-ALL-01', label: 'Summarize', className: 'motion-chip' })); assistant.element.querySelector('.ef-assistant-composer')?.before(prompts); }
   const home = make('section', 'motion-home'), homeList = make('div', 'motion-home-list'), newButton = make('button', 'primary motion-new', '+ New');
   newButton.type = 'button'; newButton.dataset.efFloating = ''; home.setAttribute('aria-label', 'Your compositions'); home.append(make('h2', '', 'Your compositions'), homeList, newButton); home.hidden = true; root.querySelector('.ef-viewport').prepend(home);
   const openSaved = async id => { draft = false; $('projects').value = id; $('projects').dispatchEvent(new Event('change')); };

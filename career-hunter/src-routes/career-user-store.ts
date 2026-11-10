@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | Open the tenant-shared corpus on its own so the board stays searchable before a resume exists.
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Read checkpointed native owner generations immutably so WAL-mode board, stats and resume reads need no sidecar files on the read-only mount. Keep normal locking when WAL contains pending data or the store is mutable.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | A store last written before a column existed reads that column as empty. A read cannot add it, and the board answered 500 until its owner's next write.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com   | findUserPaths finds the caller's existing store without creating a tenant, directory or database, for read-only surfaces such as the master record (1.51.0): userPaths makes a store for a person who has none, which a read must never do.
  */
 import fs from 'fs';
 import path from 'path';
@@ -27,6 +28,9 @@ import { callerSub as oidcCallerSub } from '@/app/routes/caller-sub';
 
 const storePath = require('../lib/user-store-path') as {
   legacyUserSubFromStoreEntry: (tenantDir: string, entryName: string) => string | null;
+  findUserStoreLayout: (root: string, tenant: string, userSub: string) => {
+    tenantDir: string; userDir: string; userDb: string; userSegment: string;
+  } | null;
   resolveContainedPath: (root: string, ...segments: string[]) => string;
   resolveUserStoreLayout: (root: string, tenant: string, userSub: string) => {
     tenantDir: string; userDir: string; userDb: string; userSegment: string;
@@ -101,6 +105,17 @@ export function userPaths(userSub: string) {
     corpusDb: storePath.resolveContainedPath(tenantDir, 'corpus.db'),
     userDb,
   };
+}
+
+/**
+ * @description Finds the caller's existing store without creating anything: a read-only surface must
+ * never make a tenant, directory or database for a person who has no Career store yet.
+ * @param userSub - Authenticated caller subject that owns the per-user Career store.
+ * @returns The caller's store directory and database path, or null when the caller has no store.
+ */
+export function findUserPaths(userSub: string): { userDir: string; userDb: string } | null {
+  const layout = storePath.findUserStoreLayout(careerStoreRoot(), TENANT, userSub);
+  return layout ? { userDir: layout.userDir, userDb: layout.userDb } : null;
 }
 
 /** Columns a read selects that a store last written by an older version may not have yet. */

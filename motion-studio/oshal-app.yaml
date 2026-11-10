@@ -2,6 +2,7 @@
 # 0.2.4 | maintainer@emeraldcoastsystemsgroup.com | The Concierge (the round-2 trial check, 2026-11-06): Motion's full-width filled look for every input, select, textarea and button skips the shared Concierge, so the + and speaker are icons again and Read latest reply aloud and Send are on screen and tappable on a phone and at 1440 px.
 # 0.3.0 | maintainer@emeraldcoastsystemsgroup.com | The oshal design standard (docs/ux/design-standard.md §2.8, §3, §4, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved the editor opens on a blank untitled 1920×1080, 10 s, 30 fps composition, saved at its first layer, with Add layer as its one primary; with compositions saved it opens on their list, newest first, with one + New. The app row is the name and its menu (New, Open…, Import document…, Duplicate, Export editable JSON, Delete last with an in-page confirm), Undo and Redo, Saved and Render, which opens the Export sheet holding the render queue; the stage stays on top over the transport and a layer timeline of keyframe diamonds; properties dock on the right (a sheet on a phone) with a diamond on each keyable row; one + Add holds Text, Shape, Solid, Photo and Camera or light; with no layer chosen the panel shows the composition's size, frame rate, duration and work area; the phone's bottom bar is Layers · Add · Properties · Concierge · More; sheets and menus are opaque top-layer dialogs the phone's Back closes; Video, Audio (RP-MOT-01), Motion blur (RP-MOT-02) and Summarize (RP-ALL-01) are greyed planned controls; the manifest declares graphite, the dark category look D2 allows the motion editors, worn only when the person saved no theme. No route, permission or binding change.
 # 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: add bounded video and audio layers (upload, trim, audio/levels keyframes, synchronized work-area audio preview, and AAC-mixed MP4 render) and composition/layer motion-blur switches with shutter angle, phase and sample controls.
+# 0.4.1 | maintainer@emeraldcoastsystemsgroup.com | RP-ALL-01: remove the duplicate greyed Summarize planned chip from the Motion Studio Concierge panel so only the kernel's live Summarize and Suggest improvements prompt chips appear.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare reviewed own-scoped Motion source contracts; installed acceptance remains open.
@@ -19,7 +20,7 @@ name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: "Edit saved motion compositions with selectable layers, video and audio clips, motion blur, native properties, inline captions, keyframes, masks and photos."
-version: 0.4.0
+version: 0.4.1
 runtime: process
 lastingStorage: true
 status: active

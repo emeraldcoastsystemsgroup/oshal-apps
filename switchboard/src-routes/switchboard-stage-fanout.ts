@@ -23,6 +23,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Initial pure fan-out model for the Stage pane: normalizeBroadcast (allow-list + limits + twitter→x alias folding + duplicate/cap rejection) and runFanout (per-channel isolation over an injected publish fn, ordered results + summary). Zero imports by design so the store-CI plain-node suite tests the compiled bytes.
+ * 2026-11-10 01:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: a broadcast post may carry its attached image (mediaRef); normalizeBroadcast keeps it and runFanout hands it to the publisher (X uploads it with the post).
  *
  * @module switchboard-stage-fanout
  */
@@ -31,6 +32,8 @@
 export interface BroadcastPost {
   platform: string;
   text: string;
+  /** The image attached to this channel's post (a data URL), when the person attached one. */
+  mediaRef?: string;
 }
 
 /** A validated broadcast plan, or the single error that rejects the whole request. */
@@ -72,7 +75,7 @@ export function canonicalChannel(platform: string): string {
  * @description Validate one broadcast request body into an ordered channel plan. Fail-closed:
  * any invalid entry rejects the WHOLE broadcast (a partial plan silently dropping a channel
  * is how a user posts to three networks believing it was four).
- * @param body - The raw request body ({ posts: [{ platform, text }] }).
+ * @param body - The raw request body ({ posts: [{ platform, text, mediaRef? }] }).
  * @param publishable - The platform keys with a real publish binding (Compose's PUBLISHABLE set).
  * @param limits - Per-platform character limits keyed by platform (Compose's PLATFORMS limits).
  * @returns The validated plan (posts in request order, canonical platforms), or { error }.
@@ -97,7 +100,8 @@ export function normalizeBroadcast(
     const limit = limits[platform];
     if (typeof limit === 'number' && text.length > limit) return { posts: [], error: `${platform} text is ${text.length} chars (max ${limit})` };
     seen.add(platform);
-    posts.push({ platform, text });
+    const mediaRef = (entry as { mediaRef?: unknown })?.mediaRef;
+    posts.push(typeof mediaRef === 'string' && mediaRef.trim() ? { platform, text, mediaRef: mediaRef.trim() } : { platform, text });
   }
   return { posts };
 }
@@ -108,17 +112,17 @@ export function normalizeBroadcast(
  * on one channel records that channel as failed and the fan-out CONTINUES — one dead
  * connector never blocks the rest of the broadcast. Results keep plan order.
  * @param posts - The validated channel plan (normalizeBroadcast output).
- * @param publish - The sanctioned publisher: (platform, text) → the per-channel outcome.
+ * @param publish - The sanctioned publisher: (platform, text, mediaRef) → the per-channel outcome.
  * @returns Ordered per-channel results plus the { total, sent, failed } summary.
  */
 export async function runFanout(
   posts: BroadcastPost[],
-  publish: (platform: string, text: string) => Promise<Record<string, unknown>>,
+  publish: (platform: string, text: string, mediaRef?: string | null) => Promise<Record<string, unknown>>,
 ): Promise<{ results: FanoutResult[]; summary: FanoutSummary }> {
   const results: FanoutResult[] = [];
   for (const post of posts) {
     try {
-      const r = await publish(post.platform, post.text);
+      const r = await publish(post.platform, post.text, post.mediaRef ?? null);
       results.push({ ...r, platform: post.platform, ok: r?.ok === true });
     } catch (err) {
       results.push({ platform: post.platform, ok: false, error: (err as Error).message || 'publish threw' });

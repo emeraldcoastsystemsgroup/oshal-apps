@@ -29,6 +29,17 @@ const resumeUpload = (0, multer_1.default)({
     },
 });
 const parseResumeFile = resumeUpload.single('resume');
+/** The verified native port (its package-runs marker) hands routes a complete, already-bounded request body. */
+const NATIVE_BUFFERED_REQUESTS = (() => {
+    try {
+        return require('@/shared/package-runs')?.native === true;
+    }
+    catch {
+        return false;
+    }
+})();
+/** One résumé of at most fileSize plus its multipart envelope; a larger buffered body is refused before parsing. */
+const MAX_RESUME_REQUEST_BYTES = 8 * 1024 * 1024 + 64 * 1024;
 const RESUME_LEASE = Symbol('career-resume-lease');
 const RESUME_UPLOAD_TIMER = Symbol('career-resume-upload-timer');
 const RESUME_UPLOAD_TIMED_OUT = Symbol('career-resume-upload-timed-out');
@@ -227,6 +238,10 @@ function expireResumeUpload(req, res) {
     }
     setImmediate(() => req.destroy());
 }
+/** Only the kernel-owned native port may identify its already-received, bounded protocol body. */
+function bufferedNativeUpload(req) {
+    return NATIVE_BUFFERED_REQUESTS && Buffer.isBuffer(req.body);
+}
 /** Reserve per-user and global upload lanes before Multer buffers the body, but not an engine slot. */
 function admitResumeUpload(req, res, next) {
     const userSub = (0, career_user_store_1.callerSub)(req);
@@ -238,6 +253,16 @@ function admitResumeUpload(req, res, next) {
     if ((0, career_engine_response_1.rejectUploadClaim)(res, lease, 'resume upload'))
         return;
     req[RESUME_LEASE] = lease;
+    // The native request has no stream events and its body has already arrived whole: bound it and go on.
+    if (bufferedNativeUpload(req)) {
+        if (req.body.length > MAX_RESUME_REQUEST_BYTES) {
+            releaseResumeLease(req);
+            res.status(413).json({ error: 'resume exceeds the upload limit' });
+            return;
+        }
+        next();
+        return;
+    }
     req[RESUME_UPLOAD_TIMER] = setTimeout(() => expireResumeUpload(req, res), resumeUploadTimeout());
     req[RESUME_UPLOAD_TIMER]?.unref?.();
     req.once('aborted', () => releaseResumeLease(req));

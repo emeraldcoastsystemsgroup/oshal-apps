@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Isolate bounded multipart admission from engine capacity and terminate slow request bodies at a finite deadline.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enforce the independent cross-process upload-body ceiling before Multer buffers a resume.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Serialize lifecycle commits and honor observer aborts so a timed-out stale completion cannot replace a newer operation.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a new person could not upload a résumé: live 2026-11-09 the route failed "req.once is not a function". The verified native port hands the route an already-received, bounded Buffer on a request without stream events, so admission now checks that body's size and goes on, as the artifacts upload has since 358d21a9; the body timer and the aborted listener stay for a real streamed HTTP body. Guards: tests/career-resume-native-upload.test.mjs, tests/native/career-resume-bridge-proof.mjs.
  */
 /**
  * Transactional Career resume upload and engine hand-off.
@@ -53,6 +54,13 @@ const resumeUpload = multer({
   },
 });
 const parseResumeFile = resumeUpload.single('resume');
+/** The verified native port (its package-runs marker) hands routes a complete, already-bounded request body. */
+const NATIVE_BUFFERED_REQUESTS = (() => {
+  try { return require('@/shared/package-runs')?.native === true; }
+  catch { return false; }
+})();
+/** One résumé of at most fileSize plus its multipart envelope; a larger buffered body is refused before parsing. */
+const MAX_RESUME_REQUEST_BYTES = 8 * 1024 * 1024 + 64 * 1024;
 const RESUME_LEASE = Symbol('career-resume-lease');
 const RESUME_UPLOAD_TIMER = Symbol('career-resume-upload-timer');
 const RESUME_UPLOAD_TIMED_OUT = Symbol('career-resume-upload-timed-out');
@@ -270,6 +278,11 @@ function expireResumeUpload(req: ResumeUploadRequest, res: Response): void {
   setImmediate(() => req.destroy());
 }
 
+/** Only the kernel-owned native port may identify its already-received, bounded protocol body. */
+function bufferedNativeUpload(req: ResumeUploadRequest): boolean {
+  return NATIVE_BUFFERED_REQUESTS && Buffer.isBuffer(req.body);
+}
+
 /** Reserve per-user and global upload lanes before Multer buffers the body, but not an engine slot. */
 function admitResumeUpload(req: ResumeUploadRequest, res: Response, next: NextFunction): void {
   const userSub = callerSub(req);
@@ -277,6 +290,14 @@ function admitResumeUpload(req: ResumeUploadRequest, res: Response, next: NextFu
   const lease = tryAcquireUploadRun(userSub);
   if (rejectUploadClaim(res, lease, 'resume upload')) return;
   req[RESUME_LEASE] = lease;
+  // The native request has no stream events and its body has already arrived whole: bound it and go on.
+  if (bufferedNativeUpload(req)) {
+    if (req.body.length > MAX_RESUME_REQUEST_BYTES) {
+      releaseResumeLease(req);
+      res.status(413).json({ error: 'resume exceeds the upload limit' }); return;
+    }
+    next(); return;
+  }
   req[RESUME_UPLOAD_TIMER] = setTimeout(
     () => expireResumeUpload(req, res), resumeUploadTimeout(),
   );

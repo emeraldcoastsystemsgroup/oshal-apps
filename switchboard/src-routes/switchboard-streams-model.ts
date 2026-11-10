@@ -18,6 +18,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams CMS core: 8-state editorial machine (draft/in_review/approved/scheduled/published/rejected/failed/archived) with an explicit action table; edit gating (draft+in_review only); platform canon (twitter→x) and per-platform limits; fail-closed new-post/patch/schedule validators; buildPublishPlan (any empty/over-limit publishable variant rejects the WHOLE publish; instagram/threads are honest 'skipped no_binding', never fake success); runPublishPlan (exactly one send per channel, independent failures); summarizePublish (≥1 ok = published, all-fail or skipped-only = failed).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: buildPublishPlan keeps a variant's attached image (mediaRef) on its plan entry and runPublishPlan hands it to the publisher, so a Streams post with an image publishes it (X uploads it) instead of posting the text alone.
  *
  * @module switchboard-streams-model
  */
@@ -61,7 +62,7 @@ const MAX_TAG_LEN = 40;
 export interface StreamVariant { platform: string; body: string; mediaRef?: string | null }
 
 /** One planned send. */
-export interface PlanEntry { platform: string; body: string }
+export interface PlanEntry { platform: string; body: string; mediaRef?: string | null }
 
 /** One per-channel publish outcome (spread over the publisher's own fields). */
 export interface PublishResult { platform: string; ok: boolean; [k: string]: unknown }
@@ -246,7 +247,8 @@ export function buildPublishPlan(variants: StreamVariant[]): PublishPlan {
     if (!body) return { plan: [], skipped: [], error: `${platform} variant is empty` };
     const limit = LIMITS[platform];
     if (body.length > limit) return { plan: [], skipped: [], error: `${platform} variant is ${body.length} chars (max ${limit})` };
-    plan.push({ platform, body });
+    // The variant's attached image travels with it to the publisher (never dropped on the way).
+    plan.push(v?.mediaRef ? { platform, body, mediaRef: v.mediaRef } : { platform, body });
   }
   return { plan, skipped };
 }
@@ -255,17 +257,17 @@ export function buildPublishPlan(variants: StreamVariant[]): PublishPlan {
  * @description Run the plan: exactly one publish call per channel, in plan order, each
  * channel INDEPENDENT — a rejection or thrown error on one never blocks the rest.
  * @param plan - The validated plan entries.
- * @param publishFn - (platform, body) → the publisher's result ({ ok, ... }).
+ * @param publishFn - (platform, body, mediaRef) → the publisher's result ({ ok, ... }).
  * @returns One result per plan entry, in order.
  */
 export async function runPublishPlan(
   plan: PlanEntry[],
-  publishFn: (platform: string, body: string) => Promise<Record<string, unknown>>,
+  publishFn: (platform: string, body: string, mediaRef?: string | null) => Promise<Record<string, unknown>>,
 ): Promise<PublishResult[]> {
   const results: PublishResult[] = [];
   for (const entry of plan) {
     try {
-      const r = await publishFn(entry.platform, entry.body);
+      const r = await publishFn(entry.platform, entry.body, entry.mediaRef ?? null);
       results.push({ ...(r as object), platform: entry.platform, ok: (r as { ok?: unknown })?.ok === true });
     } catch (err) {
       results.push({ platform: entry.platform, ok: false, error: (err as Error).message });

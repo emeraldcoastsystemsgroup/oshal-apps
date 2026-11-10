@@ -1,0 +1,232 @@
+<!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | The Master record (1.51.0, Roger 2026-11-09: "give me every bullet and skill with the addendum history"). Read-only: the counts, then every role with its numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the history newest first (date, what was added, your own words), Strengthen answers and snapshot dates, and the documents kept outside Career. Download saves the server's Markdown as one .md file built here in the page (the kernel drops a package's download header); Print or save as PDF is in More. Career's private writing notes are shown last and are not in the download. Text is drawn as text, never as markup.
+-->
+<html lang="en" data-career-surface="master-record" data-ds-category="dashboard" data-ds-first-action="tap">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master record</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { overscroll-behavior: contain; }
+  body { margin: 0; background: var(--ds-page); color: var(--ds-ink); font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 24px 48px; }
+  .wrap, .wrap * { overflow-wrap: anywhere; }
+  .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .bar p { margin: 0; flex: 1 1 260px; color: var(--ds-ink-2); }
+  .counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin: 16px 0 6px; }
+  .count { background: var(--ds-surface); border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); padding: 10px 14px; }
+  .count b { display: block; font-size: 24px; line-height: 32px; font-variant-numeric: tabular-nums; }
+  .count span { font-size: 12px; line-height: 16px; color: var(--ds-ink-2); }
+  nav.jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+  nav.jump a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--ds-line-control);
+    border-radius: var(--ds-radius-xl); color: var(--ds-ink); text-decoration: none; font-size: 14px; }
+  section { margin-top: 28px; scroll-margin-top: 12px; }
+  h2 { font-size: 18px; line-height: 24px; margin: 0 0 10px; }
+  h3 { font-size: 16px; line-height: 22px; margin: 16px 0 6px; }
+  h4 { font-size: 15px; line-height: 20px; margin: 12px 0 4px; }
+  .card { background: var(--ds-surface); border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); padding: 14px 16px; margin: 10px 0; }
+  .card > h3:first-child { margin-top: 0; }
+  .meta, .note { color: var(--ds-ink-2); font-size: 14px; margin: 0 0 8px; }
+  ol, ul { margin: 6px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  ul.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+  ul.chips li { margin: 0; padding: 4px 10px; border-radius: var(--ds-radius-xl); background: var(--ds-surface-2);
+    border: 1px solid var(--ds-hairline); font-size: 14px; line-height: 20px; }
+  blockquote { margin: 6px 0; padding: 6px 12px; border-left: 3px solid var(--ds-edge); white-space: pre-wrap; }
+  p.text { white-space: pre-wrap; margin: 6px 0; }
+  a { color: var(--ds-accent-ink); }
+  .ck-menu a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--ds-radius-m);
+    color: var(--ds-ink); text-decoration: none; font-size: 15px; }
+  .ck-menu a:hover { background: var(--ds-surface-3); }
+  #status:empty { display: none; }
+  @media (max-width: 640px) { .wrap { padding: 12px 14px 40px; } .counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media print {
+    .bar button, .ck-menu, nav.jump, #status { display: none !important; }
+    body { background: #fff; color: #000; }
+    .card { border-color: #999; break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap" data-ds-work>
+  <div class="bar">
+    <p>Everything Career keeps for you: every role, bullet, skill and history record. Opening this page changes nothing.</p>
+    <button type="button" class="ck-primary" id="download" disabled>Download</button>
+    <button type="button" class="ck-icon" id="moreBtn" aria-haspopup="menu" aria-label="More" popovertarget="moreMenu">⋯</button>
+  </div>
+  <div class="ck-menu" id="moreMenu" popover role="menu">
+    <button type="button" role="menuitem" id="print">Print or save as PDF</button>
+    <a role="menuitem" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Resume Studio</a>
+    <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
+  </div>
+  <p id="status" role="status" aria-live="polite">Loading your master record…</p>
+  <div id="record" aria-busy="true"></div>
+</main>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+let current = null;
+
+/** One element; children are nodes or text (always set as text, never parsed as markup). */
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs || {})) if (value !== undefined && value !== '') node.setAttribute(key, value);
+  for (const child of children.flat(Infinity)) if (child !== null && child !== undefined && child !== '') node.append(child instanceof Node ? child : String(child));
+  return node;
+}
+const list = (items, ordered) => el(ordered ? 'ol' : 'ul', {}, items.map((item) => el('li', {}, item)));
+const chips = (items) => el('ul', { class: 'chips' }, items.map((item) => el('li', {}, item)));
+const section = (id, title, ...body) => el('section', { id, 'aria-labelledby': id + '-h' }, el('h2', { id: id + '-h' }, title), ...body);
+const none = (text) => el('p', { class: 'note' }, text);
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+const join = (parts, glue) => parts.filter(Boolean).join(glue);
+
+function countsView(c) {
+  const tiles = [['Roles', c.roles], ['Bullets', c.bullets], ['Skills', c.skills], ['Additional experience', c.additional],
+    ['History records', c.history], ['Strengthen answers', c.strengthenAnswers], ['Snapshots', c.snapshots], ['Linked documents', c.linked]];
+  const also = `Also: ${plural(c.skillGroups, 'skill group')} and ${plural(c.roleSkills, 'skill')} tagged on roles, `
+    + `${plural(c.education, 'education entry', 'education entries')}, ${plural(c.certifications, 'certification')}, ${plural(c.metrics, 'metric')}, `
+    + `${plural(c.projects, 'project')}, ${plural(c.accountGroups, 'account group')}, ${plural(c.employers, 'employer')}, `
+    + `${plural(c.speaking, 'talk')}, ${plural(c.headlineOptions, 'headline option')}, ${plural(c.stories, 'story', 'stories')}.`;
+  return [el('div', { class: 'counts', id: 'counts' }, tiles.map(([label, value]) => el('div', { class: 'count' }, el('b', {}, String(value)), el('span', {}, label)))),
+    el('p', { class: 'note' }, also)];
+}
+
+function profileView(r) {
+  const p = r.person, rows = [['Name', p.name], ['Credential', p.credential],
+    ['Headline', p.headline || (p.credential ? 'None saved. Your résumé shows your credential line in its place.' : 'None saved.')],
+    ['Location', p.location], ['Citizenship', p.citizenship], ['Clearance', p.clearance], ['Email', p.email], ['Phone', p.phone], ['LinkedIn', p.linkedin]];
+  return section('profile', 'Profile', list(rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`)),
+    p.links.length ? list(p.links.map((link) => el('a', { href: link.url, target: '_blank', rel: 'noopener' }, link.label || link.url))) : null,
+    p.headlineOptions.length ? [el('h3', {}, 'Headline options'), list(p.headlineOptions, true)] : null,
+    p.summary ? [el('h3', {}, 'Summary'), el('p', { class: 'text' }, p.summary)] : null,
+    r.competencies.length ? [el('h3', {}, 'Core competencies'), chips(r.competencies)] : null);
+}
+
+function roleView(role, index) {
+  const dates = role.start || role.end ? join([role.start, role.end || 'present'], ' – ') : '';
+  return el('div', { class: 'card role' }, el('h3', {}, `${index + 1}. ${join([role.title, role.org], ' — ') || 'Untitled role'}`),
+    el('p', { class: 'meta' }, join([dates, plural(role.bullets.length, 'bullet'), role.notPublic ? 'marked not public' : ''], ' · ')),
+    role.bullets.length ? list(role.bullets, true) : none('No bullets saved for this role.'),
+    role.skills.length ? [el('h4', {}, 'Skills on this role'), chips(role.skills)] : null,
+    role.stories.length ? [el('h4', {}, 'Stories'), list(role.stories.map((s) => join([s.title, s.story], ': ')
+      + (s.bullet ? ` (supports: ${s.bullet})` : '') + (s.weak ? ' (marked as carrying little evidence)' : '')))] : null);
+}
+
+function skillsView(r) {
+  return section('skills', 'Skills', r.skills.length ? r.skills.map((group) => el('div', { class: 'card' },
+    el('h3', {}, group.group + (group.proficiency ? ` (${group.proficiency})` : '')), group.note ? el('p', { class: 'meta' }, group.note) : null,
+    group.items.length ? chips(group.items) : none('No skills in this group.'))) : none('No skills saved.'));
+}
+
+function additionalView(r) {
+  return section('additional', 'Additional experience', r.additional.length ? r.additional.map((e, i) => el('div', { class: 'card' },
+    el('h3', {}, `${i + 1}. ${e.title || 'Untitled entry'}`),
+    el('p', { class: 'meta' }, join([e.role, e.organization !== e.title ? e.organization : '', e.period, e.kind, e.source, e.archived ? 'archived' : ''], ' · ')),
+    e.summary ? el('p', { class: 'text' }, e.summary) : null, e.bullets.length ? list(e.bullets, true) : null,
+    e.facts ? [el('h4', {}, 'Work details'), el('p', { class: 'text' }, e.facts)] : null,
+    [['Skills', e.skills], ['Technology', e.tech], ['Applications', e.applications]].filter(([, items]) => items.length)
+      .map(([label, items]) => [el('h4', {}, label), chips(items)]),
+    e.links.length ? [el('h4', {}, 'Links'), list(e.links.map((url) => el('a', { href: url, target: '_blank', rel: 'noopener' }, url)))] : null))
+    : none('No additional experience saved.'));
+}
+
+function qualificationsView(r) {
+  return section('education', 'Education and certifications',
+    [['Education', r.education], ['Certifications', r.certifications], ['Licenses', r.licenses]]
+      .filter(([label, items]) => items.length || label !== 'Licenses')
+      .map(([label, items]) => [el('h3', {}, label), items.length ? list(items) : none(`No ${label.toLowerCase()} saved.`)]));
+}
+
+function evidenceView(r) {
+  const e = r.evidence, block = (label, items) => [el('h3', {}, label), items.length ? list(items) : none('None saved.')];
+  return section('evidence', 'Evidence', block('Metrics', e.metrics), block('Project ledger', e.projects),
+    el('h3', {}, 'Named accounts'), e.accounts.length ? e.accounts.map((g) => [el('h4', {}, g.group), list(g.items)]) : none('None saved.'),
+    block('Speaking', e.speaking), block('Employers', e.employers));
+}
+
+function historyView(r) {
+  const records = r.history.map((h) => el('div', { class: 'card history' }, el('h3', {}, join([h.when, h.source], ' · ')),
+    h.added.length ? [el('h4', {}, 'What was added'), list(h.added)] : null,
+    h.words ? [el('h4', {}, 'Your words'), el('blockquote', {}, h.words)] : null));
+  const answers = r.strengthen.map((a) => el('div', { class: 'card' }, el('h4', {}, join([a.when, a.theme], ' · ')),
+    a.answer ? el('blockquote', {}, a.answer) : none('Marked answered, with no words saved.')));
+  return section('history', 'History, newest first', records.length ? records : none('No history of added facts yet.'),
+    r.unreadableHistory ? none(`${plural(r.unreadableHistory, 'history line')} could not be read and ${r.unreadableHistory === 1 ? 'is' : 'are'} not shown.`) : null,
+    el('h3', {}, 'Strengthen answers'), answers.length ? answers : none('No Strengthen answers yet.'),
+    el('h3', {}, 'Snapshots taken before a change'), r.snapshots.length ? list(r.snapshots.map((s) => s.when)) : none('None.'));
+}
+
+function linkedView(r) {
+  return section('linked', 'Linked documents', r.linked.length ? list(r.linked.map((doc) => [el('a', { href: doc.url, target: '_blank', rel: 'noopener' }, doc.label),
+    ` · ${doc.note}`])) : none('None linked.'));
+}
+
+function notesView(r) {
+  const n = r.notes;
+  if (!n.framing.length && !n.gaps.length && !n.locked.length) return null;
+  return section('notes', 'Notes Career keeps for writing', el('p', { class: 'note' }, 'Shown here only. They are not in the download.'),
+    n.framing.length ? [el('h3', {}, 'Framing notes'), list(n.framing)] : null,
+    n.gaps.length ? [el('h3', {}, 'Gaps to collect'), list(n.gaps)] : null,
+    n.locked.length ? [el('h3', {}, 'Locked facts'), list(n.locked.map((f) => join([f.name, f.display, f.scope], ' · ')))] : null);
+}
+
+function render(r) {
+  const root = $('record');
+  if (!r.present) {
+    root.replaceChildren(el('div', { class: 'ck-empty' }, el('div', { class: 'ck-empty-icon', 'aria-hidden': 'true' }, '📄'), el('h2', {}, 'No résumé yet'),
+      el('p', {}, 'Upload your résumé in Resume Studio and this record fills in.'),
+      el('a', { class: 'ck-btn', 'data-career-tool': 'career-resume-studio', href: '/api/career-hunter/resume-studio' }, 'Open Resume Studio')));
+    return;
+  }
+  const jump = [['profile', 'Profile'], ['experience', 'Experience'], ['skills', 'Skills'], ['additional', 'Additional'], ['education', 'Education'],
+    ['evidence', 'Evidence'], ['history', 'History'], ['linked', 'Linked'], ...(notesView(r) ? [['notes', 'Notes']] : [])];
+  root.replaceChildren(...countsView(r.counts), el('nav', { class: 'jump', 'aria-label': 'Sections' }, jump.map(([id, label]) => el('a', { href: '#' + id }, label))),
+    profileView(r), section('experience', 'Experience', r.experience.length ? r.experience.map(roleView) : none('No roles saved.')),
+    skillsView(r), additionalView(r), qualificationsView(r), evidenceView(r), historyView(r), linkedView(r), notesView(r) || '');
+}
+
+async function load() {
+  $('status').textContent = 'Loading your master record…';
+  $('record').setAttribute('aria-busy', 'true');
+  try {
+    const response = await fetch('/api/career-hunter/master-record', { cache: 'no-store', credentials: 'same-origin' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `The master record could not be read (${response.status}).`);
+    current = data; render(data); $('status').textContent = ''; $('download').disabled = !data.present;
+  } catch (error) {
+    current = null; $('download').disabled = true; $('status').textContent = '';
+    $('record').replaceChildren(el('div', { class: 'ck-alert', role: 'alert' }, el('h2', {}, 'Could not open your master record'),
+      el('p', {}, error.message), el('button', { type: 'button', class: 'ck-btn', id: 'retry' }, 'Retry')));
+    $('retry').onclick = load;
+  } finally { $('record').setAttribute('aria-busy', 'false'); }
+}
+
+/** Download builds the file here: the kernel drops a package's download header, so the page names and saves it. */
+function download() {
+  if (!current) return;
+  const name = `master-record-${current.asOf.slice(0, 10)}.md`;
+  const url = URL.createObjectURL(new Blob([current.markdown], { type: 'text/markdown;charset=utf-8' }));
+  const link = el('a', { href: url, download: name });
+  document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  $('status').textContent = `Saved ${name}.`;
+}
+
+$('download').onclick = download;
+$('print').onclick = () => { try { $('moreMenu').hidePopover(); } catch (_) {} window.print(); };
+load();
+</script>
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-navigation.js"></script>
+</body>
+</html>

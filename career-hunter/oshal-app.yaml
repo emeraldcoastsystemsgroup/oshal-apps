@@ -104,6 +104,7 @@
 # 103 | maintainer@emeraldcoastsystemsgroup.com | 1.50.0: Complete the UX audit sweep across Insights, Profile Studio, Job Board phone Filters sheet and New matches swipe deck, Search Jobs annual-USD salary sort, Resume Studio career materials upload, Settings drop zones, and Submission activity guest gating; remove the forced daylight theme override so surfaces follow the person's active theme (D1=glass, D2=c).
 # 102 | maintainer@emeraldcoastsystemsgroup.com | 1.49.1: Resume Studio declares its design contract (editor, type first, its work surface), contains overscroll and keeps the document frame on the radius scale (the design standard audit on production).
 # 101 | maintainer@emeraldcoastsystemsgroup.com | 1.49.0 (Roger, 2026-11-06): Resume Studio opens the master resume as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel; Save to master resume writes it back through the existing whitelisted base-save. The Career persona sends resume editing there and never patches the master behind the open document; routing words hand a resume request to Career. Contract: docs/career-and-office.md. Tailored packets keep the classic editor; without AI Office the master opens in the classic view.
+# 104 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0 (Roger, 2026-11-09): the Master record. One read-only page (Resume, and Resume Studio's More menu) with everything Career keeps for a person: every role with its numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the dated history of what was added with the person's own words, Strengthen answers, snapshot dates and the documents kept outside Career; Download saves it as one Markdown file and Print is in More. The concierge reads it through career_master_record in pages of at most 12 KB and answers a request for everything with the counts and the page link. Saving Resume Studio's Word document never changes the master by itself: the Skills line is read back only on its " · " separator, and the credential line shown for an empty headline is never saved as the headline. Route and tool use the existing career.read permission. No routing words were added. A new person's résumé upload works on the native kernel: the upload route no longer subscribes to stream events the kernel's request does not have ("req.once is not a function" on blue, 2026-11-09).
 # 100 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
@@ -205,7 +206,8 @@ description: >-
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
   Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.
-version: 1.50.0
+  Your Master record page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
+version: 1.51.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -730,6 +732,30 @@ tools:
       A different requestId is an older packet receipt: report that this preparation is still in progress.
       A receipt with phase ready means documents exist; phase failed gives the observed error.
       Link the saved resume and cover from /api/career-hunter/resume?id=POSTING_ID&kind=resume or kind=cover.
+  # The master record (1.51.0): everything Career keeps for the person, read-only, in pages of at most 12 KB whose
+  # text together is the Master record page's Download. Same career.read permission as the other reads.
+  - name: career_master_record
+    displayName: Read the master record
+    type: api
+    description: >-
+      Read everything Career keeps for the signed-in person, in pages of at most 12 KB: the counts, every role with its
+      numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the
+      dated history of what was added, Strengthen answers and snapshot dates, and the link to the Master record page.
+      Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/master-record?page={input.page}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        page: {type: integer, minimum: 1, maximum: 9999}
+      required: [page]
+    usageInstructions: >-
+      Start with page 1; it carries the counts and the page link. When the person asks for everything (every bullet,
+      every skill, the history of what they added), answer with the counts and the link to the Master record page,
+      where Download saves it all as one file and Print is in More. Do not paste the whole record into the chat. Read
+      further pages (nextPage) only for the part the person asks about and quote it as saved. If revision differs
+      between pages, the record changed: start again from page 1.
   - name: career_experience_bank
     displayName: Read additional experience library
     type: api
@@ -1042,6 +1068,13 @@ ui:
       label: Additional experience
       icon: codicon codicon-library
       iframeUrl: /api/career-hunter/experience-library
+      section: top
+      group: Resume
+    # The Master record (1.51.0): everything Career keeps for the person, read-only, with Download and Print.
+    - toolName: career-master-record
+      label: Master record
+      icon: codicon codicon-book
+      iframeUrl: /api/career-hunter/master-record-ui
       section: top
       group: Resume
     # ── Presence — how a recruiter sees you before they read the resume ──────
