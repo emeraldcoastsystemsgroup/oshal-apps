@@ -2,7 +2,11 @@
 <!-- CHANGE LOG:
   1 | maintainer@emeraldcoastsystemsgroup.com | Separate the saved shortlist, preparation index, recommendations and submitted records; open one application through its admitted toolbar destination.
   2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the stage control replaces the four-link nav (kept hidden for its counts), the kit is loaded, the pay and fit filters are marked as finding-only, and Clear filters is added; the summary is 44px.
-  3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: phone Filters sheet (#boardFilterSheet) with Back dismissal, merged New matches phone swipe deck (Pass, Save, Undo, More + Cards/List toggle), primary ink var(--text-on-accent), overscroll containment, and DS-00..DS-45 contract compliance. -->
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: phone Filters sheet (#boardFilterSheet) with Back dismissal, merged New matches phone swipe deck (Pass, Save, Undo, More + Cards/List toggle), primary ink var(--text-on-accent), overscroll containment, and DS-00..DS-45 contract compliance.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  5 | maintainer@emeraldcoastsystemsgroup.com | The phone swipe deck (see career-job-lists.js 5): the card's settle transition is off while it is held, the reason text is clamped to seven lines instead of being a scroll box that took the gesture, every part of the card lets a sideways drag through, and the held card shows Save or Pass.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11 (see career-job-lists.js 6): the newest inbox reply on a job's row is a 44px line that opens its application; "Add your résumé to see your fit" is a 44px link on a phone; the search row, filters and view links step aside while New matches has no résumé to match against.
+  7 | maintainer@emeraldcoastsystemsgroup.com | On a phone "Add your résumé to see your fit" takes its own line under a job's facts; as an inline 44px box it sat beside the place and pushed the posted date out of line. -->
 <html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Job Board</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script><link rel="stylesheet" href="/api/career-hunter/static/career-journey.css"><link rel="stylesheet" href="/api/career-hunter/static/career-kit.css"><style>
 html,body{overscroll-behavior:contain}
@@ -13,15 +17,26 @@ html.in-shell #pageTitle{display:none}
 .filter-fields :is(select,input){width:100%;min-height:44px}
 [data-stage-filter][hidden]{display:none!important}
 #careerStages{margin:0 0 12px}
+:is(#keywordSearch,#filters,#searchModes)[hidden]{display:none!important}
+.reply-line{display:inline-flex;align-items:center;min-height:44px;margin:4px 0 0;padding:0 12px;border:1px solid var(--ds-line-control,var(--line));border-radius:var(--ds-radius-m,10px);background:var(--ds-surface-2,var(--panel));color:var(--ds-ink,var(--text));font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+.reply-line:hover{border-color:var(--accent)}
+.fit-link{color:var(--ds-accent-ink,var(--accent));font-weight:600}
 #openBoardFilters,#matchesLayoutSwitch{display:none}
 .match-deck{display:flex;flex-direction:column;gap:12px}
 .match-deck-stage{position:relative;min-height:340px}
 .match-card{border:1px solid var(--ds-edge,var(--line));border-radius:var(--ds-radius-xl,20px);background:var(--ds-surface,var(--panel));padding:18px;display:flex;flex-direction:column;gap:10px;touch-action:pan-y;user-select:none}
 .match-card.peek{position:absolute;inset:0;transform:scale(.97) translateY(8px);z-index:0;pointer-events:none}
-.match-card.lead{position:relative;z-index:1;transition:transform .2s ease}
+.match-card.lead{position:relative;z-index:1;transition:transform .2s ease;will-change:transform}
+.match-card.lead.dragging{transition:none}
+.match-card.lead.flung{transition:transform .17s ease-in,opacity .17s ease-in;opacity:0}
+.match-card :is(h2,p,div,span,button){touch-action:pan-y}
+.match-card.lead::before,.match-card.lead::after{position:absolute;top:14px;padding:4px 12px;border-radius:var(--ds-radius-m,10px);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:0;transition:opacity .1s ease;pointer-events:none;background:var(--ds-surface,var(--panel))}
+.match-card.lead::before{content:'Save';left:14px;color:var(--ds-ok,var(--status-success));border:2px solid var(--ds-ok,var(--status-success))}
+.match-card.lead::after{content:'Pass';right:14px;color:var(--ds-bad,var(--status-error));border:2px solid var(--ds-bad,var(--status-error))}
+.match-card.lead[data-swipe="save"]::before,.match-card.lead[data-swipe="pass"]::after{opacity:1}
 .match-card h2{font-size:18px;line-height:24px;margin:0}
 .match-card .co{font-size:14px;color:var(--ds-ink-2,var(--muted));margin:0;font-weight:600}
-.match-card .why{font-size:14px;line-height:20px;color:var(--ds-ink-2,var(--muted));margin:0;max-height:140px;overflow:auto}
+.match-card .why{font-size:14px;line-height:20px;color:var(--ds-ink-2,var(--muted));margin:0;max-height:140px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:7;line-clamp:7}
 .match-deck-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 @media(max-width:640px){
   #pageDescription,#filters{display:none}
@@ -31,11 +46,12 @@ html.in-shell #pageTitle{display:none}
   .search-row input[type="search"]{flex:1 1 100%}
   .search-row :is(button,.ck-btn){flex:1 1 44%}
   dialog .filter-fields{grid-template-columns:1fr}
+  .fit-link{display:flex;align-items:center;min-height:44px;width:100%}
 }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css">
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head><body>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 <main class="wrap">
 <div id="careerStages"></div>
 <nav class="journey-nav" aria-label="Career workspace" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">Search jobs</a><a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native">Job Board <span data-stage-count="saved"></span></a><a class="btn" data-career-tool="career-submissions" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit <span data-stage-count="queued"></span></a><a class="btn" data-career-tool="career-application-status" href="/api/career-hunter/board-native?view=status">Application status <span data-stage-count="tracked"></span></a></nav>

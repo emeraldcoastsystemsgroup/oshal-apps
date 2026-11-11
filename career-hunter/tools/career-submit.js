@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: opaque sheet attributes (data-ds-sheet, data-no-glass), history Back dismissal on modal sheets, and opaque disabled state on review approve button.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Connect a computer dialog had unstyled 21px browser buttons, no close and no scrim. It is the kit's sheet (opaque, a scrim behind, a full sheet on a phone) with an X close, a primary "Create and connect worker" and a tertiary Cancel, both 44px.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted approval/bind/start requests with the same frozen packet and ticket, synchronizing first and refusing expired approvals or uncertain outcomes.
@@ -34,7 +35,7 @@
       const links=text('p','',dialog);
       for(const documentInfo of packet.documents){
         const a=document.createElement('a');a.href=BASE+'/resume?id='+packet.postingId+(documentInfo.kind==='cover'?'&kind=cover':'');
-        a.target='_blank';a.rel='noopener';a.style.marginRight='18px';a.textContent=documentInfo.kind==='cover'?'Open cover letter ↗':'Open resume ↗';links.append(a);
+        a.target='_blank';a.rel='noopener';a.style.marginRight='18px';a.textContent=documentInfo.kind==='cover'?'Open cover letter ↗':'Open résumé ↗';links.append(a);
       }
       const facts=text('dl','',dialog);facts.style.cssText='display:grid;grid-template-columns:minmax(100px,1fr) 2fr;gap:8px 16px;overflow-wrap:anywhere';
       for(const [key,value]of Object.entries(packet.profile)){text('dt',key.replace(/([a-z])([A-Z])/g,'$1 $2'),facts);text('dd',value,facts).style.margin='0';}
@@ -53,7 +54,7 @@
       const head=text('header','',dialog),body=text('div','',dialog),foot=text('footer','',dialog);body.className='ck-sheet-body';
       const title=text('h2','Connect your Career browser worker',head);title.id='connectWorkerTitle';
       const close=text('button','✕',head);close.type='button';close.className='ck-icon';close.setAttribute('aria-label','Close');
-      text('p','Create a dedicated worker credential for your Career account. It can process jobs you specifically approve, read their resume, cover letter and application facts, and click final Submit once.',body);
+      text('p','Create a dedicated worker credential for your Career account. It can process jobs you specifically approve, read their résumé, cover letter and application facts, and click final Submit once.',body);
       text('p','The worker uses its own private browser profile on the bare-metal computer. Your ordinary Chrome tabs stay separate. You can revoke this worker from Nodes. This step does not send an application to an employer.',body);
       text('p','A private configuration file will download for the local worker installer. Keep it private.',body);
       const status=text('p','',body),cancel=text('button','Cancel',foot),connect=text('button','Create and connect worker',foot);

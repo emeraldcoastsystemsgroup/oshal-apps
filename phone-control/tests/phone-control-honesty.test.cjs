@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: keep 1.0.0 fake-key, fake-receiver and OCR bans while allowing real UxPlay AirPlay mirroring, lowercase oshal Node download link, mirror-* bridge verbs, and oshal_phone_mirror.py size budget.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: scan session-computer.js, session-media.js, session-collab.js, and phone-control-session-routes.js across button wiring, verb parity, catalog bindings, and package-only concierge tool endpoints.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the bridge budget counts oshal_phone_lan.py and allows 200 KiB of sources; the binding limit stays the install command under 100 KiB (~75 KB now that its payload is encoded once). The server still reaches no network: the TV verbs run on the person's computer.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the picture fallback labels the device's stored picture as not live and keeps the reason, an old picture takes no taps, and one place sends commands to a phone or TV, through the reconnect.
  */
 'use strict';
 
@@ -161,3 +162,17 @@ test('the bridge fits its one install command and its version is the package ver
   const version = /^version: (\S+)$/m.exec(read('oshal-app.yaml'))[1];
   assert.equal(/^VERSION = '([^']+)'/m.exec(read('bridge/oshal_phone_bridge.py'))[1], version);
 });
+
+test('1.6.1: a stored picture is never shown as live, and every command to a phone or TV goes through the reconnect', () => {
+  const stage = fs.readFileSync(path.join(__dirname, '..', 'tools', 'phone-stage.js'), 'utf8');
+  const fallback = stage.slice(stage.indexOf('const fallbackNode = enrolledAndroidFor(app, phone);'), stage.indexOf('await waitNextFrame(ctx, ctx.sessionMedia.phoneFrameMs());'));
+  assert.ok(fallback.length > 200, 'the picture fallback is where this test looks for it');
+  assert.match(fallback, /storedPictureNote\(phone, error\.message\)/, 'the stored picture carries its note');
+  assert.doesNotMatch(fallback, /screenNote'\)\.textContent = ''/, 'the reason the live read failed is not cleared');
+  assert.match(fallback, /view\.frame = null/, 'an old picture takes no taps as if it were live');
+  const command = stage.slice(stage.indexOf('async function phoneCommand('), stage.indexOf('function scheduleFastFrame('));
+  assert.match(command, /sendWithReconnect\(/);
+  assert.equal((stage.match(/app\.computers\.bridge\(phone\.computerNodeId/g) || []).length, 1, 'one place sends to a phone or TV, inside phoneCommand');
+  assert.match(command, /notConnectedWords\(phone, host\?\.name\)/);
+});
+

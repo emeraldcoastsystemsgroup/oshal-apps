@@ -6,13 +6,14 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: the Social Signals tile is merged into Social's Workspace · Engage (UX audit 2026-11-06, social--social-signals): its tile is removed here and the signals setup step opens the Workspace.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: Prepare & submit, Application status and Approvals are stages of the Job Board (career-hunter 1.48.0, UX audit 2026-11-06), so their tiles left this toolbar.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band borrows Career's Master record (career-hunter 1.51.0), the read-only page with every role, bullet, skill and history record, with Download and Print.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home (career-hunter 1.53.0), which leads the toolbar ungrouped. Home carries the job search box, the person's pipeline and their next step; Career's page frame draws this toolbar as one bar across the top of every Career page.
 #
 # A group carries NO code. It binds four installed applications into one front
 # door with one toolbar and a setup dashboard:
 #   career-hunter    the job board, search, resume + strengthen, profile studio
 #   portrait-studio  the profile picture
 #   social           LinkedIn / Facebook presence and the signals you comment on
-#   print-ingest     printed documents arriving in the swarm
 #
 # Every toolbar tile is BORROWED from a member by app + surface name — the loader
 # copies the member's label, icon and URL at activation and again at every
@@ -38,10 +39,9 @@ rating:
 displayName: Intelligent Career
 description: >-
   One front door for your job search: the board, search, resume and strengthen
-  tools, your profile picture, your LinkedIn and Facebook presence, and the
-  documents you print into the swarm — with a setup page that shows what is
-  connected and what still needs you.
-version: 1.1.9
+  tools, your profile picture, and your LinkedIn and Facebook presence — with a
+  setup page that shows what is connected and what still needs you.
+version: 1.1.11
 status: active
 scope: public
 theme: daylight
@@ -62,7 +62,6 @@ dependencies:
       - career-hunter
       - portrait-studio
       - social
-      - print-ingest
     connectors: []
   optional:
     apps: []
@@ -74,7 +73,6 @@ dependencies:
     #   career-hunter    anthropic, firecrawl, google, twilio
     #   portrait-studio  google, microsoft
     #   social           linkedin, twitter, meta-business, facebook, google
-    #   print-ingest     (declares none)
     # DECLARED rather than absent because absent means UNFILTERED: it pinned the Connectors tile
     # and offered the entire platform provider catalog — banking, crypto, infrastructure —
     # inside a job-search front door (RibbonNav.js connectorsAllowed). Optional, like every
@@ -88,6 +86,8 @@ dependencies:
 toolbar:
   # UX audit 2026-11-06: Prepare & submit, Application status and Approvals are stages of the
   # Job Board (career-hunter 1.48.0), so they left this toolbar with the member's menu.
+  # Home leads, ungrouped: the first screen of Career as its own application (career-hunter 1.53.0).
+  - { app: career-hunter,   surface: career-home }
   - { app: career-hunter,   surface: career-search,         group: Job Search }
   - { app: career-hunter,   surface: career-board,          group: Job Search }
   - { app: career-hunter,   surface: career-recruiters,     group: Connections }
@@ -100,7 +100,6 @@ toolbar:
   - { app: portrait-studio, surface: portrait-studio,       group: Presence }
   - { app: social,          surface: linkedin-assistant,    group: Presence }
   - { app: social,          surface: social-workspace,      group: Presence }
-  - { app: print-ingest,    surface: print-ingest,          group: Documents }
   - { app: career-hunter,   surface: career-submission-activity, group: Activity }
   - { app: social,          surface: social-accounts,       section: bottom }
   - { app: career-hunter,   surface: career-settings,       group: Configuration }
@@ -116,13 +115,12 @@ setup:
   - { label: Pick the articles you want to comment on,    app: social,          readiness: signals,      fix: social-workspace }
   - { label: Review your resume story by story,           app: career-hunter,   readiness: stories,      fix: career-strengthen }
   - { label: Add performance reports and other documents, app: career-hunter,   readiness: materials,    fix: career-settings }
-  - { label: Subscribe to the print service,              app: print-ingest,    readiness: subscription, fix: print-ingest }
 
 # ── Ribbon chrome ───────────────────────────────────────────────────────────
 # This front door opens on job discovery. Generic tickets stay outside the Career
 # rail; application preparation and submission have their own Career surfaces.
 ribbon:
-  defaultView: career-hunter--career-search
+  defaultView: career-hunter--career-home
   hideFrameworkItems:
     - tickets
     - chat

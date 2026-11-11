@@ -147,3 +147,9 @@ rule above was deliberately broken in a scratch copy, one at a time, to confirm 
 
 The store gate reports Career's suites as skipped because it has no pinned Python, so run them directly:
 `node --test tests/*.test.mjs` from `career-hunter/`, with the engine's Python pins and a disposable PostgreSQL.
+
+## What happens after the review
+
+Since 1.54.0 a maintenance layer runs right after the review, in the same pull: it turns a source the review could not
+connect three runs in a row into one decision for a person, writes repair briefs for readers whose reads stay partial, and
+looks for a job site for employers that have none. See [SOURCE-MAINTENANCE.md](SOURCE-MAINTENANCE.md).

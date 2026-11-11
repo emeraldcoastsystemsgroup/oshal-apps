@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5 (one word for each thing): the stages read Getting ready (was Preparing), Closed (was Not selected), Removed (was Dismissed) and Needs your answer (was Needs you). Only the words changed: ids, statuses, counts and addresses are as they were.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | New matches answers ?view=matches, the address the live Job Board (career-job-lists) reads for recommendations.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Career is one pipeline. Prepare & submit, Application status and Approvals were the Job Board under other names, so they became stages of it: New matches · Saved · To approve · Preparing · Applied · Interviewing, with Offer, Not selected and Dismissed under More. This draws that one segmented control on the Job Board and on the To approve view, maps every stage to the address it has always answered (?view=queue, ?view=status, the approvals route), and gives the board a hook to switch stage in place.
  */
@@ -10,17 +11,17 @@
     { id: 'matches', label: 'New matches', status: '', href: BOARD + '?view=matches' },
     { id: 'saved', label: 'Saved', status: 'saved', href: BOARD + '?view=saved', count: 'saved' },
     { id: 'approve', label: 'To approve', status: null, href: '/api/career-hunter/approvals', count: 'approve' },
-    { id: 'preparing', label: 'Preparing', status: 'queue', href: BOARD + '?view=queue' },
+    { id: 'preparing', label: 'Getting ready', status: 'queue', href: BOARD + '?view=queue' },
     { id: 'applied', label: 'Applied', status: 'tracked', href: BOARD + '?view=status' },
     { id: 'interviewing', label: 'Interviewing', status: 'interview', href: BOARD + '?view=interviewing', count: 'interview' },
   ];
   const MORE = [
     { id: 'offer', label: 'Offer', status: 'offer', href: BOARD + '?view=offer', count: 'offer' },
-    { id: 'closed', label: 'Not selected', status: 'rejected', href: BOARD + '?view=closed', count: 'rejected' },
-    { id: 'dismissed', label: 'Dismissed', status: 'dismissed', href: BOARD + '?view=dismissed', count: 'dismissed' },
+    { id: 'closed', label: 'Closed', status: 'rejected', href: BOARD + '?view=closed', count: 'rejected' },
+    { id: 'dismissed', label: 'Removed', status: 'dismissed', href: BOARD + '?view=dismissed', count: 'dismissed' },
     { id: 'generated', label: 'Document records', status: 'generated', href: BOARD + '?status=generated', count: 'generated' },
     { id: 'promoted', label: 'Queued for documents', status: 'promoted', href: BOARD + '?status=promoted', count: 'promoted' },
-    { id: 'deferred', label: 'Needs you', status: 'deferred', href: BOARD + '?status=deferred', count: 'deferred' },
+    { id: 'deferred', label: 'Needs your answer', status: 'deferred', href: BOARD + '?status=deferred', count: 'deferred' },
   ];
   const ALL = STAGES.concat(MORE);
   /** ?view= values, old and new, to the board status they open. */

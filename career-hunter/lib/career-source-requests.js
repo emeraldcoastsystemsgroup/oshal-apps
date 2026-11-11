@@ -1,6 +1,8 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Save an administrator's source change for the kernel to hand to the next pull, and say what became of it. A request mounts the corpus read-only, so this is how Resolve reaches it on the native kernel.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back travel the same way: an added employer is `add:<name>|<link>` under a placeholder id, a removal `remove:employer` and a put-back `restore:employer` under the employer's own id.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep trying travels the same way: `keep:employer` under the employer's own id answers a source maintenance decision.
  */
 'use strict';
 const crypto = require('node:crypto');
@@ -13,6 +15,36 @@ const OUTBOX = '.source-request-outbox';
 const SENT = 'source-requests-sent';
 const KEEP_SENT = 50;
 const MAX_TARGET = 2048;
+/** An added employer has no id until the pull makes it; the kernel needs a positive one, so this stands in. */
+const NEW_EMPLOYER = 2147483647;
+const REMOVE = 'remove:employer';
+const RESTORE = 'restore:employer';
+const KEEP_TRYING = 'keep:employer';
+
+/** Percent-encode everything but letters, digits and `._~-`, so the name and link cannot break the `|` between them. */
+function strictEncode(value) {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/**
+ * @description The change that adds an employer: its name and the careers page or job board to read.
+ * @param {unknown} name - The employer's name as the administrator typed it.
+ * @param {unknown} link - An http or https link to its careers page or job board.
+ * @returns {{target: string, name: string, link: string} | null} The target, or null when either part is not usable.
+ */
+function addTarget(name, link) {
+  const rawName = String(name ?? ''), rawLink = String(link ?? '').trim();
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(rawName + rawLink)) return null;
+  const tidy = rawName.split(/\s+/).filter(Boolean).join(' ');
+  if (tidy.length < 2 || tidy.length > 120) return null;
+  try {
+    const url = new URL(rawLink);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname || url.username || url.password) return null;
+  } catch { return null; }
+  const target = `add:${strictEncode(tidy)}|${strictEncode(rawLink)}`;
+  return target.length <= MAX_TARGET ? { target, name: tidy, link: rawLink } : null;
+}
 
 /** Either a link, or a board as the source review names one: `greenhouse:acme`. The engine has the final word. */
 function validTarget(value) {
@@ -77,4 +109,4 @@ function sourceChanges(db, userDir) {
   return [...waiting, ...applied];
 }
 
-module.exports = { validTarget, saveChange, sourceChanges };
+module.exports = { validTarget, saveChange, sourceChanges, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING };

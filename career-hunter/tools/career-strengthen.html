@@ -6,6 +6,8 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): with no scored jobs the screen was one button over "Try Rescan after scoring more jobs" with no way to get there, and the intro told people to tap a mic in boxes that were not there. An empty list is now one empty state, "No gaps to work on yet", whose one primary is the step that makes gaps: Upload your résumé (Resume Studio) when no résumé is indexed, otherwise Score jobs on the Job Board (gaps come from jobs scored against the résumé). The mic line shows only above real answer boxes; Open · Answered is a segmented control once there are answered stories; Rescan gaps is a 44px secondary. Guard: tests/career-strengthen-screen.test.mjs.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
 -->
 
 <!--
@@ -74,10 +76,10 @@
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
-  <h1>Strengthen your resume</h1>
+  <h1>Strengthen your résumé</h1>
   <p class="sub" id="intro">Gaps the AI found across your matched jobs, grouped into themes.</p>
   <p class="sub" id="micHint" hidden>Answer one with a real example: type it, or tap the mic in its box. It is woven into your profile, so every future tailored résumé pulls from it.</p>
   <div class="bar">
@@ -105,7 +107,7 @@ function toast(m){ toastEl.textContent=m; toastEl.className='toast show'; setTim
 
 // ── ADR-141 D7: the story review — one defensible story per job title ─────────────────────
 // A bullet asserts; a story proves. This walks YOUR roles, asks about the one still missing a
-// story, and keeps your answer against the bullet it supports so every tailored resume can cite
+// story, and keeps your answer against the bullet it supports so every tailored résumé can cite
 // evidence. It shares the page's mic-friendly answer box; nothing here touches the gap themes.
 const storiesEl=$('stories');
 let storyState=null;
@@ -115,7 +117,7 @@ function storyCard(){
   const done=storyState.withStory, total=storyState.total;
   const head=`<div class="grp">Your stories — ${done} of ${total} roles</div>`;
   if(storyState.complete){
-    return head+`<div class="card answered"><p class="q">Every role has a story. Your tailored resumes cite them as evidence.</p></div>`;
+    return head+`<div class="card answered"><p class="q">Every role has a story. Your tailored résumés cite them as evidence.</p></div>`;
   }
   const next=storyState.next;
   return head+`<div class="card focus" id="story-card">

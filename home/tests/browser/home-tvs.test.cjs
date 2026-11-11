@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | home 1.4.0, TVs and streaming sticks in headless Chromium at 412 x 915: the section shows on the Smart Home screen with one Scan for TVs button that says what it does, the empty screen keeps its one primary and nothing is written on open; with no computer it says what to do and Scan is off; Scan checks the bridge on the chosen computer, installs it when it is not phone-control's (the real installer command), runs the real planned scan, saves the TVs and adds the Android TV to Phone & Device Control; a press says what the computer answered, "Press Allow on the TV, then Retry." for a waiting Samsung with the power left as it was; a Roku has no Open oshal; no console error. The computer is played by the test, the routes are the compiled package's own.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | home 1.6.0: the TVs are a page behind Home's Find TVs tile, so each case opens it the way a person does; Home shows a tile for every saved TV and for the person's computer, and asks Phone & Device Control for nothing when its access waits for re-approval.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A person whose app list says Phone & Device Control changed and waits for re-approval (bare-metal blue's admin persona on 2026-11-08) reads exactly that, the page requests nothing from Phone & Device Control (no console error), Scan is off, and the saved TVs are still listed, without buttons.
  */
 'use strict';
@@ -45,6 +46,11 @@ const reads = (computers, sub, apps = APPS()) => ({
   '/api/phone-control/devices': { devices: [] },
 });
 const visible = (page, sel) => page.locator(sel).first().isVisible();
+/** Open the TVs and streaming page the way a person does: Home's Find TVs tile. */
+async function openTvs(page) {
+  await page.locator('#tiles-tv .tile[data-kind="find"]').click();
+  await page.waitForSelector('#page-tvs:not([hidden])');
+}
 const line = (value) => ({ ok: true, output: { stdout: `${JSON.stringify(value)}\n`, stderr: '', exitCode: 0 } });
 const VERSION = { ok: true, verb: 'version', version: MANIFEST.version, files: Object.fromEntries(MANIFEST.files.map((f) => [f.name, f.sha256])) };
 
@@ -92,9 +98,10 @@ async function open(viewport, computers, sub, apps) {
 test('the section shows on the Smart Home screen with one Scan button that says what it does; nothing is written on open', async () => {
   const { page, context, writes, errors } = await open({ width: 412, height: 915 }, [DEN_PC], 'ui-empty');
   try {
+    await openTvs(page);
     await page.waitForSelector('#tvSection:not([hidden])');
     await page.waitForFunction(() => document.querySelectorAll('#tvComputer option').length === 1);
-    assert.equal(await page.textContent('#tv-title'), 'TVs and streaming sticks');
+    assert.equal(await page.textContent('#tv-title'), 'TVs and streaming');
     assert.equal(await page.textContent('#tvScan'), 'Scan for TVs');
     assert.equal(await page.isEnabled('#tvScan'), true);
     assert.match(await page.textContent('#tvScanWhat'), /looks for TVs and streaming sticks on its Wi-Fi.*Nothing is installed or changed on them\./);
@@ -116,6 +123,7 @@ test('with no computer the section says what to do and Scan is off', async () =>
   for (const computers of [[], [{ ...offline, platform: 'android', name: 'Phone' }]]) {
     const { page, context, errors } = await open({ width: 412, height: 915 }, computers, 'ui-none');
     try {
+      await openTvs(page);
       await page.waitForSelector('#tvComputerHelp:not([hidden])');
       assert.match(await page.textContent('#tvComputerHelp'), /^No computer of yours is connected\. TVs are found by your own computer on the same Wi-Fi/);
       assert.equal(await page.isDisabled('#tvScan'), true);
@@ -133,6 +141,7 @@ test('Scan installs the bridge when it is not phone-control\'s, saves the TVs, a
   const saved = [];
   try {
     await wire(page, 'ui-scan', computer(ran, { bridgeVersion: { ...VERSION, version: '1.4.1' } }), saved);
+    await openTvs(page);
     await page.waitForFunction(() => document.querySelectorAll('#tvComputer option').length === 1);
     await page.locator('#tvScan').tap();
     await page.waitForFunction(() => document.querySelectorAll('#tvList .tv-card').length === 4);
@@ -163,6 +172,7 @@ test('a person whose Phone & Device Control waits for re-approval reads that, an
   const apps = APPS({ authorized: false, accessChanged: true });
   const { page, context, errors, requested, writes } = await open({ width: 412, height: 915 }, [DEN_PC], 'ui-changed', apps);
   try {
+    await openTvs(page);
     await page.waitForFunction(() => /re-approve/.test(document.querySelector('#tvStatus')?.textContent || ''));
     assert.equal(await page.textContent('#tvStatus'), 'Finding TVs uses the Phone & Device Control helper on your computer. Phone & Device Control changed, and an administrator must re-approve your access to it.');
     assert.equal(await page.isDisabled('#tvScan'), true);

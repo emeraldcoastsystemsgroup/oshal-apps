@@ -53,6 +53,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4 per-position exit plans: register the /position-plans route family (trading-position-plan-routes.ts — list a book's plans, and the confirm-gated amend) before the generic flow, beside the other kernel-store surfaces.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Mount the research-only Quant desk at /quant inside this route, so adding it changes no manifest route and suspends no person schedule.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | Register the front-desk trading-concierge bot ID in TRADING_FACT_BOT_IDS alongside the back-office specialist bots.
  *
  * @module trading-routes
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native portfolio review and historical research beside the account routes.
@@ -131,6 +132,7 @@ exports.TRADING_ANALYST_AGENT_ID = 'a0000000-0000-0000-0000-000000000046';
  * tests/trading-specialist-context.spec.ts pins this list to the manifest.
  */
 exports.TRADING_FACT_BOT_IDS = [
+    '4f8a1e72-3c59-4b8d-9e41-7206c8a31f4e', // trading-concierge
     exports.TRADING_ANALYST_AGENT_ID,
     '90a8023d-7f86-485a-b215-f427d92ce032', // futures-research-analyst
     'a0000000-0000-0000-0000-000000000049', // trading-research-analyst

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: open a real Career screen in Chromium over a synthetic same-origin fixture (no Career store, no network). Package assets come from tools/, the platform's shared theme files answer empty, and every API call goes to the test's own handler, so each screen test drives the screen's own code at phone and desktop sizes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | openScreen takes the address to serve the screen at (default /screen, as before). Career's page frame decides which section a page belongs to from its address, so a test that needs the frame's row of section pages opens the screen at its real address.
  */
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync } from 'node:fs';
@@ -34,15 +35,16 @@ export const DESKTOP = { viewport: { width: 1440, height: 900 } };
  * @param {(req: {method: string, url: URL, body: any}) => ({status?: number, json?: any, text?: string}|null)} api - API answers.
  * @param {object} [size] - PHONE or DESKTOP.
  * @param {string} [query] - The frame's query string.
+ * @param {string} [path] - The address the screen is served at; its real one when the page frame must recognise it.
  * @returns {Promise<{page: object, context: object, calls: Array<{method:string, path:string, body:any}>}>}
  */
-export async function openScreen(browser, file, api, size = DESKTOP, query = '') {
+export async function openScreen(browser, file, api, size = DESKTOP, query = '', path = '/screen') {
   const context = await browser.newContext(size);
   const calls = [];
   await context.route('**/*', async (route) => {
     const req = route.request(), url = new URL(req.url());
     if (url.origin !== ORIGIN) return route.abort();
-    if (url.pathname === '/screen') return route.fulfill({ status: 200, contentType: 'text/html', body: readFileSync(join(tools, file)) });
+    if (url.pathname === path) return route.fulfill({ status: 200, contentType: 'text/html', body: readFileSync(join(tools, file)) });
     const asset = url.pathname.match(/^\/api\/career-hunter\/static\/([\w.-]+)$/);
     if (asset && existsSync(join(tools, asset[1]))) {
       const type = asset[1].endsWith('.css') ? 'text/css' : 'application/javascript';
@@ -61,6 +63,6 @@ export async function openScreen(browser, file, api, size = DESKTOP, query = '')
   });
   const page = await context.newPage();
   page.on('dialog', (dialog) => { calls.push({ method: 'DIALOG', path: dialog.type(), body: dialog.message() }); dialog.dismiss(); });
-  await page.goto(`${ORIGIN}/screen${query}`, { waitUntil: 'load' });
+  await page.goto(`${ORIGIN}${path}${query}`, { waitUntil: 'load' });
   return { page, context, calls };
 }

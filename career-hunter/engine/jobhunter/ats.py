@@ -13,6 +13,10 @@ Normalized posting dict:
     {ats_job_id, title, location, remote, department, url, description, posted_at}
 """
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Two readers for boards whose page loads its jobs from a search service the browser page reader may not call. A newer SuccessFactors career site lists no job in its page (Altria, Skyworks, NTT DATA Business Solutions, Amway said "No jobs found" to the page reader); when the page lists none, the SuccessFactors reader asks the site's own search service, read to the total it states. A classic site's page is read as before, so its stored jobs keep their ids. New Dayforce reader (Regency Centers, ASRC Federal, Mirion, Carhartt, Imperial Dade): the board's search service, with the anti-forgery token the board's page asks for first, read to the count it states.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | The Jibe reader takes an employer's own careers host as its token ("careers.costco.com"): 22 employers' sites answered HTTP 403 to the browser page reader and answer this listing. A Jibe listing read to the count it states is the whole board, so a job that leaves it closes; a listing cut short closes nothing. A Jibe job's place is its city, state and country, not the employer's label for the site: 397 of Ulta Beauty's 13,620 open jobs had a state.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Read the place an Avature list shows beside each job: the element the board marks as the location (ManTech), or the line under the title when it ends with a city, region and country (Deloitte). Every Avature job was stored with no place, so none matched a search by place. A list that shows no place for a job ("Multiple Locations", a shop's street address) still stores none. The workplace a board marks beside the place ("Remote Type: Fully Remote", "Hybrid", "Onsite") is the job's remote answer. The next page starts after the jobs on this one, not after its links: Trader Joe's list links each job four times, so the reader stepped over three pages in four and read 60 of 190 jobs.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Read a Workable board in the shape it sends: the place from `city`, `state` and `country` or the one `locations` entry (a hidden place gives its country only), the remote answer from `telecommuting`, and one row for a job the board lists once for each place it is offered in. Every Workable job was stored with no place, and the repeated ids made the pull record the feed as invalid.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Split a capped Workday search on a facet that agrees with its size before a wider one: a facet that overshoots can still miss jobs, and left Jabil 41 jobs short of whole.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Stop treating Workday's 2,000-job search cap as a whole board: a capped search is split by facet until every job is read, and a board that cannot be proven whole closes nothing. The cap had closed live jobs at Accenture, NVIDIA, Leidos, Booz Allen, Jabil and Tapestry.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Parse complete decimal/grouped salary amounts and explicit currencies while retaining unknown or per-course units without an annual default.
@@ -23,6 +27,8 @@ import re
 import statistics
 from collections import Counter
 from html import unescape
+
+from datetime import datetime
 
 from . import http
 from .public_education_ats import GovernmentJobs, PageUp
@@ -241,21 +247,38 @@ class Workable:
     NAME = "workable"
     _URL = re.compile(r"(?:apply\.workable\.com/([a-z0-9_-]+)|([a-z0-9_-]+)\.workable\.com)", re.I)
 
+    @staticmethod
+    def _place(j):
+        """Where a listing is, as "City, Region, Country". The board's feed gives it as top-level `city`, `state` and
+        `country` and as one entry in `locations`; a place the employer hides gives its country only. An older
+        `location` object or text still reads."""
+        loc = j.get("location")
+        if loc and not isinstance(loc, dict):
+            return str(loc)
+        if not loc:
+            listed = [place for place in (j.get("locations") or []) if isinstance(place, dict)]
+            loc = listed[0] if listed else {"city": j.get("city"), "region": j.get("state"), "country": j.get("country")}
+        parts = [loc.get("country")] if loc.get("hidden") else [loc.get("city"), loc.get("region"), loc.get("country")]
+        return ", ".join(part for part in parts if part)
+
     @classmethod
     def fetch(cls, token):
         data = http.get_json(f"https://apply.workable.com/api/v1/widget/accounts/{token}?details=true")
         jobs = (data or {}).get("jobs", []) if isinstance(data, dict) else []
-        out = []
+        out, listed = [], set()
         for j in jobs:
-            loc = j.get("location") or {}
-            loc_str = ", ".join(x for x in [loc.get("city"), loc.get("region"), loc.get("country")] if x) \
-                if isinstance(loc, dict) else str(loc)
-            loc_str = remote_location(loc_str, j.get("title"), verified=j.get("remote"))
+            job_id = j.get("shortcode") or j.get("id")
+            # The board lists a job once for each place it is offered in, under one id: keep the first.
+            if job_id is not None and job_id in listed:
+                continue
+            listed.add(job_id)
+            verified = j.get("remote") if "remote" in j else j.get("telecommuting")
+            loc_str = remote_location(cls._place(j), j.get("title"), verified=verified)
             out.append({
-                "ats_job_id": j.get("shortcode") or j.get("id"),
+                "ats_job_id": job_id,
                 "title": j.get("title"),
                 "location": loc_str or None,
-                "remote": _looks_remote(loc_str, j.get("title"), verified=j.get("remote")),
+                "remote": _looks_remote(loc_str, j.get("title"), verified=verified),
                 "department": j.get("department"),
                 "url": j.get("url") or j.get("application_url")
                        or f"https://apply.workable.com/{token}/j/{j.get('shortcode')}",
@@ -965,6 +988,8 @@ class SuccessFactors:
         out, seen, startrow = [], set(), 0
         while startrow < 6000:
             r = http.get_once(f"{base}/search/", params={"q": "", "startrow": startrow}, timeout=20)
+            if startrow == 0 and r.ok and "jobTitle-link" not in r.text and "/job/" not in r.text:
+                return cls._search(host) or []
             if not r.ok:
                 break
             soup = BeautifulSoup(r.text, "lxml")
@@ -988,6 +1013,82 @@ class SuccessFactors:
                 break
             startrow += 25
         return out
+
+    _SEARCH = "/services/recruiting/v1/jobs"
+    _POSTCODE = re.compile(r"-\d{5}(?:-\d{4})?\b|,\s*\d{4,5}(?:-\d{3,4})?(?=\s*(?:,|$))")
+    _BREAK = re.compile(r"<br\s*/?>", re.I)
+
+    @classmethod
+    def _place(cls, row):
+        """The job's place from the search answer: each listed place without its postal code or markup, the first one
+        first ("Clarksville, TN-37041, United States" and "Ada, MI, USA, 49355<br/>" are "Clarksville, TN, United States"
+        and "Ada, MI, USA")."""
+        places = []
+        for value in row.get("jobLocationShort") or []:
+            for part in cls._BREAK.split(str(value or "")):
+                text = " ".join(cls._POSTCODE.sub("", _strip_html(part) or "").split()).strip(" ,")
+                if text:
+                    places.append(text)
+        return "; ".join(places) or None
+
+    @staticmethod
+    def _posted(value):
+        try:
+            return datetime.strptime(str(value), "%m/%d/%y").date().isoformat()
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _search(cls, host, locale="en_US"):
+        """The jobs the newer SuccessFactors career site loads into its page: its own search service, ten a page, with the
+        total. None when the host does not answer it (a classic site answers 401, and its page lists the jobs itself).
+
+        Its pages have no stable order, so one pass repeats some jobs and misses others. The reader pages through up to
+        three times, keeping every job it sees, and calls the board whole only when it has seen as many as the site states."""
+        from .source_memory import Feed
+        base, out, seen, total, cut, asked = f"https://{host}", [], set(), None, None, 0
+        for _ in range(3):
+            page = 0
+            while page * 10 < (total if total is not None else 10) and asked < 1500:
+                body = {"locale": locale, "pageNumber": page, "sortBy": "", "keywords": "", "location": "", "facetFilters": {},
+                        "brand": "", "skills": [], "categoryId": 0, "alertId": "", "rcmCandidateId": ""}
+                r = http.post_once(base + cls._SEARCH, json=body, headers={"Accept": "application/json"}, timeout=25)
+                asked += 1
+                try:
+                    d = r.json() if r.ok else None
+                except ValueError:
+                    d = None
+                if not isinstance(d, dict) or not isinstance(d.get("jobSearchResult"), list):
+                    if total is None:
+                        return None
+                    cut = "http_refused" if not r.ok else "completion_unverified"
+                    break
+                if total is None:
+                    total = int(d.get("totalJobs") or 0)
+                if not d["jobSearchResult"]:
+                    break
+                for item in d["jobSearchResult"]:
+                    cls._keep(item, base, locale, seen, out)
+                page += 1
+            if cut or len(seen) >= (total or 0):
+                break
+        whole = not cut and bool(total) and len(seen) >= total
+        return Feed(out, complete=whole, reason=None if whole else cut or "completion_unverified")
+
+    @classmethod
+    def _keep(cls, item, base, locale, seen, out):
+        row = item.get("response") if isinstance(item, dict) else None
+        if not isinstance(row, dict) or not row.get("id") or str(row["id"]) in seen:
+            return
+        jid = str(row["id"])
+        seen.add(jid)
+        title = row.get("unifiedStandardTitle") or row.get("title")
+        slug = row.get("unifiedUrlTitle") or row.get("urlTitle") or "job"
+        place = cls._place(row)
+        out.append({"ats_job_id": jid, "title": title, "location": place,
+                    "remote": _looks_remote(place, title, " ".join(row.get("cust_workModel") or [])),
+                    "department": None, "url": f"{base}/job/{slug}/{jid}-{locale}/", "description": None,
+                    "posted_at": cls._posted(row.get("unifiedStandardStart"))})
 
     @classmethod
     def detect(cls, url):
@@ -1107,23 +1208,28 @@ class Pinpoint:
 
 
 # ── Jibe (iCIMS Career Sites front-end) — {code}.jibeapply.com/api/jobs ───────
-# token = "clientcode" or "clientcode|careershost" (careers host only used for links).
+# token = "clientcode", "clientcode|careershost" (careers host only used for links), or the employer's own
+# careers host ("careers.costco.com"): a site Jibe serves on the employer's address answers the same listing there.
 class Jibe:
     NAME = "jibe"
 
     @classmethod
     def fetch(cls, token):
+        from .source_memory import Feed
         code, _, careers = token.partition("|")
         code = code.strip()
-        api = f"https://{code}.jibeapply.com/api/jobs"
-        out, seen, page, total = [], set(), 1, None
+        host = code if "." in code else f"{code}.jibeapply.com"
+        api = f"https://{host}/api/jobs"
+        out, seen, page, total, cut = [], set(), 1, None, None
         while page < 2000:
             r = http.get_once(api, params={"page": page, "internal": "false", "limit": 100}, timeout=25)
             if not r.ok:
+                cut = "http_refused"
                 break
             try:
                 d = r.json()
             except ValueError:
+                cut = "completion_unverified"
                 break
             if total is None:
                 total = d.get("totalCount") or 0
@@ -1137,13 +1243,17 @@ class Jibe:
                 if jid in seen:
                     continue
                 seen.add(jid); page_new += 1
-                loc = j.get("location_name") or ", ".join(
-                    x for x in [j.get("city"), j.get("state"), j.get("country")] if x)
+                # The city, state and country are the job's place. `location_name` is the employer's own label for a
+                # site ("Sheetz #899", "Casa Paloma"); it names no state, so it is the place only when nothing else is.
+                city, site = j.get("city"), j.get("location_name")
+                place = ", ".join(x for x in [city.title() if city and city.isupper() else city,
+                                              j.get("state"), j.get("country")] if x)
+                loc = place if city or j.get("state") else site or place
                 jurl = (f"https://{careers}/careers-home/jobs/{jid}" if careers
-                        else f"https://{code}.jibeapply.com/jobs/{jid}")
+                        else f"https://{host}/jobs/{jid}")
                 out.append({"ats_job_id": str(jid), "title": j.get("title"),
                             "location": loc or None,
-                            "remote": _looks_remote(loc, j.get("location_type"), j.get("title")),
+                            "remote": _looks_remote(loc, site, j.get("location_type"), j.get("title")),
                             "department": j.get("department"), "url": jurl,
                             "description": _strip_html(j.get("description")),
                             "posted_at": j.get("posted_date") or j.get("create_date")})
@@ -1152,7 +1262,10 @@ class Jibe:
             if total and len(seen) >= total:
                 break
             page += 1
-        return out
+        # The listing states how many jobs it holds. Reading that many, with every page answered, is the whole
+        # board, and only then may a job missing from it be closed.
+        whole = not cut and bool(total) and len(seen) >= total
+        return Feed(out, complete=whole, reason=None if whole else cut or "completion_unverified")
 
     @classmethod
     def detect(cls, url):
@@ -1167,6 +1280,53 @@ class Jibe:
 # token = the Avature host (e.g. "ally.avature.net").
 class Avature:
     NAME = "avature"
+    _JOB_LINK = "/careers/JobDetail/"
+    _PLACE_LABEL_RE = re.compile(r"^locations?\s*:\s*", re.I)
+    _LABEL_RE = re.compile(r"^[^:]*:\s*")
+
+    @classmethod
+    def _card(cls, link, job_id):
+        """The block of the list that holds one job and no other, or None. What a block that holds more than this job
+        says is not known to be this job's."""
+        card = link.find_parent(["article", "li", "tr"])
+        if card is None:
+            return None
+        jobs = {a["href"].rstrip("/").rsplit("/", 1)[-1] for a in card.find_all("a", href=True)
+                if cls._JOB_LINK in a["href"]}
+        return card if jobs == {job_id} else None
+
+    @classmethod
+    def _workplace(cls, card):
+        """The workplace the board marks beside one job, or None: ManTech has
+        <span class="list-item-remote type">Remote Type: Fully Remote</span>, and "Hybrid" and "Onsite" the same way.
+        The label is left out: it holds the word "remote" for every job."""
+        if card is None:
+            return None
+        for marked in card.find_all(class_=re.compile("remote", re.I)):
+            kind = cls._LABEL_RE.sub("", " ".join(marked.get_text(" ").split()))
+            if kind:
+                return kind
+        return None
+
+    @classmethod
+    def _place(cls, card):
+        """The place the list shows beside one job, or None when it shows none.
+
+        A board shows it in one of two ways. Some mark it: ManTech has
+        <span class="list-item-location">Location: USA-VA-Fort Belvoir</span>. Others end the line under the title with
+        it: Deloitte has member firm | legal entity | "Chicago, Illinois, United States"."""
+        if card is None:
+            return None
+        for marked in card.find_all(class_=re.compile("location", re.I)):
+            place = cls._PLACE_LABEL_RE.sub("", " ".join(marked.get_text(" ").split()))
+            if place:
+                return place
+        line = card.find(class_=re.compile("subtitle", re.I))
+        spans = line.find_all("span") if line is not None else []
+        last = " ".join(spans[-1].get_text(" ").split()) if spans else ""
+        # Only "city, region, country" is a place: the same line can end with "Multiple Locations", a legal entity's
+        # name can hold a comma ("Deloitte Touche Tohmatsu Services, LLC"), and a date holds two and a number.
+        return last if last.count(",") >= 2 and not re.search(r"\d", last) else None
 
     @classmethod
     def fetch(cls, token):
@@ -1179,20 +1339,26 @@ class Avature:
             if not r.ok:
                 break
             soup = BeautifulSoup(r.text, "lxml")
-            links = [a for a in soup.find_all("a", href=True) if "/careers/JobDetail/" in a["href"]]
-            page_new = 0
+            links = [a for a in soup.find_all("a", href=True) if cls._JOB_LINK in a["href"]]
+            page_new, page_jobs = 0, set()
             for a in links:
                 href = a["href"]
                 jid = href.rstrip("/").rsplit("/", 1)[-1]
+                page_jobs.add(jid)
                 if jid in seen:
                     continue
                 seen.add(jid); page_new += 1
                 url = href if href.startswith("http") else base + href
-                # Avature encodes the location into the JobDetail slug: .../City-State-Country-Title/{id}
-                slug = href.split("/careers/JobDetail/")[-1].rsplit("/", 1)[0]
+                slug = href.split(cls._JOB_LINK)[-1].rsplit("/", 1)[0]
                 title = a.get_text(strip=True)
+                card = cls._card(a, jid)
+                # The board's own answer decides: "Fully Remote" makes a job in a named city remote, and "Onsite" or
+                # "Hybrid" keeps a job whose title says remote where it is.
+                workplace = cls._workplace(card)
+                verified = True if workplace and _looks_remote(workplace) else None
+                place = remote_location(cls._place(card), slug, title, workplace, verified=verified)
                 out.append({"ats_job_id": jid, "title": title,
-                            "location": None, "remote": _looks_remote(slug, title),
+                            "location": place, "remote": _looks_remote(place, slug, title, workplace, verified=verified),
                             "department": None, "url": url,
                             "description": None, "posted_at": None})
             if page_new == 0:
@@ -1202,7 +1368,8 @@ class Avature:
                 offset += 10
                 continue
             empty = 0
-            offset += max(page_new, len(links))  # advance by this tenant's page size
+            # This tenant's page size is the number of jobs on the page. A list can link a job more than once.
+            offset += len(page_jobs)
         return out
 
     @classmethod
@@ -1750,10 +1917,88 @@ class Symphony:
         return None
 
 
+# ── Dayforce — jobs.dayforcehcm.com/{culture}/{client}/{board} ───────────────
+# token = "{client}|{board}|{culture}". The board's page loads its jobs from a search service that wants the anti-forgery
+# token the page itself asks for first; this reader asks for it the same way. No applicant data is sent.
+class Dayforce:
+    NAME = "dayforce"
+    HOST = "https://jobs.dayforcehcm.com"
+    _URL = re.compile(r"jobs\.dayforcehcm\.com/(?:([a-z]{2}-[A-Z]{2})/)?([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)", re.I)
+    _SKIP = {"api", "_next", "static", "en-us"}
+
+    @classmethod
+    def token_from(cls, url):
+        m = cls._URL.search(url or "")
+        if not m or m.group(2).lower() in cls._SKIP:
+            return None
+        culture = m.group(1) or "en-US"
+        culture = culture[:2].lower() + "-" + culture[3:].upper()
+        return f"{m.group(2)}|{m.group(3)}|{culture}"
+
+    @classmethod
+    def fetch(cls, token):
+        from .source_memory import Feed
+        client, _, rest = token.partition("|")
+        board, _, culture = rest.partition("|")
+        board, culture = board or "CANDIDATEPORTAL", culture or "en-US"
+        page_url = f"{cls.HOST}/{culture}/{client}/{board}"
+        try:
+            csrf = http.get_once(f"{cls.HOST}/api/auth/csrf", headers={"Referer": page_url}, timeout=20).json().get("csrfToken")
+        except (ValueError, AttributeError):
+            csrf = None
+        if not csrf:
+            return Feed([], reason="http_refused")
+        headers = {"x-csrf-token": csrf, "Referer": page_url, "Origin": cls.HOST, "Accept": "application/json"}
+        out, seen, offset, total, cut = [], set(), 0, None, None
+        while offset < 20000:
+            body = {"clientNamespace": client, "jobBoardCode": board, "cultureCode": culture, "distanceUnit": 0,
+                    "exactLocationOnly": False, "paginationStart": offset}
+            r = http.post_once(f"{cls.HOST}/api/geo/{client}/jobposting/search", json=body, headers=headers, timeout=30)
+            try:
+                d = r.json() if r.ok else None
+            except ValueError:
+                d = None
+            if not isinstance(d, dict) or not isinstance(d.get("jobPostings"), list):
+                cut = "http_refused" if not r.ok else "completion_unverified"
+                break
+            if total is None:
+                total = int(d.get("maxCount") or 0)
+            page_new = 0
+            for j in d["jobPostings"]:
+                jid = str(j.get("jobPostingId") or "")
+                if not jid or jid in seen:
+                    continue
+                seen.add(jid); page_new += 1
+                places = [", ".join(x for x in (p.get("cityName"), p.get("stateCode"), p.get("isoCountryCode")) if x)
+                          for p in (j.get("postingLocations") or []) if isinstance(p, dict)]
+                place = "; ".join(p for p in places if p) or None
+                virtual = bool(j.get("hasVirtualLocation"))
+                out.append({"ats_job_id": jid, "title": j.get("jobTitle"), "location": place or ("Remote" if virtual else None),
+                            "remote": virtual or _looks_remote(place, j.get("jobTitle")), "department": None,
+                            "url": f"{page_url}/jobs/{jid}", "description": _strip_html(j.get("jobDescription")),
+                            "posted_at": j.get("postingStartTimestampUTC")})
+            if not page_new or (total and len(seen) >= total):
+                break
+            offset += page_new
+        # The search states how many jobs the board holds; reading that many, every page answered, is the whole board.
+        whole = not cut and total is not None and len(seen) >= total and (total > 0 or not out)
+        if whole and total == 0:
+            return Feed([], reason="empty_unconfirmed")
+        return Feed(out, complete=whole, reason=None if whole else cut or "completion_unverified")
+
+    @classmethod
+    def detect(cls, url):
+        return cls.token_from(url)
+
+    @classmethod
+    def probe(cls, slug):
+        return None
+
+
 REGISTRY = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, Amazon, Microsoft,
             Radancy, Google, SuccessFactors, OracleORC, Phenom, Eightfold, Apple,
             Pinpoint, Jibe, Avature, ICIMS, Brassring, GDCareers, GSRoles, HtmlList,
-            Webflow, Symphony, PageUp, GovernmentJobs, Web]
+            Webflow, Symphony, PageUp, GovernmentJobs, Dayforce, Web]
 BY_NAME = {c.NAME: c for c in REGISTRY}
 # Order to try when slug-probing an unknown company (Workday excluded — not probeable):
 PROBE_ORDER = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable]

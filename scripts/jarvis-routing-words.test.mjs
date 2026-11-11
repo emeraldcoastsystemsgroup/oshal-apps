@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The routing words twelve packages declared in PR #823 (backlog P4-16), scored the way the kernel scores them before any model call, over every manifest in this store (scripts/jarvis-routing.mjs). Each request a package's words were added for reaches that package and the bot the kernel's routing suite expects, and each request its change log says stays with another package stays there. Review of PR #823: reverting all twelve packages' words turned nothing red, because the scoring lived only in the kernel and the kernel's CI pins an older store.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Eats 1.5.4: food requests reach Eats by its own words, and a request to place a stock or shopping order never reaches it, decided or handed off. Eats 1.5.3's "sushi place" and five more "... place" phrases made the bare word "place" an Eats keyword, so with "order" from "order food" Eats tied Intelligent Trades on "Place a buy order for 5 shares of Tesla" and took the hand-off of "Place a market order for NVDA", "Place an Amazon order for batteries" and "Place my grocery order" (review of PR #823).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | J-3 & J-6: SmartThings device, Family Hub refrigerator, and samsungce.viewInside interior camera requests reach Smart Home (home-bot) and never Camera Ops (camera).
  *
  * Plain `node --test` suite; js-yaml comes from the store toolchain. The private store's packages (Marquee among
  * them) are not here, so a case is only pinned where its outcome is the same with them; the kernel's own suite
@@ -75,8 +76,17 @@ test('Phone & Device Control is reached by the device a person names', () => {
   reaches('Register my iPad as a device I can drive from Jarvis', 'phone-control', 'device-concierge');
 });
 
-test('Smart Home is reached by a door to lock', () => {
+test('Smart Home is reached by a door to lock, SmartThings refrigerator inspection, and View Inside camera queries (never Camera Ops)', () => {
   reaches('Lock the front door', 'home', 'home-bot');
+  for (const request of [
+    'Check my SmartThings devices and see if the refrigerator has an interior camera',
+    'Inspect my Samsung Family Hub refrigerator camera with View Inside',
+    'Show me the view inside my refrigerator from SmartThings',
+    'Does my refrigerator have samsungce.viewInside in SmartThings?',
+  ]) {
+    reaches(request, 'home', 'home-bot');
+    staysAwayFrom(request, 'camera');
+  }
 });
 
 test('Kalshi is reached by prediction markets in the plural, and Sports Edge by tonight\'s game', () => {

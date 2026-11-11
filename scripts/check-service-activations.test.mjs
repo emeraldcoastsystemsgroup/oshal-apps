@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's two owner-activated service schedules, application updates and nightly matches, released in 1.47.
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | Pin Publishing Studio's publishing-social-publish (runsAs: user, 0.5.0): the person's own job that sends their due scheduled social posts (RP-PUB-07).
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | Pin Intelligent Communication's mail-watches (runsAs: user, 1.8.0): the person's own 5-minute deterministic Gmail watch check that reports only unseen security/priority alert arrivals (such as TotalConnect).
+ * 13 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's career-source-maintenance (runsAs: user, 1.54.0): a Career administrator's own morning job that reports what last night's source maintenance newly left for a person. Its route reads the shared corpus only and answers 403 for anyone who is not a Career administrator.
  */
 
 import test from 'node:test';
@@ -32,6 +33,7 @@ const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
   ['career-hunter', 'career-application-updates', 'user'],
   ['career-hunter', 'career-nightly-matches', 'user'],
+  ['career-hunter', 'career-source-maintenance', 'user'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
   ['email-summarizer', 'mail-copy', 'user'],
   ['email-summarizer', 'social-publish', 'user'],

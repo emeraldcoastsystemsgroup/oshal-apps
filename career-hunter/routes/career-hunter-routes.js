@@ -25,6 +25,7 @@
  * 19 | maintainer@emeraldcoastsystemsgroup.com   | ADR-149 (1.25.1): register the `career` resource adapter the new authorization catalog names, first thing in the factory, so every catalog-bound request the kernel authorizes (this mount's routes, the tools, the bot, the engine rail) finds it.
  * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  * 21 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: register the read-only Master record page and its data route (career-master-record-routes.ts).
+ * 22 | maintainer@emeraldcoastsystemsgroup.com   | 1.52.0: register local editing export and version-preserving import routes for the master resume (career-local-roundtrip-routes.ts).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userPaths = exports.openUserDb = exports.listStoreUsers = exports.callerSub = exports.isCareerAdmin = exports.buildJobFilters = exports.enqueueForUser = void 0;
@@ -50,6 +51,7 @@ const career_company_routes_1 = require("./career-company-routes");
 const career_digest_1 = require("./career-digest");
 const career_guest_seed_routes_1 = require("./career-guest-seed-routes");
 const career_job_guide_1 = require("./career-job-guide");
+const career_local_roundtrip_routes_1 = require("./career-local-roundtrip-routes");
 const career_master_record_routes_1 = require("./career-master-record-routes");
 const career_onboarding_routes_1 = require("./career-onboarding-routes");
 const career_profile_studio_routes_1 = require("./career-profile-studio-routes");
@@ -96,6 +98,7 @@ function registerExistingFeatureRoutes(router, ctx) {
     (0, career_title_score_1.registerCareerTitleScoreRoutes)(router, ctx);
     (0, career_targets_1.registerCareerTargetRoutes)(router, ctx);
     (0, career_readiness_1.registerCareerReadinessRoutes)(router);
+    (0, career_local_roundtrip_routes_1.registerCareerLocalRoundtripRoutes)(router, ctx);
     (0, career_master_record_routes_1.registerCareerMasterRecordRoutes)(router);
     (0, career_stories_routes_1.registerCareerStoryRoutes)(router, ctx);
     // ADR-144 guest-seed contract: this app plants its OWN guest demo profile (kernel just calls it).

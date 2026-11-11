@@ -1,5 +1,7 @@
 """CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Prove a saved source change is applied by a pull on real temporary SQLite, with the real page guard, real time limit and a real process really killed, over recorded employer replies.
+2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back: an added employer is made once and read the same night, a removed one closes its jobs and is left out of the pull, the source review, the no-feed count and every seed list until it is put back.
+3 | maintainer@emeraldcoastsystemsgroup.com | The helper's full pull leaves out source maintenance as it leaves out the source review: maintenance looks up employers with no board, and the employer one case adds with an unreadable link would be read over the real network. Maintenance has its own contract in career-source-maintenance.py.
 """
 import json
 import os
@@ -18,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "engine"))
 os.environ["JOBHUNTER_STORE"] = "sqlite"
 os.environ["JOBHUNTER_MULTIUSER"] = "1"
-from jobhunter import ats, cli, config, db, http, resolve, source_memory as memory, source_requests as requests, source_review as review, webscrape
+from jobhunter import ats, cli, config, db, http, resolve, source_maintenance as maintenance, source_memory as memory, source_requests as requests, source_review as review, webscrape
 
 FIRST, SECOND = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
 
@@ -65,7 +67,8 @@ class Base(unittest.TestCase):
             return boards.get(f"{kind}:{token}", memory.Feed([], reason="empty_unconfirmed")) if boards else memory.Feed([], reason="empty_unconfirmed")
 
         out = StringIO()
-        with patch.object(ats, "fetch", fetch), patch.object(review, "after_pull"), patch.object(http, "_host_is_public", patches.get("public", lambda _host: True)), redirect_stdout(out):
+        with patch.object(ats, "fetch", fetch), patch.object(review, "after_pull"), patch.object(maintenance, "after_pull"), \
+                patch.object(http, "_host_is_public", patches.get("public", lambda _host: True)), redirect_stdout(out):
             cli.cmd_scrape(SimpleNamespace(all=True, company=None, list=None, limit=None))
         self.asked, self.output = asked, out.getvalue()
         return self.outcome()
@@ -312,6 +315,127 @@ class TheHandover(Base):
         with db.connect() as conn:
             count = conn.execute(f"SELECT COUNT(*) AS n FROM {memory.table('source_requests')}").fetchone()["n"]
         self.assertLessEqual(count, 4)
+
+
+def add_target(name, link):
+    from urllib.parse import quote
+    return "add:" + quote(name, safe="") + "|" + quote(link, safe="")
+
+
+class AddingAndRemoving(Base):
+    def hand_again(self, change_id, **kwargs):
+        self.hand(change_id=change_id, **kwargs)
+
+    def named(self, name):
+        with db.connect() as conn:
+            rows = conn.execute(f"SELECT * FROM {db.companies_table()} WHERE name=?", (name,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def test_an_added_employer_is_made_once_and_its_jobs_arrive_tonight(self):
+        self.hand(company=requests.NEW_EMPLOYER, target=add_target("Acme Robotics", "https://boards.greenhouse.io/acmerobotics"))
+        with patch.object(resolve, "classify_url_deep", return_value=("greenhouse", "acmerobotics")):
+            row = self.scrape({"greenhouse:acmerobotics": jobs("a", "b")})
+        self.assertEqual(row["outcome"], "added", row)
+        made = self.named("Acme Robotics")
+        self.assertEqual(len(made), 1)
+        self.assertEqual((made[0]["ats_type"], made[0]["ats_token"], made[0]["discover_status"]), ("greenhouse", "acmerobotics", "manual"))
+        self.assertEqual(json.loads(made[0]["source_lists"]), ["added"])
+        detail = json.loads(row["detail"])
+        self.assertEqual((detail["companyId"], detail["name"], detail["jobs"]), (made[0]["id"], "Acme Robotics", 2))
+        self.assertEqual(self.titles(), ["Role a", "Role b"])
+        self.assertEqual(self.asked.count("greenhouse:acmerobotics"), 1, "read once, by the change, not again by the pull")
+
+    def test_an_employer_already_listed_under_another_spelling_is_named_back_and_not_made_twice(self):
+        self.hand(company=requests.NEW_EMPLOYER, target=add_target("Moving Co, Inc.", "https://boards.greenhouse.io/other"))
+        with patch.object(resolve, "classify_url_deep", side_effect=AssertionError("read for a duplicate")):
+            row = self.scrape()
+        self.assertEqual(row["outcome"], "duplicate")
+        self.assertEqual(json.loads(row["detail"])["owner"], "Moving Co")
+        self.assertEqual(self.named("Moving Co, Inc."), [])
+
+    def test_an_added_link_with_no_jobs_keeps_the_employer_so_resolve_can_be_used(self):
+        self.hand(company=requests.NEW_EMPLOYER, target=add_target("Quiet Co", "https://quiet.example/careers"))
+        with patch.object(resolve, "classify_url_deep", return_value=None):
+            row = self.scrape()
+        self.assertEqual(row["outcome"], "saved_no_jobs")
+        made = self.named("Quiet Co")[0]
+        self.assertEqual((made["careers_url"], made["discover_status"], made["ats_type"]), ("https://quiet.example/careers", "careers_only", None))
+
+    def test_an_added_link_to_a_private_address_is_refused_and_nothing_is_made_or_read(self):
+        for n, link in enumerate(("http://127.0.0.1:38788/x", "http://169.254.169.254/", "http://localhost/jobs")):
+            change = f"44444444-4444-4444-8444-{n:012}"
+            self.hand(change_id=change, company=requests.NEW_EMPLOYER, target=add_target("Inside Co", link))
+            with patch.object(resolve, "classify_url_deep", side_effect=AssertionError("read a private link")):
+                self.scrape(public=http._host_is_public)
+            self.assertEqual(self.outcome(change)["outcome"], "unsafe", link)
+        self.assertEqual(self.named("Inside Co"), [])
+
+    def test_an_add_without_a_usable_name_or_link_is_not_a_target(self):
+        for n, target in enumerate(("add:", "add:Acme", "add:A|https%3A%2F%2Fx.example%2F", "add:Acme|ftp%3A%2F%2Fx.example%2F",
+                                    "add:Acme%0A|https%3A%2F%2Fx.example%2F", "add:" + "x" * 121 + "|https%3A%2F%2Fx.example%2F")):
+            change = f"55555555-5555-4555-8555-{n:012}"
+            self.hand(change_id=change, company=requests.NEW_EMPLOYER, target=target)
+            self.scrape()
+            self.assertEqual(self.outcome(change)["outcome"], "bad_target", target)
+
+    def test_a_removed_employer_closes_its_jobs_and_is_left_out_of_every_pull(self):
+        with db.connect() as conn:
+            memory.ingest(conn, self.moving, jobs("old1", "old2"))
+        self.hand(target="remove:employer")
+        row = self.scrape({"greenhouse:oldboard": jobs("old1", "old2")})
+        self.assertEqual((row["outcome"], json.loads(row["detail"])["closed"]), ("removed", 2))
+        self.assertNotIn("greenhouse:oldboard", self.asked, "removed before the pull lists its sources")
+        with db.connect() as conn:
+            self.assertEqual(conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active=1", (self.moving,)).fetchone()["n"], 0)
+        self.assertEqual(self.company()["discover_status"], "removed")
+        self.scrape({"greenhouse:oldboard": jobs("old1")})
+        self.assertNotIn("greenhouse:oldboard", self.asked, "and on the nights after")
+        with db.connect() as conn:
+            self.assertNotIn(self.moving, [company["id"] for company in cli._companies(conn, need_ats=True)])
+
+    def test_a_removed_employer_is_not_reviewed_counted_or_brought_back_by_a_seed_list(self):
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {db.companies_table()} SET ats_type=NULL, ats_token=NULL, discover_status='removed' WHERE id=?", (self.moving,))
+            memory.ensure(conn)
+            review.ensure(conn)
+            conn.execute(f"""INSERT INTO {memory.table('source_pull_state')} (company_id,status,consecutive_failures)
+                VALUES (?,?,?)""", (self.moving, "failed", 9))
+            self.assertNotIn(self.moving, [row["id"] for row in review._queue(conn)])
+            self.assertEqual(review._source_counts(conn)["noFeed"], 0)
+            db.upsert_company(conn, "Moving Co", ats_type="greenhouse", ats_token="seeded", discover_status="found", source_list="fortune500")
+        company = self.company()
+        self.assertEqual((company["discover_status"], company["ats_token"]), ("removed", None))
+        self.assertIn("fortune500", json.loads(company["source_lists"]))
+
+    def test_put_back_lists_it_again_and_the_same_pull_reopens_its_jobs(self):
+        with db.connect() as conn:
+            memory.ingest(conn, self.moving, jobs("old1", "old2"))
+        self.hand(target="remove:employer", at=1)
+        self.scrape()
+        self.hand(SECOND, target="restore:employer", at=2)
+        self.scrape({"greenhouse:oldboard": jobs("old1", "old2")})
+        self.assertEqual(self.outcome(SECOND)["outcome"], "restored")
+        self.assertEqual(self.company()["discover_status"], "found")
+        self.assertIn("greenhouse:oldboard", self.asked)
+        with db.connect() as conn:
+            self.assertEqual(conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active=1", (self.moving,)).fetchone()["n"], 2)
+
+    def test_a_board_change_for_a_removed_employer_is_refused(self):
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {db.companies_table()} SET discover_status='removed' WHERE id=?", (self.moving,))
+        self.hand()
+        self.assertEqual(self.scrape({"greenhouse:newboard": jobs("a")})["outcome"], "removed_employer")
+        self.assertEqual(self.company()["ats_token"], "oldboard")
+
+    def test_adding_a_removed_employer_puts_it_back_on_the_new_link(self):
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {db.companies_table()} SET discover_status='removed' WHERE id=?", (self.moving,))
+        self.hand(company=requests.NEW_EMPLOYER, target=add_target("Moving Co", "https://boards.greenhouse.io/newboard"))
+        with patch.object(resolve, "classify_url_deep", return_value=("greenhouse", "newboard")):
+            row = self.scrape({"greenhouse:newboard": jobs("a")})
+        self.assertEqual((row["outcome"], json.loads(row["detail"])["companyId"]), ("added", self.moving))
+        self.assertEqual((self.company()["discover_status"], self.company()["ats_token"]), ("manual", "newboard"))
+        self.assertEqual(len(self.named("Moving Co")), 1)
 
 
 # A real process, killed for real inside a change's write, with nothing flushed or closed.

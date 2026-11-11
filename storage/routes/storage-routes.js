@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LOCAL_LIMIT_BYTES = void 0;
 exports.sizeWords = sizeWords;
@@ -46,25 +13,28 @@ exports.createStorageRoutes = createStorageRoutes;
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-16 11:35:00 | roger.murphy@agenticfederal.us   | Initial — GET /storage (settings page), GET/PUT /storage/prefs, GET /storage/dropbox/folders, GET /storage/github/repos, GET /storage/local/{list,download}.
- * 2026-07-19 13:30:00 | roger.murphy@emeraldcoastsystemsgroup.com | Carved out of OSHAL core into the storage app package (ADR-085 Wave 2). Standard (ctx) factory; surfaces served from ctx.appPackageDir/tools (load-time env fallback); shared core helpers imported via @/app/routes aliases. The storage-target/storage-browse kernel skill and /api/files stay core.
- * 2026-07-19 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | move + share actions (BACKLOG storage bot "more actions"): POST /local/move (move/rename within the caller's OSHAL-local store, traversal-guarded) + GET /local/share (resolve the authed KERNEL /api/files/download link for a stored file — the share shape). Both also wired into the assistant intent set (move/share) so the data-management bot can drive them from chat. Local-store only, caller-scoped; no new outward surface.
- * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel the GitHub (repo list + create, also the assistant's create_repo) and Dropbox (folder picker, the assistant's list_files) calls go through the global fetch with no Authorization header; the kernel applies the caller's github / dropbox connection declared in the manifest egress block. GET /prefs reads the connected list from the connectors.metadata intent instead of the framework's oshal_connections table. A missing or unusable connection, or a kernel "not connected" refusal, gives the same not-connected answer as a missing token. The legacy broker path is unchanged.
- * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The Storage Assistant runs on this package's own declared bot, storage-assistant (a0000000-0000-0000-0000-000000000041), instead of the platform comms bot b0000000-0000-0000-0000-000000000001: the native kernel resolves a package bot turn only against the bots the package declares, so every assistant message was refused "requested bot is not declared by this application". Guarded by scripts/check-store-bots.test.mjs.
- * 2026-10-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | "List my files" lists the store the Files bucket points at. list_files always read Dropbox, so with Files on OSHAL local (the default, and the only target on an installation where no Dropbox is connected) the assistant answered "Dropbox isn't connected" while get_prefs in the same chat said files save to OSHAL local. It now lists the caller's OSHAL-local store when Files points there, Dropbox when it points there, and for GitHub says it cannot list a repository here. The /local/list route and the assistant share listLocalFiles. Guard: tests/kernel-egress.test.cjs (list_files by bucket).
- * 2026-10-12 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | Notes: POST /local/save writes a text note into the caller's OSHAL-local store (never replacing a file of the same name unless asked) and GET /local/read reads one back; the storage-save-note tool (held for the person's approval) and storage-read-file use them, because Jarvis handed "save that note somewhere I can find it again" here and the assistant had no write tool. Under the native kernel /local/list and the assistant's list_files now list the kernel's personal file store (src-routes/local-notes.ts), where saved files really are, instead of the sandbox directory that always answered empty there.
- * 2026-10-12 18:30:00 | maintainer@emeraldcoastsystemsgroup.com | DELETE /local/note removes a saved .txt or .md note from the caller's OSHAL-local store (storage.delete for the verified caller under the native kernel, the per-user directory on the legacy framework); a missing note answers 404 and nothing is deleted. The storage-delete-note tool, held for the person's approval, uses it. Guard: tests/notes.test.cjs.
- * 2026-10-12 19:00:00 | maintainer@emeraldcoastsystemsgroup.com | Change log only: the 18:00 entry is restored to its original words and the note removal is recorded in its own entry above, instead of the earlier entry being rewritten.
- * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: "How much space am I using?" had no answer (the assistant said it had no tool for it). GET /local/list also answers "usage": how many files sit at the top of the OSHAL-local store, their total size and the 250 MB OSHAL-local limit Storage Settings shows, with a note that files moved into folders are not counted; the in-app assistant gains a usage action that says exactly that.
+ * 1   | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /storage (settings page), GET/PUT /storage/prefs, GET /storage/dropbox/folders, GET /storage/github/repos, GET /storage/local/{list,download}.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the storage app package (ADR-085 Wave 2). Standard (ctx) factory; surfaces served from ctx.appPackageDir/tools (load-time env fallback); shared core helpers imported via @/app/routes aliases. The storage-target/storage-browse kernel skill and /api/files stay core.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com   | move + share actions (BACKLOG storage bot "more actions"): POST /local/move (move/rename within the caller's OSHAL-local store, traversal-guarded) + GET /local/share (resolve the authed KERNEL /api/files/download link for a stored file — the share shape). Both also wired into the assistant intent set (move/share) so the data-management bot can drive them from chat. Local-store only, caller-scoped; no new outward surface.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com   | Native kernel: with OSHAL_EGRESS=kernel the GitHub (repo list + create, also the assistant's create_repo) and Dropbox (folder picker, the assistant's list_files) calls go through the global fetch with no Authorization header; the kernel applies the caller's github / dropbox connection declared in the manifest egress block. GET /prefs reads the connected list from the connectors.metadata intent instead of the framework's oshal_connections table. A missing or unusable connection, or a kernel "not connected" refusal, gives the same not-connected answer as a missing token. The legacy broker path is unchanged.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com   | The Storage Assistant runs on this package's own declared bot, storage-assistant (a0000000-0000-0000-0000-000000000041), instead of the platform comms bot b0000000-0000-0000-0000-000000000001: the native kernel resolves a package bot turn only against the bots the package declares, so every assistant message was refused "requested bot is not declared by this application". Guarded by scripts/check-store-bots.test.mjs.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com   | "List my files" lists the store the Files bucket points at. list_files always read Dropbox, so with Files on OSHAL local (the default, and the only target on an installation where no Dropbox is connected) the assistant answered "Dropbox isn't connected" while get_prefs in the same chat said files save to OSHAL local. It now lists the caller's OSHAL-local store when Files points there, Dropbox when it points there, and for GitHub says it cannot list a repository here. The /local/list route and the assistant share listLocalFiles. Guard: tests/kernel-egress.test.cjs (list_files by bucket).
+ * 7   | maintainer@emeraldcoastsystemsgroup.com   | Notes: POST /local/save writes a text note into the caller's OSHAL-local store (never replacing a file of the same name unless asked) and GET /local/read reads one back; the storage-save-note tool (held for the person's approval) and storage-read-file use them, because Jarvis handed "save that note somewhere I can find it again" here and the assistant had no write tool. Under the native kernel /local/list and the assistant's list_files now list the kernel's personal file store (src-routes/local-notes.ts), where saved files really are, instead of the sandbox directory that always answered empty there.
+ * 8   | maintainer@emeraldcoastsystemsgroup.com   | DELETE /local/note removes a saved .txt or .md note from the caller's OSHAL-local store (storage.delete for the verified caller under the native kernel, the per-user directory on the legacy framework); a missing note answers 404 and nothing is deleted. The storage-delete-note tool, held for the person's approval, uses it. Guard: tests/notes.test.cjs.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com   | Change log only: the 18:00 entry is restored to its original words and the note removal is recorded in its own entry above, instead of the earlier entry being rewritten.
+ * 10  | maintainer@emeraldcoastsystemsgroup.com   | Sweep 9: "How much space am I using?" had no answer (the assistant said it had no tool for it). GET /local/list also answers "usage": how many files sit at the top of the OSHAL-local store, their total size and the 250 MB OSHAL-local limit Storage Settings shows, with a note that files moved into folders are not counted; the in-app assistant gains a usage action that says exactly that.
+ * 11  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0 (J-4 / Defect 7): Add schema-bounded POST /files/upload (storage-upload-file, held for the person's approval) backed by the kernel's storage.save intent so files and device captures can be uploaded to a person's connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local storage with an optional provider/folder override. Guard: tests/notes.test.cjs.
+ * 12  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.1: an upload to a provider the person has not connected answers 409 naming the provider. It answered 503 "Try again", which cannot help, because the kernel's storage.save refusal ("selected provider connection is not visible to this caller") was not recognized.
+ * 13  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo. It answered 503 "Try again", which cannot help, because the kernel's refusal ("GitHub storage requires a selected repository", read on a running kernel) was not recognized.
  *
  * @module storage-routes
  */
 const express_1 = require("express");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const crypto = __importStar(require("crypto"));
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
 const logger_1 = require("@/shared/logger");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const storage_target_1 = require("@/app/routes/storage-target");
@@ -119,6 +89,10 @@ async function createGithubRepo(ctx, sub, name, isPrivate = true) {
     return { name: j.name, fullName: j.full_name, url: j.html_url };
 }
 const VALID_PROVIDERS = new Set(['dropbox', 'oshal-local', 'github']);
+/** What each upload provider is called in a message to the person. */
+const UPLOAD_PROVIDER_LABELS = {
+    dropbox: 'Dropbox', 'google-drive': 'Google Drive', onedrive: 'OneDrive', github: 'GitHub',
+};
 function callerSub(req) {
     const u = req.oidc?.user;
     return u?.sub ? String(u.sub) : null;
@@ -621,6 +595,40 @@ function createStorageRoutes(ctx) {
             res.status(503).json({ error: 'The note was not removed. Try again.' });
         }
     });
+    /** POST /files/upload — schema-bounded upload of a file to the caller's FILES target or a specified connected provider/folder (J-4 / Defect 7). */
+    router.post('/files/upload', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (req.body?.confirm !== true) {
+            res.status(400).json({ error: 'Confirm uploading the file' });
+            return;
+        }
+        try {
+            const uploaded = await (0, local_notes_1.uploadFile)(ctx, sub, req.body, legacyLocalDir);
+            logger.info({ bytes: uploaded.size, provider: uploaded.provider }, 'uploaded file to storage target');
+            res.status(201).json({ ok: true, ...uploaded });
+        }
+        catch (err) {
+            if (err instanceof local_notes_1.NoteError) {
+                res.status(err.status).json({ error: err.message });
+                return;
+            }
+            if ((0, kernel_egress_1.isNotConnected)(err) || (0, kernel_egress_1.isStorageNotConnected)(err)) {
+                const label = UPLOAD_PROVIDER_LABELS[String(req.body?.provider || '').trim().toLowerCase()] || 'That storage provider';
+                res.status(409).json({ error: `${label} is not connected. Connect it under Connections, then upload again.` });
+                return;
+            }
+            if (/GitHub storage requires a selected repository/i.test(String(err?.message || ''))) {
+                res.status(400).json({ error: 'GitHub needs a repository to upload to. Name it as owner/repo and send the upload again.' });
+                return;
+            }
+            logger.error({ err }, 'upload file to storage target failed');
+            res.status(503).json({ error: 'The file could not be uploaded right now. Try again.' });
+        }
+    });
     /** GET /local/download?name=&dir= — download a file from the caller's OSHAL-local store.
      *  `dir` is an optional bot-scoped subfolder (ADR-043), sanitized against path traversal. */
     router.get('/local/download', (req, res) => {
@@ -685,4 +693,3 @@ function createStorageRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=storage-routes.js.map

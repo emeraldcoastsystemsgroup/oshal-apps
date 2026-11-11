@@ -242,8 +242,10 @@ confirm-gated. Phase 1 needs no credentials (public market data), which is why t
 can run for the whole deployment.
 
 **Where the win/loss record is.** Every hand the scan announces is pre-registered as a prediction
-(`kalshi_predictions`, strategy `calibration`) and graded at settlement by the daily grader in the core
-repo (`scripts/oshal-kalshi-grade.ts`, the "OSHAL Kalshi Forward Test" scheduled task). Two places show
+(`kalshi_predictions`, strategy `calibration`) and graded at settlement by this package's own grader
+(`routes/kalshi-grade.js`, since 1.8.0): the background scan job grades on the firings where no scan is due, and
+opening the Scorecard tab grades what is waiting. It reads Kalshi's public results, so it needs no Kalshi
+account. Two places show
 it: the **Scorecard** tab (per-strategy Brier vs the market, hit rate, P&L per contract — the staking
 gate) and, since 1.1.1, the **Alerts** tab (each announced hand's WIN/LOSS and one-contract P&L, plus a
 W-L record line; `GET /api/kalshi/alerts` returns `record`). It is a paper record: an alert never

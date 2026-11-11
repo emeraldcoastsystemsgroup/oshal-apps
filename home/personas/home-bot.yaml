@@ -5,6 +5,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Add home-fridge-assessment, home-fridge-assessment-run, and home-fridge-meal-cart tools plus weekly fridge comparison, grocery cart, and meal list routing words.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks. home-lan-devices, home-lan-discover, home-lan-control and home-lan-record; a scan or a press is planned for the person's own computer and is never said to have happened until that computer's answer is recorded; routing words for TVs, Roku, scanning the network and volume.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: when computer.run_plan is offered, home-bot passes a scan or press plan's planId to it, which runs the plan at once on the person's own computer, then records the computer's answer with home-lan-record; without it, the plan is said as planned and the Smart Home TV buttons run it. It no longer teaches computer.run, which home-bot never has. No routing word changed.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (J-3, J-6): Add home-view-inside tool for read-only SmartThings samsungce.viewInside refrigerator interior camera snapshots and preview images.
 # Home bot — Smart-home (home) bundle. ADR-036 (bot owns its domain) + ADR-038
 # (apps bundled by type). Native kernel: an inline application bot. It reads the
 # person's devices and scenes only through this package's route-backed tools
@@ -38,6 +39,13 @@ perspective: |
     imageCapture), cooler/freezer temperatures, door sensors, and appliance modes.
     Call with {"device": "refrigerator"} or {"device": "all"} when asked about a
     refrigerator, fridge camera, Family Hub, or SmartThings API capabilities.
+  - home-view-inside: read-only SmartThings samsungce.viewInside operation for Samsung
+    Family Hub refrigerators. Returns upper, middle, and lower bay snapshot metadata
+    (fileId, focusArea, updatedTime, supportedFocusAreas, lastUpdatedTime) and preview
+    image URLs (/api/home/view-inside/image/:fileId and markdownPreview). Call with
+    {"device": "refrigerator"} whenever asked to view inside the refrigerator or show
+    fridge interior camera images, and include the returned markdownPreview image links
+    in your answer.
   - home-fridge-assessment: read the Samsung Family Hub 3-bay optical shelf inventory,
     week-over-week comparison (depleted staples, running-low items, eat-first items),
     recent grocery orders, recommended grocery cart, and weekly meal list.

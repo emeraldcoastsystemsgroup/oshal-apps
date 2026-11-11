@@ -1,4 +1,11 @@
-/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Design standard finish: keep radii on {6,10,14,20}, type sizes on {12,14,15,16,18,24}, 44px controls, and opaque disabled states. */
+/* CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Design standard finish: keep radii on {6,10,14,20}, type sizes on {12,14,15,16,18,24}, 44px controls, and opaque disabled states.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A pressed button visibly depresses and a busy button shows a spinner, so a slow save is seen to have started.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Scroll bars follow the theme on the Career pages.
+ */
 /* Career Hunter — shared surface styling (cockpit-native, navy accent). */
 :root {
   --navy:var(--accent-primary,#16304F);
@@ -32,6 +39,10 @@ h1 { font-size:24px; color:var(--ink); margin:6px 0 2px; letter-spacing:.2px; }
 .btn.danger { border-color:var(--bad); color:var(--bad); }
 .btn.danger:hover { background:color-mix(in srgb,var(--bad) 12%,var(--card)); }
 .btn:disabled { opacity:1; color:var(--ds-ink-disabled,var(--sub)); background:var(--ds-surface-2,var(--control)); border-color:var(--ds-hairline,var(--line)); cursor:default; }
+.btn:active:not(:disabled) { transform:translateY(1px); background:color-mix(in srgb,var(--navy) 12%,var(--control)); }
+.btn[aria-busy="true"] { position:relative; padding-left:28px; }
+.btn[aria-busy="true"]::before { content:''; position:absolute; left:8px; top:50%; width:12px; height:12px; margin-top:-6px; border:2px solid var(--line); border-top-color:var(--navy); border-radius:50%; animation:sp .7s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .btn[aria-busy="true"]::before { animation: none; content: '\2026'; } }
 input[type=text],input[type=password] { border:1px solid var(--ds-line-control,var(--line)); border-radius:10px; min-height:44px; padding:8px 10px; font:14px inherit; min-width:260px; background:var(--ds-surface,var(--control)); color:var(--ink); backdrop-filter:none; -webkit-backdrop-filter:none; background-image:none; }
 .app { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px 4px; border-bottom:1px solid var(--line); }
 .app:last-child { border-bottom:0; }
@@ -51,3 +62,10 @@ input[type=text],input[type=password] { border:1px solid var(--ds-line-control,v
 .toast.show { opacity:1; }
 .spin { display:inline-block; width:14px; height:14px; border:2px solid #c9d3df; border-top-color:var(--navy); border-radius:50%; animation:sp .7s linear infinite; vertical-align:-2px; }
 @keyframes sp { to { transform:rotate(360deg); } }
+
+/* ── themed scroll bars (Firefox + WebKit) ─────────────────────────── */
+html { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 34%, transparent) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--ink) 34%, transparent); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--ink) 56%, transparent); border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }

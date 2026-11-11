@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Run the pinned anonymous Node browser in native ingest, validate bounded source evidence and preserve unconfirmed enumeration instead of silently closing jobs.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | A read that a site's human check, a sign-in page or a refusal stopped before any job is recorded as failed with that cause, so the Companies page can say what happened instead of "no jobs".
 """Native public-listing adapter; holds no applicant profile or model credentials."""
 from __future__ import annotations
 import json
@@ -12,7 +13,8 @@ from urllib.parse import urlsplit
 MAX_BYTES=10*1024*1024
 PROCESS_TIMEOUT=135
 CODES={'browser_runtime_unavailable','browser_input_invalid','browser_navigation_failed',
-       'browser_read_failed','browser_response_too_large','browser_deadline_exceeded'}
+       'browser_read_failed','browser_response_too_large','browser_deadline_exceeded',
+       'browser_refused','challenge_detected','login_required'}
 REASONS={'completion_unverified','page_limit_reached','response_limit_reached',
          'browser_deadline_exceeded','login_required','challenge_detected'}
 
@@ -105,4 +107,6 @@ def scrape(url,max_pages):
                     keep(item['url'] if item['url']!=payload['baseUrl'] else item['ats_job_id']+'::'+item['title'],item)
     except (KeyError,TypeError,ValueError,UnicodeError) as error:
         raise BrowserReadUnavailable('browser_read_failed') from error
+    if not jobs and value['reason'] in ('challenge_detected','login_required'):
+        raise BrowserReadUnavailable(value['reason'])
     return source_memory.Feed(jobs.values(),complete=False,reason=value['reason'])

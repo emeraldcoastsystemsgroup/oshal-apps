@@ -19,6 +19,8 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: Jarvis routing words (backlog P4-16k): device-concierge adds 'android', 'ipad' and 'iphone' (not 'phone' or 'device', words of this application's name that would take "Find my phone" and "My phone number changed"). "Connect my Android phone so I can control it from here" and "Register my iPad as a device I can drive from Jarvis" scored here but claimed nothing, because every keyword was a phrase; both reach Phone & Device Control now. No route, tool or permission changed.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Your devices reads again. tools/session-computer.js called isTvNode without importing it, so the page answered "Your devices could not be read: isTvNode is not defined" (Roger's phone, 2026-11-08 and 2026-11-09) whenever a saved Android phone or TV was not reachable through its computer and the person had a connected, controllable Android node with another name. The import is added, and tests/phone-control-module-names.test.cjs fails when any browser module of a store package calls a name that is neither declared, imported nor a browser global. No route, tool or permission changed.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: Bluetooth pairing asks first (open-work audit 2026-11-10; Orbit Add hub 2.6 items 1-2): the bridge holds every pairing request until the person presses Allow or Reject on the page (no answer in 30 s is Reject, one Allow per window, a device that paired in the window without an Allow is removed when it closes), trusts and reconnects only devices the person allowed (ble-pair-answer, ble-keep for a device paired before), and the tests name no house address.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen is a tree with details (Roger, 2026-11-10). Each computer is a row with the phones and TVs that connect through it, and its bound programs, under it; a device's Details show how it connects, through what, its state, its control switch and what it can do, in tables beside the tree (under the row on a phone); a saved phone or TV can be renamed there. Rows start at the left and the list fills the page. In Add a device every button shows all of its words.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: his Fire TV was on Prime Video; the page showed an old Marquee picture and the TV Concierge answered "The phone is not connected to this computer"). The computer's adb had lost the TV and nothing reconnected it; the page then showed the last picture the TV's own oshal app had sent as if it were live and hid the reason. Now every command and picture read reconnects a phone or TV reached over the network once before reporting anything; a device still not connected is named with its kind, its computer and Sync; a stored picture is shown only under a note that it is not live. No route, permission or data change.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -41,7 +43,7 @@ description: >-
   check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
   (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and
   Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
-version: 1.5.4
+version: 1.6.1
 status: active
 scope: person
 chatBot: device-concierge

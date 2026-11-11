@@ -1,5 +1,7 @@
 # Camera Ops (camera) — OSHAL app package
 
+1.2.1 clarifies in the manifest and operator persona that Camera Ops drives GoPro action cameras and Wi-Fi/USB field camera nodes and does not read SmartThings devices, smart-home cameras, or refrigerator/appliance interior cameras (which belong to Smart Home).
+
 1.1.2 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Remote camera control (?app=camera). Cameras are DEVICE NODES (the drone pattern,

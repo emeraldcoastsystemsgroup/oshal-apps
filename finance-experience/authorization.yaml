@@ -1,0 +1,43 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The member role opens this entry only. What a person may do in Finance, Intelligent Trades, World Intelligence and Kalshi Edge stays with those applications.
+version: 1
+resources:
+  application:
+    scopes:
+      - own
+permissions:
+  app.open:
+    resource: application
+    effect: read
+    minimumTier: viewer
+roles:
+  member:
+    tier: viewer
+    grants:
+      - permission: app.open
+        scope: own
+bindings:
+  http:
+    - id: entry-get
+      method: GET
+      path: /app
+      allOf:
+        - app.open
+    - id: entry-head
+      method: HEAD
+      path: /app
+      allOf:
+        - app.open
+    - id: readiness
+      method: GET
+      path: /
+      allOf:
+        - app.open
+    - id: readiness-head
+      method: HEAD
+      path: /
+      allOf:
+        - app.open

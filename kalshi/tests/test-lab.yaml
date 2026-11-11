@@ -1,6 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (layout only): register home-layout (the account line, one stale chip, the title once, 50 rows then Show more, the phone bottom bar with More).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The catalog parses again: the market-explainer, markets-routes and quant-contract purposes were plain scalars with a second colon ("Pin the pure explainer: browse rows", "over a stored snapshot: GET /markets", "page agree: chatBot is"), which YAML reads as a mapping and the kernel refuses as the whole package; all three are folded blocks now. The audience-view expectation names the markets load the 1.7.0 Markets tab added to the page's start.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Register grading (1.8.0): the grader on a real PostgreSQL against a stand-in Kalshi over HTTP, and the Scorecard tab grading in Chromium at phone width.
 version: 1
 cases:
   - id: package-readiness
@@ -270,4 +271,54 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: prediction-grading
+    name: Predictions past their close are graded from Kalshi's public results
+    purpose: Run the compiled grader on a disposable PostgreSQL carrying this package's migrations, against a stand-in Kalshi over HTTP - no exchange, account or order.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kalshi-grade.test.js
+    expected:
+      - A closed market's predictions get the outcome, our Brier, the market's Brier and one contract at the recorded ask.
+      - An open market, a market with no result and a market Kalshi does not return stay ungraded; nothing is graded twice.
+      - A long list is asked forty markets a lookup and a run out of time is carried on by the next.
+      - POST /grade grades for the signed-in person only; a tick of the background job that does not scan grades.
+    prerequisites:
+      - runner:node-test
+      - service:postgres-disposable-35689
+      - fixture:store-toolchain
+      - fixture:loopback-http
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Each case creates its own database on the disposable test PostgreSQL and drops it.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: scorecard-grading-browser
+    name: The Scorecard grades what is waiting, on a phone
+    purpose: Open tools/kalshi.html in Chromium at 412 px against a scripted API and drive the Scorecard tab - no server, exchange or order.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/kalshi-scorecard-grading.test.cjs
+    expected:
+      - Opening the tab walks POST /grade until the list is done and the table shows the new counts.
+      - What Kalshi has no result for is said in words with Grade now left to press.
+      - An unreachable Kalshi is said in words; with nothing waiting no call is made.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
     installation: never

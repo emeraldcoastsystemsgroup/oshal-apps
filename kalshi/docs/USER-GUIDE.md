@@ -25,10 +25,14 @@ hands are still shown, and nothing is ordered without your confirmation.
 
 ## The reports
 
-**Daily grading run.** Every day at 07:30 the "OSHAL Kalshi Forward Test" scheduled task runs
-the grader and the weather forward test from this checkout. Its log is
-`output/kalshi/forward-<date>.log`. The grader prints the forward-test scorecard (hit rate, our
-Brier, the market's Brier, verdict, P&L) and the measured forecast-error model per city.
+**Grading.** A prediction is graded once its market has closed and Kalshi has posted the result. Grading
+reads Kalshi's public market data, so it runs with or without a Kalshi account and places no order. It
+runs in two places: the **background scan** job grades on every firing where no scan is due (three of
+four at the default hourly scan), and opening the **Scorecard** tab grades what is waiting and says where
+the ledger stands: how many predictions it graded, how many are past their close with no result posted
+yet, and how many are on markets still open. **Grade now** on that tab runs it again. Each graded row gets
+the outcome, our Brier score, the market's Brier score on the same market, and the result of one contract
+bought at the recorded ask with Kalshi's fee.
 
 **The cross-reference report.** One command, read-only, over the whole ledger:
 
@@ -93,7 +97,7 @@ your cockpit session.
 
 Any new idea is a **strategy**, and a strategy is a set of pre-registered predictions. The
 grader and the Scorecard tab are generic: a new `strategy` name in `kalshi_predictions` is
-graded the next morning and appears on the tab with no other change.
+graded once its market settles and appears on the tab with no other change.
 
 - **The rule is written before the first prediction**, with a date. Each prediction stores
   `predicted_prob`, `market_prob` (the ask you would pay for the side you take), `side`,

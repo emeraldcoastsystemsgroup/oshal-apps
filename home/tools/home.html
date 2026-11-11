@@ -34,7 +34,16 @@
        confirmation, scale radii/typography, 44px touch targets, and popstate Back dismissal.
      7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: Add Operations Guide & Runbook section (#runbookSection) displaying SmartThings API playbooks, auto-discovered device capabilities (including Samsung Family Hub ViewInside camera), live capability inspection, and persistent runbook note authoring.
      8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: Expand #fridgeCameraSection with Samsung Family Hub 3-bay optical camera snapshot, weekly Sunday 9:00 AM assessment schedule, week-over-week shelf comparison, interactive grocery cart starter, and weekly meal list builder.
-     9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks (#tvSection, tools/home-tvs.js): pick one of your computers, Scan for TVs (it says what it does; nothing is installed or changed), one card per TV with real buttons run on that computer, and the computer's answer in words. A network TV in the device grid no longer has a switch that flipped a saved state with nothing sent; the custom registration form no longer offers TVs (the scan adds them) and its example address is a neutral one. -->
+     9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks (#tvSection, tools/home-tvs.js): pick one of your computers, Scan for TVs (it says what it does; nothing is installed or changed), one card per TV with real buttons run on that computer, and the computer's answer in words. A network TV in the device grid no longer has a switch that flipped a saved state with nothing sent; the custom registration form no longer offers TVs (the scan adds them) and its example address is a neutral one.
+     10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (J-6): Read-only SmartThings samsungce.viewInside capability viewer (#fridgeViewInsideGallery and loadFridgeViewInside) rendering per-bay interior camera images (/api/home/view-inside/image/:fileId), focusArea, and updatedTime in the Smart Home dashboard. 
+     11 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: Home is tiles in groups (kitchen and appliances, TVs and streaming, the switch cards, phones and
+       tablets, computers) with the person's connected devices in it; a tile opens the page for that thing (#fridge, #tvs) and
+       Back returns; Connections and Help and notes are at the foot of Home; every label is in plain words (no provider key, no capability id). The
+       sections keep their ids and their scripts. Guards: tests/browser/home-tiles.test.cjs.
+     12 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: a refrigerator temperature shows only when the hub reported it
+       (telemetry.measuredAt). The tile and the refrigerator page showed the state's placeholders, 37 and 0, as readings;
+       until a reading exists the page says Temperature not read yet and the tile shows what the hub's device list reports.
+-->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
      kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
@@ -176,6 +185,7 @@
   .hubs[hidden] { display:none; }
   body.view-hubs .dash-only { display:none !important; }
   body.view-automations #devicesSection, body.view-automations #scenes, body.view-automations #scenes-title, body.view-automations #tvSection { display:none !important; }
+  body.view-automations #homeView, body.view-automations .subpage { display:none !important; }
   /* TVs and streaming sticks (1.4.0) */
   #tvSection [hidden] { display:none !important; } /* .schf and .lnk set display, which would beat the hidden attribute */
   .tv-scan { max-width:600px; gap:8px; margin-bottom:12px; }
@@ -205,8 +215,25 @@
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
+  /* Home is tiles in groups; a tile opens the page for that thing (1.6.0). */
+  .tgroup .sectitle, #devicesSection .sectitle { margin-top:18px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .tile { display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:0; min-height:96px; padding:12px; border-radius:14px; border:1px solid var(--line); background:var(--panel); color:var(--text); font:inherit; text-align:left; text-decoration:none; cursor:pointer; }
+  .tile:hover, .tile:focus-visible { border-color:var(--accent); }
+  .tile svg { width:28px; height:28px; flex:0 0 auto; color:var(--accent); }
+  .tile .tile-nm { font-size:14px; line-height:18px; font-weight:600; overflow-wrap:anywhere; }
+  .tile .tile-st { font-size:12px; line-height:16px; color:var(--muted); overflow-wrap:anywhere; }
+  .tile .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:5px; }
+  .tile .dot.on { background:var(--accent2); }
+  .pagebar { display:flex; align-items:center; gap:12px; margin:4px 0 12px; }
+  .pagebar h2 { font-size:18px; line-height:24px; margin:0; }
+  .home-foot { display:flex; flex-wrap:wrap; gap:6px 18px; margin:26px 2px 0; }
+  .home-foot .lnk { min-height:44px; background:none; border:0; padding:0; font:inherit; font-size:14px; cursor:pointer; }
+  .fridge-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .fridge-actions .btn { flex:1 1 150px; }
   @media (max-width:640px) {
     .wrap { padding-left:12px; padding-right:12px; }
+    .tiles { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .scene { min-width:unset; flex:1 1 calc(50% - 5px); }
     .sel, .tin, .brief-sheet textarea { font-size:16px; }
     .card { border-radius:10px; }
@@ -236,114 +263,141 @@
   </section>
 
   <section class="card hubs" id="hubsPanel" hidden aria-labelledby="hubs-title">
-    <div class="nm" id="hubs-title">Hubs &amp; Direct Swarm Devices</div>
+    <div class="nm" id="hubs-title">Connections</div>
     <p class="dim" id="hubsReporting" role="status">Checking which hubs have reported devices…</p>
     <div class="hubrow">
-      <span class="hub-meta">Swarm Local (Bluetooth · Android · LAN) <span class="pill ok" id="pill-swarm-local">Ready · $0 API</span></span>
-      <span class="hub-actions"><button type="button" class="btn" id="btn-swarm-discover" onclick="toggleLocalSwarmPanel()">Scan &amp; Register Local Devices</button></span>
+      <span class="hub-meta">Devices on this network <span class="pill ok" id="pill-swarm-local">Ready</span></span>
+      <span class="hub-actions"><button type="button" class="btn" id="btn-swarm-discover" onclick="toggleLocalSwarmPanel()">Find devices on this network</button></span>
     </div>
     <div class="hubrow">
       <span class="hub-meta">Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span>
-      <span class="hub-actions"><a class="btn" id="btn-smartthings" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a><button type="button" class="btn" id="btn-st-token" onclick="toggleStTokenBox()">Paste Token</button></span>
+      <span class="hub-actions"><a class="btn" id="btn-smartthings" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a><button type="button" class="btn" id="btn-st-token" onclick="toggleStTokenBox()">Use a token instead</button></span>
     </div>
     <div class="hubrow">
       <span class="hub-meta">Google Home <span class="pill" id="pill-google-home">Not connected</span></span>
       <span class="hub-actions"><a class="btn" id="btn-google-home" href="/utilities" target="_top">Set up in Connections</a></span>
     </div>
     <div class="subpanel" id="localSwarmPanel" hidden>
-      <div class="crow"><span class="nm">Direct Swarm Device Registration (Zero Cloud API Cost)</span><button type="button" class="btn" onclick="autoRegisterAllLocal()">⚡ Register All Discovered</button></div>
-      <div class="dim">Register Bluetooth, Android, and LAN appliances directly with your Swarm — no cloud OAuth app or paid API required.</div>
+      <div class="crow"><span class="nm">Devices found on this network</span><button type="button" class="btn" onclick="autoRegisterAllLocal()">Add all</button></div>
+      <div class="dim">Bluetooth, Android and network appliances can be added here directly, with no account at their maker.</div>
       <div id="localCandidatesList" style="display:flex;flex-direction:column;gap:6px"></div>
       <details>
-        <summary class="lnk" style="min-height:36px">+ Register custom Bluetooth / Android / LAN device</summary>
+        <summary class="lnk" style="min-height:36px">+ Add a device by hand</summary>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
           <label class="schf" for="reg-name"><span>Device name</span><input id="reg-name" class="tin" placeholder="e.g. Samsung Family Hub Refrigerator" /></label>
           <div class="dim" style="gap:8px;flex-wrap:wrap">
             <label class="schf" for="reg-category"><span>Type</span>
               <select id="reg-category" class="sel">
-                <option value="Refrigerator">Refrigerator / Family Hub</option>
-                <option value="Appliance">Bluetooth Appliance</option>
-                <option value="Speaker">Bluetooth Speaker</option>
-                <option value="Light">Smart Light / Switch</option>
+                <option value="Refrigerator">Refrigerator</option>
+                <option value="Appliance">Appliance</option>
+                <option value="Speaker">Speaker</option>
+                <option value="Light">Light or switch</option>
                 <option value="Sensor">Sensor</option>
               </select>
             </label>
-            <label class="schf" for="reg-protocol"><span>Transport</span>
+            <label class="schf" for="reg-protocol"><span>How it connects</span>
               <select id="reg-protocol" class="sel">
-                <option value="bluetooth">Bluetooth (BLE / Classic)</option>
-                <option value="android-adb">Android / Swarm Node</option>
-                <option value="lan-http">Local LAN (HTTP / mDNS)</option>
-                <option value="swarm-node">Enrolled Swarm Companion</option>
+                <option value="bluetooth">Bluetooth</option>
+                <option value="android-adb">Android device</option>
+                <option value="lan-http">This network</option>
+                <option value="swarm-node">One of my connected devices</option>
               </select>
             </label>
           </div>
           <div class="dim" style="gap:8px;flex-wrap:wrap">
-            <label class="schf" for="reg-address" style="flex:1"><span>Bluetooth MAC / LAN IP / Node ID</span><input id="reg-address" class="tin" placeholder="e.g. 00:11:22:33:44:55 or 10.0.0.50" /></label>
+            <label class="schf" for="reg-address" style="flex:1"><span>Its address (Bluetooth or network)</span><input id="reg-address" class="tin" placeholder="e.g. 00:11:22:33:44:55 or 10.0.0.50" /></label>
             <label class="schf" for="reg-room"><span>Room</span><input id="reg-room" class="tin" value="Kitchen" placeholder="Kitchen" /></label>
           </div>
-          <div class="crow"><button type="button" class="btn" onclick="registerCustomLocalDevice()">Register in Swarm</button></div>
+          <div class="crow"><button type="button" class="btn" onclick="registerCustomLocalDevice()">Add device</button></div>
         </div>
       </details>
     </div>
     <div class="subpanel" id="stTokenPanel" hidden>
-      <div class="nm">Direct SmartThings Personal Access Token (No OAuth Redirect Required)</div>
-      <div class="dim">If you haven't created a Samsung developer OAuth app redirect, generate a Personal Access Token at <strong>account.smartthings.com/tokens</strong> (select Devices, Scenes, and Locations scopes) and paste it below.</div>
-      <label class="schf" for="st-token-input"><span>Personal Access Token</span><input id="st-token-input" type="password" class="tin" placeholder="Paste SmartThings Personal Access Token (UUID)…" /></label>
-      <div class="crow"><button type="button" class="btn" onclick="saveDirectSmartThingsToken()">Save Token &amp; Load Devices</button></div>
+      <div class="nm">SmartThings token</div>
+      <div class="dim">If Connect SmartThings does not work for you, make a token at <strong>account.smartthings.com/tokens</strong> with Devices, Scenes and Locations ticked, and paste it here.</div>
+      <label class="schf" for="st-token-input"><span>Token</span><input id="st-token-input" type="password" class="tin" placeholder="Paste the token" /></label>
+      <div class="crow"><button type="button" class="btn" onclick="saveDirectSmartThingsToken()">Save and read my devices</button></div>
     </div>
-    <p class="dim">After connecting or registering a device, press Refresh to read your devices.</p>
+    <p class="dim">After connecting or adding a device, press Refresh to read your devices.</p>
   </section>
 
   <div class="dash-only">
+  <div id="homeView">
+    <div class="tgroup" id="grp-kitchen" hidden><div class="sectitle">Kitchen and appliances</div><div class="tiles" id="tiles-kitchen"></div></div>
+    <div class="tgroup" id="grp-tv" hidden><div class="sectitle">TVs and streaming</div><div class="tiles" id="tiles-tv"></div></div>
+    <section id="devicesSection" hidden>
+    <div class="sectitle">Lights, plugs and more</div>
+    <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+    </section>
+    <div class="tgroup" id="grp-phones" hidden><div class="sectitle">Phones and tablets</div><div class="tiles" id="tiles-phones"></div></div>
+    <div class="tgroup" id="grp-computers" hidden><div class="sectitle">Computers</div><div class="tiles" id="tiles-computers"></div></div>
+    <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
+    <div class="scenes" id="scenes"></div>
+    <p class="home-foot" id="homeFoot" hidden>
+      <button type="button" class="lnk" id="openConnections">Connections</button>
+      <button type="button" class="lnk" data-open="help">Help and notes</button>
+    </p>
+  </div>
+
+  <div class="subpage" id="page-fridge" hidden>
+  <div class="pagebar"><button type="button" class="btn" data-page-back>‹ Smart Home</button><h2>Refrigerator</h2></div>
   <section id="fridgeCameraSection" hidden>
-  <div class="sectitle">Samsung Family Hub Refrigerator — View Inside, Weekly Assessment &amp; Meal Planner</div>
   <div class="card" style="gap:12px">
     <div class="crow" style="flex-wrap:wrap">
-      <span class="nm">Family Hub View Inside (3 Optical Camera Bays)</span>
-      <span class="pill on" id="fridgeTempCooler">Cooler: 37°F · Closed</span>
-      <span class="pill on" id="fridgeTempFreezer">Freezer: 0°F · Closed</span>
-      <span class="pill ok" id="fridgeWeeklySchedBadge">Weekly Assessment: Sunday 09:00 · Active (phone-control + SmartThings)</span>
-      <span class="spacer"></span>
-      <button type="button" class="btn" id="refreshFridgeCamBtn" onclick="refreshFridgeCamera()">📸 Refresh View Inside Camera</button>
-      <button type="button" class="btn" id="runFridgeAssessmentBtn" onclick="runFridgeAssessmentNow()">📊 Run Weekly Assessment Now</button>
-      <button type="button" class="btn" id="startFridgeCartBtn" onclick="startFridgeCart()">🛒 Start Grocery Cart</button>
+      <span class="pill on" id="fridgeTempCooler" hidden></span>
+      <span class="pill on" id="fridgeTempFreezer" hidden></span>
+      <span class="pill" id="fridgeTempNone">Temperature not read yet</span>
+      <span class="pill ok" id="fridgeWeeklySchedBadge">Checked every Sunday 09:00</span>
+    </div>
+    <div class="fridge-actions">
+      <button type="button" class="btn" id="readViewInsideBtn" onclick="loadFridgeViewInside(true)">Look inside</button>
+      <button type="button" class="btn" id="refreshFridgeCamBtn" onclick="refreshFridgeCamera()">Take new photos</button>
+      <button type="button" class="btn" id="runFridgeAssessmentBtn" onclick="runFridgeAssessmentNow()">Check what is inside now</button>
+      <button type="button" class="btn" id="startFridgeCartBtn" onclick="startFridgeCart()">Start a grocery list</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--panel2)">
-          <img id="fridgeCamImg" src="/api/home/fridge-image" alt="Samsung Family Hub View Inside Refrigerator Snapshot" style="display:block;width:100%;max-height:520px;object-fit:contain" loading="lazy" />
+          <img id="fridgeCamImg" src="/api/home/fridge-image" alt="Inside the refrigerator" style="display:block;width:100%;max-height:520px;object-fit:contain" loading="lazy" />
         </div>
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
-          <div class="nm" style="margin-bottom:6px">3-Shelf Optical Inventory (This Week)</div>
+          <div class="crow" style="margin-bottom:6px">
+            <span class="nm">Inside photos</span>
+            <span class="pill ok" id="fridgeViewInsideBadge" hidden></span>
+          </div>
+          <div id="fridgeViewInsideGallery" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:12px;color:var(--muted)"></div>
+        </div>
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="nm" style="margin-bottom:6px">On the shelves this week</div>
           <div id="fridgeShelfInventory" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--muted)"></div>
         </div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
-          <div class="nm" style="margin-bottom:4px">Week-over-Week Comparison (This Week vs. Last Week &amp; Orders)</div>
+          <div class="nm" style="margin-bottom:4px">Compared with last week</div>
           <div id="fridgeComparisonSummary" class="dim" style="margin-bottom:8px"></div>
           <div id="fridgeComparisonLists" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
         </div>
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
           <div class="crow" style="margin-bottom:6px">
-            <span class="nm">Recommended Grocery Cart</span>
-            <span class="pill ok" id="fridgeCartStatusBadge">Recommended</span>
+            <span class="nm">Grocery list</span>
+            <span class="pill ok" id="fridgeCartStatusBadge">Suggested</span>
           </div>
           <div id="fridgeCartItems" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
           <div class="crow" style="margin-top:8px">
-            <label class="schf" for="fridge-cart-add-input" style="flex:1"><span>Add item to cart</span><input id="fridge-cart-add-input" class="tin" placeholder="e.g. Avocado Oil or Sparkling Water" /></label>
-            <button type="button" class="btn" onclick="addFridgeCartItem()">+ Add Item</button>
+            <label class="schf" for="fridge-cart-add-input" style="flex:1"><span>Add an item</span><input id="fridge-cart-add-input" class="tin" placeholder="e.g. Avocado Oil or Sparkling Water" /></label>
+            <button type="button" class="btn" onclick="addFridgeCartItem()">Add</button>
           </div>
         </div>
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
           <div class="crow" style="margin-bottom:6px;flex-wrap:wrap">
-            <span class="nm">Weekly Meal List (From Fridge + Ordered Staples)</span>
+            <span class="nm">Meal ideas</span>
             <span class="spacer"></span>
             <label class="schf" for="fridge-meal-focus" style="flex-direction:row;align-items:center;gap:6px"><span>Focus</span>
               <select id="fridge-meal-focus" class="sel" onchange="rebuildFridgeMealList()">
-                <option value="use-first">Eat-First Fresh Priority</option>
-                <option value="high-protein">High-Protein</option>
-                <option value="quick-prep">Quick 10-Min Prep</option>
+                <option value="use-first">Use what spoils first</option>
+                <option value="high-protein">High protein</option>
+                <option value="quick-prep">Ready in 10 minutes</option>
               </select>
             </label>
           </div>
@@ -353,14 +407,11 @@
     </div>
   </div>
   </section>
+  </div>
 
-  <section id="devicesSection" hidden>
-  <div class="sectitle">Devices</div>
-  <div class="grid" id="grid"><div class="empty">Loading…</div></div>
-  </section>
-
+  <div class="subpage" id="page-tvs" hidden>
+  <div class="pagebar"><button type="button" class="btn" data-page-back>‹ Smart Home</button><h2 id="tv-title">TVs and streaming</h2></div>
   <section id="tvSection" hidden aria-labelledby="tv-title">
-  <div class="sectitle" id="tv-title">TVs and streaming sticks</div>
   <div class="card tv-scan">
     <label class="schf" id="tvComputerLabel" for="tvComputer" hidden><span>Computer that looks for them</span><select id="tvComputer" class="sel"></select></label>
     <p class="tv-note" id="tvComputerHelp" hidden></p>
@@ -372,31 +423,31 @@
   <p class="empty" id="tvEmpty">No TVs saved yet. Press Scan for TVs.</p>
   <div class="grid" id="tvList"></div>
   </section>
+  </div>
 
-  <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
-  <div class="scenes" id="scenes"></div>
-
+  <div class="subpage" id="page-help" hidden>
+  <div class="pagebar"><button type="button" class="btn" data-page-back>‹ Smart Home</button><h2>Help and notes</h2></div>
   <section id="runbookSection" hidden>
-  <div class="sectitle">Operations Guide &amp; Runbook <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— SmartThings API, refrigerator camera &amp; discovered capabilities</span></div>
   <div class="card" style="gap:10px">
     <div class="crow">
-      <span class="nm">Smart Home Operations Guide</span>
-      <button type="button" class="btn" id="inspectAllBtn" onclick="inspectDevicesLive()">↻ Inspect SmartThings Capabilities</button>
+      <span class="nm">How Smart Home works with your devices</span>
+      <button type="button" class="btn" id="inspectAllBtn" onclick="inspectDevicesLive()">Read again what my devices can do</button>
     </div>
     <div id="runbookPlaybooks" style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:20px;color:var(--muted)"></div>
     <div id="runbookDiscovered" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--muted)"></div>
     <div id="runbookEntries" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--text)"></div>
     <details style="margin-top:4px">
-      <summary class="lnk" style="min-height:36px">+ Add or update runbook note for Jarvis &amp; Smart Home</summary>
+      <summary class="lnk" style="min-height:36px">+ Add a note for Jarvis</summary>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-        <label class="schf" for="rb-title"><span>Note title</span><input id="rb-title" class="tin" placeholder="e.g. Family Hub Fridge Camera Note" /></label>
+        <label class="schf" for="rb-title"><span>Note title</span><input id="rb-title" class="tin" placeholder="e.g. The refrigerator camera" /></label>
         <label class="schf" for="rb-device"><span>Device (optional)</span><input id="rb-device" class="tin" placeholder="e.g. refrigerator" /></label>
-        <label class="schf" for="rb-content"><span>Operational note / API finding</span><textarea id="rb-content" class="tin" rows="3" placeholder="Document device capabilities, SmartThings API behavior, or instructions for Jarvis…"></textarea></label>
-        <div class="crow"><button type="button" class="btn" id="saveRunbookNoteBtn" onclick="saveRunbookNote()">Save to Operations Guide</button></div>
+        <label class="schf" for="rb-content"><span>Note</span><textarea id="rb-content" class="tin" rows="3" placeholder="What Jarvis should know about this device"></textarea></label>
+        <div class="crow"><button type="button" class="btn" id="saveRunbookNoteBtn" onclick="saveRunbookNote()">Save note</button></div>
       </div>
     </details>
   </div>
   </section>
+  </div>
 
   <section id="schedSection" hidden>
   <div class="sectitle">Schedules <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— timers (also on the Calendar)</span></div>
@@ -450,7 +501,7 @@ function isLocalSwarm(d) { return (d.sources || []).some((s) => s.hub === 'swarm
 function isNetworkTvDevice(d) { return isLocalSwarm(d) && (d.protocol === 'lan-tv' || /(^|[^a-z])(tv|television|display|roku|streaming|chromecast|fire ?stick)([^a-z]|$)/i.test(String(d.category || ''))); }
 function cardHtml(d) {
   const on = isOn(d);
-  const localBadge = isLocalSwarm(d) ? ` <span class="pill ok" title="Direct Swarm ${esc(d.protocol || 'local')} ($0 API)">Swarm · ${esc(d.protocol || 'local')}</span>` : '';
+  const localBadge = isLocalSwarm(d) ? ' <span class="pill ok">On this network</span>' : '';
   const tempBadge = d.temperatureF != null ? ` <span class="pill">${esc(d.temperatureF)}°F</span>` : '';
   const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50" aria-label="Brightness for ${esc(deviceName(d))}"
       onchange="setLevel('${d.key}', this.value)" /><span class="lvl" id="lvl-${d.key}">50%</span></div>` : '';
@@ -467,21 +518,30 @@ function cardHtml(d) {
 async function loadDevices() {
   const data = await api('/devices');
   DEVICES = data.devices || []; DEVICES_LOADED = true;
-  $('count').textContent = DEVICES.length ? `${DEVICES.length} devices${data.hubs && data.hubs.length ? ' · ' + data.hubs.join(', ') : ''}` : '';
-  $('grid').innerHTML = DEVICES.map(cardHtml).join('');
+  $('count').textContent = DEVICES.length ? `${DEVICES.length} device${DEVICES.length === 1 ? '' : 's'}` : '';
+  $('grid').innerHTML = DEVICES.filter(isPlainDevice).map(cardHtml).join('');
+  renderTiles();
   buildWhatOptions();
   renderHubsReporting(data.hubs || [], DEVICES.length, data.generatedAt);
   layout();
 }
 
-function hasFridgeDevice() {
-  return DEVICES.some((d) => /refrigerat|fridge|family\s*hub/i.test(deviceName(d)) || (d.capabilities || []).some((c) => /viewInside|refrigeration|fridgeMode/i.test(c)));
+function isFridgeDevice(d) {
+  return /refrigerat|fridge|family\s*hub/i.test(deviceName(d)) || (d.capabilities || []).some((c) => /viewInside|refrigeration|fridgeMode/i.test(c));
 }
+function hasFridgeDevice() { return DEVICES.some(isFridgeDevice); }
+/** A device shown as a switch card: everything that has no tile and page of its own. */
+function isPlainDevice(d) { return !isFridgeDevice(d) && !isNetworkTvDevice(d); }
 function renderFridgeComparisonAndShelves(a) {
-  if ($('fridgeTempCooler') && a.telemetry) $('fridgeTempCooler').textContent = `Cooler: ${a.telemetry.coolerTempF}°F · Closed`;
-  if ($('fridgeTempFreezer') && a.telemetry) $('fridgeTempFreezer').textContent = `Freezer: ${a.telemetry.freezerTempF}°F · Closed`;
+  // A temperature is shown only when the hub reported it to a run (telemetry.measuredAt); until then the two numbers in
+  // the state are placeholders, and the page used to show them as readings (1.6.1).
+  const read = Boolean(a && a.telemetry && a.telemetry.measuredAt);
+  FRIDGE_TELEMETRY = read ? a.telemetry : null; renderTiles();
+  if ($('fridgeTempCooler')) { $('fridgeTempCooler').hidden = !read; $('fridgeTempCooler').textContent = read ? `Fridge ${a.telemetry.coolerTempF}°F` : ''; }
+  if ($('fridgeTempFreezer')) { $('fridgeTempFreezer').hidden = !read; $('fridgeTempFreezer').textContent = read ? `Freezer ${a.telemetry.freezerTempF}°F` : ''; }
+  if ($('fridgeTempNone')) $('fridgeTempNone').hidden = read;
   if ($('fridgeWeeklySchedBadge') && a.weeklySchedule) {
-    $('fridgeWeeklySchedBadge').textContent = `Weekly Assessment: ${a.weeklySchedule.dayOfWeek} ${a.weeklySchedule.time} · ${a.weeklySchedule.enabled ? 'Active' : 'Paused'}`;
+    $('fridgeWeeklySchedBadge').textContent = a.weeklySchedule.enabled ? `Checked every ${a.weeklySchedule.dayOfWeek} ${a.weeklySchedule.time}` : 'Weekly check is paused';
   }
   const items = (a.currentSnapshot && a.currentSnapshot.items) || [];
   if ($('fridgeShelfInventory')) {
@@ -510,7 +570,7 @@ function renderFridgeAssessment(a) {
   renderFridgeComparisonAndShelves(a);
   const cart = a.cart || { items: [], status: 'recommended', activeItemCount: 0 };
   if ($('fridgeCartStatusBadge')) {
-    $('fridgeCartStatusBadge').textContent = `${cart.status === 'active' ? 'Cart Started' : 'Recommended'} · ${cart.activeItemCount || 0} items`;
+    $('fridgeCartStatusBadge').textContent = `${cart.status === 'active' ? 'Started' : 'Suggested'} · ${cart.activeItemCount || 0} items`;
   }
   if ($('fridgeCartItems')) {
     $('fridgeCartItems').innerHTML = (cart.items || []).map((c) =>
@@ -535,33 +595,61 @@ function renderFridgeAssessment(a) {
     ).join('');
   }
 }
+async function loadFridgeViewInside(notify) {
+  const b = $('readViewInsideBtn');
+  if (b && notify) { b.disabled = true; b.textContent = 'Looking…'; }
+  try {
+    const v = await api('/view-inside?device=refrigerator');
+    const gallery = $('fridgeViewInsideGallery');
+    if ($('fridgeViewInsideBadge') && v.lastUpdatedTime) {
+      $('fridgeViewInsideBadge').textContent = `${v.imageCount || (v.images || []).length} photos`; $('fridgeViewInsideBadge').hidden = false;
+    }
+    if (gallery && Array.isArray(v.images)) {
+      gallery.innerHTML = v.images.map((img) =>
+        `<div style="border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg)">
+          <img src="${esc(img.imageUrl)}" alt="${esc(img.bay || img.fileId)}" style="display:block;width:100%;height:110px;object-fit:cover" loading="lazy" />
+          <div style="padding:6px 8px">
+            <div style="font-weight:600;color:var(--text)">${esc(img.bay || img.focusArea || img.fileId)}</div>
+            <div class="dim">fileId: ${esc(img.fileId)} · focus: ${esc(img.focusArea || 'main')}</div>
+          </div>
+        </div>`
+      ).join('');
+    }
+    if (notify) toast('Photos loaded');
+  } catch (e) {
+    if (notify) toast('The photos could not be read: ' + e.message);
+  } finally {
+    if (b && notify) { b.disabled = false; b.textContent = 'Look inside'; }
+  }
+}
 async function loadFridgeAssessment() {
   try {
     const a = await api('/fridge-assessment');
     renderFridgeAssessment(a);
   } catch (e) { /* optional in synthetic fixtures */ }
+  loadFridgeViewInside(false);
 }
 async function runFridgeAssessmentNow() {
   const b = $('runFridgeAssessmentBtn');
-  if (b) { b.disabled = true; b.textContent = '📊 Assessing…'; }
+  if (b) { b.disabled = true; b.textContent = 'Checking…'; }
   try {
     const focus = ($('fridge-meal-focus') && $('fridge-meal-focus').value) || 'use-first';
     const a = await api('/fridge-assessment', { focus }, 'POST');
     renderFridgeAssessment(a);
-    toast('Weekly refrigerator assessment & meal plan updated');
+    toast('The list and meal ideas are up to date');
   } catch (e) {
-    toast('Assessment failed: ' + e.message);
+    toast('The check failed: ' + e.message);
   } finally {
-    if (b) { b.disabled = false; b.textContent = '📊 Run Weekly Assessment Now'; }
+    if (b) { b.disabled = false; b.textContent = 'Check what is inside now'; }
   }
 }
 async function startFridgeCart() {
   try {
     const a = await api('/fridge-meal-plan', { action: 'start-cart' }, 'POST');
     renderFridgeAssessment(a);
-    toast('Grocery cart started with recommended restock items');
+    toast('Grocery list started with what is running low');
   } catch (e) {
-    toast('Cart failed: ' + e.message);
+    toast('The list could not be started: ' + e.message);
   }
 }
 async function toggleFridgeCartItem(id) {
@@ -580,7 +668,7 @@ async function addFridgeCartItem() {
     const a = await api('/fridge-meal-plan', { action: 'add-cart-item', name }, 'POST');
     if (inp) inp.value = '';
     renderFridgeAssessment(a);
-    toast('Added ' + name + ' to grocery cart');
+    toast('Added ' + name);
   } catch (e) {
     toast('Failed: ' + e.message);
   }
@@ -590,24 +678,24 @@ async function rebuildFridgeMealList() {
   try {
     const a = await api('/fridge-meal-plan', { action: 'build-meal-list', focus }, 'POST');
     renderFridgeAssessment(a);
-    toast('Rebuilt meal list (' + focus + ')');
+    toast('Meal ideas updated');
   } catch (e) {
     toast('Failed: ' + e.message);
   }
 }
 async function refreshFridgeCamera() {
   const b = $('refreshFridgeCamBtn');
-  if (b) { b.disabled = true; b.textContent = '📸 Refreshing Cameras…'; }
+  if (b) { b.disabled = true; b.textContent = 'Taking photos…'; }
   try {
     const r = await api('/fridge-refresh', {});
     const img = $('fridgeCamImg');
     if (img && r.imageUrl) img.src = r.imageUrl;
     await loadFridgeAssessment();
-    toast('Refreshed Samsung Family Hub View Inside');
+    toast('New photos taken');
   } catch (e) {
-    toast('Camera refresh: ' + e.message);
+    toast('New photos could not be taken: ' + e.message);
   } finally {
-    if (b) { b.disabled = false; b.textContent = '📸 Refresh View Inside Camera'; }
+    if (b) { b.disabled = false; b.textContent = 'Take new photos'; }
   }
 }
 /** What the dashboard shows, by what exists: no device and no scene is one empty state; Schedules need something to run. */
@@ -619,17 +707,19 @@ function layout() {
     $('fridgeCameraSection').hidden = !showFridge;
     if (showFridge && wasHidden) loadFridgeAssessment();
   }
-  $('devicesSection').hidden = AUTOMATIONS_VIEW || devices === 0;
+  $('devicesSection').hidden = AUTOMATIONS_VIEW || !DEVICES.some(isPlainDevice);
   $('schedSection').hidden = !AUTOMATIONS_VIEW || !any;
   $('runbookSection').hidden = AUTOMATIONS_VIEW || (!any && !RUNBOOK_VIEW);
   $('emptyState').hidden = any || RUNBOOK_VIEW || !DEVICES_LOADED;
   $('refresh').hidden = !HUBS_SEEN;
+  if ($('homeFoot')) $('homeFoot').hidden = !DEVICES_LOADED;
 }
 let HUBS_SEEN = false, DEVICES_LOADED = false;
 const RUNBOOK_VIEW = new URLSearchParams(location.search).get('view') === 'runbook';
 /** Show the hub rows (the empty state's Connect a hub, a refused refresh). */
 function showHubs() { $('connectHub').hidden = true; $('hubsPanel').hidden = false; $('hubsPanel').scrollIntoView({ block: 'nearest' }); }
 $('connectHub').onclick = showHubs;
+if ($('openConnections')) $('openConnections').onclick = showHubs;
 /** A refused or failed read, said where the work is, with the fix when there is one. */
 function showAlert(text, withConnect) {
   const box = $('alert');
@@ -648,9 +738,13 @@ if (AUTOMATIONS_VIEW) {
   $('empty-title').textContent = 'No automations yet';
   $('emptyState').querySelector('p').textContent = 'An automation switches a light, a plug or a scene at a time you choose or at sunset. Connect your hub first.';
 }
+/** The name a person knows a hub by. */
+function hubName(hub) {
+  return ({ smartthings: 'SmartThings', 'google-home': 'Google Home', 'swarm-local': 'this network' })[String(hub).toLowerCase()] || String(hub);
+}
 function renderHubsReporting(hubs, deviceCount, readAt) {
   $('hubsReporting').textContent = hubs.length
-    ? 'Reporting devices: ' + hubs.join(', ') + ' (' + deviceCount + ' device' + (deviceCount === 1 ? '' : 's') + ').'
+    ? deviceCount + ' device' + (deviceCount === 1 ? '' : 's') + ' from ' + hubs.map(hubName).join(' and ') + '.'
     : 'No hub has reported devices yet.';
   HUBS_SEEN = hubs.length > 0 || deviceCount > 0;
   const when = readAt ? ' · read ' + new Date(readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -662,7 +756,7 @@ function renderHubsReporting(hubs, deviceCount, readAt) {
   const swarmEl = $('pill-swarm-local');
   if (swarmEl) {
     const hasLocal = hubs.some((h) => /swarm-local/i.test(String(h)));
-    swarmEl.textContent = hasLocal ? 'Connected · $0 API' + when : 'Ready · $0 API';
+    swarmEl.textContent = hasLocal ? 'Connected' + when : 'Ready';
     swarmEl.className = 'pill ok';
   }
 }
@@ -676,12 +770,12 @@ async function loadLocalDiscovery() {
     listEl.innerHTML = candidates.map((c) => {
       const done = c.registered === true;
       return `<div class="hubrow" style="padding:8px 10px">
-        <span class="hub-meta">${esc(c.name)} <span class="pill">${esc(c.protocol)} · ${esc(c.address)}</span></span>
-        <span class="hub-actions">${done ? '<span class="pill ok">Registered</span>' : `<button type="button" class="btn" onclick="registerCandidateById('${esc(c.id)}')">Register</button>`}</span>
+        <span class="hub-meta">${esc(c.name)} <span class="pill">${esc(c.address)}</span></span>
+        <span class="hub-actions">${done ? '<span class="pill ok">Added</span>' : `<button type="button" class="btn" onclick="registerCandidateById('${esc(c.id)}')">Add</button>`}</span>
       </div>`;
     }).join('');
   } catch (e) {
-    listEl.innerHTML = `<div class="dim">Scan unavailable: ${esc(e.message)}</div>`;
+    listEl.innerHTML = `<div class="dim">This network could not be searched: ${esc(e.message)}</div>`;
   }
 }
 
@@ -698,7 +792,7 @@ async function registerCandidateById(id) {
     await loadDevices();
     await loadLocalDiscovery();
     await loadOperationsGuide();
-    toast('Registered in Swarm ($0 API)');
+    toast('Added');
   } catch (e) {
     toast('Failed: ' + e.message);
   }
@@ -730,7 +824,7 @@ async function registerCustomLocalDevice() {
     await loadDevices();
     await loadLocalDiscovery();
     await loadOperationsGuide();
-    toast('Registered ' + name + ' in Swarm');
+    toast('Added ' + name);
   } catch (e) {
     toast('Failed: ' + e.message);
   }
@@ -757,7 +851,7 @@ async function saveDirectSmartThingsToken() {
     if ($('stTokenPanel')) $('stTokenPanel').hidden = true;
     await loadDevices();
     await loadOperationsGuide();
-    toast('SmartThings token saved & devices loaded');
+    toast('Token saved; your devices are read');
   } catch (e) {
     toast('Failed: ' + e.message);
   }
@@ -884,7 +978,7 @@ function renderOperationsGuide(g) {
     `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)"><strong style="color:var(--text)">${esc(p.title)}</strong><div>${esc(p.summary)}</div></div>`
   ).join('');
   $('runbookDiscovered').innerHTML = discovered.length
-    ? `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px"><strong style="color:var(--text)">Discovered Device Capabilities (${discovered.length}):</strong> ` +
+    ? `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px"><strong style="color:var(--text)">What your devices say they can do (${discovered.length}):</strong> ` +
       discovered.map((d) => `${esc(d.name)} <span class="pill">${esc((d.capabilities || []).slice(0, 6).join(', ') || 'indexed')}</span>`).join(' · ') + `</div>`
     : '';
   $('runbookEntries').innerHTML = entries.map((e) =>
@@ -901,15 +995,15 @@ async function loadOperationsGuide() {
 
 async function inspectDevicesLive() {
   const b = $('inspectAllBtn');
-  if (b) { b.disabled = true; b.textContent = '↻ Inspecting…'; }
+  if (b) { b.disabled = true; b.textContent = 'Reading…'; }
   try {
     await api('/device-inspect?device=all');
     await loadOperationsGuide();
-    toast('Capabilities updated in Operations Guide');
+    toast('Read again');
   } catch (e) {
-    toast('Inspect: ' + e.message);
+    toast('Your devices could not be read: ' + e.message);
   } finally {
-    if (b) { b.disabled = false; b.textContent = '↻ Inspect SmartThings Capabilities'; }
+    if (b) { b.disabled = false; b.textContent = 'Read again what my devices can do'; }
   }
 }
 
@@ -925,14 +1019,150 @@ async function saveRunbookNote() {
     if ($('rb-content')) $('rb-content').value = '';
     if (r && r.guide) renderOperationsGuide(r.guide);
     else await loadOperationsGuide();
-    toast('Saved to Operations Guide');
+    toast('Note saved');
   } catch (e) {
     toast('Failed: ' + e.message);
   }
 }
 
+/* ── Home and its pages (1.6.0). Home is tiles in groups: kitchen and appliances, TVs and streaming, the switch
+   cards, phones and tablets, computers. A tile opens the page for that thing; the address keeps the page
+   (#fridge, #tvs, #help), so the phone's Back returns to Home. Roger, 2026-11-10: "Smart home needs a redesign
+   ... connected devices are smart home items, fire sticks are as well". ── */
+const PAGE_IDS = { fridge: 'page-fridge', tvs: 'page-tvs', help: 'page-help' };
+/** Where a phone, TV or computer tile opens: Phone & Device Control when the person has it, else the Devices page. */
+const DEVICE_APP = '/cockpit/?app=phone-control', DEVICES_PAGE = '/devices';
+const ICONS = {
+  fridge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M6 10h12M9 6.5v1.5M9 13v3"/></svg>',
+  tv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+  computer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4.5" width="16" height="11" rx="1.5"/><path d="M2.5 19.5h19"/></svg>',
+  find: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
+};
+let FRIDGE_TELEMETRY = null, SAVED_TVS = [], TV_PAGE_READY = false, CONNECTED = { tvs: [], phones: [], computers: [] }, DEVICE_LINK = DEVICES_PAGE, PAGE_OPENED_HERE = false;
+
+/** The page the address names, or '' for Home. */
+function currentPage() {
+  const name = location.hash.replace(/^#/, '');
+  return PAGE_IDS[name] ? name : (RUNBOOK_VIEW ? 'help' : '');
+}
+/** Show Home or the one open page. */
+function applyPage() {
+  const page = AUTOMATIONS_VIEW ? '' : currentPage();
+  $('homeView').hidden = Boolean(page);
+  for (const [name, id] of Object.entries(PAGE_IDS)) $(id).hidden = name !== page;
+  window.scrollTo(0, 0);
+}
+function openPage(name) {
+  if (!PAGE_IDS[name] || currentPage() === name) return;
+  PAGE_OPENED_HERE = true;
+  location.hash = name;
+}
+/** Back to Home: the browser's own Back when this visit opened the page, so the history stays one step deep. */
+function closePage() {
+  if (PAGE_OPENED_HERE && location.hash) { history.back(); return; }
+  history.replaceState(null, '', location.pathname + location.search);
+  applyPage();
+}
+window.addEventListener('hashchange', applyPage);
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-page-back]')) { closePage(); return; }
+  const opener = event.target.closest('[data-open]');
+  if (!opener) return;
+  if ($('moreWrap')) $('moreWrap').open = false;
+  openPage(opener.dataset.open);
+});
+
+/** One tile: a picture, a name and a line of state. It opens a page here, or the device in Phone & Device Control. */
+function tileHtml(t) {
+  const inner = `${ICONS[t.icon] || ''}<span class="tile-nm">${esc(t.name)}</span><span class="tile-st">${t.on === undefined ? '' : `<span class="dot ${t.on ? 'on' : ''}"></span>`}${esc(t.state || '')}</span>`;
+  return t.href
+    ? `<a class="tile" href="${esc(t.href)}" target="_top" data-kind="${esc(t.icon)}">${inner}</a>`
+    : `<button type="button" class="tile" data-open="${esc(t.open)}" data-kind="${esc(t.icon)}">${inner}</button>`;
+}
+/** What the refrigerator's tile says: both temperatures once the weekly check has them, else what the hub reports. */
+function fridgeWords(d) {
+  if (FRIDGE_TELEMETRY && FRIDGE_TELEMETRY.coolerTempF != null) return `Fridge ${FRIDGE_TELEMETRY.coolerTempF}°F · Freezer ${FRIDGE_TELEMETRY.freezerTempF}°F`;
+  return d.temperatureF != null ? `${d.temperatureF}°F` : 'Look inside, list and meal ideas';
+}
+/** Draw every group from what is known now; a group with nothing in it is not shown. */
+function renderTiles() {
+  if (!$('tiles-kitchen')) return;
+  const kitchen = DEVICES.filter(isFridgeDevice).map((d) => ({ open: 'fridge', icon: 'fridge', name: deviceName(d), state: fridgeWords(d) }));
+  const tvs = [
+    ...SAVED_TVS.map((name) => ({ open: 'tvs', icon: 'tv', name, state: 'Open the remote' })),
+    ...CONNECTED.tvs.map((d) => ({ href: DEVICE_LINK, icon: 'tv', name: d.name, state: d.state, on: d.on })),
+  ];
+  if (TV_PAGE_READY) tvs.push({ open: 'tvs', icon: 'find', name: 'Find TVs', state: 'Look for TVs and streaming sticks on this network' });
+  const phones = CONNECTED.phones.map((d) => ({ href: DEVICE_LINK, icon: 'phone', name: d.name, state: d.state, on: d.on }));
+  const computers = CONNECTED.computers.map((d) => ({ href: DEVICE_LINK, icon: 'computer', name: d.name, state: d.state, on: d.on }));
+  for (const [group, list, tiles] of [['grp-kitchen', 'tiles-kitchen', kitchen], ['grp-tv', 'tiles-tv', tvs], ['grp-phones', 'tiles-phones', phones], ['grp-computers', 'tiles-computers', computers]]) {
+    $(list).innerHTML = tiles.map(tileHtml).join('');
+    $(group).hidden = tiles.length === 0;
+  }
+}
+/** A name two lists can be matched on: lower case, the "(Android)" the device list appends dropped. */
+function nameKey(name) { return String(name || '').toLowerCase().replace(/\(android\)/g, '').replace(/[^a-z0-9]+/g, ''); }
+/**
+ * The person's connected devices as tiles. Their computers, phones and TVs come from the device list
+ * (/api/computers); the phones and TVs paired through a computer come from Phone & Device Control. A device in
+ * both is shown once, from the device list, which knows whether it is connected.
+ */
+function groupConnected(computers, phones, link) {
+  const android = (link && link.isAndroidNode) || ((c) => String(c.platform || '').toLowerCase() === 'android');
+  const tv = (link && link.isTvNode) || ((c) => android(c) && /\b(tv|fire\s*tv|aft\w*)\b/i.test(String(c.name || '')));
+  const out = { tvs: [], phones: [], computers: [] }, seen = new Set();
+  for (const c of computers || []) {
+    const name = String(c.name || 'Device').replace(/\s*\(android\)\s*$/i, '');
+    const programs = Array.isArray(c.bound) ? c.bound.length : 0;
+    const state = c.connected ? (programs && !android(c) ? `Connected · ${programs} program${programs === 1 ? '' : 's'}` : 'Connected') : 'Not connected';
+    (tv(c) ? out.tvs : android(c) ? out.phones : out.computers).push({ name, on: Boolean(c.connected), state });
+    seen.add(nameKey(c.name));
+  }
+  for (const phone of phones || []) {
+    if (seen.has(nameKey(phone.name))) continue;
+    seen.add(nameKey(phone.name));
+    const kind = phone.form === 'tv' ? 'TV' : phone.platform === 'android' ? 'Android' : 'iPhone';
+    (phone.form === 'tv' ? out.tvs : out.phones).push({ name: phone.name || kind, state: `${kind} · paired through a computer` });
+  }
+  return out;
+}
+async function readJson(path) {
+  try { const r = await fetch(path, { credentials: 'include', headers: { Accept: 'application/json' } }); return r.ok ? await r.json() : null; }
+  catch { return null; }
+}
+/**
+ * Read the connected devices; any part that cannot be read leaves its tiles out and the rest of Home as it is.
+ * Phone & Device Control is asked for nothing unless the person can open it (the TV page's own rule, helperAccess).
+ */
+async function loadConnected() {
+  if (HUBS_VIEW || AUTOMATIONS_VIEW) return;
+  const tvPage = await import('/api/home/ui/home-tvs.js').catch(() => null);
+  const usable = Boolean(tvPage && tvPage.helperAccess) && await tvPage.helperAccess(window.fetch.bind(window)) === 'ok';
+  const [link, computers, phones] = await Promise.all([
+    usable ? import('/api/phone-control/ui/computer-link.js').catch(() => null) : null,
+    readJson('/api/computers'),
+    usable ? readJson('/api/phone-control/devices') : null,
+  ]);
+  DEVICE_LINK = usable ? DEVICE_APP : DEVICES_PAGE;
+  CONNECTED = groupConnected((computers && computers.computers) || [], (phones && phones.devices) || [], link);
+  renderTiles();
+}
+/** The TVs and streaming page draws its own cards; Home shows one tile for each of them. */
+function watchSavedTvs() {
+  const list = $('tvList'), section = $('tvSection'); if (!list || !section || typeof MutationObserver !== 'function') return;
+  const read = () => {
+    SAVED_TVS = [...list.querySelectorAll('.tv-card .nm')].map((el) => el.textContent.trim()).filter(Boolean);
+    TV_PAGE_READY = !section.hidden;
+    renderTiles();
+  };
+  new MutationObserver(read).observe(list, { childList: true });
+  new MutationObserver(read).observe(section, { attributes: true, attributeFilter: ['hidden'] });
+  read();
+}
+
 // The full page only: under an audience view the shared kit paints instead (see the head script).
-if (!window.AppView || !AppView.active()) { loadDevices().catch((e) => showAlert('Your devices could not be read just now: ' + e.message, false)); loadScenes(); loadSchedules(); loadOperationsGuide(); }
+if (!window.AppView || !AppView.active()) { applyPage(); watchSavedTvs(); loadDevices().catch((e) => showAlert('Your devices could not be read just now: ' + e.message, false)); loadScenes(); loadSchedules(); loadOperationsGuide(); loadConnected(); }
 </script>
 <!-- TVs and streaming sticks (1.4.0): the section's own module; it mounts only on the Smart Home screen, not on Hubs or Automations. -->
 <script type="module" src="/api/home/ui/home-tvs.js"></script>

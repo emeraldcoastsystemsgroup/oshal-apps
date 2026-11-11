@@ -9,6 +9,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Pin the released group version, 1.1.6.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Approvals, Prepare & submit and Application status are stages of the Job Board (career-hunter 1.48.0), so the group delegates five destinations and the board carries the rest; pin 1.1.8.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band carries Career's Master record (career-hunter 1.51.0), borrowed from the member's own surface.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home, a real member surface that carries the job search box; Search Jobs follows it.
  */
 'use strict';
 const { test } = require('node:test');
@@ -54,23 +56,30 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.9');
-  assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social', 'print-ingest']);
+  assert.equal(group.version, '1.1.11');
+  assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social']);
   for (const surface of ['career-settings', 'career-companies']) {
     const item = group.toolbar.find(item => item.app === 'career-hunter' && item.surface === surface);
     assert.equal(item?.group, 'Configuration', surface);
     assert.equal(item.section, undefined, 'configuration is not confined to the bottom tray');
   }
-  assert.equal(group.setup.length, 7);
+  assert.equal(group.setup.length, 6);
   assert.equal(group.experience, undefined, 'the group keeps its no-code contract; Career Hunter owns the authenticated experience');
 });
 
- test('Career opens on Search Jobs and excludes the global Tickets workbench', () => {
-  assert.equal(group.ribbon.defaultView, 'career-hunter--career-search');
+test('the group manifest does not mention print-ingest', () => {
+  const content = readFileSync(resolve(root, 'oshal-app.yaml'), 'utf8');
+  assert.equal(content.includes('print-ingest'), false, 'no mention of print-ingest should remain');
+});
+
+ test('Career opens on Home, then Search Jobs, and excludes the global Tickets workbench', () => {
+  assert.equal(group.ribbon.defaultView, 'career-hunter--career-home');
   assert.ok(group.ribbon.hideFrameworkItems.includes('tickets'));
-  assert.equal(group.toolbar[0].surface, 'career-search');
+  assert.equal(group.toolbar[0].surface, 'career-home');
+  assert.equal(group.toolbar[0].group, undefined, 'Home leads the bar ungrouped');
+  assert.equal(group.toolbar[1].surface, 'career-search');
   for (const surface of ['career-board','career-submission-activity']) assert.ok(group.toolbar.some(item => item.surface===surface));
   const search = members.get('career-hunter').ui.static.find(item => item.toolName === group.ribbon.defaultView.split('--')[1]);
-  assert.equal(search?.iframeUrl, '/api/career-hunter/search-ui');
+  assert.equal(search?.iframeUrl, '/api/career-hunter/home');
   assert.ok(group.toolbar.some(item => item.app === 'career-hunter' && item.surface === group.ribbon.defaultView.split('--')[1]));
 });

@@ -93,7 +93,20 @@ description: >-
 # 1.7.6: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
 # 1.7.7: tests only. The Test Lab catalog parses again (three case purposes, market-explainer, markets-routes and quant-contract, held an unquoted second colon, so the kernel refused the whole package at install); the audience-view guard expects the Markets load the 1.7.0 tab added to the page's start; the phone-layout proof opens Alerts through More, where the 1.7.5 bottom bar put it. No route, tool, screen or order path changed.
 # 1.7.8: Jarvis routing words (backlog P4-16n): kalshi-quant adds the plural 'prediction markets', because a phrase matches only as written. "Which prediction markets have an edge tonight?" now reaches Kalshi. No route, tool or permission changed.
-version: 1.7.8
+# 1.8.0: THE PREDICTIONS GET GRADED. Nothing on the native kernel graded them (the grader was a command-line script of the
+# retired platform), so the Scorecard stood at graded 0 with 3,430 and 1,395 pending (Roger, 2026-11-10: "Kalshi makes
+# predictions but never follows up on if it got them correct ... I can't find a moat if it's not scoring its calls").
+# routes/kalshi-grade.js reads Kalshi's public results for every prediction past its close, forty markets a lookup, and
+# writes the outcome, our Brier, the market's Brier and one contract at the recorded ask (the retired grader's formulas).
+# No Kalshi account, no order. It runs from the background-scan job on the firings where no scan is due, so the job a
+# person already turned on does it with nothing new to activate, and from the Scorecard tab (GET /grade, POST /grade),
+# which grades what is waiting when it is opened and says where the ledger stands.
+# 1.8.1: grading a large ledger is quick. On production a ledger of 4,800 predictions graded 100 of 4,544 in the first
+# scheduled run, because each prediction was its own write and a write there reads the person's whole table (about 0.4 s).
+# A lookup's markets are now graded by two writes (those that settled YES, those that settled NO), the scores computed in
+# the statement from the row's own columns. The Scorecard says "Not finished" with how far it got when a walk stops
+# early, instead of saying Kalshi has no result for markets it never asked about.
+version: 1.8.1
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant

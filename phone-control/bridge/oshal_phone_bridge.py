@@ -16,6 +16,8 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: version tracks package (device-concierge routing words); no verb changed.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: version tracks package (the page's missing isTvNode import); no verb changed.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer (the person's Allow or Reject for a device waiting to pair with OSHAL-KB) and ble-keep (keep a device that was paired before oshal asked); oshal_phone_ble.py no longer answers or trusts a pairing by itself.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: version only, to stay the package's version (the page installs the matching bridge by itself); nothing in the bridge changed.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: version only, to stay the package's version (the page installs the matching bridge by itself); nothing else here changed.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -29,7 +31,7 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.5.4'
+VERSION = '1.6.1'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py')

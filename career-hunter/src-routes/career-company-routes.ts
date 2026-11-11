@@ -12,6 +12,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The same administrator list carries the latest nightly source review, so the report needs no new route or permission.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Resolve is honest on the native kernel, where request sandboxes mount the corpus read-only: the list says sources cannot be changed here and the route refuses before starting an engine that would die with 'attempt to write a readonly database'.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve works on the native kernel. Where a request cannot write the corpus the route saves the change for the next pull and answers 202; the list says how changes work here and what became of each one. A board named by the source review can be accepted without a link.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: three administrator routes save the change for the next nightly pull, refusing a name already listed, an unusable link, an unlisted employer and a change that is already true.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance on the Companies page: the list carries the newest maintenance report, the decisions waiting for a person and the open repair briefs; POST /companies-admin/keep saves "keep trying" for the next nightly pull, refusing an employer with no decision waiting; POST /companies-admin/maintenance-report answers the daily briefing job.
  */
 
 /**
@@ -26,8 +28,8 @@ import { callerSub, openCorpusDb, userPaths } from './career-user-store';
 import { runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
 import { createCareerToolFileHandler } from './career-surface-routes';
-const { sourceHealthByCompany, latestSourceReview } = require('../lib/career-source-health');
-const { saveChange, sourceChanges, validTarget } = require('../lib/career-source-requests');
+const { sourceHealthByCompany, latestSourceReview, sourceMaintenance, maintenanceBriefing, decisionWaiting, KEEP_TRYING_DAYS } = require('../lib/career-source-health');
+const { saveChange, sourceChanges, validTarget, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING } = require('../lib/career-source-requests');
 
 const logger = createChildLogger({ module: 'career-company-routes' });
 const CAREER_ADMIN_SUBS = new Set(
@@ -156,6 +158,7 @@ function listCompanies(req: Request, res: Response): void {
     res.json({ companies: companies.map((company) => ({ ...company,
       pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
     })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db),
+      sourceMaintenance: sourceMaintenance(db),
       sourceChangeMode: canChangeSources() ? 'now' : 'next-pull', sourceChanges: sourceChanges(db, userPaths(userSub).userDir) });
   } catch (err) {
     logger.error({ err, userSub }, 'company list failed');
@@ -186,6 +189,112 @@ function corpusListsCompany(companyId: number): boolean {
   if (!db) return false;
   try { return !!db.prepare('SELECT 1 FROM corpus.companies WHERE id=?').get(companyId); }
   finally { db.close(); }
+}
+
+type ListedEmployer = { id: number; name: string; discover_status: string | null };
+type EmployerPlan = { status?: number; error?: string; companyId?: number; target?: string; message?: string };
+
+/** The employer the published corpus lists under this id, or null. */
+function corpusCompany(companyId: number): ListedEmployer | null {
+  const db = openCorpusDb();
+  if (!db) return null;
+  try { return (db.prepare('SELECT id, name, discover_status FROM corpus.companies WHERE id=?').get(companyId) as ListedEmployer) ?? null; }
+  finally { db.close(); }
+}
+
+/** An employer already listed under this name, letter case aside. The pull also matches suffixes such as "Inc.". */
+function corpusEmployerNamed(name: string): ListedEmployer | null {
+  const db = openCorpusDb();
+  if (!db) return null;
+  try { return (db.prepare('SELECT id, name, discover_status FROM corpus.companies WHERE lower(name)=lower(?)').get(name) as ListedEmployer) ?? null; }
+  finally { db.close(); }
+}
+
+/** What to queue for Add: the target under the placeholder id, or an answer that refuses it. */
+function addRequest(req: Request): EmployerPlan {
+  const added = addTarget(req.query.name, req.query.url);
+  if (!added) return { status: 400, error: 'An employer name (2 to 120 characters) and its careers page or job board link (http or https) are required.' };
+  const listed = corpusEmployerNamed(added.name);
+  if (listed && listed.discover_status !== 'removed') return { status: 409, error: `${listed.name} is already listed.`, companyId: listed.id };
+  return { companyId: NEW_EMPLOYER, target: added.target, message: `Saved. The next nightly pull adds ${added.name} and reads its jobs.` };
+}
+
+/** Whether source maintenance has a decision waiting for a person on this employer. */
+function corpusDecisionWaiting(companyId: number): boolean {
+  const db = openCorpusDb();
+  if (!db) return false;
+  try { return decisionWaiting(db, companyId); }
+  finally { db.close(); }
+}
+
+/** What to queue for Keep trying, or an answer that refuses it: the employer must be listed and have a decision waiting. */
+function keepRequest(companyId: number, listed: ListedEmployer): EmployerPlan {
+  if (listed.discover_status === 'removed') return { status: 409, error: `${listed.name} is removed.` };
+  if (!corpusDecisionWaiting(companyId)) return { status: 409, error: `${listed.name} has no decision waiting.` };
+  return { companyId, target: KEEP_TRYING,
+    message: `Saved. From the next nightly pull, Career keeps trying ${listed.name} and does not ask about it again for ${KEEP_TRYING_DAYS} days.` };
+}
+
+/** What to queue for Remove, Put back or Keep trying on a listed employer, or an answer that refuses it. */
+function employerRequest(req: Request, kind: 'remove' | 'restore' | 'keep'): EmployerPlan {
+  const companyId = parseInt(String(req.query.companyId ?? ''), 10);
+  if (!companyId || companyId < 1) return { status: 400, error: 'A company is required.' };
+  const listed = corpusCompany(companyId);
+  if (!listed) return { status: 404, error: 'That company is no longer listed.' };
+  if (kind === 'keep') return keepRequest(companyId, listed);
+  const removed = listed.discover_status === 'removed';
+  if (kind === 'remove' && removed) return { status: 409, error: `${listed.name} is already removed.` };
+  if (kind === 'restore' && !removed) return { status: 409, error: `${listed.name} is not removed.` };
+  return kind === 'remove'
+    ? { companyId, target: REMOVE, message: `Saved. The next nightly pull closes the jobs of ${listed.name} and stops reading it.` }
+    : { companyId, target: RESTORE, message: `Saved. The next nightly pull lists ${listed.name} again and reads its jobs.` };
+}
+
+/**
+ * @description Add, Remove, Put back or Keep trying an employer. The change waits in the caller's store for the next nightly
+ * pull, which is the only writer of the shared corpus; the kernel hands it on only for an admission holding `career.administer`.
+ * @param kind - 'add', 'remove', 'restore' or 'keep'.
+ * @returns The route handler.
+ */
+function employerChange(kind: 'add' | 'remove' | 'restore' | 'keep'): RequestHandler {
+  return (req, res) => {
+    const userSub = callerSub(req);
+    if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (canChangeSources()) {
+      res.status(409).json({ ok: false, error: `${kind === 'keep' ? 'Keeping a source' : 'Adding and removing employers'} is applied by the nightly pull, which this installation does not run.` });
+      return;
+    }
+    const plan = kind === 'add' ? addRequest(req) : employerRequest(req, kind);
+    if (plan.status) {
+      logger.info({ kind, status: plan.status }, 'employer change refused');
+      res.status(plan.status).json({ ok: false, error: plan.error, companyId: plan.companyId });
+      return;
+    }
+    const request = saveChange(userPaths(userSub).userDir, plan.companyId, plan.target);
+    logger.info({ kind, companyId: plan.companyId, changeId: request.id }, 'employer change saved for the next pull');
+    res.status(202).json({ ok: true, queued: true, request: { ...request, state: 'waiting', detail: {} }, message: plan.message });
+  };
+}
+
+/**
+ * @description Answers the daily briefing job: what last night's source maintenance left for a person, as the short
+ * items the kernel's schedule report takes. Nothing to tell is an empty list, which publishes no briefing.
+ * @param req - The scheduled call, admitted as an administrator.
+ * @param res - Answers `{ report: [...] }`.
+ * @returns Nothing.
+ */
+function maintenanceReport(req: Request, res: Response): void {
+  const userSub = callerSub(req);
+  const db = userSub && openCorpusDb();
+  if (!db) { res.json({ report: [] }); return; }
+  try {
+    const report = maintenanceBriefing(db);
+    logger.info({ items: report.length }, 'source maintenance briefing answered');
+    res.json({ report });
+  } catch (err) {
+    logger.error({ err, userSub }, 'source maintenance briefing failed');
+    res.status(500).json({ error: 'read failed' });
+  } finally { db.close(); }
 }
 
 async function setCompanyUrl(ctx: AppContext, req: Request, res: Response): Promise<void> {
@@ -230,4 +339,9 @@ export function registerCareerCompanyRoutes(router: Router, ctx: AppContext): vo
   router.post('/companies-admin/seturl', requireCareerAdmin, (req, res) => {
     void setCompanyUrl(ctx, req, res);
   });
+  router.post('/companies-admin/add', requireCareerAdmin, employerChange('add'));
+  router.post('/companies-admin/remove', requireCareerAdmin, employerChange('remove'));
+  router.post('/companies-admin/restore', requireCareerAdmin, employerChange('restore'));
+  router.post('/companies-admin/keep', requireCareerAdmin, employerChange('keep'));
+  router.post('/companies-admin/maintenance-report', requireCareerAdmin, maintenanceReport);
 }

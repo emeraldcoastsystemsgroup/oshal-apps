@@ -18,6 +18,12 @@
   sort / page.
 
   CHANGE LOG
+  52 | maintainer@emeraldcoastsystemsgroup.com | On a phone the search row had two filled buttons, Search and Filters, because the theme fills every button in that row. Filters is outlined, so the one filled button is Search.
+  51 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 5, 7 and 10. Under Career's own frame the strip "Job Board / All openings / Recommended for you" is hidden (the bar and the row under it already go there) and saved searches open from a button that says Saved searches; without the frame, or when the frame's bar came up with no Job Board link in it, the strip is as it was. A computer has one search box: Job title contains, Job description contains and Company moved into Filters, under Advanced. On a phone the first job starts within 320px of the frame: Results per page and Sort moved into the Filters sheet; every job title is a 44px target; the job type reads in words (Full time for fte) beside one 44px link, About this pay estimate, that says which wage survey and month, in a row of their own. Save and Saved replace the star, "Save to Job Board" and "On your Job Board"; the line under the frame no longer says shortlist. Guard: tests/career-search-words.test.mjs.
+  49 | maintainer@emeraldcoastsystemsgroup.com | Add a collapsible filter rail with a Filters toggle button so the column can be minimised to a narrow strip on wide screens.
+  50 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  48 | maintainer@emeraldcoastsystemsgroup.com | Add theme-following scroll-bar rules (thin scrollbar-width, themed thumb/track) so the search page does not fall back to the browser default grey.
+  47 | maintainer@emeraldcoastsystemsgroup.com | Add pressed-state depression and CSS-only busy spinner to Save buttons; guard addToBoard against duplicate saves with a savingJobs Set; render rows busy while a save is in-flight.
   46 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: DS-00..DS-45 contract attributes, overscroll containment, 100dvh geometry, opaque disabled controls, scale radii/typography, and history Back dismissal on Filters and posting sheets.
   45 | maintainer@emeraldcoastsystemsgroup.com | Follow the admitted member-qualified screen for navigation inside the Intelligent Career group.
   44 | maintainer@emeraldcoastsystemsgroup.com | Add reversible Not interested preferences and repeat-listing consolidation; return explicit paging to the top of the search.
@@ -74,6 +80,26 @@ h1{font-size:24px;margin:0 0 2px}
 .railhead b{font-size:14px}
 .clear{background:none;border:0;color:var(--accent);font:inherit;font-size:12px;
        cursor:pointer;padding:0}
+.railhead .rail-toggle{display:inline-flex;align-items:center;gap:4px;
+  min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel);color:var(--ink);font:inherit;font-size:14px;
+  cursor:pointer;white-space:nowrap}
+.railhead .rail-toggle:hover{color:var(--accent);border-color:var(--accent)}
+.railhead .rail-toggle .chevron{display:inline-block;width:12px;height:12px;
+  flex-shrink:0;transition:transform 0.2s ease}
+.railhead .rail-toggle .chevron svg{width:12px;height:12px;display:block}
+.railhead .rail-toggle[aria-expanded="true"] .chevron{transform:rotate(-90deg)}
+.railhead .rail-toggle .filter-count{font-size:12px;color:var(--accent);font-weight:600}
+.railhead .rail-toggle[aria-expanded="false"] .filter-count{margin-left:2px}
+.rail.collapsed>:not(.railhead){display:none!important}
+.rail.collapsed{padding:4px 6px}
+.rail.collapsed .railhead>:not(.rail-toggle){display:none!important}
+.rail.collapsed .railhead{border-bottom:0;padding:2px 0}
+.railhead .rail-toggle[aria-expanded="false"] .chevron{transform:rotate(180deg)}
+.rail.collapsed .railhead .rail-toggle{border:none;background:transparent;padding:6px 8px}
+.rail.collapsed .railhead .rail-toggle:hover{color:var(--accent)}
+.rail.collapsed .railhead .clear{display:none!important}
+.cols.rail-collapsed{grid-template-columns:max-content minmax(0,1fr)!important}
 .clear[disabled]{color:var(--ds-ink-disabled,var(--muted));opacity:1;cursor:default}
 .grp{border-bottom:1px solid var(--line);padding:11px 0}
 .grp:last-child{border-bottom:0}
@@ -115,6 +141,10 @@ details.adv[open] summary::before{content:"\25BE  "}
 .job h2{font-size:15px;margin:0;font-weight:650}
 .job h2 a{color:var(--ink);text-decoration:none}
 .job h2 a:hover{color:var(--accent)}
+.job .job-title{display:flex;align-items:center;width:100%;min-height:44px;border:0;background:none;color:inherit;font:inherit;text-align:left;padding:0;cursor:pointer}
+.job .job-title:hover{color:var(--accent)}
+.job-about{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:4px 0 0}
+.job-about .pay-about{display:inline-flex;align-items:center;min-height:44px;color:var(--accent)}
 .co{color:var(--muted);font-size:14px;margin:3px 0 0}
 .meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:9px 0 0}
 .meta .pay{color:var(--good);font-weight:650}
@@ -124,6 +154,11 @@ details.adv[open] summary::before{content:"\25BE  "}
      min-height:44px;padding:8px 14px;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
 .btn.primary{border-color:var(--accent);color:var(--accent);font-weight:650}
+.btn:active:not(:disabled){transform:translateY(1px);background:color-mix(in srgb,var(--accent) 12%,var(--bg))}
+@keyframes sp{to{transform:rotate(360deg)}}
+.btn[aria-busy="true"]{position:relative;padding-left:28px}
+.btn[aria-busy="true"]::before{content:'';position:absolute;left:8px;top:50%;width:12px;height:12px;margin-top:-6px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+@media(prefers-reduced-motion:reduce){.btn[aria-busy="true"]::before{animation:none;content:'…'}}
 .empty{color:var(--muted);border:1px dashed var(--line);border-radius:14px;
        padding:40px;text-align:center;line-height:1.7}
 .pager{display:flex;gap:9px;justify-content:center;align-items:center;margin:16px 0 0;
@@ -162,6 +197,14 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
 /* UX audit 2026-11-06: one search row, a Filters sheet on a phone, list beside the map on desktop. */
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 #openSearchFilters{display:none}
+#savedSearchOpen{display:none}
+html[data-career-frame] #savedSearchOpen{display:inline-flex}
+html[data-career-frame] .career-view-nav{display:none}
+/* The frame has drawn its bar and the person's profile gave it no Job Board link: the strip is still the way there. */
+html[data-career-frame]:has(.cf-topbar[data-cf-ready]):not(:has(a[data-cf-view="board"])) .career-view-nav{display:flex}
+html[data-career-frame]:has(.cf-topbar[data-cf-ready]):not(:has(a[data-cf-view="board"])) #savedSearchOpen{display:none}
+.view-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rail .career-keyword-fields{grid-template-columns:1fr;margin:0 0 6px}
 .narrow-only{display:none}
 .clear{min-height:44px;padding:0 8px;font-size:14px}
 .pill{min-height:44px;padding:0 14px;font-size:14px}
@@ -181,7 +224,12 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
   #openSearchFilters{display:inline-flex}
   .wide-only{display:none}.narrow-only{display:inline}
   .cols>.rail{display:none}
-  #keywordSearch #adv{display:none}
+  .bar>.view-options{display:none}
+  dialog .view-options{flex-direction:column;align-items:stretch;gap:10px;margin:0 0 6px}
+  dialog .view-options .sortwrap{justify-content:space-between}
+  dialog .view-options select{font-size:16px}
+  html[data-career-frame] .career-intro{display:none}
+  html[data-career-frame]:has(.cf-topbar[data-cf-ready]):not(:has(a[data-cf-view="board"])) .career-intro{display:flex}
   #keywordHint{display:none}
   html[data-search-view="map"] #list, html[data-search-view="map"] #pager{display:none}
   .career-intro .sub{display:none}
@@ -190,16 +238,23 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
   #keywordSearch .career-keyword-row{flex-wrap:wrap;gap:8px}
   #keywordSearch .career-keyword-row input[type="search"]{flex:1 1 100%}
   #keywordSearch .career-keyword-row :is(.ck-primary,#openSearchFilters){flex:1 1 40%;min-height:44px}
-  dialog #adv{display:grid;grid-template-columns:1fr}
+  #keywordSearch .career-keyword-row #openSearchFilters{background:var(--ds-surface-2);color:var(--ds-ink);border-color:var(--ds-line-control)}
   dialog .rail{display:block;position:static;max-height:none;border:0;padding:0;background:none}
 }
+
+ /* ── themed scroll bars (Firefox + WebKit) ─────────────────────────── */
+ html{scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--ink) 34%,transparent) transparent}
+ ::-webkit-scrollbar{width:10px;height:10px}
+ ::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--ink) 34%,transparent);border-radius:5px;border:2px solid transparent;background-clip:content-box}
+ ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--ink) 56%,transparent);border:2px solid transparent;background-clip:content-box}
+ ::-webkit-scrollbar-track{background:transparent}
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
   <header class="career-intro">
-    <div><p class="sub">No résumé needed to search. Save a job to assess its fit and add it to your shortlist.</p></div>
+    <div><p class="sub">No résumé needed to search. Save a job to see how well it fits you.</p></div>
     <nav class="career-view-nav" aria-label="Job search views">
       <a href="/api/career-hunter/board-native" data-career-tool="career-board">Job Board</a>
       <span aria-current="page">All openings</span><a href="/api/career-hunter/search-ui?view=matches" data-career-tool="career-search">Recommended for you</a>
@@ -215,11 +270,6 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
       <button type="button" class="ck-btn" id="openSearchFilters" aria-haspopup="dialog">Filters</button>
     </div>
     <p id="keywordHint">Searches job titles, full descriptions, and employers across all collected openings.</p>
-    <div id="adv" class="career-keyword-fields">
-      <label for="title">Job title contains<input id="title" name="title" type="search" placeholder="e.g. developer or adjunct" /></label>
-      <label for="description">Job description contains<input id="description" name="description" type="search" placeholder="e.g. Python or master's degree" /></label>
-      <label for="company">Company<input id="company" name="company" type="search" placeholder="Employer name" /></label>
-    </div>
   </form>
 
   <section class="saved-searches" id="savedSearchPopup" popover role="dialog" aria-label="Saved searches">
@@ -238,7 +288,7 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
   <div class="cols">
     <!-- ── filter rail ────────────────────────────────────────────────── -->
     <form class="rail" id="rail" autocomplete="off">
-      <div class="railhead"><b>Filters</b>
+      <div class="railhead"><button type="button" class="rail-toggle" id="filtersToggle" aria-expanded="true" aria-controls="rail" title="Show or hide the filters"><span class="chevron"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></span><span class="rail-toggle-label">Filters</span><span class="filter-count" id="filterCount" aria-live="polite"></span></button>
         <button type="button" class="clear" id="clear" disabled>Clear all</button></div>
 
       <div class="grp">
@@ -310,6 +360,15 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
       </div>
 
       </details>
+
+      <details class="adv" id="adv">
+        <summary>Advanced: job title, description, company</summary>
+        <div class="career-keyword-fields">
+          <label for="title">Job title contains<input id="title" name="title" type="search" placeholder="e.g. nurse or supervisor" /></label>
+          <label for="description">Job description contains<input id="description" name="description" type="search" placeholder="e.g. forklift or bachelor's degree" /></label>
+          <label for="company">Company<input id="company" name="company" type="search" placeholder="Employer name" /></label>
+        </div>
+      </details>
     </form>
 
     <!-- ── results ────────────────────────────────────────────────────── -->
@@ -318,6 +377,8 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
         <div class="count" id="count" role="status" aria-live="polite"></div>
         <div class="view-controls" aria-label="Job views"><button type="button" class="btn" id="mapView" aria-pressed="true"><span class="wide-only">Map + list</span><span class="narrow-only">Map</span></button>
           <button type="button" class="btn" id="listView" aria-pressed="false"><span class="wide-only">List only</span><span class="narrow-only">List</span></button></div>
+        <button type="button" class="btn" id="savedSearchOpen" popovertarget="savedSearchPopup">Saved searches</button>
+        <div class="view-options" id="viewOptions">
         <label class="sortwrap" for="per">Results per page
           <select id="per" name="per"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select>
         </label>
@@ -329,6 +390,7 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
             <option value="title">Job title A&ndash;Z</option>
           </select>
         </label>
+        </div>
       </div>
       <div class="chips" id="chips"></div>
       <p id="searchStatus" class="location-note" role="status" hidden></p>
@@ -387,6 +449,7 @@ function pageSize(value){ const n=Number(value); return Number.isInteger(n)&&n>=
 let page = 1;
 let requestController = null, mapLoading = false, mapFailed = false, mapData = null;
 let searchEpoch = 0, viewMode = 'list', memory = null, lastSuccessful = null;
+const savingJobs = new Set();
 const browser = typeof window !== 'undefined';
 function note(id, text){ const node = $(id); if (node) node.textContent = text; }
 function persistLast(value){
@@ -521,26 +584,43 @@ chipsEl.addEventListener('click', e => {
   refilter();
 });
 
+/** The engine's job-type codes (jobtype.classify) in the words a person uses. */
+const JOB_TYPE = { fte: 'Full time', parttime: 'Part time', contract: 'Contract', intern: 'Internship' };
+/**
+ * The row under a job's facts: how the job is worked, and where an estimated pay figure comes from, as one link.
+ * A wage-survey estimate is not the employer's offer, so the link says which survey and which month.
+ */
+function aboutRow(j){
+  const survey = j.salary_estimate?.source === 'BLS OEWS' ? j.salary_estimate : null;
+  const basis = survey ? (survey.occupation ? 'US wages for ' + survey.occupation : 'a US wage survey') + (survey.survey ? ', ' + survey.survey : '') : '';
+  const bits = [
+    j.job_type ? '<span>' + esc(Object.hasOwn(JOB_TYPE, j.job_type) ? JOB_TYPE[j.job_type] : j.job_type) + '</span>' : '',
+    j.remote ? '<span>Remote</span>' : '',
+    survey ? '<a class="pay-about" href="https://www.bls.gov/oes/tables.htm" target="_blank" rel="noopener" title="' + esc((survey.method || '') + ' Source: US Bureau of Labor Statistics.') + '">About this pay estimate: ' + esc(basis) + '</a>' : '',
+  ].filter(Boolean).join('');
+  return bits ? '<div class="job-about">' + bits + '</div>' : '';
+}
+function saveButton(j){
+  if (j.favorite) return '<a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native" title="Open your Job Board">Saved</a>';
+  if (savingJobs.has(j.id)) return '<button class="btn primary" data-save-job="'+esc(j.id)+'" disabled aria-busy="true">Saving…</button>';
+  return '<button class="btn primary" data-save-job="'+esc(j.id)+'">Save</button>';
+}
 function jobCard(j){
   const pay = salary(j);
   const bits = [
     pay ? '<span class="pay">' + esc(pay) + (['heuristic', 'ai_estimated', 'bls_estimated'].includes(j.salary_source) ? ' · estimate' : '') + '</span>' : '<span title="'+esc(j.salary_estimate_unavailable||'Employer pay unavailable')+'">Pay estimate unavailable</span>',
-    j.salary_estimate?.source === 'BLS OEWS' ? '<a href="https://www.bls.gov/oes/tables.htm" target="_blank" rel="noopener" title="'+esc(j.salary_estimate.occupation+' · '+j.salary_estimate.method)+'">BLS '+esc(j.salary_estimate.survey)+' · US national</a>' : '',
     j.location ? '<span>' + esc(j.location) + '</span>' : '',
     typeof j.distance_miles === 'number' ? '<span>' + esc(j.distance_miles.toFixed(1)) + ' mi · approximate</span>' : '',
-    j.remote ? '<span class="tag">remote</span>' : '',
-    j.job_type ? '<span class="tag">' + esc(j.job_type) + '</span>' : '',
     j.posted_date ? '<span>posted ' + esc(String(j.posted_date).slice(0, 10)) + '</span>' : '',
     j.industry ? '<span>' + esc(j.industry) + '</span>' : '',
   ].filter(Boolean).join('');
-  const title = '<button class="job-title" style="border:0;background:none;color:inherit;font:inherit;text-align:left;padding:0;cursor:pointer" data-read-job="'+esc(j.id)+'">'+esc(j.title)+'</button>';
   return '<div class="job" id="job-' + esc(j.id) + '" tabindex="-1">'
-    + '<h2>' + title + '</h2>'
+    + '<h2><button class="job-title" data-read-job="'+esc(j.id)+'">'+esc(j.title)+'</button></h2>'
     + '<p class="co">' + esc(j.company || '') + '</p>'
     + '<div class="meta">' + bits + '</div>'
+    + aboutRow(j)
     + '<div class="acts">'
-    + (j.favorite ? '<a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native">★ On your Job Board</a>'
-      : '<button class="btn primary" data-save-job="'+esc(j.id)+'">★ Save to Job Board</button>')
+    + saveButton(j)
     + (j.url ? '<a class="btn" href="' + esc(j.url) + '" target="_blank" rel="noopener">Employer posting ↗</a>' : '')
     + '<button class="btn" data-job-feedback="'+esc(j.id)+'">Not interested</button>'
     + '<button class="btn" data-company="' + esc(j.company || '') + '">More at this company</button>'
@@ -567,22 +647,28 @@ function wireModalBack(dialog, key){
   return () => { dialog.showModal(); try { history.pushState({ dsSheet: key }, ''); pushed = true; } catch (_) {} };
 }
 
-async function readPosting(id){const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.style.cssText='width:min(850px,calc(100vw - 24px));max-height:85dvh;overflow:auto;padding:24px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink)';dialog.innerHTML='<button class="btn" type="button" style="float:right" data-close>Close posting</button><section role="status">Loading posting…</section>';const openDialog=wireModalBack(dialog,'searchPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);openDialog();try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not retrieve this job’s details.');const {job}=await response.json();const section=dialog.querySelector('section');section.innerHTML='<h2>'+esc(job.title)+'</h2><p>'+esc(job.company)+' · '+esc(job.location||'')+'</p><div style="white-space:pre-wrap;line-height:1.7">'+esc(job.description||'No employer description is available.')+'</div><p class="acts"><button class="btn primary" data-save>★ Save to Job Board</button></p>';section.querySelector('[data-save]').onclick=event=>addToBoard(id,event.currentTarget);}catch(error){dialog.querySelector('section').textContent=error.message;}}
+async function readPosting(id){const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.style.cssText='width:min(850px,calc(100vw - 24px));max-height:85dvh;overflow:auto;padding:24px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink)';dialog.innerHTML='<button class="btn" type="button" style="float:right" data-close>Close posting</button><section role="status">Loading posting…</section>';const openDialog=wireModalBack(dialog,'searchPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);openDialog();try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not retrieve this job’s details.');const {job}=await response.json();const section=dialog.querySelector('section');section.innerHTML='<h2>'+esc(job.title)+'</h2><p>'+esc(job.company)+' · '+esc(job.location||'')+'</p><div style="white-space:pre-wrap;line-height:1.7">'+esc(job.description||'No employer description is available.')+'</div><p class="acts"><button class="btn primary" data-save>Save</button></p>';section.querySelector('[data-save]').onclick=event=>addToBoard(id,event.currentTarget);}catch(error){dialog.querySelector('section').textContent=error.message;}}
 
 async function addToBoard(id,button){
-  button.disabled=true;button.textContent='Saving…';
+  if (savingJobs.has(id)) return;
+  savingJobs.add(id);
+  button.disabled=true;
+  button.setAttribute('aria-busy','true');
+  button.textContent='Saving…';
   try{
     const result=await window.CareerJobActions.save(id);
-    button.textContent='★ Saved to Job Board';
+    button.textContent='Saved';
+    button.removeAttribute('aria-busy');
     const area=button.parentElement;
     const link=document.createElement('a');link.dataset.careerTool='career-board';link.className='btn';link.href='/api/career-hunter/board-native?status=saved&days=';link.textContent='Open Job Board';area.appendChild(link);
     const status=document.createElement('span');status.className='location-note';area.appendChild(status);
     if(result.error){status.textContent='Saved. Scoring could not start: '+result.error;return;}
-    status.textContent='Scoring against your resume…';
+    status.textContent='Scoring against your résumé…';
     window.CareerJobActions.poll(id,result.requestId,job=>{
       status.textContent=!job?'Saved. Check your board for scoring progress.':job.board.phase==='failed'?'Saved. Scoring needs attention: '+window.CareerJobActions.message(job.board.error):'Fit: '+job.ai_fit_score+' · Choose Prepare application on your Job Board when you want documents.';
     });
-  }catch(error){button.disabled=false;button.textContent='Retry adding to Job Board';searchStatus(error.message);}
+  }catch(error){button.disabled=false;button.removeAttribute('aria-busy');button.textContent='Try saving again';searchStatus(error.message);}
+  finally{savingJobs.delete(id);}
 }
 
 function renderCount(data){
@@ -667,16 +753,46 @@ for (let i = 0; i < pills.length; i += 1) {
 $('rail').addEventListener('submit', e => { e.preventDefault(); refilter(); });
 $('keywordSearch').addEventListener('submit', e => { e.preventDefault(); refilter(); });
 $('clear').onclick = () => { fill({}); refilter(); };
-/* Phone: the rail and the Advanced fields live in one Filters sheet while it is open. */
+  // ── filter rail collapse toggle (wide screens only) ──────────────────
+  const toggleBtn = $('filtersToggle');
+  const filterCountEl = $('filterCount');
+  const wideScreen = typeof window !== 'undefined' ? window.matchMedia('(min-width: 821px)') : { matches: true };
+  let collapsed = false;
+  function updateFilterCount(){
+    if (!filterCountEl) return;
+    const c = criteria();
+    let count = 0;
+    FILTERS.forEach(([k]) => { if (c[k]) count++; });
+    if (count > 0) filterCountEl.textContent = ' · ' + count;
+    else filterCountEl.textContent = '';
+  }
+  function applyRail(){
+    const on = Boolean(collapsed && wideScreen && wideScreen.matches);
+    const rail = $('rail'), cols = typeof document.querySelector === 'function' ? document.querySelector('.cols') : null;
+    if (rail && rail.classList) rail.classList.toggle('collapsed', on);
+    if (cols && cols.classList) cols.classList.toggle('rail-collapsed', on);
+    if (toggleBtn && toggleBtn.setAttribute) toggleBtn.setAttribute('aria-expanded', String(!on));
+    updateFilterCount();
+  }
+  function toggleRail(){
+    if (!wideScreen.matches) return;
+    collapsed = !collapsed;
+    applyRail();
+    if (memory) try { localStorage.setItem(memory.key + ':filters-collapsed', String(collapsed)); } catch (_) {}
+    else try { sessionStorage.setItem('career-search:filters-collapsed', String(collapsed)); } catch (_) {}
+  }
+  if (wideScreen && wideScreen.addEventListener) wideScreen.addEventListener('change', applyRail);
+  if (toggleBtn) toggleBtn.addEventListener('click', toggleRail);
+  // ── filter rail collapse toggle (wide screens only) ──────────────────
+
+/* Phone: Results per page, Sort and the rail (Advanced is inside it) live in one Filters sheet while it is open. */
 (function () {
-  const sheet = $('searchSheet'), body = $('searchSheetBody'), rail = $('rail'), adv = $('adv');
+  const sheet = $('searchSheet'), body = $('searchSheetBody'), rail = $('rail'), options = $('viewOptions');
   if (!sheet || !body || !rail || typeof sheet.showModal !== 'function') return;
-  const homes = [[rail, rail.parentNode, rail.nextSibling], [adv, adv.parentNode, adv.nextSibling]];
-  const advanced = document.createElement('details'); advanced.className = 'adv';
-  advanced.innerHTML = '<summary>Advanced: job title, description, company</summary>';
+  const homes = [options, rail].filter(Boolean).map(node => [node, node.parentNode, node.nextSibling]);
   const openSheet = wireModalBack(sheet, 'searchFilters');
-  $('openSearchFilters').addEventListener('click', () => { body.append(rail); advanced.append(adv); body.append(advanced); if ($('jobSearchFilters')) $('jobSearchFilters').open = true; openSheet(); });
-  sheet.addEventListener('close', () => { for (const [node, home, next] of homes) home.insertBefore(node, next && next.parentNode === home ? next : null); advanced.remove(); });
+  $('openSearchFilters').addEventListener('click', () => { for (const [node] of homes) body.append(node); if ($('jobSearchFilters')) $('jobSearchFilters').open = true; openSheet(); });
+  sheet.addEventListener('close', () => { for (const [node, home, next] of homes) home.insertBefore(node, next && next.parentNode === home ? next : null); });
   sheet.addEventListener('click', e => { if (e.target === sheet) sheet.close(); });
   $('sheetDone').addEventListener('click', () => sheet.close());
   $('sheetClear').addEventListener('click', () => { fill({}); refilter(); });
@@ -737,9 +853,14 @@ async function startSearch(){
       } else note('savedSearchStatus', 'Sign in to remember searches for your account in this browser.');
     } catch (_) { note('savedSearchStatus', 'Remembered searches are unavailable in this browser. Search links still work.'); }
   }
+  // Restore the person's collapsed or open filter column before the first search.
+  try {
+    collapsed = (memory ? localStorage.getItem(memory.key + ':filters-collapsed') : sessionStorage.getItem('career-search:filters-collapsed')) === 'true';
+  } catch (_) { collapsed = false; }
   const explicit = FIELDS.some(key => fromUrl[key]) || fromUrl.page || fromUrl.view;
   let position=null;try{if(memory&&!explicit)position=JSON.parse(sessionStorage.getItem(memory.key+':position')||'null');}catch(_){}
   fill(explicit ? fromUrl : (position?.criteria||memory?.last() || fromUrl));
+  applyRail();
   if (!fromUrl.view && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 820px)').matches) showMap('list');
   page = Math.max(1, Number(explicit?fromUrl.page:position?.page) || 1);
   await search();if(position?.scrollY)window.scrollTo({top:position.scrollY,behavior:'instant'});

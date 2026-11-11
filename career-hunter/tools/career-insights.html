@@ -7,6 +7,8 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | A refused read shows its reason instead of zeros. Live 2026-10-12 GET /analytics answered 503 {"detail":"unavailable: package response stalled ...","refused":"store_unavailable"} and the page parsed that body as data, so every figure read 0 and nothing said why.
   3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: period window control (All · 90d · 30d · 7d), friendly labels ('Average pay, fit 70+', 'Remote or no state'), thousands separators everywhere, withhold empty pay tiles and zero-fit badges, link company and state rows to Search Jobs, and align radii/typography to the design standard.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 15: the page drew one funnel that began with a count shared by everyone ("Sourced 225,871") and ran into the person's own steps, with "In-lane roles", "Qualified" and "Promoted" among its labels. It is three parts now. Your search is the person's own counts only, read from GET /jobs/stats: Saved, Prepared, Applied, Interview, Offer; with none of them it says "Save or apply to a job and your progress appears here" with Find jobs. How these jobs fit your résumé holds the numbers that come from the person's own scores, when there are any. The job market Career can see holds the shared numbers, says they are the same for everyone, and carries the period control, which only ever narrowed those. "In-lane roles" reads "Open technology and professional jobs", the engine's own description of that count (engine/jobhunter/lane.py). A read that fails says so in its own part. Guard: tests/career-insights-honest.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="insights-ui" data-ds-category="dashboard" data-ds-first-action="none"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -43,25 +45,38 @@
   .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .n { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .fit { color:var(--accent2); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .note { color:var(--muted); font-size:14px; margin:0 0 12px; }
+  section + section { margin-top:28px; }
+  .top-row h2 { margin:0; }
   .empty { color:var(--muted); font-size:14px; padding:32px 20px; text-align:center; border:1px dashed var(--line); border-radius:14px; }
   ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
-  <div class="top-row">
-    <h1>Insights</h1>
-    <div class="ck-seg" id="periodTabs" role="tablist" aria-label="Insights period">
-      <button type="button" role="tab" data-days="" aria-selected="true">All</button>
-      <button type="button" role="tab" data-days="90" aria-selected="false">90d</button>
-      <button type="button" role="tab" data-days="30" aria-selected="false">30d</button>
-      <button type="button" role="tab" data-days="7" aria-selected="false">7d</button>
-    </div>
+  <h1>Insights</h1>
+  <div id="body" data-ds-work>
+    <section aria-labelledby="ownTitle">
+      <h2 id="ownTitle">Your search</h2>
+      <div id="own"><div class="empty">Loading…</div></div>
+    </section>
+    <section aria-labelledby="marketTitle">
+      <div class="top-row">
+        <h2 id="marketTitle">The job market Career can see</h2>
+        <div class="ck-seg" id="periodTabs" role="tablist" aria-label="Jobs posted in">
+          <button type="button" role="tab" data-days="" aria-selected="true">All time</button>
+          <button type="button" role="tab" data-days="90" aria-selected="false">90 days</button>
+          <button type="button" role="tab" data-days="30" aria-selected="false">30 days</button>
+          <button type="button" role="tab" data-days="7" aria-selected="false">7 days</button>
+        </div>
+      </div>
+      <p class="note">Counts of open technology and professional jobs. They are the same for everyone who uses Career, and they are not your progress.</p>
+      <div id="market"><div class="empty">Loading…</div></div>
+    </section>
   </div>
-  <div id="body" data-ds-work><div class="empty">Loading…</div></div>
 </div>
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script>
@@ -73,47 +88,66 @@ const stateHref=s=>(!s||s==='(remote/\u2014)')?'/api/career-hunter/search-ui?rem
 function statCard(v,l){ return `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`; }
 function funnelRow(lbl,n,max){ const w=max>0?Math.max(4,Math.round(n/max*100)):4; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${fmt(n)}</div></div>`; }
 let activeDays='';
+/** The person's own steps, in order: the count's key in GET /jobs/stats and the word for it. */
+const OWN_STEPS=[['saved','Saved'],['generated','Prepared'],['applied','Applied'],['interview','Interview'],['offer','Offer']];
+const el=id=>document.getElementById(id);
+/** The route's pay bands (career-insights bandOf) with their unit; a band it adds later shows as the route names it. */
+const BAND_WORDS={'<150k':'Under $150k a year','150-200k':'$150k to $200k a year','200-250k':'$200k to $250k a year','250-350k':'$250k to $350k a year','350k+':'$350k a year or more','n/a':'No pay figure'};
 
+/** @description Read one route. @param {string} url @returns {Promise<{ok:boolean,data?:object,why?:string}>} The answer, or why there is none. */
+async function read(url){
+  try {
+    const res=await fetch(url), data=await res.json().catch(()=>({}));
+    return res.ok?{ok:true,data}:{ok:false,why:data.error||data.detail||('HTTP '+res.status)};
+  } catch(e){ return {ok:false,why:e.message}; }
+}
+/** @description Your search: the person's own counts and nothing shared. @param {object} result - read() of /jobs/stats. @returns {string} Markup. */
+function ownHtml(result){
+  if(!result.ok) return '<div class="empty" role="alert">Your own numbers could not be loaded: '+esc(result.why)+'</div>';
+  const stats=result.data||{}, by=Object.fromEntries((stats.byStatus||[]).map(row=>[row.status,Number(row.n)||0]));
+  const steps=OWN_STEPS.map(([key,label])=>[label,key==='saved'?Number(stats.saved)||0:by[key]||0]);
+  const most=Math.max(...steps.map(step=>step[1]));
+  if(most<=0) return '<div class="ck-empty"><h2>Nothing here yet</h2><p>Save or apply to a job and your progress appears here.</p><a class="ck-primary" data-career-tool="career-search" href="/api/career-hunter/search-ui">Find jobs</a></div>';
+  return '<div class="funnel">'+steps.map(step=>funnelRow(step[0],step[1],most)).join('')+'</div>';
+}
+/** @description The numbers that come from the person's own fit scores, when there are any. @param {object} a - GET /analytics. @returns {string} Markup, or ''. */
+function fitHtml(a){
+  const h=a.headline||{}, stats=[];
+  if(Number(h.fit70)>0) stats.push([fmt(h.fit70),'Fit 70 or better']);
+  if(Number(h.fit80)>0) stats.push([fmt(h.fit80),'Fit 80 or better']);
+  if(h.avg_pay_fit70) stats.push([k(h.avg_pay_fit70),'Average pay, fit 70 or better']);
+  const bands=(a.salaryBands||[]).map(b=>`<tr><td><div class="li-static"><span class="nm">${esc(Object.hasOwn(BAND_WORDS,b.band)?BAND_WORDS[b.band]:b.band)}</span><span class="n">${fmt(b.n)}</span></div></td></tr>`).join('');
+  if(!stats.length&&!bands) return '';
+  return `<h2>How these jobs fit your résumé</h2><div class="stats">${stats.map(s=>statCard(s[0],s[1])).join('')}</div>`
+    +(bands?`<h2>Pay of jobs with fit 70 or better</h2><div class="list"><table class="li-table"><tbody>${bands}</tbody></table></div>`:'');
+}
+/** @description The shared numbers: what Career sees in the job market, the same for everyone. @param {object} result - read() of /analytics. @returns {string} Markup. */
+function marketHtml(result){
+  if(!result.ok) return '<div class="empty" role="alert">The job market numbers could not be loaded: '+esc(result.why)+'</div>';
+  const a=result.data||{};
+  if(a.empty) return '<div class="empty">No job data yet.</div>';
+  const h=a.headline||{};
+  const stats=[[fmt(h.inlane),'Open technology and professional jobs'],[fmt(h.fresh7d),'Posted in the last 7 days'],[fmt(h.companies),'Companies hiring']];
+  const co=(a.topCompanies||[]).map(c=>{
+    const fitBadge=Number(c.avg_fit)>0?`<span class="fit">Your fit ${fmt(c.avg_fit)}</span>`:'';
+    const href='/api/career-hunter/search-ui?company='+encodeURIComponent(String(c.company||''));
+    return `<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(href)}"><span class="nm">${esc(c.company||'')}${c.referral?' ⭐':''}</span>${fitBadge}<span class="n">${fmt(c.roles)} jobs</span></a></td></tr>`;
+  }).join('');
+  const st=(a.states||[]).map(s=>`<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(stateHref(s.state))}"><span class="nm">${esc(stateLabel(s.state))}</span><span class="n">${fmt(s.n)}</span></a></td></tr>`).join('');
+  return `<div class="stats">${stats.map(s=>statCard(s[0],s[1])).join('')}</div>
+      <div class="twocol">
+        <div><h2>Companies with the most open jobs</h2><div class="list"><table class="li-table"><tbody>${co||'<tr><td><div class="li-static"><span class="nm">No companies in this period</span></div></td></tr>'}</tbody></table></div></div>
+        <div><h2>Open jobs by state</h2><div class="list"><table class="li-table"><tbody>${st||'<tr><td><div class="li-static"><span class="nm">No jobs posted in this period</span></div></td></tr>'}</tbody></table></div></div>
+      </div>${fitHtml(a)}`;
+}
+/** The person's own counts are read once; the period control only narrows the shared numbers. */
+let ownRead=null;
 async function load(days){
   if(days!==undefined) activeDays=String(days||'');
-  const el=document.getElementById('body');
-  try {
-    const url = activeDays ? '/api/career-hunter/analytics?days='+encodeURIComponent(activeDays) : '/api/career-hunter/analytics';
-    const res = await fetch(url);
-    const a = await res.json().catch(()=>({}));
-    if(!res.ok){
-      const why = a.error || a.detail || ('HTTP '+res.status);
-      el.innerHTML='<div class="empty" role="alert">Insights could not be loaded: '+esc(why)+'</div>'; return;
-    }
-    if(a.empty){ el.innerHTML='<div class="empty">No job data yet.</div>'; return; }
-    const h=a.headline||{}, f=a.funnel||{};
-    const stats=[[fmt(h.inlane),'In-lane roles']];
-    if(Number(h.fit70)>0) stats.push([fmt(h.fit70),'Fit 70+']);
-    if(Number(h.fit80)>0) stats.push([fmt(h.fit80),'Fit 80+']);
-    stats.push([fmt(h.fresh7d),'Posted in 7d']);
-    if(h.avg_pay_fit70) stats.push([k(h.avg_pay_fit70),'Average pay, fit 70+']);
-    stats.push([fmt(h.companies),'Companies']);
-    const fsteps=[['Sourced',f.sourced||0],['Qualified',f.qualified||0],['Résumé',f.generated||0],['Applied',f.applied||0],['Interview',f.interview||0],['Offer',f.offer||0],['Promoted',f.promoted||0]];
-    const fmax=Math.max(...fsteps.map(s=>s[1]),1);
-    const co=(a.topCompanies||[]).map(c=>{
-      const fitBadge=Number(c.avg_fit)>0?`<span class="fit">Fit ${fmt(c.avg_fit)}</span>`:'';
-      const href='/api/career-hunter/search-ui?company='+encodeURIComponent(String(c.company||''));
-      return `<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(href)}"><span class="nm">${esc(c.company||'')}${c.referral?' ⭐':''}</span>${fitBadge}<span class="n">${fmt(c.roles)} roles</span></a></td></tr>`;
-    }).join('');
-    const st=(a.states||[]).map(s=>{
-      const href=stateHref(s.state);
-      return `<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(href)}"><span class="nm">${esc(stateLabel(s.state))}</span><span class="n">${fmt(s.n)}</span></a></td></tr>`;
-    }).join('');
-    const sb=(a.salaryBands||[]).map(b=>`<tr><td><div class="li-static"><span class="nm">${esc(b.band)}</span><span class="n">${fmt(b.n)}</span></div></td></tr>`).join('');
-    el.innerHTML=`
-      <div class="stats">${stats.map(s=>statCard(s[0],s[1])).join('')}</div>
-      <h2>Pipeline funnel</h2><div class="funnel">${fsteps.map(s=>funnelRow(s[0],s[1],fmax)).join('')}</div>
-      <div class="twocol">
-        <div><h2>Top companies (open roles)</h2><div class="list"><table class="li-table"><tbody>${co||'<tr><td><div class="li-static"><span class="nm">No companies in window</span></div></td></tr>'}</tbody></table></div></div>
-        <div><h2>By state</h2><div class="list"><table class="li-table"><tbody>${st||'<tr><td><div class="li-static"><span class="nm">No postings in window</span></div></td></tr>'}</tbody></table></div>
-             ${sb?`<h2>Salary bands (fit 70+)</h2><div class="list"><table class="li-table"><tbody>${sb}</tbody></table></div>`:''}</div>
-      </div>`;
-  } catch(e){ el.innerHTML='<div class="empty" role="alert">Could not load: '+esc(e.message)+'</div>'; }
+  if(!ownRead) ownRead=read('/api/career-hunter/jobs/stats').then(result=>{ el('own').innerHTML=ownHtml(result); });
+  const market=await read(activeDays?'/api/career-hunter/analytics?days='+encodeURIComponent(activeDays):'/api/career-hunter/analytics');
+  el('market').innerHTML=marketHtml(market);
+  await ownRead;
 }
 
 if(typeof document.querySelectorAll==='function'){

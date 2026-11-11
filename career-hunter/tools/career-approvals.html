@@ -8,6 +8,8 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | State that each explicit auto-apply action authorizes the connected worker to click the employer's final Submit button.
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: this is the Job Board's To approve stage now, under the same stage control (career-stages.js), and the old address keeps opening it. "Generate draft candidates" said the opposite of its own subheader and wrote no draft: it is "Add top matches" (it calls /enqueue-drafts, which pulls scored roles). When it adds nothing the page says why in place, "No scored matches yet", with one primary, Find & score jobs (the same POST /run/build the Job Board's onboarding starts). Top is a stepper bounded 1 to 50 as the route clamps it. Each queued role's Approve, Approve + OSHAL and Deny sit in its row menu, and Deny confirms in the page. The 74-word paragraph is one line plus Help. Guard: tests/career-approvals-stage.test.mjs.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 1: a button named after the vendor's own project is gone. A role's menu has one Approve; a tick box, Include my other experience, sits on the Queue card and decides whether that Approve asks for the extra section (the request is the same two shapes as before: oshal false, or true when the box is ticked). The approve route can add only the independent work saved with the person's résumé, which Additional experience lists as its saved-portfolio entry, so the box is offered only while GET /experience-bank lists that entry unarchived, and the line under it names the entry. A role approved that way is badged With other experience. A status the person set themselves says so ("You marked this as applied yourself") instead of naming an operator. Guard: tests/career-approvals-stage.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="approvals"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Approvals</title>
@@ -59,18 +61,23 @@
 .app{position:relative}.app .ck-confirm{flex-basis:100%;margin-top:8px}
 details.help{margin:4px 0 14px;color:var(--ds-ink-2);font-size:14px}details.help>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
 .career-stages{margin:0 0 14px}
+.other-exp{display:flex;align-items:center;gap:10px;min-height:44px;margin:10px 0 0;font-size:15px;cursor:pointer}
+.other-exp[hidden]{display:none}
+.other-exp input{width:22px;height:22px;flex:none}
+.other-exp small{display:block;color:var(--ds-ink-2);font-size:13px;line-height:18px}
 </style>
-</head><body>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 <div class="wrap">
   <div id="careerStages"></div>
   <p class="lede">Your top-scored roles, waiting for your decision. Nothing is written or sent without your click.</p>
-  <details class="help"><summary>Help</summary><p><b>Approve</b> writes a standard résumé and cover letter; <b>Approve + OSHAL</b> adds your open-source and agentic section; <b>Deny</b> dismisses the role. Résumés and cover letters are AI-assisted from the profile you provided: review them before applying. Each later Auto-apply click authorizes one exact task on your connected desktop worker to fill the employer form and click its final Submit button.</p></details>
+  <details class="help"><summary>Help</summary><p><b>Approve</b> writes a résumé and cover letter for that role. When Additional experience holds independent work saved with your résumé, the tick box <b>Include my other experience</b> adds it to the résumé as its own section. <b>Deny</b> removes the role from this list. Résumés and cover letters are AI-assisted from the profile you provided: review them before applying. Each later Auto-apply click authorizes one exact task on your connected desktop worker to fill the employer form and click its final Submit button.</p></details>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
       <div>
         <h2 style="margin-bottom:2px">Queue</h2>
         <div class="hint" style="margin:0">Drafts are generated only when you approve.</div>
+        <label class="other-exp" id="otherExp" hidden><input type="checkbox" id="includeOther"><span>Include my other experience<small id="otherExpHint"></small></span></label>
       </div>
       <div class="row">
         <label class="hint" style="margin:0" for="n">Top</label>
@@ -105,7 +112,7 @@ function render(apps){
     }
     return `<div class="app" data-app="${a.posting_id}">
       <div class="meta">
-        <div class="title">${esc(a.title||'(role)')} ${a.include_oshal?'<span class="badge b-drafted">OSHAL</span>':''}</div>
+        <div class="title">${esc(a.title||'(role)')} ${a.include_oshal?'<span class="badge b-drafted">With other experience</span>':''}</div>
         <div class="co">${esc(a.company||'')}</div>
         ${applicationProofHtml(a.application_proof||a)}
       </div>
@@ -117,7 +124,7 @@ function render(apps){
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 const APPLICATION_PROVENANCE=Object.freeze({
-  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'You marked this as applied yourself. Career has no confirmation that it was sent.'},
   'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
   'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
   unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
@@ -205,7 +212,7 @@ $('#list').addEventListener('click', async (e) => {
   const m = e.target.closest('[data-menu]');
   if(m){ menuFor = m.dataset.menu; const drafted = m.dataset.status === 'drafted';
     menu.innerHTML = (drafted ? '<button type="button" role="menuitem" data-pick="applied">Mark applied manually</button>'
-      : '<button type="button" role="menuitem" data-pick="approve">Approve</button><button type="button" role="menuitem" data-pick="approve-oshal">Approve + OSHAL</button>')
+      : '<button type="button" role="menuitem" data-pick="approve">Approve</button>')
       + '<hr><button type="button" role="menuitem" class="bad" data-pick="deny">Deny…</button>';
     const rect = m.getBoundingClientRect(); menu.style.top = Math.min(rect.bottom + 4, innerHeight - 160) + 'px'; menu.style.left = Math.max(8, rect.right - 210) + 'px';
     if(menu.showPopover) menu.showPopover(); else menu.hidden = false; return; }
@@ -216,15 +223,26 @@ $('#list').addEventListener('click', async (e) => {
 async function run(act, id, b){
   if(b){ b.disabled = true; b.innerHTML='<span class="spin"></span>'; }
   let r;
-  if(act==='approve')        r = await jpost(`${API}/applications/${id}/approve`, { oshal:false });
-  else if(act==='approve-oshal') r = await jpost(`${API}/applications/${id}/approve`, { oshal:true });
+  if(act==='approve')        r = await jpost(`${API}/applications/${id}/approve`, { oshal:includeOtherExperience() });
   else if(act==='applied')   r = await jpost(`${API}/applications/${id}/applied`, {});
   else if(act==='deny')      r = await jpost(`${API}/applications/${id}/deny`, {});
   if(r && r.ok!==false) toast(act==='deny'?'Denied':act==='applied'?'Marked applied manually':'Drafted résumé + cover');
   else toast('Failed: '+((r&&r.error)||'error'));
   load();
 }
-load();
+/* The approve route can add one thing to the résumé it writes: the independent work saved with the person's résumé,
+   which Additional experience lists as its saved-portfolio entry. The tick box is offered only while that entry is
+   listed and not archived; without the read it stays hidden and Approve sends what it always sent. */
+const includeOtherExperience = () => !$('#otherExp').hidden && $('#includeOther').checked;
+async function loadOtherExperience(){
+  try {
+    const res = await fetch(API+'/experience-bank', { cache:'no-store' }); if(!res.ok) return;
+    const entry = ((await res.json()).entries||[]).find(e => e && e.id === 'saved-portfolio' && !e.archived);
+    $('#otherExp').hidden = !entry;
+    if(entry) $('#otherExpHint').textContent = `Adds “${entry.title}” from Additional experience to the résumé as its own section.`;
+  } catch(_) { /* the box stays hidden */ }
+}
+load(); loadOtherExperience();
 CareerStages.counts().then(counts => CareerStages.render($('#careerStages'), 'approve', counts));
 </script>
 </body></html>

@@ -285,6 +285,11 @@
   .cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--dim); border-radius: 4px; padding: 1px 7px; font-size: 10px; cursor: pointer; }
   .cancel-btn:hover { border-color: var(--red); color: var(--red); }
   .explain { color: var(--dim); font-size: 12px; line-height: 1.6; max-width: 760px; margin: 4px 2px; }
+  /* Grading on the Scorecard: where the ledger stands in words, and one button. */
+  .grade-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; font-size: 13px; line-height: 1.5; }
+  .grade-bar span { flex: 1 1 240px; min-width: 0; }
+  .grade-bar button { flex: 0 0 auto; }
+  .grade-bar.bad span { color: var(--amber); }
   dialog { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 0; width: 420px; max-width: 92vw; }
   dialog::backdrop { background: #0008; }
   .dlg-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
@@ -523,6 +528,10 @@
   <section class="tab-panel" data-panel="scorecard" role="tabpanel" hidden>
     <div class="panel" id="score-panel" style="display:none">
       <h2>Forward-test scorecard <span class="meta" style="text-transform:none;font-weight:400">— a strategy may only stake real money once it has BEATEN the market's Brier score on settled predictions</span></h2>
+      <div class="grade-bar" id="grade-bar" hidden>
+        <span id="grade-state" role="status" aria-live="polite"></span>
+        <button type="button" id="grade-now">Grade now</button>
+      </div>
       <div class="tbl-scroll"><table style="width:100%">
         <thead><tr><th>Strategy</th><th>Status</th><th class="num">Graded</th><th class="num">Pending</th><th class="num">Our Brier</th><th class="num">Market Brier</th><th class="num">Hit rate</th><th class="num">P&amp;L/contract</th></tr></thead>
         <tbody id="score-rows"></tbody>
@@ -532,6 +541,7 @@
     <div id="score-empty" class="explain">No strategy has made a prediction yet. Once the scan or the weather model records one, it appears here and is graded at settlement.</div>
     <p class="explain">
       <b>How the gate works.</b> Every hand shown on the Scan tab is recorded as a prediction and graded when the market settles.
+      Grading reads Kalshi's public results, so it runs with or without a Kalshi account: opening this tab grades what is waiting, and the background scan job grades between scans.
       A strategy is <b>UNPROVEN</b> until it has enough settled predictions, then <b>FAILING</b> if its Brier score is no better than the market's — either way its suggested stake is forced to 0%.
       Only a <b>PROVEN</b> strategy (one that beats the market's Brier) is allowed to size a real bet. Optimism has to be earned, not assumed.
     </p>
@@ -698,6 +708,7 @@
     for (var j = 0; j < panels.length; j++) {
       panels[j].hidden = panels[j].getAttribute('data-panel') !== name;
     }
+    if (name === 'scorecard') openScorecard();
   }
   function setBadge(id, text, cls) {
     var el = $(id); if (!el) return;
@@ -773,6 +784,89 @@
     if (anyProven) { dot.className = 'tab-dot show'; dot.style.background = 'var(--green)'; }
     else if (anyFailing) { dot.className = 'tab-dot show'; dot.style.background = 'var(--amber)'; }
     else { dot.className = 'tab-dot'; }
+  }
+  /* ── Grading: the Scorecard scores what is past its close, with or without a Kalshi account. ──
+     The background job grades on the ticks where it does not scan; opening this tab grades what is waiting right
+     away, in short calls so the count moves, and says in words where the ledger stands. */
+  var grading = { running: false, opened: false, checked: 0, graded: 0, markets: 0, failed: 0, error: null, finished: false };
+  function count(v) { return Number(v || 0).toLocaleString('en-US'); }
+  function plural(v, one, many) { return count(v) + ' ' + (Number(v) === 1 ? one : many); }
+  function gradeRequest(method, body) {
+    var init = { method: method, credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+    return fetch('/api/kalshi/grade', init).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) {
+        if (!r.ok) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
+        return j || {};
+      });
+    });
+  }
+  /* Where the ledger stands, in a sentence a person can act on. */
+  function gradingWords(s) {
+    if (grading.running) {
+      return 'Grading: asked Kalshi about ' + count(grading.checked) + ' of ' + plural(grading.markets, 'market', 'markets')
+        + ' · ' + plural(grading.graded, 'prediction', 'predictions') + ' graded so far.';
+    }
+    if (grading.error) return 'Nothing more was graded: ' + grading.error + '. Grade now tries again.';
+    var parts = [];
+    if (grading.finished && grading.graded) parts.push('Graded ' + plural(grading.graded, 'prediction', 'predictions') + ' just now.');
+    if (!s) return parts.join(' ');
+    if (s.due && grading.finished && !grading.whole) {
+      // The walk stopped before the end of the list: say so, never that Kalshi has no result for what was not asked.
+      parts.push('Not finished: asked Kalshi about ' + count(grading.checked) + ' of ' + plural(grading.markets, 'market', 'markets') + '. '
+        + plural(s.due, 'prediction is', 'predictions are') + ' still waiting to be graded. Grade now carries on.');
+    } else if (s.due) {
+      parts.push(grading.finished
+        ? plural(s.due, 'is past its close and Kalshi has not posted its result yet', 'are past their close and Kalshi has not posted their results yet') + '; they are looked up again on the next run.'
+        : plural(s.due, 'prediction is past its close and not graded yet.', 'predictions are past their close and not graded yet.'));
+    } else if (s.graded || s.open) parts.push('Every prediction past its close is graded.');
+    if (s.open) parts.push(plural(s.open, 'is on a market still open.', 'are on markets still open.'));
+    if (grading.failed) parts.push(plural(grading.failed, 'lookup', 'lookups') + ' failed and will be tried again.');
+    return parts.join(' ');
+  }
+  function renderGrading() {
+    var bar = $('grade-bar'), s = state.grading;
+    var words = gradingWords(s);
+    bar.hidden = !words;
+    bar.classList.toggle('bad', !!grading.error && !grading.running);
+    $('grade-state').textContent = words;
+    var button = $('grade-now');
+    button.disabled = grading.running;
+    button.textContent = grading.running ? 'Grading…' : 'Grade now';
+    button.hidden = !grading.running && !grading.error && !(s && s.due);
+  }
+  function gradeAll() {
+    if (grading.running) return Promise.resolve();
+    grading.running = true; grading.checked = 0; grading.graded = 0; grading.markets = 0; grading.failed = 0; grading.error = null; grading.finished = false; grading.whole = false;
+    renderGrading();
+    var calls = 0;
+    function step(after) {
+      return gradeRequest('POST', { after: after }).then(function (b) {
+        var run = b.run || {}; calls += 1;
+        if (calls === 1) grading.markets = run.markets || 0;
+        grading.checked += run.checked || 0; grading.graded += run.graded || 0; grading.failed += run.failedLookups || 0;
+        if (b.summary) state.grading = b.summary;
+        if (run.error) { grading.error = 'Kalshi could not be reached (' + run.error + ')'; return null; }
+        grading.whole = run.done === true;
+        renderGrading();
+        // A call that asked about nothing cannot go further; one hundred and twenty short calls is a quarter of an hour.
+        if (!run.done && run.checked > 0 && calls < 120) return step(run.lastTicker || '');
+        return null;
+      });
+    }
+    return step('').catch(function (e) { grading.error = e.message; }).then(function () {
+      grading.running = false; grading.finished = true;
+      renderGrading();
+      if (grading.graded) load();
+    });
+  }
+  function openScorecard() {
+    if (grading.running) return;
+    gradeRequest('GET').then(function (s) {
+      state.grading = s; renderGrading();
+      // Once per visit, grade what is waiting without being asked; after that the button does it.
+      if (s.due && !grading.opened) { grading.opened = true; gradeAll(); }
+    }).catch(function () { /* the table above still shows the last standing */ });
   }
   /* ── Background-scan freshness: the header line that replaced the 23-second wait. ─────── */
   function ago(seconds) {
@@ -1406,6 +1500,7 @@
   }
   $('refresh').addEventListener('click', load);
   $('scan-now').addEventListener('click', scanNow);
+  $('grade-now').addEventListener('click', gradeAll);
   $('set-save').addEventListener('click', saveSettings);
   $('pf-refresh').addEventListener('click', loadPortfolio);
   $('dlg-confirm').addEventListener('click', submitBet);

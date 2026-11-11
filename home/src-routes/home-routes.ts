@@ -15,23 +15,22 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-17 17:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: GET /api/home/devices reads the bot's per-user device index (home-data :ro) — the cheap read-model for the Smart Home surface. Auth-gated; scoped to the caller's OIDC sub.
- * 2026-06-17 18:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Add the reasoning fast loop + scenes read + surface: POST /assistant (chat → home-bot, brokered SmartThings token, cost auto-tracked), POST /refresh (bot rebuilds the device index — the only writer), GET /scenes (cheap read of bot-owned scenes.json), GET /ui (serve home.html dashboard).
- * 2026-07-19 19:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the home app package (ADR-085 Wave 2). Standard (ctx) factory; the dashboard serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution, the kernel home-schedule branch, sun-times) import via @/ aliases. The home-bot node (container + registries + persona + oshal-smartthings.js + smartthingsToolKit), the home-data volume, and the scheduler's home-control branch stay framework-resident (ADR-093).
- *
- * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
- *
- * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
- * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
- * 2026-10-13 15:10:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
- * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /device-inspect (and GET /devices/:device/capabilities) for live SmartThings capability/status/ViewInside refrigerator camera inspection (./home-device-inspect), and persistent Operations Guide & Runbook routes GET/POST /operations-guide (./home-operations-guide) with auto-discovery logging and /home-summary insight injection.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state and devices on GET /devices when SmartThings is connected, and add zero-API-cost local Swarm device discovery/registration/control (GET/POST /local-discover, POST /devices/register, DELETE /devices/:key) plus direct SmartThings token save (POST /connect-token).
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /fridge-image and POST /fridge-refresh (`samsungce.viewInside` `refreshAll`) to serve and refresh Samsung Family Hub refrigerator interior camera snapshots and telemetry in the Smart Home dashboard.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
+ * 1   | maintainer@emeraldcoastsystemsgroup.com   | Initial: GET /api/home/devices reads the bot's per-user device index (home-data :ro) — the cheap read-model for the Smart Home surface. Auth-gated; scoped to the caller's OIDC sub.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | Add the reasoning fast loop + scenes read + surface: POST /assistant (chat → home-bot, brokered SmartThings token, cost auto-tracked), POST /refresh (bot rebuilds the device index — the only writer), GET /scenes (cheap read of bot-owned scenes.json), GET /ui (serve home.html dashboard).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the home app package (ADR-085 Wave 2). Standard (ctx) factory; the dashboard serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution, the kernel home-schedule branch, sun-times) import via @/ aliases. The home-bot node (container + registries + persona + oshal-smartthings.js + smartthingsToolKit), the home-data volume, and the scheduler's home-control branch stay framework-resident (ADR-093).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com   | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com   | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com   | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
+ * 7   | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
+ * 8   | maintainer@emeraldcoastsystemsgroup.com   | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com   | Add GET /device-inspect (and GET /devices/:device/capabilities) for live SmartThings capability/status/ViewInside refrigerator camera inspection (./home-device-inspect), and persistent Operations Guide & Runbook routes GET/POST /operations-guide (./home-operations-guide) with auto-discovery logging and /home-summary insight injection.
+ * 10  | maintainer@emeraldcoastsystemsgroup.com   | Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state and devices on GET /devices when SmartThings is connected, and add zero-API-cost local Swarm device discovery/registration/control (GET/POST /local-discover, POST /devices/register, DELETE /devices/:key) plus direct SmartThings token save (POST /connect-token).
+ * 11  | maintainer@emeraldcoastsystemsgroup.com   | Add GET /fridge-image and POST /fridge-refresh (`samsungce.viewInside` `refreshAll`) to serve and refresh Samsung Family Hub refrigerator interior camera snapshots and telemetry in the Smart Home dashboard.
+ * 12  | maintainer@emeraldcoastsystemsgroup.com   | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
+ * 13  | maintainer@emeraldcoastsystemsgroup.com   | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
+ * 14  | maintainer@emeraldcoastsystemsgroup.com   | home 1.5.0 (J-6): add schema-bounded read-only SmartThings `samsungce.viewInside` server operation (`GET /api/home/view-inside` and `GET /api/home/view-inside/image/:fileId`) returning interior camera bay metadata and SVG bay previews for the Smart Home app and Jarvis.
  *
  * @module home-routes
  */
@@ -51,7 +50,13 @@ import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { KERNEL_TOKEN, connectionUsable, isNotConnected, kernelEgress, readConnections } from './kernel-egress';
 import { forecast } from './home-weather';
-import { inspectSmartThingsDevices } from './home-device-inspect';
+import {
+  buildLocalViewInsidePayload,
+  inspectSmartThingsDevices,
+  readSmartThingsViewInside,
+  serveViewInsideImage,
+  validateViewInsideDeviceInput,
+} from './home-device-inspect';
 import {
   buildOperationsGuideSummary,
   readOperationsGuide,
@@ -553,6 +558,42 @@ export function createHomeRoutes(ctx: AppContext): Router {
   };
   router.get('/device-inspect', handleDeviceInspect);
   router.get('/devices/:device/capabilities', handleDeviceInspect);
+
+  router.get('/view-inside', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    res.setHeader('Cache-Control', 'no-store');
+    const validated = validateViewInsideDeviceInput(req.query.device || req.query.q);
+    if (!validated.ok) { res.status(400).json({ ok: false, error: 'invalid_device', message: validated.error }); return; }
+    try {
+      const token = await smartThingsToken(ctx, sub);
+      if (!token) {
+        const localFridge = readLocalSwarmDevices(sub).find((d) =>
+          (d.capabilities || []).includes('samsungce.viewInside') || /refrigerator|fridge|family hub/i.test(d.name),
+        );
+        if (localFridge) { res.json(buildLocalViewInsidePayload(localFridge as unknown as Record<string, unknown>, validated.device)); return; }
+        res.status(409).json({ ok: false, error: 'smartthings_not_connected', message: 'SmartThings not connected — connect it on the Hubs tab' });
+        return;
+      }
+      const result = await readSmartThingsViewInside(globalThis.fetch as never, smartThingsHeaders(token), validated.device);
+      res.status(result.ok ? 200 : 404).json(result);
+    } catch (err) {
+      logger.error({ err, sub }, 'home view-inside failed');
+      if (isNotConnected(err)) { res.status(409).json({ ok: false, error: 'smartthings_not_connected', message: 'SmartThings not connected — connect it on the Hubs tab' }); return; }
+      res.status(502).json({ ok: false, error: 'smartthings_unreachable', message: (err as Error).message });
+    }
+  });
+
+  router.get('/view-inside/image/:fileId', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    res.setHeader('Cache-Control', 'no-store');
+    const token = await smartThingsToken(ctx, sub).catch(() => null);
+    const out = await serveViewInsideImage(req.params.fileId, req.query.device, token, token ? smartThingsHeaders(token) : {}, globalThis.fetch as never);
+    if (out.status !== 200) { res.status(out.status).json(out.body); return; }
+    res.setHeader('Content-Type', out.contentType);
+    res.send(out.body);
+  });
 
   router.get('/fridge-image', (req: Request, res: Response) => {
     const sub = callerSub(req);

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The routing the kernel runs on a person's request before any model call, over this store's manifests: candidates, scoring, ranking, claim grading and specialist selection from oshal-kernel crates/api/src/jarvis_routing.rs, and the declared vocabulary from crates/packages/src/persona_routing.rs. Review of PR #823: Eats' six "... place" phrases made the bare word "place" an Eats keyword (the kernel scores every word of a phrase on its own), so with "order" from "order food" Eats tied Intelligent Trades on "Place a buy order for 5 shares of Tesla" and took the model's hand-off of "Place a market order for NVDA". No store test could see it, because the scoring lived only in the kernel. Copied here because the store cannot run the kernel; the kernel's own suite (jarvis_routing_suite_tests.rs, over both stores) stays the authority. Used by scripts/jarvis-routing-words.test.mjs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | J-3 & J-6: include 'view inside' and 'viewinside' in Smart Home's hub/appliance names and phrases so View Inside camera requests claim Smart Home over Camera Ops.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,8 +34,8 @@ const MAX_ENTRY_CHARS = 80;
 const ASSISTANT_BOTS = new Set(['oshal-assistant', 'jarvis', 'bot-oshal-assistant']);
 /** Smart Home (`home`) is also called by its hub and appliance nouns. */
 const HOME_NAMES = ['smartthings', 'smarthings', 'smart home', 'refrigerator', 'refriderator', 'fridge', 'family hub',
-  'appliance', 'thermostat'];
-const HUB_PHRASES = ['smart home', 'family hub', 'home scene', 'fridge camera', 'refrigerator camera', 'smartthings camera'];
+  'appliance', 'thermostat', 'view inside', 'viewinside'];
+const HUB_PHRASES = ['smart home', 'family hub', 'home scene', 'fridge camera', 'refrigerator camera', 'smartthings camera', 'view inside'];
 const HUB_TERMS = ['smartthings', 'smarthings', 'refrigerator', 'refriderator', 'fridge', 'appliance', 'appliances',
   'thermostat', 'viewinside', 'samsung'];
 

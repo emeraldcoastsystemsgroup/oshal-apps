@@ -217,3 +217,19 @@ cases:
     installation: never
     regressionTests:
       - { level: unit, file: tests/home-per-person-storage.test.cjs }
+  - id: home-tiles
+    name: Home is tiles in groups, with the person's connected devices
+    purpose: Open tools/home.html in Chromium at 412 px against scripted reads and drive Home, a tile's page and Back - no hub, computer or TV is contacted.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-tiles.test.cjs] }
+    expected:
+      - The refrigerator, TVs, switch cards, phones and computers show as groups that fit a phone, and no label names a provider key or a capability.
+      - A tile opens its page and Back returns to Home; a phone or computer tile opens Phone & Device Control.
+      - With Phone & Device Control waiting for re-approval it is asked for nothing and the tiles open the Devices page.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Each case closes its browser context; nothing leaves the browser. }
+    limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/browser/home-tiles.test.cjs }

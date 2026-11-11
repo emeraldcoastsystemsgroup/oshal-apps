@@ -24,6 +24,7 @@
  * 19 | maintainer@emeraldcoastsystemsgroup.com   | ADR-149 (1.25.1): register the `career` resource adapter the new authorization catalog names, first thing in the factory, so every catalog-bound request the kernel authorizes (this mount's routes, the tools, the bot, the engine rail) finds it.
  * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  * 21 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: register the read-only Master record page and its data route (career-master-record-routes.ts).
+ * 22 | maintainer@emeraldcoastsystemsgroup.com   | 1.52.0: register local editing export and version-preserving import routes for the master resume (career-local-roundtrip-routes.ts).
  */
 
 /**
@@ -50,6 +51,7 @@ import { registerCareerCompanyRoutes } from './career-company-routes';
 import { registerCareerDigestRoutes } from './career-digest';
 import { registerCareerGuestSeedRoutes } from './career-guest-seed-routes';
 import { registerCareerJobGuide } from './career-job-guide';
+import { registerCareerLocalRoundtripRoutes } from './career-local-roundtrip-routes';
 import { registerCareerMasterRecordRoutes } from './career-master-record-routes';
 import { registerCareerOnboardingRoutes } from './career-onboarding-routes';
 import { registerCareerProfileStudio } from './career-profile-studio-routes';
@@ -95,6 +97,7 @@ function registerExistingFeatureRoutes(router: Router, ctx: AppContext): void {
   registerCareerTitleScoreRoutes(router, ctx);
   registerCareerTargetRoutes(router, ctx);
   registerCareerReadinessRoutes(router);
+  registerCareerLocalRoundtripRoutes(router, ctx);
   registerCareerMasterRecordRoutes(router);
   registerCareerStoryRoutes(router, ctx);
   // ADR-144 guest-seed contract: this app plants its OWN guest demo profile (kernel just calls it).

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 6 (workspace Resume Studio tab at 412 px): the resume select ran past the right edge (right=487 in a 412 viewport, arrow hidden) and the chat placeholder was clipped mid-line. The shipped page, opened in headless Chromium at 412x915 with a long resume name in the select, keeps the select and the page inside the viewport and shows the composer's placeholder whole.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: on a phone the Resume Editor is a sheet opened from "Edit with AI", so the placeholder is measured with it open.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 12: the editor panel is hidden until a résumé exists, which the page's script marks on its body; this layout check serves no script, so it marks one itself before measuring the editor.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for playwright. Run locally:
  *   OSHAL_CORE_DIR=<core checkout> node --test tests/career-resume-studio-phone.spec.mjs
@@ -34,6 +35,7 @@ test('at 412 px the resume select and the page stay inside the viewport, and the
     document.querySelector('#pick').append(o);
     document.querySelector('#pick').value = o.value;
     document.querySelector('#msg').disabled = false;
+    document.body.dataset.resume = 'ready'; // the editor waits for a résumé; the page's script, not served here, marks one
     document.querySelector('.chat').classList.add('open'); // the phone editor is the sheet "Edit with AI" opens
   });
   const m = await tab.evaluate(() => {
@@ -62,7 +64,7 @@ test('the desktop editor Send remains clickable beside the floating shell assist
     <button id="orb" style="position:fixed;right:22px;bottom:22px;width:60px;height:60px;z-index:2147483000">Jarvis</button>`);
   const frame = tab.frames().find(f => f !== tab.mainFrame());
   await frame.setContent(page);
-  await frame.locator('#send').evaluate(button => { button.disabled = false; });
+  await frame.locator('#send').evaluate(button => { document.body.dataset.resume = 'ready'; button.disabled = false; });
   const local = await frame.locator('#send').boundingBox();
   assert.ok(local, 'Send is visible');
   const hit = await tab.evaluate(({ x, y, width, height }) => document.elementFromPoint(x + width / 2, y + height / 2)?.tagName, local);

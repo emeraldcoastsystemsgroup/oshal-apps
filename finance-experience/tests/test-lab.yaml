@@ -1,0 +1,47 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness and the package contract of the Finance entry in the experiences list (1.0.0).
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Finance entry readiness
+    purpose: Read installed package identity without grants, business records or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is finance-experience at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: package-contract
+    name: The Finance entry, its role and where it sends a person
+    purpose: Verify what the kernel requires of an experience (the two capabilities, a version 1 package-local catalog, a signed-in route owning
+      the entry, a role template covering the package and every required application), the kernel's rule that "@app-admin" maps only an
+      application without a catalog (read from the component manifests in this repository), a catalog that grants reading only, and the
+      compiled route answering the hand-off page to the Finance application page, on a local listener and with a kernel-shaped response.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-contract.test.cjs
+    expected:
+      - The member role maps this package, Finance and the three optional sections; each mapped application exists, is active and has no catalog.
+      - Everything a mapped application requires is itself mapped; Finance itself has no catalog.
+      - GET and HEAD /app answer a page with one address, /api/finance/app, and no script; POST answers 404; only an own grant with no fields is admitted.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

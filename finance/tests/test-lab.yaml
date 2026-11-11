@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | brief-figures also expects a sentence left out after "Inc." to go whole, never leaving its tail (sweep 14).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register summary-tool: finance-summary reads the caller's saved aggregate for spending questions through the compiled route.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register overview-layout (UX audit 2026-11-05): the read-only overview, the brief under the tiles, Assets and Liabilities, Linked banks as its own screen.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register finance-app and finance-app-browser (1.5.0): Finance opens as its own application - its own bar, the menu's sections inside the page, and a Home that shows each finance application's summary and the finance jobs with last run, result and next run.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -291,4 +292,57 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: finance-app
+    name: Finance opens as its own application
+    purpose: The manifest opens Finance on the application page (finance-app first and the default view, Money, Trades, World, Markets and
+      the Daily recap after it), the compiled route serves the page at GET /api/finance/app, and the page's own code words a job's
+      schedule, a net worth and a job's name the way a person reads them. The page only reads.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/finance-app.test.cjs
+    expected:
+    - finance-app is the first tool and ribbon.defaultView; the route serves tools/finance-app.html.
+    - The real crons of the finance jobs read as words; text that is not a schedule reads as "On its own schedule".
+    - A stored net worth reads as money with what is owned and owed; the page holds no POST, PUT, PATCH or DELETE.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: finance-app-browser
+    name: The Finance application in a browser, desktop and phone
+    purpose: Open tools/finance-app.html in Chromium with stand-in answers in the shapes the kernel gives (the menu profile, the jobs list,
+      the four home summaries, the signed-in person) - no server, bank, exchange or order. Desktop 1280 x 900, phone 390 x 844, and
+      inside a cockpit-like page.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/browser/finance-app.browser.test.cjs
+    expected:
+    - The bar reads Home, Money, Trades, World, Markets, Recap, More; Home shows every summary's tiles, the finance jobs grouped by application
+      with last run, result, next run and run counts, another application's job left out, and what needs attention first.
+    - A section opens inside the page, the address keeps it across a reload, and More holds Linked banks.
+    - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden.
+    - The page makes GET requests only.
+    - A summary that does not answer is said in words and the other summaries and the jobs still show.
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+      cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 1024
     installation: never

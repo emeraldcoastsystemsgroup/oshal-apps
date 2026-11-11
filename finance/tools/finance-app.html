@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience ... the api and endpoints create processes and the detached ux gives the flexibility to make it look smooth and styled"). This page is the application: its own top bar and phone bar, the sections of Finance's own menu (each shown inside this page), and a Home built from the work that runs for the person: every finance job with what it does, when it last ran, how that went and when it runs next, and each finance application's saved summary. It hides the cockpit's frame when it is opened inside the cockpit, as Little Monsters does. It reads only; nothing is traded, moved or switched on here.
+
+  What it reads (all the caller's own, all GET):
+    /api/ui/profile?name=finance        the sections the person may open (the server filters them)
+    /api/v1/agent/schedules             the person's jobs; the finance ones are shown
+    /api/<app>/home-summary             each finance application's saved summary (finance, trading, kalshi, daily-trade-recap)
+    /api/swarm/roles/me                 the person's name for the chip
+-->
+<html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finance</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<script src="/shared/ui/js/surface-theme.js"></script>
+<style>
+  :root { --fx-bar: 56px; --fx-bottom: 0px; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg-primary, #0b1220); color: var(--text-primary, #e8eef9);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  [hidden] { display: none !important; }
+  a { color: inherit; }
+  .fx-top {
+    flex: 0 0 var(--fx-bar); display: flex; align-items: center; gap: 16px; padding: 0 16px;
+    background: var(--bg-secondary, #111a2c); border-bottom: 1px solid var(--border-color, #22304a);
+  }
+  .fx-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: .01em; white-space: nowrap; }
+  .fx-mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-primary, #2dd4bf); color: var(--text-on-accent, #06221d); }
+  .fx-mark svg { width: 18px; height: 18px; }
+  .fx-nav { flex: 1 1 auto; display: flex; align-items: stretch; gap: 2px; height: 100%; min-width: 0; overflow: hidden; }
+  .fx-tab {
+    appearance: none; border: 0; background: none; color: var(--text-secondary, #a9b6cc); font: inherit; font-weight: 600;
+    padding: 0 14px; height: 100%; cursor: pointer; position: relative; white-space: nowrap; transition: color .15s ease;
+  }
+  .fx-tab:hover { color: var(--text-primary, #e8eef9); }
+  .fx-tab[aria-current="page"] { color: var(--text-primary, #e8eef9); }
+  .fx-tab[aria-current="page"]::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--accent-primary, #2dd4bf);
+  }
+  .fx-tab:focus-visible, .fx-btn:focus-visible, .fx-row:focus-visible { outline: 2px solid var(--accent-primary, #2dd4bf); outline-offset: -2px; }
+  .fx-right { display: flex; align-items: center; gap: 10px; }
+  .fx-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary, #a9b6cc); white-space: nowrap; }
+  .fx-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--bg-tertiary, #1b2740); color: var(--text-primary, #e8eef9); }
+  .fx-more { position: relative; height: 100%; }
+  .fx-more > summary { list-style: none; height: 100%; display: flex; align-items: center; }
+  .fx-more > summary::-webkit-details-marker { display: none; }
+  .fx-menu {
+    position: absolute; right: 0; top: calc(100% + 4px); min-width: 200px; z-index: 20; padding: 6px; border-radius: 12px;
+    background: var(--bg-secondary, #111a2c); border: 1px solid var(--border-color, #22304a); box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .fx-menu .fx-tab { height: 44px; text-align: left; border-radius: 8px; padding: 0 12px; }
+  .fx-menu .fx-tab[aria-current="page"]::after { display: none; }
+  .fx-menu .fx-tab[aria-current="page"] { background: var(--bg-tertiary, #1b2740); }
+
+  .fx-main { flex: 1 1 auto; min-height: 0; position: relative; }
+  .fx-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg-primary, #0b1220); }
+  .fx-home { position: absolute; inset: 0; overflow: auto; padding: 22px 16px calc(28px + var(--fx-bottom)); }
+  .fx-wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  .fx-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .fx-head h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+  .fx-sub { margin: 2px 0 0; color: var(--text-secondary, #a9b6cc); font-size: 14px; }
+  .fx-btn {
+    appearance: none; min-height: 44px; padding: 0 16px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer;
+    background: var(--bg-tertiary, #1b2740); color: var(--text-primary, #e8eef9); border: 1px solid var(--border-color, #22304a);
+  }
+  .fx-btn:hover { border-color: var(--accent-primary, #2dd4bf); }
+  h2.fx-h { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted, #7c8aa3); }
+
+  .fx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .fx-tile {
+    padding: 14px 16px; border-radius: 14px; background: var(--bg-card, var(--bg-secondary, #111a2c)); border: 1px solid var(--border-color, #22304a);
+    display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 92px;
+  }
+  .fx-tile:hover { border-color: var(--accent-primary, #2dd4bf); }
+  .fx-tile small { color: var(--text-muted, #7c8aa3); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .fx-tile strong { font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .fx-tile span { color: var(--text-secondary, #a9b6cc); font-size: 13px; }
+
+  .fx-list { border-radius: 14px; border: 1px solid var(--border-color, #22304a); background: var(--bg-card, var(--bg-secondary, #111a2c)); overflow: hidden; }
+  .fx-row { display: grid; grid-template-columns: 12px minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 16px; min-height: 60px; }
+  .fx-row + .fx-row, .fx-group + .fx-row, .fx-row + .fx-group { border-top: 1px solid var(--border-color, #22304a); }
+  .fx-group { padding: 10px 16px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted, #7c8aa3); background: var(--bg-tertiary, #1b2740); }
+  .fx-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted, #7c8aa3); }
+  .fx-dot.ok { background: var(--status-success, #34d399); }
+  .fx-dot.bad { background: var(--status-error, #f87171); }
+  .fx-dot.off { background: transparent; border: 2px solid var(--text-muted, #7c8aa3); }
+  .fx-what strong { display: block; font-weight: 600; }
+  .fx-what small, .fx-cell small { display: block; color: var(--text-secondary, #a9b6cc); font-size: 13px; }
+  .fx-cell { font-variant-numeric: tabular-nums; font-size: 14px; }
+  .fx-cell b { font-weight: 600; }
+  .fx-note { padding: 12px 16px; display: flex; gap: 10px; align-items: baseline; }
+  .fx-note + .fx-note { border-top: 1px solid var(--border-color, #22304a); }
+  .fx-note .fx-dot { flex: 0 0 10px; align-self: center; }
+  .fx-note small { color: var(--text-secondary, #a9b6cc); display: block; font-size: 13px; }
+  .fx-empty { padding: 18px 16px; color: var(--text-secondary, #a9b6cc); }
+  .fx-skel { height: 60px; background: linear-gradient(90deg, transparent, var(--bg-tertiary, #1b2740), transparent); background-size: 200% 100%; animation: fx-sweep 1.2s linear infinite; }
+  @keyframes fx-sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .fx-skel { animation: none; } }
+
+  .fx-bottom { display: none; }
+  @media (max-width: 720px) {
+    :root { --fx-bottom: 64px; }
+    .fx-nav, .fx-chip span { display: none; }
+    .fx-top { justify-content: space-between; }
+    .fx-bottom {
+      display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; flex: 0 0 var(--fx-bottom);
+      background: var(--bg-secondary, #111a2c); border-top: 1px solid var(--border-color, #22304a); padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .fx-bottom .fx-tab { height: var(--fx-bottom); padding: 0 4px; font-size: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+    .fx-bottom .fx-tab[aria-current="page"]::after { top: 0; bottom: auto; border-radius: 0 0 3px 3px; }
+    .fx-bottom .fx-more > summary { justify-content: center; }
+    .fx-bottom .fx-menu { top: auto; bottom: calc(100% + 4px); }
+    .fx-row { grid-template-columns: 12px minmax(0, 1fr); row-gap: 4px; }
+    .fx-row .fx-cell { grid-column: 2; }
+    .fx-home { padding: 16px 12px calc(20px); }
+    .fx-head h1 { font-size: 21px; }
+  }
+</style>
+</head>
+<body>
+<header class="fx-top">
+  <div class="fx-brand">
+    <span class="fx-mark" aria-hidden="true"><svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="11" width="3.4" height="7" rx="1"/><rect x="8.3" y="6" width="3.4" height="12" rx="1"/><rect x="14.6" y="2" width="3.4" height="16" rx="1"/></svg></span>
+    <span>Finance</span>
+  </div>
+  <nav class="fx-nav" id="fxNav" aria-label="Finance sections"></nav>
+  <div class="fx-right">
+    <div class="fx-chip" id="fxChip" hidden><span id="fxName"></span><span class="fx-avatar" id="fxAvatar" aria-hidden="true"></span></div>
+  </div>
+</header>
+<main class="fx-main">
+  <section class="fx-home" id="fxHome" aria-label="Finance home">
+    <div class="fx-wrap">
+      <div class="fx-head">
+        <div><h1>Your money, and the work running on it</h1><p class="fx-sub" id="fxAsOf">Reading your jobs and summaries…</p></div>
+        <button class="fx-btn" id="fxRefresh" type="button">Refresh</button>
+      </div>
+      <section aria-labelledby="fxTilesH"><h2 class="fx-h" id="fxTilesH">At a glance</h2><div class="fx-tiles" id="fxTiles"><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div></div></section>
+      <section aria-labelledby="fxJobsH"><h2 class="fx-h" id="fxJobsH">Working for you</h2><div class="fx-list" id="fxJobs"><div class="fx-skel"></div><div class="fx-skel"></div></div></section>
+      <section aria-labelledby="fxNotesH"><h2 class="fx-h" id="fxNotesH">Worth a look</h2><div class="fx-list" id="fxNotes"><div class="fx-skel"></div></div></section>
+    </div>
+  </section>
+  <iframe class="fx-frame" id="fxFrame" title="Finance section" hidden></iframe>
+</main>
+<nav class="fx-bottom" id="fxBottom" aria-label="Finance sections"></nav>
+<script>
+(function () {
+  'use strict';
+  /** The finance family: the application each summary and job belongs to, and the section that opens it. */
+  var APPS = [
+    { app: 'finance', name: 'Money', summary: '/api/finance/home-summary', section: 'finance-home' },
+    { app: 'intelligent-trades', name: 'Trades', summary: '/api/trading/home-summary', section: 'finance-trading' },
+    { app: 'kalshi', name: 'Markets', summary: '/api/kalshi/home-summary', section: 'finance-kalshi' },
+    { app: 'daily-trade-recap', name: 'Recap', summary: '/api/daily-trade-recap/home-summary', section: 'finance-recap' }
+  ];
+  /** Short names for the bar; a section this page does not know keeps the name its application gave it. */
+  var SHORT = { 'finance-home': 'Money', 'finance-trading': 'Trades', 'finance-kalshi': 'Markets', 'finance-world': 'World', 'finance-recap': 'Recap', 'finance-banks': 'Banks' };
+  var SELF = 'finance-app';
+  var JOBS_PAGE = '/swarm-admin/jobs';
+  var state = { sections: [], current: 'home', loaded: false };
+  var byId = function (id) { return document.getElementById(id); };
+
+  function el(tag, attrs, kids) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      if (key === 'text') node.textContent = attrs[key];
+      else if (key === 'on') Object.keys(attrs.on).forEach(function (type) { node.addEventListener(type, attrs.on[type]); });
+      else if (attrs[key] !== null && attrs[key] !== undefined) node.setAttribute(key, attrs[key]);
+    });
+    (kids || []).forEach(function (kid) { if (kid) node.appendChild(typeof kid === 'string' ? document.createTextNode(kid) : kid); });
+    return node;
+  }
+  function getJson(path) {
+    return fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' }, cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
+      .catch(function () { return null; });
+  }
+
+  /** Opened inside the cockpit, Finance owns the window: the cockpit's own header, menu and side panel are hidden. The assistant's orb stays. */
+  function ownTheWindow() {
+    var embedded; try { embedded = window.top !== window.self; } catch (_) { embedded = true; }
+    if (!embedded) return;
+    try {
+      var host = window.parent && window.parent.document;
+      if (!host || !host.head || host.getElementById('fx-own-window')) return;
+      if (host.body) host.body.classList.add('zen-mode');
+      var style = host.createElement('style'); style.id = 'fx-own-window';
+      style.textContent = '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, .chat-panel, .panel-resize-handle, .tool-view-header, .zen-exit-btn, #workspaceNavigation, #workspaceNavigationMore { display: none !important; } '
+        + '.cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; } '
+        + '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }';
+      host.head.appendChild(style);
+    } catch (_) { /* a host on another origin keeps its own frame */ }
+  }
+
+  /** The sections the person may open, from Finance's own menu as the server filtered it. */
+  function sectionsOf(answer) {
+    var items = answer && answer.profile && answer.profile.ribbon && Array.isArray(answer.profile.ribbon.items) ? answer.profile.ribbon.items : [];
+    return items.map(function (item) {
+      var name = String(item.id || '').replace(/^tool-/, '');
+      var url = item.toolUi && typeof item.toolUi.iframeUrl === 'string' ? item.toolUi.iframeUrl : '';
+      return { name: name, label: SHORT[name] || String(item.label || name), full: String(item.label || name), url: url, more: item.section === 'bottom' };
+    }).filter(function (s) { return s.url && s.name !== SELF && /^\/[^/]/.test(s.url); });
+  }
+
+  function tab(section, where) {
+    var on = state.current === section.name;
+    return el('button', { type: 'button', class: 'fx-tab', 'aria-current': on ? 'page' : null, title: section.full, 'data-section': section.name,
+      on: { click: function () { open(section.name); closeMenus(); } } }, [section.label]);
+  }
+  function closeMenus() { Array.prototype.forEach.call(document.querySelectorAll('details.fx-more[open]'), function (d) { d.open = false; }); }
+  function moreMenu(list) {
+    if (!list.length) return null;
+    var on = list.some(function (s) { return s.name === state.current; });
+    return el('details', { class: 'fx-more' }, [
+      el('summary', { class: 'fx-tab', 'aria-current': on ? 'page' : null }, ['More']),
+      el('div', { class: 'fx-menu', role: 'menu' }, list.map(function (s) { return tab(s); }))
+    ]);
+  }
+  /** The bar: Home, the sections, then More for the rest. A phone gets Home, three sections and More at the bottom. */
+  function paintNav() {
+    var home = { name: 'home', label: 'Home', full: 'Finance home' };
+    var main = state.sections.filter(function (s) { return !s.more; }), rest = state.sections.filter(function (s) { return s.more; });
+    byId('fxNav').replaceChildren.apply(byId('fxNav'), [tab(home)].concat(main.map(function (s) { return tab(s); })).concat([moreMenu(rest)]).filter(Boolean));
+    var phoneMain = main.slice(0, 3), phoneRest = main.slice(3).concat(rest);
+    byId('fxBottom').replaceChildren.apply(byId('fxBottom'), [tab(home)].concat(phoneMain.map(function (s) { return tab(s); })).concat([moreMenu(phoneRest)]).filter(Boolean));
+  }
+
+  /** Show Home, or one section's own page inside this one. The address keeps the place, so a reload returns to it. */
+  function open(name, quiet) {
+    var section = state.sections.filter(function (s) { return s.name === name; })[0];
+    state.current = section ? section.name : 'home';
+    var frame = byId('fxFrame');
+    if (section) {
+      if (frame.getAttribute('data-section') !== section.name) { frame.src = section.url; frame.setAttribute('data-section', section.name); frame.title = section.full; }
+      frame.hidden = false; byId('fxHome').hidden = true;
+    } else {
+      frame.hidden = true; byId('fxHome').hidden = false;
+      if (!state.loaded) loadHome();
+    }
+    document.title = section ? section.full + ' · Finance' : 'Finance';
+    if (!quiet) { try { history.replaceState(null, '', section ? '#/' + section.name : '#/home'); } catch (_) { /* a sandboxed frame keeps its address */ } }
+    paintNav();
+  }
+
+  // ── Home: the work running for the person, and what each application has saved ──────────────────────────────
+  function money(n) { return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  /** A tile's value as a person reads it: a net-worth record as money, anything else as its own words. */
+  function tileValue(raw) {
+    var text = String(raw === null || raw === undefined ? '' : raw);
+    if (text.charAt(0) === '{') {
+      try {
+        var o = JSON.parse(text);
+        if (typeof o.net === 'number') return { big: money(o.net), small: typeof o.assets === 'number' && typeof o.liabilities === 'number' ? money(o.assets) + ' owned · ' + money(o.liabilities) + ' owed' : '' };
+      } catch (_) { /* shown as it came */ }
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(text)) { var d = new Date(text); if (!isNaN(d)) return { big: when(d), small: '' }; }
+    return { big: text || '—', small: '' };
+  }
+  function when(d) {
+    var now = new Date(), sameDay = d.toDateString() === now.toDateString();
+    var time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    if (sameDay) return 'Today ' + time;
+    var day = new Date(now); day.setDate(now.getDate() - 1); if (d.toDateString() === day.toDateString()) return 'Yesterday ' + time;
+    day = new Date(now); day.setDate(now.getDate() + 1); if (d.toDateString() === day.toDateString()) return 'Tomorrow ' + time;
+    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + time;
+  }
+  /** How often a job runs, in words, from its schedule. Days are the schedule's own (UTC); the next run below is exact. */
+  function rhythm(cron) {
+    var parts = String(cron || '').trim().split(/\s+/);
+    if (parts.length !== 5 || !parts.every(function (part) { return /^[\d*\/,-]+$/.test(part); })) return 'On its own schedule';
+    var minute = parts[0], hour = parts[1], dow = parts[4], step = /\/(\d+)$/.exec(minute);
+    var every = minute === '*' ? 'Every minute' : step ? 'Every ' + step[1] + ' minutes' : hour === '*' ? 'Every hour' : 'Once a day';
+    var window = hour !== '*' && /-/.test(hour) && every !== 'Once a day' ? ' in its daily window' : '';
+    var days = dow === '*' ? '' : /^[1-6]-[1-6]$/.test(dow) ? ', on trading days' : ', on set days';
+    return every + window + days;
+  }
+  function jobName(job) {
+    var words = String(job.name || '').replace(/^(daily-trade-recap|oshal)-/, '').replace(/[-_]+/g, ' ').trim();
+    return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Job';
+  }
+  /** One job as a row: what it is, how its last run went, and when it runs next. */
+  function jobRow(job) {
+    var on = job.status && job.status !== 'not-activated' && job.status !== 'suspended';
+    var failed = on && job.lastOutcome && !/^(completed|ok|success)/i.test(String(job.lastOutcome));
+    var tone = !on ? 'off' : failed ? 'bad' : job.lastRunAt ? 'ok' : '';
+    var last = job.lastRunAt ? when(new Date(job.lastRunAt)) : 'Has not run yet';
+    var lastSmall = !on ? (job.status === 'suspended' ? 'Paused' : 'Not turned on') : failed ? 'The last run did not finish' : job.lastRunAt ? 'Finished' + (job.lastDurationMs ? ' in ' + Math.max(1, Math.round(job.lastDurationMs / 1000)) + ' s' : '') : 'Waiting for its first run';
+    var next = on && job.nextRunAt ? when(new Date(job.nextRunAt)) : on ? 'When it is next due' : '—';
+    var runs = Number(job.executionCount) || 0, fails = Number(job.failureCount) || 0;
+    var nextSmall = runs ? runs.toLocaleString() + ' runs' + (fails ? ', ' + fails.toLocaleString() + ' did not finish' : '') : rhythm(job.cron || job.cadence);
+    return el('div', { class: 'fx-row', 'data-job': job.name, 'data-state': tone || 'idle' }, [
+      el('span', { class: 'fx-dot ' + tone, 'aria-hidden': 'true' }),
+      el('div', { class: 'fx-what' }, [el('strong', { text: jobName(job) }), el('small', { text: String(job.description || job.offer || rhythm(job.cron || job.cadence)) })]),
+      el('div', { class: 'fx-cell' }, [el('b', { text: last }), el('small', { text: lastSmall })]),
+      el('div', { class: 'fx-cell' }, [el('b', { text: next === '—' ? 'No next run' : 'Next: ' + next }), el('small', { text: nextSmall })])
+    ]);
+  }
+  function paintJobs(answer) {
+    var box = byId('fxJobs');
+    if (!answer || !Array.isArray(answer.schedules)) { box.replaceChildren(el('div', { class: 'fx-empty', text: 'Your jobs could not be read just now. Press Refresh to try again.' })); return 0; }
+    var kids = [], count = 0;
+    APPS.forEach(function (family) {
+      var jobs = answer.schedules.filter(function (job) { return job.app === family.app; });
+      if (!jobs.length) return;
+      kids.push(el('div', { class: 'fx-group', text: family.name }));
+      jobs.sort(function (a, b) { return String(b.lastRunAt || '').localeCompare(String(a.lastRunAt || '')); }).forEach(function (job) { kids.push(jobRow(job)); count += 1; });
+    });
+    if (!count) kids.push(el('div', { class: 'fx-empty', text: 'No finance job is set up for you yet.' }));
+    kids.push(el('div', { class: 'fx-note' }, [el('a', { href: JOBS_PAGE, target: '_top', class: 'fx-jobs-link', text: 'Turn a job on or off, or change when it runs, on the Jobs page' })]));
+    box.replaceChildren.apply(box, kids);
+    return count;
+  }
+  function paintSummaries(results) {
+    var tiles = [], notes = [];
+    results.forEach(function (result) {
+      var family = result.family, data = result.data;
+      // A summary that did not answer is said in words; leaving it out would read as "nothing there".
+      if (!data) {
+        notes.push({ rank: 1, node: el('div', { class: 'fx-note', 'data-app': family.app, 'data-unread': '1' }, [el('span', { class: 'fx-dot', 'aria-hidden': 'true' }),
+          el('div', {}, [el('strong', { text: family.name + ': could not be read just now.' }), el('small', { text: 'Press Refresh to try again, or open ' + family.name + ' to see it.' })])]) });
+        return;
+      }
+      (data.tiles || []).slice(0, 2).forEach(function (t) {
+        var v = tileValue(t.value);
+        tiles.push(el('button', { type: 'button', class: 'fx-tile', 'data-app': family.app, 'aria-label': family.name + ': ' + t.label + ', ' + v.big, on: { click: function () { open(family.section); } } },
+          [el('small', { text: family.name + ' · ' + String(t.label || '') }), el('strong', { text: v.big }), v.small ? el('span', { text: v.small }) : null]));
+      });
+      (data.items || []).slice(0, 3).forEach(function (item) {
+        var tone = item.tone === 'warn' || item.tone === 'bad' || item.tone === 'error' ? 'bad' : item.tone === 'ok' || item.tone === 'good' ? 'ok' : '';
+        notes.push({ rank: tone === 'bad' ? 0 : 1, node: el('div', { class: 'fx-note', 'data-app': family.app }, [el('span', { class: 'fx-dot ' + tone, 'aria-hidden': 'true' }),
+          el('div', {}, [el('strong', { text: family.name + ': ' + String(item.text || '') }), item.detail ? el('small', { text: String(item.detail) }) : null])]) });
+      });
+    });
+    var tilesBox = byId('fxTiles'), notesBox = byId('fxNotes');
+    tilesBox.replaceChildren.apply(tilesBox, tiles.length ? tiles : [el('div', { class: 'fx-empty', text: 'Nothing saved to show yet. Open a section to get started.' })]);
+    notes.sort(function (a, b) { return a.rank - b.rank; });
+    notesBox.replaceChildren.apply(notesBox, notes.length ? notes.map(function (n) { return n.node; }) : [el('div', { class: 'fx-empty', text: 'Nothing needs your attention.' })]);
+  }
+  function loadHome() {
+    state.loaded = true;
+    byId('fxAsOf').textContent = 'Reading your jobs and summaries…';
+    var known = state.sections.map(function (s) { return s.name; });
+    var families = APPS.filter(function (f) { return f.app === 'finance' || known.indexOf(f.section) !== -1; });
+    return Promise.all([getJson('/api/v1/agent/schedules')].concat(families.map(function (f) { return getJson(f.summary).then(function (data) { return { family: f, data: data }; }); })))
+      .then(function (all) {
+        var count = paintJobs(all[0]);
+        paintSummaries(all.slice(1));
+        byId('fxAsOf').textContent = 'As of ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · ' + count + (count === 1 ? ' job' : ' jobs');
+      });
+  }
+
+  function start() {
+    ownTheWindow();
+    byId('fxRefresh').addEventListener('click', function () { loadHome(); });
+    document.addEventListener('click', function (event) { if (!event.target.closest || !event.target.closest('details.fx-more')) closeMenus(); });
+    getJson('/api/swarm/roles/me').then(function (me) {
+      var name = me && (me.displayName || me.email || '');
+      if (!name) return;
+      byId('fxName').textContent = String(name); byId('fxAvatar').textContent = String(name).trim().charAt(0).toUpperCase(); byId('fxChip').hidden = false;
+    });
+    getJson('/api/ui/profile?name=finance').then(function (answer) {
+      state.sections = sectionsOf(answer);
+      var wanted = (location.hash.match(/^#\/([a-z0-9-]+)$/) || [])[1] || 'home';
+      open(wanted, true);
+    });
+  }
+  window.FinanceApp = { rhythm: rhythm, tileValue: tileValue, jobName: jobName, sectionsOf: sectionsOf };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+</script>
+</body>
+</html>

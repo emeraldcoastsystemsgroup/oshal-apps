@@ -16,6 +16,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: kernel egress detection, the caller's usable connections from connectors.metadata (Google aliases reported as google, the name the settings pages read), and the "not connected" refusal test.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.1: isStorageNotConnected recognizes the kernel's refusal of a storage.save to a provider the caller has not connected ("selected provider connection is not visible to this caller").
  *
  * @module kernel-egress
  */
@@ -26,6 +27,7 @@ exports.readConnections = readConnections;
 exports.usableProviders = usableProviders;
 exports.connectionUsable = connectionUsable;
 exports.isNotConnected = isNotConnected;
+exports.isStorageNotConnected = isStorageNotConnected;
 /** The sentinel the routes carry in place of a token under the kernel: the kernel, not the package, holds the credential. */
 exports.KERNEL_TOKEN = 'kernel';
 /** Connector ids that name the one Google grant; the settings pages know it as `google`. */
@@ -95,5 +97,18 @@ function connectionUsable(meta, connector, now = Date.now()) {
  */
 function isNotConnected(err) {
     return kernelEgress() && /is not connected/i.test(String(err?.message || ''));
+}
+/**
+ * @description True when the kernel refused a storage.save because the caller has no connection for the chosen provider.
+ * The kernel's own words, read on a running kernel for a provider the person had not connected (2026-11-11):
+ * "selected provider connection is not visible to this caller"; its egress refusal says "is not connected". Trying
+ * again cannot help in either case. An installation with no remote storage at all refuses in other words and is not
+ * reported as the person's missing connection.
+ * @param err - The rejection from the storage.save intent.
+ * @returns Whether the rejection means the provider is not connected for this person.
+ */
+function isStorageNotConnected(err) {
+    const message = String(err?.message || '');
+    return /selected provider connection is not visible to this caller|is not connected/i.test(message);
 }
 //# sourceMappingURL=kernel-egress.js.map

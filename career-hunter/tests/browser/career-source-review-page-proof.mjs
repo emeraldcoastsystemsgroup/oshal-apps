@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped Companies page in Chromium with the nightly source review: employer text stays inert, a missing or unreadable report never hides the table, and the card fits a phone.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the nightly review is in the Source health view, so a report is read there; the page explanation sits under Help, so its text is read as text.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Where a change waits for the next pull: Resolve and Accept save it and say so, what the pull did shows in words with employer text inert, and an older answer still loads.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: the page loads Career's page frame, so the fixture serves Career's own static files from tools/ and answers any other API path 404, as the kernel does, instead of sending the page's HTML for them.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,6 +49,13 @@ before(async () => {
       return;
     }
     if (req.url.startsWith('/shared/')) { res.statusCode = 204; res.end(); return; }
+    const asset = req.url.match(/^\/api\/career-hunter\/static\/([\w.-]+)$/);
+    if (asset) {
+      res.setHeader('content-type', asset[1].endsWith('.css') ? 'text/css' : asset[1].endsWith('.svg') ? 'image/svg+xml' : 'application/javascript');
+      res.end(readFileSync(new URL('../../tools/' + asset[1], import.meta.url)));
+      return;
+    }
+    if (req.url.startsWith('/api/')) { res.statusCode = 404; res.setHeader('content-type', 'application/json'); res.end('{"error":"not in fixture"}'); return; }
     res.setHeader('content-type', 'text/html');
     res.end(pageHtml);
   });

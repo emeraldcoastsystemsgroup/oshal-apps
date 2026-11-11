@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped anonymous browser against disposable public-listing forms, delayed pagination and JSON feeds, with no applicant, model or external network.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The reader names itself to the site, presses a cookie notice's accept button and no other, and reports a human check, a refusal and a browser that cannot start each under its own cause.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +11,7 @@ const require=createRequire(import.meta.url),engine=require('../../engine/jobhun
 const policy=require('../../engine/jobhunter/browser_read_policy.cjs');
 const deps=createRequire(resolve(process.env.STORE_CI_TOOLCHAIN||'scripts/toolchain','package.json'));
 const {chromium}=deps('playwright');
-let server,origin;const posts=[];
+let server,origin;const posts=[],agents=[],pressed=[];
 before(async()=>{
  server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,'http://localhost');
@@ -24,6 +25,25 @@ before(async()=>{
     {jobId:'json-2',title:'Adjunct Lecturer',jobUrl:'/jobs/json-2',location:'Local'}]}));return;
   }
   res.setHeader('content-type','text/html');
+  if(url.pathname==='/agent'){agents.push(req.headers['user-agent']);res.end('<a href="/jobs/one">Platform Engineer</a>');return;}
+  if(url.pathname==='/pressed'){pressed.push(url.searchParams.get('what'));res.end('ok');return;}
+  if(url.pathname==='/notice'||url.pathname==='/notice-known'){
+   const button=url.pathname==='/notice'?'<button id="yes">Accept all</button>':'<button id="onetrust-accept-btn-handler">Allow</button>';
+   res.end(`<h1>Careers</h1><div id="jobs"></div><div class="cookie-banner" style="position:fixed;inset:0;background:#fff">We use cookies. ${button}<button id="no">Manage</button></div>
+    <script>document.querySelector('.cookie-banner button').addEventListener('click',()=>{document.querySelector('.cookie-banner').remove();
+     document.getElementById('jobs').innerHTML='<a href="/jobs/behind">Engineer behind the notice</a>';});</script>`);return;
+  }
+  if(url.pathname==='/not-a-notice'){
+   res.end(`<h1>Careers</h1><a href="/jobs/one">Platform Engineer</a><div class="offer">Join our talent community. <button id="a">Accept</button></div>
+    <form action="/apply" method="POST"><p>Cookie preferences</p><button type="button" id="b">I agree</button></form>
+    <script>for(const id of ['a','b'])document.getElementById(id).addEventListener('click',()=>fetch('/pressed?what='+id));</script>`);return;
+  }
+  if(url.pathname==='/check-cf'){res.statusCode=403;res.setHeader('cf-mitigated','challenge');res.end('<title>Just a moment...</title>');return;}
+  if(url.pathname==='/check-waf'){res.statusCode=202;res.setHeader('x-amzn-waf-action','challenge');res.end('<title></title>');return;}
+  if(url.pathname==='/check-frame'){res.end('<h1>One more step</h1><iframe src="/blank?challenges.cloudflare.com" style="width:300px;height:65px"></iframe>');return;}
+  if(url.pathname==='/check-passed'){res.statusCode=202;res.setHeader('x-amzn-waf-action','challenge');res.end('<a href="/jobs/one">Platform Engineer</a>');return;}
+  if(url.pathname==='/refused'){res.statusCode=403;res.end('<h1>403 Forbidden</h1>');return;}
+  if(url.pathname==='/gone'){res.statusCode=404;res.end('<h1>Not found</h1>');return;}
   if(url.pathname==='/login'){res.end('<h1>Sign in</h1><label>Password<input type=password></label>');return;}
   if(url.pathname==='/embedded'){
    res.end('<h1>Faculty opening</h1><script type="application/ld+json">'+JSON.stringify({
@@ -96,4 +116,31 @@ test('public request policy refuses private DNS, navigation POST and GraphQL mut
   await policy.createReadPolicy({lookup:async()=>[{address:'127.0.0.1'}]})({request:()=>request,abort:async()=>{observed=false;},continue:async()=>{observed=true;}});
   assert.equal(observed,allowed,url);
  }
+});
+test('the site is told a current Chrome and this reader by name',async()=>{
+ const start=agents.length,value=await run('/agent');assert.equal(value.dom.length,1);
+ const agent=agents[start];
+ assert.match(agent,/^Mozilla\/5\.0 .*Chrome\/\d+[\d.]* .*jobhunter\/1\.0 \(personal job search\)$/);
+ assert.doesNotMatch(agent,/Headless/i);assert.doesNotMatch(agent,/@/);
+});
+test('a cookie notice that covers the jobs is accepted and the jobs behind it are read',async()=>{
+ for(const path of ['/notice','/notice-known']){
+  const value=await run(path);assert.deepEqual(value.dom.map(row=>row.title),['Engineer behind the notice'],path);
+ }
+});
+test('an accept button that belongs to no cookie notice, or sits in a form, is left alone',async()=>{
+ const start=pressed.length,value=await run('/not-a-notice');
+ assert.deepEqual(value.dom.map(row=>row.title),['Platform Engineer']);assert.deepEqual(pressed.slice(start),[]);
+});
+test('a human check is reported as one and a page that answers past it keeps its jobs',async()=>{
+ for(const path of ['/check-cf','/check-waf','/check-frame']){
+  const value=await run(path,{deadlineMs:15000});assert.equal(value.reason,'challenge_detected',path);assert.equal(value.dom.length,0,path);
+ }
+ const value=await run('/check-passed');assert.deepEqual(value.dom.map(row=>row.title),['Platform Engineer']);
+ assert.notEqual(value.reason,'challenge_detected');
+});
+test('a refusal, a missing page and a browser that cannot start each fail under their own cause',async()=>{
+ await assert.rejects(run('/refused'),{message:'browser_refused'});
+ await assert.rejects(run('/gone'),{message:'browser_navigation_failed'});
+ await assert.rejects(engine.scrape({url:origin+'/list',maxPages:1,deadlineMs:20000},{chromium,fixtureOrigin:origin,executablePath:'/nonexistent/browser/chrome'}),{message:'browser_runtime_unavailable'});
 });

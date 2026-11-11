@@ -8,6 +8,10 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | Show retained per-source attempts, complete pulls, failures, HTTP 304 checks and posting delta counts; unavailable history stays explicit.
   3 | maintainer@emeraldcoastsystemsgroup.com | Show the latest nightly source review above the table: what was repaired, what needs a person, what the pull did and what is still broken.
   4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): a 450px nightly review and pull telemetry sat between the search box and the table, so a matching row landed under the orb. Two views in this page: Companies (search, chips, then the table at once, with Company, Jobs, Platform and Latest pull sortable, your pending source changes under it, and the explanation under Help) and Source health (the nightly source review and the failed/partial line; the page is administrators only already). The in-page Job Board and Cockpit links are gone (the shell has Apps); chips, buttons, the search field and the attention checkbox are 44px. Guard: tests/career-companies-views.test.mjs.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back. "Add employer" opens a name and link form; each row has Remove, which asks once before it saves; a Removed chip lists removed employers with Put back. Each is saved for the next nightly pull and reported under Source changes. Removed employers are left out of every other chip and count. Needs attention no longer counts a board an administrator set by hand, or a read that has jobs but could not prove the end of its list. The reader's new causes (refused, sign-in, browser unavailable) are said in words. Guard: tests/browser/career-companies-add-remove-proof.mjs.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance in the Source health view, above the nightly review. "Needs you" lists each source Career could not connect, with what was tried, and Archive (the existing Remove) or Keep trying; a press is saved for the next nightly pull and the line says so. "For a developer" lists each open repair brief with Copy brief and Download. "New sources found" lists the employers connected to a job site last night and the suggestions, which take the existing Accept. Employer and board text is escaped. Guard: tests/browser/career-source-maintenance-page-proof.mjs.
+  8 | maintainer@emeraldcoastsystemsgroup.com | "Suggested, not connected" lists every open suggestion the engine keeps, with the date it was found, in place of last night's only: a suggestion left the page after one night while the runbook does not return to an employer for weeks. A search that was stopped says it did not finish, and the count of employers reads right for one.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="companies-admin">
@@ -103,6 +107,19 @@ th .sorter { all: unset; cursor: pointer; display: inline-flex; align-items: cen
 th[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
 th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
 details.help > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+#addEmployer { min-height: 44px; }
+.addform { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin: 0 20px 10px; padding: 12px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.addform[hidden] { display: none; }
+.addform label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); flex: 1 1 220px; }
+.addform input { min-height: 44px; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 10px; font: inherit; }
+.addform .actions { display: flex; gap: 8px; align-items: flex-end; align-self: flex-end; }
+.addform button { min-height: 44px; }
+.addform .msg { flex-basis: 100%; }
+button.quiet { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+button.danger { background: var(--bad); color: var(--on-accent); }
+.rowactions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.rowactions button { min-height: 44px; }
 </style>
 <style id="career-theme-inline">
   :root[data-career-surface] {
@@ -141,7 +158,7 @@ details.help > summary { min-height: 44px; display: flex; align-items: center; c
     outline: 2px solid var(--career-brand-accent); outline-offset: 3px;
   }
 </style>
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
   <header>
     <div class="head-row">
@@ -164,7 +181,9 @@ details.help > summary { min-height: 44px; display: flex; align-items: center; c
       <button type="button" class="flt" id="fltActive" data-filter="active" aria-pressed="false">Active ATS <span id="cntActive"></span></button>
       <button type="button" class="flt" id="fltNeeds" data-filter="needs" aria-pressed="false">Needs URL <span id="cntNeeds"></span></button>
       <button type="button" class="flt" id="fltProblems" data-filter="problems" aria-pressed="false">Unconfirmed pulls <span id="cntProblems"></span></button>
+      <button type="button" class="flt" id="fltRemoved" data-filter="removed" aria-pressed="false" hidden>Removed <span id="cntRemoved"></span></button>
     </div>
+    <button type="button" class="pg" id="addEmployer" aria-expanded="false" aria-controls="addForm" hidden>Add employer</button>
     <label class="chk"><input type="checkbox" id="attn" /> needs attention only (failed pull / no jobs / not found)</label>
     <button type="button" class="pg" id="healthReload">Refresh status</button>
     <div class="pager">
@@ -173,10 +192,28 @@ details.help > summary { min-height: 44px; display: flex; align-items: center; c
       <button type="button" class="pg" id="nextPage" disabled>Next</button>
     </div>
   </div>
+  <form class="addform" id="addForm" data-view-of="companies" hidden aria-label="Add an employer">
+    <label>Employer name<input id="addName" autocomplete="off" maxlength="120" placeholder="e.g. Acme Robotics" /></label>
+    <label>Careers page or job board link<input id="addLink" type="url" autocomplete="off" placeholder="https://jobs.acme.example/" /></label>
+    <div class="actions"><button type="submit" id="addSave">Add</button><button type="button" class="quiet" id="addCancel">Cancel</button></div>
+    <div class="msg" id="addMsg" role="status" hidden></div>
+  </form>
   <div class="wrap">
     <div data-view-of="health">
     <p class="sub" id="healthNote" role="status">Checking source history…</p>
     <p class="sub" id="healthSummary" role="status"></p>
+    <style>
+      /* The source maintenance cards. */
+      .maint ul { list-style: none; padding-inline-start: 0; }
+      .maint li { padding: 10px 0; border-top: 1px solid var(--line); }
+      .maint li strong { font-size: 13.5px; }
+      .maint a.download { display: inline-flex; align-items: center; min-height: 44px; padding: 7px 12px; border: 1px solid var(--line);
+        border-radius: 8px; background: var(--panel); color: var(--text); font-weight: 650; text-decoration: none; }
+      .maint a.download:hover { border-color: var(--accent); }
+    </style>
+    <section class="review maint" id="needsYou" aria-labelledby="needsYouTitle" hidden></section>
+    <section class="review maint" id="forDeveloper" aria-labelledby="forDeveloperTitle" hidden></section>
+    <section class="review maint" id="newSources" aria-labelledby="newSourcesTitle" hidden></section>
     <section class="review" id="sourceReview" aria-labelledby="sourceReviewTitle" hidden></section>
     </div>
     <table data-view-of="companies">
@@ -194,13 +231,18 @@ let ALL = [];
 let statusFilter = 'all';
 let page = 1;
 
-function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 || (c.discover_status && c.discover_status !== 'found')
-  || ['failed', 'partial', 'empty_unconfirmed'].includes(c.pull_health?.status); }
-function unconfirmedPull(c) { return ['failed', 'partial', 'empty_unconfirmed', 'running'].includes(c.pull_health?.status); }
+/** Removed employers are out of every pull, so they appear only under the Removed chip. */
+function isRemoved(c) { return c.discover_status === 'removed'; }
+/** A board an administrator set by hand (`manual`) is a choice, not a fault; a read that found jobs but could not prove the
+ *  end of its list (`partial`) is still reading, and the Unconfirmed pulls chip lists it. */
+function needsAttention(c) { return !isRemoved(c) && (!c.ats_type || (c.active_jobs || 0) === 0
+  || (c.discover_status && !['found', 'manual'].includes(c.discover_status))
+  || ['failed', 'empty_unconfirmed'].includes(c.pull_health?.status)); }
+function unconfirmedPull(c) { return !isRemoved(c) && ['failed', 'partial', 'empty_unconfirmed', 'running'].includes(c.pull_health?.status); }
 
 let sourceChangeMode = 'now';
 let CHANGES = [];
-const PULL_REASONS = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.', page_limit_reached: 'The source has more jobs than could be read.', browser_navigation_failed: 'The page could not be opened.', browser_read_failed: 'The page could not be read.', challenge_detected: 'The site asked for a human check.', pull_interrupted: 'The pull stopped three times while reading this source, so it was skipped that night.' };
+const PULL_REASONS = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.', page_limit_reached: 'The source has more jobs than could be read.', browser_navigation_failed: 'The page could not be opened.', browser_read_failed: 'The page could not be read.', challenge_detected: 'The site asked for a human check.', login_required: 'The page asked for a sign-in.', browser_refused: 'The site refused the reader.', browser_runtime_unavailable: 'The page reader could not start on this installation.', pull_interrupted: 'The pull stopped three times while reading this source, so it was skipped that night.' };
 
 /** One expandable list; nothing at all when it is empty, so the card stays short on a quiet night. */
 function reviewList(title, items, line, hint, actions) {
@@ -228,15 +270,26 @@ function latestChange(companyId) {
 function changeText(change) {
   const d = change.detail || {};
   const n = (value) => Number(value || 0).toLocaleString();
+  const adding = String(change.target || '').startsWith('add:');
   switch (change.state) {
     case 'waiting': return 'Waiting for the next nightly pull.';
     case 'started': return 'The last pull did not finish applying this.';
     case 'applied': return 'Applied: now reading ' + d.board + ', ' + n(d.jobs) + ' jobs, ' + n(d.new) + ' new, ' + n(d.closed) + ' closed.';
-    case 'saved_no_jobs': return 'The link was saved, but no jobs could be read from it, so the source did not change.';
+    case 'added': return 'Added: now reading ' + d.board + ', ' + n(d.jobs) + ' jobs, ' + n(d.new) + ' new.';
+    case 'removed': return 'Removed: ' + n(d.closed) + ' open jobs closed. The pull no longer reads it.';
+    case 'restored': return 'Put back: the pull reads it again.';
+    case 'removed_employer': return 'Not applied: this employer is removed. Put it back first.';
+    case 'kept': return 'Kept: Career keeps trying this source' + (day(d.until) ? ' and does not ask about it again before ' + day(d.until) + '.' : '.');
+    case 'no_decision': return 'Not applied: no decision was waiting for this source.';
+    case 'saved_no_jobs': return adding
+      ? 'Added, but no jobs could be read from that link yet. Paste the job search link into its row and press Resolve.'
+      : 'The link was saved, but no jobs could be read from it, so the source did not change.';
     case 'no_jobs': return 'Not applied: that board returned no jobs.';
-    case 'duplicate': return 'Not applied: ' + d.owner + ' already uses ' + d.board + '.';
+    case 'duplicate': return d.board
+      ? (adding ? 'Added, but ' + d.owner + ' already uses ' + d.board + ', so it reads nothing yet.' : 'Not applied: ' + d.owner + ' already uses ' + d.board + '.')
+      : 'Not added: ' + d.owner + ' is already listed.';
     case 'unknown_company': return 'Not applied: that company is no longer listed.';
-    case 'bad_target': return 'Not applied: that is not a job board link.';
+    case 'bad_target': return adding ? 'Not added: the name or the link could not be used.' : 'Not applied: that is not a job board link.';
     case 'unsafe': return 'Not applied: that link leads to a private address.';
     case 'timeout': return 'Not applied: reading it took more than 5 minutes.';
     case 'interrupted': return 'Not applied: the pull stopped 3 times while applying it. Press Resolve to try again.';
@@ -249,10 +302,27 @@ function renderSourceChanges() {
   const shown = CHANGES.filter(Boolean).slice(0, 20);
   card.hidden = !shown.length;
   if (!shown.length) return;
-  const name = (id) => ALL.find(c => c.id === id)?.name || ('Company ' + id);
   card.innerHTML = '<h2 id="sourceChangesTitle">Source changes</h2><ul>'
-    + shown.map(change => '<li>' + esc(name(change.companyId)) + ': ' + esc(change.target || '') + '. ' + esc(changeText(change)) + undoButton(change) + '</li>').join('')
+    + shown.map(change => '<li>' + esc(changeName(change)) + ': ' + esc(changeWhat(change)) + '. ' + esc(changeText(change)) + undoButton(change) + '</li>').join('')
     + '</ul>';
+}
+
+/** An added employer has no row until the pull makes it, so its name comes from what was sent. */
+function addedParts(change) {
+  const m = /^add:([^|]*)\|(.*)$/.exec(String(change.target || ''));
+  if (!m) return null;
+  try { return { name: decodeURIComponent(m[1]), link: decodeURIComponent(m[2]) }; } catch { return null; }
+}
+function changeName(change) {
+  return ALL.find(c => c.id === change.companyId)?.name || change.detail?.name || addedParts(change)?.name || ('Company ' + change.companyId);
+}
+function changeWhat(change) {
+  const target = String(change.target || '');
+  if (target === 'remove:employer') return 'Remove';
+  if (target === 'restore:employer') return 'Put back';
+  if (target === 'keep:employer') return 'Keep trying';
+  const added = addedParts(change);
+  return added ? 'Add with ' + added.link : target;
 }
 
 /** A wrong press closes the jobs the new board does not list, so going back takes one press too. */
@@ -340,6 +410,139 @@ function renderSourceReview(r) {
     + reviewList('Still broken', r.stillBroken, i => i.company + ' (' + i.ats + '): ' + (PULL_REASONS[i.code] || 'Could not be confirmed.') + ' ' + n(i.pulls) + ' pulls in a row');
 }
 
+/** A stored time as a date in the reader's own format, or nothing when it is not a time. */
+function day(value) {
+  return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString() : '';
+}
+
+const REVIEW_WORDS = { nothing: 'nothing was found', blocked: 'the site refused the check', timeout: 'the check ran out of time', error: 'the check failed' };
+let BRIEFS = new Map();
+let BRIEF_LINKS = [];
+
+/** What was tried for one source, in two short sentences. Employer and board text is escaped by whoever shows this. */
+function triedText(e) {
+  const n = (value) => Number(value || 0).toLocaleString();
+  const reviews = Array.isArray(e.reviews) ? e.reviews : [];
+  let failed = 0;
+  while (failed < reviews.length && Object.hasOwn(REVIEW_WORDS, String(reviews[failed]?.outcome))) failed++;
+  const tried = [e.board, e.link, e.homepage].filter(Boolean);
+  const first = (tried.length ? 'Tried ' + tried.join(' and ') + '. ' : 'It has no board or link to try. ')
+    + (failed ? 'The nightly review checked ' + n(failed) + ' times in a row without connecting it, last on ' + day(reviews[0].at) + ': ' + REVIEW_WORDS[reviews[0].outcome] + '.' : '');
+  const second = (e.failuresInARow ? 'The pull has not read it ' + n(e.failuresInARow) + ' times in a row. ' + (PULL_REASONS[e.lastErrorCode] ? PULL_REASONS[e.lastErrorCode] + ' ' : '') : '')
+    + (day(e.lastJobsReadAt) ? 'Jobs were last read on ' + day(e.lastJobsReadAt) + '. ' : 'No jobs have been read from it. ')
+    + n(e.openJobs) + ' open jobs are still stored.';
+  return [first, second];
+}
+
+/** Archive and Keep trying for one source, or what was already saved for it. */
+function decisionButtons(action) {
+  const saved = CHANGES.find(change => change && change.companyId === action.companyId && change.state === 'waiting'
+    && (change.target === 'remove:employer' || change.target === 'keep:employer'));
+  if (saved) return '<div class="sub saved">' + (saved.target === 'keep:employer' ? 'Keep trying' : 'Archive') + ' is saved for the next nightly pull.</div>';
+  if (sourceChangeMode !== 'next-pull') return '';
+  return '<div class="rowactions"><button type="button" class="danger archive" data-company="' + esc(action.companyId) + '">Archive</button>'
+    + '<button type="button" class="quiet keep" data-company="' + esc(action.companyId) + '">Keep trying</button></div>';
+}
+
+function needsYouHtml(m) {
+  const n = (value) => Number(value || 0).toLocaleString();
+  const head = '<h2 id="needsYouTitle">Needs you</h2>';
+  if (!m.actions.length) return head + '<p class="sub">No source needs a decision.' + (day(m.report?.finishedAt) ? ' Maintenance last ran on ' + esc(day(m.report.finishedAt)) + '.' : '') + '</p>';
+  const count = Number(m.actionCount || m.actions.length);
+  return head + '<p class="sub">Career could not connect ' + n(count) + (count === 1 ? ' source' : ' sources') + '. Archive closes the employer\'s open jobs and stops reading it, '
+    + 'the same as Remove, and Put back undoes it. Keep trying leaves it listed and does not ask again for ' + n(m.keepTryingDays) + ' days.'
+    + (count > m.actions.length ? ' The ' + n(m.actions.length) + ' that have waited longest are shown.' : '') + '</p><ul>'
+    + m.actions.map(action => { const [first, second] = triedText(action.evidence || {}); return '<li><strong>' + esc(action.company) + '</strong>'
+      + '<div class="sub">' + esc(first) + '</div><div class="sub">' + esc(second) + '</div>' + decisionButtons(action) + '<div class="msg" hidden></div></li>'; }).join('') + '</ul>';
+}
+
+/** Save Archive (the existing Remove) or Keep trying for the next pull, and say so on the line. */
+async function decideSource(button) {
+  const line = button.closest('li'), msg = line.querySelector('.msg');
+  const kind = button.classList.contains('keep') ? 'keep' : 'remove';
+  line.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  try {
+    const r = await fetch('/api/career-hunter/companies-admin/' + kind + '?companyId=' + encodeURIComponent(button.dataset.company), { method: 'POST' });
+    const d = await r.json();
+    if (d.ok && d.queued && d.request) {
+      CHANGES.unshift(d.request);
+      renderSourceChanges();
+      line.querySelector('.rowactions').outerHTML = '<div class="sub saved">' + esc(d.message || 'Saved for the next nightly pull.') + '</div>';
+      msg.hidden = true;
+      return;
+    }
+    show(msg, d.error || 'Could not be saved.', 'err');
+  } catch (e) { show(msg, 'Request failed: ' + e, 'err'); }
+  line.querySelectorAll('button').forEach(b => { b.disabled = false; });
+}
+
+function developerHtml(briefs) {
+  const n = (value) => Number(value || 0).toLocaleString();
+  const word = (value) => String(value || '').replace(/[^A-Za-z0-9_-]/g, '_');
+  BRIEF_LINKS.forEach(link => URL.revokeObjectURL(link));
+  BRIEFS = new Map(briefs.map(brief => [String(brief.id), String(brief.brief || '')]));
+  BRIEF_LINKS = briefs.map(brief => URL.createObjectURL(new Blob([String(brief.brief || '')], { type: 'text/markdown' })));
+  const head = '<h2 id="forDeveloperTitle">For a developer</h2>';
+  if (!briefs.length) return head + '<p class="sub">No reader needs a repair.</p>';
+  return head + '<p class="sub">Readers whose reads keep ending part way, so jobs that left those boards stay open. Each brief says what is wrong, '
+    + 'which employers it affects and what done means. Copy or download it and hand it to a developer.</p><ul>'
+    + briefs.map((brief, index) => '<li><strong>' + esc(brief.reader) + ' reader</strong><div class="sub">'
+      + esc((PULL_REASONS[brief.reason] || 'The read ended with the code ' + brief.reason + '.') + ' ' + n(brief.employers?.count) + ' employers, '
+        + n(brief.employers?.jobs) + ' open jobs stored.') + '</div><div class="rowactions">'
+      + '<button type="button" class="quiet copy-brief" data-brief="' + esc(brief.id) + '">Copy brief</button>'
+      + '<a class="download" download="brief-' + esc(word(brief.reader)) + '-' + esc(word(brief.reason)) + '.md" href="' + esc(BRIEF_LINKS[index]) + '">Download</a>'
+      + '</div><div class="msg" hidden></div></li>').join('') + '</ul>';
+}
+
+/** Copy one brief's Markdown. Where the page may not use the clipboard, a selected text box does the same. */
+async function copyBrief(button) {
+  const text = BRIEFS.get(button.dataset.brief) || '';
+  let copied = false;
+  try { await navigator.clipboard.writeText(text); copied = true; }
+  catch {
+    const area = document.createElement('textarea');
+    area.value = text; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+    document.body.appendChild(area); area.select();
+    try { copied = document.execCommand('copy'); } catch { copied = false; }
+    area.remove();
+  }
+  show(button.closest('li').querySelector('.msg'), copied ? 'Copied.' : 'Could not copy here. Use Download.', copied ? 'ok' : 'err');
+}
+
+function newSourcesHtml(m) {
+  const n = (value) => Number(value || 0).toLocaleString();
+  const found = m.report?.discovery || {};
+  const list = (title, count, items, line, actions) => !items.length ? '' : '<p class="sub"><b>' + esc(title) + ' (' + n(count) + ')</b></p><ul>'
+    + items.map(item => '<li>' + esc(line(item)) + (actions ? actions(item) : '') + '</li>').join('') + '</ul>';
+  const connected = Array.isArray(found.connected) ? found.connected.filter(Boolean) : [];
+  const suggested = Array.isArray(m.suggestions) ? m.suggestions.filter(Boolean) : [];
+  const total = Math.max(Number(m.suggestionCount || 0), suggested.length);
+  const tried = Number(found.tried || 0), waiting = Number(found.waiting || 0);
+  return '<h2 id="newSourcesTitle">New sources found</h2><p class="sub">Last night Career looked for a job site for ' + n(tried)
+    + (tried === 1 ? ' employer that has none. ' : ' employers that have none. ') + n(waiting) + (waiting === 1 ? ' waits' : ' wait') + ' for a later night.'
+    + (found.timedOut || found.errorType || found.stopped ? ' The search did not finish.' : '') + '</p>'
+    + list('Connected', connected.length, connected, i => i.company + ': now reading ' + i.board + ', ' + n(i.jobs) + ' jobs.')
+    + list('Suggested, not connected', total, suggested, i => i.company + ': ' + (i.options || []).join(', ') + ', ' + n(i.jobs) + ' jobs. '
+      + (day(i.suggestedAt) ? 'Found on ' + day(i.suggestedAt) + '. ' : '')
+      + (i.owner ? i.owner + ' already uses this board.' : 'Not connected because ' + i.reason + '.'), i => i.owner ? '' : acceptButtons(i))
+    + (total > suggested.length ? '<p class="sub">The ' + n(suggested.length) + ' found most recently are shown.</p>' : '');
+}
+
+/** The three source maintenance cards. Absent before maintenance has run; an unreadable answer says so and hides nothing else. */
+function renderMaintenance(m) {
+  const needs = $('#needsYou'), developer = $('#forDeveloper'), found = $('#newSources');
+  needs.hidden = developer.hidden = found.hidden = !m;
+  if (!m) return;
+  if (m.unreadable || !Array.isArray(m.actions) || !Array.isArray(m.briefs)) {
+    needs.innerHTML = '<h2 id="needsYouTitle">Needs you</h2><p class="sub">Source maintenance could not be read.</p>';
+    developer.hidden = found.hidden = true;
+    return;
+  }
+  needs.innerHTML = needsYouHtml(m);
+  developer.innerHTML = developerHtml(m.briefs);
+  found.innerHTML = newSourcesHtml(m);
+}
+
 function pullHealth(c) {
   const h = c.pull_health;
   if (!h || h.status === 'unavailable') return '<span class="sub">No pull recorded yet</span>';
@@ -362,8 +565,12 @@ function matchesSearch(c, q) {
 
 function updateCounts() {
   const needs = ALL.filter(needsAttention).length;
-  const active = ALL.length - needs;
-  $('#cntAll').textContent = ALL.length ? '(' + ALL.length.toLocaleString() + ')' : '';
+  const removed = ALL.filter(isRemoved).length;
+  const listed = ALL.length - removed;
+  const active = listed - needs;
+  $('#cntAll').textContent = ALL.length ? '(' + listed.toLocaleString() + ')' : '';
+  $('#cntRemoved').textContent = '(' + removed.toLocaleString() + ')';
+  $('#fltRemoved').hidden = !removed && statusFilter !== 'removed';
   $('#cntActive').textContent = ALL.length ? '(' + active.toLocaleString() + ')' : '';
   $('#cntNeeds').textContent = ALL.length ? '(' + needs.toLocaleString() + ')' : '';
   $('#cntProblems').textContent = '(' + ALL.filter(unconfirmedPull).length.toLocaleString() + ')';
@@ -404,6 +611,8 @@ function render() {
   const q = (($('#companySearch').value || $('#q').value) || '').trim().toLowerCase();
   const rows = ALL.filter(c => {
     if (!matchesSearch(c, q)) return false;
+    if (statusFilter === 'removed') return isRemoved(c);
+    if (isRemoved(c)) return false;
     if (statusFilter === 'active') return !needsAttention(c);
     if (statusFilter === 'problems') return unconfirmedPull(c);
     if (statusFilter === 'needs' || $('#attn').checked) return needsAttention(c);
@@ -425,6 +634,7 @@ function render() {
 
   const tb = $('#rows'); tb.innerHTML = '';
   for (const c of pageRows) {
+    if (isRemoved(c)) { tb.appendChild(removedRow(c)); continue; }
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td class="name">' + esc(c.name) + '</td>' +
@@ -435,11 +645,14 @@ function render() {
       '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
       'placeholder="paste careers / jobs search URL…" aria-label="Careers URL for ' + esc(c.name) + '" /><button type="button">Resolve</button></div>' +
       (latestChange(c.id) ? '<div class="sub change">' + esc(changeText(latestChange(c.id))) + '</div>' : '') +
+      (sourceChangeMode === 'next-pull' ? '<div class="rowactions"><button type="button" class="quiet remove">Remove</button></div>' : '') +
       '<div class="msg" hidden></div></td>';
     const input = tr.querySelector('input.url');
-    const btn = tr.querySelector('button');
+    const btn = tr.querySelector('.urlcell button');
     const msg = tr.querySelector('.msg');
     btn.onclick = () => resolve(c, input, btn, msg, tr);
+    const remove = tr.querySelector('button.remove');
+    if (remove) remove.onclick = () => askRemove(c, remove);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
     tb.appendChild(tr);
   }
@@ -471,6 +684,75 @@ async function resolve(c, input, btn, msg, tr) {
   btn.disabled = false; btn.textContent = 'Resolve';
 }
 
+/** A removed employer's row: what it was, what was asked, and Put back. */
+function removedRow(c) {
+  const tr = document.createElement('tr');
+  const change = latestChange(c.id);
+  tr.innerHTML = '<td class="name">' + esc(c.name) + '</td><td class="jobs">' + (c.active_jobs || 0).toLocaleString() + '</td>'
+    + '<td><span class="pill">removed</span></td><td><span class="sub">Not read by the pull</span></td>'
+    + '<td>' + (change ? '<div class="sub change">' + esc(changeText(change)) + '</div>' : '')
+    + '<div class="rowactions"><button type="button" class="restore">Put back</button></div><div class="msg" hidden></div></td>';
+  const button = tr.querySelector('button.restore');
+  button.onclick = () => employerChange('restore', c, button, tr.querySelector('.msg'));
+  return tr;
+}
+
+/** Remove asks once, in the row: it closes the employer's open jobs at the next pull. */
+function askRemove(c, button) {
+  const box = button.parentElement;
+  const jobs = Number(c.active_jobs || 0).toLocaleString();
+  box.innerHTML = '<span class="sub">Remove ' + esc(c.name) + '? The next pull closes its ' + esc(jobs) + ' open jobs and stops reading it. Put back undoes it.</span>'
+    + '<button type="button" class="danger confirm">Yes, remove</button><button type="button" class="quiet cancel">Cancel</button>';
+  box.querySelector('button.cancel').onclick = () => render();
+  const confirm = box.querySelector('button.confirm');
+  confirm.onclick = () => employerChange('remove', c, confirm, box.parentElement.querySelector('.msg'));
+}
+
+/** Save a Remove or Put back for the next pull and say so in the row. */
+async function employerChange(kind, c, button, msg) {
+  button.disabled = true;
+  try {
+    const r = await fetch('/api/career-hunter/companies-admin/' + kind + '?companyId=' + encodeURIComponent(c.id), { method: 'POST' });
+    const d = await r.json();
+    if (d.ok && d.queued && d.request) {
+      CHANGES.unshift(d.request);
+      renderSourceChanges();
+      button.parentElement.innerHTML = '<span class="sub">' + esc(d.message || 'Saved.') + '</span>';
+      return;
+    }
+    show(msg, d.error || 'Could not be saved.', 'err');
+  } catch (e) { show(msg, 'Request failed: ' + e, 'err'); }
+  button.disabled = false;
+}
+
+/** Add an employer from its name and careers link; the next pull makes it and reads its jobs. */
+async function addEmployer(event) {
+  event.preventDefault();
+  const name = $('#addName').value.trim(), link = $('#addLink').value.trim();
+  if (name.length < 2) { show($('#addMsg'), 'Enter the employer\'s name.', 'err'); return; }
+  if (!/^https?:\/\/\S+$/i.test(link)) { show($('#addMsg'), 'Enter its careers page or job board link, starting with https://', 'err'); return; }
+  $('#addSave').disabled = true;
+  try {
+    const r = await fetch('/api/career-hunter/companies-admin/add?name=' + encodeURIComponent(name) + '&url=' + encodeURIComponent(link), { method: 'POST' });
+    const d = await r.json();
+    if (d.ok && d.queued && d.request) {
+      CHANGES.unshift(d.request);
+      renderSourceChanges();
+      $('#addName').value = ''; $('#addLink').value = '';
+      show($('#addMsg'), d.message || 'Saved.', 'ok');
+    } else {
+      show($('#addMsg'), d.error || 'Could not be saved.', 'err');
+    }
+  } catch (e) { show($('#addMsg'), 'Request failed: ' + e, 'err'); }
+  $('#addSave').disabled = false;
+}
+
+function toggleAddForm(open) {
+  $('#addForm').hidden = !open;
+  $('#addEmployer').setAttribute('aria-expanded', String(open));
+  if (open) { $('#addMsg').hidden = true; $('#addName').focus(); }
+}
+
 function show(el, t, cls) { el.textContent = t; el.className = 'msg ' + cls; el.hidden = false; }
 function esc(s) { return String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
 
@@ -483,8 +765,11 @@ async function load() {
     ALL = d.companies || [];
     sourceChangeMode = d.sourceChangeMode === 'next-pull' ? 'next-pull' : 'now';
     CHANGES = Array.isArray(d.sourceChanges) ? d.sourceChanges : [];
+    $('#addEmployer').hidden = sourceChangeMode !== 'next-pull';
     if (sourceChangeMode === 'next-pull') {
-      $('#companiesIntro').textContent = 'Every company and its detected job board. Paste the real careers or jobs link and press Resolve. The next nightly pull applies it and reads its jobs, and this page shows what happened.';
+      $('#companiesIntro').textContent = 'Every company and its detected job board. Paste the real careers or jobs link and press Resolve. '
+        + 'Add employer lists a new employer from its name and careers link. Remove closes an employer\'s open jobs and stops reading it; '
+        + 'the Removed chip lists removed employers, with Put back. The next nightly pull applies each change and reads the jobs, and Source changes shows what happened.';
     }
     try { renderSourceChanges(); } catch { $('#sourceChanges').hidden = true; }
     $('#healthNote').textContent = d.sourceHealth?.available
@@ -500,6 +785,20 @@ async function load() {
     };
     try { renderSourceReview(d.sourceReview); }
     catch { renderSourceReview({ unreadable: true }); } // A bad report must not hide the company list.
+    $('#needsYou').onclick = (event) => {
+      const button = event.target.closest('button.archive, button.keep');
+      if (button) decideSource(button);
+    };
+    $('#forDeveloper').onclick = (event) => {
+      const button = event.target.closest('button.copy-brief');
+      if (button) copyBrief(button);
+    };
+    $('#newSources').onclick = (event) => {
+      const button = event.target.closest('button.accept');
+      if (button) acceptSuggestion(button);
+    };
+    try { renderMaintenance(d.sourceMaintenance); }
+    catch { renderMaintenance({ unreadable: true }); }
     render();
   } catch (e) {
     $('#healthNote').textContent = e.message || 'Source configuration could not be read.';
@@ -513,6 +812,9 @@ document.querySelectorAll('button.flt').forEach(b => b.addEventListener('click',
 $('#prevPage').addEventListener('click', () => { if (page > 1) { page--; render(); } });
 $('#nextPage').addEventListener('click', () => { page++; render(); });
 $('#healthReload').addEventListener('click', load);
+$('#addEmployer').addEventListener('click', () => toggleAddForm($('#addForm').hidden));
+$('#addCancel').addEventListener('click', () => toggleAddForm(false));
+$('#addForm').addEventListener('submit', addEmployer);
 document.querySelectorAll('#companiesViews [data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
 document.querySelectorAll('th .sorter').forEach(b => b.addEventListener('click', () => {
   const key = b.dataset.sort; sortDir = sortKey === key ? -sortDir : (key === 'jobs' ? -1 : 1); sortKey = key;

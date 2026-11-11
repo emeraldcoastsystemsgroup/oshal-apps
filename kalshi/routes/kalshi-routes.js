@@ -27,6 +27,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | GET /scan's scan block names the schedule that runs it ({ app, name, route } of the manifest's background-scan), so the page can find the person's own job in the kernel's schedule list and say when it is not activated instead of promising a cadence. Guard: tests/kalshi-scan-schedule.test.js.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Before the first scan, GET /scan carries the calibration table's generatedAt and file time (read from the package's own copy) instead of null, so the page can show the table's age while it waits; the gate reason is the engine's sentence in words, with no file paths. Guard: tests/kalshi-scan-schedule.test.js.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | GET /markets defaults to sort=verdict: priced markets first (strongest, then best edge), the unpriced long-dated rest by close time; live, 1431 of 1500 walked markets close beyond the 48-hour horizon and would otherwise bury the priced ones.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | The predictions get graded. GET /grade says where the ledger stands (past their close and ungraded, still open, graded, last grade); POST /grade grades what is past its close through Kalshi's public market data (kalshi-grade.ts) and returns the run and the new standing, carrying on after `after` so the Scorecard walks a long list in calls that each fit the kernel's 60 seconds; POST /scan/tick hands the same grader to the tick, which runs it whenever it does not scan. No Kalshi account is read and no order is placed. Before this nothing on the native kernel graded: the Scorecard stood at graded 0 with 3,430 and 1,395 pending.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Browse and explain: GET /markets lists every market the last scan walked (open now, filtered by q/category/verdict, sorted by closes/edge/volume, bounded by limit) with each row's verdict in words; GET /markets/:ticker returns one market with its full walkthrough, from the snapshot first and otherwise read live from Kalshi's public API and priced against the shipped calibration table (503 when the runtime has no market reader, 404 when Kalshi has no such market). GET /scan no longer ships the browse rows (marketsScanned counts them). The kalshi-quant bot reaches both through the manifest's tools. Guard: tests/kalshi-markets-routes.test.js.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | GET /scan serves only the hands whose market is still open (openHands) and reports closedSinceScan: a snapshot served hours after its scan listed closed markets, and the concierge recommended them.
  *
@@ -81,6 +82,7 @@ const kalshi_scan_config_1 = require("./kalshi-scan-config");
 const kalshi_market_explainer_1 = require("./kalshi-market-explainer");
 const kalshi_trends_1 = require("./kalshi-trends");
 const kalshi_pops_1 = require("./kalshi-pops");
+const kalshi_grade_1 = require("./kalshi-grade");
 const kalshi_scan_cron_1 = require("./kalshi-scan-cron");
 const log = (0, logger_1.createChildLogger)({ module: 'kalshi-routes' });
 /**
@@ -150,6 +152,8 @@ async function resolveCreds(pool, req, res) {
  */
 function createKalshiRoutes(ctx) {
     const pool = ctx.pool;
+    // Kalshi's public market data, which grading reads results from. An installation without the reader says so.
+    const marketReader = typeof prediction_markets_1.kalshiGet === 'function' ? (path) => (0, prediction_markets_1.kalshiGet)(path) : null;
     const toolsDir = surfaceDir(ctx.appPackageDir);
     const router = (0, express_1.Router)();
     ensureKalshiSchema(pool).catch((err) => log.error({ err }, 'kalshi schema ensure failed'));
@@ -342,7 +346,7 @@ function createKalshiRoutes(ctx) {
             return;
         }
         try {
-            const outcome = await (0, kalshi_scan_cron_1.scheduledTick)(ctx);
+            const outcome = await (0, kalshi_scan_cron_1.scheduledTick)(ctx, marketReader ? () => (0, kalshi_grade_1.gradeDue)(pool, marketReader) : undefined);
             if (!outcome.ran && outcome.reason === 'unavailable') {
                 res.status(503).json({ error: 'kalshi_scan_unavailable', detail: outcome.detail });
                 return;
@@ -468,6 +472,43 @@ function createKalshiRoutes(ctx) {
         catch (err) {
             log.error({ err }, 'kalshi trends failed');
             res.status(503).json({ error: err.message });
+        }
+    });
+    // Where the ledger stands: what is past its close and ungraded, what is still open, what is graded.
+    router.get('/grade', async (req, res) => {
+        if (!(0, trading_routes_helpers_1.callerSub)(req)) {
+            res.status(401).json({ error: 'authentication required' });
+            return;
+        }
+        try {
+            res.json(await (0, kalshi_grade_1.gradingSummary)(pool));
+        }
+        catch (err) {
+            log.error({ err }, 'kalshi grading summary failed');
+            res.status(503).json({ error: err.message });
+        }
+    });
+    // Grade what is past its close from Kalshi's public results. One call fits the kernel's 60 seconds; a long
+    // list is walked by calling again with the `lastTicker` the run returned.
+    router.post('/grade', async (req, res) => {
+        if (!(0, trading_routes_helpers_1.callerSub)(req)) {
+            res.status(401).json({ error: 'authentication required' });
+            return;
+        }
+        if (!marketReader) {
+            res.status(503).json({ error: 'kalshi_market_reader_unavailable', detail: 'This installation has no Kalshi market reader, so results cannot be looked up here.' });
+            return;
+        }
+        const after = typeof (req.body || {}).after === 'string' ? String(req.body.after).slice(0, 200) : undefined;
+        try {
+            const run = await (0, kalshi_grade_1.gradeDue)(pool, marketReader, { after });
+            if (run.error)
+                log.warn({ error: run.error }, 'kalshi grading could not reach Kalshi');
+            res.json({ run, summary: await (0, kalshi_grade_1.gradingSummary)(pool) });
+        }
+        catch (err) {
+            log.error({ err }, 'kalshi grading failed');
+            res.status(502).json({ error: 'kalshi grading failed', detail: err.message });
         }
     });
     router.get('/scorecard', async (req, res) => {

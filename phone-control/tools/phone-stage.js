@@ -10,9 +10,11 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: integrate sessionComputer, sessionMedia, sessionCollab, and specialized phoneConcierge controllers for RP-PHC-01..13, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, auto-resumed AirPlay mirroring, mirrored iPhone screen text reading, streamlined quick-control dock, and modal background inert gating.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio toolbar (#sessionDeviceSelect switcher, inline Home/Back/Recents/Sync/#sessionMirrorBtn/+ Add Device/Controls/Concierge/Full screen), collapsible 340px Controls | Concierge right rail, fullscreen stage (.is-fullscreen + parent event fallback + #fullscreenHud), TV #protectedSurfaceNotice + fast post-input frame wakeups, pre-mirror iPhone stage touchpad + #iosStageGuide, and persisted RDP state cleanup.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: surface Swarm-enrolled Android phones and TVs in Phones & TVs (#phoneRail), render their live screen frames and phone/TV controls in #deviceFrame, and fall back to connected Swarm-enrolled Android nodes when a saved Android record's local ADB bridge is offline.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen's rows and their details moved to phone-home.js (a tree: each computer with its phones, TVs and programs under it); this file keeps the session.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11, a Fire TV on Prime Video: the page showed an old Marquee picture and the concierge said "The phone is not connected"): every command and every picture read goes through sendWithReconnect, so a TV or phone the computer's adb lost is reconnected once before anything is reported; a device still not connected is named with its kind, its computer and Sync; the device's stored picture is shown only with a note that it is not live, and it no longer clears the reason the live read failed.
  */
 
-import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp, isAndroidNode, isTvNode } from '/api/phone-control/ui/computer-link.js';
+import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp, isAndroidNode, isTvNode, sendWithReconnect, notConnectedWords, storedPictureNote } from '/api/phone-control/ui/computer-link.js';
 import {
   flashTouchIndicator, handleRdpPointerUp, loadStageHistory, rdpLabel, rdpLoop, readRdpScreen,
   renderDeviceSwitcher, renderProtectedSurface, renderRdpHead, renderScreenItems, sendRdpInput,
@@ -22,6 +24,7 @@ import { dispatchEnrolledAndroidVerb, enrolledAndroidFor, mountSessionComputer }
 import { mountSessionMedia } from '/api/phone-control/ui/session-media.js';
 import { mountSessionCollab } from '/api/phone-control/ui/session-collab.js';
 import { mountPhoneConcierge } from '/api/phone-control/ui/phone-concierge.js';
+import { renderHome } from '/api/phone-control/ui/phone-home.js';
 
 const ANDROID = { label: 'Android' };
 const TV = { label: 'TV' };
@@ -107,72 +110,10 @@ function restartFrameLoops(ctx) {
   else if (rdp) void rdpLoop(ctx, ctx.view.generation, showPicture);
 }
 
-function buildRow(label, sub, tone, selected, onPick, onMore) {
-  const item = document.createElement('li');
-  item.className = 'pc-device-row';
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `pc-rail-item${selected ? ' is-selected' : ''}`;
-  button.setAttribute('aria-selected', String(selected));
-  const dot = document.createElement('span');
-  dot.className = `pc-dot ${tone}`;
-  const name = document.createElement('span');
-  name.className = 'pc-rail-name';
-  name.textContent = label;
-  const small = document.createElement('small');
-  small.textContent = sub;
-  name.append(small);
-  button.append(dot, name);
-  button.addEventListener('click', onPick);
-  item.append(button);
-  if (onMore) {
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'ks-btn pc-row-more';
-    more.textContent = '⋮';
-    more.setAttribute('aria-haspopup', 'menu');
-    more.setAttribute('aria-expanded', 'false');
-    more.setAttribute('aria-label', `Options for ${label}`);
-    more.addEventListener('click', (event) => { event.stopPropagation(); onMore(more); });
-    item.append(more);
-  }
-  return item;
-}
-
+/** The first screen's tree and details live in phone-home.js; the stage lends it its own actions. */
 function renderRail(ctx) {
-  const { app, $ } = ctx;
   closeRowMenu(ctx);
-  const savedRows = app.state.phones.map((phone) => {
-    const report = app.state.reports.get(phone.computerNodeId)?.report || null;
-    const reachable = phoneReachable(phone, report) || Boolean(enrolledAndroidFor(app, phone));
-    const kind = isTv(phone) ? TV : phone.platform === 'android' ? ANDROID : IPHONE;
-    const selected = app.state.selected?.kind === 'phone' && app.state.selected.id === phone.id;
-    const stateText = `${kind.label} · ${reachable ? 'connected' : 'last seen offline'}${phone.controlEnabled ? '' : ' · control off'}`;
-    return buildRow(phone.name, stateText, reachable ? 'tone-ok' : 'tone-warn', selected,
-      () => selectDevice(ctx, { kind: 'phone', id: phone.id }, true), (trigger) => openRowMenu(ctx, phone, trigger));
-  });
-  const enrolledPhoneRows = app.state.computerList.filter((c) => isAndroidNode(c)).map((computer) => {
-    const standing = computerStanding(computer);
-    const kindLabel = isTvNode(computer) ? 'TV' : 'Android';
-    const selected = app.state.selected?.kind === 'computer' && String(app.state.selected.id) === String(computer.id);
-    return buildRow(computer.name || `${kindLabel} ${String(computer.id).slice(0, 8)}`, `${kindLabel} · ${standing.text}`, standing.tone, selected,
-      () => selectDevice(ctx, { kind: 'computer', id: computer.id }, true), null);
-  });
-  $('phoneRail').replaceChildren(...savedRows, ...enrolledPhoneRows);
-  const computerRows = app.state.computerList.filter((c) => !isAndroidNode(c)).map((computer) => {
-    const standing = computerStanding(computer);
-    const selected = app.state.selected?.kind === 'computer' && String(app.state.selected.id) === String(computer.id);
-    return buildRow(computer.name || `Computer ${String(computer.id).slice(0, 8)}`, `Computer · ${standing.text}`, standing.tone, selected,
-      () => selectDevice(ctx, { kind: 'computer', id: computer.id }, true), null);
-  });
-  const rdpRows = app.state.rdpSessions.map((rdp) => {
-    const selected = app.state.selected?.kind === 'rdp' && String(app.state.selected.id) === String(rdp.sessionId);
-    const live = rdp.connected !== false;
-    return buildRow(rdpLabel(rdp), `RDP desktop · ${live ? 'connected' : 'disconnected'}`, live ? 'tone-ok' : 'tone-warn', selected,
-      () => selectDevice(ctx, { kind: 'rdp', id: rdp.sessionId }, true), (trigger) => openRowMenu(ctx, null, trigger, rdp));
-  });
-  $('computerRail').replaceChildren(...computerRows, ...rdpRows);
-  $('railEmpty').hidden = Boolean(app.state.phones.length || app.state.computerList.length || app.state.rdpSessions.length);
+  renderHome(ctx, { selectDevice, openRowMenu, rdpLabel, enrolledAndroidFor });
   renderDeviceSwitcher(ctx);
 }
 
@@ -512,6 +453,9 @@ function renderComputerHead(ctx, computer) {
   }
 }
 
+/** When the page last reconnected each phone or TV by itself, by the device's id: kept across device changes on the page. */
+const reconnectedAt = new Map();
+
 async function phoneCommand(ctx, phone, verb, args, action, summary, limitMs) {
   const { app, status } = ctx;
   if (!phone.controlEnabled) { status('Allow control is off: nothing was sent.'); return null; }
@@ -520,12 +464,13 @@ async function phoneCommand(ctx, phone, verb, args, action, summary, limitMs) {
     status(`${host?.name || 'The computer this phone is connected to'} is not taking commands now: ${computerStanding(host).text}.`);
     return null;
   }
-  let reply;
-  try {
-    reply = await app.computers.bridge(phone.computerNodeId, verb, args, limitMs);
-  } catch (error) {
-    reply = { ok: false, error: 'refused', message: error.message, exitCode: null };
-  }
+  const send = async (sentVerb, sentArgs, sentLimit) => {
+    try { return await app.computers.bridge(phone.computerNodeId, sentVerb, sentArgs, sentLimit); }
+    catch (error) { return { ok: false, error: 'refused', message: error.message, exitCode: null }; }
+  };
+  // A TV that slept or a phone whose address changed is reconnected here, once, before anything is reported.
+  let reply = await sendWithReconnect({ send, now: Date.now, tried: reconnectedAt, adopt: (serial) => adoptRotatedSerial(ctx, phone, serial) }, phone, verb, args, limitMs);
+  if (!reply.ok && reply.error === 'not_connected') reply = { ...reply, message: notConnectedWords(phone, host?.name) };
   if (action) {
     await app.remember({
       computerNodeId: phone.computerNodeId, phoneId: phone.id, action, summary,
@@ -658,10 +603,12 @@ async function frameLoop(ctx, generation) {
           if (response?.status === 200) {
             view.computerTag = response.headers.get('etag') || '';
             showPicture(ctx, await response.blob());
-            $('screenNote').textContent = '';
-          } else if (response?.status !== 304) {
-            $('screenNote').textContent = error.message;
           }
+          // The stored picture is whatever the device's own app last sent, so it is never shown without saying so; a
+          // picture already on screen from an earlier read (304) is the same stored one.
+          const stored = response?.status === 200 || response?.status === 304;
+          view.frame = null;
+          $('screenNote').textContent = stored ? storedPictureNote(phone, error.message) : error.message;
         }
       }
     }

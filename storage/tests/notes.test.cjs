@@ -22,10 +22,18 @@
  *   a "# install" shell line lost its "#", `--force` lost its ticks). Must-keep through the kernel store: those, a crontab "* * * * *" line,
  *   x**2 + y**2, f(**a,**b), bullets, headings and links are saved exactly as sent; only word-bounded **bold** is taken out of a .txt note.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the delete card showed 'Delete note' over 'Remove Note' (the display name, no sentence). Both held note
- *   tools declare a people-facing cardText.
+ *   tools declare a people-facing card sentence.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: 'Delete that note.' got 'has been deleted' with no card and no tool run, and a save reply said 'the
  *   change card above'. Every delete request calls storage-delete-note, nothing is called deleted or saved until the tool answers
  *   ok, and a card is named by what it does, never by where it sits.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | J-4 / Defect 7: POST /files/upload (storage-upload-file) uploads UTF-8 or base64 files (.xlsx, .docx, .pdf, .csv,
+ *   .txt, .md, etc.) to the person's connected cloud storage (Dropbox, Google Drive, OneDrive, GitHub) or OSHAL-local via storage.save,
+ *   validates filename/folder/provider/confirm bounds, and reports exact provider and folder/location.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: an upload to a provider the person has not connected answers 409 naming the provider, in the
+ *   kernel's own refusal words as read on a running kernel ("selected provider connection is not visible to this caller"); it answered
+ *   503 "Try again". An installation with no remote storage still answers 503 and is not called the person's missing connection.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo, in the
+ *   kernel's own refusal words as read on a running kernel ("GitHub storage requires a selected repository"); it answered 503 "Try again".
  */
 'use strict';
 const test = require('node:test');
@@ -61,17 +69,29 @@ function res() { return { statusCode: 200, setHeader() {}, status(n) { this.stat
 
 /** A kernel file store double for the storage.* intents, keyed by path, refusing another subject as the kernel does. */
 function kernel() {
-  const files = new Map(), calls = [];
+  const files = new Map(), calls = [], state = { refuseSave: '' };
   const intent = async (name, input) => {
     calls.push([name, input]);
     assert.equal(input.subject, SUB, 'the verified caller is the subject');
+    if (name === 'storage.save' && state.refuseSave) throw new Error(state.refuseSave);
     if (name === 'storage.list') return { provider: 'oshal-local', files: [...files].map(([n, b]) => ({ name: n, size: b.length, downloadUrl: `/api/applications/storage/storage/download?path=${encodeURIComponent(n)}` })) };
-    if (name === 'storage.save') { files.set(input.name, Buffer.from(input.content, 'base64')); return { provider: 'oshal-local', location: input.name, downloadUrl: `/api/applications/storage/storage/download?path=${encodeURIComponent(input.name)}` }; }
+    if (name === 'storage.save') {
+      const targetProvider = (input.override && input.override.provider) || 'dropbox';
+      const targetFolder = (input.override && input.override.folder) || '';
+      files.set(input.name, Buffer.from(input.content, 'base64'));
+      const location = targetFolder ? `/${targetFolder}/${input.name}` : input.name;
+      return {
+        provider: targetProvider,
+        location,
+        url: targetProvider === 'oshal-local' ? undefined : `https://${targetProvider}.example.com${location}`,
+        downloadUrl: targetProvider === 'oshal-local' ? `/api/applications/storage/storage/download?path=${encodeURIComponent(input.name)}` : undefined,
+      };
+    }
     if (name === 'storage.delete') { files.delete(input.name); return { provider: 'oshal-local', removed: true }; }
     if (name === 'storage.read') { const b = files.get(input.path); if (!b) throw new Error('file not found in the current caller\'s storage'); return { content: b.toString('base64'), name: input.path, size: b.length }; }
     throw new Error(`unexpected intent ${name}`);
   };
-  return { files, calls, r: createStorageRoutes({ pool: { query: async () => ({ rows: [] }) }, intent }).routes };
+  return { files, calls, state, r: createStorageRoutes({ pool: { query: async () => ({ rows: [] }) }, intent }).routes };
 }
 
 async function underKernel(run) {
@@ -111,6 +131,46 @@ test('under the kernel a confirmed note is saved in the kernel file store and re
     assert.deepEqual(k.calls.filter(([name]) => name === 'storage.delete').map(([, i]) => i), [{ kind: 'files', name: 'sweep budget.txt', override: { provider: 'oshal-local' }, subject: SUB }]);
     assert.deepEqual((await call(k.r, 'GET /local/list')).body.files, []);
   });
+});
+
+test('POST /files/upload (storage-upload-file) uploads files to connected Dropbox / Google Drive / OneDrive / OSHAL-local via storage.save and validates inputs (J-4 / Defect 7)', async () => {
+  const k = kernel();
+  await underKernel(async () => {
+    assert.equal(typeof k.r['POST /files/upload'], 'function', 'POST /files/upload route is registered');
+    assert.equal((await call(k.r, 'POST /files/upload', { name: 'report.xlsx', text: 'col1,col2' })).statusCode, 400, 'confirm is required');
+    assert.equal((await call(k.r, 'POST /files/upload', { name: '../escape.xlsx', text: 'col1,col2', confirm: true })).statusCode, 400, 'path traversal refused');
+    assert.equal((await call(k.r, 'POST /files/upload', { name: 'report.xlsx', text: 'col1,col2', provider: 'invalid-cloud', confirm: true })).statusCode, 400, 'invalid provider refused');
+    assert.equal((await call(k.r, 'POST /files/upload', { name: 'report.xlsx', text: 'col1,col2', folder: '../secret', confirm: true })).statusCode, 400, 'invalid folder refused');
+
+    const rawBytes = Buffer.from('PK\x03\x04fake-xlsx-payload', 'binary');
+    const uploaded = await call(k.r, 'POST /files/upload', {
+      name: 'Q4-Financial-Model.xlsx',
+      contentBase64: rawBytes.toString('base64'),
+      provider: 'dropbox',
+      folder: 'Finance/2026',
+      confirm: true,
+    });
+    assert.equal(uploaded.statusCode, 201);
+    assert.equal(uploaded.body.ok, true);
+    assert.equal(uploaded.body.name, 'Q4-Financial-Model.xlsx');
+    assert.equal(uploaded.body.size, rawBytes.length);
+    assert.equal(uploaded.body.provider, 'dropbox');
+    assert.equal(uploaded.body.folder, 'Finance/2026');
+    assert.equal(uploaded.body.location, '/Finance/2026/Q4-Financial-Model.xlsx');
+    assert.match(uploaded.body.where, /Dropbox/i);
+
+    const saveCall = k.calls.find(([name, input]) => name === 'storage.save' && input.name === 'Q4-Financial-Model.xlsx')[1];
+    assert.deepEqual(saveCall.override, { provider: 'dropbox', folder: 'Finance/2026' });
+    assert.deepEqual(Buffer.from(saveCall.content, 'base64'), rawBytes);
+  });
+
+  const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(__dirname, '../../scripts/toolchain')] }));
+  const manifest = yaml.load(fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8'));
+  const uploadTool = manifest.tools.find((t) => t.name === 'storage-upload-file');
+  assert.ok(uploadTool, 'storage-upload-file tool declared in oshal-app.yaml');
+  assert.equal(uploadTool.executor.apiEndpoint, 'POST /api/storage/files/upload');
+  assert.equal(uploadTool.requiresApproval, true);
+  assert.match(uploadTool.cardText || '', /Uploads this file to your OSHAL storage/);
 });
 
 test('a note name, its kind and its size are bounded before anything is written', async () => {
@@ -231,4 +291,37 @@ test('every delete request calls the delete tool, and nothing is called deleted 
   assert.match(served, /Each time they ask to delete a note \("delete that note", "delete <name> from Storage"\), call storage-delete-note for it in that reply/);
   assert.match(served, /even when an earlier turn saved or discussed it\. Never say a note was deleted or saved unless that tool answered ok/);
   assert.match(served, /Name a card by what it does \("the Remove Note card for <name>"\)\. Never say where it sits on the screen: no "above", "below", "previous" or "earlier"/);
+});
+
+test('an upload to a provider the person has not connected answers 409 naming it; an installation without remote storage is not called that', async () => {
+  const k = kernel();
+  const upload = (provider) => call(k.r, 'POST /files/upload', { name: 'report.txt', text: 'hello', confirm: true, ...(provider ? { provider } : {}) });
+  await underKernel(async () => {
+    // The kernel's words for a provider this caller has no connection for (read on a running kernel, 2026-11-11).
+    k.state.refuseSave = 'refused: not_found: selected provider connection is not visible to this caller';
+    for (const [provider, label] of [['dropbox', 'Dropbox'], ['google-drive', 'Google Drive'], ['onedrive', 'OneDrive'], ['github', 'GitHub']]) {
+      const out = await upload(provider);
+      assert.equal(out.statusCode, 409, provider);
+      assert.equal(out.body.error, `${label} is not connected. Connect it under Connections, then upload again.`);
+    }
+    const unnamed = await upload('');
+    assert.equal(unnamed.statusCode, 409);
+    assert.equal(unnamed.body.error, 'That storage provider is not connected. Connect it under Connections, then upload again.');
+
+    // The installation has no remote storage: that is not the person's missing connection, so it stays a 503.
+    k.state.refuseSave = 'unavailable: selected remote storage transport is not configured';
+    const absent = await upload('dropbox');
+    assert.equal(absent.statusCode, 503);
+    assert.equal(absent.body.error, 'The file could not be uploaded right now. Try again.');
+
+    // GitHub with no repository named: the kernel's words (read on a running kernel), answered as something the person can fix.
+    k.state.refuseSave = 'invalid: GitHub storage requires a selected repository';
+    const noRepo = await upload('github');
+    assert.equal(noRepo.statusCode, 400);
+    assert.equal(noRepo.body.error, 'GitHub needs a repository to upload to. Name it as owner/repo and send the upload again.');
+
+    // With nothing refused the same request is saved as before.
+    k.state.refuseSave = '';
+    assert.equal((await upload('dropbox')).statusCode, 201);
+  });
 });

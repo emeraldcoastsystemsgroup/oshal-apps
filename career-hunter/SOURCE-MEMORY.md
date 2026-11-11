@@ -123,6 +123,27 @@ The page says so, shows each change as waiting, and then shows what the pull did
 | Took more than 5 minutes | `timeout` | Nothing changed, and the next change still runs |
 | The pull stopped 3 times while applying it | `interrupted` | Each try rolled back, so nothing changed. Press Resolve again |
 
+**Add employer**, **Remove** and **Put back** (1.52.6) travel the same way, under the same permission, through three more
+routes: `POST /companies-admin/add`, `/remove` and `/restore`. The kernel takes a change as a positive company id and a target,
+so an added employer, which has no id yet, is sent as `add:<name>|<link>` under the placeholder id 2147483647, with the name
+and link percent-encoded so neither can contain the `|`. A removal is `remove:employer` and a put-back `restore:employer`, each
+under the employer's own id. The route refuses at once a name already listed (letter case aside), a name under 2 or over 120
+characters, a link that is not http or https or carries a password, an employer not listed, and a removal or put-back that is
+already true.
+
+| What the page says | Outcome | What happened |
+|---|---|---|
+| Added | `added` | The employer was made, marked `manual`, and its link read that night |
+| Added, but no jobs could be read from that link yet | `saved_no_jobs` | The employer was made with the link, so Resolve can be used on its row |
+| Not added: … is already listed | `duplicate` | The pull matches the name the way seed lists do (suffixes such as "Inc." aside) and makes nothing |
+| Removed | `removed` | Its open jobs closed, its pull state was cleared, and it is out of every later pull |
+| Put back | `restored` | It is listed again as it was found, and the same pull reads it, reopening jobs still on its board |
+| This employer is removed | `removed_employer` | A board change for a removed employer is refused; put it back first |
+
+A removed employer keeps its row, so saved jobs keep their employer and no seed list or import makes it again: a list that
+names it records its tag and changes nothing else. The pull, discovery, the resolver, the source review and the no-feed count
+all leave it out. Adding a removed employer's name puts it back on the new link.
+
 The pull reads a change with the same public-addresses-only guard and 5 minute hard stop as the source review, because an
 ordinary link can redirect anywhere and the pull runs on the host's network. A link, or a token that is one, is refused before
 anything reads it unless every address it resolves to is public. A page read directly stays partial and closes nothing, as it
@@ -184,7 +205,26 @@ embedded JSON/JSON-LD. Pagination follows safe Next/Load more controls beyond tw
 pages and stops at 80 pages or a two-minute source deadline. Only anonymous public
 HTTPS GET/HEAD requests and narrowly recognized JSON search POSTs are admitted;
 forms and mutations are refused. Password/challenge pages are observed without
-entering credentials. DNS is screened for private addresses; the ingest still
+entering credentials. Since 1.52.6 the reader tells the site a current Chrome and
+names itself (`jobhunter/1.0 (personal job search)`) instead of a headless browser,
+presses the accept button of a cookie notice that covers the jobs (a known consent
+tool's button, or an accept button inside an element that names cookies or consent,
+never one inside a form), and reports `challenge_detected`, `login_required`,
+`browser_refused` (HTTP 401, 403, 429 or 451 with no check) and
+`browser_runtime_unavailable` (the browser cannot start) each under its own name. A
+check or sign-in page with no jobs is a failed read that closes nothing; a page that
+answers past a check keeps the jobs it shows. No check is solved and no
+browser-identity setting is hidden.
+
+Some boards' pages load their jobs from a search service by a JSON POST the read policy does not admit, so the page
+reader sees "No jobs found". Since 1.52.7 two of them have their own reader instead. A newer SuccessFactors site
+(`POST /services/recruiting/v1/jobs`, ten jobs a page with the total) is read that way when its `/search/` page lists no
+job; its pages have no stable order, so the reader pages through up to three times and calls the board whole only when
+it has seen as many jobs as the site states. A classic SuccessFactors site answers that service 401 and is read from its
+page as before, so its stored job ids do not change. A Dayforce board (`jobs.dayforcehcm.com/{culture}/{client}/{board}`,
+token `client|board|culture`) answers its search only with the anti-forgery token its page asks for first
+(`/api/auth/csrf`); the reader asks for it the same way and reads to the count the board states. Neither sends applicant
+data. jobs.sap.com answers a Cloudflare check even to its search service, and Career stops there. DNS is screened for private addresses; the ingest still
 uses the installation's existing network namespace policy, not a new network
 proxy or a pinned-address transport.
 
@@ -202,3 +242,6 @@ and hung-descendant cleanup. The two bundle admission units pass separately. Non
 of these tests accesses an employer or a personal Career store. The new Test Lab
 recipe is a component proof; the native namespace proofs run in the kernel delivery
 lane with their explicit runtime/checkout prerequisites.
+
+What happens to a source that stays unreadable, to readers that stay partial, and to employers with no job site is covered
+in [source maintenance](SOURCE-MAINTENANCE.md).

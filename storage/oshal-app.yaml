@@ -11,6 +11,9 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the approval-held note tools declare `cardText`, the people-facing sentence the kernel's approval card shows under its heading (the delete card read 'Delete note' then 'Remove Note', one action named twice in different words). Words only; no route, schema or binding change. Guarded by storage/tests/notes.test.cjs.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the person's connected shares are sources for the shared OSHAL file picker (ADR-139), which Jarvis's "+ Add" opens. artifacts.provides declares Dropbox, Google Drive, GitHub and OSHAL-local, each a read-only listing with folder browsing and a `q` search under /api/storage/sources (routes/file-sources.js); egress adds *.dropboxusercontent.com with no credential (a Dropbox file's temporary link, since the Dropbox credential goes only to api.dropboxapi.com) and www.googleapis.com (Drive, under the person's google-drive grant). Guarded by storage/tests/file-sources.test.cjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: UX audit 2026-11-06 (storage--storage-assistant MERGE, storage--storage-settings FIX-LAYOUT): declare storage-assistant as chatBot so the shell's one concierge button opens the route-backed storage assistant; open Storage on storage-files (/api/files) via ribbon.defaultView while keeping Storage Settings as ui.static[0] (carrying the Business/Home audience view, disabled unconnected backends, and save-on-change) and /api/storage/assistant/ui live by address. Guarded by storage/tests/storage-ux-batch7.test.cjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (J-4 / Defect 7): Add schema-bounded storage-upload-file operation (POST /api/storage/files/upload, held for approval) backed by kernel storage.save so files and device captures can be uploaded to a person's connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local storage with an optional provider/folder override and exact destination reporting. Guarded by storage/tests/notes.test.cjs.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: an upload to a provider the person has not connected answers 409 naming the provider ("Dropbox is not connected. Connect it under Connections, then upload again."); it answered 503 "Try again".
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo; it answered 503 "Try again".
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — storage (Storage hub: targets + assistant)
@@ -41,9 +44,10 @@ rating:
 displayName: Storage
 description: >-
   Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
-  OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
-  set here.
-version: 1.3.1
+  OSHAL-local), upload files to your connected cloud storage (Dropbox, Google Drive,
+  OneDrive, GitHub, or OSHAL-local), and browse your files. Generators (e.g. Presentations)
+  save to the target you set here.
+version: 1.4.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -219,6 +223,32 @@ tools:
       required: [name]
     usageInstructions: Only when the person asks to remove a note; send its exact file name from storage-local-files.
     tags: [storage, route-backed]
+  - name: storage-upload-file
+    displayName: Upload File to Storage
+    cardText: Uploads this file to your OSHAL storage or connected cloud drive.
+    type: api
+    category: storage
+    description: Upload a text or base64-encoded file to the person's configured FILES target or a specified connected provider (Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local) and folder. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/storage/files/upload" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120, description: "Safe file name with an allowed extension (.txt, .md, .json, .csv, .pdf, .png, .jpg, .jpeg, .webp, .svg, .docx, .xlsx, .pptx, .zip, .html)." }
+        contentBase64: { type: string, description: "Base64-encoded file content (up to 10 MB decoded). Provide either contentBase64 or text." }
+        text: { type: string, description: "UTF-8 text content when uploading a text/markdown/CSV/JSON file." }
+        provider: { type: string, enum: [dropbox, google-drive, onedrive, github, oshal-local], description: "Optional connected storage provider override; omit to use the person's FILES bucket target." }
+        folder: { type: string, maxLength: 200, description: "Optional destination folder path (e.g. Research/2026) when provider is specified." }
+        repo: { type: string, maxLength: 200, description: "Optional owner/repo when provider is github." }
+        replace: { type: boolean, description: "true only when replacing an existing file of the same name." }
+        confirm: { type: boolean, const: true }
+      required: [name, confirm]
+    usageInstructions: >-
+      Send {"name", "contentBase64" (or "text"), "confirm": true} and optional {"provider", "folder"} when the person
+      asks to upload a file to Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local. Report the exact provider and
+      location returned by the route only after it answers ok.
+    tags: [storage, upload, route-backed]
 
 ui:
   static:

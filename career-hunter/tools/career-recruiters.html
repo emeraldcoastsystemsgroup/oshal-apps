@@ -6,7 +6,9 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade F): a failed list showed "All 0 · No recruiters in this view" over 18 saved firms. A list that does not answer 200 now shows "Couldn't load your recruiters" with Retry (role=alert, DS-41) and never the empty state. The add form has labels above its fields with the required mark in the label, and on a phone it is an "Add recruiter" sheet with one primary Add. Status selects are 44px, the row's Delete moved into its ⋯ menu with an in-page confirm (no window.confirm), a search field appears past 10 firms, and the status chips are the kit's segmented control (the selected one is ink, not a second accent button). Guard: tests/career-recruiters-screen.test.mjs.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: in a fresh conversation the concierge answered "Which recruiter did I just add?" with "not visible in the current view" while the row sat at the end of a long list, beyond what its screen snapshot carries, and nothing on the screen said which row was new (the "Added" toast lasts two seconds). The All view names the latest added recruiter and its bucket above the list (the highest id, so it survives a reload). Guard: tests/recruiters-latest.test.cjs.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 1: a new person's list opened on eighteen firms they never added, under a form. The engine no longer seeds any (db.py 19), so the page opens on "No recruiters yet" with what the list is for and one filled button, Add a recruiter, which reveals the form (a sheet on a phone, in the page on a computer); a store with no firm in it shows that same empty state instead of "All 0 · No recruiters in this view". "Bucket" reads "Type" in every label (the stored field keeps its name), and the type example is an ordinary one. Guard: tests/career-recruiters-screen.test.mjs.
 -->
 
 <!--
@@ -29,7 +31,9 @@
   .addform { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)) auto; gap:12px; align-items:end; margin:10px 0 18px;
     padding:14px; border:1px solid var(--ds-edge); border-radius:var(--ds-radius-l); background:var(--ds-surface); }
   .req { color:var(--ds-bad); }
-  #openAdd { display:none; }
+  .wrap.adding #openAdd, .wrap.adding [data-open-add], .wrap.is-empty > #openAdd { display:none; }
+  .addform[hidden] { display:none; }
+  .addform .formacts { display:flex; gap:8px; align-items:center; }
   .row { display:flex; align-items:center; gap:12px; background:var(--ds-surface); border:1px solid var(--ds-edge); border-radius:var(--ds-radius-m); padding:10px 14px; margin-bottom:8px; }
   .row .who { min-width:200px; }
   .row .firm { font-weight:600; font-size:15px; min-width:0; } .row .firm a { color:var(--ds-accent-ink); text-decoration:none; }
@@ -43,10 +47,11 @@
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--ds-surface); border:1px solid var(--ds-edge); border-radius:9px; padding:9px 15px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--ds-bad); color:var(--ds-bad); }
   @media (max-width:640px){
     .wrap { padding:14px 12px 48px; }
-    #openAdd { display:inline-flex; width:100%; }
+    #openAdd, [data-open-add] { width:100%; }
     .wrap > .addform { display:none; }
+    dialog .addform #cancelAdd { display:none; }
     dialog .addform { display:flex; flex-direction:column; align-items:stretch; border:0; padding:0; margin:0; }
-    dialog .addform .ck-primary { width:100%; }
+    dialog .addform .formacts, dialog .addform .ck-primary { width:100%; }
     #search { width:100%; }
     .row { flex-direction:column; align-items:stretch; gap:8px; }
     .row .who, .row .contact { min-width:0; width:100%; }
@@ -57,28 +62,28 @@
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
   <h1>Recruiters</h1>
-  <p class="sub">Your recruiter &amp; headhunter tracker — status, contacts, follow-ups.</p>
+  <p class="sub">The recruiters and firms you are in touch with: where each one stands and what to do next.</p>
   <div class="toolbar">
     <div class="ck-seg" id="tabs" role="toolbar" aria-label="Filter by status"></div>
     <input id="search" type="search" placeholder="Search firms" aria-label="Search firms" hidden>
   </div>
-  <button class="ck-primary" id="openAdd" type="button">Add recruiter</button>
-  <form class="addform" id="addForm" autocomplete="off">
+  <button class="ck-primary" id="openAdd" type="button">Add a recruiter</button>
+  <form class="addform" id="addForm" autocomplete="off" hidden>
     <label class="ck-field"><span>Firm or recruiter <span class="req" aria-hidden="true">*</span><span class="sr-only"> (required)</span></span><input id="firm" required></label>
-    <label class="ck-field"><span>Bucket</span><input id="bucket" placeholder="e.g. Cleared / GovTech"></label>
+    <label class="ck-field"><span>Type</span><input id="bucket" placeholder="e.g. Staffing agency"></label>
     <label class="ck-field"><span>Website</span><input id="website" inputmode="url"></label>
     <label class="ck-field"><span>Contact name</span><input id="contact_name"></label>
-    <button class="ck-primary" type="submit">Add</button>
+    <div class="formacts"><button class="ck-primary" type="submit">Add</button><button class="ck-tertiary" type="button" id="cancelAdd">Cancel</button></div>
   </form>
   <p class="latest" id="latest" hidden></p>
   <div id="list"></div>
 </div>
 <dialog class="ck-sheet" id="addSheet" aria-labelledby="addSheetTitle">
-  <header><h2 id="addSheetTitle">Add recruiter</h2><button class="ck-icon" type="button" id="closeAdd" aria-label="Close">✕</button></header>
+  <header><h2 id="addSheetTitle">Add a recruiter</h2><button class="ck-icon" type="button" id="closeAdd" aria-label="Close">✕</button></header>
   <div class="ck-sheet-body" id="addSheetBody"></div>
 </dialog>
 <div class="ck-menu" id="rowMenu" popover role="menu"><button type="button" class="bad" role="menuitem" id="menuDelete">Delete…</button></div>
@@ -86,7 +91,7 @@
 <style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>
 <script>
 const STATUSES=["To contact","Contacted","Replied","Call scheduled","Submitted me","On radar","Dead"];
-const $=id=>document.getElementById(id); const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast');
+const $=id=>document.getElementById(id); const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast'), wrapEl=document.querySelector('.wrap');
 let activeStatus='', rows=[], menuFor=null;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2200); }
@@ -111,8 +116,8 @@ function showError(){
   $('retry').onclick=load;
 }
 function showEmpty(){
-  tabsEl.innerHTML=''; $('search').hidden=true; showLatest([]);
-  listEl.innerHTML='<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">👥</div><h2>No recruiters yet</h2><p>Add the firms and headhunters you work with.</p></div>';
+  activeStatus=''; rows=[]; tabsEl.innerHTML=''; $('search').hidden=true; showLatest([]); wrapEl.classList.add('is-empty');
+  listEl.innerHTML='<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">👥</div><h2>No recruiters yet</h2><p>When a recruiter or a staffing firm gets in touch, add them here. Career keeps who they are, where things stand and what you plan to do next.</p><button type="button" class="ck-primary" data-open-add>Add a recruiter</button></div>';
 }
 function render(){
   const q=$('search').value.trim().toLowerCase();
@@ -131,8 +136,9 @@ async function load(){
     data=await res.json();
   } catch(e){ showError(); return; }
   const { recruiters=[], byStatus=[], empty } = data||{};
-  if(empty){ showEmpty(); return; }
   const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n])); const total=byStatus.reduce((a,s)=>a+s.n,0);
+  if(empty||total===0){ showEmpty(); return; }
+  wrapEl.classList.remove('is-empty');
   const tabs=[{k:'',label:'All',n:total}].concat(STATUSES.filter(s=>map[s]).map(s=>({k:s,label:s,n:map[s]})));
   tabsEl.innerHTML=tabs.map(t=>`<button type="button" class="tab" aria-pressed="${t.k===activeStatus}" data-k="${esc(t.k)}">${esc(t.label)}<span class="n">${t.n}</span></button>`).join('');
   tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; load(); });
@@ -145,7 +151,7 @@ function showLatest(recruiters){
   const el=$('latest');
   const newest=activeStatus?null:recruiters.reduce((a,r)=>(!a||Number(r.id)>Number(a.id)?r:a),null);
   el.hidden=!newest;
-  el.innerHTML=newest?`Latest added: <b>${esc(newest.firm)}</b> · bucket ${esc(newest.bucket||'Other')} · status ${esc(newest.status||'To contact')}`:'';
+  el.innerHTML=newest?`Latest added: <b>${esc(newest.firm)}</b> · type ${esc(newest.bucket||'Other')} · status ${esc(newest.status||'To contact')}`:'';
 }
 async function upd(id,field,value){
   try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
@@ -182,11 +188,19 @@ $('menuDelete').onclick=()=>{ const menu=$('rowMenu'); if(menu.hidePopover) menu
 $('search').addEventListener('input',render);
 $('addForm').addEventListener('submit',e=>{ e.preventDefault(); addRecruiter(); });
 const form=$('addForm'), formHome=form.parentNode, formNext=form.nextSibling, sheet=$('addSheet');
-function openAdd(){ $('addSheetBody').append(form); sheet.showModal(); $('firm').focus(); }
-function closeAdd(){ if(sheet.open) sheet.close(); }
-sheet.addEventListener('close',()=>formHome.insertBefore(form,formNext));
+const phone=window.matchMedia('(max-width:640px)');
+/** Add a recruiter reveals the form: a sheet on a phone, in the page on a computer. The form's Add is then the one filled button. */
+function openAdd(){
+  form.hidden=false; wrapEl.classList.add('adding');
+  if(phone.matches){ $('addSheetBody').append(form); sheet.showModal(); }
+  $('firm').focus();
+}
+function putAway(){ form.hidden=true; wrapEl.classList.remove('adding'); }
+function closeAdd(){ if(sheet.open) sheet.close(); else putAway(); }
+sheet.addEventListener('close',()=>{ formHome.insertBefore(form,formNext); putAway(); });
 sheet.addEventListener('click',e=>{ if(e.target===sheet) closeAdd(); });
-$('openAdd').onclick=openAdd; $('closeAdd').onclick=closeAdd;
+$('openAdd').onclick=openAdd; $('closeAdd').onclick=closeAdd; $('cancelAdd').onclick=closeAdd;
+listEl.addEventListener('click',e=>{ if(e.target.closest('[data-open-add]')) openAdd(); });
 load();
 </script>
 </body></html>

@@ -11,6 +11,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: readiness 1.5.2 (device-concierge routing words 'android', 'ipad' and 'iphone', backlog P4-16k).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: readiness 1.5.3, and phone-control-module-names registers the guard that every name a phone-control browser module uses resolves to a declaration, an import or a browser global (red on 1.5.2, whose session-computer.js called isTvNode without importing it).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: readiness 1.5.4, and phone-control-ble-pairing registers the Bluetooth pairing suite: the real bridge process against a scripted BlueZ on a private dbus-daemon (no pairing is answered or trusted until the person allows it).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: readiness 1.6.0; register phone-control-home-tree (the first screen as a tree with details, rename, and Add a device buttons that show all of their words).
 version: 1
 cases:
   - id: package-readiness
@@ -21,7 +22,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.5.4 with its store open.
+      - The installed phone-control package answers its identity and version 1.6.1 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -104,6 +105,30 @@ cases:
     regressionTests:
       - { level: unit, file: tests/phone-control-module-names.test.cjs }
 
+  - id: phone-control-home-tree
+    name: The first screen as a tree with details, rename, and Add a device buttons that fit
+    purpose: Open the real page in Chromium over a stand-in for its routes, at desktop and phone size, and check that each computer lists the phones and TVs that connect through it, rows start at the left, a device's Details are tables beside the tree (under the row on a phone), Rename saves through the device route, and no button in Add a device cuts its words.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-home-tree.test.mjs
+    expected:
+      - Computers are listed connected first, each with its phones and TVs under it; devices attached to no listed computer are grouped apart.
+      - Details show How it connects, Through, State, Control and Address for a saved device, and What it can do for a computer.
+      - Rename posts the new name to the device route and the tree shows it.
+      - No button in the Add a device sheet has clipped text at 412 px or 1280 px.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/phone-control-home-tree.test.mjs }
   - id: phone-control-ux-batch7
     name: Merged Connect sheet, full-frame session sheet UX, and real UxPlay mirroring guard
     purpose: Verify single ui.static tile, Connect sheet ordering and 5s/2m auto-poll, full-frame session with 48px Session sheet handle, RP-PHC-01..13 backlog controls, real Start mirroring replacing RP-PHC-14, explicit Bluetooth peripheral pairing guidance, and lowercase oshal Node.

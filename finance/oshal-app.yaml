@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: the sortable column headers read as plain header text (the kernel table kit's sort button kept the browser's button box on this page; trial check 2026-11-06).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: UX audit sweep (finance--finance-home, D1=glass, D2=c). Drop manifest hardcoded theme: graphite so portal theme selection applies by default, declare DS-00 dashboard contract and data-ds-work, hide repeated header title when framed and empty connected-actions shell, use theme on-accent ink for primary buttons, replace window.confirm on Disconnect with an in-page ask (DS-30), and align radii/type/touch targets to the token scale.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the description says what this application answers and what it does not: balances, net worth and spending, with brokerage holdings as of the last sync, and no investment performance over time (its tools read the last sync's aggregate only). Jarvis names an application from its description (kernel ADR-212), and "How did my stocks do last week?" came here in kernel scoreboard round 3 (adr212-40c4ddd8) and on production, where only a Plaid sandbox link answered. Description and version only.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience"). A new first screen, finance-app (/api/finance/app), is the application: its own top bar and phone bar, the family's screens shown inside it, and a Home built from the jobs that run for the person and each finance application's saved summary. It is the default screen. The overview keeps its name finance-home and is labelled Money; Daily recap joins the menu (finance-recap). Nothing is traded, moved or switched on from the new screen, and no route but the page itself is added.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -75,7 +76,7 @@ description: >-
   month, with a plain-English brief; brokerage holdings count toward net worth as they
   stood at the last sync, and how investments performed over time is not tracked here.
   Read-only — nothing is traded or moved. No crypto.
-version: 1.4.3
+version: 1.5.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -117,7 +118,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [intelligent-trades, world, kalshi]   # three tabs FRAME these apps' own surfaces; absent, that tab is empty and the rest of finance works
+    apps: [intelligent-trades, world, kalshi, daily-trade-recap]   # four sections FRAME these apps' own surfaces and Home reads their summaries; absent, that section is empty and the rest of finance works
     tools: []
     connectors: []
 
@@ -220,8 +221,15 @@ migrations:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
-    - toolName: finance-home
+    # Finance as its own application (1.5.0): this page draws its own bar, shows the screens below inside itself and
+    # opens on a Home built from the person's finance jobs and summaries. It is the default screen.
+    - toolName: finance-app
       label: Finance
+      icon: codicon codicon-home
+      iframeUrl: /api/finance/app
+      section: top
+    - toolName: finance-home
+      label: Money
       icon: codicon codicon-graph-line
       iframeUrl: /api/finance/
       section: top
@@ -249,6 +257,12 @@ ui:
       icon: codicon codicon-graph
       iframeUrl: /api/kalshi/
       section: top
+    # The day's trading recap and its review (Daily Trade Recap's own screen), beside the rest of the family.
+    - toolName: finance-recap
+      label: Daily recap
+      icon: codicon codicon-notebook
+      iframeUrl: /api/daily-trade-recap/review
+      section: top
 
 ribbon:
   hideFrameworkItems:
@@ -259,7 +273,7 @@ ribbon:
     - dashboard
     - logs
     - operations
-  defaultView: finance-home
+  defaultView: finance-app
 
 summary:
   path: /api/finance/home-summary

@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add POST /provision (phone-provision tool) for one-click and Jarvis zero-touch ADB APK push & auto-sign-in over the enrolled Linux computer.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: allow POST /devices (phone-control-register-device) to auto-resolve computerNodeId from the owner's computer reports or existing devices when omitted, default platform/form, normalize bare Android IPv4 addresses to :5555, and add POST /devices/:id/execute (phone-control-execute-device) for single-step and multi-step Swarm device control.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: a device registered without computerNodeId resolves to one of the caller's own computers (their bridge reports, then their saved devices) or is refused with words (400 computer_required); the fixed fallback computer id, one person's own computer, is gone. The serial refusal's example address is a neutral one.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: serve phone-home.js, the first screen's tree and details.
  */
 
 'use strict';
@@ -28,6 +29,7 @@ const ASSETS = Object.freeze({
   'phone-control.js': 'application/javascript; charset=utf-8',
   'computer-link.js': 'application/javascript; charset=utf-8',
   'phone-stage.js': 'application/javascript; charset=utf-8',
+  'phone-home.js': 'application/javascript; charset=utf-8',
   'phone-setup.js': 'application/javascript; charset=utf-8',
   'phone-rdp.js': 'application/javascript; charset=utf-8',
   'phone-concierge.js': 'application/javascript; charset=utf-8',

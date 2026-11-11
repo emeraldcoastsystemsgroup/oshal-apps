@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Submission activity, grade C). The real tools/career-submissions.html in Chromium over a synthetic fixture: one status row "No computer connected · last seen 30 days ago" with one Connect a computer (no picker row, no repeated "no worker" lines, no hour count); the lanes are 44px role=tab chips that filter the list; an empty queue is "Nothing sent yet" with one primary Open Job Board; Job Apply's counters are one row computed from these records and each row names its portal; Connect a computer opens the kit sheet with a primary, a tertiary Cancel and an X close, and never a browser dialog.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard trial guest behavior: withhold Connect a computer when /api/guest/session reports an active guest visitor.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the lanes read Needs your answer and Removed (were Needs you and Dismissed); the expected lane names follow.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,7 +38,7 @@ test('phone: one status row, chips for lanes and an empty queue with Open Job Bo
     assert.equal(await page.locator('#nodeSel').isVisible(), false, 'no picker row');
     assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Open Job Board']);
     const chips = page.getByRole('tablist', { name: 'Submission lanes' }).getByRole('tab');
-    assert.deepEqual((await chips.allTextContents()).map((t) => t.replace(/\d+$/, '')), ['All', 'Queued', 'Submitting', 'Completed', 'Needs you', 'Failed', 'Dismissed']);
+    assert.deepEqual((await chips.allTextContents()).map((t) => t.replace(/\d+$/, '')), ['All', 'Queued', 'Submitting', 'Completed', 'Needs your answer', 'Failed', 'Removed']);
     for (const chip of await chips.all()) assert.ok((await chip.boundingBox()).height >= 44);
     assert.equal(await page.getByRole('link', { name: /Application status/ }).isVisible().catch(() => false), false);
   } finally { await context.close(); }

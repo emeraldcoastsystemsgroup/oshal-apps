@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add executeDevice package client helper for POST /api/phone-control/devices/:id/execute.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the closed verbs lan-discover and lan-control (TVs and streaming sticks on the home network), and the installer carries oshal_phone_lan.py. The install command passes its checked JSON once, single-quoted, instead of base64 over base64 (gzipped files already arrive as base64): with the fifth file it is ~75 KB instead of ~100 KB, under Linux's 128 KiB single-argument limit with room to grow. Smart Home's TVs section imports this module to install or update the bridge the same way this page does.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer and ble-keep (a Bluetooth pairing waits for the person's Allow; a device paired before oshal asked is kept by the person).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: the Fire TV was on Prime Video, the page showed an old Marquee picture and the concierge answered "The phone is not connected to this computer"): sendWithReconnect reconnects a phone or TV its computer's adb lost (reconnectVerb: only a not_connected refusal, only a device reached over the network, at most once in 20 seconds) and sends the command again; notConnectedWords names the TV or phone, the computer and the one thing to do; storedPictureNote labels the device's stored picture as not live.
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -585,6 +586,72 @@ export function bridgeSupport(computer) {
   return { ok: false, text: `${computer?.name || 'This computer'} runs ${label}. The phone bridge runs on a Linux computer only for now: `
     + 'it gets Android and AirPlay tools with apt, and the iPhone keyboard needs Linux Bluetooth (BlueZ). Use a Linux computer on the same '
     + `Wi-Fi as the phone or TV, with oshal Node signed in and control allowed. ${label} still shows its own screen under Devices.` };
+}
+
+/** How long the page waits before it tries again, by itself, to reconnect the same phone or TV. */
+export const RECONNECT_EVERY_MS = 20000;
+
+/**
+ * @description The verb that reconnects a phone or TV its computer's adb has lost, or null when the page must not try:
+ * the refusal was something else, the device is on a cable (nothing here can plug it in), the refused verb was itself a
+ * connect, or the page tried for this device a moment ago. Pure.
+ * @param {object} phone The saved phone or TV. @param {string} verb The verb that was refused. @param {object} reply The bridge's reply.
+ * @param {number} lastTriedAt When the page last reconnected this device (0 for never). @param {number} now The time now, in ms.
+ * @returns {string|null} 'adb-connect-tv', 'adb-connect', or null.
+ */
+export function reconnectVerb(phone, verb, reply, lastTriedAt, now) {
+  if (!phone || phone.platform !== 'android' || !reply || reply.ok || reply.error !== 'not_connected') return null;
+  if (verb === 'adb-connect' || verb === 'adb-connect-tv') return null;
+  const overNetwork = phone.form === 'tv' || String(phone.address || '').includes(':');
+  if (!overNetwork || now - (lastTriedAt || 0) < RECONNECT_EVERY_MS) return null;
+  return phone.form === 'tv' ? 'adb-connect-tv' : 'adb-connect';
+}
+
+/**
+ * @description Send one command to a phone or TV through its computer. When the computer's adb has lost a device that is
+ * reached over the network (a TV that slept, a phone whose address changed), reconnect it once and send the command again,
+ * so a person never has to know the connection dropped (Roger, 2026-11-11: the Fire TV was on and the concierge answered
+ * "The phone is not connected"). A failed reconnect returns the first reply unchanged.
+ * @param {{send: Function, now: Function, tried: Map, adopt: Function}} io send(verb, args, limitMs) answers a bridge reply;
+ * tried remembers when each device was last reconnected; adopt(serial) keeps a serial the reconnect reported.
+ * @param {object} phone The saved phone or TV. @param {string} verb The verb. @param {object} args Its arguments.
+ * @param {number} [limitMs] The time allowed. @returns {Promise<object>} The reply to show.
+ */
+export async function sendWithReconnect(io, phone, verb, args, limitMs) {
+  const first = await io.send(verb, args, limitMs);
+  const again = reconnectVerb(phone, verb, first, io.tried.get(phone?.id) || 0, io.now());
+  if (!again) return first;
+  io.tried.set(phone.id, io.now());
+  const before = phone.address;
+  const joined = await io.send(again, { address: phone.address }, 25000);
+  if (!joined?.ok) return first;
+  if (joined.serial) io.adopt(joined.serial);
+  const next = args && args.serial === before ? { ...args, serial: phone.address } : args;
+  return io.send(verb, next, limitMs);
+}
+
+/**
+ * @description What to tell a person when a phone or TV is still not connected: the device by its name and kind, the
+ * computer by its name, and the one thing to do. The bridge's own sentence says "phone" for a TV. Pure.
+ * @param {object} phone The saved phone or TV. @param {string} [computerName] The computer it connects through. @returns {string} One or two sentences.
+ */
+export function notConnectedWords(phone, computerName) {
+  const tv = phone?.form === 'tv', where = computerName || 'this computer';
+  const name = phone?.name || (tv ? 'The TV' : 'The phone');
+  if (tv) return `${name} is not connected to ${where}. Check that the TV is on and on the same Wi-Fi, then press Sync.`;
+  return String(phone?.address || '').includes(':')
+    ? `${name} is not connected to ${where}. Unlock the phone, check that it is on the same Wi-Fi, then press Sync.`
+    : `${name} is not connected to ${where}. Plug it in with its cable, unlock it, then press Sync.`;
+}
+
+/**
+ * @description The note under a picture that is not live: the last picture the device's own oshal app sent, shown while
+ * the device cannot be read. Without it an old picture reads as what is on the screen now. Pure.
+ * @param {object} phone The saved phone or TV. @param {string} [reason] Why the live picture could not be read. @returns {string} The note.
+ */
+export function storedPictureNote(phone, reason) {
+  const tv = phone?.form === 'tv';
+  return `Not live: this is the last picture ${phone?.name || (tv ? 'the TV' : 'the phone')}'s own oshal app sent, not what is on the ${tv ? 'TV' : 'phone'} now.${reason ? ` ${reason}` : ''}`;
 }
 
 /** @description Whether a phone is reachable now, from its computer's last bridge report. Pure. @param {object} phone A phone. @param {object|null} report The report. @returns {boolean} Reachable. */

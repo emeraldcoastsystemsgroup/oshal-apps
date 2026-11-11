@@ -18,6 +18,9 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: a person's SmartThings token, saved devices and other Smart Home files stay in that person's own folder. Until now every write was also copied to the store root and a read fell back to it, so a person with no file of their own read whoever saved last (their SmartThings token included). Guard: tests/home-per-person-storage.test.cjs. No route, tool or permission changed.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: Jarvis routing words (backlog P4-16l): home-bot adds 'lock' and 'door'. "Lock the front door" scored here but claimed nothing (its phrase 'lock the door' is not in it) and now reaches Smart Home; "Show me the door camera" stays with Camera Ops and "Lock my account" with nobody. No route, tool or permission changed.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: Jarvis presses TV buttons through Smart Home. home-lan-discover declares computerPlan {program: phone-bridge, verbs: [lan-discover]} and home-lan-control {program: phone-bridge, verbs: [lan-control]}, so the kernel (09923dec and later) offers home-bot computer.run_plan, which runs exactly the command such a tool's answer planned, once, on the person's own computer in their own conversation. Both descriptions (what the model reads), their usage instructions and home-lan-record's, the plans' next step and the persona say: pass the planId to computer.run_plan, then record the computer's answer with home-lan-record; without it, say the scan or press is planned and that the Smart Home TV buttons run it. The scan's computer field no longer points to computer.list, which home-bot never has. No route, permission, egress or routing word changed. Guard: tests/home-lan-devices.test.cjs (Test Lab case home-tv-plans).
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (J-3, J-6): Add schema-bounded read-only SmartThings samsungce.viewInside operation (GET /api/home/view-inside, GET /api/home/view-inside/image/:fileId, tool home-view-inside) returning normalized upper/middle/lower bay snapshots, supportedFocusAreas, lastUpdatedTime, and preview image URLs for the app UI and Jarvis; name samsungce.viewInside in description and keep Inspect SmartThings Device and Refrigerator View Inside Camera in the first eight tools within the 200-character catalog budget.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: Home is tiles in groups (Roger, 2026-11-10: "Smart home needs a redesign ... connected devices are smart home items, fire sticks are as well"). The first screen shows Kitchen and appliances, TVs and streaming, the switch cards, Phones and tablets and Computers; the person's connected devices come from the kernel's device list and, when they can open it, Phone & Device Control (the optional dependency already declared). A tile opens the page for that thing: the refrigerator (Look inside, this week's shelves, grocery list, meal ideas), the TVs and their remotes; a phone or computer tile opens Phone & Device Control. Help and notes moves under More. No label names a provider key or a device capability. No route, tool, schedule or authorization change.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: a refrigerator temperature shows only when the hub reported it. The weekly state starts with 37 and 0 as placeholders and the tile and the refrigerator page showed them as readings; `telemetry.measuredAt` now says when a run was handed a reported temperature, and the page says Temperature not read yet until then. The weekly list, comparison, grocery list and meal ideas are unchanged (they are still the fixed list in routes/fridge-weekly-assessment.js; see BACKLOG).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -60,19 +63,19 @@ description: >-
   Control your smart home by chat. Connect a hub at /utilities (SmartThings or
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token, inspects SmartThings appliances and Samsung Family Hub refrigerators
-  (interior camera ViewInside snapshots, cooler/freezer temperatures, door sensors
-  and live component capabilities), runs weekly refrigerator shelf comparisons to
-  recommend a grocery cart and build a weekly meal list from what is in the fridge
-  and what you have ordered, keeps a persistent Smart Home Operations Guide
-  & Runbook, and turns "turn off the living room lights" into the right commands.
-  Destructive actions (locks, garage, thermostat) are confirmed first. It also
-  gives the weather forecast for any US city, address or ZIP code from the
-  National Weather Service (weather.gov): today, tonight and the coming days.
-  It finds the TVs and streaming sticks on your home network through your own
-  computer (Samsung, Roku, Android, Google and Fire TV) and presses their
-  buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening
-  oshal on the TV.
-version: 1.4.3
+  (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer
+  temperatures, door sensors and live component capabilities), runs weekly
+  refrigerator shelf comparisons to recommend a grocery cart and build a weekly
+  meal list from what is in the fridge and what you have ordered, keeps a
+  persistent Smart Home Operations Guide & Runbook, and turns "turn off the
+  living room lights" into the right commands. Destructive actions (locks,
+  garage, thermostat) are confirmed first. It also gives the weather forecast
+  for any US city, address or ZIP code from the National Weather Service
+  (weather.gov): today, tonight and the coming days. It finds the TVs and
+  streaming sticks on your home network through your own computer (Samsung,
+  Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off,
+  volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.
+version: 1.6.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -177,6 +180,10 @@ bots:
       - view inside
       - inside the fridge
       - inside the refrigerator
+      - view inside my refrigerator
+      - view inside the fridge
+      - samsungce.viewinside
+      - check smartthings devices
       - fridge camera
       - refrigerator camera
       - smartthings camera
@@ -271,7 +278,7 @@ tools:
     usageInstructions: Call with {} when the index is empty or stale. A 409 "SmartThings not connected" means the hub is not connected under Connections.
     tags: [home, smartthings, route-backed]
   - name: home-device-inspect
-    displayName: Inspect SmartThings Device & Capabilities
+    displayName: Inspect SmartThings Device
     type: api
     category: smart-home
     description: Inspect connected SmartThings devices, full component capabilities (/v1/devices/{id}), and live status (/v1/devices/{id}/status), including Samsung Family Hub refrigerator interior cameras (samsungce.viewInside, imageCapture), cooler/freezer temperatures, door sensors, and appliance modes. Read-only.
@@ -287,8 +294,26 @@ tools:
       Call with {"device": "refrigerator"} (or "all" or a device name) whenever the person asks about a refrigerator,
       fridge camera, Family Hub, SmartThings API capabilities, or detailed live status of any connected device.
     tags: [home, smartthings, route-backed]
+  - name: home-view-inside
+    displayName: Refrigerator View Inside Camera
+    type: api
+    category: smart-home
+    description: Read-only SmartThings samsungce.viewInside operation for Samsung Family Hub refrigerators. Reads upper, middle, and lower interior camera bay snapshots (contents, supportedFocusAreas, lastUpdatedTime) and returns preview image URLs for the app and Jarvis.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/view-inside?device={input.device}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        device: { type: string, minLength: 1, maxLength: 120, pattern: "^[A-Za-z0-9_. -]+$", description: Target refrigerator device key or "refrigerator". }
+      required: [device]
+    usageInstructions: >-
+      Call with {"device": "refrigerator"} whenever the person asks to view inside their refrigerator, check
+      samsungce.viewInside camera snapshots, or see interior shelf bay images from SmartThings. Include the returned
+      markdownPreview image links in your reply so Jarvis renders the interior bay snapshots directly.
+    tags: [home, smartthings, route-backed]
   - name: home-fridge-assessment
-    displayName: Weekly Refrigerator Assessment, Cart & Meal Plan
+    displayName: Weekly Fridge Assessment & Cart
     type: api
     category: smart-home
     description: Read the Samsung Family Hub refrigerator 3-bay optical shelf inventory, week-over-week comparison (depleted staples, running low, eat-first fresh items), recent order history, recommended grocery cart, and weekly meal list. Read-only.
@@ -301,7 +326,7 @@ tools:
       are running low or need to be ordered, or wants a meal list or grocery cart recommendation.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-assessment-run
-    displayName: Run Weekly Refrigerator Assessment
+    displayName: Run Fridge Assessment
     type: api
     category: smart-home
     description: Trigger a fresh Samsung Family Hub refrigerator assessment, refresh telemetry and optical snapshot comparison against last week and past orders, and recompute grocery cart recommendations and the weekly meal plan.
@@ -317,7 +342,7 @@ tools:
       weekly fridge comparison and meal list.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-meal-cart
-    displayName: Start Grocery Cart or Build Weekly Meal List
+    displayName: Start Cart or Meal List
     type: api
     category: smart-home
     description: Start or update the recommended grocery cart from the refrigerator assessment, log an ordered item, or customize the weekly meal list based on what is in the fridge and what the person has ordered.

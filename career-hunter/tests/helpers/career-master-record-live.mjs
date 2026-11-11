@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Master record's run on bare-metal blue (1.51.0), driven by tests/career-master-record-live-proof.mjs blue. Loopback kernel only; the administrator credential is read by name and never printed; the browser gets a cookie session made from the test person's token, never a header. A throwaway person named guest-… is seeded through Career's own guest-seed route (the bundled made-up profile), given one skill holding semicolons through Career's master save and one library entry; then the page at both sizes, Resume Studio's More item, the rail's save-before-send and Save to master resume, and the Career bot asked for everything. Every session is signed out, the grants revoked and the person deactivated.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The test person's made-up résumé arrives through Resume Studio's own upload on the page and Career's real indexing, now that the upload works on the native kernel; the headline is emptied and the semicolon skill added through Career's master save, so the Word document shows the credential line in place of the headline.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the status under the document reads "master résumé" with its accents on a build that has the change and without them on one that does not; the two status checks accept either.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -237,7 +238,7 @@ async function saveChangesNothing(k, context, person, name, out) {
   const studio = await openScreen(k, page, STUDIO_LINK, /\/api\/career-hunter\/resume-studio/, 'Resume Studio');
   await until(() => frameOf(page, /\/api\/presentations\/editor\/app/), 120000, 'the master as a Word document');
   const status = () => studio.evaluate(() => document.getElementById('status').textContent.trim());
-  const onOpen = await until(async () => { const t = await status(); return /master resume/i.test(t) && t; }, 90000, 'the document status');
+  const onOpen = await until(async () => { const t = await status(); return /master r[ée]sum[ée]/i.test(t) && t; }, 90000, 'the document status');
   const office = frameOf(page, /\/api\/presentations\/editor\/app/);
   await until(() => office.evaluate((who) => document.readyState === 'complete' && document.body.innerText.includes(who), name), 90000, 'the document text');
   // A person presses Send once the document shows; AI Office refuses a save while it is still busy, so press again a moment later.
@@ -257,7 +258,7 @@ async function saveChangesNothing(k, context, person, name, out) {
   }
   const afterRail = await status();
   await studio.locator('#save').click();
-  const afterSave = await until(async () => { const t = await status(); return /^(Matches|Saved to) your master resume/.test(t) && t; }, 90000, 'Save to master resume');
+  const afterSave = await until(async () => { const t = await status(); return /^(Matches|Saved to) your master r[ée]sum[ée]/.test(t) && t; }, 90000, 'Save to master resume');
   await page.screenshot({ path: path.join(out, 'desktop-resume-studio-after-save.png') });
   await wait(1500);
   const after = storeState(personStore(person));

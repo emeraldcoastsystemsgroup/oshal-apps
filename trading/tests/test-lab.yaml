@@ -1,3 +1,5 @@
+# CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Register handoff-registration and page-title (1.54.1): the Trades page registers its document session with its application named and its start-up runs to the end; the page title is the display name.
+# CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | Register trading-create-concierge: Intelligent Trades conforms to the Create concierge pattern (inline front-desk trading-concierge, watchlist tools, registerDocumentSession, back-office trading-analyst hand-off).
 # CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Register portfolio-record-read-conflict: a saved-record read that meets another writer mid-scan is read again (1.53.9).
 # CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Register account-values-upsert: the five-minute account observation upsert keeps EXCLUDED inside DO UPDATE SET and updates only on newer timestamps.
 # CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Register design-standard-landing: the Accounts landing's design-standard rules (contract, real-capital hero only for real accounts, tile as card, roster in Settings, scales, phone bottom bar).
@@ -213,11 +215,51 @@ cases:
       - A conversational question is answered in plain sentences and never as a json decision block.
       - trading_status, trading_positions, trading_account, trading_book_facts and trading_performance are each authorized auto for the bot, and trading_performance reads GET /api/trading/performance for 1W, 1M, 3M or 1Y only.
       - trading_status, trading_positions and trading_account are route reads (GET /api/trading/status, /positions, /account), never a cli script the native kernel does not run.
-      - The manifest declares chatBot trading-analyst, a bot it declares, so the app concierge converses; Finance's money words are not trading routing words.
+      - The manifest declares chatBot trading-concierge (inline front-desk concierge) and keeps trading-analyst as the back-office specialist; Finance's money words are not trading routing words.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 30000 }
+    installation: never
+  - id: trading-create-concierge
+    name: Intelligent Trades conforms to the Create concierge pattern
+    purpose: Verify that Intelligent Trades declares the inline front-desk concierge trading-concierge (personas/trading-concierge.yaml, claude-code, plain prose, ```tool_call fence, tool-first Schwab and watchlist rules, back-office hand-off to trading-analyst), screen-mirroring watchlist tools (trading_watchlist, trading_watchlist_add, trading_watchlist_remove), and registerDocumentSession in tools/ui/connected-actions.js.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/trading-create-concierge.test.js] }
+    expected:
+      - The manifest declares chatBot trading-concierge with posture inline and keeps workflow.workerBot trading-analyst in the back office.
+      - trading_watchlist, trading_watchlist_add and trading_watchlist_remove are declared route-backed tools with no caller-identity fields.
+      - personas/trading-concierge.yaml uses claude-code, teaches plain prose and the ```tool_call fence, authorizes every route-backed tool, mandates calling trading_accounts and trading_watchlist before answering, and is registered in scripts/check-store-bots.mjs.
+      - tools/ui/connected-actions.js registers a document session through /shared/ui/js/document-handoff.js that hands over the open view, selected book, focused symbol and connected account count and refreshes on completion.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: handoff-registration
+    name: The Trades page start-up runs to the end
+    purpose: Run tools/ui/connected-actions.js with the kernel's document hand-off helper (the helper itself when OSHAL_KERNEL_ROOT names a kernel checkout, otherwise a stand-in carrying its exact refusal). 1.54.0 registered without an application, the helper threw, and the research hand-off, the Go button and the connected actions never started.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-handoff-registration.test.js] }
+    expected:
+      - The registration names intelligent-trades and carries a save and a refresh; the hand-off receiver, the Go button and the connected actions all start.
+      - The same script without the application stops at the helper's refusal.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: page-title
+    name: The page title is the application's display name
+    purpose: The title reaches the assistant as the screen's name and shows in the browser tab; it read "Trading" while the application is Intelligent Trades.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-page-title.test.js] }
+    expected:
+      - tools/trading.html has one title and it equals the manifest's displayName.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never
   - id: paper-decide
     name: The native paper engine decides deterministically within the person's guardrails

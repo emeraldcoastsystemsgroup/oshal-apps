@@ -1,0 +1,181 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application (Roger, 2026-11-10: "a full application by itself ... full screen, custom navigation, thoughtful layout", in the Little Monsters format). This file is its skin and its frame: the palette every Career page wears while career-frame.js owns the window, the top bar (brand, sections, More, the person's chips), the row of a section's pages under it, and the phone's bottom bar. Nothing here applies unless career-frame.js has set data-career-frame on the page, so a Career page hosted by anything other than the cockpit looks as it did.
+ */
+
+/* ── 1. Skin ─────────────────────────────────────────────────────────────────
+   The portal's own token names, so every Career page (all of which paint from these tokens) wears the skin with no
+   change of its own. Layout conventions follow the two job products people know best: a white bar of sections over
+   a quiet page of white cards. The colours are Career's own. */
+html[data-career-frame] {
+  --text-on-accent: #ffffff;
+  --bg-primary: #f3f5f8;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e9edf3;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f7f9fc;
+  --border-color: #dbe2ea;
+  --border-color-hover: #c2ccd9;
+  --text-primary: #0f1b2d;
+  --text-secondary: #3c4a5e;
+  --text-muted: #5b6b80;
+  --accent-primary: #0f5f73;
+  --accent-primary-hover: #137a93;
+  --accent-gradient: linear-gradient(135deg, #0f5f73 0%, #178f9c 60%, #2bb3a6 100%);
+  --accent-glow: rgba(15, 95, 115, 0.18);
+  --status-success: #067647;
+  --status-active: #175cd3;
+  --status-warning: #b54708;
+  --status-error: #b42318;
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-bg-heavy: #ffffff;
+  --glass-border: #dbe2ea;
+  --glass-highlight: none;
+  --glass-blur: 0px;
+  --glass-blur-light: 0px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(15, 27, 45, 0.18);
+  --panel-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 8px rgba(16, 24, 40, 0.04);
+  --depth-shadow: 0 20px 48px rgba(16, 24, 40, 0.14);
+  /* The frame's own measures. --cf-top is the height of everything the frame pins to the top of the window (the bar,
+     and the section row when there is one); --cf-bottom is the phone bar. career-frame.js keeps both true. */
+  --cf-bar: 60px;
+  --cf-top: 60px;
+  --cf-bottom: 0px;
+  --cf-ink: var(--text-primary);
+  --cf-ink-2: var(--text-secondary);
+  --cf-line: var(--border-color);
+  --cf-accent: var(--accent-primary);
+  --cf-wash: color-mix(in srgb, var(--accent-primary) 7%, #ffffff);
+  --cf-soft: color-mix(in srgb, var(--accent-primary) 12%, #ffffff);
+  color-scheme: light;
+}
+html[data-career-frame], html[data-career-frame] body { background-color: var(--bg-primary); color: var(--text-primary); }
+
+/* ── 2. Top bar ──────────────────────────────────────────────────────────── */
+.cf-topbar {
+  position: sticky; top: 0; z-index: 80;
+  display: flex; align-items: center; gap: 14px;
+  height: var(--cf-bar); padding: 0 clamp(12px, 2.2vw, 28px);
+  background: #ffffff; border-bottom: 1px solid var(--cf-line);
+  font: 600 14px/1.2 "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--cf-ink);
+  box-sizing: border-box;
+}
+.cf-topbar *, .cf-subnav *, .cf-bottombar * { box-sizing: border-box; }
+.cf-brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; text-decoration: none; color: var(--cf-ink); font-weight: 750; font-size: 16px; letter-spacing: -0.2px; white-space: nowrap; }
+.cf-brand img { width: 34px; height: 34px; border-radius: 10px; display: block; }
+.cf-topbar nav { flex: 1 1 auto; min-width: 0; display: flex; gap: 2px; overflow: hidden; padding: 2px; }
+.cf-topbar nav a, .cf-more > summary {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 10px;
+  color: var(--cf-ink-2); text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; cursor: pointer;
+  border: 1px solid transparent; list-style: none;
+}
+.cf-more > summary::-webkit-details-marker { display: none; }
+.cf-topbar nav a:hover, .cf-more > summary:hover, .cf-more[open] > summary { background: var(--cf-wash); color: var(--cf-ink); }
+.cf-topbar nav a[aria-current="page"], .cf-more > summary[aria-current="page"] { background: var(--cf-soft); color: var(--cf-accent); border-color: color-mix(in srgb, var(--cf-accent) 28%, #ffffff); }
+.cf-side { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; white-space: nowrap; }
+.cf-more { position: relative; flex: 0 0 auto; }
+.cf-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); min-width: 240px; max-height: calc(100dvh - var(--cf-bar) - 24px); overflow-y: auto;
+  display: grid; gap: 2px; padding: 8px; background: #ffffff; border: 1px solid var(--cf-line); border-radius: 14px;
+  box-shadow: var(--depth-shadow); z-index: 90;
+}
+.cf-menu a { display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--cf-ink); text-decoration: none; font-weight: 600; font-size: 14px; }
+.cf-menu a:hover { background: var(--cf-wash); }
+.cf-menu a[aria-current="page"] { background: var(--cf-soft); color: var(--cf-accent); }
+.cf-menu .cf-menu-label { padding: 10px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.cf-menu a.cf-all-applications { margin-bottom: 4px; border-bottom: 1px solid var(--cf-line); border-radius: 10px 10px 0 0; color: var(--cf-ink-2); }
+.cf-menu .cf-spill { display: grid; gap: 2px; }
+.cf-menu .cf-spill:empty { display: none; }
+.cf-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px;
+  background: var(--cf-soft); color: var(--cf-accent); text-decoration: none; font-weight: 700; font-size: 13px;
+}
+.cf-chip b { font-variant-numeric: tabular-nums; }
+.cf-pill { display: inline-flex; align-items: center; min-height: 32px; max-width: 160px; padding: 0 12px; border-radius: 999px; background: var(--bg-tertiary); color: var(--cf-ink-2); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.cf-more-phone, .cf-bottombar { display: none; }
+.cf-subnav[hidden], .cf-bottombar[hidden] { display: none !important; }
+
+/* ── 3. The pages of the current section ─────────────────────────────────── */
+.cf-subnav {
+  position: sticky; top: var(--cf-bar); z-index: 70;
+  display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 clamp(12px, 2.2vw, 28px);
+  background: color-mix(in srgb, var(--bg-primary) 88%, #ffffff); border-bottom: 1px solid var(--cf-line);
+  overflow-x: auto; scrollbar-width: none; font: 600 14px/1.2 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+.cf-subnav::-webkit-scrollbar { display: none; }
+.cf-subnav .cf-subnav-label { flex: 0 0 auto; margin-right: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.cf-subnav a { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; color: var(--cf-ink-2); text-decoration: none; white-space: nowrap; border: 1px solid transparent; }
+.cf-subnav a:hover { background: #ffffff; border-color: var(--cf-line); color: var(--cf-ink); }
+.cf-subnav a[aria-current="page"] { background: #ffffff; border-color: color-mix(in srgb, var(--cf-accent) 36%, #ffffff); color: var(--cf-accent); }
+
+.cf-topbar a:focus-visible, .cf-topbar summary:focus-visible, .cf-subnav a:focus-visible, .cf-bottombar a:focus-visible, .cf-bottombar summary:focus-visible { outline: 2px solid var(--cf-accent); outline-offset: 2px; }
+
+/* ── 4. Pages that measure the window ────────────────────────────────────────
+   A page laid out against the full height of the window, or with a part pinned to its top, gives the frame its
+   share. Each rule names the page by the data-career-surface it already declares. */
+html[data-career-frame][data-career-surface="resume-studio"] .wrap,
+html[data-career-frame][data-career-surface="resume-studio"] body[data-view=office] .wrap { height: calc(100dvh - var(--cf-top)); }
+html[data-career-frame][data-career-surface="companies-admin"] .wrap { max-height: calc(100dvh - 140px - var(--cf-top)); }
+html[data-career-frame][data-career-surface="search-ui"] .rail { top: calc(var(--cf-top) + 12px); max-height: calc(100dvh - 24px - var(--cf-top)); }
+html[data-career-frame][data-career-surface="search-ui"] .results-split:not(.list-only) .map-panel { top: calc(var(--cf-top) + 12px); }
+html[data-career-frame][data-career-surface="search-ui"] .results-split:not(.list-only) #jobMap { height: calc(100dvh - 140px - var(--cf-top)); }
+html[data-career-frame][data-career-surface="search-ui"] .saved-searches { inset: calc(84px + var(--cf-top)) 24px auto auto; max-height: calc(100dvh - 116px - var(--cf-top)); }
+html[data-career-frame] #queueNavigator { top: calc(var(--cf-top) + 12px); }
+html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--cf-top)); }
+
+/* ── 5. Phone ────────────────────────────────────────────────────────────────
+   One top bar of 56px (brand, the count chip, the menu) and a bottom bar of Home, Search, Job Board, Resume and More. */
+@media (max-width: 720px) {
+  html[data-career-frame] { --cf-bar: 56px; }
+  .cf-topbar { gap: 8px; padding: 0 8px 0 12px; }
+  .cf-brand { font-size: 15px; gap: 8px; min-width: 0; overflow: hidden; }
+  .cf-brand span { overflow: hidden; text-overflow: ellipsis; }
+  .cf-brand img { width: 32px; height: 32px; }
+  .cf-topbar nav, .cf-more-desk, .cf-side > .cf-pill { display: none; }
+  .cf-more-phone { display: block; }
+  .cf-more-phone > summary { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 22px; line-height: 1; }
+  .cf-more-phone .cf-menu { min-width: 250px; max-width: calc(100vw - 16px); }
+  .cf-menu a { min-height: 44px; font-size: 15px; }
+  .cf-subnav { height: 48px; padding: 0 12px; }
+  .cf-subnav .cf-subnav-label { display: none; }
+  .cf-subnav a { min-height: 36px; }
+  .cf-bottombar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 85;
+    height: calc(58px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #ffffff; border-top: 1px solid var(--cf-line);
+    font: 700 12px/1.2 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .cf-bottombar > a, .cf-bottombar > details > summary {
+    flex: 1 1 0; min-width: 0; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    color: var(--cf-ink-2); text-decoration: none; cursor: pointer; list-style: none;
+  }
+  .cf-bottombar > details { flex: 1 1 0; min-width: 0; display: flex; }
+  .cf-bottombar > details > summary::-webkit-details-marker { display: none; }
+  .cf-bottombar svg { width: 22px; height: 22px; display: block; }
+  .cf-bottombar [aria-current="page"] { color: var(--cf-accent); box-shadow: inset 0 3px 0 var(--cf-accent); }
+  .cf-sheet {
+    position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); max-height: 72dvh; overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 12px;
+    background: #ffffff; border-top: 1px solid var(--cf-line); border-radius: 20px 20px 0 0; box-shadow: 0 -12px 30px rgba(16, 24, 40, 0.14);
+  }
+  .cf-sheet a { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 10px; color: var(--cf-ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+  .cf-sheet a[aria-current="page"] { background: var(--cf-soft); color: var(--cf-accent); }
+  .cf-sheet .cf-menu-label { grid-column: 1 / -1; padding: 8px 12px 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  .cf-sheet a.cf-all-applications { grid-column: 1 / -1; color: var(--cf-ink-2); border-top: 1px solid var(--cf-line); border-radius: 0 0 10px 10px; margin-top: 4px; }
+  /* Every page keeps its last control clear of the bar and of the 48px floating assistant. */
+  html[data-career-frame] body.cf-has-bottombar { padding-bottom: calc(58px + 48px + 16px + env(safe-area-inset-bottom, 0px)); }
+  html[data-career-frame] body.cf-has-bottombar .toast { bottom: calc(18px + 58px + env(safe-area-inset-bottom, 0px)); }
+  /* Resume Studio pins its own assistant bar to the bottom of the window; it rests on the frame's bar. */
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar { padding-bottom: 0; }
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .wrap { height: calc(100dvh - 64px - var(--cf-top) - var(--cf-bottom)); }
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar #aiBar { bottom: var(--cf-bottom); }
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .chat { bottom: calc(64px + var(--cf-bottom)); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cf-topbar nav a, .cf-more > summary, .cf-subnav a { transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease; }
+}

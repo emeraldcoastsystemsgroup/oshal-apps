@@ -29,6 +29,7 @@
  * 2026-07-30 03:50:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial — the snapshot-clocked poller (single-flighted scanNow, boot catch-up, cadence from the manifest/settings config), the per-user alert fan-out (first-seen dedup, strength/edge floor, rolling daily budget), the Jarvis feed notification, and the opt-in outward channel via the preference center.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Respect the core briefing enqueue decision before finishing or recording Jarvis delivery.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | No timer. The one-minute setInterval (and the boot setTimeout) ran each tick outside any request, so on the native kernel every cycle failed at its first query with "SQL connection requires an active admitted request", which the surface showed as the scan's last error. A tick now runs only inside an admitted request: scheduledTick is the body of POST /scan/tick, which the manifest's `background-scan` schedule fires as the person who activated it, and it reports why it did nothing (inactive, disabled, backing off, not due) instead of returning silently. scanNow refuses before any SQL with the installation's own reason when a scan cannot run here (no Kalshi market-feed reader, no calibration table). Guard: tests/kalshi-scan-schedule.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A tick that does not scan grades: the caller hands scheduledTick a grader (kalshi-grade.ts) and a tick that is not due, switched off or backing off runs it and reports what it graded, so the job a person already turned on scores the predictions with no second job to activate. With a cadence under half an hour every firing would scan, so the first firing of each hour grades instead when anything is waiting. Guard: tests/kalshi-grade.test.js.
  *
  * @module kalshi-scan-cron
  */
@@ -42,6 +43,7 @@ import {
   recordAlert, resolveConfig, runScan, scanUnavailableReason, withScanLease, writeSnapshot, type ScanPayload,
 } from './kalshi-scan-engine';
 import { formatAlert, scanFreshness, selectAlertHands, type ScanHandLike } from './kalshi-scan-config';
+import type { GradeRun } from './kalshi-grade';
 
 const log = createChildLogger({ module: 'kalshi-scan-cron' });
 
@@ -257,31 +259,66 @@ async function notifyJarvis(ctx: AppContext, userSub: string, title: string, bod
   }
 }
 
-/** What one scheduled tick did, and why when it did nothing. */
+/** What one scheduled tick did, and why when it did nothing. `grading` is what a tick that did not scan graded. */
 export type ScheduledTick =
   | { ran: true; generatedAt: string; hands: number }
-  | { ran: false; reason: 'already_running' | 'app_inactive' | 'scan_disabled' | 'backing_off' | 'not_due' | 'unavailable'; detail?: string };
+  | { ran: false; reason: 'already_running' | 'app_inactive' | 'scan_disabled' | 'backing_off' | 'not_due' | 'unavailable' | 'grading'; detail?: string; grading?: GradeRun };
+
+/** Grades what is past its close in the caller's ledger; handed in by the route, which owns the market reader. */
+export type TickGrader = () => Promise<GradeRun>;
+
+/**
+ * @description Whether this firing is the hour's first. With a cadence under half an hour every firing scans,
+ * so this one grades instead when anything is waiting.
+ * @param nowMs - The time now.
+ * @returns True in the first fifteen minutes of an hour.
+ */
+export function gradingTurn(nowMs: number): boolean {
+  return new Date(nowMs).getUTCMinutes() < 15;
+}
+
+/** Run the grader a tick was handed; a failure is logged and the tick carries on without it. */
+async function gradeOnTick(grade?: TickGrader): Promise<GradeRun | undefined> {
+  if (!grade) return undefined;
+  try {
+    const run = await grade();
+    if (run.due > 0 || run.error) log.info({ ...run }, 'kalshi tick graded settled predictions');
+    return run;
+  } catch (err) {
+    log.error({ err }, 'kalshi tick grading failed');
+    return undefined;
+  }
+}
 
 /**
  * @description One scheduled tick, inside the caller's admitted request (POST /scan/tick, fired by the
  * `background-scan` schedule): scan when the stored snapshot is older than the configured cadence (or
- * missing). Cheap when it is not due: two small settings reads and one snapshot read.
+ * missing). A tick that does not scan grades the predictions whose markets have closed.
  * @param ctx - App context.
+ * @param grade - Grades what is past its close; without it a tick only scans.
  * @returns What it did, or why it did nothing.
  */
-export async function scheduledTick(ctx: AppContext): Promise<ScheduledTick> {
+export async function scheduledTick(ctx: AppContext, grade?: TickGrader): Promise<ScheduledTick> {
   if (runtime.running) return { ran: false, reason: 'already_running' };
   const unavailable = scanUnavailableReason(ctx.appPackageDir);
   if (unavailable) { runtime.lastError = unavailable; runtime.lastSource = 'poller'; return { ran: false, reason: 'unavailable', detail: unavailable }; }
   // TOGGLED-OFF APPS MUST GO QUIET (ADR-085 P0's runaway).
   if (!await appIsActive(ctx.pool)) { runtime.paused = true; return { ran: false, reason: 'app_inactive' }; }
   runtime.paused = false;
+  const idle = async (reason: 'scan_disabled' | 'backing_off' | 'not_due', detail?: string): Promise<ScheduledTick> => {
+    const grading = await gradeOnTick(grade);
+    return { ran: false, reason, ...(detail ? { detail } : {}), ...(grading ? { grading } : {}) };
+  };
   const cfg = await resolveConfig(ctx);
-  if (!cfg.scanEnabled) return { ran: false, reason: 'scan_disabled' };
-  if (runtime.nextAttemptAfter && Date.now() < runtime.nextAttemptAfter) return { ran: false, reason: 'backing_off', detail: runtime.lastError ?? undefined };
+  if (!cfg.scanEnabled) return idle('scan_disabled');
+  if (runtime.nextAttemptAfter && Date.now() < runtime.nextAttemptAfter) return idle('backing_off', runtime.lastError ?? undefined);
   const snap = await readSnapshot(ctx.pool);
   const fresh = scanFreshness(snap?.generatedAt ?? null, cfg, Date.now());
-  if (fresh.ageSeconds !== null && fresh.ageSeconds < cfg.scanIntervalMinutes * 60) return { ran: false, reason: 'not_due' };
+  if (fresh.ageSeconds !== null && fresh.ageSeconds < cfg.scanIntervalMinutes * 60) return idle('not_due');
+  if (cfg.scanIntervalMinutes < 30 && gradingTurn(Date.now())) {
+    const grading = await gradeOnTick(grade);
+    if (grading && grading.due > 0) return { ran: false, reason: 'grading', grading };
+  }
   log.info({ ageSeconds: fresh.ageSeconds, intervalMinutes: cfg.scanIntervalMinutes, failures: runtime.failures }, 'kalshi scheduled scan due');
   const payload = await scanNow(ctx, 'poller');
   return { ran: true, generatedAt: payload.generatedAt, hands: payload.hands.length };

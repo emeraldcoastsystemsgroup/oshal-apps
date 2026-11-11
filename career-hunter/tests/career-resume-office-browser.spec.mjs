@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: Resume Studio opens the master resume in AI Office's Word editor. In Chromium: the person edits the headline heading, asks the Concierge to tighten a bullet, approves the card, presses Save to master resume, re-opens, and sees both changes in the document and in the career profile. A second person cannot read the first person's resume document.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
  *
  * Real: Career's page and tools/career-resume-office.js, AI Office's editor page and document routes over
  * forced-RLS PostgreSQL (presentations/tests/office/fixture.mjs), the shared editor foundation, standard
@@ -98,7 +99,7 @@ const frameOf = (page) => page.frameLocator('#officeFrame');
 async function openStudio(page, origin) {
   await page.goto(origin + '/api/career-hunter/resume-studio');
   await frameOf(page).locator('html[data-office-ready=true]').waitFor({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Save to master resume' }).waitFor();
+  await page.getByRole('button', { name: 'Save to master résumé' }).waitFor();
 }
 const paragraphText = (page, text) => frameOf(page).locator('.office-word-page [contenteditable=true]', { hasText: text }).first();
 
@@ -114,7 +115,7 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await routeConcierge(page, f.origin);
   await openStudio(page, f.origin);
   assert.equal(await page.locator('.chat').isVisible(), false, "Career's own resume editor panel is gone");
-  assert.match(await page.locator('#status').innerText(), /Matches your master resume/);
+  assert.match(await page.locator('#status').innerText(), /Matches your master résumé/);
 
   const headline = paragraphText(page, 'PMP');
   await headline.fill('Principal Platform Engineering Leader');
@@ -126,8 +127,8 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await concierge.getByRole('button', { name: 'Approve', exact: true }).click();
   await paragraphText(page, 'Shipped the platform').waitFor({ timeout: 15000 });
 
-  await page.getByRole('button', { name: 'Save to master resume' }).click();
-  await page.locator('#status', { hasText: 'Saved to your master resume' }).waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Save to master résumé' }).click();
+  await page.locator('#status', { hasText: 'Saved to your master résumé' }).waitFor({ timeout: 15000 });
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'career_db.json'), 'utf8'));
   assert.equal(saved.profile.headline, 'Principal Platform Engineering Leader');
   assert.deepEqual(saved.roles[0].deliverables, ['Shipped the platform', 'Cut deploy time 60%']);
@@ -137,7 +138,7 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await openStudio(page, f.origin);
   await paragraphText(page, 'Principal Platform Engineering Leader').waitFor();
   await paragraphText(page, 'Shipped the platform').waitFor();
-  assert.match(await page.locator('#status').innerText(), /Matches your master resume/);
+  assert.match(await page.locator('#status').innerText(), /Matches your master résumé/);
   const documentId = await page.locator('#officeFrame').evaluate((frame) => new URL(frame.src).searchParams.get('document'));
 
   // Refusal: another person can neither list nor read this person's resume document.

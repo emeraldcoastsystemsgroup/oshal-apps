@@ -36,6 +36,27 @@ These come from the coordinator decisions in Roger's UX audit (2026-11-05). They
 - **Close what is really gone on partly verified sources.** Their jobs never close, so listings that have gone stay open.
   Done when: each connector can prove a whole feed, or a job not seen for a stated time closes, and the report shows how
   many open jobs are affected.
+- **Workday list rows that have no title.** A Workday list can hold a row with a path and no title. The pull counts it as an
+  invalid row, records that employer's read as partial (`invalid_feed_rows`) and closes nothing for it. Measured 2026-11-10
+  in the published corpus: 12 of 236 Workday sources are recorded that way, holding 64,797 open jobs (Accenture 38,586, Target
+  14,209, Jabil 2,305, Johnson & Johnson 1,907, Salesforce 1,585, United Rentals 1,276, State Street 1,197, Home Depot 976,
+  Mastercard 959, Motorola Solutions 889, Copart 557, IFF 351); a repeated id is recorded the same way. The invalid rows
+  themselves were read on two boards, and they are of two kinds. On Clorox's (`clorox:wd1:Clorox`, read the same day) the row's own page answers 404: the posting
+  was taken down. On Copart's (`/job/_JR107671`, `/job/_JR106820`) the page answers 200 with a blank title and takes
+  applications: the posting is open. Leaving every such row out would let a board close jobs while an open posting is
+  missing from the feed.
+  Done when: the invalid rows of each of the 12 sources are classified by what their own page answers; a row whose page
+  answers 404 no longer stops its board closing what is gone; a row whose page is open is stored or named in the nightly
+  report; and a regression case holding both kinds fails on the present reader.
+- **Job lists that show no place beside a job.** A reader that takes jobs from a board's list stores the place the list shows,
+  and none where the list shows none. Measured 2026-11-10: Experis (`https://www.experis.com/en/all-jobs`, page-list reader)
+  2,090 of 2,092 jobs with no place; Deloitte (`apply.deloitte.com`, Avature) 1,067 of 1,441, whose list says "Multiple
+  Locations" for a job offered in several places; Trader Joe's (`traderjoes.avature.net`) 190 of 190, whose list shows a
+  shop number and street. These jobs are stored and found by title, and never by place. Where each board states the place
+  of such a job (the job's own page, a search by place) was not read for this entry. Done when: each of the three boards'
+  jobs is stored with the place the employer states for it, or the board is recorded as stating none; a job offered in
+  several places is found from each of them; the added requests per pull are counted and bounded; and a regression case
+  holding a list row with no place fails on the present readers.
 - **Stop the page reader following a redirect to a private address.** The pull's browser screens each request's address, but
   Playwright 1.59.1 does not call a route handler for a redirected request. Measured 2026-11-04: a 302 to `127.0.0.1` was
   followed and loaded, with the handler seeing only the first address. Every `web` source the pull reads has this exposure, on

@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Authorize career_resume_local_export (auto) and career_resume_local_import (ask) for S-6 local round-trip master resume editing (1.52.0).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | The Master record (1.51.0): read career_master_record for a request for the whole record (every bullet, every skill, the history of what was added) and answer with its counts and the Master record page link, where Download and Print are; never paste the whole record into the chat. Guard: tests/career-persona-wording.test.mjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Resume Studio opens the master resume as a Word document in AI Office's editor with AI Office's Concierge beside it: send resume editing there, never patch the master behind that open document, and read the saved text the screen hands over.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Answer native pull questions from actual scheduler observations and distinguish current fetching, previous publication, missing evidence and individual source failures.
@@ -56,6 +57,8 @@ authorizations:
   career_resume_section: "auto"
   career_resume_patch: "ask"
   career_resume_save: "ask"     # approval-gated whitelist write-back (+ packet PDF re-render)
+  career_resume_local_export: "auto"
+  career_resume_local_import: "ask"
 
 perspective: |
   Resume Studio is where the master resume is edited: it opens as a Word document in AI Office's

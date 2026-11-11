@@ -10,6 +10,7 @@
   7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship all 13 Reference-Product session features (RP-PHC-01..13) as live controls with zero planned placeholders, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, specialized Phone Concierge (Organize my apps, screen reading, bounded anti-loop execution), collapsible On screen & History cards, Fire TV Wi-Fi discovery & signed APK push, and Connection Troubleshooting Concierge.
   8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio workspace — single-row top bar with device switcher and inline Home/Back/Recents/Sync/+ Add Device/Controls/Concierge/Full screen controls, 100%-height true-aspect center stage with 3-step live iPhone guide and non-blocking DRM overlay, collapsible 340px Controls | Concierge right rail with bottom-pinned (12px) Jarvis composer (+ screen context, speaker read-aloud, mic dictation, Send) and zero outer rail scrollbar, and guided Android pairing steps with Samsung Auto Blocker tip.
   9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console and the RDP sign-in fields only it used (Username, Password, Domain) are hidden: nothing implements /api/rdp/sessions (the kernel answers 404 "application is not installed" on every slot), so the RDP card offers what works, the setup scripts, Copy setup script and Check RDP port, and says this console does not open RDP desktops. Unhide them together with a session backend.
+  10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen is a tree (computers, with their phones, TVs and programs under them) beside a details pane.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -40,15 +41,16 @@
     </section>
 
     <div id="devicesView" class="pc-devices-list" data-ds-work>
-      <nav class="pc-rail ks-card" aria-label="Your phones and computers">
-        <h2 class="pc-rail-title">Phones &amp; TVs</h2>
-        <ul id="phoneRail" class="pc-rail-list"></ul>
+      <nav class="pc-rail ks-card" aria-label="Your computers and the devices under them">
         <h2 class="pc-rail-title">Computers</h2>
         <ul id="computerRail" class="pc-rail-list"></ul>
+        <h2 class="pc-rail-title" id="phoneRailTitle">Phones &amp; TVs</h2>
+        <ul id="phoneRail" class="pc-rail-list"></ul>
         <div id="railEmpty" class="pc-empty" hidden>
           <p class="ks-help">No phones, TVs or computers yet. Press Add a device to begin.</p>
         </div>
       </nav>
+      <aside id="deviceDetails" class="pc-details-pane ks-card" aria-label="Details of the device" hidden></aside>
     </div>
 
     <div id="rowMenu" class="pc-menu" role="menu" aria-label="Device options" hidden>

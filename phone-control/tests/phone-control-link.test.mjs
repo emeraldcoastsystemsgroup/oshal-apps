@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: installer carries oshal_phone_mirror.py, lowercase oshal Node guidance, closed setup-mirror / mirror-start / mirror-stop / mirror-frame verbs, readFrame custom verb support, and phoneReachable with mirror.hasFrame.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: cover computerPoint coordinate mapping (normalized and multi-monitor physical offset), desktopControlSupport capability gating, safeFileName, bytesToBase64, QUALITY_PRESETS, and adb-files/adb-push/adb-pull/adb-clipboard-* verbs.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the installer carries oshal_phone_lan.py, its single-quoted payload installs for real, and lan-discover / lan-control are closed verbs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the reconnect rules (only a not_connected refusal, only a device reached over the network, at most once in 20 seconds), the command sent again after a reconnect and to a new serial when the reconnect reports one, the words for a device still not connected (a TV is never called a phone), and the note under a stored picture.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,7 +22,8 @@ import { fileURLToPath } from 'node:url';
 import {
   bridgeCommand, installCommand, parseReply, bridgeMatches, tapPoint, swipeFromDrag, iosGestureFromDrag,
   readFrame, createQueue, toBase64, fromBase64, bytesToBase64, safeFileName, computerPoint,
-  desktopControlSupport, QUALITY_PRESETS, VERBS, workHref, computerStanding, bridgeSupport, phoneReachable
+  desktopControlSupport, QUALITY_PRESETS, VERBS, workHref, computerStanding, bridgeSupport, phoneReachable,
+  reconnectVerb, sendWithReconnect, notConnectedWords, storedPictureNote, RECONNECT_EVERY_MS
 } from '../tools/computer-link.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -212,3 +214,65 @@ test('computers and phones are described from what the kernel and the bridge sai
     assert.match(bridgeCommand(verb, { serial: '10.0.0.2:5555' }), new RegExp(` ${verb} --b64 `));
   }
 });
+
+const FIRE_TV = { id: 'tv-1', platform: 'android', form: 'tv', name: 'Amazon AFTMD001', address: '192.168.1.60:5555' };
+const LOST = { ok: false, error: 'not_connected', message: 'The phone is not connected to this computer. Open Connect a device and press Connect.' };
+
+/** A bridge that answers from a script and records what it was sent. */
+function scripted(answers) {
+  const sent = [];
+  return { sent, io: { now: () => 100000, tried: new Map(), adopted: [], adopt(serial) { this.adopted.push(serial); },
+    async send(verb, args, limit) { sent.push({ verb, args, limit }); return answers.shift() ?? { ok: false, error: 'script_ran_out' }; } } };
+}
+
+test('1.6.1: the page reconnects by itself only a network device its computer lost, and not twice in a row', () => {
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-frame', LOST, 0, 100000), 'adb-connect-tv');
+  assert.equal(reconnectVerb({ ...FIRE_TV, form: 'phone' }, 'adb-key', LOST, 0, 100000), 'adb-connect', 'a phone on Wi-Fi');
+  assert.equal(reconnectVerb({ ...FIRE_TV, form: 'phone', address: 'R58N123ABC' }, 'adb-key', LOST, 0, 100000), null, 'a phone on a cable cannot be plugged in from here');
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-frame', { ok: false, error: 'unauthorized' }, 0, 100000), null, 'only a lost connection');
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-frame', { ok: true }, 0, 100000), null);
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-connect-tv', LOST, 0, 100000), null, 'a refused connect is not answered with a connect');
+  assert.equal(reconnectVerb({ ...FIRE_TV, platform: 'ios' }, 'ble-key', LOST, 0, 100000), null);
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-frame', LOST, 100000 - RECONNECT_EVERY_MS + 1, 100000), null, 'tried a moment ago');
+  assert.equal(reconnectVerb(FIRE_TV, 'adb-frame', LOST, 100000 - RECONNECT_EVERY_MS, 100000), 'adb-connect-tv');
+});
+
+test('1.6.1: a command to a TV the computer lost reconnects it once and is sent again', async () => {
+  const tv = { ...FIRE_TV };
+  const { sent, io } = scripted([LOST, { ok: true, serial: '192.168.1.60:5555' }, { ok: true, key: 'HOME' }]);
+  const reply = await sendWithReconnect(io, tv, 'adb-key', { serial: tv.address, key: 'HOME' }, 9000);
+  assert.deepEqual(reply, { ok: true, key: 'HOME' });
+  assert.deepEqual(sent.map((item) => item.verb), ['adb-key', 'adb-connect-tv', 'adb-key']);
+  assert.deepEqual(sent[1], { verb: 'adb-connect-tv', args: { address: '192.168.1.60:5555' }, limit: 25000 });
+  assert.deepEqual(sent[2], sent[0], 'the same command, the same limit');
+  // The next refusal within the wait is reported as it is: no second reconnect, one command sent.
+  const second = scripted([LOST]);
+  second.io.tried = io.tried;
+  assert.equal(await sendWithReconnect(second.io, tv, 'adb-frame', { serial: tv.address, width: 432 }), LOST);
+  assert.deepEqual(second.sent.map((item) => item.verb), ['adb-frame']);
+});
+
+test('1.6.1: a reconnect that fails changes nothing, and one that reports a new serial sends the command to it', async () => {
+  const failed = scripted([LOST, { ok: false, error: 'no_answer', message: 'The phone did not answer at 192.168.1.60:5555.' }]);
+  assert.equal(await sendWithReconnect(failed.io, { ...FIRE_TV }, 'adb-frame', { serial: FIRE_TV.address }), LOST, 'the first refusal is what is reported');
+  assert.deepEqual(failed.sent.map((item) => item.verb), ['adb-frame', 'adb-connect-tv']);
+  const tv = { ...FIRE_TV };
+  const moved = scripted([LOST, { ok: true, serial: '192.168.1.77:5555' }, { ok: true }]);
+  moved.io.adopt = (serial) => { tv.address = serial; };
+  await sendWithReconnect(moved.io, tv, 'adb-launch', { serial: FIRE_TV.address, package: 'com.amazon.avod' });
+  assert.deepEqual(moved.sent[2].args, { serial: '192.168.1.77:5555', package: 'com.amazon.avod' });
+  const fine = scripted([{ ok: true }]);
+  await sendWithReconnect(fine.io, { ...FIRE_TV }, 'adb-key', { serial: FIRE_TV.address, key: 'BACK' });
+  assert.equal(fine.sent.length, 1, 'a command that worked sends nothing more');
+});
+
+test('1.6.1: a device still not connected is named with its kind, its computer and the one thing to do', () => {
+  assert.equal(notConnectedWords(FIRE_TV, 'Spark'), 'Amazon AFTMD001 is not connected to Spark. Check that the TV is on and on the same Wi-Fi, then press Sync.');
+  assert.doesNotMatch(notConnectedWords(FIRE_TV, 'Spark'), /phone/i, 'a TV is never called a phone');
+  assert.match(notConnectedWords({ platform: 'android', name: 'Pixel', address: '10.0.0.9:37123' }, ''), /^Pixel is not connected to this computer\. Unlock the phone, .* press Sync\.$/);
+  assert.match(notConnectedWords({ platform: 'android', name: 'Pixel', address: 'R58N123ABC' }, 'Spark'), /Plug it in with its cable/);
+  assert.equal(storedPictureNote(FIRE_TV, 'It is not connected.'),
+    "Not live: this is the last picture Amazon AFTMD001's own oshal app sent, not what is on the TV now. It is not connected.");
+  assert.match(storedPictureNote({ name: 'Pixel' }), /^Not live: .* not what is on the phone now\.$/);
+});
+

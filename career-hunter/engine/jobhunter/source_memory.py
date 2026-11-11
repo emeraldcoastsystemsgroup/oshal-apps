@@ -4,6 +4,7 @@ CHANGE LOG
 2 | maintainer@emeraldcoastsystemsgroup.com | Retain closed native browser failure codes while preserving prior active postings on unconfirmed or failed reads.
 3 | maintainer@emeraldcoastsystemsgroup.com | Respect explicitly unknown normalized fields in real employer pay quotes when comparing hash-less legacy rows, while preserving omitted enrichment.
 1 | maintainer@emeraldcoastsystemsgroup.com | Remember per-employer pull health and posting hashes; only a verified complete nonempty feed may close missing jobs.
+4 | maintainer@emeraldcoastsystemsgroup.com | ingest: a job the feed sends unchanged is still filed by its stored location when its stored state is not the one that location states. Unchanged jobs never reach upsert_posting, so a corrected state lookup reached none of them. A feed that answers "not modified" is not read, so its jobs wait until it next changes.
 """
 from __future__ import annotations
 
@@ -166,7 +167,7 @@ def ingest(conn, company_id, rows):
     feed = rows if isinstance(rows, Feed) else Feed(rows)
     attempt, started = feed.attempt_id or str(uuid.uuid4()), feed.started_at or db.now()
     # Do not duplicate a large employer's complete inline descriptions in memory.
-    columns = ",".join(("id", "ats_job_id", "active", *(key for key in FIELDS if key != "description")))
+    columns = ",".join(("id", "ats_job_id", "active", "state", *(key for key in FIELDS if key != "description")))
     current = {str(row["ats_job_id"]): dict(row) for row in conn.execute(
         f"SELECT {columns} FROM {db.corpus_table()} WHERE company_id=?", (company_id,)).fetchall()}
     hashes = {row["ats_job_id"]: row["content_hash"] for row in conn.execute(
@@ -204,6 +205,8 @@ def ingest(conn, company_id, rows):
         if unchanged:
             yes = "TRUE" if config.POSTGRES else "1"
             conn.execute(f"UPDATE {db.corpus_table()} SET last_seen_at=?,active={yes} WHERE id=?", (db.now(), previous["id"]))
+            # The job's content is as it was, and it may still be filed under a state its location does not state.
+            db.file_by_location(conn, previous["id"], previous.get("location"), previous.get("location"), previous.get("state"))
             counts["unchanged" if previous.get("active") else "changed"] += 1
         else:
             payload = dict(posting)

@@ -28,7 +28,7 @@ one command, **nothing checks your push**. See
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **86 packages**, shelved by ADR-097 suite. Versions and status come from
+All **87 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -47,11 +47,11 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Marketing** | [`marketing-suite/`](marketing-suite/) | 1.1.3 | ready | One front door for taking a product to market: the campaign board with its consent gates and weekly scorecard, the compose desk and scheduled calendar, your social presence and the signals you follow, and the graphics, decks and clips a launch needs — with a setup page that shows what is armed and what still needs you. |
 | **Orbit** | [`orbit-experience/`](orbit-experience/) | 1.1.6 | ready | Explore your admitted applications, relationships and recent work in the Orbit map. |
 | **Payments** | [`payments/`](payments/) | 1.1.5 | ready | Take payments through your own Stripe, Square or PayPal account — Stripe makes a hosted payment page from your own pasted key (test or clearly marked LIVE), Square runs a card charge, PayPal sends an invoice. |
-| **Phone & Device Control** | [`phone-control/`](phone-control/) | 1.5.4 | pending | Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays. |
+| **Phone & Device Control** | [`phone-control/`](phone-control/) | 1.6.1 | pending | Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays. |
 | **AI Office** | [`presentations/`](presentations/) | 2.20.2 | ready | Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge. |
 | **Shopping** | [`purchasing/`](purchasing/) | 1.4.7 | ready | AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. |
 | **Social** | [`social/`](social/) | 1.7.1 | ready | Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). |
-| **Storage** | [`storage/`](storage/) | 1.3.1 | ready | Your storage hub — choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), manage targets by chat with the Storage Assistant, and browse your files. |
+| **Storage** | [`storage/`](storage/) | 1.4.2 | ready | Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox / OSHAL-local), upload files to your connected cloud storage (Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local), and browse your files. |
 | **Studio** | [`studio-experience/`](studio-experience/) | 1.1.6 | ready | Applications, recent work and conversations in your established Studio workspace. |
 | **Switchboard** | [`switchboard/`](switchboard/) | 0.7.0 | ready | Every line, one board. |
 | **System** | [`system/`](system/) | 1.0.1 | ready | One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts — each already its own app, gathered here so you don't have to hunt the full catalog. |
@@ -60,9 +60,9 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.51.0 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.54.0 | ready | Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. |
 | **Classroom** | [`classroom-experience/`](classroom-experience/) | 1.0.5 | ready | Classwork, class schedules and personal learning through existing school roles and roster rules. |
-| **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.9 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. |
+| **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.11 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.1.9 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
 | **Ambient Recall** | [`person-model/`](person-model/) | 1.2.3 | pending | Ask what someone said across your own ambient transcripts, maintain your continuously learned personal profile (identity, address, contact details, preferences, and household facts), and build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted receipts with assistant-voice playback, open asks and commitments beside their source quotes, per-person consent controls, and weekly topic trends. |
 | **Print Ingest** | [`print-ingest/`](print-ingest/) | 0.3.9 | ready | An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. |
@@ -73,10 +73,11 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.3.9 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
-| **Finance** | [`finance/`](finance/) | 1.4.3 | ready | Your household money in one place: link your banks and brokerages via Plaid to see balances, net worth and spending, with a plain-English brief. |
+| **Finance** | [`finance/`](finance/) | 1.5.0 | ready | Your household money in one place: link your banks and brokerages via Plaid to see balances, net worth and spending, with a plain-English brief. |
+| **Finance** | [`finance-experience/`](finance-experience/) | 1.0.1 | ready | Opens Finance as one application, with your money, trades, markets and world events and the work running on them. |
 | **Futures Research** | [`futures-research/`](futures-research/) | 1.1.1 | ready | Opt-in, tool-less queued review of owner-scoped Futures studies. |
-| **Intelligent Trades** | [`trading/`](trading/) | 1.53.9 | ready | Your stock portfolio and trading desk. |
-| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.7.8 | ready | Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. |
+| **Intelligent Trades** | [`trading/`](trading/) | 1.54.1 | ready | Your stock portfolio and trading desk. |
+| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.8.1 | ready | Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. |
 | **Payroll** | [`payroll/`](payroll/) | 2.3.7 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.12.1 | ready | Follow a team and really know its next game. |
 | **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.5.4 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
@@ -88,7 +89,7 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Animatronics** | [`animatronics/`](animatronics/) | 0.2.5 | ready | The motion layer for a Halloween prop or any servo animatronic. |
 | **Audio Studio** | [`audio/`](audio/) | 1.2.1 | pending | Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant. |
 | **Brand Graphics** | [`brand-graphics/`](brand-graphics/) | 1.4.0 | ready | Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing. |
-| **Camera Ops** | [`camera/`](camera/) | 1.2.0 | ready | Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. |
+| **Camera Ops** | [`camera/`](camera/) | 1.2.1 | ready | Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. |
 | **Create** | [`create/`](create/) | 1.20.0 | ready | Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace. |
 | **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.5.0 | ready | Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs. |
 | **Dungeon Master** | [`dnd/`](dnd/) | 0.22.4 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
@@ -112,7 +113,7 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Commons** | [`commons-experience/`](commons-experience/) | 1.1.6 | ready | Your applications, shared rooms and conversations, with existing household and team boundaries. |
 | **Drone Ops** | [`drone/`](drone/) | 1.4.0 | ready | Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. |
 | **Eats** | [`eats/`](eats/) | 1.5.4 | ready | AI food-delivery concierge: the real restaurants near your delivery address from Google Places, your tastes and allergies remembered, and a one-tap hand-off into Uber Eats at your address with the restaurant you chose. |
-| **Smart Home** | [`home/`](home/) | 1.4.3 | ready | Control your smart home by chat. |
+| **Smart Home** | [`home/`](home/) | 1.6.1 | ready | Control your smart home by chat. |
 | **Home** | [`home-experience/`](home-experience/) | 1.0.7 | ready | Your schedule, shopping list, household updates and explicitly connected applications in the established Home layout. |
 | **Jarvis** | [`jarvis-experience/`](jarvis-experience/) | 1.1.6 | ready | Your assistant briefing, conversations, agenda and admitted applications. |
 | **Life** | [`life/`](life/) | 1.0.1 | ready | One desk for everything lifestyle: movies & TV, music, food delivery, rides, shopping, travel, payments, and the weekly AI Bake-Off — each already its own app, gathered here so you don't have to hunt the full catalog for them. |
@@ -141,7 +142,7 @@ All **86 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Drone Relay** | [`drone-relay/`](drone-relay/) | 0.5.0 | ready | Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. |
 | **Embodied Swarm** | [`embodied/`](embodied/) | 0.20.3 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.2.4 | ready | The minimal working example — one route, one ribbon tile. |
-| **Intelligent Operations** | [`intelligent-operations/`](intelligent-operations/) | 1.8.1 | ready | Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. |
+| **Intelligent Operations** | [`intelligent-operations/`](intelligent-operations/) | 1.8.2 | ready | Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. |
 | **Intelligent Processing** | [`intelligent-processing/`](intelligent-processing/) | 1.0.2 | ready | A queue for self-monitoring alerts that need a root cause, run on Intelligent Operations' RCA pipeline. |
 | **Ocean Lab** | [`ocean-lab/`](ocean-lab/) | 1.3.5 | ready | Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. |
 | **Sat Ops** | [`sat-ops/`](sat-ops/) | 1.2.5 | ready | Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). |

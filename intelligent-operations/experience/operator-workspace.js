@@ -1,3 +1,4 @@
+/* CHANGE LOG: systems stack tree | maintainer@emeraldcoastsystemsgroup.com | Systems tab (1.8.2): each monitored installation card on Systems renders a collapsible + / − infrastructure stack tree (Server -> Cluster/VM -> Node -> Workloads) with child-to-parent alert and health roll-up, per-level readings, last-heard and action links, and excludes personal satellite devices (oshal-node-desktop, phones, TVs); Triage (#overview) and all other tabs are untouched. */
 /* CHANGE LOG: monitor-enroll S2 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): each installation card carries its producer token's controls from the Monitor an installation panel (monitor-enroll.js access): the last delivery, Rotate token and Disconnect; a card that was disconnected goes at once and the records are read again. */
 /* CHANGE LOG: monitor enroll | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): Systems mounts Monitor an installation (monitor-enroll.js) under the installation cards and hands it each read's rows and enrolments; each card says how and when its server was enrolled and when its producer token expires; a source removed from its card has its producer tokens revoked at the kernel, the outcome said in that panel. */
 /* CHANGE LOG: remove source | maintainer@emeraldcoastsystemsgroup.com | Remove this source (1.5.3, P5-55b): each monitored installation card whose source can go (not a desk's own) offers it under Stop watching. The first press opens a note that says what goes and what stays, and the second press is its own button below the note, ignoring a double click and a held key; it posts {sourceId, confirm: true} to /sources/remove. The card goes when the server says removed, the records reload so Sources drops it too, and a refusal stays on the card in words (403 hides the offer as a role that cannot write). Nothing is deleted, so no timer guards it. */
@@ -255,10 +256,53 @@ function checkRow(){
  const tr=el('tr'),label=el('td'),reading=el('td'),mark=el('td'),icon=el('span','','check-icon'),word=document.createTextNode('');mark.append(icon,word);tr.append(label,reading,mark);
  return filled(tr,check=>{const [i,w]=CHECK[check.state]||CHECK.unknown,cls='check-state '+check.state;if(check.title)mark.title=check.title;else mark.removeAttribute('title');put(label,check.label);put(reading,check.reading);if(mark.className!==cls)mark.className=cls;put(icon,i);if(word.data!==' '+w)word.data=' '+w;});
 }
+const SATELLITE_KINDS=new Set(['oshal-node-desktop','orbit-desktop','desktop','laptop','phone','mobile','tv','firetv','tablet','leaf','personal-device','satellite','computer']);
+function isPersonalSatellite(item){
+ if(root.OperationsResourceTree?.isPersonalSatelliteAsset)return root.OperationsResourceTree.isPersonalSatelliteAsset(item);
+ if(!item||typeof item!=='object')return false;
+ for(const v of [item.kind,item.deviceKind,item.category,item.role])if(typeof v==='string'&&SATELLITE_KINDS.has(v.trim().toLowerCase()))return true;
+ const n=String(item.name||item.host||item.id||'').trim().toLowerCase();
+ return n==='my-computer'||/^spark-[0-9a-f]{4}$/.test(n);
+}
+function stackLink(label,hash){const a=el('a',label,'stack-action-link');a.href=hash;return a;}
+function buildStackDetail(node){
+ const detail=el('div','','stack-workload-detail'),list=el('div','','stack-workload-alerts'),acts=el('div','','stack-workload-actions');
+ if((node.directAlerts||[]).length){
+  for(const a of node.directAlerts){
+   const line=el('div','','stack-alert-line');
+   line.append(el('strong',a.alertType,'stack-alert-type'),el('span',' · '+a.severity+(a.summary?' · '+a.summary:''),'stack-alert-summary'));
+   list.append(line);
+  }
+ }else list.append(el('span','0 active alerts at this workload','operator-note'));
+ acts.append(stackLink('App Ops','#app-ops'),stackLink('Console','#console'),stackLink('Runbook','#runbooks'),stackLink('Restart / Incident','#incidents'),stackLink('Rules','#data'));
+ detail.append(list,acts);
+ return detail;
+}
+function buildStackNode(node,heardText,stackOpen){
+ const wrap=el('div','','stack-tree-node stack-level-'+node.level),bar=el('div','','stack-tree-bar'),kids=el('div','','stack-tree-children'),toggle=el('button','+','stack-tree-toggle');
+ wrap.dataset.stackLevel=String(node.level);wrap.dataset.stackId=node.id;
+ const open=stackOpen.has(node.id);toggle.type='button';toggle.textContent=open?'−':'+';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',(open?'Collapse ':'Expand ')+node.name);kids.hidden=!open;
+ toggle.addEventListener('click',()=>{const next=kids.hidden;kids.hidden=!next;if(next)stackOpen.add(node.id);else stackOpen.delete(node.id);toggle.textContent=next?'−':'+';toggle.setAttribute('aria-expanded',String(next));toggle.setAttribute('aria-label',(next?'Collapse ':'Expand ')+node.name);});
+ const alertLabel=node.level===1?(node.totalAlerts.length+' alert'+(node.totalAlerts.length===1?'':'s')+(node.rolledUpCount?' ('+node.rolledUpCount+' rolled up)':'')):node.rolledUpCount?(node.rolledUpCount+' alert'+(node.rolledUpCount===1?'':'s')+' rolled up'):node.directAlerts.length?(node.directAlerts.length+' alert'+(node.directAlerts.length===1?'':'s')):'0 alerts';
+ const seen=el('small',heardText,'stack-heard');seen.dataset.stackHeard='';
+ bar.append(toggle,el('span',node.kindLabel||node.kind,'stack-kind-badge'),el('strong',node.name,'stack-node-name'),el('span',node.effectiveHealth||'healthy','stack-health-badge '+(node.tone||'good')),el('span',alertLabel,'stack-alert-badge '+(node.totalAlerts.length?'active':'')));
+ if(node.readings)bar.append(el('small',node.readings,'stack-readings'));
+ bar.append(seen,stackLink(node.level===4?'App Ops':'Platform Ops',node.level===4?'#app-ops':'#platform-ops'),stackLink('Runbook','#runbooks'));
+ if(node.level===4)kids.append(buildStackDetail(node));
+ else for(const child of node.children||[])kids.append(buildStackNode(child,heardText,stackOpen));
+ wrap.append(bar,kids);return wrap;
+}
+function fillStackTree(stackHost,row,now,stale,heardText,stackOpen){
+ const sig=JSON.stringify([row.sourceId,now,stale,row.health,row.host,row.name,(row.checks||[]).map(c=>[c.id,c.state,c.reading]),(row.firing||[]).map(a=>[a.fingerprint,a.alertType,a.severity,a.clearing,a.service,a.summary])]);
+ if(stackHost.dataset.sig===sig){for(const n of stackHost.querySelectorAll('[data-stack-heard]'))put(n,heardText);return;}
+ stackHost.dataset.sig=sig;stackHost.replaceChildren();
+ const roots=root.OperationsResourceTree?.stackForest?root.OperationsResourceTree.stackForest([{...row,state:now}]):[];
+ for(const r of roots)stackHost.append(buildStackNode(r,heardText,stackOpen));
+}
 function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRemoved}){
  let rows=[],watch=null,readAt=0,begun=0,accepted=0,waiting=0,failedFor=0,countedAt=0,days=1,poll=null,ticker=null,stale=false,noWrite=false,account=null,unreported=[],unreportedFor='',frame=null,brief=null,lastLoad=Promise.resolve();
  const armed=new Map(),stopErrors=new Map(),stopKept=new Map(),said=new Map(),live=new Map(),announcer=document.getElementById('installations-standing');
- const removing=new Set(),removeErrors=new Map();
+ const removing=new Set(),removeErrors=new Map(),stackOpen=new Set();
  // Monitor an installation (ADR-216): its panel follows these reads, and a new enrolment file reads them again.
  const enrol=root.OperationsMonitorEnroll?.mount({panel:document.getElementById('monitor-enroll'),onChange:why=>{if(why==='enrolled')void load();else render();}});
  const age=row=>Number.isFinite(row.ageSeconds)?row.ageSeconds+(Date.now()-readAt)/1000:null;
@@ -345,16 +389,16 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  function card(first){
   const id=first.sourceId,article=el('article'),head=el('header','','installation-head'),who=el('div'),state=el('div','','installation-standing'),name=el('h3'),where=el('p','','operator-note installation-where'),badge=el('span'),heardLine=el('strong','','installation-heard'),since=el('small'),alarm=el('p'),live=el('div','','installation-live');
   const access=enrol?.access?.(id,name,{disconnected:gone=>{rows=rows.filter(other=>other.sourceId!==gone);render();void load();}});
-  const table=el('table','','installation-table installation-checks'),thead=el('thead'),hr=el('tr'),body=el('tbody'),firingTitle=el('h4'),list=el('ul','','installation-firing'),quiet=el('p'),rangeTitle=el('h4'),grid=el('div','','installation-charts'),more=el('details','','operator-advanced'),feed=el('p'),charts=CHARTS.map(def=>chart(def,text=>{live.textContent=text;})),stop=stopArea(id,name),remove=removeArea(id,name);
+  const table=el('table','','installation-table installation-checks'),thead=el('thead'),hr=el('tr'),body=el('tbody'),firingTitle=el('h4'),list=el('ul','','installation-firing'),quiet=el('p'),rangeTitle=el('h4'),grid=el('div','','installation-charts'),more=el('details','','operator-advanced'),stackHost=el('div','','stack-tree'),feed=el('p'),charts=CHARTS.map(def=>chart(def,text=>{live.textContent=text;})),stop=stopArea(id,name),remove=removeArea(id,name);
   let series={},view=null;
   const fillTable=()=>{const held=root.getSelection?.();if(held&&!held.isCollapsed&&(more.contains(held.anchorNode)||more.contains(held.focusNode)))return;const next=chartTable(series,view),old=more.querySelector('table');if(old)old.replaceWith(next);else more.append(next);};
   const enrolled=el('p');live.setAttribute('aria-live','polite');heardLine.dataset.heard=id;name.tabIndex=-1;who.append(el('p','Monitored installation','eyebrow'),name,where,enrolled);state.append(badge,heardLine,since);head.append(who,state);
   for(const h of ['Check','Reading','State'])hr.append(el('th',h));thead.append(hr);table.append(thead,body);grid.append(...charts.map(c=>c.figure));more.append(el('summary','Show these charts as a table'));more.addEventListener('toggle',()=>{if(more.open)fillTable();});
-  article.append(head,alarm,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,...(access?[access.node]:[]),stop,remove,live);
+  article.append(head,alarm,stackHost,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,...(access?[access.node]:[]),stop,remove,live);
   return filled(article,row=>{
    const now=shown(row),h=row.history||{},end=h.now??readAt,label=RANGES.find(r=>r[0]===h.days)?.[1]||RANGES[0][1],place=[row.host,row.url].filter(Boolean).join(' · ');series=h.series||{};view={bucket:(h.bucketMinutes||15)*60000,since:h.since??end-(h.days||1)*86400000,now:end,first:Date.parse(row.firstHeardAt)||0,last:Date.parse(row.lastHeardAt)||0,lastKnown:now==='silent',reported:row.reports>0,label};
    article.className='card installation '+now+(!stale&&now!=='silent'&&criticalOf(row).length?' alerting':'')+' health-'+(stale?'unknown':criticalOf(row).length?'degraded':HEALTH[row.health]?row.health:'unknown');put(name,row.name);put(where,place);where.hidden=!place;say(enrolled,'operator-note installation-enrolment',enrol?.line(row)||'');paintBadge(badge,now);put(heardLine,heard(row));put(since,row.reports?row.reports.toLocaleString()+' reports since '+when(row.firstHeardAt):'No heartbeat yet: this server only sends alerts.');
-   say(alarm,now==='silent'?'installation-alarm':'installation-warning',alarmText(row,now));sync(body,staleChecks(row,now),'check',c=>c.id,checkRow);
+   say(alarm,now==='silent'?'installation-alarm':'installation-warning',alarmText(row,now));fillStackTree(stackHost,row,now,stale,heard(row),stackOpen);sync(body,staleChecks(row,now),'check',c=>c.id,checkRow);
    put(firingTitle,now==='silent'?'Open alerts':row.firing.length&&row.firing.every(a=>a.clearing)?(stale?'Reported cleared at the last read':'Reported cleared, being confirmed'):stale?'Firing at the last read':now==='late'?'Firing at its last report':'Firing now');sync(list,row.firing,'fingerprint',a=>a.fingerprint,firingRow);list.hidden=!row.firing.length;say(quiet,'operator-note',row.firing.length?'':quietText(now));
    put(rangeTitle,label);charts.forEach((c,i)=>c.draw(series[CHARTS[i][0]]||[],view));if(more.open)fillTable();
    say(feed,'installation-warning',row.feedError?'The readings could not all be saved beside the evidence: '+row.feedError:'');access?.fill(row);fills.get(stop)(row);fills.get(remove)(row);
@@ -428,7 +472,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  function read(){
   const mine=++begun,at=Date.now(),control=new AbortController();waiting=mine;live.set(mine,control);
   const due=root.setTimeout(()=>{if(waiting===mine)waiting=0;if(live.has(mine)&&mine>accepted)readFailed(at);},READ_DEADLINE_MS),cap=root.setTimeout(()=>control.abort(),READ_ABORT_MS);
-  lastLoad=(async()=>{try{const r=await fetch(API+'/telemetry?days='+days,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:control.signal});if(mine<=accepted)return;if([401,403].includes(r.status)){const code=r.status;clear();onRefused?.(code);return;}if(!r.ok)throw Error('HTTP '+r.status);const body=await r.json();if(mine<=accepted)return;if(!Array.isArray(body.installations))throw Error('Installations are unavailable.');rows=body.installations;watch=body.watch||null;readAt=Date.now();accepted=mine;dropReads(mine-1);stale=false;failedFor=0;enrol?.update(rows,body.enrollments);render();onRead?.();}catch{if(live.has(mine)&&mine>accepted)readFailed(at);}finally{root.clearTimeout(due);root.clearTimeout(cap);live.delete(mine);if(waiting===mine)waiting=0;}})();
+  lastLoad=(async()=>{try{const r=await fetch(API+'/telemetry?days='+days,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:control.signal});if(mine<=accepted)return;if([401,403].includes(r.status)){const code=r.status;clear();onRefused?.(code);return;}if(!r.ok)throw Error('HTTP '+r.status);const body=await r.json();if(mine<=accepted)return;if(!Array.isArray(body.installations))throw Error('Installations are unavailable.');rows=body.installations.filter(r=>!isPersonalSatellite(r));watch=body.watch||null;readAt=Date.now();accepted=mine;dropReads(mine-1);stale=false;failedFor=0;enrol?.update(rows,body.enrollments);render();onRead?.();}catch{if(live.has(mine)&&mine>accepted)readFailed(at);}finally{root.clearTimeout(due);root.clearTimeout(cap);live.delete(mine);if(waiting===mine)waiting=0;}})();
   if(!poll){poll=root.setInterval(pollRead,POLL_MS);ticker=root.setInterval(tick,TICK_MS);}return lastLoad;
  }
  /** An explicit read (the range changed, a stop went through, the records were refreshed): what is still out there answers an older question, so it stops without counting as failed. */
@@ -436,7 +480,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRe
  function readIfOpen(){if(poll&&showing())void read();}
  /** The poll and the wake check leave a read inside its deadline to finish. */
  function pollRead(){if(!waiting)readIfOpen();}
- function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();removing.clear();removeErrors.clear();said.clear();enrol?.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
+ function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();removing.clear();removeErrors.clear();stackOpen.clear();said.clear();enrol?.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
  /* Going back and forth must not pile reads up: the browser holds six connections to this origin, and a read out for its full 65 seconds holds one. */
  document.addEventListener('visibilitychange',pollRead);root.addEventListener('hashchange',pollRead);
  return {load,clear,loaded:()=>lastLoad,summary,heardFor};

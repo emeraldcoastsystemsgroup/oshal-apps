@@ -1,4 +1,15 @@
 # CHANGE LOG
+# 50 | maintainer@emeraldcoastsystemsgroup.com | Register the words-and-truth sweep (judge's report 2026-11-11): recruiters-start-empty (the real engine init on temporary SQLite, read by the compiled route, and the Recruiters page's empty state in Chromium); job-board-truth (the Job Board without a résumé, the inbox reply on a job's row, and the tick box that replaced a vendor-named button); search-under-frame (Search with the shipped frame at both sizes); plain-words-pages (Resume Studio, the LinkedIn profile page, Settings and Insights in Chromium, and the guard that reads every served page for retired words).
+# 49 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: career-own-frame also runs the day plan's arithmetic (career-today) and expects the bar in a job seeker's words and Home as the day.
+# 48 | maintainer@emeraldcoastsystemsgroup.com | source-maintenance expects what the review fixes added: a careers link on someone else's site is never connected, a suggestion is kept until the employer has a board or is removed, a redirect into a private address is refused by the real connection guard, and a part that asks to end the process does not stop the pull.
+# 47 | maintainer@emeraldcoastsystemsgroup.com | Register source-maintenance: after a real full pull on real temporary SQLite, a source the review could not connect becomes one decision a person answers with Archive or Keep trying, readers that stay partial become one repair brief, and the runbook connects an employer's job site only on evidence and inside its time limits; then the shipped routes, library and Companies page over the corpus those pulls leave.
+# 46 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: register phone-swipe-decks (both phone swipe decks under real touch input in Chromium: the Job Board's New matches deck and the Mobile page's deck).
+# 45 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: register career-own-frame (Career as its own application: the page frame's arithmetic and the guard that every Career page loads it, and the shipped pages in Chromium as the top window, inside a stand-in cockpit, hosted by something else, on a phone, with the home page).
+# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.52.7: register search-service-feeds (the SuccessFactors search fallback and the Dayforce reader, through the pull's own one-source read into real SQLite).
+# 43 | maintainer@emeraldcoastsystemsgroup.com | 1.52.6: register companies-add-remove (Add employer, Remove and Put back on the Companies page, through the shipped page, routes and library into the outbox the kernel takes, and applied by a real full pull on real temporary SQLite) and jibe-feed (the Jibe reader on the employer's own host, through the pull's one-source read into real SQLite); native-source-browser also expects the cookie notice, the human check and the reader's named causes.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.52.5: register avature-feed (the Avature reader against list pages in the three shapes its boards send, through the pull's own one-source read into real SQLite, where a stored job filed under a state its location does not state is filed again) and place-state (the state a location states: the capital, West Virginia, a city or street named after another state). Every Avature job had been stored with no place.
+# 41 | maintainer@emeraldcoastsystemsgroup.com | 1.52.4: register workable-feed: the Workable reader against a feed in the shape the board sends, through the pull's own one-source read into real SQLite. Every Workable job had been stored with no place. seed-list-sources also refuses a reader address that is not on a real host.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | 1.52.3: register seed-list-sources: every employer in the seed list names one reader the nightly pull has and a token that reader turns into its own board's address, and a real SQLite seed lands each one in the pull list once. The list had held Lockheed Martin on a site the employer retired.
 # 39 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: register resume-native-upload (a request shaped like the kernel's, gate-run) and native-resume-upload (the kernel's own request constructor, parser and response): a new person's résumé upload answered "req.once is not a function" on the native kernel.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: register master-record (the reader and the compiled route over made-up stores) and master-record-browser (the page at 412x915 and 1280x900); resume-office-mapping expects the untouched document to change nothing; persona-wording expects the counts-and-link answer and no routing words.
 # 37 | maintainer@emeraldcoastsystemsgroup.com | 1.48.1: ux-audit-screens also runs the live Job Board's stage guard (career-job-lists-stages).
@@ -65,6 +76,10 @@ cases:
       - The adapter admits only bounded closed metadata, excludes applicant credentials and preserves exact supplied descriptions.
       - Missing runtimes, failed reads and partial enumeration retain old active postings and expose closed source outcomes.
       - A hard helper deadline kills its process group and aborts the ingest namespace without publication.
+      - The site is told a current Chrome and this reader by name, never a headless browser.
+      - A cookie notice that covers the jobs is accepted and the jobs behind it are read, and an accept button outside a notice or inside a form is never pressed.
+      - A human check or a sign-in page with no jobs is a named failure that closes nothing, and a page that answers past a check keeps its jobs.
+      - A refusal, a missing page and a browser that cannot start each fail under their own cause.
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the loopback server and browsers; remove temporary SQLite databases. Native namespace proofs run separately in the kernel delivery lane."}
@@ -1423,6 +1438,111 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: seed-list-sources
+    name: Employer seed list
+    purpose: Hold every employer in the seed list to a board the nightly pull can read, using the engine's own readers and a real SQLite seed.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-seed-sources.test.mjs
+    expected:
+      - Every entry names one known reader, and no two entries share a name or a board; the retired Lockheed Martin site is not listed.
+      - Each reader's first request is the HTTPS address its seed token names, and a malformed token fails the same check.
+      - Seeding lands every entry in the nightly pull list once, moves a row off the retired board without making a second row, and gives a name seeded from another list this list's board.
+      - A reader given a short name where it takes a careers host asks for an address with no real host, and the check refuses it.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; every request is refused, so no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: workable-feed
+    name: Workable board feed
+    purpose: Hold the Workable reader to the feed the board sends, through the nightly pull's own one-source read into a real SQLite store.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-workable-feed.test.mjs
+    expected:
+      - The reader gives one row for each job, with its city, region and country, a hidden place as its country only, and the board's own remote answer.
+      - The pull stores every job once with a state, city and map point, records the read as unverified and not as invalid, and a second pull of the same feed changes nothing.
+      - A job stored without a place takes it on the next pull and keeps its row; a job that moves is placed where it now is; a feed that stops naming the place leaves the stored point.
+      - The older location object and remote answer still read.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; the board's answer is a fixture and no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: avature-feed
+    name: Avature board list
+    purpose: Hold the Avature reader to the list pages its boards send, through the nightly pull's own one-source read into a real SQLite store.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-avature-feed.test.mjs
+    expected:
+      - The reader gives each job once with the place its list shows beside it, and no place where the list shows none ("Multiple Locations", a shop's street address, a block that holds more than one job).
+      - The workplace a board marks beside a job is its remote answer, so "Fully Remote" makes a job in a named city remote and "Onsite" keeps a job whose title says remote where it is.
+      - A list that links each job four times is read whole, each job once.
+      - The pull stores each job with its state, city and map point, records the read as unverified, and a second pull of the same list changes nothing.
+      - A job stored without a place takes it on the next pull and keeps its row; a stored job filed under a state its location does not state is filed again, its location unchanged.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; the board's pages are fixtures and no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: place-state
+    name: State a location states
+    purpose: Hold the state lookup to the state a location states, for the kinds of place it filed under another state.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-place-state.test.mjs
+    expected:
+      - A two-letter state code decides, as before.
+      - The capital, written "Washington, D.C." or "District of Columbia", is the District; Washington State stays Washington; "D.C." after another city is no state.
+      - West Virginia is not Virginia, and a city or street named after another state (Kansas City, Missouri; Delaware, Ohio; Utah Ave in Seattle) is filed under the state the location states.
+      - A place that starts with the country takes its first state part; of several places the first decides; a location that states no state gets none.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: none
+    isolation:
+      mode: none
+      cleanup: Nothing is written; the lookup is called on fixed text and no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
   - id: native-linkedin-upload
     name: Native protocol Saved Jobs upload
     purpose: Exercise the compiled route with the real native request constructor, router, multipart parser and response adapter from a verified bridge fixture.
@@ -1675,6 +1795,7 @@ cases:
         - tests/career-mobile-screen.test.mjs
         - tests/career-search-layout.test.mjs
         - tests/career-settings-home.test.mjs
+        - tests/career-settings-titles.test.mjs
         - tests/career-submission-activity.test.mjs
         - tests/career-companies-views.test.mjs
         - tests/career-job-lists-stages.test.mjs
@@ -1813,4 +1934,255 @@ cases:
       cleanup: Remove the temporary résumé store; no engine runs and no provider requests.
     limits:
       timeoutMs: 60000
+    installation: never
+  - id: jibe-feed
+    name: Jibe career site on the employer's own host
+    purpose: Hold the Jibe reader to the listing a Jibe career site sends on the employer's own host, through the nightly pull's own one-source read into a real SQLite store.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-jibe-feed.test.mjs
+    expected:
+      - The reader asks the employer's own host, page by page to the count the listing states, and places each job by its city, state and country.
+      - A whole listing closes a job that left it, and one cut short, refused part way or empty closes nothing.
+      - A pasted link on a Jibe host is recognised by asking the host for its listing, and a host that does not answer it is not called a Jibe site.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; the site's replies are fixtures and no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: companies-add-remove
+    name: Add, Remove and Put back an employer on the Companies page
+    purpose: Drive Add employer, Remove and Put back on the shipped Companies page through the shipped routes and library into the outbox the kernel takes, and apply each change in a real full pull on real temporary SQLite. The kernel's half, handing a change over only for an admission holding the permission, is proven in its own real sandbox tests.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-company-add-remove.test.mjs
+        - tests/career-source-requests.test.mjs
+        - tests/browser/career-companies-add-remove-proof.mjs
+    expected:
+      - Add employer saves the name and link for the next pull, encoded so neither can break the other, and refuses a listed name, a short or long name, a link that is not http or https and a link with a password.
+      - The pull makes the employer once and reads its jobs that night, names an employer already listed under another spelling, and refuses a private address before anything reads it.
+      - Remove asks once in the row, and the pull closes the employer's open jobs and leaves it out of every later pull, the source review, the no-feed count and every seed list.
+      - Put back lists it again and the same pull reopens the jobs still on its board; a board change for a removed employer is refused.
+      - Removed employers appear only under the Removed chip, outcomes are said in words with employer text inert, and only an administrator reaches the three routes.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores and outbox folders and stop the local fixture server; no employer site is read.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: search-service-feeds
+    name: SuccessFactors search and Dayforce boards
+    purpose: Hold two readers to the search services their boards' pages call, through the nightly pull's own one-source read into a real SQLite store.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-search-service-feeds.test.mjs
+    expected:
+      - A SuccessFactors page that lists its jobs is read as before and its stored ids do not change.
+      - A newer SuccessFactors page that lists none is read from the site's own search to the total it states, paging again when its pages repeat jobs.
+      - A Dayforce board is read with the anti-forgery token its page asks for, to the count it states, each job in its city, state and country.
+      - A place loses its postal code and markup in each shape the sites send.
+      - A whole read closes a job that left the board, and a refused, short or tokenless read closes nothing.
+      - A Dayforce board link names the Dayforce reader.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; the sites' answers are fixtures and no employer site is read.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: career-own-frame
+    name: Career opens as its own application
+    purpose: Hold Career's page frame to what a person sees. The frame's arithmetic and the every-page guard run in Node; the shipped pages, frame and stylesheet run in Chromium as the top window, inside a stand-in cockpit that answers the same screen-change message, hosted by something else, and on a phone.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-frame.test.mjs
+        - tests/career-today.test.mjs
+        - tests/browser/career-frame-proof.mjs
+    expected:
+      - Every Career page loads the frame once in its head, and its change log stays a comment.
+      - The bar lists a section only when the person's own profile gives one of its pages, with the pages of the open section in a row under it.
+      - The cockpit gives a Career page its whole window, changes screens when the bar asks, and gets its own header and rail back for another application's page.
+      - Another application's screen opens under Career's bar, and only one the person's profile lists.
+      - A Career page hosted by anything other than the cockpit is left as it was.
+      - A phone gets one 56px top bar and a bottom bar of Home, Find jobs, My jobs, Applications and More, with nothing wider than the screen.
+      - The bar is a job search in a job seeker's words, Home, Find jobs, My jobs, Applications, Resume, Profile and contacts, and every other page is under More.
+      - Home for a person with no resume says what Career does and shows three numbered steps with one filled button.
+      - Home for a person with a resume lists the day in order, replies from the inbox first, each step with one button and only when there is something to do, and a quiet day says so.
+      - A job on Home opens that job and shows the newest reply from the inbox, and a search typed on Home reaches the search page.
+      - Text from a profile or a job is shown as text and never run.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: phone-swipe-decks
+    name: Phone swipe decks under real touch
+    purpose: Hold both phone swipe decks to what a finger does, with touches sent through the browser's own input pipeline at 412 by 915 over the shipped pages and fixture jobs.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/career-swipe-deck-proof.mjs
+    expected:
+      - The card stays under the finger and shows Save or Pass while it is held.
+      - A swipe acts from the title, the reason text and the pay line alike; right saves and left passes.
+      - A short drag settles back, a scroll never acts, a quick flick acts and a tap still opens the job.
+      - On the Mobile page a swipe that begins on the card's body queues or passes the application, the body still scrolls, and a touch the phone takes back settles the card.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: source-maintenance
+    name: Source maintenance after the nightly pull
+    purpose: Hold the maintenance that ends each full pull to its rules, through real full pulls on a real temporary SQLite store with the real readers, resolver, source review and saved-change path over recorded employer replies, and then through the shipped routes, library and Companies page over the corpus those pulls leave. The page reader is doubled as well as the network. The kernel's half, handing a saved change over only for an admission holding the permission, is proven in its own real sandbox tests.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-source-maintenance.test.mjs
+        - tests/career-source-maintenance-routes.test.mjs
+        - tests/browser/career-source-maintenance-page-proof.mjs
+    expected:
+      - A source the review could not connect on three runs, with no successful pull for 14 days, becomes one open decision carrying what was tried; a person's choice, a multi source and a removed employer never do.
+      - Keep trying closes the decision and the source is not raised again for 60 days; Archive is the existing Remove and marks it archived; a source that reads again is withdrawn.
+      - Three employers partial on one reader for three pulls, or one with 500 stored jobs, become one repair brief that names the reader, its file, the employers and what done means, and a group that no longer qualifies is closed.
+      - The runbook connects a job site reached from the employer's saved link or homepage only when it returns three jobs, is on the same site as the saved homepage or under the employer's name, and is held by no other employer; a careers link on someone else's site is never connected, and anything weaker is a suggestion kept until the employer has a board or is removed.
+      - A refusal ends the work on that employer for 30 days, a private address is never read and a redirect into one is refused by the real connection guard against a real local server, a slow site costs one employer, the pass stops at its own limit, and neither a failure nor a part that asks to end the process stops the pull from finishing.
+      - The list carries the report, the decisions and the briefs read without writes; Keep trying and the daily briefing admit only an administrator, and the briefing tells a decision or a brief once; the page saves each press for the next pull, copies and downloads a brief whole, keeps employer text inert and fits a phone.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores and outbox folders and stop the local fixture server; no employer site is read.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+    installation: never
+  - id: recruiters-start-empty
+    name: A new person's Recruiters list starts empty
+    purpose: Hold the Recruiters list to the person's own entries. The real engine init runs on temporary SQLite in both store layouts and the compiled route reads the result; the shipped page runs in Chromium at 1440 by 900 and 412 by 915 over fixture answers.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-recruiters-start-empty.test.mjs
+        - tests/career-recruiters-screen.test.mjs
+    expected:
+      - A store the engine creates lists no recruiter, and a second start adds none.
+      - A person who already has recruiters keeps every row and every field through a start.
+      - With no recruiter the page says No recruiters yet, what the list is for, and shows one filled button, Add a recruiter.
+      - That button reveals the form in the page on a computer and in a sheet on a phone, and the form's Add is then the one filled button.
+      - The field reads Type and the request still sends the stored field name.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary stores and close the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: job-board-truth
+    name: The Job Board without a résumé, inbox replies, and approving with other experience
+    purpose: Hold the Job Board and the To approve view to what is true for the person. The shipped pages run in Chromium at 1440 by 900 and 412 by 915 over fixture answers in the shapes the routes give.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-job-lists-truth.test.mjs
+        - tests/career-approvals-stage.test.mjs
+        - tests/career-mobile-screen.test.mjs
+    expected:
+      - With no résumé New matches asks for it with one button, lists no saved job and asks for no jobs.
+      - A saved job with no fit carries the link Add your résumé to see your fit, 44px tall on a phone.
+      - While a first résumé is being read the stage says so, and with a résumé or no answer the page is as it was.
+      - A job's newest reply from the inbox is one 44px line such as Interview reply and the day, shows no text from the message, and opens that job's application.
+      - The saved list offers Unsave, New matches offers Save, and no star or shortlist is left.
+      - Include my other experience is offered only while Additional experience lists the saved independent work, and Approve sends the extra flag only when it is ticked.
+      - No text on these pages names the vendor's project, and a status the person set says so.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: search-under-frame
+    name: Search under Career's own frame
+    purpose: Hold Search to one row of navigation and results first. The shipped page and the shipped frame run in Chromium at 1440 by 900 and 412 by 915, the frame drawn from a fixture profile at the page's real address.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-search-words.test.mjs
+        - tests/career-search-layout.test.mjs
+    expected:
+      - Under the frame the strip of view links is not shown and saved searches open from a button that says so.
+      - Without the frame the strip and its saved-search control are as they were.
+      - A computer has one search box, and the title, description and company filters sit in Filters and reach the request.
+      - On a phone the first job starts within 320px of the frame and every job title is a 44px target.
+      - The job type reads in words beside one 44px link about the pay estimate that names the survey and month.
+      - Results per page and Sort are in the phone's Filters sheet and reach the request, and nothing is wider than the screen.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: plain-words-pages
+    name: Resume Studio, LinkedIn profile, Settings and Insights in plain words
+    purpose: Hold four pages to plain and true words. The shipped pages run in Chromium at 1440 by 900 and 412 by 915 over fixture answers, the Insights market answer comes from the served reader over real SQLite, and one guard reads every served page and script for retired words.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-resume-studio-screen.test.mjs
+        - tests/career-profile-studio-words.test.mjs
+        - tests/career-settings-home.test.mjs
+        - tests/career-insights-honest.test.mjs
+        - tests/career-words.test.mjs
+    expected:
+      - With no résumé, Resume Studio shows no editor panel, no Send button and no More button, and they arrive once the upload has been read.
+      - With a résumé the editor says This is your main résumé and each application starts from it.
+      - The LinkedIn profile page reads 1. Write, 2. Check, 3. Update LinkedIn, and a refused update leaves a line on the page saying it did not start.
+      - Settings names its sections in a job seeker's words and each section still opens the controls it held.
+      - Insights shows the person's own five counts under Your search, the shared numbers under their own heading, and Find jobs when the person has none.
+      - No served page names the vendor's project, calls saving a star, or writes résumé without its accents outside the screen named Resume Studio.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 1024}
     installation: never

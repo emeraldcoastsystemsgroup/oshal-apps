@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The card reads the page's otherExperience flag (whether Additional experience has something the approve route can add), so the runtime supplies it, off.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Ready reads the caller's submission records through nativeQueue (with queueAlert for a failed read), so the runtime loads both.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Load the real unit-aware salary helper while testing the mobile score renderers.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify all mobile views label AI and keyword scores distinctly and retain saved assessment dates.
@@ -24,7 +25,7 @@ const cases = [
 function runtime(scores) {
   const elements = new Map();
   const job = {id:1,title:'Fixture',company:'Example',...scores};
-  const context = {CH:'/career',AP:'/apply',jobCache:new Map(),
+  const context = {CH:'/career',AP:'/apply',jobCache:new Map(),otherExperience:false,
     $: selector => {
       if (!elements.has(selector)) elements.set(selector,{dataset:{},style:{},innerHTML:'',classList:{add(){}}});
       return elements.get(selector);

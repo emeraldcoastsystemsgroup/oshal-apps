@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Companies, grade C). The real tools/career-companies.html in Chromium over a synthetic administrator list: the Companies view shows search, chips and the table at once with no nightly review or pull telemetry between them; Source health shows the review and the failed/partial line without the table and is addressable as ?view=health; Jobs sorts descending then ascending; the in-page Job Board and Cockpit links are gone; chips and the attention checkbox are 44px.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.52.6: the Removed chip shows only when an employer is removed, so the 44px check measures the chips on screen, and there are four of them here.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,7 +47,9 @@ test('phone: ?view=health opens Source health; chips and the attention checkbox 
     await page.locator('#healthSummary').waitFor();
     assert.equal(await page.getByRole('tab', { name: 'Source health' }).getAttribute('aria-selected'), 'true');
     await page.getByRole('tab', { name: 'Companies' }).tap();
-    for (const chip of await page.locator('button.flt').all()) assert.ok((await chip.boundingBox()).height >= 44);
+    const chips = await page.locator('button.flt:visible').all();
+    assert.equal(chips.length, 4, 'All, Active ATS, Needs URL, Unconfirmed pulls; Removed only when one is removed');
+    for (const chip of chips) assert.ok((await chip.boundingBox()).height >= 44);
     assert.ok((await page.locator('label.chk').boundingBox()).height >= 44);
   } finally { await context.close(); }
 });

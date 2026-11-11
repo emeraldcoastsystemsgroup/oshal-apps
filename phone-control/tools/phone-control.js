@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: merge Connect into a modal sheet opened by Add a device or /config/ui, preserve the non-admin 403 #notAllowed view, manage history state so Back closes sheets before the session (DS-39), hide the shell orb during an active session, and guard inert planned controls.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: attach surface-bridge-client.js cleanly without console 404 when embedded in the cockpit, keep the shell concierge orb visible at all times, open the Connect sheet on #connect-tv, pass full device/computer context snapshot to the concierge rail, and sync modal background inert state.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: gate rdp.list() on hasStoredRdp() to eliminate 404 console noise when no RDP session is active, and exit fullscreen stage on Escape before closing modal sheets.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the line under the heading counts what the tree lists (a phone or TV that signed in with the Open Swarm app is a phone or TV, not a computer).
  */
 
 import { createComputerClient, createPackageClient, createRdpClient, hasStoredRdp } from '/api/phone-control/ui/computer-link.js';
@@ -165,8 +166,9 @@ function lede() {
   const computers = app.state.computerList.length;
   const rdpCount = app.state.rdpSessions.length;
   if (!phones && !computers && !rdpCount) return 'No phones, TVs or computers yet.';
-  const phoneWords = `${phones} ${phones === 1 ? 'device' : 'devices'}`;
-  const computerWords = `${computers} ${computers === 1 ? 'computer' : 'computers'}`;
+  const android = app.state.computerList.filter((c) => String(c?.platform || '').toLowerCase() === 'android').length;
+  const phoneWords = `${phones + android} ${phones + android === 1 ? 'phone or TV' : 'phones and TVs'}`;
+  const computerWords = `${computers - android} ${computers - android === 1 ? 'computer' : 'computers'}`;
   const rdpWords = rdpCount ? ` · ${rdpCount} RDP` : '';
   return `${phoneWords} · ${computerWords}${rdpWords}.`;
 }

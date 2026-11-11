@@ -96,6 +96,8 @@
     "feeds|routes/feeds-routes.js|createFeedsRoutes|/api/feeds|oidc|no-sql-write",
     "feeds|routes/home-summary.js|createHomeSummaryRoutes|/api/feeds/home-summary|oidc|no-sql-write",
     "feeds|routes/package-smoke.js|createPackageSmokeRoutes|/api/feeds/_smoke|service|no-sql-write",
+    "finance-experience|routes/experience.js|createExperienceRoutes|/api/finance-experience|oidc|no-sql-write",
+    "finance-experience|routes/package-smoke.js|createPackageSmokeRoutes|/api/finance-experience/_smoke|service|no-sql-write",
     "finance|routes/finance-routes.js|createFinanceRoutes|/api/finance|oidc|machine-write",
     "finance|routes/home-summary.js|createHomeSummaryRoutes|/api/finance/home-summary|oidc|no-sql-write",
     "finance|routes/package-smoke.js|createPackageSmokeRoutes|/api/finance/_smoke|service|no-sql-write",

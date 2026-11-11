@@ -17,6 +17,10 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | enrich_corpus: a scoring pass on a shared read-only corpus skips the corpus facts and keeps the person's scores; the refusal used to fail the run and discard them all.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | A person's database leaves WAL once, as the process ends, not per connection: scoring workers switching the mode against each other failed with "database is locked", ending the run and discarding every score.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | A person's store mounted read-only opens for a read whatever its journal mode and whatever shape its owner's last write left: leaving WAL made every engine read on that mount fail on PRAGMA journal_mode, and an older store failed on its schema.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | upsert_posting: a stored job whose location changes takes its state, city and map point from the new location. They were set only when the job was first stored, so a job that gained a place or moved stayed where it was first read for every search by place. A feed that stops naming a place leaves them as they were.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | file_by_location: a stored job whose state is not the one its location states is filed again when a pull next reads it, its location unchanged; upsert_posting and the pull's unchanged-job path both call it. A corrected state lookup reached new jobs only, and a job whose location changed before change 16 kept the state it was first stored with: measured 2026-11-10 in the published corpus, 13,668 of 760,783 open jobs with a location were filed under a state their location does not state.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | upsert_company: an employer an administrator removed stays removed when a seed list or an import names it again; the list's tag is still recorded.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | A new person's recruiter tracker starts empty: init_db no longer writes eighteen recruiting firms (cleared government work, executive search, SAP) into every person's list, which presented one person's job search as every customer's own. The seed list and seed_recruiters are removed; rows a person already has are not touched. Guard: tests/career-recruiters-start-empty.test.mjs.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -1073,69 +1077,19 @@ def migrate(conn) -> None:
         conn.execute("ALTER TABLE companies ADD COLUMN gsearched INTEGER DEFAULT 0")
 
 
-# Seed list for the recruiter tracker (verified URLs, June 2026). Buckets match the
-# Headhunter_Target_List.md the user already has. (firm, bucket, website, sort_order)
-_RECRUITER_SEED = [
-    ("ClearanceJobs (build profile)", "Cleared / GovTech", "https://www.clearancejobs.com/", 10),
-    ("iQuasar", "Cleared / GovTech", "https://iquasar.com/service-offerings/cleared-recruitment/", 11),
-    ("Sparks Group", "Cleared / GovTech", "https://sparksgroupinc.com/security-clearance-recruiting/", 12),
-    ("ClearanceRecruiter", "Cleared / GovTech", "https://clearancerecruiter.com/", 13),
-    ("Next Step Systems", "Cleared / GovTech", "https://www.nextstepsystems.com/security-clearance-cleared-it-jobs/", 14),
-    ("Parallel Partners", "Cleared / GovTech", "https://www.parallelpartners.com/security-clearance-cleared-it-jobs/", 15),
-    ("True (True Search)", "Exec Search", "https://trueplatform.com/true-search/", 20),
-    ("Riviera Partners", "Exec Search", "https://www.rivierapartners.com/", 21),
-    ("Heidrick & Struggles", "Exec Search", "https://www.heidrick.com/", 22),
-    ("Korn Ferry", "Exec Search", "https://www.kornferry.com/", 23),
-    ("Russell Reynolds", "Exec Search", "https://www.russellreynolds.com/", 24),
-    ("Bespoke Partners", "Exec Search", "https://bespokepartners.com/", 25),
-    ("Next Ventures", "SAP / ERP", "https://next-ventures.us/practices/sap-recruitment-agency/", 30),
-    ("JRG Partners", "SAP / ERP", "https://www.jrgpartners.com/sap-executive-recruiters/", 31),
-    ("Vortex Consulting", "SAP / ERP", "https://vortexconsulting.net/sap-solutions/sap-staffing/", 32),
-    ("Procom", "SAP / ERP", "https://procomservices.com/en-us/sap-recruitment-experts/", 33),
-    ("Alpha Apex Group", "SAP / ERP", "https://www.alphaapexgroup.com/", 34),
-    ("Panorama Consulting", "SAP / ERP", "https://www.panorama-consulting.com/", 35),
-]
-
-
-def seed_recruiters(conn) -> int:
-    """Populate the recruiter tracker the first time only (never clobbers edits)."""
-    if config.POSTGRES:
-        # career_user_recruiter_firms is per-user and FORCE-RLS'd, so the count below
-        # already sees only this user's rows — the seed is per-person, as it should be.
-        n = conn.execute(
-            "SELECT COUNT(*) AS c FROM career_user_recruiter_firms").fetchone()["c"]
-        if n:
-            return 0
-        for source_id, (firm, bucket, site, order) in enumerate(_RECRUITER_SEED, start=1):
-            conn.execute(
-                "INSERT INTO career_user_recruiter_firms "
-                "(user_sub, id, firm, bucket, website, resume_label, status, sort_order, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (user_sub, id) DO NOTHING",
-                (require_sub(), source_id, firm, bucket, site, "Headhunter (broad) — PDF",
-                 "To contact", order, now()))
-        return len(_RECRUITER_SEED)
-    n = conn.execute("SELECT COUNT(*) c FROM recruiter_firms").fetchone()["c"]
-    if n:
-        return 0
-    for firm, bucket, site, order in _RECRUITER_SEED:
-        conn.execute(
-            "INSERT INTO recruiter_firms (firm, bucket, website, resume_label, sort_order, updated_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (firm, bucket, site, "Headhunter (broad) — PDF", order, now()))
-    return len(_RECRUITER_SEED)
+# A person's recruiter tracker starts empty. Earlier versions wrote eighteen recruiting firms into every
+# new person's list the first time their store was opened; rows written then are left exactly as they are.
 
 
 def init_db() -> None:
     with connect() as conn:
         if config.POSTGRES:
             # Schema is owned by migrations/; connect() already proved the identity binds.
-            seed_recruiters(conn)
             return
         if not config.MULTIUSER:
             conn.executescript(SCHEMA)
             migrate(conn)
         # MULTIUSER: schema is ensured in connect() via _ensure_multiuser().
-        seed_recruiters(conn)
 
 
 def _as_list(v) -> list:
@@ -1152,8 +1106,12 @@ def _as_list(v) -> list:
 def upsert_company(conn, name: str, **fields) -> int:
     """Insert or update a company by unique name. Returns company id."""
     ct = companies_table()
-    row = conn.execute(f"SELECT id, source_lists FROM {ct} WHERE name = ?", (name,)).fetchone()
+    row = conn.execute(f"SELECT id, source_lists, discover_status FROM {ct} WHERE name = ?", (name,)).fetchone()
     src = fields.pop("source_list", None)
+    if row and row["discover_status"] == "removed":
+        # An administrator removed this employer. A list that still names it adds its tag and changes nothing else,
+        # so no seed or import brings the employer back; only Put back on the Companies page does.
+        fields = {}
     if config.POSTGRES and "gsearched" in fields:
         # 0/1 in SQLite, BOOLEAN in career_companies.
         fields["gsearched"] = _pg_bool(fields["gsearched"])
@@ -1185,6 +1143,25 @@ def upsert_company(conn, name: str, **fields) -> int:
 
 
 # ── postings ─────────────────────────────────────────────────────────────────
+def file_by_location(conn, posting_id, location, stored_location, stored_state) -> bool:
+    """File a stored job where its location states. Returns True when the row was written.
+
+    State, city and map point are read from the location, so they follow it: a job that gains a place or moves is
+    found where it now is, and a job filed under a state its location does not state is filed where it says. A job
+    with no location is left as it is: a feed that stops naming a place does not take its jobs off the map."""
+    if not location:
+        return False
+    from . import geo
+    state = geo.state_of(location)
+    if location == stored_location and state == stored_state:
+        return False
+    place = geo.place_of(location, state)
+    city, lat, lon = place if place else (None, None, None)
+    conn.execute(f"UPDATE {corpus_table()} SET state=?, city=?, lat=?, lon=? WHERE id=?",
+                 (state, city, lat, lon, posting_id))
+    return True
+
+
 def upsert_posting(conn, company_id: int, p: dict) -> str:
     """Insert/refresh a normalized posting dict. Returns 'new' | 'seen'.
 
@@ -1196,7 +1173,7 @@ def upsert_posting(conn, company_id: int, p: dict) -> str:
     sal = (p.get("salary_min"), p.get("salary_max"), p.get("salary_currency"),
            p.get("salary_period"), p.get("salary_raw"), "listed" if has_salary else None)
     existing = conn.execute(
-        f"SELECT id FROM {read_postings_table()} WHERE company_id = ? AND ats_job_id = ?",
+        f"SELECT id, location, state FROM {read_postings_table()} WHERE company_id = ? AND ats_job_id = ?",
         (company_id, str(p["ats_job_id"])),
     ).fetchone()
     ct = corpus_table()
@@ -1213,6 +1190,7 @@ def upsert_posting(conn, company_id: int, p: dict) -> str:
             (p.get("title"), p.get("location"), remote, p.get("department"),
              p.get("url"), p.get("description"), posted_at_val, ts, existing["id"]),
         )
+        file_by_location(conn, existing["id"], p.get("location"), existing["location"], existing["state"])
         if has_salary:
             # Omitted fields may have independent detail evidence. Only explicit
             # keys can replace it; a supplied null intentionally records unknown.

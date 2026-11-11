@@ -3,6 +3,7 @@
 // SEQ | AUTHOR | DESCRIPTION
 // ----------------------------------------------------------------------------
 // 1 | maintainer@emeraldcoastsystemsgroup.com | Weekly Samsung Family Hub refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, and weekly meal list builder combining current fridge contents and order history.
+// 2 | maintainer@emeraldcoastsystemsgroup.com | A temperature says when it was read (home 1.6.1). The state starts with 37 and 0 as placeholders, and the page showed them as readings ("Cooler: 37°F · Closed") for anyone whose hub had reported nothing. `telemetry.measuredAt` is null until a run is handed a temperature the hub reported, and is the time of that run afterwards; a state saved before this has none and counts as not read. The page shows a temperature only when it is set.
 // ----------------------------------------------------------------------------
 import { readPersistedJson, writePersistedJson } from './home-local-swarm';
 
@@ -68,6 +69,8 @@ export interface FridgeWeeklyState {
   telemetry: {
     coolerTempF: number;
     freezerTempF: number;
+    /** When the hub last reported a temperature to a run; null or absent while the two numbers are placeholders. */
+    measuredAt?: string | null;
     doorStatus: string;
     cameraZones: number;
     imageUrl: string;
@@ -202,7 +205,7 @@ function buildDefaultState(): FridgeWeeklyState {
       lastRunAt: now.toISOString(),
       nextRunAt: computeNextRunIso('Sunday', '09:00'),
     },
-    telemetry: { coolerTempF: 37, freezerTempF: 0, doorStatus: 'closed', cameraZones: 3, imageUrl: '/api/home/fridge-image' },
+    telemetry: { coolerTempF: 37, freezerTempF: 0, measuredAt: null, doorStatus: 'closed', cameraZones: 3, imageUrl: '/api/home/fridge-image' },
     currentSnapshot: { capturedAt: now.toISOString(), items: defaultCurrentItems() },
     previousWeekSnapshot: { capturedAt: prev.toISOString(), items: defaultPreviousWeekItems() },
     orderHistory: defaultOrderHistory(),
@@ -270,6 +273,7 @@ export function runWeeklyFridgeAssessment(
   state.weeklySchedule.nextRunAt = computeNextRunIso(state.weeklySchedule.dayOfWeek, state.weeklySchedule.time);
   if (typeof opts?.coolerTempF === 'number') state.telemetry.coolerTempF = opts.coolerTempF;
   if (typeof opts?.freezerTempF === 'number') state.telemetry.freezerTempF = opts.freezerTempF;
+  if (typeof opts?.coolerTempF === 'number' || typeof opts?.freezerTempF === 'number') state.telemetry.measuredAt = nowIso;
   state.telemetry.imageUrl = `/api/home/fridge-image?t=${Date.now()}`;
   state.currentSnapshot.capturedAt = nowIso;
   if (opts?.focus) {

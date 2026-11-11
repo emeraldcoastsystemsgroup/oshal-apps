@@ -1,5 +1,9 @@
 # Smart Home (home) — OSHAL app package
 
+1.6.0 makes the Smart Home screen a home of tiles in groups: **Kitchen and appliances** (the refrigerator), **TVs and streaming**, **Lights, plugs and more** (the switch cards), **Phones and tablets** and **Computers**. The phones, TVs and computers are the person's connected devices, read from the kernel's device list and, when the person can open it, from Phone & Device Control. A tile opens the page for that thing: the refrigerator page (**Look inside**, **Take new photos**, **Check what is inside now**, **Start a grocery list**, this week's shelves, the grocery list and meal ideas) and the TVs page (**Scan for TVs** and each TV's remote); a phone or computer tile opens Phone & Device Control. **‹ Smart Home** or the phone's Back returns to Home. **Connections** and **Help and notes** (what the devices report and notes for Jarvis) are at the foot of Home. No route, tool or schedule changed.
+
+1.5.0 adds the schema-bounded read-only SmartThings `samsungce.viewInside` server operation (`GET /api/home/view-inside`, `GET /api/home/view-inside/image/:fileId`, and the `home-view-inside` tool) so the Smart Home dashboard and Jarvis can read Samsung Family Hub interior refrigerator camera bays (`contents` dictionary or list, `supportedFocusAreas`, and `lastUpdatedTime`) and render per-bay optical previews alongside the composite interior view. It also places `home-device-inspect` and `home-view-inside` within the first 8 declared catalog tools so Jarvis routes SmartThings appliance and refrigerator interior camera requests to Smart Home rather than Camera Ops.
+
 1.2.4 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Control your smart home by chat (ADR-036/038): connect a hub at `/utilities`
@@ -65,7 +69,7 @@ package never reaches a network (its sandbox has none) and the server never scan
 Phone & Device Control's bridge (1.5.0, `phone-control/bridge/oshal_phone_lan.py`) running on a computer of the
 person's, through the kernel's `/api/computers/<id>/run`.
 
-- **On the Smart Home screen**, under *TVs and streaming sticks*: pick one of your computers (an online Linux computer
+- **On the Smart Home screen**, press the **Find TVs** tile under *TVs and streaming* (or a saved TV's tile): pick one of your computers (an online Linux computer
   with oshal Node signed in and control allowed is chosen first) and press **Scan for TVs**. The page updates the
   bridge on that computer when it is not Phone & Device Control's own, runs the scan and saves what it found. Each TV
   gets a card with **Wake**, **Turn off**, **Vol −/+**, **Mute**, the arrows and **OK**, **Home**, **Back**,

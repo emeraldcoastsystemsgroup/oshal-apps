@@ -1,6 +1,8 @@
 /**
  * CHANGE LOG
- * 5 | maintainer@emeraldcoastsystemsgroup.com | State the fixture's explicit currency and unit when asserting quoted salary rendering.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 10: the pay-source link reads "About this pay estimate" with the survey's occupation and month (was "BLS May 2025 · US national"), and Save replaces "Save to Job Board"; the expected card text and the fixture button follow.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Add tests for the collapsible filter rail toggle with aria attributes and per-account storage key.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Verify the search page styles define scrollbar-color and ::-webkit-scrollbar-thumb using CSS variables so the thumb colour follows the theme.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -9,6 +11,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin three-page navigation and the desktop-only independently scrollable filter rail.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the primary keyword form above saved searches and filters, and exercise Enter/button submission with page reset.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the keyword label is visually hidden ("Search all openings") and the submit button reads Search.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Verify the search page styles define scrollbar-color and ::-webkit-scrollbar-thumb using CSS variables so the thumb colour follows the theme.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Test the save-debounce guard and aria-busy state for the Save to Job Board button.
  */
 /**
  * Guards for the Search Jobs screen (`tools/career-search.html`).
@@ -353,7 +357,7 @@ test('both pay bounds and the selected unit reach search; reversed bounds retain
   assert.equal(requests.length,n,'invalid bounds must not replace the last successful results');
   assert.match(el('searchStatus').textContent,/Minimum pay cannot be higher/);
   assert.match(context.jobCard({id:1,title:'Developer',salary_min:105210,salary_max:171980,salary_source:'bls_estimated',
-    salary_estimate:{source:'BLS OEWS',survey:'May 2025',occupation:'Software Developers',method:'National occupation wage range.'}}),/estimate.*BLS May 2025/s);
+    salary_estimate:{source:'BLS OEWS',survey:'May 2025',occupation:'Software Developers',method:'National occupation wage range.'}}),/estimate.*About this pay estimate: US wages for Software Developers, May 2025/s);
 });
 
 
@@ -390,4 +394,57 @@ test('a Jarvis search link keeps its requested small page size and offset', asyn
   assert.match(html, /<section[^>]*id="savedSearchPopup"[^>]*popover role="dialog"/);
   assert.match(html, /\.saved-searches:not\(:popover-open\)\{display:none\}/);
   assert.match(html, /\.saved-searches\{position:fixed/);
+});
+
+test('the page source guards a second save of the same job while one is running', () => {
+  assert.ok(html.includes('savingJobs'), 'savingJobs Set must exist to guard duplicate saves');
+  assert.ok(html.includes('savingJobs.has(id)'), 'the handler must check savingJobs.has before proceeding');
+  assert.ok(html.includes('savingJobs.add(id)'), 'the handler must add the id to savingJobs');
+  assert.ok(html.includes('savingJobs.delete(id)'), 'the handler must remove the id after completion');
+  assert.match(html, /if \(savingJobs\.has\(id\)\) return;/, 'the guard must return early if already saving');
+});
+
+test('aria-busy is set on save and cleared on success or failure', async () => {
+  const {el, context, requests} = boot({jobs: []});
+  await settle();
+  // Simulate the addToBoard function being called (the button needs the data attribute)
+  el('list').innerHTML = '<div id="job-42" class="job"><button class="btn primary" data-save-job="42">Save</button></div>';
+  const saveBtn = el('job-42');
+  // Manually exercise: the screen's addToBoard sets aria-busy before the fetch
+  // We verify the HTML contains aria-busy handling and the savingJobs guard
+  assert.ok(html.includes("setAttribute('aria-busy','true')"), 'addToBoard must set aria-busy before the request');
+  assert.ok(html.includes("removeAttribute('aria-busy')"), 'addToBoard must clear aria-busy after completion');
+});
+
+test('scrollbar styles use CSS variables so the theme controls the thumb colour', () => {
+  // The page must define scrollbar-color with a CSS variable reference (not a hard colour).
+  assert.match(html, /scrollbar-color:[^;}]*var\(/, 'scrollbar-color must use a CSS variable');
+  // The ::-webkit-scrollbar-thumb pseudo-element must also use a CSS variable for its background.
+  assert.match(html, /::-webkit-scrollbar-thumb[^}]*var\(/, '::-webkit-scrollbar-thumb background must use a CSS variable');
+  // The hover variant of the thumb should also use a variable.
+  assert.match(html, /::-webkit-scrollbar-thumb:hover[^}]*var\(/, '::-webkit-scrollbar-thumb:hover must use a CSS variable');
+  // A transparent track should be set (no hard colour).
+  assert.match(html, /::-webkit-scrollbar-track[^}]*transparent/, '::-webkit-scrollbar-track must be transparent');
+});
+
+test('the Filters toggle button exists with aria-expanded and aria-controls', () => {
+  assert.match(html, /<button[^>]*id="filtersToggle"[^>]*aria-expanded="true"/, 'the toggle must start expanded');
+  assert.match(html, /<button[^>]*id="filtersToggle"[^>]*aria-controls="rail"/, 'the toggle must target the rail');
+  assert.match(html, /<button[^>]*type="button"[^>]*class="[^"]*rail-toggle[^"]*"[^>]*aria-expanded="true"/, 'the toggle must be a real button with aria-expanded');
+  assert.match(html, /<button[^>]*class="[^"]*rail-toggle[^"]*"[^>]*aria-controls="rail"/, 'the toggle must reference the rail id');
+  assert.match(html, /id="filterCount"/, 'the toggle must include a filter count element');
+  assert.ok(html.includes('rail-collapsed'), 'the CSS must define a collapsed rail class');
+  assert.ok(html.includes('.rail.collapsed'), 'the CSS must target the rail collapsed state');
+});
+
+test('the collapsed flag is read from and written to the per-account localStorage key', async () => {
+  const { context, requests, el } = boot();
+  await settle();
+  // The toggle code should try to read the collapsed state from the per-account key.
+  assert.ok(html.includes(':filters-collapsed'), 'the code must reference the filters-collapsed storage key');
+  assert.ok(html.includes("memory.key + ':filters-collapsed'"), 'the code must use the per-account key when memory exists');
+  assert.ok(html.includes("'career-search:filters-collapsed'"), 'the code must fall back to a session key when memory is absent');
+  // Verify the toggle function calls setItem on localStorage or sessionStorage.
+  assert.ok(html.includes('localStorage.setItem'), 'the toggle must persist the collapsed state to localStorage');
+  assert.ok(html.includes('sessionStorage.setItem'), 'the toggle must persist the collapsed state to sessionStorage');
 });

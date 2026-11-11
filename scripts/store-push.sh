@@ -6,6 +6,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com   | One command for a store push (Roger, 2026-11-03: "why do i have to push all this .. this should be just standard"): the long paste named two services, six settings and a password, and stopped the services under any other lane's running gate. Starts only the test services that are down and stops only those, reads the password from the container, runs the push through the unchanged pre-push gate, tries a second time because a suite can fail on a busy machine and pass alone (Trading and Publishing Studio, 2026-11-03), then opens and merges the pull request.
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | The gate no longer needs --allow-skips, so this drops it and anyone may run this, an agent included. Career's suites run: its pinned Python comes from the test fixture and its contract gets its own disposable database, a third service this starts and stops the same way.
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | The Operations step hung for its full 15 minutes on two lanes at once (2026-11-10): the shared test search, 512 MB and up all day, was full of indices killed runs had left and answered HTTP 429. This creates that container with 1 GB when it is missing and, before each push, removes what earlier runs left and prints how its memory stands (scripts/sweep-test-search.mjs).
 # =============================================================================
 #
 # Usage, from a branch with its commits made:
@@ -27,6 +28,9 @@ CAREER_PASSWORD=career-contract-ci
 docker inspect store-career-postgres >/dev/null 2>&1 || docker create --name store-career-postgres \
   -p 127.0.0.1:55469:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD="$CAREER_PASSWORD" -e POSTGRES_DB=postgres \
   pgvector/pgvector:pg16 >/dev/null || exit 1
+docker inspect operations-contract-search >/dev/null 2>&1 || docker create --name operations-contract-search \
+  -p 127.0.0.1:35690:9200 -e discovery.type=single-node -e DISABLE_INSTALL_DEMO_CONFIG=true -e DISABLE_SECURITY_PLUGIN=true \
+  -e node.store.allow_mmap=false -e "OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g" opensearchproject/opensearch:3.3.2 >/dev/null || exit 1
 for service in operations-contract-postgres operations-contract-search store-career-postgres; do
   if [ "$(docker inspect -f '{{.State.Running}}' "$service")" != "true" ]; then
     docker start "$service" >/dev/null || exit 1
@@ -38,6 +42,8 @@ for _ in $(seq 1 60); do
     && curl -sf http://127.0.0.1:35690 >/dev/null && break
   sleep 3
 done
+# What killed runs left in the shared test search goes before this run starts; a refusing engine is named here.
+node scripts/sweep-test-search.mjs http://127.0.0.1:35690 || true
 
 PASSWORD=$(docker inspect operations-contract-postgres --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^POSTGRES_PASSWORD=' | cut -d= -f2-)
 RUNTIME=$HOME/.local/state/oshal-publishing-runtime

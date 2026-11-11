@@ -388,7 +388,7 @@ test('iPhone AI Office studio workspace (1440x900): pinned-bottom composer (<=20
   await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
   assert.equal(state.rdpHits, 0, 'zero /api/rdp/sessions calls on default page load');
 
-  await page.locator('#phoneRail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
   assert.equal(await page.locator('#sessionMirrorBtn').isHidden(), false);
   assert.equal(await page.locator('#iosMirrorBar').isHidden(), true);
   assert.equal(await page.locator('#quickMirrorBtn').isHidden(), true);
@@ -428,7 +428,7 @@ test('Fire TV session displays protectedSurface notice on DRM black frame, suppo
   state.tvProtected = true;
   const page = await browser.newPage({ viewport: { width: 1360, height: 860 } });
   await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
-  await page.locator('#phoneRail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
 
   await page.waitForFunction(() => !document.getElementById('protectedSurfaceNotice')?.hidden);
   assert.match(await page.locator('#protectedSurfaceTitle').textContent(), /com\.amazon\.firetv\.youtube\.tv/);

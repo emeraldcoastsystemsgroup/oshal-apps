@@ -16,67 +16,33 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-06-17 17:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: GET /api/home/devices reads the bot's per-user device index (home-data :ro) — the cheap read-model for the Smart Home surface. Auth-gated; scoped to the caller's OIDC sub.
- * 2026-06-17 18:05:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Add the reasoning fast loop + scenes read + surface: POST /assistant (chat → home-bot, brokered SmartThings token, cost auto-tracked), POST /refresh (bot rebuilds the device index — the only writer), GET /scenes (cheap read of bot-owned scenes.json), GET /ui (serve home.html dashboard).
- * 2026-07-19 19:20:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the home app package (ADR-085 Wave 2). Standard (ctx) factory; the dashboard serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution, the kernel home-schedule branch, sun-times) import via @/ aliases. The home-bot node (container + registries + persona + oshal-smartthings.js + smartthingsToolKit), the home-data volume, and the scheduler's home-control branch stay framework-resident (ADR-093).
- *
- * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
- *
- * 2026-10-10 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
- * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
- * 2026-10-13 15:10:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
- * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /device-inspect (and GET /devices/:device/capabilities) for live SmartThings capability/status/ViewInside refrigerator camera inspection (./home-device-inspect), and persistent Operations Guide & Runbook routes GET/POST /operations-guide (./home-operations-guide) with auto-discovery logging and /home-summary insight injection.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state and devices on GET /devices when SmartThings is connected, and add zero-API-cost local Swarm device discovery/registration/control (GET/POST /local-discover, POST /devices/register, DELETE /devices/:key) plus direct SmartThings token save (POST /connect-token).
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /fridge-image and POST /fridge-refresh (`samsungce.viewInside` `refreshAll`) to serve and refresh Samsung Family Hub refrigerator interior camera snapshots and telemetry in the Smart Home dashboard.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
- * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
+ * 1   | maintainer@emeraldcoastsystemsgroup.com   | Initial: GET /api/home/devices reads the bot's per-user device index (home-data :ro) — the cheap read-model for the Smart Home surface. Auth-gated; scoped to the caller's OIDC sub.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | Add the reasoning fast loop + scenes read + surface: POST /assistant (chat → home-bot, brokered SmartThings token, cost auto-tracked), POST /refresh (bot rebuilds the device index — the only writer), GET /scenes (cheap read of bot-owned scenes.json), GET /ui (serve home.html dashboard).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com   | Carved out of OSHAL core into the home app package (ADR-085 Wave 2). Standard (ctx) factory; the dashboard serves from ctx.appPackageDir/tools (load-time env fallback, D10); shared core helpers (token broker, connectors, inline-bot-execution, the kernel home-schedule branch, sun-times) import via @/ aliases. The home-bot node (container + registries + persona + oshal-smartthings.js + smartthingsToolKit), the home-data volume, and the scheduler's home-control branch stay framework-resident (ADR-093).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com   | SECURITY: retire the SmartThings credential carrier from generic home-bot dispatch. Reasoning now receives a bounded controller-read device/scene snapshot with tools disabled; direct controls/scenes and live refresh resolve the caller's token only at their deterministic SmartThings API boundary.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com   | Native kernel: with OSHAL_EGRESS=kernel, /control, /scene/run and /refresh call api.smartthings.com through the global fetch with no Authorization header; the kernel applies the caller's smartthings connection declared in the manifest egress block. "Not connected" is decided from the connectors.metadata intent (none, revoked, or lapsed and unrenewable), and a kernel "not connected" refusal answers the same 409 each route gives for a missing token. The legacy broker path is unchanged.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com   | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
+ * 7   | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
+ * 8   | maintainer@emeraldcoastsystemsgroup.com   | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com   | Add GET /device-inspect (and GET /devices/:device/capabilities) for live SmartThings capability/status/ViewInside refrigerator camera inspection (./home-device-inspect), and persistent Operations Guide & Runbook routes GET/POST /operations-guide (./home-operations-guide) with auto-discovery logging and /home-summary insight injection.
+ * 10  | maintainer@emeraldcoastsystemsgroup.com   | Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state and devices on GET /devices when SmartThings is connected, and add zero-API-cost local Swarm device discovery/registration/control (GET/POST /local-discover, POST /devices/register, DELETE /devices/:key) plus direct SmartThings token save (POST /connect-token).
+ * 11  | maintainer@emeraldcoastsystemsgroup.com   | Add GET /fridge-image and POST /fridge-refresh (`samsungce.viewInside` `refreshAll`) to serve and refresh Samsung Family Hub refrigerator interior camera snapshots and telemetry in the Smart Home dashboard.
+ * 12  | maintainer@emeraldcoastsystemsgroup.com   | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
+ * 13  | maintainer@emeraldcoastsystemsgroup.com   | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
+ * 14  | maintainer@emeraldcoastsystemsgroup.com   | home 1.5.0 (J-6): add schema-bounded read-only SmartThings `samsungce.viewInside` server operation (`GET /api/home/view-inside` and `GET /api/home/view-inside/image/:fileId`) returning interior camera bay metadata and SVG bay previews for the Smart Home app and Jarvis.
  *
  * @module home-routes
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeRoutes = createHomeRoutes;
 const home_summary_1 = require("./home-summary");
 const express_1 = require("express");
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
+const fs = require("fs");
+const path = require("path");
 const logger_1 = require("@/shared/logger");
-const crypto = __importStar(require("crypto"));
+const crypto = require("crypto");
 const agent_management_1 = require("@/features/agent-management");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const home_schedule_dispatch_1 = require("@/app/home-schedule-dispatch");
@@ -133,10 +99,12 @@ function mergeWithLocalSwarmDevices(sub, base) {
     if (!localDevices.length)
         return base;
     const byKey = new Map();
-    for (const d of base.devices || [])
+    for (const d of base.devices || []) {
         byKey.set(d.key, d);
-    for (const ld of localDevices)
+    }
+    for (const ld of localDevices) {
         byKey.set(ld.key, ld);
+    }
     const merged = Array.from(byKey.values());
     const hubsSet = new Set(base.hubs || []);
     hubsSet.add('swarm-local');
@@ -227,7 +195,7 @@ async function smartThingsToken(ctx, sub) {
 }
 /** Send one capability command to a SmartThings device. */
 async function smartThingsCommand(token, deviceId, capability, command, arg) {
-    const cmd = { component: 'main', capability, command };
+    const cmd = { component: 'main', capability: string(capability), command: string(command) };
     if (arg !== undefined && arg !== null && arg !== '')
         cmd.arguments = [isNaN(Number(arg)) ? arg : Number(arg)];
     const r = await fetch(`https://api.smartthings.com/v1/devices/${deviceId}/commands`, {
@@ -236,6 +204,9 @@ async function smartThingsCommand(token, deviceId, capability, command, arg) {
     });
     if (!r.ok)
         throw new Error(`smartthings ${r.status}: ${(await r.text()).slice(0, 140)}`);
+}
+function string(v) {
+    return String(v || '');
 }
 /** Fetch and sanitize the live SmartThings device index without exposing the token to a model or task. */
 async function fetchSmartThingsDeviceIndex(token, sub) {
@@ -319,8 +290,9 @@ async function resolveLiveDeviceIndex(ctx, sub) {
         hubs.add('smartthings');
     if (ghConnected)
         hubs.add('google-home');
-    if ((idx.devices || []).some((d) => (d.sources || []).some((s) => s.hub === 'swarm-local')))
+    if ((idx.devices || []).some((d) => (d.sources || []).some((s) => s.hub === 'swarm-local'))) {
         hubs.add('swarm-local');
+    }
     return {
         devices: idx.devices || [],
         deviceCount: (idx.devices || []).length,
@@ -328,7 +300,7 @@ async function resolveLiveDeviceIndex(ctx, sub) {
         hubs: Array.from(hubs),
     };
 }
-function registerLocalSwarmRoutes(router, _ctx) {
+function registerLocalSwarmRoutes(router, ctx) {
     router.get('/local-discover', (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -354,8 +326,9 @@ function registerLocalSwarmRoutes(router, _ctx) {
                     newlyRegistered.push(device);
                 }
             }
-            if (newlyRegistered.length)
+            if (newlyRegistered.length) {
                 (0, home_operations_guide_1.recordDiscoveredDevices)(sub, newlyRegistered);
+            }
         }
         res.json({
             ok: true,
@@ -404,7 +377,7 @@ function registerLocalSwarmRoutes(router, _ctx) {
             const idx = await fetchSmartThingsDeviceIndex((0, kernel_egress_1.kernelEgress)() ? kernel_egress_1.KERNEL_TOKEN : token, sub);
             refreshedDeviceIndexes.set(sub, idx);
             (0, home_local_swarm_1.writePersistedJson)(sub, 'devices.json', idx);
-            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices || []);
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, (idx.devices || []));
             const merged = mergeWithLocalSwarmDevices(sub, idx);
             res.json({ ok: true, connected: true, ...merged });
         }
@@ -441,15 +414,14 @@ function createHomeRoutes(ctx) {
             const summary = (0, home_summary_1.homeSnapshotSummary)(idx, (0, home_summary_1.readHomeSnapshot)(storeDir, String(sub), 'scenes.json'));
             const guideSummary = (0, home_operations_guide_1.buildOperationsGuideSummary)(String(sub));
             const guide = (0, home_operations_guide_1.readOperationsGuide)(String(sub));
-            if (Array.isArray(summary.items)) {
-                summary.items.push({
-                    text: 'Smart Home Operations Guide & Runbook',
-                    detail: guideSummary.detail,
-                    tone: 'neutral',
-                    fix: 'home-dashboard',
-                    actions: [{ integration: 'prepare-document', context: { title: 'Smart Home Operations Guide & Runbook', notes: guideSummary.detail.slice(0, 1800) } }],
-                });
-            }
+            const items = Array.isArray(summary.items) ? summary.items : [];
+            items.push({
+                text: 'Smart Home Operations Guide & Runbook',
+                detail: guideSummary.detail,
+                tone: 'neutral',
+                fix: 'home-dashboard',
+                actions: [{ integration: 'prepare-document', context: { title: 'Smart Home Operations Guide & Runbook', notes: guideSummary.detail.slice(0, 1800) } }],
+            });
             summary.operationsGuide = { ...guideSummary, playbooks: guide.playbooks };
             res.json(summary);
         }
@@ -506,8 +478,9 @@ function createHomeRoutes(ctx) {
         }
         try {
             const idx = await resolveLiveDeviceIndex(ctx, sub);
-            if (idx.devices && idx.devices.length)
+            if (idx.devices && idx.devices.length) {
                 (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices);
+            }
             res.json({
                 devices: idx.devices || [], deviceCount: idx.deviceCount ?? (idx.devices?.length || 0),
                 generatedAt: idx.generatedAt || null, hubs: idx.hubs || [],
@@ -551,6 +524,57 @@ function createHomeRoutes(ctx) {
     };
     router.get('/device-inspect', handleDeviceInspect);
     router.get('/devices/:device/capabilities', handleDeviceInspect);
+    router.get('/view-inside', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.setHeader('Cache-Control', 'no-store');
+        const validated = (0, home_device_inspect_1.validateViewInsideDeviceInput)(req.query.device || req.query.q);
+        if (!validated.ok) {
+            res.status(400).json({ ok: false, error: 'invalid_device', message: validated.error });
+            return;
+        }
+        try {
+            const token = await smartThingsToken(ctx, sub);
+            if (!token) {
+                const localFridge = (0, home_local_swarm_1.readLocalSwarmDevices)(sub).find((d) => (d.capabilities || []).includes('samsungce.viewInside') || /refrigerator|fridge|family hub/i.test(d.name));
+                if (localFridge) {
+                    res.json((0, home_device_inspect_1.buildLocalViewInsidePayload)(localFridge, validated.device));
+                    return;
+                }
+                res.status(409).json({ ok: false, error: 'smartthings_not_connected', message: 'SmartThings not connected — connect it on the Hubs tab' });
+                return;
+            }
+            const result = await (0, home_device_inspect_1.readSmartThingsViewInside)(globalThis.fetch, smartThingsHeaders(token), validated.device);
+            res.status(result.ok ? 200 : 404).json(result);
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'home view-inside failed');
+            if ((0, kernel_egress_1.isNotConnected)(err)) {
+                res.status(409).json({ ok: false, error: 'smartthings_not_connected', message: 'SmartThings not connected — connect it on the Hubs tab' });
+                return;
+            }
+            res.status(502).json({ ok: false, error: 'smartthings_unreachable', message: err.message });
+        }
+    });
+    router.get('/view-inside/image/:fileId', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.setHeader('Cache-Control', 'no-store');
+        const token = await smartThingsToken(ctx, sub).catch(() => null);
+        const out = await (0, home_device_inspect_1.serveViewInsideImage)(req.params.fileId, req.query.device, token, token ? smartThingsHeaders(token) : {}, globalThis.fetch);
+        if (out.status !== 200) {
+            res.status(out.status).json(out.body);
+            return;
+        }
+        res.setHeader('Content-Type', out.contentType);
+        res.send(out.body);
+    });
     router.get('/fridge-image', (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
@@ -660,8 +684,9 @@ function createHomeRoutes(ctx) {
             return;
         }
         const idx = readDeviceIndex(sub);
-        if (idx.devices && idx.devices.length)
+        if (idx.devices && idx.devices.length) {
             (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices);
+        }
         const guide = (0, home_operations_guide_1.readOperationsGuide)(sub);
         res.json({ ok: true, ...guide, summary: (0, home_operations_guide_1.buildOperationsGuideSummary)(sub) });
     });
@@ -671,7 +696,7 @@ function createHomeRoutes(ctx) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
-        const updated = (0, home_operations_guide_1.updateOperationsGuideEntry)(sub, req.body || {});
+        const updated = (0, home_operations_guide_1.updateOperationsGuideEntry)(sub, (req.body || {}));
         if (!updated.ok) {
             res.status(400).json({ ok: false, error: updated.error || 'invalid_entry', message: 'Provide content (or note) to record in the Smart Home Operations Guide.' });
             return;
@@ -945,7 +970,7 @@ function createHomeRoutes(ctx) {
             refreshedDeviceIndexes.set(sub, idx);
             (0, home_local_swarm_1.writePersistedJson)(sub, 'devices.json', idx);
             const merged = mergeWithLocalSwarmDevices(sub, idx);
-            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, merged.devices || []);
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, (merged.devices || []));
             res.json({ devices: merged.devices || [], deviceCount: merged.deviceCount ?? 0, generatedAt: merged.generatedAt || null, hubs: merged.hubs || ['smartthings'] });
         }
         catch (err) {
@@ -959,4 +984,3 @@ function createHomeRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=home-routes.js.map

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the shared document handoff on the shipped Resume Studio and Profile Studio pages in Chromium with the real shared module: unsaved edits are saved through the compiled routes before an assistant reads (the master resume through the real engine dispatch, runner, launcher and engine on a fixture store; the profile plan through the PostgreSQL ProfilePlanStore compiled in the core checkout, on a disposable database), the context carries the record id and revision, an edit saved through the same routes is shown after refresh, the next manual edit reaches the next handoff, and unsaved edits survive a refresh. Scoped doubles: the kernel leaves in tests/helpers/career-route-harness.mjs, the Firecrawl pool query (no row), and the Career bot turn (executeBotOrInline), which answers the studios' embedded editor and AI draft with fixed JSON and records the prompt it was given.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove a refused Resume Studio save shows the route's own reason in the editor log, so a merge cannot drop it again.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 13: the LinkedIn profile page shows its state in words (Draft, not draft); the wait for a loaded plan follows.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -214,7 +215,7 @@ const readPlan = async (sub) => (await api(sub, 'GET', '/profile-studio/plan')).
 
 async function openProfile(t, sub) {
   const page = await openStudio(t, sub, 'career-profile-studio.html', '/api/career-hunter/profile-studio');
-  await page.waitForFunction(() => document.querySelector('#state').textContent === 'draft');
+  await page.waitForFunction(() => document.querySelector('#state').textContent === 'Draft');
   return page;
 }
 

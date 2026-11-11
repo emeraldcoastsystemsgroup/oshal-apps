@@ -40,6 +40,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Normalize saved aggregate arrays (accounts, holdings, topSpending, spendByMonth, recentTransactions, notes) and netWorth on /summary, /brief, and /review so partial or legacy stored rows never return undefined arrays.
  *
  * @module finance-routes
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: GET /app serves the application page (tools/finance-app.html): Finance as its own application, with its own bar, the family's screens inside it and a Home built from the person's finance jobs and summaries. The page only reads.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -400,23 +401,24 @@ function emptyAggregate(windowDays) {
 function normalizeAggregate(raw) {
     if (!raw || typeof raw !== 'object')
         return null;
-    const nw = raw.netWorth && typeof raw.netWorth === 'object' ? raw.netWorth : {};
+    const r = raw;
+    const nw = r.netWorth && typeof r.netWorth === 'object' ? r.netWorth : {};
     return {
-        ...raw,
-        generatedAt: typeof raw.generatedAt === 'string' ? raw.generatedAt : new Date().toISOString(),
-        currency: typeof raw.currency === 'string' && raw.currency ? raw.currency : 'USD',
+        ...r,
+        generatedAt: typeof r.generatedAt === 'string' ? r.generatedAt : new Date().toISOString(),
+        currency: typeof r.currency === 'string' && r.currency ? r.currency : 'USD',
         netWorth: {
-            assets: Number(nw.assets ?? raw.assets ?? 0) || 0,
-            liabilities: Number(nw.liabilities ?? raw.debts ?? 0) || 0,
-            net: Number(nw.net ?? raw.net_worth ?? 0) || 0,
+            assets: Number(nw.assets ?? r.assets ?? 0) || 0,
+            liabilities: Number(nw.liabilities ?? r.debts ?? 0) || 0,
+            net: Number(nw.net ?? r.net_worth ?? 0) || 0,
         },
-        accounts: Array.isArray(raw.accounts) ? raw.accounts : [],
-        holdings: Array.isArray(raw.holdings) ? raw.holdings : [],
-        topSpending: Array.isArray(raw.topSpending) ? raw.topSpending : [],
-        spendByMonth: Array.isArray(raw.spendByMonth) ? raw.spendByMonth : [],
-        recentTransactions: Array.isArray(raw.recentTransactions) ? raw.recentTransactions : [],
-        transactionWindowDays: Number(raw.transactionWindowDays) || TXN_WINDOW_DAYS,
-        notes: Array.isArray(raw.notes) ? raw.notes : [],
+        accounts: Array.isArray(r.accounts) ? r.accounts : [],
+        holdings: Array.isArray(r.holdings) ? r.holdings : [],
+        topSpending: Array.isArray(r.topSpending) ? r.topSpending : [],
+        spendByMonth: Array.isArray(r.spendByMonth) ? r.spendByMonth : [],
+        recentTransactions: Array.isArray(r.recentTransactions) ? r.recentTransactions : [],
+        transactionWindowDays: Number(r.transactionWindowDays) || TXN_WINDOW_DAYS,
+        notes: Array.isArray(r.notes) ? r.notes : [],
     };
 }
 /** Fetch fresh data for the caller and persist the aggregate; clears the stale brief. */
@@ -469,6 +471,7 @@ function createFinanceRoutes(ctx) {
     registerFinanceFacts(ctx);
     router.get('/', servePage(surfaceDir, 'finance.html'));
     router.get('/ui', servePage(surfaceDir, 'finance.html'));
+    router.get('/app', servePage(surfaceDir, 'finance-app.html'));
     /** GET /status — connected item count, sync/brief state, and Plaid config/env. Drives the surface. */
     router.get('/status', async (req, res) => {
         const sub = callerSub(req);

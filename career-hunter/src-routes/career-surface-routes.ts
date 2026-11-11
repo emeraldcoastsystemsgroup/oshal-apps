@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retire the unbounded persistent classic-board process and redirect legacy links to the native board.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Admit only the named public community-source directory JSON beside existing static assets.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve Career's home page (GET /home, career-home.html): the first screen of Career as its own application, and the page that hosts another application's screen under Career's bar.
  */
 
 /**
@@ -76,6 +77,7 @@ export function registerCareerSurfaceRoutes(router: Router): void {
   router.get('/insights-ui', createCareerToolFileHandler('career-insights.html'));
   router.get('/approvals', createCareerToolFileHandler('career-approvals.html'));
   router.get('/settings', createCareerToolFileHandler('career-settings.html'));
+  router.get('/home', createCareerToolFileHandler('career-home.html'));
   router.get('/resume-studio', createCareerToolFileHandler('career-resume-studio.html'));
   router.get('/mobile', createCareerToolFileHandler('career-mobile.html'));
   router.get('/submissions', createCareerToolFileHandler('career-submissions.html'));

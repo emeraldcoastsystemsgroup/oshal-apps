@@ -1,3 +1,5 @@
+# CHANGE LOG: 53 | maintainer@emeraldcoastsystemsgroup.com | 1.54.1: the Trades page's start-up runs to the end again, and the page is titled Intelligent Trades. 1.54.0 registered its document session without naming the application; the kernel helper refuses that, and because the call came first, the research hand-off was never received, Go under "Continue your research" did nothing and the connected actions were never mounted (a page error on every open). tools/ui/connected-actions.js now names the application; tests/native-handoff-registration.test.js runs the page's script against the kernel's own helper when a kernel checkout is named and against its exact refusal otherwise. tools/trading.html's title read "Trading"; it is the display name (tests/native-page-title.test.js).
+# CHANGE LOG: 52 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: conform Intelligent Trades to the Create concierge pattern (create/oshal-app.yaml, video/oshal-app.yaml): add dedicated front-desk inline chatBot trading-concierge (personas/trading-concierge.yaml, claude-code, plain prose, ```tool_call fence, tool-first Schwab and watchlist checks, back-office hand-off to trading-analyst), add screen-mirroring watchlist tools (trading_watchlist, trading_watchlist_add, trading_watchlist_remove), and mount registerDocumentSession in tools/ui/connected-actions.js. orderAuthority untouched.
 # CHANGE LOG: 51 | maintainer@emeraldcoastsystemsgroup.com | 1.53.9: a saved-record read that meets another writer's commit mid-scan is read again (twice at most). Production 2026-11-09 15:20Z and 17:20Z: the paper autopilot's strategy lookup failed with "conflict: scoped collection revision changed" while the person's portfolio watcher saved its watch record in the same minute. Reads only; no order path, route, tool or authorization changes.
 # CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | 1.53.8: the description says what Jarvis hands this application for the person's portfolio: the connected Schwab account's positions, day change and its performance over a week, a month or a year against the S&P 500 (the Trading Performance tool). Jarvis names an application from its description (kernel ADR-212); "How did my stocks do last week?" went to Finance, whose description also claimed the person's brokerages and holdings, in kernel scoreboard round 3 (adr212-40c4ddd8) and on production, while only this application reports a period's performance. Description and version only; no route, tool or authority changes.
 # CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | 1.53.7: compare bound timestamptz parameters in the five-minute account observation upsert predicate so native package SQL never evaluates EXCLUDED outside DO UPDATE SET; orderAuthority and broker execution gates stay untouched.
@@ -148,7 +150,7 @@ description: >-
   against the S&P 500; research stocks; and test strategies in a separate paper book,
   with a decision trail from signals to orders. Trading actions follow the connected
   account's supported controls. Cash equities. No crypto.
-version: 1.53.9
+version: 1.54.1
 lastingStorage: true
 status: active
 
@@ -247,12 +249,54 @@ workflow:
   pipeline: trading
   workerBot: trading-analyst
 
-# The right-rail chat agent when this app is focused. Without it the cockpit took the first
-# bot below (futures-research-analyst), which only emits a json futures study; the analyst
-# answers a person's question in prose.
-chatBot: trading-analyst
+# The front-desk inline concierge when this app is open (Create concierge pattern: create-editor,
+# video-editor). Signal-decision tickets stay on workflow.workerBot: trading-analyst in the back office.
+chatBot: trading-concierge
 
 bots:
+  - agentId: 4f8a1e72-3c59-4b8d-9e41-7206c8a31f4e
+    name: trading-concierge
+    persona: personas/trading-concierge.yaml
+    posture: inline
+    role: trading/concierge
+    capabilities:
+      - portfolio-audit
+      - trading-watchlist-inspection
+      - paper-book-management
+      - strategy-research
+      - quant-desk-briefing
+    selectorDescriptor: >-
+      Select for the person's Intelligent Trades portfolio and trading desk: connected Charles Schwab
+      accounts, holdings, day change, period performance against the S&P 500, watchlist symbols,
+      local paper accounts, saved research strategies and the nightly Quant desk. Hands signal-decision
+      and back-office specialist work to trading-analyst, trading-research-analyst,
+      futures-research-analyst and weather-analyst.
+    routingKeywords:
+      - trading
+      - trade
+      - stock
+      - equities
+      - ticker
+      - portfolio
+      - position
+      - watchlist
+      - watch list
+      - my watchlist
+      - schwab
+      - schwab account
+      - schwab accounts
+      - trading desk
+      - intelligent trades
+      - my stocks
+      - our stocks
+      - my portfolio
+      - our portfolio
+      - my trades
+      - our trades
+      - stock performance
+      - paper book
+      - backtest
+      - quant desk
   # Interactive research-only concierge; omit container to use the kernel's inline default.
   - agentId: 90a8023d-7f86-485a-b215-f427d92ce032
     name: futures-research-analyst
@@ -903,6 +947,66 @@ tools:
         ref: { type: string, description: "the account's book_ref from trading_paper_accounts" }
     usageInstructions: Stop a paper account the person names.
     routingTags: [trading, paper, stop]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_watchlist
+    displayName: Read Trading Watchlist
+    type: api
+    category: trading
+    description: >-
+      The caller's saved stock watchlist across Intelligent Trades, with each symbol's note, addedAt timestamp,
+      latest quote from the selected book's price rail (or stored archive), and recent congressional disclosure
+      activity. Read-only and owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/watchlist" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Always call before stating what is on the person's watchlist or whether their watchlist is empty.
+    routingTags: [trading, watchlist, stock, quote]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_watchlist_add
+    displayName: Add Symbol to Trading Watchlist
+    type: api
+    category: trading
+    description: >-
+      Add a ticker symbol (with an optional note) to the caller's Intelligent Trades watchlist. Re-adding an
+      existing symbol updates its note. Owner-scoped; never places an order. Input: {symbol, note?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/watchlist" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "ticker symbol to watch, e.g. NVDA" }
+        note: { type: string, description: "optional note for this watchlist symbol" }
+    usageInstructions: Call when the person asks to add a stock ticker to their watchlist.
+    routingTags: [trading, watchlist, add, stock]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_watchlist_remove
+    displayName: Remove Symbol from Trading Watchlist
+    type: api
+    category: trading
+    description: >-
+      Remove one ticker symbol from the caller's Intelligent Trades watchlist. Owner-scoped; never places an order.
+      Input: {symbol}.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/trading/watchlist/{input.symbol}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "ticker symbol to remove from the watchlist" }
+    usageInstructions: Call when the person asks to remove a stock ticker from their watchlist.
+    routingTags: [trading, watchlist, remove, stock]
     skills: [trading]
     tags: [intelligent-trades]
 

@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Bind the two source maintenance routes to career.administer, the permission the Companies list and every source change already need: POST /companies-admin/keep (keep trying a source maintenance asked about) and POST /companies-admin/maintenance-report (the daily briefing job reads last night's maintenance). No new permission and no role change, so every assignment grants what it granted before.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Bind Career's home page (GET /home) to app.open, the permission every other Career page opens under. It is a page; what it shows comes from routes already bound (home summary, job counts, resume state). No new permission and no role change, so every assignment grants what it granted before.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Bind Add, Remove and Put back on the Companies page (POST /companies-admin/add, /remove, /restore) to career.administer, the permission the list and the source change route already need. No new permission and no role change, so every assignment grants what it granted before.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Bind the 1.52.0 local round-trip master resume routes and tools: GET /resume/local-export rides the existing resume-item (GET /resume/:id -> career.read) parameter binding, POST /resume/local-import binds to career.change, career_resume_local_export binds to career.read, and career_resume_local_import binds to career.change.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the read-only Master record (1.51.0): its page to app.open, its data route and the career_master_record tool to career.read. No new permission and no role change, so every assignment grants what it granted before.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-private additional experience library to existing open/read/change grants and expose its read-only selection tool.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Bind the reserved owner-run cancellation control and Jarvis tool to existing career.change authority.
@@ -85,6 +89,7 @@ bindings:
     - { id: insights-ui, method: GET, path: /insights-ui, allOf: [app.open] }
     - { id: approvals-ui, method: GET, path: /approvals, allOf: [app.open] }
     - { id: settings-ui, method: GET, path: /settings, allOf: [app.open] }
+    - { id: home-ui, method: GET, path: /home, allOf: [app.open] }
     - { id: resume-studio-ui, method: GET, path: /resume-studio, allOf: [app.open] }
     - { id: mobile-ui, method: GET, path: /mobile, allOf: [app.open] }
     - { id: submissions-ui, method: GET, path: /submissions, allOf: [app.open] }
@@ -137,6 +142,7 @@ bindings:
     - { id: resume-guide, method: POST, path: /resume/guide, allOf: [career.execute] }
     - { id: resume-save, method: POST, path: /resume/save, allOf: [career.change] }
     - { id: resume-master-edit, method: POST, path: /resume/master-edit, allOf: [career.change] }
+    - { id: resume-local-import, method: POST, path: /resume/local-import, allOf: [career.change] }
     # Artifacts, including the ADR-139 Send-to-Career destination (career-artifacts).
     - { id: artifacts, method: GET, path: /artifacts, allOf: [career.read] }
     - { id: artifact-upload, method: POST, path: /artifacts/upload, allOf: [career.execute] }
@@ -208,6 +214,11 @@ bindings:
     - { id: companies-admin-ui, method: GET, path: /companies-admin, allOf: [career.administer] }
     - { id: companies-admin-list, method: GET, path: /companies-admin/list, allOf: [career.administer] }
     - { id: companies-admin-seturl, method: POST, path: /companies-admin/seturl, allOf: [career.administer] }
+    - { id: companies-admin-add, method: POST, path: /companies-admin/add, allOf: [career.administer] }
+    - { id: companies-admin-remove, method: POST, path: /companies-admin/remove, allOf: [career.administer] }
+    - { id: companies-admin-restore, method: POST, path: /companies-admin/restore, allOf: [career.administer] }
+    - { id: companies-admin-keep, method: POST, path: /companies-admin/keep, allOf: [career.administer] }
+    - { id: companies-admin-maintenance-report, method: POST, path: /companies-admin/maintenance-report, allOf: [career.administer] }
     - { id: cutover-status, method: GET, path: /status, allOf: [career.administer] }
   tools:
     - { id: career_job, allOf: [career.read] }
@@ -238,6 +249,8 @@ bindings:
     - { id: career_resume_section, allOf: [career.read] }
     - { id: career_resume_patch, allOf: [career.change] }
     - { id: career_resume_save, allOf: [career.change] }
+    - { id: career_resume_local_export, allOf: [career.read] }
+    - { id: career_resume_local_import, allOf: [career.change] }
   bots:
     - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000004, allOf: [app.open, career.execute] }

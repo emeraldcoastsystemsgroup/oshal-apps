@@ -6,6 +6,8 @@ sources and employers with no feed, repairs one only on evidence from the employ
 writes a report the Companies page shows.
 """
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Two hosts on one board vendor's domain are no longer the same site. `_same_site` compared the last two labels of a host, so foo.avature.net and bar.avature.net, two employers' boards, counted as one site. On a vendor's domain the whole host must now match. The vendor domains are read from the two patterns the engine already keeps of vendors' hosts, and from the resolver's own reading of an address.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is not reviewed and not counted as having no feed.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Recheck dead sources and employers with no feed after each full pull under a bounded public-only budget, repair only on the employer's own evidence, report name-only matches as suggestions, and record what changed and what is still broken.
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
-from . import ats, config, db, discover, http
+from . import ats, config, db, discover, http, resolve
 from . import source_memory as memory
 
 MAX_SOURCES = 150           # Measured at about 6 seconds a source: around the whole queue in a few nights.
@@ -96,7 +98,7 @@ def _queue(conn):
           LEFT JOIN {memory.table('source_pull_state')} s ON s.company_id = c.id
           LEFT JOIN {memory.table('source_review_items')} i ON i.company_id = c.id
          WHERE COALESCE(c.ats_type, '') NOT IN ({','.join('?' for _ in _HELD)})
-           AND COALESCE(c.discover_status, '') <> 'manual'
+           AND COALESCE(c.discover_status, '') NOT IN ('manual', 'removed')
            AND (COALESCE(c.ats_token, '') = ''
                 OR (s.status IN ('empty_unconfirmed', 'failed') AND s.consecutive_failures >= ?))
            AND (i.retry_after IS NULL OR i.retry_after <= ?)
@@ -142,7 +144,34 @@ def _site(url):
     return labels[-keep:]
 
 
+def _vendor_domains():
+    """Domains on which every employer has a host of its own, read from the two patterns the engine already keeps of
+    board vendors' hosts: the ones the resolver follows out of a careers page, and the ones discovery finds in one."""
+    domains = set()
+    for pattern in (resolve._EMBED_HOSTS.pattern, discover._ATS_IN_HTML.pattern):
+        hosts = re.search(r"\(\?:([^()]+)\)", pattern)
+        domains.update(host.replace("\\.", ".").lower() for host in (hosts.group(1).split("|") if hosts else ()))
+    return frozenset(domains)
+
+
+_VENDOR_DOMAINS = _vendor_domains()
+
+
+def _on_vendor_domain(host):
+    """Whether a host belongs to a board vendor and not to one employer: it is on one of the vendor domains, or the
+    resolver reads a board off its bare address. Nothing is read from the network."""
+    host = (host or "").lower()
+    if any(host == domain or host.endswith("." + domain) for domain in _VENDOR_DOMAINS):
+        return True
+    return bool(host) and resolve.classify_url(f"https://{host}/") is not None
+
+
 def _same_site(left, right):
+    """Whether two addresses are on one employer's site. On a board vendor's domain every employer has its own host
+    (foo.avature.net and bar.avature.net are two employers), so there the whole host must match."""
+    hosts = [(urlsplit(url).hostname or "").lower() for url in (left, right)]
+    if any(_on_vendor_domain(host) for host in hosts):
+        return bool(hosts[0]) and hosts[0] == hosts[1]
     return _site(left) == _site(right)
 
 
@@ -312,7 +341,7 @@ def _record(conn, results):
 
 def _source_counts(conn):
     states = Counter(row["status"] for row in conn.execute(f"SELECT status FROM {memory.table('source_pull_state')}").fetchall())
-    no_feed = conn.execute(f"SELECT COUNT(*) AS n FROM {db.companies_table()} WHERE COALESCE(ats_token,'')=''").fetchone()["n"]
+    no_feed = conn.execute(f"SELECT COUNT(*) AS n FROM {db.companies_table()} WHERE COALESCE(ats_token,'')='' AND COALESCE(discover_status,'')<>'removed'").fetchone()["n"]
     return {"whole": states["ok"] + states["not_modified"], "unverified": states["partial"],
             "empty": states["empty_unconfirmed"], "failed": states["failed"], "noFeed": no_feed}
 

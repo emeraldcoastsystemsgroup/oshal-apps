@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Follow the admitted1.29.1 patch while preserving every experience, map and role assertion.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the actual experience and authority contract across valid patch releases rather than pinning an obsolete application version.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Search Jobs links to the board and the matched search since 08fd1631; configuration moved to the Intelligent Career ribbon.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: the experience opens on Career's home page (GET /home, bound to app.open like the search page), which carries the job search box; the search route keeps its own binding.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,18 +23,23 @@ const yaml = createRequire(resolve(toolchain, 'js-yaml/package.json'))('./index.
 const manifest = yaml.load(readFileSync(resolve(root, 'oshal-app.yaml'), 'utf8'));
 const catalog = yaml.load(readFileSync(resolve(root, 'authorization.yaml'), 'utf8'));
 
-test('Career declares a real page experience on the existing authenticated search route', () => {
+test('Career declares a real page experience on its authenticated home page, beside the search route', () => {
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.notEqual(manifest.kind, 'group');
   assert.ok(manifest.uses.includes('application-authorization'));
   assert.ok(manifest.uses.includes('experience'));
   assert.deepEqual(manifest.experience, { version: 1, label: 'Intelligent Career',
-    entry: '/api/career-hunter/search-ui', shell: 'page', skin: 'daylight' });
+    entry: '/api/career-hunter/home', shell: 'page', skin: 'daylight' });
   assert.ok(manifest.routes.some(route => route.mountPath === '/api/career-hunter' && route.auth === 'oidc'));
   assert.equal(manifest.authorization.version, 1);
   assert.equal(manifest.authorization.catalog, 'authorization.yaml');
   assert.deepEqual(catalog.bindings.http.filter(binding => binding.method === 'GET' && binding.path === '/search-ui'),
     [{ id: 'search-ui', method: 'GET', path: '/search-ui', allOf: ['app.open'] }]);
+  assert.deepEqual(catalog.bindings.http.filter(binding => binding.method === 'GET' && binding.path === '/home'),
+    [{ id: 'home-ui', method: 'GET', path: '/home', allOf: ['app.open'] }]);
+  assert.equal(manifest.ui.static[0].toolName, 'career-home');
+  assert.equal(manifest.ui.static[0].iframeUrl, manifest.experience.entry);
+  assert.equal(manifest.ribbon.defaultView, 'career-home');
   assert.equal(catalog.permissions['app.open'].effect, 'read');
 });
 

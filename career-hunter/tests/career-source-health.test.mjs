@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The shipped routes are handed the whole source-health library, as they are in the package: the list now also reads source maintenance through it, and a hand-picked pair of its functions answered 500.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The child's time limit is a guard against a hang, not a speed check: it ended this test at exactly its limit on a busy machine (load 13 to 22 on 20 cores, 2026-11-11) while the engine was still working. Raised to 3 minutes for the source-memory contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Resolve on the native kernel: saved for the next pull with no engine started, read back as waiting and then as what the pull did.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Read the latest nightly source review on read-only SQLite through the existing administrator list; an absent or unreadable report never hides the companies.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the read-only refresh fixture current with the lazily dispatched manual-score dependency; starting a native writer remains forbidden.
@@ -89,7 +91,7 @@ test('an administrator without a personal Career store can inspect the shared Co
       './career-engine-dispatch': {runCareerCliAwait: () => {throw new Error('read must not launch engine');}},
       './career-engine-response': {},
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
-      '../lib/career-source-health': {sourceHealthByCompany, latestSourceReview},
+      '../lib/career-source-health': require('../lib/career-source-health'),
       '../lib/career-source-requests': sourceRequests,
     };
     new Function('require','module','exports',source)((id) => {
@@ -129,7 +131,7 @@ test('on the native kernel Resolve saves the change for the next pull and starts
       './career-engine-dispatch': {runCareerCliAwait: async () => { engineRuns++; return {ok: true, out: '{}'}; }},
       './career-engine-response': {},
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
-      '../lib/career-source-health': {sourceHealthByCompany, latestSourceReview},
+      '../lib/career-source-health': require('../lib/career-source-health'),
       '../lib/career-source-requests': sourceRequests,
     };
     new Function('require','module','exports',source)((id) => leaves[id], module, module.exports);
@@ -262,7 +264,7 @@ test('only a verified operator or configured administrator passes the existing C
 
 test('source-memory ingestion and conditional-fetch guards pass against real temporary SQLite', () => {
   const result = spawnSync(process.env.JOBHUNTER_PYTHON || 'python3', [new URL('./career-source-memory.py', import.meta.url).pathname],
-    {encoding:'utf8',timeout:30000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
+    {encoding:'utf8',timeout:180000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
   assert.equal(result.status, 0, result.stderr || result.error?.message || result.stdout);
 });
 

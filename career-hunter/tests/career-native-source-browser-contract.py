@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Prove native browser dispatch, complete payload parsing, explicit source failures and immutable existing jobs through real disposable SQLite.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | A read stopped by a site's human check or sign-in page before any job is recorded as failed under that cause and leaves stored jobs open; one that still read jobs keeps them.
 from __future__ import annotations
 import json,os,sys,tempfile,unittest,subprocess
 from pathlib import Path
@@ -79,6 +80,24 @@ class NativeSource(unittest.TestCase):
             result=source_memory.ingest(conn,1,rows);self.assertFalse(result['complete']);self.assertEqual(result['closed'],0)
             self.assertEqual(conn.execute('SELECT count(*) FROM corpus.postings_corpus WHERE active=1').fetchone()[0],3)
             self.assertEqual(conn.execute('SELECT last_error_code FROM corpus.source_pull_state WHERE company_id=1').fetchone()[0],'page_limit_reached')
+
+    def test_a_human_check_or_sign_in_page_with_no_jobs_is_a_named_failure_that_closes_nothing(self):
+        with db.connect()as conn:
+            conn.execute("INSERT INTO corpus.companies(id,name,ats_type,ats_token)VALUES(1,'Fixture','web',?)",(URL,))
+            db.upsert_posting(conn,1,{'ats_job_id':'old','title':'Existing role','url':URL+'/jobs/old'})
+        for reason in ('challenge_detected','login_required'):
+            with self.subTest(reason=reason),self.run_browser(evidence(dom=[],payloads=[],pages=1,reason=reason)):
+                with self.assertRaisesRegex(native_browser.BrowserReadUnavailable,'^'+reason+'$'):source_memory.fetch(1,'web',URL)
+                with db.connect()as conn:
+                    row=conn.execute('SELECT status,last_error_code FROM corpus.source_pull_state WHERE company_id=1').fetchone()
+                    self.assertEqual(tuple(row),('failed',reason))
+                    self.assertEqual(conn.execute('SELECT active FROM corpus.postings_corpus').fetchone()[0],1)
+        response=SimpleNamespace(returncode=2,stdout='',stderr='browser_refused\n')
+        with patch.object(native_browser,'_run',return_value=response):
+            with self.assertRaisesRegex(native_browser.BrowserReadUnavailable,'^browser_refused$'):native_browser.scrape(URL,80)
+        with self.run_browser(evidence(reason='challenge_detected')):
+            rows=native_browser.scrape(URL,80)
+        self.assertEqual((len(rows),rows.complete,rows.reason),(2,False,'challenge_detected'))
 
     def test_hard_helper_deadline_aborts_ingest_init_instead_of_leaving_a_browser_behind(self):
         child=SimpleNamespace(pid=919191,communicate=lambda *args,**kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired('fixture',135)))

@@ -23,6 +23,8 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: build the queue from the caller's application records and the native worker answer instead of the old platform's /api/apply-operator/queue, /story and /shot, which the native kernel does not serve (the screen showed "Could not reach the queue"). Narrated runs are not retained natively, so a run says so instead of fetching them.
   7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): the top said "no worker connected" three times ("last seen 722h 39m ago") and the lanes were not buttons. One status row now reads "No computer connected · last seen 30 days ago" with one secondary Connect a computer, and the separate computer picker row is gone; the lanes are one row of 44px filter chips (role=tab with counts) that scroll sideways on a phone; an empty queue is "Nothing sent yet" with one primary Open Job Board; the Submission queue / Application status pill pair is gone (both are Job Board stages). Job Apply's counters fold in here as one row computed from these same records (active, failed or unknown, manually marked, verified in 24 hours and 5 days), and each row names its portal. Guard: tests/career-submission-activity.test.mjs.
   8 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: withhold Connect a computer from guest visitors (/api/guest/session + /api/auth/user), contain overscroll, hide redundant framed headers, and align radii/typography to the design standard.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  10 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 5: the lanes read Needs your answer (was Needs you) and Removed (was Dismissed), the names the Job Board's stages have, and a status the person set themselves says so ("You marked this as applied yourself") instead of naming an operator. Lane ids and statuses are as they were.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="submissions" data-ds-category="collection" data-ds-first-action="tap"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -147,7 +149,7 @@
     .activity-row .rmeta { align-items:flex-start; } .activity-row .rmeta > span:first-child { flex-basis:100%; min-width:0; }
   }
 </style>
-</head><body>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 
 <div class="wrap">
   <header class="career-intro">
@@ -175,7 +177,7 @@ const $=id=>document.getElementById(id);
 // APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const APPLICATION_PROVENANCE=Object.freeze({
-  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'You marked this as applied yourself. Career has no confirmation that it was sent.'},
   'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
   'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
   unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
@@ -208,7 +210,7 @@ function applicationProofHtml(record){
   return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
 }
 // APPLICATION_PROVENANCE_END
-const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Completed'],['needs_you','Needs you'],['failed','Failed'],['dismissed','Dismissed']];
+const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Completed'],['needs_you','Needs your answer'],['failed','Failed'],['dismissed','Removed']];
 
 // NATIVE_QUEUE_START
 /** Each application record status, as the lane it belongs in and what it is waiting on. */
@@ -218,7 +220,7 @@ const STATUS_LANES=Object.freeze({
   drafted:['needs_you','Draft ready: review it, then submit it.'],
   applied:['applied',''],
   denied:['dismissed','You declined this one.'],
-  dismissed:['dismissed','Dismissed.'],
+  dismissed:['dismissed','Removed.'],
   error:['failed','The draft failed; queue it again from the Job Board.'],
 });
 /** The worker banner from the native dispatcher answer (GET /api/apply-operator/workers). */

@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a plain question got "Decision: HOLD | Reasoning: ... | Confidence: 1". The decision tree is scoped to a decision task in the opening, and a conversational answer carries no decision labels, verdict or confidence.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | trading_status and trading_positions are route reads and trading_account (cash) is new: the native kernel offers a bot only api tools, so the concierge could not name the paper holding or its cash.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | trading_accounts (GET /api/trading/accounts) is authorized, a route read, and named for every brokerage/Schwab question.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The front-desk chatBot is trading-concierge (inline, Create concierge pattern) while trading-analyst stays workflow.workerBot in the back office; neither persona claims Finance's money words.
  */
 'use strict';
 const test = require('node:test');
@@ -80,13 +81,17 @@ test('the analyst talks to the person, not about its instructions or routes', ()
   assert.match(perspective, /name a screen by its title\s+\(the Research tab of Intelligent Trades\)/);
 });
 
-test('the app concierge is the conversational analyst, and money words stay with Finance', () => {
+test('the app concierge is the inline front-desk trading-concierge (handing off to trading-analyst), and money words stay with Finance', () => {
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8');
-  assert.match(manifest, /^chatBot: trading-analyst$/m);
-  assert.match(manifest, /^  - agentId: [0-9a-f-]+\n    name: trading-analyst$/m, 'chatBot names a bot this app declares');
-  const keywords = persona.split('\nrouting_keywords:\n')[1].split('\n\n')[0];
-  for (const word of ['finance', 'finances', 'my finance', 'my money', 'net worth', 'budget', 'spending', 'my accounts']) {
-    assert.doesNotMatch(keywords, new RegExp(`^  - ${word}$`, 'm'), `${word} belongs to Finance`);
+  assert.match(manifest, /^chatBot: trading-concierge$/m);
+  assert.match(manifest, /^  - agentId: [0-9a-f-]+\n    name: trading-concierge$/m, 'chatBot names a bot this app declares');
+  assert.match(manifest, /^  - agentId: [0-9a-f-]+\n    name: trading-analyst$/m, 'back-office specialist remains declared');
+  const conciergePersona = fs.readFileSync(path.join(__dirname, '..', 'personas', 'trading-concierge.yaml'), 'utf8');
+  for (const source of [persona, conciergePersona]) {
+    const keywords = source.split('\nrouting_keywords:\n')[1].split('\n\n')[0];
+    for (const word of ['finance', 'finances', 'my finance', 'my money', 'net worth', 'budget', 'spending', 'my accounts']) {
+      assert.doesNotMatch(keywords, new RegExp(`^  - ${word}$`, 'm'), `${word} belongs to Finance`);
+    }
   }
 });
 

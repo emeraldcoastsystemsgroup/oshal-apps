@@ -31,6 +31,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register audio-engineer concierge persona for Audio Studio 1.2.0.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register sports-quant and fantasy-quant concierge personas (F22) and remove sports-edge, fantasy-football, and intelligent-sports from general-bot PENDING.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Register trading-concierge persona for Intelligent Trades 1.54.0 (Create concierge pattern).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -71,6 +72,7 @@ export const CONCIERGES = [
   'social/personas/social-writer.yaml',
   'spaces/personas/spaces-operator.yaml',
   'sports-edge/personas/sports-quant.yaml',
+  'trading/personas/trading-concierge.yaml',
   'travel/personas/travel-concierge.yaml',
   'video/personas/video-director.yaml',
   'vids/personas/vids-operator.yaml',

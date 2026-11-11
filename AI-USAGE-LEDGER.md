@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 86 packages, 86 rated, 0 unrated.
+Coverage: 87 packages, 87 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -77,6 +77,7 @@ Coverage: 86 packages, 86 rated, 0 unrated.
 | finance | 64 / 256 (declared) | money-brief | money brief | T3 | none | disable | not yet measured | none recorded |
 | finance | 64 / 256 (declared) | context-review | draft review against your finances | T3 | none | disable | not yet measured | none recorded |
 | finance | 64 / 256 (declared) | finance-brief-ticket | finance brief ticket | T3 | none | disable | not yet measured | none recorded |
+| finance-experience | 16 / 64 (declared) | none (T0, no model in the loop) | | | | | | |
 | futures-research | 64 / 256 (declared) | futures-study-review | study review | T3 | none | disable | not yet measured | none recorded |
 | game-show | 32 / 128 (declared) | round-generation | round of questions | T2 | none | template | not yet measured | none recorded |
 | game-show | 32 / 128 (declared) | answer-judging | judged guess | T1 | none | template | not yet measured | none recorded |

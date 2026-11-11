@@ -6,6 +6,9 @@ HTTP-only (fast). Sites that hide the ATS behind JavaScript stay on the to-do li
 large majority expose it in the page HTML or a redirect.
 """
 # CHANGE LOG
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Recognise a Dayforce board link (jobs.dayforcehcm.com/{culture}/{client}/{board}) as the Dayforce reader's.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is left out of resolver runs.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Recognise a career site Jibe serves on the employer's own address by asking it for Jibe's listing, so a pasted link or a careers page on such a host is read through the Jibe reader and not the browser page reader, which these sites refuse.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
@@ -25,7 +28,7 @@ _CAREER_LINK = re.compile(r"search-jobs|search-results|careers-home|/search/?|/j
 # this tuple can never drift from the code below and no TypeScript copy of the patterns exists.
 PATTERN_ATS = ("workday", "icims", "eightfold", "greenhouse", "lever", "ashby", "smartrecruiters",
                "workable", "taleo", "oracle_orc", "phenom", "successfactors", "jibe", "avature",
-               "brassring", "gdcareers", "gsroles", "pageup", "governmentjobs")
+               "brassring", "gdcareers", "gsroles", "pageup", "governmentjobs", "dayforce")
 
 
 
@@ -132,6 +135,12 @@ def classify_url(url: str):
         if pid and sid:
             return ("brassring", f"{pid.group(1)}|{sid.group(1)}")
 
+    # ── Dayforce — jobs.dayforcehcm.com/{culture}/{client}/{board} ──────────
+    if "jobs.dayforcehcm.com" in low:
+        tok = ats.Dayforce.token_from(full)
+        if tok:
+            return ("dayforce", tok)
+
     # ── Taleo (TBE + enterprise) ───────────────────────────────────────────
     if ".taleo.net" in low:
         return ("taleo", full)
@@ -184,6 +193,9 @@ def classify_url_deep(url: str):
             return ("pinpoint", host)
     except Exception:
         pass
+    # A career site Jibe serves on the employer's own address answers Jibe's listing there.
+    if _try_jibe(host):
+        return ("jibe", host)
     # Phenom widgets
     if _try_phenom(host):
         return ("phenom", host)
@@ -254,6 +266,19 @@ def _try_sf(host):
         return False
 
 
+def _try_jibe(host):
+    """True when this host answers Jibe's own listing with a job in Jibe's shape: a count, and a job that carries its slug."""
+    try:
+        r = http.get_once(f"https://{host}/api/jobs", params={"page": 1, "internal": "false", "limit": 1}, timeout=15)
+        d = r.json() if r.ok else None
+        jobs = d.get("jobs") if isinstance(d, dict) else None
+        first = jobs[0].get("data") if isinstance(jobs, list) and jobs and isinstance(jobs[0], dict) else None
+        return isinstance(d.get("totalCount"), int) and d["totalCount"] > 0 and isinstance(first, dict) \
+            and bool(first.get("slug") or first.get("req_id"))
+    except Exception:
+        return False
+
+
 def _detect_in(blob, host):
     """Detect a platform from a page blob (final_url + html). Returns (atype, token) or None."""
     m = _WD.search(blob)
@@ -278,6 +303,8 @@ def _detect_in(blob, host):
         return "phenom", host
     if _try_sf(host):
         return "successfactors", host
+    if _try_jibe(host):
+        return "jibe", host
     return None
 
 
@@ -419,7 +446,8 @@ def run_render(limit=None):
         # compat VIEW in postgres mode, same columns either way. Only the WRITES below have
         # to name the base table.
         rows = [dict(r) for r in c.execute(
-            "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL ORDER BY name").fetchall()]
+            "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL"
+            " AND COALESCE(discover_status, '') <> 'removed' ORDER BY name").fetchall()]
     if limit:
         rows = rows[:limit]
     print(f"render-resolving {len(rows)} JS-loaded companies...", flush=True)
@@ -463,7 +491,8 @@ def run_all(limit=None, workers=10):
         # compat VIEW in postgres mode, same columns either way. Only the WRITES below have
         # to name the base table.
         rows = [dict(r) for r in c.execute(
-            "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL ORDER BY name").fetchall()]
+            "SELECT id, name, careers_url, homepage FROM companies WHERE ats_type IS NULL"
+            " AND COALESCE(discover_status, '') <> 'removed' ORDER BY name").fetchall()]
     if limit:
         rows = rows[:limit]
     print(f"resolving {len(rows)} companies across all platforms...", flush=True)

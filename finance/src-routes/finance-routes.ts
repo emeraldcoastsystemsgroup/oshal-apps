@@ -39,6 +39,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Normalize saved aggregate arrays (accounts, holdings, topSpending, spendByMonth, recentTransactions, notes) and netWorth on /summary, /brief, and /review so partial or legacy stored rows never return undefined arrays.
  *
  * @module finance-routes
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: GET /app serves the application page (tools/finance-app.html): Finance as its own application, with its own bar, the family's screens inside it and a Home built from the person's finance jobs and summaries. The page only reads.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -479,6 +480,7 @@ export function createFinanceRoutes(ctx: AppContext): Router {
 
   router.get('/', servePage(surfaceDir, 'finance.html'));
   router.get('/ui', servePage(surfaceDir, 'finance.html'));
+  router.get('/app', servePage(surfaceDir, 'finance-app.html'));
 
   /** GET /status — connected item count, sync/brief state, and Plaid config/env. Drives the surface. */
   router.get('/status', async (req: Request, res: Response) => {

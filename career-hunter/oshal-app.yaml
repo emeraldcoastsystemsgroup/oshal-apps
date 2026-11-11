@@ -105,6 +105,18 @@
 # 102 | maintainer@emeraldcoastsystemsgroup.com | 1.49.1: Resume Studio declares its design contract (editor, type first, its work surface), contains overscroll and keeps the document frame on the radius scale (the design standard audit on production).
 # 101 | maintainer@emeraldcoastsystemsgroup.com | 1.49.0 (Roger, 2026-11-06): Resume Studio opens the master resume as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel; Save to master resume writes it back through the existing whitelisted base-save. The Career persona sends resume editing there and never patches the master behind the open document; routing words hand a resume request to Career. Contract: docs/career-and-office.md. Tailored packets keep the classic editor; without AI Office the master opens in the classic view.
 # 104 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0 (Roger, 2026-11-09): the Master record. One read-only page (Resume, and Resume Studio's More menu) with everything Career keeps for a person: every role with its numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the dated history of what was added with the person's own words, Strengthen answers, snapshot dates and the documents kept outside Career; Download saves it as one Markdown file and Print is in More. The concierge reads it through career_master_record in pages of at most 12 KB and answers a request for everything with the counts and the page link. Saving Resume Studio's Word document never changes the master by itself: the Skills line is read back only on its " · " separator, and the credential line shown for an empty headline is never saved as the headline. Route and tool use the existing career.read permission. No routing words were added. A new person's résumé upload works on the native kernel: the upload route no longer subscribes to stream events the kernel's request does not have ("req.once is not a function" on blue, 2026-11-09).
+# 106 | maintainer@emeraldcoastsystemsgroup.com | 1.52.1: job search: Save to Job Board visibly depresses, shows a spinner and cannot save the same job twice while one save runs; scroll bars follow the theme; the filter column collapses to a chip and stays that way per account.
+# 107 | maintainer@emeraldcoastsystemsgroup.com | 1.52.2: Career settings, Target titles: the list said Saved whatever the server answered and silently dropped titles under 3 characters or past the sixteenth. It is a multi-line box with a Save titles button; the line under it says how many were saved and names the ones not kept, or says Not saved with the reason. Matching area, digest and automation captions say Not saved when the save is refused.
+# 108 | maintainer@emeraldcoastsystemsgroup.com | 1.52.3 (Roger, 2026-11-10): employer source list. Twenty employers that post on the S4 Contracts board are added with the board each one publishes its own jobs on (Spinnaker Support, Collier County Clerk of the Circuit Court and Comptroller, Clarkston Consulting, The Hackett Group, Woodward, Owens Corning, Argano, Cargill, Atos, Mars, Bristlecone, Kyndryl, DXC Technology, Genpact, VF Corporation, ABB, Capgemini, Hitachi, NTT DATA, Experis). Thirteen employers the list or the corpus held on a board that returned nothing, or another company's jobs, name their current board (Deloitte, TEKsystems, NextEra Energy, Corning, Dow, Mondelez International, Pentair, Caterpillar, Clorox, Henry Schein, Bosch, PricewaterhouseCoopers, Lockheed Martin). Each board returned jobs through the engine's own reader before it was listed. tests/career-seed-sources holds every entry to a reader the nightly pull has and a token that reader turns into its own board's address.
+# 109 | maintainer@emeraldcoastsystemsgroup.com | 1.52.4 (Roger, 2026-11-10): jobs read from Workable boards carry their place. The reader looked for a `location` field the board does not send, so every Workable job (Credence, Rebellion, Protera, Hugging Face, Clarkston Consulting) was stored with no city, state or map point and never matched a search by place; it now reads the place and the remote answer the board sends and keeps one row for a job listed once per place. A stored job whose location changes takes its state, city and map point with it on the next nightly pull, so existing jobs gain their place without being stored again. The backlog names the Workday list rows that have no title.
+# 110 | maintainer@emeraldcoastsystemsgroup.com | 1.52.5 (Roger, 2026-11-10): jobs read from Avature boards (ManTech, Deloitte, Trader Joe's) carry the place their list shows beside them and the board's own remote answer; every Avature job was stored with no place and never matched a search by place. Trader Joe's list is read whole: it links each job four times, so the reader stepped over three pages in four and read 60 of 190 jobs. A location is filed under the state it states: "Washington, District of Columbia" under the District and not Washington State, "West Virginia" not Virginia, "Kansas City, Missouri" not Kansas. A stored job filed under a state its location does not state is filed again the next time a pull reads it, changed or unchanged. The backlog names the job lists that show no place.
+# 111 | maintainer@emeraldcoastsystemsgroup.com | 1.52.6 (Roger, 2026-11-10): Companies page Add employer, Remove and Put back, each saved for the next nightly pull, which makes, removes or lists the employer again and reads its jobs; three administrator routes bound to career.administer, no new permission. The page reader accepts a cookie notice that covers the jobs, names itself to the site as a current Chrome and this reader instead of a headless browser, and reports a human check, a sign-in, a refusal and a browser that cannot start each as its own cause. The Jibe reader reads a Jibe career site on the employer's own host. Needs attention no longer counts a board set by hand or a read that has jobs but no proved end.
+# 112 | maintainer@emeraldcoastsystemsgroup.com | 1.52.7 (Roger, 2026-11-11): two readers for boards whose page loads its jobs from a search service the page reader may not call. A newer SuccessFactors site whose page lists no job is read from its own search service (Altria 89 of 89, Amway 33, NTT DATA Business Solutions 94, measured once each); a classic site is read as before. New Dayforce reader (Regency Centers 24, ASRC Federal 371, Mirion 87, Carhartt 142, Imperial Dade 217, each whole). Each is read to the count the site states, so a whole read closes a job that left.
+# 113 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0 (Roger, 2026-11-10: "little monsters has a really slick skin and way of opening, it's a full application by itself ... can we make an experience that is totally self contained in little monster format ... full screen, custom navigation, thoughtful layout"): Career opens as its own application. Every Career page loads one page frame (tools/career-frame.js + career-frame.css) that takes the whole window when the page is the top window or the cockpit frames it, wears Career's own skin, and draws one top bar from the person's own profile: the brand, a link for each section, More, their saved-jobs count and their name; a section's pages sit in a row under the bar; a phone gets a bottom bar of Home, Search, Job Board, Resume and More. A new Home page (GET /home, bound to app.open) is the first screen: one search box, the pipeline as six stage cards, the person's jobs, their resume state and next step, and a card for every section. Another application's screen (Portrait Studio, the Social workspace) opens under Career's bar. The cockpit is asked to change screens, so its address and the assistant's view of the open screen stay true, and it gets its own chrome back by itself for a page of another application. No new permission, no role change, no kernel change. See CAREER-FRAME.md. Both phone swipe decks work from anywhere on the card (Roger: "super wonky on my phone"): on the Job Board's New matches deck the card trailed the finger and a swipe that began on the title or the reason text did nothing; on the Mobile page a swipe that began on the card's body was cancelled by the phone.
+# 114 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 (Roger, 2026-11-11: "it's about building the day in the life of someone who is looking for a job"; and of Social and Email, "all the previous attempts have been flat"). Home is the job seeker's day: under the search box, Today lists the day's steps in order, each one line with one button and only when there is something to do: replies from the inbox against their job, new matches since yesterday, applications ready to approve, recruiter follow-ups due, applications with no reply for a week, interviews in progress, the next thing for the person's profile (Portrait Studio's readiness, the LinkedIn plan, Social drafts) and the next resume improvement. A person with no resume sees one sentence saying what Career does, three numbered steps and one filled button. A job on Home opens that job and shows the newest reply from the inbox. The bar is a job search in a job seeker's words: Home, Find jobs, My jobs, Applications, Resume, Profile and contacts, More. Everything is read in the browser from routes that exist; no route, permission or engine change. An independent judge scored Career 29 of 55 against Little Monsters' 44 (lanes/career-vs-little-monsters-2026-11-11/JUDGE-REPORT.md); this is its changes 2 and 4 and part of 9.
+# 115 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 also (Roger, 2026-11-11, T55: "the job runs daily and rotates through a handful of endpoints to try to connect them ... if they can't be connected to, opens a ticket for the human to take action and requests approval for archive. If a partial run was completed it goes to a developer ... a bot that has a run book that is trying to find new job sites and connect them ... they have to be timeboxed"): source maintenance runs at the end of the nightly pull, after the source review. A source the review failed to connect three runs in a row, with no successful pull for 14 days, becomes one decision for a person on the Companies page, Source health, with what was tried and two buttons, Archive (Remove) and Keep trying (new POST /companies-admin/keep, bound to career.administer). Readers whose reads stay partial for three pulls get one repair brief per reader and reason, written for a developer, with Copy and Download. A discovery runbook rotates through employers with no job site, 20 a night and 3 minutes each, and connects a board only when it is on the employer's own site, has at least 3 jobs and no other employer holds it; anything weaker is a suggestion a person can accept. Every pass has a hard time box and cannot fail the pull. A new job, career-source-maintenance (for Career administrators, 07:15 Central), puts the night's counts in the briefing. See SOURCE-MAINTENANCE.md. Not in this release: a kernel ticket for each decision (a ticket an application creates cannot carry a title until the kernel change the coordinator has taken), and a model that searches the web for new employers.
+# 116 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 also (Roger, 2026-11-11: "would an independent judge say ours or little monsters is easier"; the judge scored Career 29 of 55 against 44). The words and the truth of each page, from that report: a new person's Recruiters list starts empty with one button, Add a recruiter, and the engine no longer seeds the owner's contacts into it; approving has one Approve and a tick box, Include my other experience; examples are ordinary jobs. With no résumé the Job Board says Add your résumé to get matches and lists nothing, and a saved job says Add your résumé to see your fit. A job's row shows its newest reply from an employer. One word for each thing: Save, Saved, Unsave; the stages Getting ready, Closed, Removed, Needs your answer; résumé with its accents. Search keeps one box on a computer and starts its first job within 320px on a phone, with 44px job titles and one line about the pay estimate. Resume Studio shows no editor, Send or menu until a résumé exists. The LinkedIn profile page reads Write, Check, Update LinkedIn and names no operator bot. Settings reads What I'm looking for, Companies I want, Check for new jobs now and Email updates. Insights heads the shared numbers The job market Career can see and draws Your search only from the person's own counts. No route, table or permission changed. Six new test files and four Test Lab cases hold it.
+# 105 | maintainer@emeraldcoastsystemsgroup.com | 1.52.0 (S-6, 2026-11-10): Local round-trip editing for the master resume. Declares `localEditing` (export via `career_resume_local_export`, import via `career_resume_local_import`, format `odt`, itemId `master`) so Jarvis can export the master resume to a connected computer's bound word processor (LibreOffice Writer) and import edited revisions back through the whitelisted `base-save` path while keeping the previous snapshot in `backups/` and `enrichment_log.jsonl`.
 # 100 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
@@ -207,7 +219,14 @@ description: >-
   Track recorded applications and matching email updates in your private workspace.
   Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.
   Your Master record page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.51.0
+version: 1.54.0
+
+localEditing:
+  itemId: master
+  format: odt
+  exportTool: career_resume_local_export
+  importTool: career_resume_local_import
+  description: Export your master resume as an OpenDocument Text (.odt) document for local editing in LibreOffice Writer and import edited versions back while keeping previous snapshots.
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -268,11 +287,11 @@ authorization:
           role: admin
 
 
-# The existing authenticated search page is the Career experience entry.
+# Career's home page is the Career experience entry.
 experience:
   version: 1
   label: Intelligent Career
-  entry: /api/career-hunter/search-ui
+  entry: /api/career-hunter/home
   shell: page
   skin: daylight
 
@@ -366,7 +385,10 @@ dependencies:
     # presentations (AI Office): Resume Studio embeds its Word editor on the master resume
     # (tools/career-resume-office.js reads /api/presentations/editor). Without it the master opens
     # in the classic view and says why, so it is optional.
-    apps: [portrait-studio, presentations]
+    # social: Home's day plan reads the person's saved post drafts (tools/career-home.html reads
+    # /api/social/content/drafts) and only when the person's own profile lists Social's workspace.
+    # Without Social the step is simply absent, so it is optional.
+    apps: [portrait-studio, presentations, social]
     tools: []
     # The runtime connector allow-list. Every id is one THIS package's own code reads a
     # caller-owned credential for, and nothing else is:
@@ -981,6 +1003,46 @@ tools:
       changelog/paths actually returned. Titles, organizations and
       date spans on master experience entries are anchors and cannot be changed here — say so
       if asked.
+  - name: career_resume_local_export
+    displayName: Export Master Resume for Local Editing
+    type: api
+    description: >-
+      Export the signed-in owner's master resume as an OpenDocument Text (.odt) archive and
+      structured plain text so it can be opened locally in a bound word processor (such as
+      LibreOffice Writer) with the sidecar docked.
+    executor: { executorType: api, apiEndpoint: "GET /api/career-hunter/resume/local-export" }
+    defaultAuthMode: auto
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: >-
+      Use when the person asks to open and edit their master resume locally on their computer.
+      Returns the .odt file (base64), structured text, and current master fields without mutating
+      the career profile.
+  - name: career_resume_local_import
+    displayName: Import Locally Edited Master Resume
+    type: api
+    description: >-
+      Import an edited local resume (.odt archive or structured text) back into the signed-in
+      owner's master career profile through the whitelisted base-save path, saving a new version
+      while keeping the previous snapshot in backups/ and enrichment_log.jsonl.
+    executor: { executorType: api, apiEndpoint: "POST /api/career-hunter/resume/local-import" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          maxLength: 96000
+          description: The edited structured resume text from the local document.
+        odtBase64:
+          type: string
+          maxLength: 262144
+          description: Optional base64-encoded OpenDocument Text (.odt) archive from the local document.
+    usageInstructions: >-
+      Use when the person says they are ready to import their locally edited resume back into
+      Career. Saves the new whitelisted master fields and preserves the previous version in backups/.
+      Role titles, employers, and date spans remain protected anchors.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES
@@ -1005,6 +1067,13 @@ tools:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
+    # Home leads: the first screen of Career as its own application. Every Career page loads the page frame
+    # (tools/career-frame.js), which draws Career's top bar from this list as the person's own profile gives it.
+    - toolName: career-home
+      label: Home
+      icon: codicon codicon-home
+      iframeUrl: /api/career-hunter/home
+      section: top
     - toolName: career-review
       label: Career Review
       icon: codicon codicon-briefcase
@@ -1157,6 +1226,17 @@ schedules:
     timeoutSeconds: 60
     description: After a new shared job corpus is published, keyword-match the last 14 days to your resume and AI-score up to 50 new or changed target-title jobs from the last 7 days using your saved matching area. Checks every 30 minutes; runs once per evening publication cycle. Creates no application submissions.
     body: { nightly: true }
+  - id: career-source-maintenance
+    cron: "15 7 * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/companies-admin/maintenance-report
+    method: POST
+    timeoutSeconds: 60
+    report: true
+    # The route reads the shared corpus only. It needs a Career administrator, so it reports for one and answers 403 for anyone else.
+    description: For Career administrators. Each morning, tell you what last night's source maintenance newly left for a person. It says how many more job sources need your decision to archive or keep trying, how many repair briefs opened for a developer, and how many employers were connected to a job site. Reads only; it changes no source and says nothing on a quiet night.
 
 surface:
   ops: [context, custom, notify]
@@ -1401,7 +1481,7 @@ ribbon:
     - dashboard
     - logs
     - operations
-  defaultView: career-search
+  defaultView: career-home
 
 summary:
   path: /api/career-hunter/home-summary

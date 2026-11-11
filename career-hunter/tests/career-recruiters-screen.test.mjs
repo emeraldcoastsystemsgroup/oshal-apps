@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Recruiters, grade F). The real tools/career-recruiters.html in Chromium over a synthetic fixture: a list answering 500 shows "Couldn't load your recruiters" with Retry (role=alert) and never "No recruiters in this view", and Retry recovers all 18 firms; the add form labels its fields with the required mark and on a phone opens as an "Add recruiter" sheet with one Add; status selects are at least 44px; Delete lives in the row menu and confirms in the page (no browser dialog); a search field appears past 10 firms and filters the rows.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 1. A person with no recruiter (no store, or a store with no firm in it) sees "No recruiters yet", what the list is for, and one filled button, Add a recruiter; on a computer that button reveals the form in the page and the form's Add becomes the one filled button; on a phone the form is not on the first screen and the button opens the sheet. The label reads Type, not Bucket, and the request still sends the stored field name. The cases that already added a firm follow the new button name and reveal the form first.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +15,7 @@ before(async () => { browser = await playwright().chromium.launch({ headless: tr
 after(async () => { await browser?.close(); });
 
 const firms = () => Array.from({ length: 18 }, (_, i) => ({ id: i + 2, firm: `Firm ${String(i + 1).padStart(2, '0')}`,
-  bucket: i < 6 ? 'Cleared / GovTech' : 'Exec Search', status: 'To contact', website: '', contact_name: '', next_action: '' }));
+  bucket: i < 6 ? 'Staffing agency' : 'Executive search', status: 'To contact', website: '', contact_name: '', next_action: '' }));
 
 /** An in-memory tracker; `fail` makes the list answer 500 that many times. */
 function tracker(state) {
@@ -52,9 +53,16 @@ test('desktop: labelled add form, 44px status selects, search past 10 firms, Del
   const { page, context, calls } = await openScreen(browser, 'career-recruiters.html', tracker(state), DESKTOP);
   try {
     await page.locator('.row').nth(17).waitFor();
+    assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add a recruiter'], 'one primary on the screen');
+    assert.equal(await page.locator('#addForm').isVisible(), false, 'the form waits for its button');
+    await page.getByRole('button', { name: 'Add a recruiter' }).click();
     assert.equal(await page.getByLabel(/Firm or recruiter/).count(), 1, 'the firm field has a label above it');
     assert.match(await page.locator('#addForm').innerText(), /Firm or recruiter \*/);
-    assert.equal(await page.locator('.ck-primary:visible').count(), 1, 'one primary on the screen');
+    assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add'], 'the form\'s Add is now the one primary');
+    assert.equal(await page.getByLabel('Type', { exact: true }).count(), 1, 'the field is labelled Type');
+    assert.doesNotMatch(await page.locator('body').innerText(), /bucket/i);
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    assert.equal(await page.locator('#addForm').isVisible(), false, 'Cancel puts the form away');
     const h = await page.locator('.row select').first().evaluate((el) => el.getBoundingClientRect().height);
     assert.ok(h >= 44, `status select is ${h}px`);
     await page.locator('#search').fill('Firm 03');
@@ -71,20 +79,56 @@ test('desktop: labelled add form, 44px status selects, search past 10 firms, Del
   } finally { await context.close(); }
 });
 
-test('phone: Add recruiter opens a sheet whose one primary adds the firm', async () => {
+test('phone: Add a recruiter opens a sheet whose one primary adds the firm', async () => {
   const state = { rows: firms().slice(0, 4), fail: 0 };
   const { page, context, calls } = await openScreen(browser, 'career-recruiters.html', tracker(state), PHONE);
   try {
     await page.locator('.row').first().waitFor();
     assert.equal(await page.locator('#search').isVisible(), false, 'no search for four firms');
     assert.equal(await page.locator('#firm').isVisible(), false, 'the form waits in its sheet');
-    await page.getByRole('button', { name: 'Add recruiter' }).tap();
-    const sheet = page.getByRole('dialog', { name: 'Add recruiter' });
+    await page.getByRole('button', { name: 'Add a recruiter' }).tap();
+    const sheet = page.getByRole('dialog', { name: 'Add a recruiter' });
     await sheet.waitFor();
     await sheet.getByLabel(/Firm or recruiter/).fill('Acme Search');
+    await sheet.getByLabel('Type', { exact: true }).fill('Staffing agency');
     await sheet.getByRole('button', { name: 'Add', exact: true }).tap();
     await page.waitForFunction(() => !document.getElementById('addSheet').open);
     const post = calls.find((c) => c.method === 'POST' && c.path === '/api/career-hunter/recruiters');
     assert.equal(post.body.firm, 'Acme Search');
+    assert.equal(post.body.bucket, 'Staffing agency', 'the stored field keeps its name');
   } finally { await context.close(); }
 });
+
+/** What the list route answers for a person with no recruiter: no store at all, or a store with no firm in it. */
+const NO_RECRUITERS = { 'no store yet': { recruiters: [], buckets: [], byStatus: [], empty: true }, 'a store with no firm': { recruiters: [], buckets: [], byStatus: [] } };
+
+for (const [name, answer] of Object.entries(NO_RECRUITERS)) {
+  for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
+    test(`${label}, ${name}: "No recruiters yet", what the list is for, and one filled button`, async () => {
+      const state = { rows: [], fail: 0 };
+      const api = (req) => (req.url.pathname === '/api/career-hunter/recruiters' && req.method === 'GET' && !state.rows.length ? { json: answer } : tracker(state)(req));
+      const { page, context, calls } = await openScreen(browser, 'career-recruiters.html', api, size);
+      try {
+        await page.getByRole('heading', { name: 'No recruiters yet' }).waitFor();
+        const body = await page.locator('body').innerText();
+        assert.match(body, /When a recruiter or a staffing firm gets in touch, add them here\./);
+        assert.doesNotMatch(body, /No recruiters in this view|All\s*0|Choose another status/, 'never the filtered-list wording');
+        assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add a recruiter']);
+        assert.equal(await page.locator('#firm').isVisible(), false, 'the form is not on the first screen');
+        assert.equal(await page.locator('.row').count(), 0, 'no firm the person did not add');
+        const open = page.getByRole('button', { name: 'Add a recruiter' });
+        if (size === PHONE) await open.tap(); else await open.click();
+        await page.locator('#firm').waitFor();
+        assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add']);
+        await page.locator('#firm').fill('Northside Staffing');
+        state.rows = [{ id: 1, firm: 'Northside Staffing', bucket: 'Other', status: 'To contact', website: '', contact_name: '', next_action: '' }];
+        const add = page.getByRole('button', { name: 'Add', exact: true });
+        if (size === PHONE) await add.tap(); else await add.click();
+        await page.locator('.row').first().waitFor();
+        assert.equal(calls.filter((c) => c.method === 'POST' && c.path === '/api/career-hunter/recruiters').length, 1);
+        assert.equal(await page.getByRole('heading', { name: 'No recruiters yet' }).count(), 0);
+        assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add a recruiter'], 'the form is put away after the add');
+      } finally { await context.close(); }
+    });
+  }
+}

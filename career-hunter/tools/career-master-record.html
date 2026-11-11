@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | The Master record (1.51.0, Roger 2026-11-09: "give me every bullet and skill with the addendum history"). Read-only: the counts, then every role with its numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the history newest first (date, what was added, your own words), Strengthen answers and snapshot dates, and the documents kept outside Career. Download saves the server's Markdown as one .md file built here in the page (the kernel drops a package's download header); Print or save as PDF is in More. Career's private writing notes are shown last and are not in the download. Text is drawn as text, never as markup.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
 -->
 <html lang="en" data-career-surface="master-record" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
@@ -55,7 +56,7 @@
     .card { border-color: #999; break-inside: avoid; }
   }
 </style>
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <main class="wrap" data-ds-work>
   <div class="bar">

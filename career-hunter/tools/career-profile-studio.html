@@ -7,10 +7,12 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | Register the profile plan with the shared document handoff: before Jarvis, a concierge or AI draft reads, unsaved headline, about, skills (including a typed skill not yet added) and custom URL are saved through POST /profile-studio/plan and the context carries the plan id and updatedAt; after the turn the studio re-reads GET /profile-studio/plan and shows the assistant's saved change, or keeps the person's unsaved edits and says so in a status line.
   3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: 3-step line (Draft · Approved · Sent to your computer), single accent primary (Approve / Send to my desktop), save-on-change with Saved caption + secondary Save plan, AI draft beside its direction input, one-line intro with Help sheet + Back dismissal, inline confirmation replacing window.confirm, and compliant radii/typography/opaque controls.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 5 and 13: the page is titled LinkedIn profile; its steps read 1. Write, 2. Check, 3. Update LinkedIn; Save plan is Save; Send to my desktop is Update LinkedIn; Abandon is Stop waiting; the state reads in words (Draft, Approved, Updating LinkedIn, LinkedIn updated, Update did not finish); and the help says "Career makes the changes in your own Chrome, on your computer, after you press Update LinkedIn" where it named an operator bot and a desktop browser worker. When Update LinkedIn cannot start (the server refuses the request and the plan is still approved), a line that stays on the page says so; it was a toast reading "dispatch failed". Résumé carries its accents. No route, request or stored state changed. Guard: tests/career-profile-studio-words.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="profile-studio" data-ds-category="form" data-ds-first-action="tap"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Profile Studio</title>
+<title>LinkedIn profile</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"/>
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-kit.css">
@@ -52,6 +54,8 @@
   .state.dispatched { color:var(--accent); border:1px solid var(--accent); }
   .state.applied { color:var(--accent2); border:1px solid var(--accent2); }
   .state.failed { color:var(--bad); border:1px solid var(--bad); }
+  #sendError { color:var(--text); border:1px solid var(--bad); border-radius:10px; padding:10px 12px; }
+  #sendError[hidden] { display:none; }
   .note { font-size:14px; color:var(--muted); white-space:pre-wrap; margin:8px 0 0; line-height:1.5; }
   .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
   .chip { background:var(--panel2); border:1px solid var(--line); border-radius:20px; min-height:36px; padding:4px 12px; font-size:14px; display:inline-flex; gap:8px; align-items:center; }
@@ -76,16 +80,16 @@
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css"/>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
-</head><body>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 <div class="wrap">
-  <h1>Profile Studio</h1>
+  <h1>LinkedIn profile</h1>
   <ol class="step-line" id="stepLine" aria-label="Profile update steps">
-    <li data-step="draft" aria-current="step">1. Draft</li>
-    <li data-step="approved">2. Approved</li>
-    <li data-step="sent">3. Sent to your computer</li>
+    <li data-step="draft" aria-current="step">1. Write</li>
+    <li data-step="approved">2. Check</li>
+    <li data-step="sent">3. Update LinkedIn</li>
   </ol>
   <div class="intro-row">
-    <p class="sub">Draft your LinkedIn profile plan, approve it, then send it to your computer.</p>
+    <p class="sub">Write your LinkedIn profile here, check it, then update LinkedIn from your own computer.</p>
     <button type="button" class="ck-tertiary" id="openProfileHelp" aria-haspopup="dialog">Help</button>
   </div>
 
@@ -95,21 +99,22 @@
         <span class="state" id="state">loading</span>
         <span class="ck-saved" id="savedCaption" role="status" aria-live="polite"></span>
         <span style="flex:1"></span>
-        <button type="button" class="ck-btn" id="btnSave">Save plan</button>
+        <button type="button" class="ck-btn" id="btnSave">Save</button>
         <button type="button" class="ck-primary" id="btnApprove">Approve</button>
-        <button type="button" class="ck-primary" id="btnSend" style="display:none">Send to my desktop</button>
+        <button type="button" class="ck-primary" id="btnSend" style="display:none">Update LinkedIn</button>
         <button type="button" class="ck-btn" id="btnReset" style="display:none">Back to draft</button>
-        <button type="button" class="ck-btn ck-danger" id="btnAbandon" style="display:none">Abandon</button>
+        <button type="button" class="ck-btn ck-danger" id="btnAbandon" style="display:none">Stop waiting</button>
       </div>
       <div class="ck-confirm" id="confirmBox" hidden style="margin-top:12px">
         <span id="confirmText" style="flex:1 1 220px;font-size:14px"></span>
         <button type="button" class="ck-tertiary" id="confirmCancel">Cancel</button>
         <button type="button" class="ck-primary" id="confirmProceed">Continue</button>
       </div>
+      <p class="note" id="sendError" role="alert" hidden></p>
       <p class="note" id="note" style="display:none"></p>
       <p class="hint" id="sync" role="status" aria-live="polite"></p>
       <div class="ai-row" id="aiHintRow">
-        <input type="text" id="aiHint" aria-label="Direction for AI draft" placeholder="Optional direction, e.g. platform leadership roles"/>
+        <input type="text" id="aiHint" aria-label="Direction for AI draft" placeholder="Optional direction, e.g. customer service roles"/>
         <button type="button" class="ck-btn" id="btnDraftAi">✨ AI draft</button>
       </div>
     </div>
@@ -162,10 +167,10 @@
     </div>
 
     <div class="card">
-      <p class="lbl"><span>Featured resume (PDF)</span></p>
+      <p class="lbl"><span>Résumé for your Featured section (PDF)</span></p>
       <div class="bar">
         <input type="file" id="pdfFile" accept="application/pdf" style="display:none"/>
-        <button type="button" class="ck-btn" id="btnPdf">Upload resume PDF</button>
+        <button type="button" class="ck-btn" id="btnPdf">Upload résumé PDF</button>
         <span class="hint" id="pdfState">none uploaded</span>
       </div>
     </div>
@@ -173,10 +178,10 @@
 </div>
 
 <dialog class="ck-sheet" id="profileHelpSheet" data-ds-sheet data-no-glass aria-labelledby="profileHelpTitle">
-  <header><h2 id="profileHelpTitle">How Profile Studio updates LinkedIn</h2><button type="button" class="ck-icon" id="closeProfileHelp" aria-label="Close">✕</button></header>
+  <header><h2 id="profileHelpTitle">How Career updates LinkedIn</h2><button type="button" class="ck-icon" id="closeProfileHelp" aria-label="Close">✕</button></header>
   <div class="ck-sheet-body">
-    <p>Make your LinkedIn read like a professional site: headline, about, skills, custom URL, a background banner, and your resume in Featured.</p>
-    <p>LinkedIn has no profile-edit API. After you approve your plan here and send it to your desktop, the operator bot applies the approved fields inside your own logged-in Chrome session. Nothing touches LinkedIn without both Approve and Send, and it never posts to your feed or notifies your network.</p>
+    <p>Make your LinkedIn read like a professional site: headline, about, skills, custom URL, a background banner, and your résumé in Featured.</p>
+    <p>LinkedIn gives applications no way to edit a profile, so Career makes the changes in your own Chrome, on your computer, after you press Update LinkedIn. Nothing changes on LinkedIn until you have pressed both Approve and Update LinkedIn, and Career never posts to your feed or notifies your network.</p>
   </div>
   <footer><button type="button" class="ck-tertiary" id="doneProfileHelp">Done</button></footer>
 </dialog>
@@ -218,9 +223,11 @@
       else items[i].removeAttribute('aria-current');
     }
   }
+  /** A plan's stored state in the words the steps use. */
+  var STATE_WORDS = { draft:'Draft', approved:'Approved', dispatched:'Updating LinkedIn', applied:'LinkedIn updated', failed:'Update did not finish' };
   function render(){
     var st = plan ? plan.state : 'draft';
-    var el=$('state'); el.textContent=st; el.className='state '+st;
+    var el=$('state'); el.textContent=STATE_WORDS[st]||st; el.className='state '+st;
     renderSteps(st);
     $('confirmBox').hidden = true;
     $('note').style.display = (plan && plan.resultNote) ? '' : 'none';
@@ -248,7 +255,9 @@
     $('headline').value = plan.headline||''; $('about').value = plan.about||'';
     $('customUrl').value = plan.customUrl||''; skills = (plan.skills||[]).slice(); renderSkills(); counts();
   }
-  function load(){ loading = fetch(API+'/plan').then(function(r){return r.json();}).then(function(d){ plan=d.plan; fill(); render(); }).catch(function(){ toast('load failed'); }); return loading; }
+  function load(){ loading = fetch(API+'/plan').then(function(r){return r.json();}).then(function(d){ plan=d.plan; fill(); render(); }).catch(function(){ toast('Your LinkedIn profile could not be loaded. Reload the page to try again.'); }); return loading; }
+  /** A lasting line for an Update LinkedIn that could not start; '' clears it. */
+  function sendError(text){ var el=$('sendError'); el.textContent=text||''; el.hidden=!text; }
   function post(pathname, body){
     return fetch(API+pathname, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) })
       .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.error||('HTTP '+r.status)); return d; }); });
@@ -279,9 +288,9 @@
   $('skillIn').addEventListener('keydown', function(e){
     if(e.key==='Enter'){ e.preventDefault(); var v=this.value.trim(); if(v && skills.length<15 && skills.indexOf(v)<0){ skills.push(v); renderSkills(); scheduleAutoSave(); } this.value=''; }
   });
-  $('btnSave').onclick = function(){ clearTimeout(autoSaveTimer); save().then(function(){ toast('Plan saved'); }).catch(function(e){ toast(e.message); }); };
+  $('btnSave').onclick = function(){ clearTimeout(autoSaveTimer); save().then(function(){ toast('Saved'); }).catch(function(e){ toast(e.message); }); };
   $('btnDraftAi').onclick = function(){
-    var b=$('btnDraftAi'); b.disabled=true; b.textContent='Drafting…'; toast('your career agent is drafting from your real career data…');
+    var b=$('btnDraftAi'); b.disabled=true; b.textContent='Drafting…'; toast('Career is drafting from your saved career details…');
     prepareHandoff().then(function(){ return post('/draft', { message: $('aiHint').value }); }).then(function(d){
       if(d.headline) $('headline').value=d.headline;
       if(d.about) $('about').value=d.about;
@@ -291,16 +300,25 @@
   };
   $('btnApprove').onclick = function(){
     clearTimeout(autoSaveTimer);
-    save().then(function(){ return post('/approve'); }).then(function(d){ plan=d.plan; render(); toast('Approved — ready to send to your desktop'); }).catch(function(e){ toast(e.message); });
+    sendError('');
+    save().then(function(){ return post('/approve'); }).then(function(d){ plan=d.plan; render(); toast('Approved. Press Update LinkedIn when you are ready.'); }).catch(function(e){ toast(e.message); });
   };
+  /* The update could not start. The plan is read again: while it is still approved nothing was handed to a computer, and the line says so and stays. */
+  function sendRefused(reason){
+    return load().then(function(){
+      if (!plan || plan.state !== 'approved') return;
+      sendError('The LinkedIn update did not start' + (reason && reason !== 'dispatch failed' ? ' (' + reason + ')' : '') + '. Your plan is still approved, so you can try again.');
+    });
+  }
   $('btnSend').onclick = function(){
-    askInlineConfirm('Send this approved plan to your desktop browser worker now?', 'Send now', false, function(){
-      post('/dispatch').then(function(d){ plan=d.plan; render(); toast('Sent — watch your desktop; status updates here'); }).catch(function(e){ toast(e.message); load(); });
+    askInlineConfirm('Update LinkedIn now? Career makes these changes in your own Chrome, on your computer.', 'Update now', false, function(){
+      sendError('');
+      post('/dispatch').then(function(d){ plan=d.plan; render(); toast('Started. Watch Chrome on your computer; this page shows when it is done.'); }).catch(function(e){ sendRefused(e.message); });
     });
   };
-  $('btnReset').onclick = function(){ post('/reset').then(function(d){ plan=d.plan; fill(); render(); }).catch(function(e){ toast(e.message); }); };
+  $('btnReset').onclick = function(){ sendError(''); post('/reset').then(function(d){ plan=d.plan; fill(); render(); }).catch(function(e){ toast(e.message); }); };
   $('btnAbandon').onclick = function(){
-    askInlineConfirm('Abandon the dispatched run? Only do this if your desktop worker stopped.', 'Abandon run', true, function(){
+    askInlineConfirm('Stop waiting for this update? Do this only if your computer has stopped working on it.', 'Stop waiting', true, function(){
       post('/abandon').then(function(d){ plan=d.plan; render(); }).catch(function(e){ toast(e.message); });
     });
   };
@@ -351,7 +369,7 @@
         img.title = (p.style||'')+' ('+(p.mode||'')+')';
         img.style.cssText = 'width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--line);cursor:pointer';
         img.onclick = function(){
-          if (!editable()) { toast('plan is not editable'); return; }
+          if (!editable()) { toast('Go back to draft to change the photo.'); return; }
           img.style.borderColor = 'var(--accent)';
           fetch(PS+'/portraits/'+p.portrait_id+'/image').then(function(r){ if(!r.ok) throw new Error('portrait fetch failed'); return r.blob(); }).then(function(blob){
             return fetch(API+'/photo', { method:'PUT', headers:{'Content-Type': blob.type||'image/png'}, body: blob })
@@ -396,7 +414,7 @@
     if (!r.ok) throw new Error(d.error || ('The profile plan could not be read (HTTP '+r.status+').'));
     var fresh = d.plan;
     if (!fresh || (plan && fresh.id === plan.id && !(Date.parse(fresh.updatedAt) > Date.parse(plan.updatedAt)))) return;
-    if (unsaved()) throw new Error('The assistant saved a change to your profile plan while you were editing. Your unsaved edits are still here: Save plan keeps yours, or reload the page to see the saved plan.');
+    if (unsaved()) throw new Error('The assistant saved a change to your profile plan while you were editing. Your unsaved edits are still here: Save keeps yours, or reload the page to see the saved plan.');
     plan = fresh; fill(); render(); sync('Updated with the change the assistant saved.');
   }
   import('/shared/ui/js/document-handoff.js').then(function(m){ m.registerDocumentSession({ app:'career-hunter',

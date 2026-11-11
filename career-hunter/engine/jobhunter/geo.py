@@ -2,6 +2,8 @@
 free-text locations. States get a centroid from STATES; cities are geocoded
 against a bundled US Census places dataset (data/us_cities.tsv) so the dashboard
 can plot real city points with no network/API at runtime."""
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | state_of reads a spelled-out state as the place states it. It took the first state name found anywhere in the text, in a fixed order, so "Washington, District of Columbia" and "Washington, D.C." were stored under Washington State, "Morgantown, West Virginia" under Virginia and "Kansas City, Missouri" under Kansas. The part of a place that is a state name on its own now decides, West Virginia is looked for before Virginia, and the District of Columbia has its own name.
 from __future__ import annotations
 import csv
 import re
@@ -28,7 +30,16 @@ STATES = {
     "WV": ("West Virginia", 38.6, -80.6), "WI": ("Wisconsin", 44.6, -89.9), "WY": ("Wyoming", 43.0, -107.5),
 }
 _FULLNAME = {name.lower(): abbr for abbr, (name, _, _) in STATES.items()}
-_FULLNAME["washington, d.c."] = "DC"; _FULLNAME["washington d.c."] = "DC"; _FULLNAME["d.c."] = "DC"
+_FULLNAME["district of columbia"] = "DC"
+# A name that holds another one is looked for first: "west virginia" holds "virginia".
+_NAME_ORDER = sorted(_FULLNAME, key=lambda name: not any(
+    other != name and re.search(r"\b" + re.escape(other) + r"\b", name) for other in _FULLNAME))
+# The capital, however it is written, is the District and never Washington State. "D.C." counts only after "Washington":
+# Bogota, D.C. is in Colombia.
+_CAPITAL_RE = re.compile(r"\bwashington,?\s*(?:d\.?\s?c\b\.?|district of columbia\b)")
+_PLACES_RE = re.compile(r"[;|\n]|\s/\s")     # one text can list several places
+_PARTS_RE = re.compile(r"[,/]")                # the parts of one place: street, city, state, country
+_COUNTRIES = {"us", "usa", "united states", "united states of america"}
 
 _ABBR_RE = re.compile(r"(?:^|[,\s/(-])([A-Z]{2})(?:[,\s/)\-]|$)")
 _REMOTE_RE = re.compile(r"\bremote\b|work from home|anywhere|telework", re.I)
@@ -43,11 +54,20 @@ def state_of(location: str):
         code = m.group(1).upper()
         if code in STATES:
             return code
-    # full state name
-    low = location.lower()
-    for name, abbr in _FULLNAME.items():
+    low = _CAPITAL_RE.sub("district of columbia", location.lower())
+    # A part that is a state name on its own states the state. A city or a street can carry another state's name
+    # ("Kansas City, Missouri", "Delaware, Ohio", "2401 Utah Ave S, Seattle, Washington"), so the first place that has
+    # such a part decides, by its last one: a place reads city, state. One that opens with the country reads the other
+    # way round ("US, Missouri, Nevada" is the city of Nevada in Missouri), so there the first one decides.
+    for place in _PLACES_RE.split(low):
+        parts = [part.strip() for part in _PARTS_RE.split(place)]
+        named = [_FULLNAME[part] for part in parts if part in _FULLNAME]
+        if named:
+            return named[0] if parts[0] in _COUNTRIES else named[-1]
+    # No part is a state name on its own ("Remote - West Virginia"): a state name anywhere in the text.
+    for name in _NAME_ORDER:
         if re.search(r"\b" + re.escape(name) + r"\b", low):
-            return abbr
+            return _FULLNAME[name]
     return None
 
 

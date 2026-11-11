@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove JavaScript module import closure is inspected and the declared native tool-only reader has genuine registration source, without relaxing any HTTP authorization census.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-scoped generated-queue purge once to career.change and keep the DELETE-binding census exact.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Pin the read-only Master record (1.51.0): GET /master-record-ui to app.open and GET /master-record to career.read, each bound once and served by career-master-record-routes.ts, so the page and its data stay on the permissions every Career assignment already grants.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Pin the 1.52.0 local round-trip master resume routes: GET /resume/local-export (matched once by resume-item -> career.read) and POST /resume/local-import (matched once by resume-local-import -> career.change) in career-local-roundtrip-routes.ts.
  */
 
 import test from 'node:test';
@@ -151,4 +152,17 @@ test('the read-only Master record is bound once, its page to app.open and its da
     assert.ok(served[0].file.endsWith('career-master-record-routes.ts'), `GET ${pattern} lives in career-master-record-routes.ts`);
     assert.deepEqual(served[0].matches.map((m) => ({ id: m.id, allOf: m.allOf })), [{ id, allOf: [permission] }]);
   }
+});
+
+test('the 1.52.0 local round-trip master resume routes are bound once to career.read and career.change', () => {
+  const rows = bindings.resolvedRoutes();
+  const exp = rows.filter((row) => row.method === 'GET' && row.pattern === '/resume/local-export');
+  assert.equal(exp.length, 1, 'GET /resume/local-export is registered once and mounted once');
+  assert.ok(exp[0].file.endsWith('career-local-roundtrip-routes.ts'));
+  assert.deepEqual(exp[0].matches.map((m) => ({ id: m.id, allOf: m.allOf })), [{ id: 'resume-item', allOf: ['career.read'] }]);
+
+  const imp = rows.filter((row) => row.method === 'POST' && row.pattern === '/resume/local-import');
+  assert.equal(imp.length, 1, 'POST /resume/local-import is registered once and mounted once');
+  assert.ok(imp[0].file.endsWith('career-local-roundtrip-routes.ts'));
+  assert.deepEqual(imp[0].matches.map((m) => ({ id: m.id, allOf: m.allOf })), [{ id: 'resume-local-import', allOf: ['career.change'] }]);
 });

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Job Board, the merged Prepare & submit / Application status / Approvals). The live Job Board is tools/career-job-lists.html (GET /board-native serves it), so the pipeline is proven there, in Chromium over a synthetic fixture: the stage control shows New matches · Saved · To approve · Preparing · Applied · Interviewing with the right stage selected for the old addresses (board-native = Saved, ?view=queue = Preparing, ?view=status = Applied), ?view=interviewing asks the feed for status=interview, ?view=approve opens the approvals view; an empty stage is one empty state whose primary is Find jobs, with no "0 shown" and no "No results · End of this view"; pay and fit filters leave the Preparing stage; Clear filters exists.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the stage reads Getting ready (was Preparing); the expected stage names follow.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,13 +25,13 @@ function feed() {
   };
 }
 
-for (const [query, selected] of [['', 'Saved'], ['?view=queue', 'Preparing'], ['?view=status', 'Applied']]) {
+for (const [query, selected] of [['', 'Saved'], ['?view=queue', 'Getting ready'], ['?view=status', 'Applied']]) {
   test(`board-native${query || ''} selects ${selected} in the one stage control`, async () => {
     const { page, context } = await openScreen(browser, 'career-job-lists.html', feed(), PHONE, query);
     try {
       const stages = page.getByRole('tablist', { name: 'Application stages' });
       await stages.getByRole('tab', { name: selected, exact: true }).waitFor();
-      assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'To approve1', 'Preparing', 'Applied', 'Interviewing']);
+      assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'To approve1', 'Getting ready', 'Applied', 'Interviewing']);
       assert.equal(await stages.getByRole('tab', { name: selected, exact: true }).getAttribute('aria-selected'), 'true');
       assert.equal(await page.locator('nav.journey-nav').isVisible(), false, 'the old four-link nav is gone');
     } finally { await context.close(); }

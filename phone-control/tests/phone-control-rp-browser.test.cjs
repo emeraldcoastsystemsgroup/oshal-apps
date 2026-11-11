@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 Chromium acceptance suite: verifies all 13 Reference-Product session features (RP-PHC-01..13), Phone & TV Concierge task chips + anti-loop stop, ble-calibrate, 1-step Fire TV Load oshal TV with unauthorized auto-poll + APK install, RDP X.224 setup/probe, overflow ⋯ button, zero console/404 errors, shell orb visibility, and 412x743 + 1440x900 layout geometry.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update mock bridge status version to 1.4.1.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (nothing implements /api/rdp/sessions): the Connect sheet case proves the button and its Username, Password and Domain fields are not shown, the Any RDP Host steps point at Check RDP port, Check RDP port still answers through the bridge, and the sheet makes no /api/rdp/sessions request (red on 1.5.0, which showed the button). The session viewer kept for that backend is now reached from a listed session (the page's own oshal.pc.hasRdp path) instead of the hidden button, with the same click, dictation, voice Concierge and APK push assertions.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: a Fire TV on Prime Video, an old Marquee picture on the page, "The phone is not connected" from the TV Concierge): in Chromium, a TV whose computer lost it is reconnected by the page with one connect and shows a live picture with no note; a TV that does not answer keeps its own app's stored picture under a note that it is not live, with the TV's name, the computer and Sync, and the concierge says the same and never "phone".
  */
 'use strict';
 
@@ -48,6 +49,12 @@ let rdpInputs = [];
 let rdpSessions = [];
 let ambientTranscriptions = [];
 let tvConnectCount = 0;
+/** 1.6.1: the computer's adb has lost the TV (it slept); whether the TV answers a reconnect; whether its own oshal app is enrolled. */
+let tvLost = false;
+let tvAnswersConnect = true;
+let enrolledTv = false;
+const TV_SERIAL = '192.168.1.60:5555';
+const FIRE_TV_NODE = { id: '55555555-5555-4555-8555-555555555555', name: 'Living Room Fire TV', platform: 'android', connected: true, can_control: true, tools: ['desktop.control', 'app.open'] };
 
 function handleRdpRoute(req, res, raw) {
   if (req.url === '/api/rdp/sessions' && req.method === 'GET') {
@@ -113,6 +120,13 @@ function decodeB64Arg(cmd) {
 function handleBridgeVerb(cmd) {
   const sha256 = crypto.createHash('sha256').update(PNG_1X1).digest('hex');
   const args = decodeB64Arg(cmd);
+  if (tvLost && cmd.includes(' adb-connect-tv ')) {
+    if (!tvAnswersConnect) return { ok: false, verb: 'adb-connect-tv', error: 'no_answer', message: `The phone did not answer at ${TV_SERIAL}. Check the IP address and port on the phone; the phone and this computer must be on the same Wi-Fi.` };
+    tvLost = false;
+    return { ok: true, verb: 'adb-connect-tv', serial: TV_SERIAL, address: TV_SERIAL, state: 'device', ready: true, model: 'AFTMD001' };
+  }
+  // The bridge's own words for a device adb does not have (bridge/oshal_phone_bridge.py adb_words).
+  if (tvLost && args.serial) return { ok: false, error: 'not_connected', message: 'The phone is not connected to this computer. Open Connect a device and press Connect.' };
   if (cmd.includes(' mirror-frame ') || cmd.includes(' adb-frame ')) {
     const verb = cmd.includes(' mirror-frame ') ? 'mirror-frame' : 'adb-frame';
     return {
@@ -225,7 +239,7 @@ before(async () => {
     if (serveSharedAsset(req, res)) return;
     if (req.url === '/api/computers' && req.method === 'GET') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ computers: [SPARK] }));
+      res.end(JSON.stringify({ computers: enrolledTv ? [SPARK, FIRE_TV_NODE] : [SPARK] }));
       return;
     }
     if (req.url === '/api/devices/downloads' && req.method === 'GET') {
@@ -298,7 +312,7 @@ test('Computer session ships RP-PHC-01..13 end-to-end with zero placeholders, ze
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), true);
   assert.notEqual(await page.evaluate(() => document.documentElement.getAttribute('data-oshal-assistant-hidden')), 'true');
 
-  await page.locator('#computerRail .pc-rail-item', { hasText: 'Spark' }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: 'Spark' }).click();
   await page.waitForFunction(() => {
     const img = document.getElementById('screenImage');
     return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20;
@@ -368,7 +382,7 @@ test('Phone Concierge organizes apps & calibrates on iPhone, TV Concierge adapts
   await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), true);
 
-  await page.locator('#phoneRail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
   await page.locator('#screenImage:not([hidden])').waitFor();
   assert.equal(await page.locator('#sessionHandleBtn').isVisible(), true);
   await page.locator('#sessionHandleBtn').click();
@@ -386,7 +400,7 @@ test('Phone Concierge organizes apps & calibrates on iPhone, TV Concierge adapts
   assert.match(await page.locator('#stageStatus').textContent(), /cannot view or control your operator browser session/);
   await page.locator('#endSessionBtn').click();
 
-  await page.locator('#phoneRail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
   await page.waitForFunction(() => {
     const img = document.getElementById('screenImage');
     return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20;
@@ -477,7 +491,7 @@ test('A listed RDP session (the viewer kept for a future backend) streams frames
   });
   await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
 
-  await page.locator('#computerRail .pc-rail-item', { hasText: 'roger@192.168.1.50' }).click();
+  await page.locator('.pc-rail .pc-rail-item', { hasText: 'roger@192.168.1.50' }).click();
 
   await page.waitForFunction(() => {
     const img = document.getElementById('screenImage');
@@ -529,3 +543,46 @@ test('A listed RDP session (the viewer kept for a future backend) streams frames
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('1.6.1: a TV the computer lost is reconnected by the page; one that stays lost is named as a TV and its stored picture is marked not live', async () => {
+  const errors = [];
+  const sentConnects = () => calls.filter((c) => String(c.arguments?.command || '').includes(' adb-connect-tv ')).length;
+  const pictureShown = () => { const img = document.getElementById('screenImage'); return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20; };
+  // The saved TV's row, whatever the earlier cases named it: the first row that says it is a TV (its own enrolled app, when listed, comes after it).
+  const tvRow = (view) => view.locator('.pc-rail .pc-rail-item').filter({ hasText: /TV · / }).first();
+  try {
+    // The TV slept, so adb refuses its picture. Nobody presses Sync: the page reconnects it and the picture is live.
+    calls = []; tvLost = true; tvAnswersConnect = true; enrolledTv = false;
+    const page = await browser.newPage({ viewport: { width: 412, height: 743 } });
+    attachConsoleAnd404Guard(page, errors);
+    await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
+    const name = (await tvRow(page).locator('.pc-rail-name').evaluate((node) => node.firstChild.textContent)).trim();
+    await tvRow(page).click();
+    await page.waitForFunction(pictureShown);
+    assert.equal(tvLost, false, 'the page reconnected the TV by itself');
+    assert.equal(sentConnects(), 1, 'one reconnect, not one per picture');
+    assert.equal((await page.locator('#screenNote').textContent()).trim(), '', 'a live picture carries no note');
+    await page.close();
+
+    // The TV is off, so the reconnect fails. Its own oshal app's last picture is all there is: it is shown with its note.
+    calls = []; tvLost = true; tvAnswersConnect = false; enrolledTv = true;
+    const off = await browser.newPage({ viewport: { width: 412, height: 743 } });
+    attachConsoleAnd404Guard(off, errors);
+    await off.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
+    await tvRow(off).click();
+    await off.waitForFunction(() => /^Not live:/.test(document.getElementById('screenNote')?.textContent || ''));
+    assert.equal((await off.locator('#screenNote').textContent()).trim(),
+      `Not live: this is the last picture ${name}'s own oshal app sent, not what is on the TV now. ${name} is not connected to Spark. Check that the TV is on and on the same Wi-Fi, then press Sync.`);
+    assert.equal(await off.evaluate(pictureShown), true, 'the stored picture is shown, under its note');
+    assert.equal(await off.locator('#screenNote').isVisible(), true);
+    assert.equal(sentConnects(), 1, 'a TV that did not answer is not asked again at once');
+    await off.locator('#sessionHandleBtn').click();
+    await off.locator('#sessionSheet:not([hidden])').waitFor();
+    await off.locator('#conciergeSwipeLeftBtn').click();
+    await off.waitForFunction(() => /is not connected to Spark/.test(document.getElementById('conciergeLog').textContent));
+    assert.doesNotMatch(await off.locator('#conciergeLog').textContent(), /The phone is not connected/, 'the concierge never calls the TV a phone');
+    await off.close();
+    assert.deepEqual(errors, []);
+  } finally { tvLost = false; tvAnswersConnect = true; enrolledTv = false; }
+});
+

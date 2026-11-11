@@ -2,7 +2,7 @@
 
 One front door for the job search. Intelligent Career is an **application group**
 ([ADR-141](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/adr/141-application-groups.md)):
-a manifest with no code that binds four installed applications into one toolbar and
+a manifest with no code that binds three installed applications into one toolbar and
 gives them a shared setup page.
 
 Version **1.1.2** keeps **Career Settings** and **Companies** (job sources) together in
@@ -12,7 +12,7 @@ Hunter surfaces; their existing access checks still apply.
 Career Hunter 1.28.0 also declares the existing **Open jobs search** page as an
 actual native experience. It opens through `/api/ui/experiences/career-hunter/open`
 with its map, search criteria and remembered searches intact. The Intelligent
-Career group remains the four-member front door and setup page. It adds no new
+Career group remains the three-member front door and setup page. It adds no new
 role, permission or required application.
 
 The group follows the portal's selected palette by default. Career Hunter 1.20.0 gives its
@@ -23,7 +23,7 @@ shared colors. This group adds no separate theme preference, CSS renderer or scr
 Version **1.0.1** also borrows Recruiters, Approvals and Insights so the Career
 group retains the six existing Career destinations when top workspace navigation
 replaces their repeated global sidebar entries. Member routes, permissions and
-the seven setup steps remain unchanged. See the member's
+the six setup steps remain unchanged. See the member's
 [appearance and fixture boundaries](../career-hunter/README.md#shared-appearance-1200).
 
 | Member | What it brings |
@@ -31,7 +31,6 @@ the seven setup steps remain unchanged. See the member's
 | `career-hunter` | the job board, Search Jobs, Submissions, Recruiters, Approvals, Insights, Resume Studio, Strengthen, Profile Studio, Career Settings, Companies and source health |
 | `portrait-studio` | the profile picture |
 | `social` | LinkedIn Assistant, the Workspace, Signals, and the Accounts hub (LinkedIn / Facebook / X) |
-| `print-ingest` | the Print Inbox — documents printed into the swarm |
 
 ## How the toolbar is built
 
@@ -43,7 +42,7 @@ dead tile. Nothing in `oshal-app.yaml` is a copied URL.
 
 ## The setup page
 
-The group's first tile is **Setup**, rendered by the kernel from the seven steps in
+The group's first tile is **Setup**, rendered by the kernel from the six steps in
 the manifest:
 
 1. Upload your resume
@@ -52,7 +51,6 @@ the manifest:
 4. Pick the articles you want to comment on
 5. Review your resume story by story
 6. Add performance reports and other documents
-7. Subscribe to the print service
 
 Each step asks a `readiness:` probe the member declares over its own store, in the
 signed-in user's session. A step is done only when the member answers `true`; an
@@ -67,9 +65,8 @@ your roles carry a story, so it is done only when every job title has one.
 
 ## Install
 
-Installing the group resolves all four members (npm-style, fail-closed). A group
-activates only while every member is active — `print-ingest` installs inactive by
-design (ADR-135), so activate it first, then the group. After installation, open:
+Installing the group resolves all three members (npm-style, fail-closed). A group
+activates only while every member is active — after installation, open:
 
 ```text
 /cockpit/?app=intelligent-career

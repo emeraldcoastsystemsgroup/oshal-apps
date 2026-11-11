@@ -7,6 +7,8 @@ so the page can say, and so a change the kernel hands over twice is applied once
 
 CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Resolve works on the native kernel: a saved change is applied by the next pull, on public addresses only and inside a hard time limit, and its outcome is kept for the page.
+2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: `add:<name>|<link>` creates an employer and reads its link, `remove:employer` closes its jobs and takes it out of every pull, and `restore:employer` lists it again.
+3 | maintainer@emeraldcoastsystemsgroup.com | A person's answer to a source maintenance decision travels the same way: `keep:employer` marks the open decision kept and stops it being raised again for a while, and an applied `remove:employer` marks it archived.
 """
 from __future__ import annotations
 
@@ -14,14 +16,17 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
-from . import ats, db, http, resolve, source_review as review
+from . import ats, config, db, http, resolve, source_review as review
 from . import source_memory as memory
 
 # A change the pull keeps stopping on is given up, so it cannot hold back the rest of the night. The person is told.
 MAX_ATTEMPTS = 3
 KEEP = 200
+# An added employer has no row yet; the page sends this in place of its id, and the outcome names the row made.
+NEW_EMPLOYER = 2147483647
+REMOVE, RESTORE, ADD, KEEP_TRYING = "remove:employer", "restore:employer", "add:", "keep:employer"
 
 
 def _now():
@@ -136,12 +141,109 @@ def _move(company, ats_type, token, url, feed, pull):
             "from": f"{company['ats_type'] or 'none'}:{company['ats_token'] or ''}", "complete": bool(counts["complete"])}
 
 
-def _apply(change, pull):
+def _parse_add(target):
+    """(name, link) from `add:<name>|<link>`, each percent-encoded by the route, or None when either is not usable."""
+    name, sep, link = target[len(ADD):].partition("|")
+    name, link = unquote(name), unquote(link)
+    if not sep or any(ord(ch) < 32 or ord(ch) == 127 for ch in name + link):
+        return None
+    name, link = " ".join(name.split()), link.strip()
+    if not 2 <= len(name) <= 120:
+        return None
+    parts = urlsplit(link)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    return name, link
+
+
+def _add(change, pull):
+    """A new employer from a name and its careers or job-board link. One that is already listed is not made twice: a
+    removed one is put back and reads the link, any other is named back to the person."""
+    parsed = _parse_add(change["target"])
+    if parsed is None:
+        return {"outcome": "bad_target"}
+    name, link = parsed
+    if not _is_public_link(link):  # Before anything reads it.
+        return {"outcome": "unsafe", "name": name}
+    from . import cli  # cli runs this module during a pull; imported here so neither needs the other loaded first.
     with db.connect() as conn:
-        row = conn.execute(f"SELECT id,name,ats_type,ats_token FROM {db.companies_table()} WHERE id=?", (change["company_id"],)).fetchone()
-    if row is None:
+        found = cli._match_existing(conn, name)
+        if found is not None:
+            row = dict(conn.execute(f"SELECT id,name,discover_status FROM {db.companies_table()} WHERE id=?",
+                                    (found["id"],)).fetchone())
+            if row["discover_status"] != "removed":
+                return {"outcome": "duplicate", "owner": row["name"], "companyId": row["id"], "name": name}
+            company_id = row["id"]
+            conn.execute(f"UPDATE {db.companies_table()} SET discover_status='careers_only',careers_url=? WHERE id=?",
+                         (link, company_id))
+        else:
+            company_id = db.upsert_company(conn, name, careers_url=link, discover_status="careers_only", source_list="added")
+    result = _apply({**change, "company_id": company_id, "target": link}, pull)
+    return {**result, "outcome": "added" if result["outcome"] == "applied" else result["outcome"],
+            "companyId": company_id, "name": name}
+
+
+def _company(company_id):
+    with db.connect() as conn:
+        row = conn.execute(f"SELECT id,name,ats_type,ats_token,careers_url,discover_status FROM {db.companies_table()} WHERE id=?",
+                           (company_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def _remove(company):
+    """Out of every pull and search from now on. The row stays, so saved jobs keep their employer and no list makes it again."""
+    if company["discover_status"] == "removed":
+        return {"outcome": "removed", "closed": 0, "name": company["name"]}
+    on, off = ("TRUE", "FALSE") if config.POSTGRES else ("1", "0")
+    with db.connect() as conn:
+        closed = conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active={on}",
+                              (company["id"],)).fetchone()["n"]
+        conn.execute(f"UPDATE {db.corpus_table()} SET active={off} WHERE company_id=? AND active={on}", (company["id"],))
+        conn.execute(f"UPDATE {db.companies_table()} SET discover_status='removed' WHERE id=?", (company["id"],))
+        conn.execute(f"DELETE FROM {memory.table('source_pull_state')} WHERE company_id=?", (company["id"],))
+        _maintenance().decide(conn, company["id"], "archived")  # Removing it is the answer to "archive this source?".
+    return {"outcome": "removed", "closed": closed, "name": company["name"]}
+
+
+def _maintenance():
+    """Source maintenance uses this module's link checks, so it is loaded here and not at the top."""
+    from . import source_maintenance
+    return source_maintenance
+
+
+def _keep(company):
+    """Keep trying a source maintenance asked about: the decision is closed and not raised again for a while."""
+    with db.connect() as conn:
+        decided = _maintenance().decide(conn, company["id"], "kept")
+    if decided is None:
+        return {"outcome": "no_decision", "name": company["name"]}
+    return {"outcome": "kept", "name": company["name"], "until": decided["until"]}
+
+
+def _restore(company):
+    """Listed again as it was found. The same pull reads it, and a job still on its board opens again."""
+    if company["discover_status"] != "removed":
+        return {"outcome": "restored", "name": company["name"]}
+    status = "found" if company["ats_type"] else "careers_only" if company["careers_url"] else "pending"
+    with db.connect() as conn:
+        conn.execute(f"UPDATE {db.companies_table()} SET discover_status=? WHERE id=?", (status, company["id"]))
+    return {"outcome": "restored", "name": company["name"]}
+
+
+def _apply(change, pull):
+    if change["target"].startswith(ADD):
+        return _add(change, pull)
+    company = _company(change["company_id"])
+    if company is None:
         return {"outcome": "unknown_company"}
-    company = dict(row)
+    if change["target"] == REMOVE:
+        return _remove(company)
+    if change["target"] == RESTORE:
+        return _restore(company)
+    if company["discover_status"] == "removed":
+        return {"outcome": "removed_employer", "name": company["name"]}
+    if change["target"] == KEEP_TRYING:
+        return _keep(company)
     ats_type, token, url = _parse_target(change["target"])
     if not ats_type and not url:
         return {"outcome": "bad_target"}

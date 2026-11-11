@@ -168,7 +168,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.5.4');
+  assert.equal(manifest.version, '1.6.1');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
   ]);

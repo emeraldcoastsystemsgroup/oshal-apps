@@ -6,6 +6,7 @@ a schedule (e.g. hourly) and left alone until the whole list is done.
     python -m jobhunter status         # print the current report
 """
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is not searched for again.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
@@ -123,6 +124,7 @@ def run_batch(daily_budget: int = DEFAULT_DAILY, per_run: int | None = None, do_
             rows = [dict(r) for r in conn.execute(
                 """SELECT id, name, homepage FROM companies
                    WHERE gsearched=0 AND ats_type IS NULL AND careers_url IS NULL
+                     AND COALESCE(discover_status, '') <> 'removed'
                    ORDER BY id LIMIT ?""", (batch,)).fetchall()]
         # WRITES must name the base table. `companies` is a real table in sqlite mode but a
         # read-only VIEW in postgres mode (its columns are expressions, so Postgres refuses

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: Resume Studio opens the master resume as an editable Word document in AI Office's own editor, with AI Office's standard Concierge beside it. Career keeps only the mapping between its master resume and that document (headings, paragraphs, bullets) and saves the document back through the existing whitelisted master save. No AI Office code is copied: the editor is AI Office's page, reached through its documented document routes and the shared document handoff.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Reading the document back splits the Skills line only on the " · " this file writes, and an untouched Skills line keeps the master's list exactly. Live 2026-11-09 02:35 the save before a Chat rail message split a skill holding two semicolons into three skills (a new "Additional Skills" group) in a master nobody had edited. Guard: tests/career-resume-office.test.mjs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads here (the status under the document, the notes about what stays in the document, the frame's title). The AI Office document's own title is a stored name this file looks the document up by, so it is unchanged.
  */
 (function (root) {
   'use strict';
@@ -111,7 +112,7 @@
    */
   function modelToResume(model, master) {
     const prior = master || {}, found = readSections(model), roles = Array.isArray(prior.experience) ? prior.experience : [];
-    const notes = found.extra.map((name) => `"${name}" stays in this document only: the master resume has no ${name} section.`);
+    const notes = found.extra.map((name) => `"${name}" stays in this document only: the master résumé has no ${name} section.`);
     if (found.roles.length !== roles.length) {
       return { notes, error: `The Experience section has ${found.roles.length} role${found.roles.length === 1 ? '' : 's'} and your profile has ${roles.length}. `
         + 'Keep one Heading 2 per role here; add or remove roles in Profile.' };
@@ -177,18 +178,18 @@
     async function savedDocument() {
       const { beginDocumentHandoff } = await handoff();
       const { context } = await beginDocumentHandoff({ app: 'presentations' }, { win: root });
-      if (!context || context.recordId !== documentId) throw new Error('The resume document is still opening. Try again in a moment.');
+      if (!context || context.recordId !== documentId) throw new Error('The résumé document is still opening. Try again in a moment.');
       return (await json(`${OFFICE}/documents/${encodeURIComponent(documentId)}`)).document;
     }
     async function open(master) {
       documentId = await link(master);
-      if (!frame) { frame = root.document.createElement('iframe'); frame.id = 'officeFrame'; frame.title = 'Master resume document'; host.append(frame); }
+      if (!frame) { frame = root.document.createElement('iframe'); frame.id = 'officeFrame'; frame.title = 'Master résumé document'; host.append(frame); }
       const src = `${OFFICE}/app?document=${encodeURIComponent(documentId)}`;
       if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
       host.hidden = false;
       const saved = (await json(`${OFFICE}/documents/${encodeURIComponent(documentId)}`)).document;
       const mapped = modelToResume(saved.model, master.resume);
-      status(mapped.error || (sameResume(mapped.resume, master.resume) ? 'Matches your master resume' : 'Not yet saved to your master resume'));
+      status(mapped.error || (sameResume(mapped.resume, master.resume) ? 'Matches your master résumé' : 'Not yet saved to your master résumé'));
       return documentId;
     }
     function close() { host.hidden = true; documentId = null; if (frame) { frame.remove(); frame = null; } }

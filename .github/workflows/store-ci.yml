@@ -82,6 +82,10 @@
 # 72 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/jarvis-routing-words.test.mjs: the kernel's routing scoring (scripts/jarvis-routing.mjs, mirrored from oshal-kernel jarvis_routing.rs) over every manifest here, pinning the routing words of backlog P4-16. Review of PR #823: reverting twelve packages' words turned nothing red, and Eats' "sushi place" made "place" an Eats word that took stock and shopping orders unseen.
 # 73 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/jarvis-catalog-descriptions.test.mjs: Jarvis names an application from its catalog description (oshal-kernel ADR-212), so what Intelligent Trades 1.53.8 and Finance 1.4.3 now say about the person's portfolio (period performance in Trades, holdings as of the last sync and no performance in Finance) is checked against the tools each declares. "How did my stocks do last week?" went to Finance in kernel scoreboard round 3 (adr212-40c4ddd8).
 # 74 | maintainer@emeraldcoastsystemsgroup.com | Job `attribution` also runs scripts/no-house-identifiers.test.mjs: no tracked file names the household (its LAN addresses, street address or the owner's phone number), checked against salted digests in scripts/security/house-identifiers.sha256 (open-work audit 2026-11-10; Phone & Device Control's tests, Ambient Recall's default profile and LoRA Studio's callback default carried them).
+# 75 | maintainer@emeraldcoastsystemsgroup.com | The shared test search runs with 1 GB (it refused requests at 512 MB and the Operations step waited 15 minutes, 2026-11-10), and job `store-ci-local` also runs scripts/sweep-test-search.test.mjs: the sweep store-push.sh runs before every push removes indices that killed runs left and names an engine that is refusing.
+# 76 | maintainer@emeraldcoastsystemsgroup.com | Job `kalshi` gets the disposable PostgreSQL (tests/kalshi-grade.test.js grades predictions on a real database with the package's migrations and fails, never skips, without it) and a step for tests/browser/kalshi-scorecard-grading.test.cjs: the Scorecard grading what is waiting, in Chromium at 412 px.
+# 77 | maintainer@emeraldcoastsystemsgroup.com | Job `finance` (Finance 1.5.0): the package's page, route and manifest suites never ran in this gate, only its token encryption suite. tests/*.test.cjs now run (the overview, the brief and its figures, Plaid Link, the spending summary, demo data, the audience view, and Finance as its own application), and tests/browser/*.test.cjs opens the application page in Chromium at desktop and phone width with stand-in answers.
+# 78 | maintainer@emeraldcoastsystemsgroup.com | Job `finance` also runs finance-experience/tests/*.test.cjs (1.0.0): the entry of Finance in the experiences list. The manifest carries what the kernel requires of an experience, the member role maps only applications without a catalog (and Finance itself must stay without one while other experience packages map it with "@app-admin"), and the compiled route answers 302 to the Finance application page on a local listener with the gate's Express.
 
 name: store-ci
 
@@ -407,7 +411,9 @@ jobs:
           DISABLE_INSTALL_DEMO_CONFIG: "true"
           DISABLE_SECURITY_PLUGIN: "true"
           node.store.allow_mmap: "false"
-          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+          # 1 GB: at 512 MB the engine refused requests with HTTP 429 once nineteen suites ran against it
+          # together, and the suites waited the step's full 15 minutes (2026-11-10, 721 refusals).
+          OPENSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
         ports:
           - 35690:9200
         options: >-
@@ -477,6 +483,10 @@ jobs:
       # run real git in a throwaway repository whose core.hooksPath is this .githooks.
       - name: Refuse a commit that reverts a file to an older committed version
         run: node --test scripts/revert-guard.test.mjs
+      # The test search is shared by every gate run. These cases drive the sweep over HTTP against a
+      # stand-in engine: left-over indices go, a running gate's stay, and a refusing engine is named.
+      - name: Sweep what killed runs left in the shared test search
+        run: node --test scripts/sweep-test-search.test.mjs
 
   little-monsters:
     name: little-monsters security suites
@@ -630,6 +640,20 @@ jobs:
     needs: [test-discovery, catalog-parity]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      operations_postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: operations-contract-ci
+          POSTGRES_DB: postgres
+        ports:
+          - 35689:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -653,6 +677,8 @@ jobs:
         working-directory: kalshi
         env:
           KALSHI_BROWSER_DEPS: ${{ runner.temp }}/kalshi-browser-deps
+          # tests/kalshi-grade.test.js grades on a real PostgreSQL (a database of its own, created and dropped).
+          OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres
         run: node --test "tests/*.test.js"
       # The audience view (ADR-164 D6): the company view's open reads only this package's own routes,
       # and under a view the full page starts nothing. A .cjs suite, which the glob above never matched.
@@ -666,6 +692,13 @@ jobs:
         env:
           KALSHI_BROWSER_DEPS: ${{ runner.temp }}/kalshi-browser-deps
         run: node --test tests/browser/kalshi-phone-layout.test.cjs
+      # The Scorecard grades what is waiting: opening the tab walks POST /grade, the table shows the new
+      # counts, and what has no result or could not be reached is said in words. Chromium at 412 px.
+      - name: Run the Kalshi Scorecard grading suite in Chromium
+        working-directory: kalshi
+        env:
+          KALSHI_BROWSER_DEPS: ${{ runner.temp }}/kalshi-browser-deps
+        run: node --test tests/browser/kalshi-scorecard-grading.test.cjs
 
   bake-off:
     name: bake-off package suites
@@ -1445,6 +1478,35 @@ jobs:
       - name: Run the Smart Home phone-width page suites in Chromium
         working-directory: home
         run: node --test "tests/browser/*.test.cjs"
+
+  finance:
+    name: Finance pages and routes, and Finance as its own application in Chromium
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      # The overview, the brief and its figures, Plaid Link, the spending summary, demo data, the audience
+      # view, and the application page's manifest, route and wording. Synthetic data; no bank or provider.
+      - name: Run the Finance page, route and manifest suites
+        working-directory: finance
+        run: node --test "tests/*.test.cjs"
+      - name: Provide the Finance browser contract runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      # Finance as its own application: its bar, Home with the summaries and the finance jobs, a section
+      # opening inside the page, a phone's bottom bar, the cockpit's frame hidden, and GET requests only.
+      - name: Run the Finance application page suite in Chromium
+        working-directory: finance
+        run: node --test "tests/browser/*.test.cjs"
+      # The entry of Finance in the experiences list: what the kernel requires of an experience, a role
+      # template that maps only applications without a catalog, and a route that answers a hand-off page to the Finance page.
+      - name: Run the Finance experience entry contract
+        working-directory: finance-experience
+        run: node --test "tests/*.test.cjs"
 
   media-concierges:
     name: movies and spotify concierge surfaces and kernel egress

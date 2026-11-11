@@ -46,6 +46,8 @@
   56 | maintainer@emeraldcoastsystemsgroup.com | Find & score jobs starts one background run and watches /resume/state to its end; a run that scores nothing says so.
   57 | maintainer@emeraldcoastsystemsgroup.com | A finished Find & score jobs run opens on the person's best fit.
   59 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Job Board is the one pipeline. A stage control under the app bar (career-stages.js) holds New matches · Saved · To approve · Preparing · Applied · Interviewing and More (Offer, Not selected, Dismissed, records); Prepare & submit (?view=queue), Application status (?view=status) and Approvals (?view=approve, which opens the To approve view) are its stages, and every old address still opens its stage. An empty stage is one empty state whose primary is Find jobs (never "0 shown" or a bare "Page 1"); a filtered stage with no rows offers Clear filters. Filters are an auto-fit grid on desktop and a Filters sheet on a phone, with Clear filters, and only the filters that fit the stage (no pay or fit filters once preparing or applied). Guard: tests/career-board-stages.test.mjs.
+  61 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: this page is served by no route, so only what it shares with served pages follows the sweep. Its heading reads Getting ready where the shared stage control (career-stages.js) now does, and its copy of the application-provenance wording says "You marked this as applied yourself" like the three served copies. The four lines that named the vendor's platform say Career. Its other words are as they were.
+  60 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   58 | maintainer@emeraldcoastsystemsgroup.com | Merged: Find & score jobs watches its run to the end and opens on the best fit, on the board that also keeps an unknown score count on the matched view.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="board-native"><head>
@@ -338,7 +340,7 @@ html:is([data-workflow="queue"],[data-workflow="status"]) .career-flow{margin-bo
     #boardEmpty .ck-primary { color: var(--ds-on-accent); }
   </style>
   <link rel="stylesheet" href="/api/career-hunter/static/career-kit.css">
-</head>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
   <header class="career-intro">
@@ -419,7 +421,7 @@ html:is([data-workflow="queue"],[data-workflow="status"]) .career-flow{margin-bo
     <summary>Offline Apply / Autofill — no worker or running stack needed after setup</summary>
     <ol>
       <li>Click <b>Copy offline autofill bookmarklet</b>, create a browser bookmark, and paste the copied <code>javascript:</code> URL into that bookmark's address.</li>
-      <li>Open a supported Ashby, Greenhouse, Lever, Workday, or Distyl application, then run the bookmark. OSHAL fills only empty visible fields and does not directly upload, click, navigate, call the network, create an account, answer demographic questions, or submit.</li>
+      <li>Open a supported Ashby, Greenhouse, Lever, Workday, or Distyl application, then run the bookmark. Career fills only empty visible fields and does not directly upload, click, navigate, call the network, create an account, answer demographic questions, or submit.</li>
       <li>The bookmark emits normal field-change events so React-style forms retain the values. Employer page scripts can react to those events, so keep the page in view and verify every result before continuing.</li>
       <li><b>Privacy:</b> the bookmark URL contains your contact/application profile. Keep it out of shared or browser-synced profiles, and delete it when you no longer need it.</li>
     </ol>
@@ -472,7 +474,7 @@ const guideProposals=new Map();
 // APPLICATION_PROVENANCE_START
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const APPLICATION_PROVENANCE=Object.freeze({
-  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'An operator recorded this status; no automated submission confirmation is claimed.'},
+  'manual-mark':{tone:'manual',label:'Marked applied manually',detail:'You marked this as applied yourself. Career has no confirmation that it was sent.'},
   'worker-reported':{tone:'worker',label:'Worker reported submitted',detail:'A worker reported completion; employer receipt is not confirmed.'},
   'verified-submission':{tone:'confirmation',label:'Confirmation file present',detail:'A retained confirmation artifact exists; this does not prove employer acceptance.'},
   unverified:{tone:'unverified',label:'Historical applied — unverified',detail:'No source and retained confirmation jointly establish this historical status.'},
@@ -508,7 +510,7 @@ function applicationProofHtml(record){
 function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2400); }
 function updateWorkflowHeading(){
   const queue=activeStatus==='queue',tracked=activeStatus==='tracked';
-  document.querySelector('h1').textContent=queue?'Preparing':tracked?'Applied':'Job Board';updateStageFilters();
+  document.querySelector('h1').textContent=queue?'Getting ready':tracked?'Applied':'Job Board';updateStageFilters();
   const stage=queue?'queue':tracked?'status':'board',filters=$('jobBoardFilters');document.documentElement.dataset.workflow=stage;if(filters.dataset.stage!==stage){filters.open=stage==='board';filters.dataset.stage=stage;}
   $('queueWorkspace').classList.toggle('queue-workspace-active',queue&&boardRows.length>0);$('queueNavigator').hidden=!queue||!boardRows.length;
   document.querySelector('.countrow .bulk').hidden=!queue;
@@ -692,7 +694,7 @@ function browseCard(j){
     <div class="meta">${payMeta(j)}${j.location?`<span>${esc(j.location)}</span>`:''}${j.remote?'<span>remote</span>':''}${j.job_type?`<span>${esc(j.job_type)}</span>`:''}${postingDateMeta(j)}${j.industry?`<span>${esc(j.industry)}</span>`:''}</div>
     <div class="acts">
       <button class="btn" data-job-feedback="${j.id}">Not interested</button>
-      <button class="btn submit" data-apply="${j.id}" data-title="${esc(j.title||'')}" data-company="${esc(j.company||'')}">Apply with OSHAL ▶</button>
+      <button class="btn submit" data-apply="${j.id}" data-title="${esc(j.title||'')}" data-company="${esc(j.company||'')}">Apply with Career ▶</button>
       ${j.url?`<a class="btn go" href="${esc(j.url)}" target="_blank" rel="noopener">Open posting ↗</a>`:''}
     </div>
   </div>`;
@@ -1354,7 +1356,7 @@ function setMode(next){
 function renderGetStarted(intent){
   const lead = intent
     ? `To apply to <b>${esc(intent.title||'this role')}</b>${intent.company?` at <b>${esc(intent.company)}</b>`:''},
-       OSHAL writes you a tailored résumé and cover letter — so it needs your current resume first.
+       Career writes you a tailored résumé and cover letter — so it needs your current resume first.
        Upload it and we'll bring you back to this one.`
     : `You're browsing every opening we've collected. Upload your resume to get a <b>fit score</b> on
        each of them, a tailored résumé + cover letter per job, and one-click apply.`;
@@ -1370,7 +1372,7 @@ function renderGetStarted(intent){
       <ol style="color:var(--muted);font-size:13px;line-height:1.7;padding-left:18px;margin:0 0 12px;">
         <li>We index it into your profile: experience, skills, and metrics. About <b>2–3 minutes</b>, starting the moment you upload.</li>
         <li>Every posting already in the board gets a fit score against your background.</li>
-        <li>Pick a job and OSHAL writes the résumé + cover letter for it.</li>
+        <li>Pick a job and Career writes the résumé + cover letter for it.</li>
         <li>Fine-tune anytime from <b>Resume Strengthen</b> — answer a few gap questions and your future resumes pull the new facts automatically.</li>
       </ol>
     </details>

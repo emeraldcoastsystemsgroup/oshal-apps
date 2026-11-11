@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute the shipped editor with delayed document/model/save responses: selection, draft, persisted target and bridge capability stay bound to one document, including failures and packet deep links. No user files or external services are used.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save is enabled only with an unsaved change (a freshly loaded packet keeps it disabled until an edit), and a failed read is told in the page's alert line instead of the status caption.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: the page marks on its body whether a résumé exists (the editor panel waits for one), so the document double has a body; the Save button reads Save master résumé.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +24,7 @@ function editor(fetcher,search='') {
   const nodes=new Map(),events={},contexts=[],requests=[],navigations=[];
   const $=id=>{if(!nodes.has(id))nodes.set(id,element(id));return nodes.get(id);};
   const context={console,URLSearchParams,location:{search},CareerJobActions:{openApplication:(...args)=>navigations.push(args)},window:{__bridge:{emitContext:c=>contexts.push(c)},addEventListener(){}},
-    document:{getElementById:$,querySelector:()=>$('applicationNav'),createElement:()=>element(),addEventListener:(name,fn)=>{events[name]=fn;}},
+    document:{body:{dataset:{}},getElementById:$,querySelector:()=>$('applicationNav'),createElement:()=>element(),addEventListener:(name,fn)=>{events[name]=fn;}},
     fetch:async(url,options={})=>{const req={url,method:options.method||'GET',body:options.body&&JSON.parse(options.body)};requests.push(req);return fetcher(req);}};
   vm.createContext(context);vm.runInContext(source,context);
   const api=vm.runInContext('({loadDoc,send,save,state:()=>state})',context);
@@ -98,7 +99,7 @@ test('the packet preview includes its candidate name, qualifications and cover; 
 
 test('master Save sends the complete active master with its sentinel and no packet cover',async()=>{
   const e=editor(req=>req.url.includes('/jobs?')?response({jobs:[]}):req.url.endsWith('/save')?response({ok:true,changed:false}):response(master));await tick();
-  assert.equal(e.$('save').textContent,'Save master resume');await e.api.save();
+  assert.equal(e.$('save').textContent,'Save master résumé');await e.api.save();
   const writes=e.requests.filter(r=>r.method==='POST');assert.equal(writes.length,1);
   assert.deepEqual(writes[0].body,{postingId:'master',resume:master.resume});
   assert.match(e.$('status').textContent,/no changes to save/);assert.equal(e.$('pdf').style.display,'none');

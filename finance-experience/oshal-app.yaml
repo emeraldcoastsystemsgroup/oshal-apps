@@ -1,0 +1,91 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: Finance in the experiences list (Roger, 2026-11-11). The list admits only an application with an access catalog, and Finance itself must not gain one: six experience packages give people Finance through the catalog-free "@app-admin" mapping, which stops resolving the moment Finance has a catalog. So this small package carries the entry. Its one route sends the person to the Finance application page (GET /api/finance/app, Finance 1.5.0); it owns no page, no data and no bot. Its member role opens Finance and, when chosen, Intelligent Trades, World Intelligence and Kalshi Edge.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.1: the entry answers a hand-off page that sends the browser to the Finance application page. 1.0.0 answered with a redirect, which a kernel does not relay from a package: the entry answered 500 on the test slot before any delivery.
+# -----------------------------------------------------------------------------
+name: finance-experience
+displayName: Finance
+description: Opens Finance as one application, with your money, trades, markets and world events and the work running on them.
+version: 1.0.1
+status: active
+suite: ai-finance   # ADR-097: primary catalog shelf
+rating:
+  memoryMb: { low: 16, high: 64, basis: declared }
+  features: []
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: finance-experience
+  ref: main
+uses:
+  - application-authorization
+  - experience
+  - experience-roles
+  - app-dependencies
+  - test-catalog
+dependencies:
+  required:
+    apps: [finance]   # the entry opens Finance's own application page; without Finance there is nothing to open
+    tools: []
+    connectors: []
+  optional:
+    apps: [intelligent-trades, world, kalshi]   # sections of the Finance application; each is a choice when the role is given
+    tools: []
+    connectors: []
+authorization:
+  version: 1
+  catalog: authorization.yaml
+experience:
+  version: 1
+  label: Finance
+  entry: /api/finance-experience/app
+  shell: page
+  skin: midnight
+  surfaces: []
+  roleTemplates:
+    - id: member
+      version: 1
+      label: Finance member
+      members:
+        - app: finance-experience
+          role: member
+        - app: finance
+          role: '@app-admin'
+        - app: intelligent-trades
+          role: '@app-admin'
+        - app: world
+          role: '@app-admin'
+        - app: kalshi
+          role: '@app-admin'
+routes:
+  - module: routes/experience.js
+    factory: createExperienceRoutes
+    mountPath: /api/finance-experience
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/finance-experience/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+# No cockpit surface of its own: the entry is opened from the experiences list and goes straight to Finance's page,
+# where Finance's own concierge is. A surface here would need a concierge that nobody could talk to.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/finance-experience/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+connectors: []

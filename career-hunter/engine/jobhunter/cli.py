@@ -15,6 +15,9 @@
     python -m jobhunter source-review [--max-sources N]     (recheck sources the pull could not read, JSON)
 """
 # CHANGE LOG
+# 8 | maintainer@emeraldcoastsystemsgroup.com | A full pull ends with source maintenance, straight after the source review: decisions for a person, repair briefs and the search for employers' job sites are recorded on the pull's own copy and publish with it.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | cmd_init's note follows db.py 19: init_db no longer seeds a person's recruiter tracker, so in the swarm database it only proves the store opens.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is not pulled and not searched for again.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | A full pull first applies the source changes administrators saved on the Companies page, so a moved source is read that night.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | A full pull continues from the last employer it finished when a restart stopped it. An employer's jobs and the note that it is finished commit together.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | End a full pull with the nightly source review, and expose it as its own command.
@@ -22,7 +25,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
-from . import pull_checkpoint, source_memory, source_requests, source_review
+from . import pull_checkpoint, source_maintenance, source_memory, source_requests, source_review
 import argparse
 import csv
 import json
@@ -113,7 +116,7 @@ def _report_dropped(before: dict) -> None:
 
 
 def _companies(conn, *, company=None, source_list=None, only_unscraped=False, need_ats=False):
-    sql = "SELECT * FROM companies WHERE 1=1"
+    sql = "SELECT * FROM companies WHERE COALESCE(discover_status, '') <> 'removed'"
     args = []
     if company:
         sql += " AND name = ?"; args.append(company)
@@ -129,8 +132,8 @@ def cmd_init(_):
     db.init_db()
     if config.POSTGRES:
         # DB_PATH is a SQLite file path and names nothing in this mode. The schema belongs
-        # to migrations/095-097 and is applied by the package migration runner, so all
-        # init_db() does here is seed this user's recruiter tracker. Print what is true.
+        # to migrations/095-097 and is applied by the package migration runner, so
+        # init_db() only proves the store opens for this person. Print what is true.
         print(f"Postgres store ready (schema: migrations/095-097, acting sub {config.USER_SUB})")
     else:
         print(f"DB ready at {config.DB_PATH}")
@@ -163,7 +166,7 @@ def cmd_discover(a):
             # changes no current result — it keeps the intent true once NULLs appear.
             ne = "IS DISTINCT FROM" if config.POSTGRES else "!="
             rows = conn.execute(
-                f"SELECT * FROM companies WHERE discover_status {ne} 'found' ORDER BY name{_bin()}"
+                f"SELECT * FROM companies WHERE discover_status {ne} 'found' AND COALESCE(discover_status, '') <> 'removed' ORDER BY name{_bin()}"
             ).fetchall()
         if a.limit:
             rows = rows[:a.limit]
@@ -262,6 +265,7 @@ def cmd_scrape(a):
     _report_dropped(dropped0)
     if full:
         source_review.after_pull(pull_started)
+        source_maintenance.after_pull(pull_started)
     if pull:
         pull.finish()
 

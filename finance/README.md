@@ -18,6 +18,7 @@ package installed, `swarm-apps/` in the framework repo carries no Wave-1 applica
 | `src-routes/finance-plaid.ts` | Self-contained Plaid client + aggregate builder (zero imports). |
 | `routes/*.js` | **Compiled JS** the loader mounts (`oshal-app build` output). |
 | `tools/finance.html` | The surface (link + dashboard + brief + send-money panel), served from this package dir. |
+| `tools/finance-app.html` | Finance as its own application (1.5.0): the page the menu opens first. See below. |
 
 ## What deliberately stays in the framework repo
 
@@ -67,6 +68,17 @@ should be copied into a token or configuration field.
 | `tests/session-crypto.test.mjs` | unit | Isolated Node runner; synthetic data only |
 
 These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
+
+## Finance as its own application (1.5.0)
+
+Finance opens on `tools/finance-app.html`, served at `GET /api/finance/app` (`finance-app` is the first tool and `ribbon.defaultView`). The page takes the whole window: opened inside the cockpit it hides the cockpit's header and menu and shows its own bar.
+
+- **The bar** is read from `GET /api/ui/profile?name=finance`, so it lists the sections this menu really has, in the manifest's order: Home, Money (`/api/finance/`), Trades (`/api/trading/`), World (`/api/world/app`), Markets (`/api/kalshi/`), Recap (`/api/daily-trade-recap/review`), and Linked banks under More. A phone gets a bottom bar with the first sections and More.
+- **A section opens inside the page**, in a frame under the bar. The address keeps the section (`#/finance-trading`), so a reload or a shared link returns to it.
+- **Home** reads four summaries, each from its own application (`/api/finance/home-summary`, `/api/trading/home-summary`, `/api/kalshi/home-summary`, `/api/daily-trade-recap/home-summary`), and the person's jobs from `GET /api/v1/agent/schedules`, keeping the jobs of those four applications. It shows the first two tiles of each summary, each job with its last run, result, next run and run counts, and up to three notes from each summary, with anything that needs attention first. A summary that does not answer is said in words ("Markets: could not be read just now."); the others still show. A summary is asked for only when its section is in the person's menu.
+- **It only reads.** The page makes GET requests and has no control that changes a job, a bank link or an order. Turning a job on or off is done on the Jobs page (`/swarm-admin/jobs`), which Home links to.
+
+Tests: `tests/finance-app.test.cjs` (manifest, route, and the page's own wording functions) and `tests/browser/finance-app.browser.test.cjs` (Chromium with stand-in answers, desktop, phone and inside a cockpit-like page). Not yet proven against a signed-in session on a running kernel by these tests; that check is done on the test slot before delivery.
 
 ## Overview Aggregate Normalization & Sortable Table Enhancement (1.4.2)
 

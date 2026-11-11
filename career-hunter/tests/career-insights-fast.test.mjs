@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Live 2026-10-12 GET /api/career-hunter/analytics answered 503 "package response stalled before the next protocol message" after ~10 s on every call and Insights showed all zeros: its five aggregates read each in-lane posting row past the inline description (44.3 s cold on a copy of the live corpus). Guards, on real SQLite with the engine's own schema: the served readAnalytics answers exactly what the previous five statements answered; its corpus reads plan only against the covering idx_corpus_insights (never a row of postings_corpus); without that index it refuses at once with InsightsNotReady; the production engine creates the index on a writable corpus and still connects to a read-only one without it (tests/career-insights-index-contract.py); both board routes answer that refusal as 503 with its reason; and the Insights page shows a refused read's reason instead of zeros.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 15: the page has a part for the person's own counts and a part for the shared market numbers, each with its own read, so the script harness gives each element its own node and answers each route; the refused read is told as "The job market numbers could not be loaded" and the shared count reads "Open technology and professional jobs" (was "In-lane roles").
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -139,27 +140,32 @@ test('both board routes read through career-insights and answer its refusal as 5
   for (const source of [ts, js]) assert.doesNotMatch(source, /function readAnalytics/, 'no second copy of the slow statements');
 });
 
-/** Run the Insights page's script against a stubbed fetch; returns what #body shows. */
+/** Run the Insights page's script against a stubbed fetch; returns what each part of the page shows, by element id. */
 async function page(status, body) {
   const html = read('../tools/career-insights.html');
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-  const el = { innerHTML: '' };
+  const parts = {};
   const context = {
-    document: { getElementById: () => el },
-    fetch: async () => ({ ok: status >= 200 && status < 300, status, json: async () => body }),
-    Math, String, Number,
+    document: { getElementById: (id) => (parts[id] ||= { innerHTML: '' }) },
+    // The person's own counts answer; the market read is the one under test.
+    fetch: async (url) => (String(url).includes('/jobs/stats')
+      ? { ok: true, status: 200, json: async () => ({ byStatus: [{ status: 'applied', n: 2 }], saved: 3 }) }
+      : { ok: status >= 200 && status < 300, status, json: async () => body }),
+    Math, String, Number, Object, Promise,
   };
   vm.runInNewContext(script, context);
-  for (let i = 0; i < 20 && /Loading|^$/.test(el.innerHTML); i += 1) await new Promise((r) => setImmediate(r));
-  return el.innerHTML;
+  for (let i = 0; i < 20 && !(parts.market?.innerHTML && parts.own?.innerHTML); i += 1) await new Promise((r) => setImmediate(r));
+  return parts;
 }
 
 test('the Insights page shows a refused read\'s reason instead of zeros', async () => {
   const stalled = await page(503, { detail: 'unavailable: package response stalled before the next protocol message', refused: 'store_unavailable' });
-  assert.match(stalled, /Insights could not be loaded: unavailable: package response stalled before the next protocol message/);
-  assert.doesNotMatch(stalled, /In-lane roles/);
+  assert.match(stalled.market.innerHTML, /The job market numbers could not be loaded: unavailable: package response stalled before the next protocol message/);
+  assert.doesNotMatch(stalled.market.innerHTML, /class="stat"/, 'no figures in place of the reason');
+  assert.match(stalled.own.innerHTML, />Saved<\/div><div class="bar"[^>]*>3</, 'the person\'s own counts still show');
   const notReady = await page(503, { error: new insights.InsightsNotReady().message, reason: 'insights_index_missing' });
-  assert.match(notReady, /Insights are not ready yet/);
+  assert.match(notReady.market.innerHTML, /Insights are not ready yet/);
   const served = await page(200, insights.readAnalytics(store()));
-  assert.match(served, /<div class="v">8<\/div><div class="l">In-lane roles<\/div>/);
+  assert.match(served.market.innerHTML, /<div class="v">8<\/div><div class="l">Open technology and professional jobs<\/div>/);
+  assert.doesNotMatch(served.market.innerHTML + served.own.innerHTML, /In-lane roles|Sourced|Qualified|Promoted/);
 });

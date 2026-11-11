@@ -1,45 +1,15 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NoteError = exports.WHERE = exports.MAX_NOTE_BYTES = void 0;
+exports.NoteError = exports.WHERE = exports.MAX_UPLOAD_BYTES = exports.MAX_NOTE_BYTES = void 0;
 exports.noteName = noteName;
 exports.plainText = plainText;
 exports.listLocal = listLocal;
 exports.saveNote = saveNote;
 exports.readNote = readNote;
 exports.removeNote = removeNote;
+exports.uploadFileName = uploadFileName;
+exports.uploadFolder = uploadFolder;
+exports.uploadFile = uploadFile;
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
@@ -49,16 +19,21 @@ exports.removeNote = removeNote;
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved .txt or .md note (storage.delete under the native kernel, the per-user directory on the legacy framework), so a note saved by mistake can be taken out again; Storage had no way to remove an OSHAL-local file on the native kernel.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A .txt note is saved as plain text: chat Markdown (bold and italic markers, # headings, * bullets, inline code ticks, links) is taken out before saving (sweep 10: a saved budget note read "**Sweep10 Budget Note**" and "*   **Rent:** $1,800"). A .md note keeps its Markdown.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: the clean-up changed real content after the person approved the card ("from pkg import __init__ as x" lost its dunder, "rm *.txt,*.md" became "rm .txt,.md", a "# install" shell comment lost its "#", "Use `--force` flag" lost its ticks). A .txt note now loses only chat bold, a "**" pair around words that opens after a space or punctuation and closes before one (x**2 + y**2 and f(**a,**b) stay); everything else is saved exactly as sent.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.0 (J-4 / Defect 7): add schema-bounded connected cloud storage upload operation (`uploadFile` / `POST /api/storage/files/upload` / `storage-upload-file`) supporting UTF-8 or base64 files (.xlsx, .docx, .pdf, .csv, .txt, .md, etc.) up to 10 MiB to connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local via `storage.save`.
  */
-/** Text notes in the caller's OSHAL-local store: save (never silently replacing), read back, and list. */
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
+/** Text notes and connected cloud file uploads in the caller's storage. */
+const fs = require("fs");
+const path = require("path");
 /** The largest note saved or read back as text. */
 exports.MAX_NOTE_BYTES = 256 * 1024;
+/** The largest file uploaded via storage-upload-file (matches kernel MAX_SAVE_BYTES = 10 MiB). */
+exports.MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** Where a saved note is found again, said in every save answer. */
 exports.WHERE = 'Saved in Storage, in your OSHAL-local store. Ask Storage to list your files or read it back.';
 const LOCAL = { provider: 'oshal-local' };
 const TEXT = /\.(txt|md)$/i;
+const UPLOAD_EXT = /\.(txt|md|csv|tsv|json|yaml|yml|xml|html|pdf|xlsx|xls|docx|doc|pptx|ppt|ods|odt|odp|rtf|png|jpg|jpeg|webp|svg|zip)$/i;
+const UPLOAD_PROVIDERS = new Set(['dropbox', 'google-drive', 'onedrive', 'github', 'oshal-local']);
 /** A refusal the route answers with its own status. */
 class NoteError extends Error {
     status;
@@ -196,4 +171,107 @@ async function removeNote(ctx, sub, raw, legacyDir) {
         fs.unlinkSync(path.join(legacyDir(sub), name));
     return { name };
 }
-//# sourceMappingURL=local-notes.js.map
+function uploadFileName(raw) {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (!name || !/^[\w.\- ()]+$/.test(name) || name.startsWith('.') || name.includes('..')) {
+        throw new NoteError(400, 'File name must use letters, digits, spaces, dots, dashes, or underscores without path separators.');
+    }
+    const file = /\.[A-Za-z0-9]{1,8}$/.test(name) ? name : `${name}.txt`;
+    if (!UPLOAD_EXT.test(file)) {
+        throw new NoteError(400, 'Unsupported file extension for storage upload.');
+    }
+    if (file.length > 120)
+        throw new NoteError(400, 'File name is at most 120 characters.');
+    return file;
+}
+function uploadFolder(raw) {
+    if (raw === undefined || raw === null || raw === '')
+        return '';
+    if (typeof raw !== 'string')
+        throw new NoteError(400, 'Folder must be a string.');
+    const trimmed = raw.trim().replace(/^\/+|\/+$/g, '');
+    if (!trimmed)
+        return '';
+    if (trimmed.length > 160 || trimmed.includes('..') || /[\r\n\0\\]/.test(trimmed) || !/^[A-Za-z0-9._ \-]+(\/[A-Za-z0-9._ \-]+)*$/.test(trimmed)) {
+        throw new NoteError(400, 'Folder path must be a relative path using letters, digits, spaces, dots, dashes, or slashes.');
+    }
+    return trimmed;
+}
+function describeUploadLocation(provider, location) {
+    const labels = {
+        dropbox: 'Dropbox',
+        'google-drive': 'Google Drive',
+        onedrive: 'OneDrive',
+        github: 'GitHub',
+        'oshal-local': 'OSHAL-local storage',
+    };
+    const label = labels[provider] || provider;
+    return `Saved to ${label} (${location}).`;
+}
+/**
+ * @description Upload a document, spreadsheet, or note to the caller's connected cloud storage
+ * (Dropbox, Google Drive, OneDrive, GitHub) or OSHAL-local store via the kernel `storage.save` intent (J-4 / Defect 7).
+ */
+async function uploadFile(ctx, sub, body, legacyDir) {
+    const name = uploadFileName(body?.name);
+    const folder = uploadFolder(body?.folder ?? body?.subfolder);
+    const rawProvider = body?.provider !== undefined && body?.provider !== null && body?.provider !== ''
+        ? String(body.provider).trim().toLowerCase()
+        : '';
+    if (rawProvider && !UPLOAD_PROVIDERS.has(rawProvider)) {
+        throw new NoteError(400, 'Provider must be dropbox, google-drive, onedrive, github, or oshal-local.');
+    }
+    let bytes;
+    if (typeof body?.contentBase64 === 'string' && body.contentBase64.trim()) {
+        bytes = Buffer.from(body.contentBase64.trim(), 'base64');
+    }
+    else if (typeof body?.text === 'string' && body.text.trim()) {
+        bytes = Buffer.from(/\.txt$/i.test(name) ? plainText(body.text) : body.text, 'utf8');
+    }
+    else {
+        throw new NoteError(400, 'Provide file content via text or contentBase64.');
+    }
+    if (bytes.length === 0)
+        throw new NoteError(400, 'File content cannot be empty.');
+    if (bytes.length > exports.MAX_UPLOAD_BYTES)
+        throw new NoteError(413, 'File exceeds the 10 MB upload limit.');
+    if (nativeStore(ctx)) {
+        const override = {};
+        if (rawProvider)
+            override.provider = rawProvider;
+        if (folder)
+            override.folder = folder;
+        if (typeof body?.repo === 'string' && body.repo.trim())
+            override.repo = body.repo.trim().slice(0, 120);
+        const saved = await intent(ctx, 'storage.save', sub, {
+            kind: 'files',
+            name,
+            content: bytes.toString('base64'),
+            ...(Object.keys(override).length ? { override } : {}),
+        });
+        const provider = String(saved?.provider || rawProvider || 'oshal-local');
+        const location = String(saved?.location || (folder ? `/${folder}/${name}` : name));
+        return {
+            name,
+            size: bytes.length,
+            provider,
+            folder: folder || null,
+            location,
+            where: describeUploadLocation(provider, location),
+            ...(saved?.url ? { url: String(saved.url) } : {}),
+            ...(saved?.downloadUrl ? { downloadUrl: String(saved.downloadUrl) } : {}),
+        };
+    }
+    const dir = folder ? path.join(legacyDir(sub), folder) : legacyDir(sub);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, name), bytes);
+    const location = folder ? `${folder}/${name}` : name;
+    return {
+        name,
+        size: bytes.length,
+        provider: rawProvider || 'oshal-local',
+        folder: folder || null,
+        location,
+        where: describeUploadLocation(rawProvider || 'oshal-local', location),
+    };
+}

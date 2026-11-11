@@ -30,6 +30,8 @@ const READS = {
   '/api/kalshi/alerts': { alerts: [0, 1, 2].map((i) => ({ created_at: new Date(NOW - 36e5 * i).toISOString(), ticker: hand(i).ticker, strength: 'strong',
     edge_net: 0.061, settled: false, channel: 'jarvis', delivered: true, detail: { title: hand(i).title, side: 'yes' } })), record: null },
   '/api/kalshi/alerts/pops': { pops: {} },
+  // Nothing waiting, so the Scorecard states the standing and sends no write.
+  '/api/kalshi/grade': { due: 0, open: 90, graded: 36, lastGradedAt: '2026-11-10T22:00:00Z' },
 };
 
 /**

@@ -206,8 +206,8 @@ test('non-admin 403 shows the not-available card, and an Android Fire TV session
   mode = { denyDevices: false, holdRun: null, mirrorRunning: false };
   const admin = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await admin.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
-  assert.match(await admin.locator('#phoneRail').textContent(), /TV · last seen offline/);
-  await admin.locator('#phoneRail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
+  assert.match(await admin.locator('.pc-rail').textContent(), /TV · last seen offline/);
+  await admin.locator('.pc-rail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
   await admin.waitForFunction(() => {
     const img = document.getElementById('screenImage');
     return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20;
@@ -231,7 +231,7 @@ test('an iPhone session starts UxPlay mirroring, streams mirror-frame pictures, 
   mode = { denyDevices: false, holdRun: null, mirrorRunning: false };
   const admin = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await admin.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
-  await admin.locator('#phoneRail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
+  await admin.locator('.pc-rail .pc-rail-item', { hasText: "Roger's iPhone" }).click();
   assert.equal(await admin.locator('#sessionMirrorBtn').textContent(), 'Start mirroring');
   await admin.locator('#sessionMirrorBtn').click();
   await admin.waitForFunction(() => {

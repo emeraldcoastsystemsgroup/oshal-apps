@@ -121,16 +121,28 @@ test('with a Family Hub refrigerator device, #fridgeCameraSection renders weekly
       const updated = mutateFridgeMealAndCart('owner-ui', body);
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) });
     });
+    // Home shows the refrigerator as one tile; its page opens from it and Back returns to Home.
+    const tile = page.locator('#tiles-kitchen .tile');
+    await tile.waitFor();
+    assert.match(await tile.textContent(), /Samsung Family Hub Refrigerator/);
+    assert.equal(await page.isVisible('#fridgeCameraSection'), false, 'the refrigerator page is closed until its tile is pressed');
+    assert.equal(await page.isVisible('#devicesSection'), false, 'the refrigerator is a tile, not a switch card');
+    await tile.click();
     await page.waitForSelector('#fridgeCameraSection:not([hidden])');
-    assert.match(await page.textContent('#fridgeWeeklySchedBadge'), /Weekly Assessment: Sunday 09:00 · Active/);
+    assert.equal(await page.textContent('#page-fridge h2'), 'Refrigerator');
+    assert.match(await page.textContent('#fridgeWeeklySchedBadge'), /Checked every Sunday 09:00/);
+    assert.equal(await page.textContent('#readViewInsideBtn'), 'Look inside');
     assert.match(await page.textContent('#fridgeShelfInventory'), /Silver Floss Sauerkraut Jar/);
     assert.match(await page.textContent('#fridgeComparisonLists'), /Organic Whole Milk/);
     assert.match(await page.textContent('#fridgeMealPlanList'), /Prepped Glass-Bowl Chopped Salad/);
     await page.locator('#startFridgeCartBtn').click();
-    await page.waitForFunction(() => document.getElementById('fridgeCartStatusBadge')?.textContent?.includes('Cart Started'));
-    assert.match(await page.textContent('#fridgeCartStatusBadge'), /Cart Started · [67] items/);
+    await page.waitForFunction(() => document.getElementById('fridgeCartStatusBadge')?.textContent?.includes('Started'));
+    assert.match(await page.textContent('#fridgeCartStatusBadge'), /^Started · [67] items/);
     await page.locator('#fridge-meal-focus').selectOption('high-protein');
     await page.waitForFunction(() => document.getElementById('fridgeMealPlanList')?.textContent?.includes('Double-Protein'));
+    await page.locator('#page-fridge [data-page-back]').click();
+    await page.waitForSelector('#homeView:not([hidden])');
+    assert.equal(await page.isVisible('#fridgeCameraSection'), false, 'Back returns to Home');
   } finally {
     await context.close();
     if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;

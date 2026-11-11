@@ -27,8 +27,9 @@ for (const viewport of VIEWPORTS) {
   test(`the Hubs view shows the hub connections, not the dashboard, on a ${viewport.width} px screen`, async () => {
     const { page, context, writes } = await openPage(browser, viewport, { url: '/api/home/ui?view=hubs', files: { '/api/home/ui': PAGE }, reads: READS });
     try {
-      await page.waitForFunction(() => /Reporting devices/.test(document.getElementById('hubsReporting').textContent));
-      assert.equal(await page.textContent('#hubsReporting'), 'Reporting devices: Fixture hub (3 devices).');
+      await page.waitForFunction(() => /devices from/.test(document.getElementById('hubsReporting').textContent));
+      assert.equal(await page.textContent('#hubsReporting'), '3 devices from Fixture hub.');
+      assert.equal(await page.textContent('#hubs-title'), 'Connections');
       assert.ok(await page.isVisible('#hubsPanel'));
       const smartthings = page.locator('#hubsPanel a', { hasText: 'Connect SmartThings' });
       assert.equal(await smartthings.getAttribute('href'), '/api/connect/smartthings/start');

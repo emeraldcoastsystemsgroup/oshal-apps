@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, UX audit 2026-11-06: with no camera node the screen is this device's capture screen (live preview, 72 px shutter, Photo/Video/Timelapse, captures strip); Fleet, Control, Telemetry, Event log and Delete all media live on a Cameras screen shown only when a node is registered; inline Concierge card removed; diagnostic brief moved to More as a themed sheet, withheld when no action is offered; same routes.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1 (J-3): clarify Camera Ops description so Jarvis knows it drives GoPro action cameras and Wi-Fi/USB field cameras and does not read SmartThings devices, smart-home cameras, or Samsung Family Hub refrigerator/appliance interior cameras (Smart Home handles those).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — camera ("Camera Ops")
@@ -51,8 +52,10 @@ description: >-
   drive it: start/stop recording, take photos, switch modes, change settings, and
   run a low-latency preview. A control concierge turns natural language into one
   validated command; a human confirms anything destructive. Sim engine built in,
-  real GoPro (Open GoPro HTTP) at the camera node.
-version: 1.2.0
+  real GoPro (Open GoPro HTTP) at the camera node. Does not read SmartThings
+  devices, smart-home cameras, or refrigerator/appliance interior cameras (Smart
+  Home handles those).
+version: 1.2.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml

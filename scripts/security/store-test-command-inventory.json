@@ -21,6 +21,7 @@
     ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/digest-seal.test.cjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",
     ".|node --test scripts/store-ci-local.test.mjs",
     ".|node --test scripts/revert-guard.test.mjs",
+    ".|node --test scripts/sweep-test-search.test.mjs",
     ".|node --test scripts/run-trading-specs.test.mjs",
     "animatronics|node --test \"tests/*-*.test.js\"",
     "audio|node --test \"tests/*.test.cjs\"",
@@ -82,6 +83,9 @@
     "game-show|node --test tests/solo-night.test.js",
     "game-show|node --test tests/play-phone-layout.test.js",
     "game-show|node --test tests/ux-audit-surfaces.test.js",
+    "finance|node --test \"tests/*.test.cjs\"",
+    "finance|node --test \"tests/browser/*.test.cjs\"",
+    "finance-experience|node --test \"tests/*.test.cjs\"",
     "home|node --test \"tests/*.test.cjs\"",
     "home|node --test \"tests/*.test.js\"",
     "home|node --test \"tests/browser/*.test.cjs\"",
@@ -91,6 +95,7 @@
     "spotify|node --test \"tests/*.test.cjs\"",
     "kalshi|node --test tests/audience-view.test.cjs",
     "kalshi|node --test tests/browser/kalshi-phone-layout.test.cjs",
+    "kalshi|node --test tests/browser/kalshi-scorecard-grading.test.cjs",
     "embodied|node --test tests/audience-view.test.cjs"
   ]
 }

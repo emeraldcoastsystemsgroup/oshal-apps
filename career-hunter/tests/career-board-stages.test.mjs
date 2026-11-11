@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Job Board, Prepare & submit, Application status, Approvals). The real tools/career-board.html in Chromium over a synthetic fixture: one stage control (New matches · Saved · To approve · Preparing · Applied · Interviewing · More); the old addresses ?view=queue and ?view=status open Preparing and Applied, and ?view=approve opens the To approve view; switching stage in place keeps the frame; an empty stage is one empty state whose primary is Find jobs, with no "0 shown" and no bare page label; pay and fit filters leave the Preparing stage; desktop filters are an auto-fit grid with Clear filters, and a phone gets them in a Filters sheet.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the shared stage control reads Getting ready (was Preparing); the expected stage names follow.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,9 +31,9 @@ test('phone: the stage control, old addresses and an empty stage', async () => {
   const { page, context } = await openScreen(browser, 'career-board.html', career(), PHONE, '?view=queue');
   try {
     const stages = page.getByRole('tablist', { name: 'Application stages' });
-    await stages.getByRole('tab', { name: 'Preparing' }).waitFor();
-    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'To approve1', 'Preparing', 'Applied', 'Interviewing1']);
-    assert.equal(await stages.getByRole('tab', { name: 'Preparing' }).getAttribute('aria-selected'), 'true', '?view=queue is Preparing');
+    await stages.getByRole('tab', { name: 'Getting ready' }).waitFor();
+    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'To approve1', 'Getting ready', 'Applied', 'Interviewing1']);
+    assert.equal(await stages.getByRole('tab', { name: 'Getting ready' }).getAttribute('aria-selected'), 'true', '?view=queue is Getting ready');
     assert.equal(await page.locator('#min_pay').isVisible(), false, 'no pay filter while preparing');
     await page.getByRole('heading', { name: 'Nothing to prepare yet' }).waitFor();
     assert.equal((await page.locator('#count').innerText()).trim(), '', 'no "0 shown"');

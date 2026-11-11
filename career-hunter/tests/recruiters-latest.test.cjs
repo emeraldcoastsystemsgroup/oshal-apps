@@ -11,6 +11,7 @@
  *   list even when the list is long; Add moves the line to the new row; a status tab, where "latest" would mislead, hides it.
  *   Seams: the synthetic same-origin fixture (no Career store, no network). Needs the kernel checkout (OSHAL_KERNEL_ROOT).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: on a phone the add form lives in the "Add recruiter" sheet, so the Add case opens it first.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: the line reads "type" where it read "bucket" (the stored field keeps its name), so the expected lines follow.
  */
 'use strict';
 const test = require('node:test');
@@ -78,9 +79,9 @@ test('the All view names the latest added recruiter and its bucket, and the conc
   assert.ok(fs.existsSync(SNAPSHOT), `the kernel checkout must be present (set OSHAL_KERNEL_ROOT); missing ${SNAPSHOT}`);
   const { page, context } = await openRecruiters(browser);
   try {
-    assert.equal((await page.locator('#latest').innerText()).trim(), 'Latest added: sweep10 Recruiting · bucket sweep10 bucket · status To contact');
+    assert.equal((await page.locator('#latest').innerText()).trim(), 'Latest added: sweep10 Recruiting · type sweep10 bucket · status To contact');
     const lines = (await snapshot(page)).split('\n');
-    const at = lines.findIndex((line) => line.includes('Latest added: sweep10 Recruiting · bucket sweep10 bucket'));
+    const at = lines.findIndex((line) => line.includes('Latest added: sweep10 Recruiting · type sweep10 bucket'));
     assert.ok(at >= 0, lines.join('\n'));
     assert.ok(at < lines.findIndex((line) => line.includes('Firm A Talent')), 'the line comes before the list, so a cut snapshot still carries it');
   } finally {
@@ -96,7 +97,7 @@ test('Add moves the line to the new recruiter; a status tab hides it', async () 
     await page.fill('#bucket', 'sweep12 bucket');
     await page.click('#addSheet button[type="submit"]');
     await page.waitForFunction(() => document.getElementById('latest').textContent.includes('sweep12 Search Partners'));
-    assert.match(await page.locator('#latest').innerText(), /Latest added: sweep12 Search Partners · bucket sweep12 bucket/);
+    assert.match(await page.locator('#latest').innerText(), /Latest added: sweep12 Search Partners · type sweep12 bucket/);
     await page.click('.tab:has-text("To contact")');
     await page.waitForFunction(() => document.getElementById('latest').hidden === true);
     assert.equal(await page.locator('#latest').isVisible(), false);

@@ -1,0 +1,359 @@
+<!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1 | maintainer@emeraldcoastsystemsgroup.com | Career's home page (Roger, 2026-11-10: Career as "a full application by itself ... thoughtful layout", in the Little Monsters format). The first screen: a greeting and one search box, the person's pipeline as six stage cards that open the Job Board on that stage, their newest jobs, the state of their résumé with the one next step, and a card for every section they are admitted to. Everything is read from routes Career already serves (jobs/stats, jobs, resume/state, readiness) and from the person's own ribbon profile. With ?open=<view> it is also the page that shows another application's screen (Portrait Studio) under Career's bar, and only a screen the person's profile lists.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Home is the day of someone looking for a job (Roger, 2026-11-11), and Email, Portrait Studio and Social are worked into it instead of only being reachable. Under the search box, "Today" lists the day's steps from tools/career-today.js, each one line with one button: replies from the inbox against their job, new matches since yesterday, applications ready to approve, follow-ups due, interviews to prepare, the next thing for the person's profile, the next résumé improvement. A person with no résumé sees one sentence saying what Career does and three numbered steps, and no row of zero counters (an independent judge scored the first Home below Little Monsters for exactly that). One filled button on the page: the first step's. A job under "Your jobs" opens that job, and shows the newest reply from the inbox. This week's sent, answered and interview counts sit above the pipeline.
+-->
+<html lang="en" data-theme="midnight" data-career-surface="home" data-ds-category="dashboard" data-ds-first-action="type">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Intelligent Career</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css">
+<script src="/api/career-hunter/static/career-frame.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { overscroll-behavior: contain; }
+  body { margin: 0; background: var(--bg-primary); color: var(--text-primary); font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  main { max-width: 1180px; margin: 0 auto; padding: 24px clamp(12px, 2.2vw, 28px) 56px; display: grid; gap: 20px; }
+  h1, h2, h3, p { margin: 0; }
+  a { color: inherit; }
+  .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; box-shadow: var(--card-shadow); }
+  /* Hero */
+  .hero { padding: clamp(20px, 3.4vw, 36px); display: grid; gap: 18px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--accent-primary) 13%, var(--bg-card)) 0%, var(--bg-card) 62%); }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+  .hero h1 { font-size: clamp(24px, 3.4vw, 32px); line-height: 1.15; letter-spacing: -0.02em; font-weight: 750; }
+  .hero p { color: var(--text-secondary); font-size: 16px; }
+  .find { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) auto; gap: 10px; }
+  .find input { min-height: 48px; min-width: 0; padding: 0 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--text-primary) 38%, var(--bg-card));
+    background: var(--bg-card); color: var(--text-primary); font: inherit; font-size: 16px; }
+  .find input::placeholder { color: var(--text-muted); }
+  .find input:focus-visible, .find button:focus-visible, a:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+  .primary { min-height: 48px; padding: 0 22px; border: 0; border-radius: 14px; background: var(--accent-primary); color: var(--text-on-accent, #fff);
+    font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
+  .primary:hover { background: var(--accent-primary-hover); }
+  .quiet { min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 38%, var(--bg-card)); background: var(--bg-card);
+    color: var(--text-primary); font: inherit; font-weight: 600; font-size: 15px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+  .quiet:hover { background: var(--bg-card-hover); }
+  .purpose { color: var(--text-secondary); font-size: 16px; max-width: 60ch; }
+  /* Today */
+  .today { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+  .step { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 14px; min-height: 72px; }
+  .step .mark { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 750; font-size: 18px;
+    color: var(--accent-primary); background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-card)); }
+  .step .mark svg { width: 22px; height: 22px; }
+  .step strong { display: block; font-size: 16px; font-weight: 650; }
+  .step p { color: var(--text-secondary); font-size: 14px; }
+  .step ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; color: var(--text-secondary); font-size: 14px; }
+  .step ul li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step[data-first="yes"] { border-color: color-mix(in srgb, var(--accent-primary) 45%, var(--bg-card)); }
+  .calm { padding: 18px 16px; border-radius: 14px; display: grid; gap: 10px; justify-items: start; color: var(--text-secondary); }
+  .weekline { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--text-secondary); font-size: 14px; }
+  .weekline b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  /* Pipeline */
+  .stages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+  .stage { display: grid; gap: 2px; padding: 16px; text-decoration: none; border-radius: 14px; min-height: 92px; align-content: center; }
+  .stage:hover { border-color: var(--accent-primary); }
+  .stage b { font-size: 32px; line-height: 1.1; font-weight: 750; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .stage span { color: var(--text-secondary); font-weight: 600; font-size: 14px; }
+  .stage[data-has="yes"] b { color: var(--accent-primary); }
+  /* Two columns */
+  .cols { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .panel { padding: 20px; display: grid; gap: 14px; }
+  .panel > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .panel h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .panel > header a { color: var(--accent-primary); font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; }
+  .panel > header a:hover { text-decoration: underline; }
+  .jobs { list-style: none; margin: 0; padding: 0; display: grid; }
+  .jobs li + li { border-top: 1px solid var(--border-color); }
+  .job { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 4px; text-decoration: none; border-radius: 10px; min-height: 64px; }
+  .job:hover { background: var(--bg-card-hover); }
+  .logo { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-weight: 750; font-size: 18px; color: var(--accent-primary);
+    background: color-mix(in srgb, var(--accent-primary) 12%, var(--bg-card)); }
+  .job h3 { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job p { color: var(--text-secondary); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--bg-tertiary); color: var(--text-secondary); white-space: nowrap; }
+  .tag.fit { background: color-mix(in srgb, var(--status-success) 14%, var(--bg-card)); color: var(--status-success); }
+  .empty { display: grid; gap: 10px; justify-items: start; padding: 8px 4px; color: var(--text-secondary); }
+  .side { display: grid; gap: 20px; }
+  .state { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: center; }
+  .state strong { display: block; font-size: 15px; }
+  .state span { color: var(--text-secondary); font-size: 14px; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .steps a { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px; border-radius: 10px; text-decoration: none; min-height: 44px; }
+  .steps a:hover { background: var(--bg-card-hover); }
+  .steps i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-color-hover); display: block; margin-top: 1px; }
+  .steps a[data-done="yes"] i { border-color: var(--status-success); background: var(--status-success); box-shadow: inset 0 0 0 4px var(--bg-card); }
+  .steps strong { display: block; font-size: 14px; }
+  .steps span { color: var(--text-secondary); font-size: 13px; }
+  /* Sections */
+  .explore { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .tile { display: grid; gap: 4px; padding: 16px; text-decoration: none; border-radius: 14px; min-height: 84px; align-content: start; }
+  .tile:hover { border-color: var(--accent-primary); }
+  .tile strong { font-size: 15px; }
+  .tile span { color: var(--text-secondary); font-size: 13px; }
+  h2.section { font-size: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  /* Another application's screen under Career's bar */
+  #host { display: none; }
+  body[data-mode="host"] main { display: none; }
+  body[data-mode="host"] #host { display: block; width: 100%; height: calc(100dvh - var(--cf-top, 0px) - var(--cf-bottom, 0px)); border: 0; background: var(--bg-primary); }
+  body[data-mode="host"].cf-has-bottombar { padding-bottom: 0 !important; }
+  @media (max-width: 900px) {
+    .stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cols { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 720px) {
+    main { padding-top: 16px; gap: 16px; }
+    .find { grid-template-columns: minmax(0, 1fr); }
+    .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .stage b { font-size: 24px; }
+    .explore { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .panel { padding: 16px; }
+    .step { grid-template-columns: 40px minmax(0, 1fr); row-gap: 10px; }
+    .step .mark { width: 40px; height: 40px; }
+    .step .go { grid-column: 1 / -1; }
+    .step .go a { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main data-ds-work>
+  <section class="card hero" aria-labelledby="greeting">
+    <div>
+      <div class="eyebrow" id="dateLine"></div>
+      <h1 id="greeting">Welcome back.</h1>
+      <p class="purpose" id="purpose" hidden>Career finds jobs that fit you, prepares each application with you, and keeps track of every one.</p>
+    </div>
+    <form class="find" id="find" role="search" aria-label="Search jobs">
+      <input id="q" name="q" type="search" autocomplete="off" placeholder="Job title, skills or employer" aria-label="Job title, skills or employer">
+      <input id="near" name="near" type="text" autocomplete="off" placeholder="City, state or ZIP" aria-label="City, state or ZIP">
+      <button class="quiet" type="submit" style="min-height:48px;border-radius:14px;font-size:16px;padding:0 22px">Search jobs</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="todayTitle" aria-busy="true" id="todayPanel">
+    <h2 class="section" id="todayTitle">Today</h2>
+    <ol class="today" id="today"></ol>
+    <div class="card calm" id="calm" hidden><p>Nothing needs you right now. New matches arrive overnight.</p><a class="quiet" href="/api/career-hunter/search-ui" data-open="search">Search jobs</a></div>
+  </section>
+
+  <section aria-labelledby="pipelineTitle" id="pipelinePanel" hidden>
+    <h2 class="section" id="pipelineTitle">Where everything stands</h2>
+    <p class="weekline" id="week" style="margin-top:8px"></p>
+    <div class="stages" id="stages" style="margin-top:10px"></div>
+  </section>
+
+  <div class="cols" id="jobsRow" hidden>
+    <section class="card panel" aria-labelledby="jobsTitle">
+      <header><h2 id="jobsTitle">Your jobs</h2><a id="jobsAll" href="/api/career-hunter/board-native" data-open="board">Open the Job Board →</a></header>
+      <ul class="jobs" id="jobs" aria-busy="true"></ul>
+      <div class="empty" id="jobsEmpty" hidden>
+        <p>Nothing saved yet. Search every opening Career has collected, and save the ones worth a closer look.</p>
+        <a class="quiet" href="/api/career-hunter/search-ui" data-open="search">Search jobs</a>
+      </div>
+    </section>
+    <div class="side">
+      <section class="card panel" aria-labelledby="resumeTitle">
+        <header><h2 id="resumeTitle">Your résumé</h2></header>
+        <div class="state"><div class="logo" aria-hidden="true">CV</div><div><strong id="resumeHead">Checking…</strong><span id="resumeLine"></span></div></div>
+        <a class="quiet" id="resumeAction" href="/api/career-hunter/resume-studio" data-open="resume-studio" hidden>Open Resume Studio</a>
+      </section>
+    </div>
+  </div>
+
+  <section aria-labelledby="exploreTitle" id="explorePanel" hidden>
+    <h2 class="section" id="exploreTitle">Everything in Career</h2>
+    <div class="explore" id="explore" style="margin-top:10px"></div>
+  </section>
+</main>
+<iframe id="host" title="" allow="microphone; camera; fullscreen"></iframe>
+<script src="/api/career-hunter/static/career-stages.js"></script>
+<script src="/api/career-hunter/static/career-today.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const frame = window.CareerFrame;
+  /** One read, with a limit: a slow answer leaves its step out, it never holds the page. */
+  const get = (path) => fetch(path, { cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(8000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  /** One line for each page a card can open, by its view name. */
+  const ABOUT = {
+    search: 'Every opening Career has collected, by title, skill, place or pay.',
+    board: 'Your saved jobs, stage by stage, from new match to offer.',
+    'submission-activity': 'What was sent, when, and what came back.',
+    recruiters: 'The recruiters you are in touch with, and what to do next.',
+    insights: 'Where the openings are, and how your search is trending.',
+    strengthen: 'Turn your roles into stories an interviewer remembers.',
+    'resume-studio': 'Your master résumé, and a tailored copy for each job.',
+    'experience-library': 'Projects and work that are not on your résumé yet.',
+    'master-record': 'Everything Career knows about your career, in one record.',
+    'profile-studio': 'How your profile reads to a recruiter, and what to fix.',
+    'portrait-studio': 'A professional portrait for your profile.',
+    review: 'Approvals, scores and tracked applications at a glance.',
+    companies: 'The employers Career reads, and where their jobs come from.',
+    settings: 'Target titles, connections and what runs automatically.',
+  };
+
+  /** Open one of the person's pages the way the frame does (the cockpit changes screens; a tab follows the link). */
+  function openView(event) {
+    const a = event.target.closest('a[data-open]');
+    if (!a || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !frame || frame.kind !== 'cockpit') return;
+    event.preventDefault();
+    frame.navigate(a.dataset.open, a.dataset.query || '');
+  }
+
+  function greet(user) {
+    const hour = new Date().getHours(), part = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const name = frame ? frame.firstName(user) : '';
+    $('greeting').textContent = part + (name ? ', ' + name : '') + '.';
+    $('dateLine').textContent = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  function stageCards(counts) {
+    const stages = (window.CareerStages && window.CareerStages.STAGES) || [];
+    $('stages').innerHTML = stages.map((stage) => {
+      // A stage is counted by its own key, or by the board status it filters; New matches is a ranking, not a count.
+      const key = stage.count || stage.status, raw = counts && key ? counts[key] : undefined;
+      const n = Number(raw), known = Boolean(counts) && Boolean(key), shown = known ? (Number.isFinite(n) ? n : 0) : null;
+      const own = String(stage.href).indexOf('/api/career-hunter/board-native') === 0, query = own ? String(stage.href).split('?')[1] || '' : '';
+      return '<a class="card stage" href="' + esc(stage.href) + '"' + (own ? ' data-open="board" data-query="' + esc(query) + '"' : '') + ' data-stage="' + esc(stage.id) + '" data-has="' + (shown > 0 ? 'yes' : 'no') + '">'
+        + '<b>' + (shown == null ? '→' : shown.toLocaleString()) + '</b><span>' + esc(stage.label) + '</span></a>';
+    }).join('');
+  }
+
+  const REPLY = { offer: 'Offer', interview: 'Interview reply', acknowledged: 'Received', rejected: 'Not selected' };
+  const MARK = {
+    mail: '<path d="M4 7h16v10H4z"/><path d="m4 8 8 6 8-6"/>', star: '<path d="m12 4 2.4 5 5.6.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.6-.8z"/>',
+    send: '<path d="M4 12 20 5l-5 15-3-6z"/>', people: '<circle cx="9" cy="9" r="3"/><path d="M3.5 19c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5M16 6.5a3 3 0 0 1 0 5.5M17.5 14.8c1.7.6 2.8 2 3.2 4.2"/>',
+    clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 2"/>', talk: '<path d="M5 6h14v9H10l-4 3v-3H5z"/>',
+    person: '<circle cx="12" cy="9" r="3.5"/><path d="M5 19.5c.8-3.5 3.5-5.2 7-5.2s6.2 1.7 7 5.2"/>', spark: '<path d="M12 4v5M12 15v5M4 12h5M15 12h5M7 7l2.5 2.5M14.5 14.5 17 17M17 7l-2.5 2.5M9.5 14.5 7 17"/>',
+    doc: '<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5v4h4"/>', target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+  };
+  const mark = (kind) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (MARK[kind] || MARK.star) + '</svg>';
+
+  /** The day's steps: one line and one button each; the first carries the page's one filled button. */
+  function today(plan, entries, hasWork) {
+    const hrefFor = (action) => {
+      const entry = entries.find((e) => e.view === action.view);
+      const base = !entry ? '/api/career-hunter/home' : entry.own ? entry.href : '/api/career-hunter/home?open=' + encodeURIComponent(entry.view);
+      return base + (action.query && entry && entry.own ? (base.includes('?') ? '&' : '?') + action.query : '');
+    };
+    $('todayPanel').setAttribute('aria-busy', 'false');
+    $('todayTitle').textContent = plan.firstRun ? 'Start here' : 'Today';
+    $('purpose').hidden = !plan.firstRun;
+    $('calm').hidden = plan.steps.length > 0;
+    $('today').innerHTML = plan.steps.map((step) => '<li class="card step" data-step="' + esc(step.id) + '" data-first="' + (step.first ? 'yes' : 'no') + '">'
+      + '<span class="mark" aria-hidden="true">' + (step.number ? step.number : mark(step.kind)) + '</span>'
+      + '<span><strong>' + esc(step.title) + '</strong>' + (step.detail ? '<p>' + esc(step.detail) + '</p>' : '')
+      + (step.lines ? '<ul>' + step.lines.map((line) => '<li>' + esc(line.text) + '</li>').join('') + '</ul>' : '') + '</span>'
+      + '<span class="go"><a class="' + (step.first ? 'primary' : 'quiet') + '" href="' + esc(hrefFor(step.action)) + '" data-open="' + esc(step.action.view) + '"'
+      + (step.action.query ? ' data-query="' + esc(step.action.query) + '"' : '') + '>' + esc(step.action.label) + '</a></span></li>').join('');
+    // The pipeline and the person's jobs appear once there is something of theirs to show.
+    $('pipelinePanel').hidden = plan.firstRun && !hasWork;
+    $('jobsRow').hidden = plan.firstRun && !hasWork;
+  }
+  function weekLine(week) {
+    const part = (n, one, many) => '<span><b>' + n.toLocaleString() + '</b> ' + (n === 1 ? one : many) + '</span>';
+    $('week').innerHTML = '<span>This week:</span>' + part(week.applied, 'application sent', 'applications sent') + part(week.replies, 'reply', 'replies') + part(week.interviews, 'interview reply', 'interview replies');
+  }
+
+  function pay(job) {
+    const min = Number(job.salary_min), max = Number(job.salary_max);
+    if (!Number.isFinite(min) && !Number.isFinite(max)) return '';
+    try {
+      const money = new Intl.NumberFormat([], { style: 'currency', currency: job.salary_currency || 'USD', notation: 'compact', maximumFractionDigits: 0 });
+      return [min, max].filter((v) => Number.isFinite(v) && v > 0).map((v) => money.format(v)).join('–');
+    } catch (_) { return ''; }
+  }
+  function jobRows(jobs) {
+    const list = $('jobs');
+    list.setAttribute('aria-busy', 'false');
+    $('jobsEmpty').hidden = jobs.length > 0;
+    list.innerHTML = jobs.slice(0, 6).map((job) => {
+      const fit = Number(job.fit_score ?? job.ai_fit_score), money = pay(job);
+      const where = [job.company, job.location].filter(Boolean).join(' · ');
+      const replies = Array.isArray(job.emailUpdates) ? job.emailUpdates.filter((u) => u && REPLY[u.kind]) : [];
+      const reply = replies.sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
+      const tag = reply ? '<span class="tag fit">' + esc(REPLY[reply.kind]) + '</span>'
+        : Number.isFinite(fit) && fit > 0 ? '<span class="tag fit">' + Math.round(fit) + ' fit</span>' : money ? '<span class="tag">' + esc(money) + '</span>' : '';
+      const id = Number(job.id), query = Number.isInteger(id) && id > 0 ? 'application=' + id : 'view=saved';
+      return '<li><a class="job" href="/api/career-hunter/board-native?' + query + '" data-open="board" data-query="' + query + '">'
+        + '<span class="logo" aria-hidden="true">' + esc(String(job.company || '?').trim().charAt(0).toUpperCase()) + '</span>'
+        + '<span><h3>' + esc(job.title || 'Untitled role') + '</h3><p>' + esc(where) + '</p></span>' + tag + '</a></li>';
+    }).join('');
+  }
+
+  function resume(state) {
+    const has = Boolean(state && state.hasResume), busy = Boolean(state && (state.indexing || state.building));
+    $('resumeHead').textContent = !state ? 'Could not be checked' : busy ? 'Reading your résumé…' : has ? (state.name || 'Your résumé is in') : 'No résumé yet';
+    $('resumeLine').textContent = !state ? 'Open Resume Studio to see it.' : has
+      ? Number(state.roles || 0).toLocaleString() + ' roles read · ' + Number(state.scored || 0).toLocaleString() + ' jobs scored'
+      : 'Add it and Career ranks every job for you.';
+    const action = $('resumeAction');
+    action.textContent = has ? 'Open Resume Studio' : 'Add your résumé';
+    action.hidden = false;
+  }
+  function explore(entries) {
+    const shown = entries.filter((entry) => entry.view !== 'home');
+    $('explorePanel').hidden = !shown.length;
+    $('explore').innerHTML = shown.map((entry) => '<a class="card tile" href="' + esc(entry.own ? entry.href : '/api/career-hunter/home?open=' + encodeURIComponent(entry.view)) + '" data-open="' + esc(entry.view) + '"><strong>'
+      + esc(entry.label) + '</strong><span>' + esc(ABOUT[entry.view] || '') + '</span></a>').join('');
+  }
+
+  /** ?open=<view>: show another application's screen, and only one this person's profile lists. */
+  async function hostForeign(view) {
+    const entries = frame ? await frame.entries() : [];
+    const entry = entries.find((e) => e.view === view && !e.own);
+    if (!entry) { location.replace('/api/career-hunter/home'); return; }
+    document.title = entry.label + ' · Intelligent Career';
+    $('host').title = entry.label;
+    $('host').src = entry.href;
+    document.body.dataset.mode = 'host';
+  }
+
+  const open = new URLSearchParams(location.search).get('open');
+  if (open) { hostForeign(open); return; }
+
+  document.addEventListener('click', openView);
+  $('find').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const query = frame ? frame.strictQuery(['q', 'near'].map((id) => [id, $(id).value.trim()])) : new URLSearchParams({ q: $('q').value.trim() }).toString();
+    if (frame && frame.kind === 'cockpit') frame.navigate('search', query);
+    else location.href = '/api/career-hunter/search-ui' + (query ? '?' + query : '');
+  });
+  /** Read the day in one pass. Another application's answers are asked for only when this person can open that application. */
+  async function day() {
+    const entries = frame ? await frame.entries() : [], can = (view) => entries.some((entry) => entry.view === view);
+    const C = '/api/career-hunter';
+    const [resumeState, readiness, stats, counts, summary, updates, applied, saved, recruiters, plan, portrait, drafts] = await Promise.all([
+      get(C + '/resume/state'), get(C + '/readiness'), get(C + '/jobs/stats'), window.CareerStages ? window.CareerStages.counts() : null, get(C + '/home-summary'),
+      get(C + '/jobs/updates'), get(C + '/jobs?status=tracked&page=1&per=50'), get(C + '/jobs?status=saved&page=1&per=6'),
+      can('recruiters') ? get(C + '/recruiters') : null, can('profile-studio') ? get(C + '/profile-studio/plan') : null,
+      can('portrait-studio') ? get('/api/portrait-studio/readiness') : null, can('social-workspace') ? get('/api/social/content/drafts') : null]);
+    const input = { resume: resumeState, readiness, stats, counts, summary, updates, applied: (applied && applied.jobs) || [], recruiters: (recruiters && recruiters.recruiters) || [], plan, portrait, drafts };
+    const now = Date.now();
+    resume(resumeState);
+    stageCards(counts);
+    jobRows((saved && saved.jobs) || []);
+    weekLine(window.CareerToday.week(input, now));
+    const mine = ((saved && saved.jobs) || []).length + input.applied.length;
+    today(window.CareerToday.plan(input, now, entries.map((entry) => entry.view)), entries, mine > 0);
+    explore(entries);
+  }
+  greet(null);
+  stageCards(null);
+  get('/api/auth/user').then(greet);
+  day();
+})();
+</script>
+</body>
+</html>
