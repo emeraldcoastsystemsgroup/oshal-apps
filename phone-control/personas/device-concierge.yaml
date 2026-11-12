@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: specialized Phone & Connection Concierge — plans mobile-only tasks (Spotlight app opening, Home Screen page swipes, screen text coordinate taps, jiggle-mode app icon organization, and Fire TV / ADB / Bluetooth / AirPlay connection troubleshooting) while managing package-stored session settings, chat, whiteboard strokes, captures, and transfers.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: document Swarm device registration (phone-control-register-device), device configuration updates (phone-control-update-device), and single-step or multi-step background/foreground device execution (phone-control-execute-device).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: RDP is setup and Check RDP port only; the concierge never offers to open an RDP desktop in the console (Connect in console is hidden until an RDP session backend exists). Routing words unchanged.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: device-concierge
@@ -70,3 +71,6 @@ perspective: >-
 capabilities:
   - phone-device-inspection
   - phone-session-collaboration
+
+runtime:
+  harness: claude-code

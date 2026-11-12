@@ -1,4 +1,8 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the day's photo step is pressed with Add a photo.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the bar says Improve it for the page career-strengthen under Résumé, in its row, in More and in the phone's sheet, whatever label the profile gives it (the manifest's is Improve my résumé; this fixture's is still Strengthen), and a card on Home carries the page's own name.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The bar calls Portrait Studio's page Photo in its own display (judge's report 2026-11-11, change 4), so the five lists that read it from the bar, the sheet and Home's cards expect Photo. The fixture's labels are what a profile gave before the pages were renamed; tests/browser/career-role-proof.mjs draws the bar from the shipped manifest's own labels.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: Home's pipeline is New matches (a number), Saved, Getting ready, Applied, Interviewing and Offer, with no To approve; no card opens the activity page; in the cockpit, Applications asks for the Job Board on the applied stage and My jobs for Saved, and each is marked on its own side of that one page.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: Home's pipeline takes its names from career-stages.js, where Preparing now reads Getting ready; the expected card names follow.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: the bar is a job search in a job seeker's words, and Home is the day: three numbered steps with one filled button for a person with no résumé, and for a person with one the day's steps in order (a reply from the inbox against its job, new matches, a recruiter follow-up, the portrait, the next résumé improvement) with this week's counts.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career as its own application, in Chromium over the shipped pages, frame and stylesheet: the top bar a person's profile gives, the section row, More, the phone's bottom bar, Career's skin; a stand-in cockpit that the frame gives its whole window while a Career page shows and that gets its own chrome back for another application's page; the cockpit asked to change screens; another application's screen shown under Career's bar; a page hosted by anything else left alone; the home page's greeting, pipeline, jobs, résumé state and search. Employer and profile text stays inert. No network beyond the fixture.
@@ -132,14 +136,14 @@ test('as the top window a Career page wears Career\'s skin and draws the person\
     assert.equal((await page.textContent('.cf-chip')).trim(), '7 saved');
     assert.equal((await page.textContent('.cf-pill')).trim(), 'Ada');
     await page.click('.cf-more-desk > summary');
-    assert.deepEqual(await texts(page, '.cf-more-desk .cf-menu a'), ['← All applications', 'Resume Studio', 'Strengthen', 'Profile Studio', 'Portrait Studio', 'Recruiters', hostile, 'Career Settings']);
+    assert.deepEqual(await texts(page, '.cf-more-desk .cf-menu a'), ['← All applications', 'Resume Studio', 'Improve it', 'Profile Studio', 'Photo', 'Recruiters', hostile, 'Career Settings']);
     assert.equal(await page.evaluate(() => window.__injected), undefined, 'a label from the profile is text');
     assert.equal(await page.locator('.cf-menu a', { hasText: 'Elsewhere' }).count(), 0, 'a link off this origin is never offered');
     await page.keyboard.press('Escape');
     await page.click('.cf-topbar nav a:has-text("Résumé")');
     await page.waitForURL('**/api/career-hunter/resume-studio');
     await ready(page);
-    assert.deepEqual(await texts(page, '.cf-subnav a'), ['Resume Studio*', 'Strengthen']);
+    assert.deepEqual(await texts(page, '.cf-subnav a'), ['Resume Studio*', 'Improve it'], 'under Résumé the bar says Improve it for that page, whatever the profile calls it');
     const bar = await page.locator('.cf-topbar').boundingBox();
     assert.ok(bar.y === 0 && bar.height === 60, 'the bar is the top 60px');
   } finally { await context.close(); }
@@ -168,17 +172,37 @@ test('the cockpit gives a Career page its whole window, changes screens when ask
   } finally { await context.close(); }
 });
 
+test('in the cockpit, Applications asks for the Job Board on the applied stage and My jobs for Saved, and each is marked on its own side', async () => {
+  const { page, context } = await open('/cockpit/?app=intelligent-career');
+  try {
+    await page.waitForFunction(() => window.__items);
+    let frame = await career(page); await ready(frame);
+    await frame.click('.cf-topbar nav a:has-text("Applications")');
+    await page.waitForFunction(() => window.__navigations.length === 1);
+    assert.deepEqual(await page.evaluate(() => window.__navigations[0]), { tool: 'career-hunter--career-board', query: 'view=status' });
+    frame = await career(page); await ready(frame);
+    assert.deepEqual(await texts(frame, '.cf-topbar nav a'), ['Home', 'Find jobs', 'My jobs', 'Applications*', 'Résumé', 'Profile & contacts']);
+    assert.deepEqual(await frame.locator('#careerStages a[role=tab]').allTextContents(), ['Applied2', 'Interviewing', 'Offer', 'Closed']);
+    await frame.click('.cf-topbar nav a:has-text("My jobs")');
+    await page.waitForFunction(() => window.__navigations.length === 2);
+    assert.deepEqual(await page.evaluate(() => window.__navigations[1]), { tool: 'career-hunter--career-board', query: 'view=saved' });
+    frame = await career(page); await ready(frame);
+    assert.deepEqual(await texts(frame, '.cf-topbar nav a'), ['Home', 'Find jobs', 'My jobs*', 'Applications', 'Résumé', 'Profile & contacts']);
+    assert.equal(await shown(page, '.header-bar'), false, 'still Career\'s window');
+  } finally { await context.close(); }
+});
+
 test('another application\'s screen opens under Career\'s bar, and only one the person\'s profile lists', async () => {
   const { page, context } = await open('/cockpit/?app=intelligent-career&screen=career-hunter--career-profile-studio');
   try {
     await page.waitForFunction(() => window.__items);
     let frame = await career(page); await ready(frame);
-    await frame.click('.cf-subnav a:has-text("Portrait Studio")');
+    await frame.click('.cf-subnav a:has-text("Photo")');
     await page.waitForFunction(() => [...document.querySelectorAll('iframe')].some((f) => f.contentWindow.location.search === '?open=portrait-studio'));
     frame = await career(page); await ready(frame);
     await frame.waitForFunction(() => document.body.dataset.mode === 'host');
     assert.equal(await frame.getAttribute('#host', 'src'), '/api/portrait-studio/app');
-    assert.deepEqual(await texts(frame, '.cf-subnav a'), ['Profile Studio', 'Portrait Studio*', 'Recruiters']);
+    assert.deepEqual(await texts(frame, '.cf-subnav a'), ['Profile Studio', 'Photo*', 'Recruiters']);
     assert.equal(await shown(page, '.header-bar'), false, 'Career keeps the window while it hosts the screen');
     assert.equal(await page.evaluate(() => window.__navigations.length), 0, 'the cockpit is not asked to show a page with no bar');
   } finally { await context.close(); }
@@ -233,7 +257,7 @@ test('on a phone: one 56px top bar, a bottom bar of Home, Find jobs, My jobs, Ap
     for (const box of await page.locator('.cf-bottombar > a, .cf-bottombar > details > summary').evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().height))) assert.ok(box >= 44);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 412), 'no sideways scroll');
     await page.tap('.cf-bottom-more > summary');
-    assert.deepEqual(await texts(page, '.cf-sheet a'), ['Resume Studio', 'Strengthen', 'Profile Studio', 'Portrait Studio', 'Recruiters', hostile, 'Career Settings', '← All applications']);
+    assert.deepEqual(await texts(page, '.cf-sheet a'), ['Resume Studio', 'Improve it', 'Profile Studio', 'Photo', 'Recruiters', hostile, 'Career Settings', '← All applications']);
     const sheet = await page.locator('.cf-sheet').boundingBox();
     assert.ok(sheet.x >= 0 && sheet.x + sheet.width <= 412);
     assert.ok(parseFloat(await page.evaluate(() => getComputedStyle(document.body).paddingBottom)) >= 58, 'the page ends above the bar');
@@ -264,14 +288,14 @@ test('Home for a person with no résumé: what Career does, three numbered steps
       ['1 Add your résumé | Add your résumé', '2 Say what you want | Set it', '3 See your matches | Search jobs now']);
     assert.deepEqual(await frame.locator('main .primary').allTextContents(), ['Add your résumé'], 'one filled button on the page');
     assert.deepEqual(await frame.locator('.stage').evaluateAll((nodes) => nodes.map((n) => n.querySelector('span').textContent + ' ' + n.querySelector('b').textContent)),
-      ['New matches →', 'Saved 7', 'To approve 0', 'Getting ready 0', 'Applied 2', 'Interviewing 0'], 'their saved jobs still show where they stand');
+      ['New matches 0', 'Saved 7', 'Getting ready 0', 'Applied 2', 'Interviewing 0', 'Offer 0'], 'their saved jobs still show where they stand');
     await frame.waitForSelector('.job');
     assert.deepEqual(await frame.locator('.job h3').allTextContents(), [hostile, 'Program Manager']);
     assert.deepEqual(await frame.locator('.job .tag').allTextContents(), ['$91K–$158K', 'Interview reply'], 'the newest reply from the inbox shows on its job');
     assert.equal(await frame.locator('.job').first().getAttribute('data-query'), 'application=1', 'a job opens that job');
     assert.equal(await frame.evaluate(() => window.__injected), undefined, 'a job title is text');
     assert.equal(await frame.textContent('#resumeHead'), 'No résumé yet');
-    assert.deepEqual(await frame.locator('#explore .tile strong').allTextContents(), ['Search Jobs', 'Job Board', hostile, 'Strengthen', 'Resume Studio', 'Profile Studio', 'Portrait Studio', 'Recruiters', 'Submission activity', 'Career Settings']);
+    assert.deepEqual(await frame.locator('#explore .tile strong').allTextContents(), ['Search Jobs', 'Job Board', hostile, 'Strengthen', 'Resume Studio', 'Profile Studio', 'Photo', 'Recruiters', 'Career Settings'], 'a card stands alone, so it carries the page\'s own name as the profile gave it');
     await frame.fill('#q', 'program manager (remote)');
     await frame.click('#find button');
     await page.waitForFunction(() => window.__navigations.length === 1);
@@ -292,7 +316,7 @@ test('Home for a person with a résumé is their day, in order, with one button 
         'replies | 1 reply from employers this week | Open the newest',
         'matches | 5 jobs were scored for you since yesterday | Review them',
         'recruiters | 1 recruiter follow-up is due | Open Recruiters',
-        'portrait | Add a professional portrait | Open Portrait Studio',
+        'portrait | Add a professional portrait | Add a photo',
         'stories | Tell the story of each role | Start',
       ]);
       assert.equal(await page.locator('#today .step').first().locator('li').textContent(), 'Interview reply: ' + hostile);

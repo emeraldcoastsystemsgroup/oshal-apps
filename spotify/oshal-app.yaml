@@ -6,14 +6,15 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the Spotify Web API host for the native kernel's egress, with the caller's spotify connection applied as a Bearer token by the kernel.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): Connect Spotify signs in at the top level and returns to /cockpit/?app=spotify; 'Already connected? Refresh' is a real button that says Checking… and then what it found; button ink follows the theme; the inner header that repeated the shell's name is gone.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: Jarvis routing words (backlog P4-16f): spotify-concierge adds 'play' and 'jazz', the verb and a genre people say. "Play some jazz" and "Play my Discover Weekly playlist" reach Spotify; "Let's play Family Feud" stays with Game Show and "Play the next episode on the Fire TV" with Phone & Device Control. "Play some jazz and dim the lights" also needs the kernel to split at "and dim". No route, tool or permission changed.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8 (concierge audit T15, the store's PENDING list): spotify-concierge runs inline under the same UUID b00a0000-0000-0000-0000-000000000001 and is the chatBot, as Create's create-editor and the eats, rides and shopping concierges are. Declared as a dedicated-node bot, the routes' chat turn (POST /api/spotify/chat) ran as a plain completion without this package's route tools, and a Jarvis request to make or build something stayed with the assistant because this workflow application named no chatBot. Its persona follows Create's pattern (plain prose, the ```tool_call fence, runtime harness claude-code) and returns the chat route's reply object when that route asks for it. No route, tool or permission changed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — spotify ("Spotify" Music Concierge)
 # Carved out of OSHAL core 2026-07-18 (ADR-085 Wave 2 carve #2 — first packaged
-# service-or-oidc mount). The spotify-concierge REAL bot-node (spotify-bot container,
-# BOTH registry blocks, worker+foundation personas, spotifyToolKit.js, oshal-spotify.js,
-# migration 047 bot seed) STAYS in the framework repo per ADR-093 interim — this
-# manifest declares NO bots; workflow.workerBot resolves via the static registry.
+# service-or-oidc mount). The spotify-concierge bot is declared below (bots:) and runs
+# inline on the native kernel with this package's route-backed tools (1.1.8); its
+# platform-era bot-node (spotify-bot container, registry blocks, spotifyToolKit.js,
+# oshal-spotify.js) stayed in the framework repo per ADR-093 interim.
 # Framework: OSHAL (see docs/build-your-own-swarm-app.md)
 #
 # An AI music concierge that drives a visual surface: it searches the listener's
@@ -48,7 +49,7 @@ description: >-
   AI music concierge — search your Spotify, see what's playing and your playlists,
   get recommendations from your taste, and build playlists on your account. Other
   swarm bots can ask it to find music or assemble a playlist.
-version: 1.1.7
+version: 1.1.8
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -226,6 +227,9 @@ routes:
 migrations:
   - migrations/046-spotify-platform.sql
 
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: spotify-concierge
+
 # WORKFLOW — tickets of type 'spotify' route to the concierge.
 ticketType: spotify
 workflow:
@@ -280,13 +284,12 @@ integrations:
         - notes
         - sourceUrl
 
-# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+# The concierge keeps its UUID. It runs inline: the native kernel answers it with this package's
+# route-backed tools above; as a dedicated-node bot its chat turns ran without them.
 bots:
   - agentId: b00a0000-0000-0000-0000-000000000001
     name: spotify-concierge
     persona: personas/spotify-concierge.yaml
-    container: spotify-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot with the route-backed tools above; no dedicated node
     role: media/music
     capabilities: ['spotify-music-search', 'spotify-playlist-building', 'music-recommendation', 'music-taste-learning', 'now-playing-awareness']

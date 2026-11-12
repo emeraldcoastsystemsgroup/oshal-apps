@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The master record as one Markdown file (1.51.0): the page's Download and, cut into pages, what the concierge reads. Every role with its numbered bullets, skills and stories; every skill under its group, one per line; additional experience; education and certifications; evidence; the history newest first with what was added and the person's own words, then Strengthen answers and snapshot dates; the documents kept outside Career. Career's private writing notes are left out and named in one closing line (plan section 5, question 3).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The downloaded file is headed My Career data (was Master record) and names the pages as they are now called: Other experience, Improve it, My résumé, Download my data. Words only; the sections and their order are unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there); the downloaded file's count line and its empty line say the whole name.
  */
 'use strict';
 
@@ -17,17 +19,17 @@ const join = (parts, glue) => parts.filter(Boolean).join(glue);
 
 function header(r) {
   const c = r.counts, read = `${r.asOf.slice(0, 16).replace('T', ' ')} UTC`;
-  return [`# Master record${r.person.name ? ` — ${one(r.person.name)}` : ''}`, '',
+  return [`# My Career data${r.person.name ? `: ${one(r.person.name)}` : ''}`, '',
     `Everything Career keeps for you, read ${read}. Career changed nothing to make this file.`, '', '## Counts', '',
     `- Roles: ${c.roles}`, `- Bullets: ${c.bullets}`,
     `- Skills: ${c.skills} in ${plural(c.skillGroups, 'group')}, plus ${c.roleSkills} tagged on roles`,
-    `- Stories: ${c.stories}`, `- Additional experience: ${c.additional}`,
+    `- Stories: ${c.stories}`, `- Other experience: ${c.additional}`,
     `- Education: ${c.education} · Certifications: ${c.certifications} · Licenses: ${c.licenses}`,
     `- Metrics: ${c.metrics} · Projects: ${c.projects} · Account groups: ${c.accountGroups} (${plural(c.accounts, 'account')})`
       + ` · Employers: ${c.employers} · Speaking: ${c.speaking}`,
     `- Headline options: ${c.headlineOptions}`,
     `- History of what you added: ${plural(c.history, 'record')}${c.unreadableHistory ? ` (${c.unreadableHistory} more could not be read)` : ''}`,
-    `- Strengthen: ${c.strengthenAnswers} answered of ${plural(c.strengthenThemes, 'theme')}`,
+    `- Improve my résumé: ${c.strengthenAnswers} answered of ${plural(c.strengthenThemes, 'theme')}`,
     `- Snapshots taken before a change: ${c.snapshots}`, `- Linked documents: ${c.linked}`, ''];
 }
 
@@ -91,7 +93,7 @@ function additionalEntry(entry, index) {
 }
 
 function additional(r) {
-  return ['## Additional experience', '', ...(r.additional.length ? r.additional.flatMap(additionalEntry) : ['No additional experience saved.', ''])];
+  return ['## Other experience', '', ...(r.additional.length ? r.additional.flatMap(additionalEntry) : ['No other experience saved.', ''])];
 }
 
 function qualifications(r) {
@@ -128,8 +130,8 @@ function history(r) {
   const out = ['## History, newest first', ''];
   out.push(...(r.history.length ? r.history.flatMap(historyRecord) : ['No history of added facts yet.', '']));
   if (r.unreadableHistory) out.push(`${plural(r.unreadableHistory, 'history line')} could not be read and ${r.unreadableHistory === 1 ? 'is' : 'are'} not shown.`, '');
-  out.push('### Strengthen answers', '');
-  if (!r.strengthen.length) out.push('No Strengthen answers yet.', '');
+  out.push('### Questions you answered', '');
+  if (!r.strengthen.length) out.push('No answers yet. The questions are on Improve my résumé.', '');
   for (const answer of r.strengthen) {
     out.push(`#### ${join([answer.when, one(answer.theme)], ' · ')}`, '', ...(answer.answer ? quote(answer.answer) : ['Marked answered, with no words saved.']), '');
   }
@@ -143,7 +145,7 @@ function linked(r) {
   const n = r.notes, kept = [plural(n.framing.length, 'framing note'), plural(n.gaps.length, 'gap to collect', 'gaps to collect'),
     plural(n.locked.length, 'locked fact')];
   if (n.framing.length || n.gaps.length || n.locked.length) {
-    out.push(`Not in this file: the notes Career keeps for writing (${kept.join(', ')}). They are on the Master record page.`, '');
+    out.push(`Not in this file: the notes Career keeps for writing (${kept.join(', ')}). They are on the Download my data page.`, '');
   }
   return out;
 }
@@ -157,7 +159,7 @@ function linked(r) {
  */
 function toMarkdown(r) {
   if (!r.present) {
-    return [...header(r), 'You have not saved a résumé in Career yet. Upload one in Resume Studio and this record fills in.', '']
+    return [...header(r), 'You have not saved a résumé in Career yet. Upload one on My résumé and this file fills in.', '']
       .join('\n');
   }
   const lines = [header(r), profile(r), experience(r), skills(r), additional(r), qualifications(r), evidence(r), history(r), linked(r)].flat();

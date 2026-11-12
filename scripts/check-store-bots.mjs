@@ -32,6 +32,16 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register audio-engineer concierge persona for Audio Studio 1.2.0.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register sports-quant and fantasy-quant concierge personas (F22) and remove sports-edge, fantasy-football, and intelligent-sports from general-bot PENDING.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Register trading-concierge persona for Intelligent Trades 1.54.0 (Create concierge pattern).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Register career-concierge persona for Intelligent Career 1.57.0 (Create concierge pattern); its inline concierge clears the pending career-hunter node-posture entry.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Register studio, editor, and device concierge personas (cad-studio, circuit-lab, creative-studio, design-studio, lora, motion-studio, pdf-workbench, phone-control, portrait-studio, presentations, publishing-studio, scan-to-print, scene-studio) in CONCIERGES.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2a: register the side-chat personas of animatronics, calling-assistant, codex-packer, drone-relay, eats, identity, little-monsters, person-model, purchasing and rides.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | PENDING (concierge audit, T15): Create's region-edit spend names create-editor and LoRA's routes name lora-director (a0...0065) by their own ids, so their six undeclared-bot entries leave the list.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): movies-concierge and spotify-concierge run inline as their packages' chatBots (Create concierge pattern), so their four route entries leave the list; the movies concierge joins CONCIERGES (spotify's already was).
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Commons, Orbit and Studio import jarvis's oshal-assistant as the Jarvis experience does, Classroom imports Little Monsters' class-tutor and Job Apply imports Career's career-concierge, so those five concierge entries leave the list.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Social 1.7.3 removes its unused copy of the communications-bot persona, which taught the retired /app/scripts/ CLIs, so its persona entry leaves the list.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Life and System (launchers), the Developer Workspace Index and Hello OSHAL borrow jarvis's oshal-assistant by name instead of general-bot, so their four entries leave the list. Payments and Payroll stay: each needs a concierge of its own with read tools over its routes, which neither declares.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2b: register Intelligent Operations' new front-desk concierge (ops-concierge, which replaces ops-rca-specialist as chatBot) and Kalshi's side-chat quant (kalshi-quant).
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit (T15), the batch after 2b: register Intelligent Processing's own front-desk concierge (processing-concierge, which replaces the imported ops-rca-specialist as chatBot).
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -47,16 +57,29 @@ export const CONCIERGES = [
   'audio/personas/audio-engineer.yaml',
   'create/personas/create-editor.yaml',
   'video/personas/video-editor.yaml',
+  'cad-studio/personas/cad-studio-designer.yaml',
   'calendar/personas/calendar-concierge.yaml',
   'capability-ideator/personas/capability-ideator.yaml',
+  'circuit-lab/personas/circuit-lab-engineer.yaml',
   'cloud/personas/cloud-ops-bot.yaml',
+  'creative-studio/personas/story-editor.yaml',
+  'design-studio/personas/design-partner.yaml',
   'email-summarizer/personas/email-summarizer.yaml',
   'embodied/personas/embodied-operator.yaml',
   'fantasy-football/personas/fantasy-quant.yaml',
   'feeds/personas/feeds-curator.yaml',
   'futures-research/personas/futures-research-worker.yaml',
   'home/personas/home-bot.yaml',
+  'lora/personas/lora-director.yaml',
+  'motion-studio/personas/motion-editor.yaml',
   'ocean-lab/personas/ocean-lab-guide.yaml',
+  'pdf-workbench/personas/pdf-editor.yaml',
+  'phone-control/personas/device-concierge.yaml',
+  'portrait-studio/personas/portrait-artist.yaml',
+  'presentations/personas/deck-builder.yaml',
+  'publishing-studio/personas/publishing-editor.yaml',
+  'scan-to-print/personas/scan-to-print-operator.yaml',
+  'scene-studio/personas/scene-studio-director.yaml',
   'spotify/personas/spotify-concierge.yaml',
   'storage/personas/storage-assistant.yaml',
   'switchboard/personas/email-summarizer.yaml',
@@ -73,10 +96,25 @@ export const CONCIERGES = [
   'spaces/personas/spaces-operator.yaml',
   'sports-edge/personas/sports-quant.yaml',
   'trading/personas/trading-concierge.yaml',
+  'career-hunter/personas/career-concierge.yaml',
   'travel/personas/travel-concierge.yaml',
   'video/personas/video-director.yaml',
   'vids/personas/vids-operator.yaml',
   'youtube-kids/personas/kid-lens-analyzer.yaml',
+  'animatronics/personas/animatronics-director.yaml',
+  'calling-assistant/personas/calling-operator.yaml',
+  'codex-packer/personas/codex-packer.yaml',
+  'drone-relay/personas/relay-designer.yaml',
+  'eats/personas/eats-concierge.yaml',
+  'identity/personas/identity-advisor.yaml',
+  'little-monsters/personas/class-tutor.yaml',
+  'person-model/personas/ambient-recall-concierge.yaml',
+  'purchasing/personas/shopping-concierge.yaml',
+  'rides/personas/rides-concierge.yaml',
+  'movies/personas/movies-concierge.yaml',
+  'intelligent-operations/personas/ops-concierge.yaml',
+  'kalshi/personas/kalshi-quant.yaml',
+  'intelligent-processing/personas/processing-concierge.yaml',
 ];
 
 /**
@@ -84,9 +122,11 @@ export const CONCIERGES = [
  * is itself a failure, so fixing one forces its removal here.
  */
 export const PENDING = new Set([
-  'persona social/personas/email-summarizer.yaml teaches /app/scripts/',
-  // Route-called dedicated-node bots in other lanes' packages (rides answered "I'm having trouble reaching my assistant"
-  // with "this bot requires an enrolled node" live on 2026-10-11), and two routes calling platform bot identities.
+  // Route-called dedicated-node workers of their own package (rides answered "I'm having trouble reaching my assistant"
+  // with "this bot requires an enrolled node" live on 2026-10-11). The kernel now answers a package's own node bot as a
+  // plain completion without tools (oshal-kernel crates/oshald/src/package_bot_turn.rs tool_free), which these routes
+  // ask for: Career's model identity requires career-hunter's node posture (is_career_bot) and its document-sized
+  // prompts the 256 KiB own-node bound, and the finance brief is a plain commentary.
   'route career-hunter/routes/career-job-guide.js calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
   'route career-hunter/routes/career-profile-studio-routes.js calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
   'route career-hunter/routes/career-resume-studio-routes.js calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
@@ -95,32 +135,12 @@ export const PENDING = new Set([
   'route career-hunter/src-routes/career-profile-studio-routes.ts calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
   'route career-hunter/src-routes/career-resume-studio-routes.ts calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
   'route career-hunter/src-routes/career-worker-rail.ts calls bot cb000000-0000-0000-0000-000000000001, which career-hunter is node-posture',
-  'route create/routes/create-region-edit-routes.js calls bot a0000000-0000-0000-0000-000000000099, which is neither declared nor imported by this package',
-  'route create/src-routes/create-region-edit-routes.ts calls bot a0000000-0000-0000-0000-000000000099, which is neither declared nor imported by this package',
   'route finance/routes/finance-routes.js calls bot a0000000-0000-0000-0000-000000000044, which finance-analyst is node-posture',
   'route finance/src-routes/finance-routes.ts calls bot a0000000-0000-0000-0000-000000000044, which finance-analyst is node-posture',
-  'route lora/routes/bot-lora-routes.js calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
-  'route lora/routes/lora-train-dispatch.js calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
-  'route lora/src-routes/bot-lora-routes.ts calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
-  'route lora/src-routes/lora-train-dispatch.ts calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
-  'route movies/routes/movies-routes.js calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
-  'route movies/src-routes/movies-routes.ts calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
-  // Concierges still bound to the platform general-bot in other lanes' packages (payments, payroll, and life
-  // each answered with no app data in the 2026-10-11 sweep).
-  'app classroom-experience binds its concierge to the platform general-bot, which holds none of its data',
-  'app commons-experience binds its concierge to the platform general-bot, which holds none of its data',
-  'app dev-workspace-index binds its concierge to the platform general-bot, which holds none of its data',
-  'app hello-oshal binds its concierge to the platform general-bot, which holds none of its data',
-  'app life binds its concierge to the platform general-bot, which holds none of its data',
-  'app orbit-experience binds its concierge to the platform general-bot, which holds none of its data',
+  // Concierges still bound to the platform general-bot (payments and payroll each answered with no app data in the
+  // 2026-10-11 sweep). Each needs a concierge of its own with read tools over its routes; neither declares any.
   'app payments binds its concierge to the platform general-bot, which holds none of its data',
   'app payroll binds its concierge to the platform general-bot, which holds none of its data',
-  'app studio-experience binds its concierge to the platform general-bot, which holds none of its data',
-  'app system binds its concierge to the platform general-bot, which holds none of its data',
-  'app career-hunter concierge career-hunter: career-hunter is node-posture',
-  'app job-apply concierge career-hunter: imported career-hunter/career-hunter is node-posture',
-  'route spotify/routes/spotify-routes.js calls bot b00a0000-0000-0000-0000-000000000001, which spotify-concierge is node-posture',
-  'route spotify/src-routes/spotify-routes.ts calls bot b00a0000-0000-0000-0000-000000000001, which spotify-concierge is node-posture',
 ]);
 
 /** js-yaml from the gate's own toolchain (never the old platform checkout). */

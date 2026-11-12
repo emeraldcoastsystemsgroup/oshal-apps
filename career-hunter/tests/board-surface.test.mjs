@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 44 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: the approvals page is a forward to the Job Board now and holds no provenance renderer or manual control, so it leaves the list of surfaces that carry one; an applied job's line on the Job Board comes from career-status-line.js.
+ * 43 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 8: applying by hand is I applied on the application page, and the activity page's completed lane reads Sent.
  * 42 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the status tabs became the pipeline stage control (tools/career-stages.js), which switches stage through selectBoardStatus and names the applied lane the neutral "Applied" stage.
  * 40 | maintainer@emeraldcoastsystemsgroup.com | Support explicit search-to-board and document-to-status transitions, preserving manual submission provenance and owner-only state.
  * -----------------------------------------------------------------------------
@@ -30,7 +32,7 @@ import vm from 'node:vm';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const surfaceNames = [
-  'career-board.html', 'career-approvals.html', 'career-mobile.html', 'career-submissions.html',
+  'career-board.html', 'career-mobile.html', 'career-submissions.html',
 ];
 const surfaces = Object.fromEntries(surfaceNames.map((name) => [
   name, readFileSync(join(here, '..', 'tools', name), 'utf8'),
@@ -205,17 +207,16 @@ test('each production renderer escapes every provenance summary field', () => {
 test('completed lanes use neutral labels and wire the provenance renderer', () => {
   assert.match(readFileSync(new URL('../tools/career-stages.js', import.meta.url), 'utf8'), /\{ id: 'applied', label: 'Applied', status: 'tracked'/);
   assert.match(surfaces['career-board.html'], /value="applied">Application records/);
-  assert.match(surfaces['career-approvals.html'], /applicationProofHtml\(a\.application_proof\|\|a\)/);
-  assert.match(surfaces['career-approvals.html'], /jobs\?status=applied/);
+  assert.match(readFileSync(new URL('../tools/career-job-lists.js', import.meta.url), 'utf8'), /lineMarkup\(CareerStatusLine\.forJob\(job\)\)/);
   assert.match(surfaces['career-mobile.html'], /lane\('applied','Application records'/);
   assert.match(surfaces['career-mobile.html'], /applicationProofHtml\(j\)/);
-  assert.match(surfaces['career-submissions.html'], /\['applied','Completed'\]/);
+  assert.match(surfaces['career-submissions.html'], /\['applied','Sent'\]/);
   assert.match(surfaces['career-submissions.html'], /applicationProofHtml\(proof\)/);
 });
 
 test('manual controls say they are manual and login challenges stay with the operator', () => {
   assert.match(surfaces['career-board.html'], /<summary>Already applied elsewhere\?<\/summary><button[^>]*>Record submitted application<\/button>/);
-  assert.match(surfaces['career-approvals.html'], />Mark applied manually<\/button>/);
+  assert.match(readFileSync(new URL('../tools/career-application.js', import.meta.url), 'utf8'), /btn\('I applied','applied'\)/);
   assert.match(surfaces['career-mobile.html'], />I applied it manually ✓<\/button>/);
   assert.doesNotMatch(surfaces['career-board.html'], /worker can read|read the one-time verification codes/i);
   assert.match(surfaces['career-board.html'], /Employer questions come back to you\. An uncertain final outcome is held for review and is never automatically retried\./);

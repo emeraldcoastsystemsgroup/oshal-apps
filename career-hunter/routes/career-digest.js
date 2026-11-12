@@ -61,7 +61,7 @@ function formatDigestEmail(hits, board) {
         `Review, tune your resume, and apply from your board: ${board}`,
         '',
         `— OSHAL Career Hunter (automated daily digest, at most one per day).`,
-        `You get this because the daily digest is ON in Career Settings — turn it off there any time.`,
+        `You get this because the daily digest is ON in Career, under Settings. Turn it off there any time.`,
     ].join('\n');
     return { subject, body };
 }
@@ -75,7 +75,7 @@ function formatDigestEmail(hits, board) {
 function formatDigestSms(hits, board) {
     const top = hits.slice(0, 3).map((h) => `${h.fit}% ${h.title} @ ${h.company}`).join('; ');
     const more = hits.length > 3 ? ` +${hits.length - 3} more` : '';
-    return `OSHAL Career: ${hits.length} new high-fit match${hits.length === 1 ? '' : 'es'} — ${top}${more}. Board: ${board} (daily digest; turn off in Career Settings)`;
+    return `OSHAL Career: ${hits.length} new high-fit match${hits.length === 1 ? '' : 'es'} — ${top}${more}. Board: ${board} (daily digest; turn off in Career, under Settings)`;
 }
 /** Read the user's digest settings, defaulting to enabled/auto when no row exists. */
 async function readSettings(pool, userSub) {

@@ -12,6 +12,8 @@ exports.registerRegionEditRoutes = registerRegionEditRoutes;
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Selected-region regeneration behind the separately named project.generate permission: validate the request against the exact source revision with the same selection module the browser runs, generate through the media-generation kernel skill with the region crop as the one anchor, composite only inside the region, and keep the result as a candidate the person accepts (optimistic on the revision they hold), rejects or cancels. Spend is captured in the canonical ledger; manual editing never reaches this path.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Advertise cost-consent v1 and validate optional per-request cost-class caps before storage work. Enforce the cap on the actual post-queue provider immediately before generation; omitted caps preserve legacy behavior.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Accept the operator-only antigravity-cli rail (operator decision 2026-10-02, core ADR-130 amendment: the render bot's own harness picks the storyboard image rail). The provider must report itself available for this person before generation (the kernel's CLI rails are available only to the deployment operator in demo mode), and a person the resolver has no provider for gets region_edit_provider_unavailable on the edit and configured:false on the provider report, never another provider and never a 500. codex-cli stays refused by name; project.generate is still checked first.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a picture from a sentence (POST /generated-images, behind project.generate): saved as a layer of a new or named project, finished inside the request, local provider only, a daily ceiling counted from the person's saved images.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: image spend is attributed to create-editor (992feff6-bda5-4d30-a075-22fd6f4aa9ee), the concierge Create declares since its chatBot moved off general-bot. The constant still named the platform general-bot's core registry id a0...0099, which Create neither declares nor imports (scripts/check-store-bots.mjs PENDING). Attribution only: the native image provider reports no cost, so no spend row is written there, and generation, permissions and the cost cap are unchanged.
  */
 const express_1 = require("express");
 const node_crypto_1 = require("node:crypto");
@@ -27,8 +29,8 @@ const create_project_assets_1 = require("./create-project-assets");
 const create_region_edit_store_1 = require("./create-region-edit-store");
 const create_region_edit_composite_1 = require("./create-region-edit-composite");
 const logger = (0, logger_1.createChildLogger)({ module: 'create-region-edit-routes' });
-/** Image spend is attributed to the concierge Create declares (chatBot: general-bot, core registry a0...0099) and to the person. */
-exports.REGION_EDIT_COST_AGENT_ID = 'a0000000-0000-0000-0000-000000000099';
+/** Image spend is attributed to the concierge Create declares (chatBot: create-editor, bots[] in oshal-app.yaml) and to the person. */
+exports.REGION_EDIT_COST_AGENT_ID = '992feff6-bda5-4d30-a075-22fd6f4aa9ee';
 const bodyParser = (0, express_1.json)({ limit: 262144, strict: true });
 const IMAGE_PROMPT_CHARS = 1000;
 /** Inside the kernel's 60 second package call. */

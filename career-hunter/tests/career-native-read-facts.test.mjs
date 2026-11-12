@@ -7,6 +7,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Jarvis's job questions refused with "specialist context read timed out": the specialist facts ran the full AI board ranking (2.1 to 3.0 s warm on a 2.1M-signal store) inside the kernel's 3 s deadline only to count up to 10 top matches. Over a disposable store, the facts never run the board ranking, count the board's first-page matches with its own default filters, capped at 10 (an inactive or unscored posting does not count), and agree with the full snapshot's first board page; the career_database tool still reads the board.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved resume with no owner database yet reads as saved; with neither it still says no resume.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Merged: both the saved-resume case and the 1.47 saved-area, remote and revision cases.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.57.2, T72: the facts' sample count is planned from the person's own scored signals, never by walking the shared corpus (the walk ran past the kernel's 30 s deadline cold).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: jobs.saved is the count of jobs the person saved (Home's Saved card); an unreadable saved-job file gives null and leaves the other facts.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -187,4 +189,40 @@ test('copying an unchanged profile never supplies a résumé revision date or re
     assert.ok(value.topMatches.every(job=>job.fitAssessment.currentness==='not-revalidated'));
     assert.deepEqual(fs.readFileSync(profile),bytes,'the reader preserves the original profile');
   } finally { fs.utimesSync(profile,stat.atime,stat.mtime); }
+});
+
+test('the facts say how many jobs the person saved, and an unreadable saved-job file is unknown, not none', async () => {
+  // The store the cases above saved (savedStore and its additions).
+  const board = path.join(owner, 'job-board-state.json');
+  fs.writeFileSync(board, JSON.stringify({ version: 1, jobs: { 3: { favorite: true }, 5: { favorite: true }, 7: { favorite: false, workflowEnteredAt: '2026-11-10' } } }));
+  let facts = await specialistRead()();
+  assert.equal(facts['jobs.saved'], 2, 'favourites only, as Home\'s Saved card counts');
+  assert.equal(reader.readCareerSnapshot(principal, root).savedCount, 2, 'the full snapshot carries it too');
+  fs.writeFileSync(board, '{ not json');
+  facts = await specialistRead()();
+  assert.equal(facts['jobs.saved'], null, 'unknown, never 0');
+  assert.ok(facts['signals.total'] > 0 && facts['profile.present'] === true, 'the other facts still answer');
+  assert.ok(records.some((r) => r.msg === 'Career saved jobs unreadable'), 'logged at error');
+  records.length = 0;
+  fs.rmSync(board);
+  assert.equal((await specialistRead()())['jobs.saved'], 0, 'no saved-job file: nothing saved');
+  assert.ok(reader.FACTS.includes('jobs.saved'));
+});
+
+test('the facts sample count starts from the person\'s own scored signals, never by walking the shared corpus (T72)', () => {
+  const { splitBoardFilters } = require('../routes/career-board-feed');
+  const parts = splitBoardFilters({ lane: 'all' }, { version: 1, near: 'Pensacola, FL', lat: 30.441, lon: -87.1912, radiusMiles: 70, includeRemote: true }, []);
+  const sql = reader.sampledMatchesSql(parts);
+  assert.match(sql, /FROM user_signals s\s+CROSS JOIN corpus\.postings_corpus p ON p\.id=s\.posting_id CROSS JOIN corpus\.companies c/);
+  const db = new DatabaseSync(path.join(owner, 'user-person-f.db'), { readOnly: true });
+  try {
+    db.exec(`ATTACH DATABASE '${path.join(tenant, 'corpus.db')}' AS corpus`);
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parts.scoredArgs, ...parts.corpArgs).map((row) => row.detail)
+      .filter((detail) => /^(SCAN|SEARCH) /.test(detail));
+    assert.match(plan[0], /^(SEARCH|SCAN) s\b/, `the person's signals come first: ${plan.join(' | ')}`);
+    assert.match(plan[1], /^SEARCH p USING INTEGER PRIMARY KEY/, 'each posting is looked up by id');
+    assert.ok(!plan.some((detail) => /^SCAN p\b|^SEARCH p USING INDEX/.test(detail)), 'the corpus is never walked');
+    const count = db.prepare(sql).get(...parts.scoredArgs, ...parts.corpArgs).n;
+    assert.ok(Number.isInteger(count) && count <= 10);
+  } finally { db.close(); }
 });

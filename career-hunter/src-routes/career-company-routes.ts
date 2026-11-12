@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve works on the native kernel. Where a request cannot write the corpus the route saves the change for the next pull and answers 202; the list says how changes work here and what became of each one. A board named by the source review can be accepted without a link.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: three administrator routes save the change for the next nightly pull, refusing a name already listed, an unusable link, an unlisted employer and a change that is already true.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance on the Companies page: the list carries the newest maintenance report, the decisions waiting for a person and the open repair briefs; POST /companies-admin/keep saves "keep trying" for the next nightly pull, refusing an employer with no decision waiting; POST /companies-admin/maintenance-report answers the daily briefing job.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The page a refused person meets says job source administrator, the label the role template now carries (was Career Hunter administrator). Words only.
  */
 
 /**
@@ -85,10 +86,10 @@ const ADMIN_DENIED_HTML = `<!DOCTYPE html>
 <body>
 <main class="card">
   <h1>Companies is administrator only</h1>
-  <p>The shared company list is open only to Career Hunter administrators, and this account is
+  <p>The shared company list is open only to job source administrators, and this account is
      not one of them on this installation.</p>
   <p class="last">To get access, ask the person who runs this installation to make your account a
-     Career Hunter administrator.</p>
+     job source administrator.</p>
 </main>
 </body>
 </html>

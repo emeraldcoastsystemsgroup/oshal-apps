@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (layout only): register home-layout (the account line, one stale chip, the title once, 50 rows then Show more, the phone bottom bar with More).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The catalog parses again: the market-explainer, markets-routes and quant-contract purposes were plain scalars with a second colon ("Pin the pure explainer: browse rows", "over a stored snapshot: GET /markets", "page agree: chatBot is"), which YAML reads as a mapping and the kernel refuses as the whole package; all three are folded blocks now. The audience-view expectation names the markets load the 1.7.0 Markets tab added to the page's start.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register grading (1.8.0): the grader on a real PostgreSQL against a stand-in Kalshi over HTTP, and the Scorecard tab grading in Chromium at phone width.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register calibration-rebuild (1.9.0): the walk of Kalshi's settled-market tape in short turns on a real PostgreSQL against a stand-in Kalshi over HTTP, compared with a straight run of the retired study.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Register create-concierge (1.9.1, concierge audit batch 2b): the side-chat quant follows Create's create-editor and still reads only.
 version: 1
 cases:
   - id: package-readiness
@@ -299,6 +301,35 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: calibration-rebuild
+    name: The calibration table is rebuilt from Kalshi's settled markets in short turns
+    purpose: Run the package's calibration walk on a disposable PostgreSQL carrying this package's migrations, against a stand-in Kalshi over HTTP, and compare its table with a straight run of the retired study over the same tape - no exchange, account or order.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kalshi-calibration-walk.test.js
+        - tests/kalshi-calibration-build.test.js
+    expected:
+      - Many short turns give exactly the table a straight run of the retired study gives, fifteen-minute series and unusable markets left out, 60 a series and 400 a category.
+      - A turn cut short carries on where it stopped; a failed series list stops a turn and the next finishes the walk.
+      - A table under thirty days old is kept, an older one is rebuilt, and only the newest walk is kept.
+      - The background tick takes a turn with the time it has left, and the pages then read the rebuilt table and say so.
+      - No statement sorts, merges on conflict or picks distinct rows in the database.
+    prerequisites:
+      - runner:node-test
+      - service:postgres-disposable-35689
+      - fixture:store-toolchain
+      - fixture:loopback-http
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Each case creates its own database on the disposable test PostgreSQL and drops it.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 256
+    installation: never
   - id: scorecard-grading-browser
     name: The Scorecard grades what is waiting, on a phone
     purpose: Open tools/kalshi.html in Chromium at 412 px against a scripted API and drive the Scorecard tab - no server, exchange or order.
@@ -321,4 +352,23 @@ cases:
       mode: none
     limits:
       timeoutMs: 60000
+    installation: never
+  - id: create-concierge
+    name: Kalshi's side chat follows the Create concierge pattern
+    purpose: >-
+      Prove (concierge audit batch 2b, 1.9.1) that kalshi-quant, the chatBot and the package's only bot, runs inline
+      explicitly and that its persona follows Create's create-editor - the plain-prose answer rule, the tool_call fence
+      the kernel parses, runtime harness claude-code - while every tool stays a GET of one market, the market list or the
+      last scan, so the quant reaches no order, portfolio or write.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-create-concierge.test.js] }
+    expected:
+      - The manifest's chatBot is kalshi-quant, its only bot, with posture inline and no container or node requirement.
+      - The persona carries the plain-prose rule, the tool_call fence with tool and arguments, the tools-only line and runtime harness claude-code, and still never places an order.
+      - The three tools are GET reads of /markets/{ticker}, /markets and /scan, each authorized auto for the quant.
+      - The persona is listed in the store's CONCIERGES in scripts/check-store-bots.mjs.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

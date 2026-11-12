@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the real YAML/dependency reader and cross-package ownership guard with isolated successful and mutated sources.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove canonical platform imports resolve and stale, mismatched or duplicate native identities still refuse.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | communications-bot, home-bot and eats-concierge keep their enrolled UUIDs but run inline (posture: inline, no container): their own and importing applications' routes call them through the native kernel's package bot turn, which refuses a node-posture bot bound to an unreachable node ("this bot requires an enrolled node").
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | movies-concierge and spotify-concierge (movies 1.1.7, spotify 1.1.8) keep their enrolled UUIDs and run inline as their packages' chatBots, so they move from the dedicated-node list to the inline one.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -130,10 +131,8 @@ test('newly declared workers retain their enrolled UUID and dedicated execution 
   assert.deepEqual(problems, []);
   for (const [app, name, id, container] of [
     ['finance', 'finance-analyst', ID, 'finance-bot'],
-    ['movies', 'movies-concierge', 'b00b0000-0000-0000-0000-000000000001', 'movies-bot'],
     ['purchasing', 'shopping-concierge', 'b0070000-0000-0000-0000-000000000001', 'shopping-bot'],
     ['rides', 'rides-concierge', 'b0090000-0000-0000-0000-000000000001', 'rides-bot'],
-    ['spotify', 'spotify-concierge', 'b00a0000-0000-0000-0000-000000000001', 'spotify-bot'],
     ['social', 'social-writer', 'a0000000-0000-0000-0000-000000000040', 'social-writer-bot'],
   ]) {
     const bot = manifests.get(app).bots.find((item) => item.name === name);
@@ -153,6 +152,8 @@ test('route-called application bots retain their enrolled UUID and run inline on
     ['eats', 'eats-concierge', 'b0080000-0000-0000-0000-000000000001'],
     ['email-summarizer', 'communications-bot', 'b0000000-0000-0000-0000-000000000001'],
     ['home', 'home-bot', 'd0000000-0000-0000-0000-000000000001'],
+    ['movies', 'movies-concierge', 'b00b0000-0000-0000-0000-000000000001'],
+    ['spotify', 'spotify-concierge', 'b00a0000-0000-0000-0000-000000000001'],
   ]) {
     const bot = manifests.get(app).bots.find((item) => item.name === name);
     assert.ok(bot, `${app} must own ${name}`);

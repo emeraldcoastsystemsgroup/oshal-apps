@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The master record (1.51.0, Roger 2026-11-09: "give me every bullet and skill with the addendum history"). One read of everything Career keeps for a person: every role with its numbered bullets, skills and stories, skills by group, additional experience, education and certifications, evidence, the dated history of what was added with the person's own words, Strengthen answers and snapshot dates, and the documents kept outside Career. It is rendered once as Markdown (the page's Download) and served to the concierge as pages of at most 12 KB that together are that Markdown. It reads only the caller's own folder: no write, no engine run, no model. A link or an oversized file is refused, never followed. Career's private writing notes (framing notes, gaps to collect, locked facts) stay on screen and out of the Markdown until Roger decides (plan section 5, question 3).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. What a person reads names the pages as they are now called: other experience, the answers on Improve it, and Saved from My résumé. Words only; what is read and how is unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there); the line about answers that could not be read says the whole name.
  */
 'use strict';
 const crypto = require('node:crypto');
@@ -26,8 +28,8 @@ const STAMP = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/;
 const THEMES_SOURCE = path.join(__dirname, '..', 'engine', 'jobhunter', 'gaps.py');
 const KINDS = Object.freeze({ project: 'Independent project / product', work: 'Additional employment', volunteer: 'Volunteer work', skills: 'Additional skills' });
 const LABEL = Object.freeze({
-  profile: 'Your saved career profile', history: 'Your history of what you added', bank: 'Your additional experience library',
-  snapshots: 'Your snapshot folder', strengthen: 'Your Strengthen answers',
+  profile: 'Your saved career profile', history: 'Your history of what you added', bank: 'Your other experience',
+  snapshots: 'Your snapshot folder', strengthen: 'Your answers on Improve my résumé',
 });
 
 const refuse = (message) => Object.assign(new Error(message), { status: 503, code: 'master_record_unavailable' });
@@ -194,7 +196,7 @@ function historyOf(dir) {
     try { item = JSON.parse(line); } catch { unreadable += 1; return; }
     if (!item || typeof item !== 'object' || typeof item.at !== 'string') { unreadable += 1; return; }
     const words = text(item.facts), studio = words === STUDIO_SAVE;
-    records.push({ index, at: item.at, when: stampWhen(item.at), source: studio ? 'Saved from Resume Studio' : text(item.source),
+    records.push({ index, at: item.at, when: stampWhen(item.at), source: studio ? 'Saved from My résumé' : text(item.source),
       added: texts(item.changelog), words: studio ? '' : words });
   });
   records.sort((a, b) => (a.at === b.at ? b.index - a.index : a.at < b.at ? 1 : -1));

@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Copy the server-issued contract key for each new edit; preserve exact uncertain retries.
 # ═══════════════════════════════════════════════════════════════════════════
 # PORTRAIT ARTIST — Professional Headshot & Character Portrait Specialist
@@ -126,8 +131,16 @@ perspective: |
   5. Groups: count the people. N tiles in, N people out, each one matched
      to its tile — and no stray numbers or badges painted into the scene.
 
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
 authorizations:
   portrait-studio-source-list: auto
   portrait-studio-source-contract: auto
   portrait-studio-source-read: auto
   portrait-studio-source-edits: approval
+
+runtime:
+  harness: claude-code

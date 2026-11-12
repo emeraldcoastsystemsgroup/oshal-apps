@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Master record page (tools/career-master-record.html, 1.51.0) in Chromium at 412x915 and 1280x900, its data answered by the REAL compiled route and reader over a made-up person's store: every bullet and every history date is on screen, Download saves one .md holding every bullet, skill and history record (and none of Career's private writing notes), Print or save as PDF is in More and calls the browser's print, Download is the one primary, and nothing scrolls sideways. Screenshots go to CAREER_PROOF_SHOTS when it names a folder.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the file the page saves is named career-data and the date.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -59,7 +60,7 @@ for (const [name, size] of Object.entries(SIZES)) {
       if (process.env.CAREER_PROOF_SHOTS) await page.screenshot({ path: path.join(process.env.CAREER_PROOF_SHOTS, `master-record-${name}.png`), fullPage: true });
 
       const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download' }).click()]);
-      assert.match(file.suggestedFilename(), /^master-record-\d{4}-\d{2}-\d{2}\.md$/);
+      assert.match(file.suggestedFilename(), /^career-data-\d{4}-\d{2}-\d{2}\.md$/);
       const markdown = fs.readFileSync(await file.path(), 'utf8');
       for (const item of [...bullets, ...skills, ...historyDates, 'ALEX-WORDS second fact', 'ALEX-ANSWER ran Kubernetes at scale']) {
         assert.ok(markdown.includes(item), `the download holds ${item}`);

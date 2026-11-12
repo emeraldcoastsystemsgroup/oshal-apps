@@ -19,6 +19,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5 (UX audit 2026-11-05, shop-concierge): the retired chat page's preference cards are List's Shopping preferences: household notes and the monthly budget edit in place and save on change (POST /profile), usuals are listed, the store row shows only with a retail rail.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: POST /profile saves a part of the profile (an UPDATE that keeps what the body leaves out, else a first INSERT with the NOT NULL columns filled). The single INSERT ... ON CONFLICT passed NULL into dietary and brands, so every partial save failed with 'SQL NOT NULL constraint failed': that is why 'set monthly budget to $250' left the card at 'Budget open' (UX audit 2026-11-05, shop-concierge verify item).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit sweep, purchasing--shop-concierge, D1=glass, D2=c): collection contract, opaque row menus with popstate Back dismissal, scale radii/typography, on-accent primary ink across themes, and 100dvh natural scroll + theme-derived tokens on shopping-chat.html.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Release 1.4.8 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -62,7 +63,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.4.7
+version: 1.4.8
 status: active  # active | inactive
 
 source:

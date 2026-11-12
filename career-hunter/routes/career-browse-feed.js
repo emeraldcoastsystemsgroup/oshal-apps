@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | An employer name is looked up in the small company table first (employerIds): no employer of that name answers an empty page at once, and matching employers filter postings by company_id, which idx_corpus_company_active serves. Before, `c.name LIKE ?` applied after the join scanned the postings for a name that never came, so a search for an employer that is not in the corpus stalled about ten seconds on production and then failed (T22).
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
@@ -13,7 +14,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Search titles and descriptions from the primary keyword box through FTS, retain employer matches and independent advanced-field constraints, and keep legacy fallback semantics consistent.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = void 0;
+exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = exports.EMPLOYER_ID_LIMIT = void 0;
+exports.employerIds = employerIds;
 exports.browseFilters = browseFilters;
 exports.browsePageGeometry = browsePageGeometry;
 exports.searchCandidateSql = searchCandidateSql;
@@ -51,6 +53,19 @@ const career_geo_1 = require("./career-geo");
 const career_search_scope_1 = require("./career-search-scope");
 const pay = require('../lib/career-pay');
 const feedback = require('../lib/career-job-feedback');
+/** More employers than this match a name, and the filter stays a name match on the joined table. */
+exports.EMPLOYER_ID_LIMIT = 2000;
+/**
+ * @description The employers whose name contains the typed words, read from the company table, which holds a few
+ *   thousand rows; postings are then filtered by those ids, never scanned for a name.
+ * @param db - A SQLite handle with the shared corpus reachable as `corpus`.
+ * @param name - The employer words the person typed.
+ * @returns The matching company ids, or null when more than EMPLOYER_ID_LIMIT match.
+ */
+function employerIds(db, name) {
+    const rows = db.prepare('SELECT id FROM corpus.companies WHERE name LIKE ? LIMIT ?').all(`%${name}%`, exports.EMPLOYER_ID_LIMIT + 1);
+    return rows.length > exports.EMPLOYER_ID_LIMIT ? null : rows.map((row) => Number(row.id));
+}
 /**
  * @description ORDER BY expressions keyed by supported browse sort values. Every key is a corpus
  *   column — there are no signals to sort by, which is the whole point of this feed.
@@ -120,9 +135,12 @@ function param(query, key) {
  *   `p.target_role = 1` is written bare rather than wrapped in COALESCE so an index can serve
  *   it — the same sargability rule the scored feed's guard enforces.
  * @param query - The browse request query.
+ * @param exclusions - The person's hidden jobs and employers (career-job-feedback).
+ * @param employers - The ids employerIds found for the typed employer name; without them the name is matched on the
+ *   joined company table.
  * @returns The split predicates and their positional bind arguments.
  */
-function browseFilters(query, exclusions) {
+function browseFilters(query, exclusions, employers) {
     const g = (k) => param(query, k);
     const location = (0, career_geo_1.resolveCareerLocation)(query);
     const posting = ['p.active = 1'];
@@ -142,7 +160,12 @@ function browseFilters(query, exclusions) {
     // the database. `lane=target` opts back into the tracked lane for callers that want it.
     if (g('lane') === 'target')
         posting.push('p.target_role = 1');
-    if (g('company')) {
+    // Matching employers known (employerIds): postings by company id, on the posting side so every search arm applies it.
+    if (g('company') && employers && employers.length) {
+        posting.push(`p.company_id IN (${employers.map(() => '?').join(', ')})`);
+        postingArgs.push(...employers);
+    }
+    else if (g('company')) {
         company.push('c.name LIKE ?');
         companyArgs.push(`%${g('company')}%`);
     }
@@ -411,7 +434,14 @@ function fetchBrowsePage(db, query, exclusions) {
     const sort = String(query.sort || 'recent');
     const order = exports.BROWSE_SORT_MAP[sort] || exports.BROWSE_SORT_MAP.recent;
     const { page, per, offset } = browsePageGeometry(query);
-    const filters = browseFilters(query, exclusions);
+    const employerName = param(query, 'company');
+    const employers = employerName ? employerIds(db, employerName) : null;
+    if (employers && employers.length === 0) {
+        // No employer of that name: answer at once rather than scan the postings for one (T22).
+        return { jobs: [], location: browseFilters(query, exclusions).location, page, per, browse: true, pooled: false, poolSize: null,
+            fullText: false, deep: !!(param(query, 'q') || param(query, 'description')), exhausted: true, capped: false };
+    }
+    const filters = browseFilters(query, exclusions, employers);
     if (filters.location)
         requireGeoIndex(db);
     const term = param(query, 'q');

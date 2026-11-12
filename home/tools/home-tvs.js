@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: the TVs and streaming sticks section of the Smart Home screen. The person picks one of their own computers (the kernel's /api/computers, an online one first) and presses Scan for TVs: the page installs or updates Phone & Device Control's bridge on that computer when it is not 1.5.0 (the same verified install that page runs), asks Smart Home for the closed scan command, runs it on that computer, and records the answer; Android TVs found are also added to Phone & Device Control. Each TV card's buttons run one planned press the same way and say what the computer answered ("Press Allow on the TV, then Retry." while a Samsung waits). Installing the oshal TV app is one explicit press for one Android TV this computer already has permission to use. Nothing is scanned or installed when the page opens. When the person's app list says they cannot open Phone & Device Control (not installed, not theirs, or changed and waiting for re-approval), the section says which, requests nothing from it, and still lists the saved TVs.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): an Android or Fire TV's card gains a row for the app playing on it, in front or not: Previous, Pause, Play, Next and What's playing (Phone & Device Control's bridge 1.8.0), and a Now playing line with the app, the title, its state and whether it is behind another app, from the TV's last answer.
  */
 
 const LINK = '/api/phone-control/ui/computer-link.js';
@@ -25,16 +26,17 @@ export const WAITING_WORDS = Object.freeze({
 
 const PRESS_WORDS = Object.freeze({ wake: 'Wake', off: 'Turn off', volume_up: 'Volume up', volume_down: 'Volume down', mute: 'Mute',
   up: 'Up', down: 'Down', left: 'Left', right: 'Right', select: 'OK', home: 'Home', back: 'Back', play_pause: 'Play or pause',
-  launch_url: 'Open oshal', open_app: 'Open the oshal TV app', pair: 'Pair' });
+  launch_url: 'Open oshal', open_app: 'Open the oshal TV app', pair: 'Pair',
+  now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop' });
 const MOVES = [['up', '▲', 'Up'], ['left', '◀', 'Left'], ['select', 'OK', 'OK'], ['right', '▶', 'Right'], ['down', '▼', 'Down']];
 
 /**
  * @description The buttons one TV's card shows, by its kind and what the computer said about it. Pure.
  * @param {object} tv A saved TV from /api/home/lan/devices.
- * @returns {{power:Array<object>, volume:Array<object>, moves:Array<object>, nav:Array<object>, extra:Array<object>}} Button rows.
+ * @returns {{power:Array<object>, volume:Array<object>, moves:Array<object>, nav:Array<object>, media:Array<object>, extra:Array<object>}} Button rows.
  */
 export function tvButtons(tv) {
-  const empty = { power: [], volume: [], moves: [], nav: [], extra: [] };
+  const empty = { power: [], volume: [], moves: [], nav: [], media: [], extra: [] };
   if (!tv || !tv.controllable || tv.kind === 'cast') return empty;
   const b = (action, label, aria) => ({ action, label, aria: aria || label });
   const rows = {
@@ -42,6 +44,7 @@ export function tvButtons(tv) {
     volume: [b('volume_down', 'Vol −', 'Volume down'), b('volume_up', 'Vol +', 'Volume up'), b('mute', 'Mute')],
     moves: MOVES.map(([action, label, aria]) => b(action, label, aria)),
     nav: [b('home', 'Home'), b('back', 'Back'), b('play_pause', 'Play/Pause', 'Play or pause')],
+    media: [],
     extra: []
   };
   if (tv.kind === 'samsung-tizen') {
@@ -49,12 +52,26 @@ export function tvButtons(tv) {
     if (!tv.samsung?.paired) rows.extra.push(b('pair', 'Pair'));
   }
   if (tv.kind === 'android-tv') {
+    rows.media.push(b('previous', '⏮', 'Previous'), b('pause', '⏸', 'Pause'), b('play', '▶', 'Play'), b('next', '⏭', 'Next'),
+      b('now_playing', 'What\'s playing', 'What is playing'));
     const adb = tv.adb?.state || 'off';
     rows.extra.push(tv.adb?.appInstalled ? b('open_app', 'Open oshal on this TV') : b('launch_url', 'Open oshal on this TV'));
     if (adb === 'device') rows.extra.push(b('install_app', 'Install the TV app'));
     if (adb === 'not-connected' || adb === 'unauthorized') rows.extra.push(b('pair', 'Connect'));
   }
   return rows;
+}
+
+/**
+ * @description The Now playing line for a TV's card from what it last said, or '' when it was never asked. Pure.
+ * @param {object|null} playing The TV's nowPlaying record.
+ * @returns {string} One line.
+ */
+export function nowPlayingLine(playing) {
+  if (!playing) return '';
+  const state = playing.state === 'none' ? 'idle' : playing.state;
+  return ['Now playing', [playing.app, playing.title].filter(Boolean).join(': '), state, playing.inFront ? '' : 'behind another app']
+    .filter(Boolean).join(' · ');
 }
 
 /**
@@ -304,9 +321,11 @@ function tvCard(tv, section) {
     node.addEventListener('click', () => section.press(tv, action));
     return node;
   };
-  for (const [key, cls] of [['power', 'tv-row'], ['volume', 'tv-row'], ['moves', 'tv-pad'], ['nav', 'tv-row'], ['extra', 'tv-row']]) {
+  for (const [key, cls] of [['power', 'tv-row'], ['volume', 'tv-row'], ['moves', 'tv-pad'], ['nav', 'tv-row'], ['media', 'tv-row tv-media'], ['extra', 'tv-row']]) {
     if (rows[key].length) card.append(rowOf(cls, rows[key].map(button)));
   }
+  const playing = nowPlayingLine(tv.nowPlaying);
+  if (playing) card.append(el('p', { className: 'tv-now' }, playing));
   const words = resultWords(tv.lastResult);
   const line = el('p', { className: 'tv-result', role: 'status' }, words.text);
   if (words.retry && section) {

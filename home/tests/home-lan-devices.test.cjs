@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: TVs and streaming sticks. A scan and a press are plans (planned, never executed) carrying the closed phone-control bridge command; the press plan is built per kind with the closed action list and refuses what a TV cannot do; a scan's answer registers private-address TVs for that person only, merged by hardware address; a TV's on/off state changes only when that TV's own answer says the press worked; an answer for another TV or press is refused; POST /control answers a network TV 409 instead of flipping its saved switch; the routes need a person; the manifest declares the four tools inside /api/home with TV routing words and no new egress; and the page's pure helpers choose the right buttons, computer and words.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.3: Jarvis presses TV buttons through computer.run_plan. home-lan-discover and home-lan-control must declare exactly computerPlan {program: phone-bridge, verbs: [lan-discover]} and {program: phone-bridge, verbs: [lan-control]} (no other tool plans), and every command the compiled scan and press plan routes answer must fit the kernel's grammar exactly, mirrored from oshal-kernel crates/oshald/src/computer_plans.rs (declared, PlanShape::fits, argument): the bridge prefix, the tool's own declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB. Negative controls prove the mirror refuses what the kernel refuses. Removing a declaration or drifting the command turns this red; a plan that does not fit is never kept, so Jarvis could press nothing. The descriptions, the plans' next step and the persona name computer.run_plan and the planId, and no longer computer.run.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): on an Android TV, now_playing, play, pause, next, previous and stop are planned with bridge 1.8.0, a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it, also across a new scan; the card has the media row and the Now playing line only on an Android TV.
  */
 'use strict';
 const test = require('node:test');
@@ -77,7 +78,7 @@ test('a refused or unreadable scan answer is said in words', () => {
   const old = lan.recordAnswer('person-c', { op: 'discover', computer: PC, reply: '{"ok":false,"error":"unknown_verb","message":"There is no \'lan-discover\' here."}' });
   assert.equal(old.status, 200);
   assert.deepEqual([old.body.ok, old.body.recorded, old.body.error], [false, true, 'unknown_verb']);
-  assert.match(old.body.hint, /older than 1\.5\.0.*Scan for TVs/);
+  assert.match(old.body.hint, /older than 1\.8\.0.*Scan for TVs/);
   assert.equal(lan.readLan('person-c').lastScan.ok, false);
   assert.equal(lan.recordAnswer('person-c', { op: 'discover', reply: 'not json' }).body.error, 'reply_unreadable');
   assert.equal(lan.recordAnswer('person-c', { op: 'discover', reply: { ok: true, verb: 'lan-control' } }).body.error, 'wrong_reply');
@@ -125,6 +126,38 @@ test('a TV\'s power changes only when its own answer says the press worked', () 
   const shed = lan.readLan('person-e').tvs.find((tv) => tv.name === 'Shed TV');
   rec = lan.recordAnswer('person-e', { op: 'install', device: shed.id, reply: { ok: true, verb: 'adb-install-apk', serial: '10.20.30.42:5555', installed: true } });
   assert.deepEqual([rec.body.ok, rec.body.device.adb.appInstalled, rec.body.result.action], [true, true, 'install_app']);
+});
+
+test('1.7.0: on an Android TV, what is playing and the media keys are planned, recorded in words and kept on the TV; other kinds refuse them', () => {
+  seed('person-m');
+  const tvs = () => lan.readLan('person-m').tvs;
+  const shed = () => tvs().find((tv) => tv.name === 'Shed TV');
+  for (const action of ['now_playing', 'play', 'pause', 'next', 'previous', 'stop']) {
+    const plan = lan.planControl('person-m', { device: 'Shed TV', action });
+    assert.equal(plan.status, 200, action);
+    assert.match(plan.body.command, COMMAND);
+    assert.deepEqual(decode(plan.body.command), { kind: 'android-tv', address: '10.20.30.42', action });
+    assert.equal(plan.body.bridgeVersion, '1.8.0', 'the media presses need bridge 1.8.0');
+  }
+  for (const name of ['Den TV', 'Guest room stick']) {
+    const refused = lan.planControl('person-m', { device: name, action: 'pause' });
+    assert.deepEqual([refused.status, refused.body.error], [400, 'not_for_this_tv'], name);
+    assert.match(refused.body.message, new RegExp(`work on Android and Fire TVs\\. On ${name} use Play/Pause\\.`));
+  }
+  const answer = (action, now) => JSON.stringify({ ok: true, verb: 'lan-control', kind: 'android-tv', address: '10.20.30.42', action, sent: true, now, sessions: [] });
+  const youtube = { app: 'YouTube', title: 'Big Buck Bunny 60fps 4K', state: 'paused', inFront: false, package: 'com.amazon.firetv.youtube' };
+  let rec = lan.recordAnswer('person-m', { op: 'control', device: shed().id, action: 'pause', reply: `noise\n${answer('pause', youtube)}\n` });
+  assert.equal(rec.body.said, 'Pause sent on Shed TV; YouTube: Big Buck Bunny 60fps 4K is now paused (behind another app).');
+  assert.deepEqual({ ...shed().nowPlaying, at: 'x' }, { app: 'YouTube', title: 'Big Buck Bunny 60fps 4K', state: 'paused', inFront: false, at: 'x' }, 'kept short, with no package');
+  rec = lan.recordAnswer('person-m', { op: 'control', device: shed().id, action: 'now_playing', reply: answer('now_playing', { ...youtube, state: 'playing', inFront: true }) });
+  assert.equal(rec.body.said, 'On Shed TV, YouTube: Big Buck Bunny 60fps 4K is playing.');
+  rec = lan.recordAnswer('person-m', { op: 'control', device: shed().id, action: 'now_playing', reply: answer('now_playing', null) });
+  assert.deepEqual([rec.body.said, shed().nowPlaying], ['Nothing has played on Shed TV yet.', null]);
+  rec = lan.recordAnswer('person-m', { op: 'control', device: shed().id, action: 'pause', reply: '{"ok":false,"error":"nothing_playing","message":"Nothing on this TV has played anything yet."}' });
+  assert.deepEqual([rec.body.ok, rec.body.said], [false, 'Nothing on this TV has played anything yet.'], 'a refusal is said as the TV said it');
+  lan.recordAnswer('person-m', { op: 'control', device: shed().id, action: 'pause', reply: answer('pause', youtube) });
+  seed('person-m');
+  assert.equal(shed().nowPlaying.app, 'YouTube', 'a new scan keeps what the TV last said was playing');
 });
 
 /** The compiled router with the framework modules it imports at load, like tests/kernel-egress.test.cjs. */
@@ -276,7 +309,7 @@ test('the scan and press tools declare their computer plans exactly, and every p
       presses += 1;
     }
   }
-  assert.equal(presses, 44, 'every press a saved TV takes: 15 on the Samsung, 13 on the Roku, 16 on the Android TV');
+  assert.equal(presses, 50, 'every press a saved TV takes: 15 on the Samsung, 13 on the Roku, 22 on the Android TV (16 and the six media presses of 1.7.0)');
 
   const good = plannedOk(lan.planControl('person-g', { device: 'Den TV', action: 'mute' }));
   const head = good.slice(0, good.indexOf(' --b64 '));
@@ -317,6 +350,14 @@ test('the page section chooses the buttons, the computer and the words', async (
   assert.ok(actions({ kind: 'samsung-tizen', controllable: true, samsung: { paired: false } }).includes('pair'));
   assert.ok(!actions({ kind: 'samsung-tizen', controllable: true, samsung: { paired: true } }).includes('pair'));
   assert.deepEqual(actions({ kind: 'android-tv', controllable: true, adb: { state: 'device', appInstalled: true } }).slice(-2), ['open_app', 'install_app']);
+  const android = actions({ kind: 'android-tv', controllable: true, adb: { state: 'off' } });
+  for (const media of ['previous', 'pause', 'play', 'next', 'now_playing']) {
+    assert.ok(android.includes(media), `an Android TV has ${media}`);
+    assert.ok(!roku.includes(media) && !actions({ kind: 'samsung-tizen', controllable: true }).includes(media), `only an Android TV has ${media}`);
+  }
+  assert.equal(page.nowPlayingLine({ app: 'YouTube', title: 'Big Buck Bunny', state: 'paused', inFront: false }), 'Now playing · YouTube: Big Buck Bunny · paused · behind another app');
+  assert.equal(page.nowPlayingLine({ app: 'Netflix', title: null, state: 'playing', inFront: true }), 'Now playing · Netflix · playing');
+  assert.equal(page.nowPlayingLine(null), '');
   assert.ok(!actions({ kind: 'android-tv', controllable: true, adb: { state: 'off' } }).includes('install_app'), 'install only on a TV this computer may use');
   assert.deepEqual(actions({ kind: 'cast', controllable: false }), []);
   const standing = (c) => ({ usable: c.connected && c.can_control });

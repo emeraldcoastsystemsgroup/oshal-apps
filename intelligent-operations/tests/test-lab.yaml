@@ -1,5 +1,7 @@
 # CHANGE LOG
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1 (Monitoring Trust M2 rework): update monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: verify package code never touches oshal.current_sub or set_config, enrollment prepare with headless/Windows/macOS/config-pack and optional device trust metadata, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
+# 37 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3, T71: percolation-reduction also expects rule generations to rotate (an activation retires the unbound ones once older than an hour).
+# 38 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, concierge audit batch 2b: register create-concierge (the front desk is ops-concierge; ops-rca-specialist and ops-incident-reviewer stay the RCA workers).
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (Monitoring Trust M2): register monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: shared monitoring scope across operators and monitoring service principals, automatic idempotent migration of legacy personal-scope records, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
 # 34 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (oshal-kernel ADR-216, lane S2): register monitor-enroll-otlp (tests/otlp-ingest.test.cjs: an OpenTelemetry Collector's OTLP/JSON metrics as one heartbeat, the six alerts evaluated with the rules' windows, logs and traces ignored, 410, Disconnect with the history kept) and monitor-enroll-token-controls (tests/installations-screen.test.cjs: the card's last delivery, Rotate token and Disconnect in Chromium); monitored-installations also expects an OTLP-only installation to go silent and recover; monitor-enroll-prepare now expects an OpenTelemetry agent answered with /ingest/otlp/<id> and both prefixes declared; monitor-enroll-screen expects the OpenTelemetry install line.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (oshal-kernel ADR-216, lane S1): register monitor-enroll-prepare (tests/enroll-prepare.test.cjs: the prepare route the kernel runs as the approving person, on real SQL and the real percolator) and monitor-enroll-screen (tests/installations-screen.test.cjs: Monitor an installation in Chromium); remove-source now expects 410 {gone} for a removed source's alerts, the producer tokens naming it revoked from its card, and a source saved again taking reports.
@@ -463,6 +465,7 @@ cases:
       - One hundred distinct occurrences across independent pools reserve one job; replay and uncertain acknowledgement do not inflate it.
       - Owner isolation, explicit window boundaries, late state, rollback and publication conflicts remain visible.
       - The browser can publish a source policy and inspect durable filtering and reduction results.
+      - An activation retires the person's rule generations no source binding keeps, never a bound one, another person's or one under an hour old (T71).
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
     sideEffects: disposable databases, rule indexes, local engine process and loopback HTTP server
     isolation: { mode: disposable, cleanup: Delete only test-owned rule indexes and databases; close browser, engine and server in finally. }
@@ -907,4 +910,24 @@ cases:
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role, delete rule indexes and close the browser. }
     limits: { timeoutMs: 180000, maxMemoryMb: 768 }
+    installation: never
+  - id: create-concierge
+    name: Operations' front desk is its own inline concierge (Create pattern)
+    purpose: >-
+      Prove (concierge audit batch 2b, 1.9.0) that Intelligent Operations follows the Create concierge pattern, Intelligent
+      Trades 1.54.0 and Intelligent Career 1.57.0 the worked examples - ops-concierge answers the concierge panel and Jarvis
+      in place of the RCA investigator ops-rca-specialist - and that the workers, their phases and the screens that ask the
+      specialist for JSON packets are unchanged.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/ops-create-concierge.test.cjs] }
+    expected:
+      - The manifest's chatBot is ops-concierge, inline, with its own persona and role, and it runs no phase of the RCA pipeline.
+      - The investigate, review and revise phases, both worker personas and the Console, Pod console and Cloud & SSH commands screens still name ops-rca-specialist.
+      - The routing words moved to ops-concierge; neither worker keeps any.
+      - The persona carries plain prose, the tool_call fence and runtime harness claude-code, and the specialist's concierge-panel rules word for word.
+      - Every route tool is authorized for the concierge (reads auto, ops-remove-source ask); it is bound to app.open and listed in CONCIERGES.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

@@ -1,18 +1,20 @@
 "use strict";
-// CHANGE LOG
-// ----------------------------------------------------------------------------
-// SEQ | AUTHOR | DESCRIPTION
-// ----------------------------------------------------------------------------
-// 1 | maintainer@emeraldcoastsystemsgroup.com | Weekly Samsung Family Hub refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, and weekly meal list builder combining current fridge contents and order history.
-// 2 | maintainer@emeraldcoastsystemsgroup.com | A temperature says when it was read (home 1.6.1). The state starts with 37 and 0 as placeholders, and the page showed them as readings ("Cooler: 37°F · Closed") for anyone whose hub had reported nothing. `telemetry.measuredAt` is null until a run is handed a temperature the hub reported, and is the time of that run afterwards; a state saved before this has none and counts as not read. The page shows a temperature only when it is set.
-// ----------------------------------------------------------------------------
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.NOTHING_READ = void 0;
 exports.buildMealsForFocus = buildMealsForFocus;
 exports.readFridgeWeeklyState = readFridgeWeeklyState;
 exports.buildWeekOverWeekComparison = buildWeekOverWeekComparison;
 exports.formatFridgeAssessmentResponse = formatFridgeAssessmentResponse;
 exports.runWeeklyFridgeAssessment = runWeeklyFridgeAssessment;
 exports.mutateFridgeMealAndCart = mutateFridgeMealAndCart;
+// CHANGE LOG
+// ----------------------------------------------------------------------------
+// SEQ | AUTHOR | DESCRIPTION
+// ----------------------------------------------------------------------------
+// 1 | maintainer@emeraldcoastsystemsgroup.com | Weekly Samsung Family Hub refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, and weekly meal list builder combining current fridge contents and order history.
+// 2 | maintainer@emeraldcoastsystemsgroup.com | A temperature says when it was read (home 1.6.1). The state starts with 37 and 0 as placeholders, and the page showed them as readings ("Cooler: 37°F · Closed") for anyone whose hub had reported nothing. `telemetry.measuredAt` is null until a run is handed a temperature the hub reported, and is the time of that run afterwards; a state saved before this has none and counts as not read. The page shows a temperature only when it is set.
+// 3 | maintainer@emeraldcoastsystemsgroup.com | Nothing is listed until the refrigerator's inside has really been read (home 1.6.2). Every person's state used to start from one fixed list: nine items on three shelves, eight changes since "last week", an order history, a grocery list and five meals, shown as their own refrigerator, with one household's device ids written in. That list is gone. A state starts empty and says so (NOTHING_READ); a state saved from the fixed list is carried over keeping only what the person set or added themselves (the schedule, a temperature the hub reported, items they added to the list, orders they logged, meals they wrote); a run no longer claims a capture time; meal ideas exist only from a reading. Guard: tests/home-device-inspect-and-guide.test.js fails if the route source carries an item again.
+// ----------------------------------------------------------------------------
 const home_local_swarm_1 = require("./home-local-swarm");
 const STATE_FILE = 'fridge-weekly-state.json';
 function computeNextRunIso(dayOfWeek, timeStr) {
@@ -26,85 +28,35 @@ function computeNextRunIso(dayOfWeek, timeStr) {
     next.setHours(hh, mm, 0, 0);
     return next.toISOString();
 }
-function defaultCurrentItems() {
-    return [
-        { id: 'kraut-jar', name: 'Silver Floss Sauerkraut Jar', shelf: 'Top Shelf', category: 'Condiments & Ferments', quantity: '1 jar (~75% full)', status: 'stocked', daysInFridge: 14 },
-        { id: 'pickles-olives', name: 'Dill Pickles & Olive Jars', shelf: 'Top Shelf', category: 'Condiments & Ferments', quantity: '2 jars', status: 'stocked', daysInFridge: 18 },
-        { id: 'meal-prep-top', name: 'Stacked Meal-Prep Containers (Top)', shelf: 'Top Shelf', category: 'Prepared Meals', quantity: '2 containers', status: 'use-first', daysInFridge: 4 },
-        { id: 'coffeemate', name: 'Coffee-mate Creamer (Blue Bottle / Red Cap)', shelf: 'Middle Shelf', category: 'Dairy & Creamer', quantity: '1 bottle (~25% left)', status: 'running-low', daysInFridge: 10 },
-        { id: 'cold-brew', name: 'Dark Cold-Brew Coffee / Juice Bottle', shelf: 'Middle Shelf', category: 'Beverages', quantity: '1 carafe (~60% full)', status: 'stocked', daysInFridge: 5 },
-        { id: 'meal-prep-glass', name: 'Glass Meal-Prep Chopped Salad & Protein Bowls', shelf: 'Middle Shelf', category: 'Prepared Meals', quantity: '2 glass bowls', status: 'use-first', daysInFridge: 3 },
-        { id: 'bagged-salad', name: 'Bagged Salad Greens Mix', shelf: 'Bottom Shelf', category: 'Produce', quantity: '1 bag (opened)', status: 'use-first', daysInFridge: 5 },
-        { id: 'fresh-berries', name: 'Fresh Blackberries & Blueberries Clamshells', shelf: 'Bottom Shelf', category: 'Produce', quantity: '2 clamshells', status: 'use-first', daysInFridge: 4 },
-        { id: 'sliced-cheddar', name: 'Sliced Sharp Cheddar Cheese', shelf: 'Bottom Shelf', category: 'Dairy & Deli', quantity: '1 pack (~4 slices left)', status: 'running-low', daysInFridge: 9 },
-    ];
+/** The state's shape. 2 (home 1.6.2): nothing is listed until the refrigerator's inside has really been read. */
+const STATE_VERSION = 2;
+/** The reason the route gives an item a person adds to their list themselves; it tells their items in a state kept from version 1. */
+const ADDED_BY_PERSON = 'Added for weekly meal plan';
+/** What the page and the assistant say while no reading exists. */
+exports.NOTHING_READ = 'Nothing has been read from this refrigerator yet, so there is no list of what is inside, no comparison with last week and no meal ideas. Reading the inside photos is not built yet.';
+/**
+ * @description Meal ideas for a focus. They come from a reading of what is inside; no reading exists yet, so there are none.
+ * @param _focus The focus a person chose (kept with their plan for when readings exist).
+ * @returns No ideas.
+ */
+function buildMealsForFocus(_focus) {
+    return [];
 }
-function defaultPreviousWeekItems() {
-    return [
-        { name: 'Organic Whole Milk (Half Gallon)', shelf: 'Middle Shelf', statusLastWeek: 'Full jug', statusNow: 'Depleted (0 left)' },
-        { name: 'Pasture-Raised Large Eggs (12 ct)', shelf: 'Middle Shelf', statusLastWeek: '10 eggs', statusNow: 'Depleted (0 left)' },
-        { name: 'Grilled Chicken Breast Strips (16 oz)', shelf: 'Bottom Shelf', statusLastWeek: 'Full pack (used in meal prep)', statusNow: 'Depleted (raw pack gone)' },
-        { name: 'Plain Greek Yogurt Tub (32 oz)', shelf: 'Middle Shelf', statusLastWeek: 'Half tub', statusNow: 'Depleted (0 left)' },
-        { name: 'Coffee-mate Creamer (Blue Bottle / Red Cap)', shelf: 'Middle Shelf', statusLastWeek: 'Full bottle', statusNow: 'Running low (~25% left)' },
-        { name: 'Sliced Sharp Cheddar Cheese', shelf: 'Bottom Shelf', statusLastWeek: 'Full 12-slice pack', statusNow: 'Running low (~4 slices left)' },
-        { name: 'Fresh Blackberries & Blueberries Clamshells', shelf: 'Bottom Shelf', statusLastWeek: 'Freshly stocked (2 clamshells)', statusNow: 'Use first (4 days in fridge)' },
-        { name: 'Bagged Salad Greens Mix', shelf: 'Bottom Shelf', statusLastWeek: 'Unopened bag', statusNow: 'Use first (opened · 5 days in fridge)' },
-    ];
-}
-function defaultOrderHistory() {
-    return [
-        { id: 'ord-milk', name: 'Organic Whole Milk (Half Gallon)', category: 'Dairy & Eggs', lastOrderedDaysAgo: 7, typicalCadenceDays: 7, statusInFridge: 'depleted' },
-        { id: 'ord-eggs', name: 'Pasture-Raised Large Eggs (12 ct)', category: 'Dairy & Eggs', lastOrderedDaysAgo: 7, typicalCadenceDays: 7, statusInFridge: 'depleted' },
-        { id: 'ord-chicken', name: 'Grilled Chicken Breast Strips (16 oz)', category: 'Protein', lastOrderedDaysAgo: 7, typicalCadenceDays: 7, statusInFridge: 'depleted' },
-        { id: 'ord-yogurt', name: 'Plain Greek Yogurt (32 oz)', category: 'Dairy & Eggs', lastOrderedDaysAgo: 10, typicalCadenceDays: 10, statusInFridge: 'depleted' },
-        { id: 'ord-creamer', name: 'Coffee-mate Creamer (32 oz)', category: 'Dairy & Creamer', lastOrderedDaysAgo: 10, typicalCadenceDays: 14, statusInFridge: 'running-low' },
-        { id: 'ord-cheddar', name: 'Sliced Sharp Cheddar Cheese (8 oz)', category: 'Dairy & Deli', lastOrderedDaysAgo: 9, typicalCadenceDays: 10, statusInFridge: 'running-low' },
-        { id: 'ord-bread', name: 'Artisan Sourdough Bread Loaf', category: 'Bakery', lastOrderedDaysAgo: 7, typicalCadenceDays: 7, statusInFridge: 'depleted' },
-        { id: 'ord-berries', name: 'Fresh Blackberries & Blueberries', category: 'Produce', lastOrderedDaysAgo: 4, typicalCadenceDays: 7, statusInFridge: 'stocked' },
-        { id: 'ord-salad', name: 'Bagged Salad Greens Mix', category: 'Produce', lastOrderedDaysAgo: 5, typicalCadenceDays: 7, statusInFridge: 'stocked' },
-    ];
-}
-function defaultCartItems() {
-    return [
-        { id: 'cart-eggs', name: 'Pasture-Raised Large Eggs (12 ct)', quantity: '1 dozen', category: 'Dairy & Eggs', reason: 'Depleted since last week · ordered weekly', priority: 'high', inCart: true },
-        { id: 'cart-milk', name: 'Organic Whole Milk (Half Gallon)', quantity: '1 half-gallon', category: 'Dairy & Eggs', reason: 'Depleted since last week · ordered weekly', priority: 'high', inCart: true },
-        { id: 'cart-creamer', name: 'Coffee-mate Creamer (32 oz)', quantity: '1 bottle', category: 'Dairy & Creamer', reason: 'Running low (~25% left on middle shelf)', priority: 'high', inCart: true },
-        { id: 'cart-chicken', name: 'Grilled Chicken Breast / Meal-Prep Protein', quantity: '2 packs (32 oz)', category: 'Protein', reason: 'Restock protein to refill the 4 glass meal-prep containers', priority: 'high', inCart: true },
-        { id: 'cart-cheddar', name: 'Sliced Sharp Cheddar Cheese', quantity: '1 pack (12 slices)', category: 'Dairy & Deli', reason: 'Running low (~4 slices left on bottom shelf)', priority: 'medium', inCart: true },
-        { id: 'cart-yogurt', name: 'Plain Greek Yogurt (32 oz)', quantity: '1 tub', category: 'Dairy & Eggs', reason: 'Depleted · pairs with fresh blackberries & blueberries on bottom shelf', priority: 'medium', inCart: true },
-        { id: 'cart-sourdough', name: 'Artisan Sourdough Bread Loaf', quantity: '1 loaf', category: 'Bakery', reason: 'Weekly staple for cheddar & sauerkraut melts', priority: 'medium', inCart: false },
-    ];
-}
-function buildMealsForFocus(focus) {
-    const mode = String(focus || 'use-first').toLowerCase();
-    const base = [
-        { id: 'meal-1', day: 'Day 1 (Tonight · Eat First)', mealType: 'Dinner', title: 'Prepped Glass-Bowl Chopped Salad & Protein with Dill Pickles', usesFromFridge: ['Glass Meal-Prep Chopped Salad & Protein Bowls (Middle Shelf)', 'Bagged Salad Greens Mix (Bottom Shelf)', 'Dill Pickles & Olive Jars (Top Shelf)'], usesFromOrdersOrCart: [], prepTimeMin: 5, notes: 'Zero-cook priority: finishes the 3-day-old glass meal-prep bowls and opened bagged salad while crisp.' },
-        { id: 'meal-2', day: 'Day 2 (Morning & Lunch)', mealType: 'Breakfast & Lunch', title: 'Blackberry-Blueberry Yogurt Bowl + Cold-Brew with Coffee-mate', usesFromFridge: ['Fresh Blackberries & Blueberries Clamshells (Bottom Shelf)', 'Dark Cold-Brew Coffee (Middle Shelf)', 'Coffee-mate Creamer (Middle Shelf)'], usesFromOrdersOrCart: ['Plain Greek Yogurt (32 oz)'], prepTimeMin: 5, notes: 'Uses the fresh berry clamshells on the bottom shelf before they soften.' },
-        { id: 'meal-3', day: 'Day 3 (Dinner)', mealType: 'Dinner', title: 'Warm Sharp Cheddar, Silver Floss Sauerkraut & Chicken Reuben Melt', usesFromFridge: ['Silver Floss Sauerkraut Jar (Top Shelf)', 'Sliced Sharp Cheddar Cheese (Bottom Shelf)', 'Dill Pickles & Olive Jars (Top Shelf)'], usesFromOrdersOrCart: ['Artisan Sourdough Bread Loaf', 'Grilled Chicken Breast / Meal-Prep Protein'], prepTimeMin: 15, notes: 'Pairs top-shelf Silver Floss sauerkraut and bottom-shelf cheddar with ordered sourdough and chicken.' },
-        { id: 'meal-4', day: 'Day 4 (Lunch / Dinner)', mealType: 'Dinner', title: 'Harvest Berry, Cheddar & Grilled Chicken Bistro Salad', usesFromFridge: ['Bagged Salad Greens Mix (Bottom Shelf)', 'Fresh Blackberries & Blueberries Clamshells (Bottom Shelf)', 'Sliced Sharp Cheddar Cheese (Bottom Shelf)'], usesFromOrdersOrCart: ['Grilled Chicken Breast / Meal-Prep Protein'], prepTimeMin: 12, notes: 'Finishes the remaining bagged greens and berries with restocked chicken protein.' },
-        { id: 'meal-5', day: 'Day 5 (Weekend Prep)', mealType: 'Brunch & Meal Prep', title: 'Pasture-Raised Egg, Cheddar & Kraut Scramble + 4-Container Weekly Prep', usesFromFridge: ['Silver Floss Sauerkraut Jar (Top Shelf)', 'Stacked Meal-Prep Containers (Top & Middle Shelves)'], usesFromOrdersOrCart: ['Pasture-Raised Large Eggs (12 ct)', 'Organic Whole Milk (Half Gallon)', 'Grilled Chicken Breast / Meal-Prep Protein'], prepTimeMin: 25, notes: 'Refills the top and middle shelf meal-prep containers for the upcoming week.' },
-    ];
-    if (mode.includes('protein')) {
-        base[0].title = 'Double-Protein Chopped Salad Bowl with Cheddar & Pickles';
-        base[1].notes = 'High-protein focus: 25g+ protein from Greek yogurt + berries.';
-    }
-    else if (mode.includes('quick')) {
-        base.forEach((m) => { m.prepTimeMin = Math.min(m.prepTimeMin, 10); });
-    }
-    return base;
-}
+/**
+ * @description A person's refrigerator state before anything was read: the weekly check's settings and empty lists.
+ * @returns The empty state.
+ */
 function buildDefaultState() {
-    const now = new Date();
-    const prev = new Date(now.getTime() - 7 * 86400000);
+    const now = new Date().toISOString();
     return {
-        version: 1,
-        deviceId: '54cc0431-88bc-7a3e-c495-07a2a0be8571',
-        deviceName: 'Samsung Family Hub Refrigerator',
+        version: STATE_VERSION,
+        deviceId: '',
+        deviceName: 'Refrigerator',
         companionDependency: {
             app: 'phone-control',
             status: 'declared-optional',
-            phoneDeviceId: 'c226d1d1-f827-4482-88ad-efc7fead5b5a',
-            description: 'Captures 3-bay optical ViewInside shelf images via enrolled Samsung phone companion and SmartThings API.',
+            phoneDeviceId: '',
+            description: 'The inside photos come from the refrigerator through the person\'s own SmartThings connection.',
         },
         weeklySchedule: {
             enabled: true,
@@ -112,25 +64,64 @@ function buildDefaultState() {
             dayOfWeek: 'Sunday',
             time: '09:00',
             cron: '0 9 * * 0',
-            lastRunAt: now.toISOString(),
+            lastRunAt: null,
             nextRunAt: computeNextRunIso('Sunday', '09:00'),
         },
         telemetry: { coolerTempF: 37, freezerTempF: 0, measuredAt: null, doorStatus: 'closed', cameraZones: 3, imageUrl: '/api/home/fridge-image' },
-        currentSnapshot: { capturedAt: now.toISOString(), items: defaultCurrentItems() },
-        previousWeekSnapshot: { capturedAt: prev.toISOString(), items: defaultPreviousWeekItems() },
-        orderHistory: defaultOrderHistory(),
-        cart: { status: 'recommended', store: 'Weekly Grocery Cart', startedAt: null, updatedAt: now.toISOString(), items: defaultCartItems() },
-        mealPlan: { focus: 'use-first', updatedAt: now.toISOString(), entries: buildMealsForFocus('use-first') },
+        currentSnapshot: { capturedAt: null, items: [] },
+        previousWeekSnapshot: { capturedAt: null, items: [] },
+        orderHistory: [],
+        cart: { status: 'recommended', store: 'Weekly Grocery Cart', startedAt: null, updatedAt: now, items: [] },
+        mealPlan: { focus: 'use-first', updatedAt: now, entries: [] },
     };
 }
+/**
+ * @description Carry over a state saved before 1.6.2. Its shelves, comparison, order history, grocery list and meals were
+ * one fixed list given to everyone, so they are dropped; what the person set or added themselves is kept: the weekly
+ * check's settings, a temperature the hub reported, items they added to the list (told by the reason the route gave
+ * them), orders they logged and meals they wrote (told by the ids the route gave them).
+ * @param saved The saved state.
+ * @returns The state in the current shape.
+ */
+function carriedOver(saved) {
+    const fresh = buildDefaultState();
+    if (saved.weeklySchedule) {
+        fresh.weeklySchedule.enabled = saved.weeklySchedule.enabled !== false;
+        if (saved.weeklySchedule.dayOfWeek)
+            fresh.weeklySchedule.dayOfWeek = saved.weeklySchedule.dayOfWeek;
+        if (saved.weeklySchedule.time)
+            fresh.weeklySchedule.time = saved.weeklySchedule.time;
+        fresh.weeklySchedule.nextRunAt = computeNextRunIso(fresh.weeklySchedule.dayOfWeek, fresh.weeklySchedule.time);
+    }
+    if (saved.telemetry && saved.telemetry.measuredAt) {
+        fresh.telemetry = { ...fresh.telemetry, coolerTempF: saved.telemetry.coolerTempF, freezerTempF: saved.telemetry.freezerTempF, measuredAt: saved.telemetry.measuredAt };
+    }
+    const own = ((saved.cart && saved.cart.items) || []).filter((item) => item.reason === ADDED_BY_PERSON);
+    fresh.cart.items = own;
+    if (own.length && saved.cart.status === 'active') {
+        fresh.cart.status = 'active';
+        fresh.cart.startedAt = saved.cart.startedAt;
+    }
+    fresh.orderHistory = (saved.orderHistory || []).filter((order) => /^ord-\d{10,}$/.test(order.id));
+    fresh.mealPlan.entries = ((saved.mealPlan && saved.mealPlan.entries) || []).filter((meal) => /^meal-custom-\d+$/.test(meal.id));
+    if (saved.mealPlan && saved.mealPlan.focus)
+        fresh.mealPlan.focus = saved.mealPlan.focus;
+    return fresh;
+}
+/**
+ * @description A person's refrigerator state: the saved one in the current shape, a saved one from before 1.6.2 carried
+ * over, or the empty one. What is returned is also what is kept.
+ * @param sub The person.
+ * @returns The state.
+ */
 function readFridgeWeeklyState(sub) {
     const saved = (0, home_local_swarm_1.readPersistedJson)(sub, STATE_FILE);
-    if (saved && saved.currentSnapshot && Array.isArray(saved.currentSnapshot.items)) {
+    if (saved && saved.version === STATE_VERSION && saved.currentSnapshot && Array.isArray(saved.currentSnapshot.items)) {
         return saved;
     }
-    const seeded = buildDefaultState();
-    (0, home_local_swarm_1.writePersistedJson)(sub, STATE_FILE, seeded);
-    return seeded;
+    const next = saved && saved.currentSnapshot ? carriedOver(saved) : buildDefaultState();
+    (0, home_local_swarm_1.writePersistedJson)(sub, STATE_FILE, next);
+    return next;
 }
 function buildWeekOverWeekComparison(state) {
     const items = state.currentSnapshot.items || [];
@@ -143,11 +134,14 @@ function buildWeekOverWeekComparison(state) {
         middleShelf: items.filter((i) => i.shelf === 'Middle Shelf'),
         bottomShelf: items.filter((i) => i.shelf === 'Bottom Shelf'),
     };
-    const summaryText = `Compared against last week's refrigerator scan: ${depletedFromLastWeek.length} weekly staples are depleted ` +
-        `(${depletedFromLastWeek.map((d) => d.name).join(', ')}), ${runningLow.length} items are running low ` +
-        `(${runningLow.map((r) => r.name).join(', ')}), and ${useFirst.length} fresh/prepped items should be eaten first ` +
-        `(${useFirst.map((u) => u.name).join(', ')}).`;
-    return { summaryText, depletedFromLastWeek, runningLow, useFirst, stillStocked, byShelf };
+    // Read: the inside was really read and something was seen. Until then every list is empty and the words say why.
+    const read = Boolean(state.currentSnapshot.capturedAt) && items.length > 0;
+    const summaryText = !read ? exports.NOTHING_READ :
+        `Compared against last week's refrigerator scan: ${depletedFromLastWeek.length} weekly staples are depleted ` +
+            `(${depletedFromLastWeek.map((d) => d.name).join(', ')}), ${runningLow.length} items are running low ` +
+            `(${runningLow.map((r) => r.name).join(', ')}), and ${useFirst.length} fresh/prepped items should be eaten first ` +
+            `(${useFirst.map((u) => u.name).join(', ')}).`;
+    return { read, summaryText, depletedFromLastWeek, runningLow, useFirst, stillStocked, byShelf };
 }
 function formatFridgeAssessmentResponse(sub) {
     const state = readFridgeWeeklyState(sub);
@@ -164,6 +158,7 @@ function formatFridgeAssessmentResponse(sub) {
         previousWeekSnapshot: state.previousWeekSnapshot,
         orderHistory: state.orderHistory,
         comparison,
+        reading: { read: comparison.read, capturedAt: state.currentSnapshot.capturedAt, words: comparison.read ? '' : exports.NOTHING_READ },
         cart: { ...state.cart, activeItemCount: activeCartCount },
         mealPlan: state.mealPlan,
     };
@@ -180,10 +175,9 @@ function runWeeklyFridgeAssessment(sub, opts) {
     if (typeof opts?.coolerTempF === 'number' || typeof opts?.freezerTempF === 'number')
         state.telemetry.measuredAt = nowIso;
     state.telemetry.imageUrl = `/api/home/fridge-image?t=${Date.now()}`;
-    state.currentSnapshot.capturedAt = nowIso;
+    // A run reads the hub's temperature and nothing inside: it sets no capture time and makes no meal.
     if (opts?.focus) {
         state.mealPlan.focus = opts.focus;
-        state.mealPlan.entries = buildMealsForFocus(opts.focus);
         state.mealPlan.updatedAt = nowIso;
     }
     (0, home_local_swarm_1.writePersistedJson)(sub, STATE_FILE, state);
@@ -239,7 +233,8 @@ function mutateFridgeMealAndCart(sub, body) {
     else if (action === 'build-meal-list') {
         const focus = String(body.focus || state.mealPlan.focus || 'use-first').trim();
         state.mealPlan.focus = focus;
-        state.mealPlan.entries = buildMealsForFocus(focus);
+        // Ideas come from a reading; the meals a person wrote themselves stay.
+        state.mealPlan.entries = [...buildMealsForFocus(focus), ...state.mealPlan.entries.filter((meal) => /^meal-custom-\d+$/.test(meal.id))];
         if (body.customMeal && typeof body.customMeal === 'object') {
             const cm = body.customMeal;
             const title = String(cm.title || '').trim();
@@ -249,7 +244,7 @@ function mutateFridgeMealAndCart(sub, body) {
                     day: String(cm.day || 'Custom Meal').trim(),
                     mealType: String(cm.mealType || 'Dinner').trim(),
                     title,
-                    usesFromFridge: Array.isArray(cm.usesFromFridge) ? cm.usesFromFridge.map(String) : ['Current fridge items'],
+                    usesFromFridge: Array.isArray(cm.usesFromFridge) ? cm.usesFromFridge.map(String) : [],
                     usesFromOrdersOrCart: Array.isArray(cm.usesFromOrdersOrCart) ? cm.usesFromOrdersOrCart.map(String) : [],
                     prepTimeMin: Number(cm.prepTimeMin) || 15,
                     notes: String(cm.notes || 'Custom meal added to weekly plan').trim(),

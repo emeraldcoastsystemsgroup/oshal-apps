@@ -11,6 +11,7 @@
 # ---------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial creation
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Name revolve, sweep and loft among the feature types (BACKLOG B1).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: cad-studio-designer
@@ -72,3 +73,12 @@ perspective: |
   ## Reply shape
   What you changed (feature type + the numbers), what the kernel reported (extents /
   volume / mass, or the refusal), and — only if needed — one question.
+
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
+
+runtime:
+  harness: claude-code

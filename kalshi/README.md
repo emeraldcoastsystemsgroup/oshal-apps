@@ -241,6 +241,15 @@ Phase 2 (order placement) is shipped and live-verified against the real exchange
 confirm-gated. Phase 1 needs no credentials (public market data), which is why the background scan
 can run for the whole deployment.
 
+**Where the calibration table comes from (1.9.0).** The scan prices a market against a table of what a YES price
+actually settled at, per category and hours to close. The package rebuilds that table itself: the background-scan job
+spends the time each firing has left walking Kalshi's public settled-market tape (the questions the retired study
+asked, one at a time, `lib/kalshi-calibration-walk.js`), keeps its place and samples in its own tables, and builds a new
+table when the walk ends (`lib/kalshi-calibration-store.js`, `migrations/077-kalshi-calibration.sql`). A rebuild takes
+many firings; a table is rebuilt when it is thirty days old. Until the first one finishes, the table the package ships
+(built 2026-07-13) is used, and `GET /api/kalshi/calibration` and `/status` say which one is read (`source`:
+`rebuilt` or `shipped`). No Kalshi account is needed.
+
 **Where the win/loss record is.** Every hand the scan announces is pre-registered as a prediction
 (`kalshi_predictions`, strategy `calibration`) and graded at settlement by this package's own grader
 (`routes/kalshi-grade.js`, since 1.8.0): the background scan job grades on the firings where no scan is due, and

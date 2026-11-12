@@ -34,6 +34,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: the family audience view for the Jarvis Home shell (ADR-164 D6). The first surface, /api/animatronics/app, opened with ?audience=family paints the caller's saved props through the shared kit from GET /rigs alone (props, shows, poses, the armed state, the last saved rehearsal) and never rehearses, arms, plays, looks, jogs, disarms, opens a controller link or writes; the full page's start runs only without the view. No route, schema or manifest key changes beyond the version; the Test Lab catalog gains the audience-view case.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: UX audit split (animatronics--animatronics): Perform (rig view, jog, poses, scenarios, look-at, talk, one Log; phone sheets) and Rig setup (templates, rigs, calibration, controller, budget); 44px pose actions with delete in a row menu; Delete rig confirms in the page; headings without inline sentences.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.2.5: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Release 0.2.6 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: animatronics
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (the prop is the creative deliverable; Pumpkin sits here too)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -55,7 +56,7 @@ description: >-
   streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving
   a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always.
   The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.
-version: 0.2.5
+version: 0.2.6
 status: active
 scope: person
 
@@ -109,6 +110,7 @@ dependencies:
 bots:
   - agentId: e48e0e14-a2eb-44c1-a1dc-b82c661cadcb
     name: animatronics-director
+    posture: inline
     persona: personas/animatronics-director.yaml
     role: creative/animatronics-director
     capabilities:

@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.2.5 (concierge audit T15, the store's PENDING list): the screen's concierge is jarvis's oshal-assistant, the assistant this index exists to serve (a super-admin in dev mode asks Jarvis and it searches the index through dev_workspace_search), instead of the platform general-bot, which holds none of its data. borrowed by name exactly as the general-bot reference it replaces: the shell resolves a chatBot the package does not declare the way /api/swarm/bots/{selector}/ask does (kernel ui_applications.rs borrowed_concierge), so no dependency is added. A Jarvis request that names this application now stays with the assistant (kernel jarvis_routing.rs owner_of keeps a request whose application's concierge is the assistant) instead of going to general-bot. No route, tool, permission or dependency change.
+
 # OSHAL app package — developer workspace index
 #
 # This package is an opt-in, dev-console-only view of the local checkout. It never
@@ -14,12 +20,13 @@ displayName: Developer Workspace Index
 description: >-
   Build a bounded, dev-console-only index of the local OSHAL documentation and ask
   Jarvis for cited developer references.
-version: 0.2.4
+version: 0.2.5
 status: active
 # operator: the catalog lists it for operators only. It is used from the ADR-077 dev console, and its
 # routes and tool answer only a super-admin in dev mode whatever the catalog shows.
 scope: operator
-chatBot: general-bot
+# The concierge is the assistant the index serves (jarvis's oshal-assistant), borrowed by name; no dependency.
+chatBot: oshal-assistant
 
 uses:
   - rag

@@ -12,6 +12,7 @@
   1   | maintainer@emeraldcoastsystemsgroup.com   | Cloud's own first screen (UX audit 2026-11-05, cloud-accounts, D). Opening Cloud landed on the global Jarvis chat list, and its accounts tile was the whole platform Connections page. This page reads GET /api/cloud/home-summary and shows one thing: Google Cloud not connected, with one primary Connect Google Cloud (the kernel's /api/connect/gcp/start, in its own window because the provider refuses a frame); or connected, with the account tiles and one primary Ask the cloud bot, which hands a first question to the application's concierge (cloud-ops-bot) through the cockpit's app-ask message.
   2   | maintainer@emeraldcoastsystemsgroup.com   | Say what failed (trial check 2026-11-06): where the kernel refuses the connection (the trial has no public web address, so the connect window landed on Connections with connect_error) the screen kept saying "finish signing in". It now listens on the same-origin channel the Connections page announces each connect outcome on (oshal-connections, connect-outcome) and shows the kernel's reason as an alert, or reloads the tiles when the connection is saved.
   3   | maintainer@emeraldcoastsystemsgroup.com   | 1.2.2: UX design-standard sweep (D1=glass, D2=c): declare DS-00 contract, load surface-glass.css, put radii ({10,14}) and font sizes ({14,15,18,24}) on the scale, keep controls opaque, and shorten not-connected copy to fit the phone word budget.
+  4   | maintainer@emeraldcoastsystemsgroup.com   | 1.3.1 (T73; Roger, 2026-11-12: "which projects have a real billing account"): once connected, the screen lists the person's projects with each one's billing (real billing, a closed account, none) from GET /api/cloud/gcp/projects, and offers Reconnect Google Cloud when Google would not show billing to the saved connection, so the new billing permission can be granted from here.
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -39,6 +40,19 @@
   a { color: var(--ds-accent, var(--accent-primary, #2563eb)); }
   .note { margin: 14px 0 0; font-size: 14px; color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); }
   .alert { color: var(--status-error, #b91c1c); margin: 0 0 12px; font-size: 14px; }
+  .projects { margin: 20px 0 0; padding: 18px 0 0; border-top: 1px solid var(--ds-line, var(--border-color, #d6e0f0)); }
+  .projects h3 { margin: 0 0 12px; font-size: 16px; }
+  .project-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .project { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; min-height: 52px; padding: 8px 12px;
+    border: 1px solid var(--ds-line, var(--border-color, #d6e0f0)); border-radius: 10px; }
+  .project-name { display: flex; flex-direction: column; min-width: 0; }
+  .project-name strong { overflow-wrap: anywhere; }
+  .project-name small { color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); font-size: 13px; overflow-wrap: anywhere; }
+  .badge { display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    border: 1px solid currentColor; }
+  .badge.ok { color: var(--status-success, #047857); }
+  .badge.warn { color: var(--status-warning, #b45309); }
+  .badge.muted { color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); }
 </style>
 </head>
 <body>
@@ -143,6 +157,49 @@
       }
     }
     card.append(actions);
+    if (v.state === 'connected') card.append(projectsSection(actions));
+  }
+
+  /** The person's projects and their billing, read with their own connection once the screen shows them connected. */
+  function projectsSection(actions) {
+    var box = el('section', { class: 'projects', id: 'projects', 'aria-label': 'Your Google Cloud projects and billing' });
+    box.append(el('h3', {}, 'Projects and billing'), el('p', { class: 'note', id: 'projects-loading' }, 'Reading your projects and billing…'));
+    fetch('/api/cloud/gcp/projects', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json().catch(function () { return null; }).then(function (b) { return { status: r.status, body: b }; }); })
+      .catch(function (error) {
+        console.error(JSON.stringify({ module: 'cloud-home', event: 'projects_failed', error: { message: error.message } }));
+        return { status: 0, body: null };
+      })
+      .then(function (answer) { paintProjects(box, C.projectsView(answer.status, answer.body), actions); });
+    return box;
+  }
+
+  function paintProjects(box, v, actions) {
+    box.replaceChildren(el('h3', {}, 'Projects and billing'));
+    if (v.tiles.length) {
+      var tiles = el('div', { class: 'tiles' });
+      v.tiles.forEach(function (t) { var tile = el('div', { class: 'tile' }); tile.append(el('strong', {}, t.value), el('span', {}, t.label)); tiles.append(tile); });
+      box.append(tiles);
+    }
+    var said = v.note ? el('p', { class: v.state === 'error' ? 'alert' : 'note', role: 'status' }, v.note) : null;
+    if (said && (v.reconnect || v.connect)) box.append(said);
+    if (v.rows.length) {
+      var list = el('ul', { class: 'project-list' });
+      v.rows.forEach(function (r) {
+        var name = el('span', { class: 'project-name' });
+        name.append(el('strong', {}, r.name), el('small', {}, r.id));
+        var item = el('li', { class: 'project' });
+        item.append(name, el('span', { class: 'badge ' + r.tone }, r.label));
+        list.append(item);
+      });
+      box.append(list);
+    }
+    if (said && !(v.reconnect || v.connect)) box.append(said);
+    if ((v.reconnect || v.connect) && !document.getElementById('reconnect')) {
+      var again = el('button', { type: 'button', id: 'reconnect' }, v.connect ? 'Connect Google Cloud' : 'Reconnect Google Cloud');
+      again.addEventListener('click', connect);
+      actions.append(again);
+    }
   }
 
   function load() { return read().then(function (summary) { render(C.view(summary)); }); }

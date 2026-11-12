@@ -13,6 +13,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial creation (ADR-203 D3, lane @ds-app)
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7 (lane @ds-fab): the Fabricate phase is made on the product page, not by a tool; the partner reads the result from the fabricate binding and closure.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9 (lane @ds-plant): the mechanism of a design (design-set-mechanism) and the plant the Simulate poster builds from it for any machine; the lift example.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: design-partner
@@ -106,3 +107,12 @@ perspective: |
   ## Reply shape
   The phase and its stage, what the engine reported (its numbers, its unit, its label), what you
   bound or closed (or why you did not), and — only if needed — one question.
+
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
+
+runtime:
+  harness: claude-code

@@ -1,3 +1,4 @@
+# CHANGE LOG: 33 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, concierge audit batch 2b: bind the front-desk concierge ops-concierge (the chatBot that now answers the concierge panel and Jarvis) to the existing own-scope app.open, as ops-rca-specialist and ops-incident-reviewer are bound. A turn of a bot this catalog does not bind is refused ("operation has no explicit permission binding"). No permission, role or grant changed, so every assignment grants what it granted.
 # CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): POST /ingest/otlp/:sourceId, where an enrolled OpenTelemetry Collector reports through the kernel's producer door as the token's owner, under the existing records.write grant beside the Alertmanager ingest. No permission, role or grant changed.
 # CHANGE LOG: 31 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): POST /installations/enroll, the prepare route the kernel runs as the person approving a monitored installation's code, under the existing records.write grant beside the source save it extends; the Monitor an installation script (/assets/monitor-enroll.js, GET and HEAD) under app.open. No permission, role or grant changed.
 # CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved source (1.5.3, P5-55b): POST /sources/remove and the Jarvis tool ops-remove-source under the existing records.write grant, beside the source save it undoes. No permission, role or grant changed.
@@ -143,6 +144,8 @@ roles:
         scope: own
 bindings:
   bots:
+    - id: ops-concierge
+      allOf: [app.open]
     - id: ops-rca-specialist
       allOf: [app.open]
     - id: ops-incident-reviewer

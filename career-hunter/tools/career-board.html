@@ -47,6 +47,7 @@
   57 | maintainer@emeraldcoastsystemsgroup.com | A finished Find & score jobs run opens on the person's best fit.
   59 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Job Board is the one pipeline. A stage control under the app bar (career-stages.js) holds New matches · Saved · To approve · Preparing · Applied · Interviewing and More (Offer, Not selected, Dismissed, records); Prepare & submit (?view=queue), Application status (?view=status) and Approvals (?view=approve, which opens the To approve view) are its stages, and every old address still opens its stage. An empty stage is one empty state whose primary is Find jobs (never "0 shown" or a bare "Page 1"); a filtered stage with no rows offers Clear filters. Filters are an auto-fit grid on desktop and a Filters sheet on a phone, with Clear filters, and only the filters that fit the stage (no pay or fit filters once preparing or applied). Guard: tests/career-board-stages.test.mjs.
   61 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: this page is served by no route, so only what it shares with served pages follows the sweep. Its heading reads Getting ready where the shared stage control (career-stages.js) now does, and its copy of the application-provenance wording says "You marked this as applied yourself" like the three served copies. The four lines that named the vendor's platform say Career. Its other words are as they were.
+  62 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 6: ?view=approve no longer sends this page to the approvals address. That address now forwards to the Job Board with ?view=approve, so the two would send a browser back and forth for ever wherever this page stood in for the Job Board (it is served by no route, but a browser proof's fixture serves it as one). The shared stage map opens Saved for that value, as the live Job Board does.
   60 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   58 | maintainer@emeraldcoastsystemsgroup.com | Merged: Find & score jobs watches its run to the end and opens on the best fit, on the board that also keeps an unknown score count on the matched view.
 -->
@@ -1546,7 +1547,6 @@ async function loadWorkers(){
   } catch(e){ if(el){ el.textContent=''; } }
 }
 
-if(new URLSearchParams(location.search).get('view')==='approve') location.replace('/api/career-hunter/approvals');
 $('clearFiltersBtn').onclick=()=>clearFilters();
 { const fields=$('filterFields'), home=fields.parentNode, sheet=$('filterSheet');
   $('openFilters').onclick=()=>{ $('filterSheetBody').append(fields); sheet.showModal(); };

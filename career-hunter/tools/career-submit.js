@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 8: canConnect() says whether this visit may connect a computer (a guest visit may not), read the way the activity page read it, so the application page and the activity page offer Connect a computer on one rule and neither offers a button that would be refused.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: opaque sheet attributes (data-ds-sheet, data-no-glass), history Back dismissal on modal sheets, and opaque disabled state on review approve button.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Connect a computer dialog had unstyled 21px browser buttons, no close and no scrim. It is the kit's sheet (opaque, a scrim behind, a full sheet on a phone) with an X close, a primary "Create and connect worker" and a tertiary Cancel, both 44px.
@@ -148,5 +149,11 @@
     const raw=await response.json(),workers=(raw.workers||[]).filter(w=>w.boundBots?.includes(BOT));
     const ready=workers.find(w=>w.available);return {...raw,workers,available:!!ready,defaultClientId:ready?.clientId||null};
   }
-  window.CareerSubmit={reviewAndSubmit,resumeApproved,answerAndReview,connectWorker,synchronize,workers,request};
+  /** Whether this visit may connect a computer. A guest visit has no account for a computer to belong to, so it may not. */
+  async function canConnect(){
+    const read=path=>fetch(path,{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const [guest,user]=await Promise.all([read('/api/guest/session'),read('/api/auth/user')]);
+    return !((guest&&(guest.guest===true||guest.active===true))||(user&&(user.guest===true||/^urn:oshal:guest:|^guest[-:]/i.test(String(user.sub||user.principal_id||'')))));
+  }
+  window.CareerSubmit={reviewAndSubmit,resumeApproved,answerAndReview,connectWorker,synchronize,workers,canConnect,request};
 })();

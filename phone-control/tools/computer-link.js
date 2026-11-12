@@ -13,6 +13,9 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the closed verbs lan-discover and lan-control (TVs and streaming sticks on the home network), and the installer carries oshal_phone_lan.py. The install command passes its checked JSON once, single-quoted, instead of base64 over base64 (gzipped files already arrive as base64): with the fifth file it is ~75 KB instead of ~100 KB, under Linux's 128 KiB single-argument limit with room to grow. Smart Home's TVs section imports this module to install or update the bridge the same way this page does.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer and ble-keep (a Bluetooth pairing waits for the person's Allow; a device paired before oshal asked is kept by the person).
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: the Fire TV was on Prime Video, the page showed an old Marquee picture and the concierge answered "The phone is not connected to this computer"): sendWithReconnect reconnects a phone or TV its computer's adb lost (reconnectVerb: only a not_connected refusal, only a device reached over the network, at most once in 20 seconds) and sends the command again; notConnectedWords names the TV or phone, the computer and the one thing to do; storedPictureNote labels the device's stored picture as not live.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the bridge carries oshal_phone_links.py.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): the bridge carries oshal_phone_play.py.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): the bridge carries oshal_phone_apps.py.
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -30,7 +33,7 @@ export const VERBS = Object.freeze([
 ]);
 export const BRIDGE_FILE_NAMES = Object.freeze([
   'oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',
-  'oshal-phone-bridge'
+  'oshal_phone_links.py', 'oshal_phone_play.py', 'oshal_phone_apps.py', 'oshal-phone-bridge'
 ]);
 export const QUALITY_PRESETS = Object.freeze({
   high: Object.freeze({ width: 720, phoneMs: 450, computerMs: 900, label: 'High' }),
@@ -51,7 +54,7 @@ const INSTALLER = [
   'b=os.path.join(h,".local","bin")',
   'os.makedirs(d,mode=0o700,exist_ok=True)',
   'os.makedirs(b,exist_ok=True)',
-  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal_phone_lan.py":d,"oshal-phone-bridge":b}',
+  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal_phone_lan.py":d,"oshal_phone_links.py":d,"oshal_phone_play.py":d,"oshal_phone_apps.py":d,"oshal-phone-bridge":b}',
   'ready=[]',
   'for f in m["files"]:',
   '    n=f["name"]',

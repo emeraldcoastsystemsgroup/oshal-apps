@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: scan session-computer.js, session-media.js, session-collab.js, and phone-control-session-routes.js across button wiring, verb parity, catalog bindings, and package-only concierge tool endpoints.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the bridge budget counts oshal_phone_lan.py and allows 200 KiB of sources; the binding limit stays the install command under 100 KiB (~75 KB now that its payload is encoded once). The server still reaches no network: the TV verbs run on the person's computer.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the picture fallback labels the device's stored picture as not live and keeps the reason, an old picture takes no taps, and one place sends commands to a phone or TV, through the reconnect.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1 (T79): the tool Jarvis lists saved devices with says it lists TVs as well as phones, and each device's form; its name once said phones only, so a request for a TV passed it by.
  */
 'use strict';
 
@@ -176,3 +177,13 @@ test('1.6.1: a stored picture is never shown as live, and every command to a pho
   assert.match(command, /notConnectedWords\(phone, host\?\.name\)/);
 });
 
+test('1.12.1: the device list tool says it lists TVs as well as phones', () => {
+  const source = read('oshal-app.yaml');
+  const at = source.indexOf('  - name: phone-control-list-devices\n');
+  assert.ok(at > 0, 'the device list tool is declared');
+  const tool = source.slice(at, source.indexOf('\n  - name: ', at + 10));
+  assert.match(tool, /displayName: List My Phones and TVs\n/);
+  assert.match(tool, /description: List this person's phones and TVs\b[^\n]*whether it is a phone or a TV/);
+  assert.match(tool, /usageInstructions: Choose a phone or TV returned here/);
+  assert.doesNotMatch(source, /List My Phones(?! and TVs)/, 'no other text still calls it List My Phones');
+});

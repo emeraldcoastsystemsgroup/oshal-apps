@@ -6,6 +6,11 @@ HTTP-only (fast). Sites that hide the ATS behind JavaScript stay on the to-do li
 large majority expose it in the page HTML or a redirect.
 """
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Recognise the US job lists of Experis and Manpower (/en/all-jobs, /en/search and a job under /en/job, on the bare or www host) as the ManpowerGroup reader's, whose token is the www host.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | The three listed boards' link rules name a reader only for what that reader reads. They took any subdomain of the employer and any path that began like the job search, so randstadusa.com/jobsearch, xplore.randstadusa.com/jobs/... and www.talent-soft.com each named a reader. Now: the employer's own site, bare or under www, at /jobs or /tech-jobs or below it; and a Talentsoft tenant, one label before the vendor's domain and none of the vendor's own (www, support, help).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | The three listed boards' link rules sit in a function of their own, _listed_board, so classify_url, already long, grows by two lines and not by seven. What a link names does not change.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Recognise a Talentsoft board link (<tenant>.talent-soft.com) as the Talentsoft reader's.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Recognise two boards read from their own listing pages: a Randstad USA job-search link (randstadusa.com/jobs) and a Motion Recruitment one (motionrecruitment.com/tech-jobs). A pasted link to either had named no reader.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Recognise a Dayforce board link (jobs.dayforcehcm.com/{culture}/{client}/{board}) as the Dayforce reader's.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is left out of resolver runs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Recognise a career site Jibe serves on the employer's own address by asking it for Jibe's listing, so a pasted link or a careers page on such a host is read through the Jibe reader and not the browser page reader, which these sites refuse.
@@ -28,7 +33,8 @@ _CAREER_LINK = re.compile(r"search-jobs|search-results|careers-home|/search/?|/j
 # this tuple can never drift from the code below and no TypeScript copy of the patterns exists.
 PATTERN_ATS = ("workday", "icims", "eightfold", "greenhouse", "lever", "ashby", "smartrecruiters",
                "workable", "taleo", "oracle_orc", "phenom", "successfactors", "jibe", "avature",
-               "brassring", "gdcareers", "gsroles", "pageup", "governmentjobs", "dayforce")
+               "brassring", "gdcareers", "gsroles", "pageup", "governmentjobs", "dayforce",
+               "randstad", "motionrecruitment", "talentsoft", "manpowergroup")
 
 
 
@@ -141,6 +147,9 @@ def classify_url(url: str):
         if tok:
             return ("dayforce", tok)
 
+    if listed := _listed_board(host, path):
+        return listed
+
     # ── Taleo (TBE + enterprise) ───────────────────────────────────────────
     if ".taleo.net" in low:
         return ("taleo", full)
@@ -167,6 +176,26 @@ def classify_url(url: str):
     if "phenompeople.com" in low:
         return ("phenom", host)
 
+    return None
+
+
+def _listed_board(host, path):
+    """(ats_type, token) for a link to a board read from its own listing pages (listed_boards), or None.
+
+    Only what the readers read: the employer's own site, bare or under www, at its job-search path or below it, and
+    a Talentsoft tenant, which is one label before the vendor's domain and none of the vendor's own."""
+    def under(root):
+        return path == root or path.startswith(root + "/")
+    if host in ("randstadusa.com", "www.randstadusa.com") and under("/jobs"):
+        return ("randstad", f"https://{host}/jobs/")
+    if host in ("motionrecruitment.com", "www.motionrecruitment.com") and under("/tech-jobs"):
+        return ("motionrecruitment", f"https://{host}/tech-jobs")
+    if host in ("experis.com", "www.experis.com", "manpower.com", "www.manpower.com") and (
+            under("/en/all-jobs") or under("/en/search") or under("/en/job")):
+        return ("manpowergroup", "www." + host.removeprefix("www."))
+    tenant = host[:-len(".talent-soft.com")] if host.endswith(".talent-soft.com") else ""
+    if re.fullmatch(r"[a-z0-9][a-z0-9-]*", tenant) and tenant not in ("www", "support", "help"):
+        return ("talentsoft", host)
     return None
 
 

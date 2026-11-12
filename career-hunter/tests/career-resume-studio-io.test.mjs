@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute the shipped editor with delayed document/model/save responses: selection, draft, persisted target and bridge capability stay bound to one document, including failures and packet deep links. No user files or external services are used.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save is enabled only with an unsaved change (a freshly loaded packet keeps it disabled until an edit), and a failed read is told in the page's alert line instead of the status caption.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: the page marks on its body whether a résumé exists (the editor panel waits for one), so the document double has a body; the Save button reads Save master résumé.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the Save button says Save main résumé.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -99,7 +100,7 @@ test('the packet preview includes its candidate name, qualifications and cover; 
 
 test('master Save sends the complete active master with its sentinel and no packet cover',async()=>{
   const e=editor(req=>req.url.includes('/jobs?')?response({jobs:[]}):req.url.endsWith('/save')?response({ok:true,changed:false}):response(master));await tick();
-  assert.equal(e.$('save').textContent,'Save master résumé');await e.api.save();
+  assert.equal(e.$('save').textContent,'Save main résumé');await e.api.save();
   const writes=e.requests.filter(r=>r.method==='POST');assert.equal(writes.length,1);
   assert.deepEqual(writes[0].body,{postingId:'master',resume:master.resume});
   assert.match(e.$('status').textContent,/no changes to save/);assert.equal(e.$('pdf').style.display,'none');

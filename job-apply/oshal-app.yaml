@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: UX design-standard sweep (D1=glass, D2=c, job-apply--job-apply-review): declare DS-00 collection contract on tools/review.html, load surface-glass.css, put radii and font sizes on the standard scale, hide duplicate header title when framed, and withhold all-zero counters when no runs exist.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10 (concierge audit T15, the store's PENDING list): the screen's concierge is career-concierge, Career's inline front desk since career-hunter 1.57.0 (career-hunter is now its dedicated-node worker), imported from the required member career-hunter beside the career-hunter worker the workflow keeps. The Intelligent Career group made the same switch in 1.1.12, and the store bot contract refuses a node-posture chatBot (scripts/check-store-bots.mjs). career-concierge needs the same Career permissions (app.open, career.execute) as career-hunter. No route, tool, permission or workflow change.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — job-apply (Job Apply submission workflow)
@@ -35,7 +36,7 @@
 
 name: job-apply
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
-chatBot: career-hunter # Concierge the shell offers beside this screen (resolved through its owning application).
+chatBot: career-concierge # Concierge the shell offers beside this screen: Career's own, imported from career-hunter below.
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
@@ -50,7 +51,7 @@ displayName: Job Apply
 description: >-
   Submit an approved, packet-ready job application by driving the operator's real browser on a
   desktop worker node. Push a ticket, it queues, the worker submits it, the ticket passes or fails.
-version: 1.1.9
+version: 1.1.10
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -102,13 +103,15 @@ smoke:
 # The worker bot (career-hunter) is shipped by the career-hunter app + kernel registry.
 # Declare it as an app dependency so the installer ensures it is present (fail-closed,
 # ADR-085 §3). No connectors/tools of this app's own — the submission engine + apply CLIs
-# are framework-resident.
+# are framework-resident. career-concierge, Career's inline concierge, is this screen's chatBot.
 dependencies:
   required:
     apps: [career-hunter]
     bots:
       - app: career-hunter
         name: career-hunter
+      - app: career-hunter
+        name: career-concierge
     tools: []
     connectors: []
   optional:

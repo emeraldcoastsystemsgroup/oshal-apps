@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5 (UX audit 2026-11-06): the Movie Concierge parses its reply in the package (movies-envelope.js), fenced or prose-wrapped, so the raw JSON envelope is never shown; an unreadable envelope is a plain apology. The title sheet is opaque with legible synopsis ink in every theme, and accent buttons take the theme's on-accent ink. Browse is a media home: a hero from Trending with Where to watch as the one primary and + Watchlist beside it, poster rows captioned title · year, Home · Search · Watchlist views (a bottom bar on a phone), Movies and TV chips, and the concierge as a sheet with suggested prompts; the inner header and the TMDB chip left browse.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): ribbon.hideAssistant: the in-page Ask sheet is the one assistant entry; on the trial at 1440x900 the shell's orb sat on the sheet's Send button.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7 (concierge audit T15, the store's PENDING list): movies-concierge runs inline under the same UUID b00b0000-0000-0000-0000-000000000001 and is the chatBot, as Create's create-editor and the eats, rides and shopping concierges are. Declared as a dedicated-node bot it was answered only as a plain completion, and a Jarvis request to plan or make something stayed with the assistant because this workflow application named no chatBot. Its persona follows Create's pattern (plain prose, runtime harness claude-code; no ```tool_call fence, as this package declares no route tools) and returns the Ask sheet's reply object when the chat route asks for it. ribbon.hideAssistant still keeps the in-page Ask sheet the one assistant entry. No route, tool or permission changed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — movies ("Movies & TV")
@@ -18,13 +19,10 @@
 # where-to-watch (JustWatch) page and "Tickets" opens a Fandango search — the viewer
 # streams or buys there. OSHAL never streams or sells.
 #
-# BOT NOTE (ADR-093 interim): movies-concierge (b00b…001) is a REAL bot-node —
-# its own compose container (movies-bot, port 3076, requiresOwnNode), blocks in
-# BOTH framework registries, worker + foundation personas, and the
-# moviesToolKit.js / oshal-tmdb.js tool chain it runs. The heavy-bot quadruple
-# STAYS in the framework repo as the operator-applied fragment (finance
-# precedent). This manifest therefore declares NO bots; the workflow's
-# workerBot resolves via the framework's static registry.
+# BOT NOTE: movies-concierge (b00b…001) is declared below (bots:) and runs inline on
+# the native kernel (1.1.7). Its platform-era bot-node (movies-bot container,
+# registry blocks, moviesToolKit.js / oshal-tmdb.js) stayed in the framework repo
+# as the ADR-093 interim operator fragment.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: movies
@@ -49,7 +47,7 @@ description: >-
   AI movies & TV concierge — search films and shows, see where they're streaming,
   watch trailers, get recommendations, build a watchlist, and find showtimes. Other
   swarm bots can ask it what to watch or where to watch it.
-version: 1.1.6
+version: 1.1.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -137,8 +135,10 @@ routes:
 migrations:
   - migrations/048-movies-platform.sql
 
-# WORKFLOW — tickets of type 'movies' route to the concierge (framework-resident
-# bot-node; see BOT NOTE).
+# The bot a Jarvis creation request goes to (its own workflow bot).
+chatBot: movies-concierge
+
+# WORKFLOW — tickets of type 'movies' route to the concierge (see BOT NOTE).
 ticketType: movies
 workflow:
   name: Movies & TV Concierge Pipeline
@@ -212,13 +212,12 @@ integrations:
         - notes
         - sourceUrl
 
-# Preserve the existing worker UUID and dedicated-node posture in the package contract.
+# The concierge keeps its UUID. It runs inline: the native kernel answers the Ask sheet's chat
+# route with it as an application bot turn; no dedicated node.
 bots:
   - agentId: b00b0000-0000-0000-0000-000000000001
     name: movies-concierge
     persona: personas/movies-concierge.yaml
-    container: movies-bot
-    port: 5000
-    requiresOwnNode: true
+    posture: inline   # native kernel: an application bot turn; no dedicated node
     role: media/film-tv
     capabilities: ['movie-tv-discovery', 'title-search', 'where-to-watch-streaming', 'watchlist-curation', 'movie-taste-learning', 'showtimes-handoff']

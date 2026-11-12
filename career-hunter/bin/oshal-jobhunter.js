@@ -47,6 +47,7 @@
  * 34 | maintainer@emeraldcoastsystemsgroup.com | Spend bounded title passes on the newest eligible postings first.
  * 35 | maintainer@emeraldcoastsystemsgroup.com | Run recent private resume matching before a scheduled title pass in the same leased child; emit a success verdict only after both complete.
  * 44 | maintainer@emeraldcoastsystemsgroup.com  | build-board: keyword matching then scoring as one background run, for the Job Board's Find & score jobs.
+ * 46 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. Two refusals of a résumé save say main résumé (was master resume), written with escapes so the engine's source stays plain. Words only.
  * 45 | maintainer@emeraldcoastsystemsgroup.com | score-titles matches first when CH_BOARD_MATCH is set, over the same window as the match verb, so the Job Board's button is one bounded background run.
  *
  * Verbs (each forwards extra args to the engine):
@@ -543,10 +544,10 @@ function resumeBaseSaveRun() {
     // clean refusal JSON. A 256 KiB ceiling was therefore dead code on every Linux deployment —
     // which is all of them. Keep this strictly under 128 KiB so the guard can actually fire.
     'if len(raw.encode("utf-8","replace"))>98304:',
-    ' print(json.dumps({"ok":False,"error":"master resume payload exceeds the 96 KiB input limit"}))',
+    ' print(json.dumps({"ok":False,"error":"main r\\u00e9sum\\u00e9 payload exceeds the 96 KiB input limit"}))',
     ' raise SystemExit(1)',
     'try:\n doc=json.loads(raw)\nexcept Exception:\n doc=None',
-    'result=profile.replace_resume_fields(doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid master resume payload"}',
+    'result=profile.replace_resume_fields(doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid main r\\u00e9sum\\u00e9 payload"}',
     'print(json.dumps(result,ensure_ascii=False))',
     'raise SystemExit(0 if result.get("ok") is True else 1)',
   ].join('\n');

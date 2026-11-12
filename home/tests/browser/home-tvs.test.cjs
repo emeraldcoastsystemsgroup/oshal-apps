@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | home 1.4.0, TVs and streaming sticks in headless Chromium at 412 x 915: the section shows on the Smart Home screen with one Scan for TVs button that says what it does, the empty screen keeps its one primary and nothing is written on open; with no computer it says what to do and Scan is off; Scan checks the bridge on the chosen computer, installs it when it is not phone-control's (the real installer command), runs the real planned scan, saves the TVs and adds the Android TV to Phone & Device Control; a press says what the computer answered, "Press Allow on the TV, then Retry." for a waiting Samsung with the power left as it was; a Roku has no Open oshal; no console error. The computer is played by the test, the routes are the compiled package's own.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | home 1.6.0: the TVs are a page behind Home's Find TVs tile, so each case opens it the way a person does; Home shows a tile for every saved TV and for the person's computer, and asks Phone & Device Control for nothing when its access waits for re-approval.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A person whose app list says Phone & Device Control changed and waits for re-approval (bare-metal blue's admin persona on 2026-11-08) reads exactly that, the page requests nothing from Phone & Device Control (no console error), Scan is off, and the saved TVs are still listed, without buttons.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | home 1.7.0 (T45 part 4): an Android TV's card has Previous, Pause, Play, Next and What's playing, each at least 44 x 44 at 412 x 915; Pause sends one closed lan-control pause and the card says what is playing behind another app, then shows it on the Now playing line; What's playing reads it again; a Samsung TV and a Roku have no media row.
  */
 'use strict';
 const test = require('node:test');
@@ -54,6 +55,10 @@ async function openTvs(page) {
 const line = (value) => ({ ok: true, output: { stdout: `${JSON.stringify(value)}\n`, stderr: '', exitCode: 0 } });
 const VERSION = { ok: true, verb: 'version', version: MANIFEST.version, files: Object.fromEntries(MANIFEST.files.map((f) => [f.name, f.sha256])) };
 
+/** 1.7.0: what an Android TV's bridge (1.8.0) answers for the media presses: YouTube behind the home screen. */
+const PLAYING = { package: 'com.amazon.firetv.youtube', app: 'YouTube', title: 'Big Buck Bunny 60fps 4K', active: true, inFront: false };
+const MEDIA = { pause: { key: 127, now: { ...PLAYING, state: 'paused' } }, now_playing: { now: { ...PLAYING, state: 'playing' } } };
+
 /** Plays the person's computer: the bridge's answers to the commands the page sends, and records each command. */
 function computer(ran, { bridgeVersion = VERSION } = {}) {
   return (command) => {
@@ -63,6 +68,7 @@ function computer(ran, { bridgeVersion = VERSION } = {}) {
     if (/ lan-discover --b64 /.test(command)) return line({ ok: true, verb: 'lan-discover', found: FOUND, woke: [], subnets: ['10.20.30.0/24'] });
     const args = JSON.parse(Buffer.from(command.split(' ').pop(), 'base64').toString('utf8'));
     if (args.action === 'wake') return line({ ok: false, error: 'samsung_allow_on_tv', message: 'Press Allow on the TV, then Retry.' });
+    if (MEDIA[args.action]) return line({ ok: true, verb: 'lan-control', kind: args.kind, address: args.address, action: args.action, sent: true, ...MEDIA[args.action] });
     return line({ ok: true, verb: 'lan-control', kind: args.kind, address: args.address, action: args.action, sent: true });
   };
 }
@@ -161,6 +167,36 @@ test('Scan installs the bridge when it is not phone-control\'s, saves the TVs, a
     assert.equal(await roku.getByRole('button', { name: /Open oshal/ }).count(), 0, 'a Roku cannot open a page');
     assert.match(await page.locator('[data-tv="tv-ip-10-20-30-43"]').textContent(), /A Google Cast device: your computer cannot press its buttons\./);
     assert.equal(await page.locator('[data-tv="tv-ip-10-20-30-42"]').getByRole('button', { name: 'Install the TV app on Shed TV' }).count(), 1);
+    const fit = await overflow(page);
+    assert.ok(fit.scrollWidth <= fit.clientWidth, `the page is ${fit.scrollWidth}px wide: ${fit.offenders.join(', ')}`);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('1.7.0: an Android TV\'s card steers the app playing behind another app, and says what is playing; other TVs have no media row', async () => {
+  const { page, context, errors } = await open({ width: 412, height: 915 }, [DEN_PC], 'ui-media');
+  const ran = [];
+  try {
+    await wire(page, 'ui-media', computer(ran), []);
+    await openTvs(page);
+    await page.waitForFunction(() => document.querySelectorAll('#tvComputer option').length === 1);
+    await page.locator('#tvScan').tap();
+    await page.waitForFunction(() => document.querySelectorAll('#tvList .tv-card').length === 4);
+    const shed = page.locator('[data-tv="tv-ip-10-20-30-42"]');
+    const labels = await shed.locator('.tv-media button').evaluateAll((b) => b.map((x) => x.getAttribute('aria-label')));
+    assert.deepEqual(labels, ['Previous on Shed TV', 'Pause on Shed TV', 'Play on Shed TV', 'Next on Shed TV', 'What is playing on Shed TV']);
+    for (const box of await shed.locator('.tv-media button').evaluateAll((b) => b.map((x) => { const r = x.getBoundingClientRect(); return [r.width, r.height]; }))) {
+      assert.ok(box[0] >= 44 && box[1] >= 44, `a media button is at least 44 x 44: ${box}`);
+    }
+    assert.equal(await page.locator('[data-tv="tv-02005e102030"] .tv-media, [data-tv="tv-02005e405060"] .tv-media').count(), 0, 'a Samsung TV and a Roku have no media row');
+    await shed.getByRole('button', { name: 'Pause on Shed TV', exact: true }).tap();
+    await page.waitForFunction(() => /Pause sent on Shed TV; YouTube: Big Buck Bunny 60fps 4K is now paused \(behind another app\)\./.test(document.querySelector('[data-tv="tv-ip-10-20-30-42"] .tv-result')?.textContent || ''));
+    assert.equal(await shed.locator('.tv-now').textContent(), 'Now playing · YouTube: Big Buck Bunny 60fps 4K · paused · behind another app');
+    const sent = ran.filter((c) => / lan-control --b64 /.test(c)).map((c) => JSON.parse(Buffer.from(c.split(' ').pop(), 'base64').toString('utf8')));
+    assert.deepEqual(sent, [{ kind: 'android-tv', address: '10.20.30.42', action: 'pause' }], 'one press, the closed lan-control pause');
+    await shed.getByRole('button', { name: 'What is playing on Shed TV' }).tap();
+    await page.waitForFunction(() => /On Shed TV, YouTube: Big Buck Bunny 60fps 4K is playing \(behind another app\)\./.test(document.querySelector('[data-tv="tv-ip-10-20-30-42"] .tv-result')?.textContent || ''));
+    assert.match(await shed.locator('.tv-now').textContent(), / · playing · behind another app$/);
     const fit = await overflow(page);
     assert.ok(fit.scrollWidth <= fit.clientWidth, `the page is ${fit.scrollWidth}px wide: ${fit.offenders.join(', ')}`);
     assert.deepEqual(errors, []);

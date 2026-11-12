@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The messages a person reads say main résumé and My résumé (were master resume and Resume Studio). Words only; the error codes are unchanged.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Read bounded master sections and apply exact revision-checked text/list edits through existing owner backup, audit and atomic persistence rails.
 """Model-free bounded access to the current owner's master resume."""
 from __future__ import annotations
@@ -96,7 +97,7 @@ def read_section(field='overview', index=0, offset=0, limit=20):
             items.append(candidate)
             end = n + 1
         if not items and offset < len(values):
-            raise ValueError('one master section item exceeds the read limit; use Resume Studio')
+            raise ValueError('one item of this section exceeds the read limit; use the My résumé page')
         return {**result, 'items': items, 'nextOffset': end if end < len(values) else None,
                 'complete': end == len(values)}
     except OSError:
@@ -153,7 +154,7 @@ def apply_edits(revision, edits):
         text, raw, current = _snapshot()
         if current != revision:
             return {'ok': False, 'error': 'master_changed',
-                    'message': 'Your master resume changed. Read the affected section again before saving.'}
+                    'message': 'Your main résumé changed. Read the affected section again before saving.'}
         changelog = []
         changed = False
         for edit in edits:
@@ -238,7 +239,7 @@ def apply_edits(revision, edits):
             # its exact preimage before backup/publish as well as at request admission.
             if profile._read_profile_text() != text:
                 return {'ok': False, 'error': 'master_changed',
-                        'message': 'Your master resume changed. Read the affected section again before saving.'}
+                        'message': 'Your main résumé changed. Read the affected section again before saving.'}
             profile._persist_augmentation(text, raw, 'resume-studio bounded master edit', changelog)
         after = hashlib.sha256(profile._read_profile_text().encode('utf-8')).hexdigest()
         return {'ok': True, 'changed': changed, 'revision': after, 'changelog': changelog}

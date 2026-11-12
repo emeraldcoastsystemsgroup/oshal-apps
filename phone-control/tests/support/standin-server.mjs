@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Stand-in HTTP server that serves phone-control UI assets from phone-control/tools/ and answers every fetch() URL the page's scripts call with realistic stand-in JSON.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: no machine path. The kernel's shared files come from OSHAL_KERNEL_ROOT when it is set and are answered empty when it is not, so the suite runs in a bare checkout; phone-home.js is served.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0 (T27; Roger, 2026-11-10: "we should be able to rename connections"): PATCH /api/computers/{id} keeps a given name as the kernel does and refuses an empty or over-long one with {refused, detail}.
  */
 
 import { createRequire } from 'node:module';
@@ -254,6 +255,15 @@ function handleApi(req, res) {
   req.on('end', () => {
     const jsonBody = body ? JSON.parse(body) : {};
     if (url === '/api/computers' && method === 'GET') { jsonResponse(res, { computers }); return; }
+    const named = url.match(/^\/api\/computers\/([^/]+)$/);
+    if (named && method === 'PATCH') {
+      // As the kernel's computers_rename: one line of at most 80 characters, kept as the given name; a refusal is {refused, detail}.
+      const computer = computers.find((c) => c.id === decodeURIComponent(named[1]));
+      const name = String(jsonBody.name || '').trim();
+      if (!computer) { res.writeHead(404, { 'content-type': 'application/json' }); res.end(JSON.stringify({ refused: 'not_found', detail: 'you have no computer with that id' })); return; }
+      if (!name || name.length > 80 || /[\r\n]/.test(name)) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ refused: 'invalid_request', detail: 'a device name is one line of at most 80 characters' })); return; }
+      computer.name = name; jsonResponse(res, { id: computer.id, name }); return;
+    }
     if (/^\/api\/computers\/[^/]+\/screen$/.test(url)) { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ frame: 'stub' })); return; }
     if (/^\/api\/computers\/[^/]+\/run$/.test(url) && method === 'POST') { jsonResponse(res, { ok: true, result: 'stub' }); return; }
     if (url === '/api/phone-control/devices') {

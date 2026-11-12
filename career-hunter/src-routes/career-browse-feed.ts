@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | An employer name is looked up in the small company table first (employerIds): no employer of that name answers an empty page at once, and matching employers filter postings by company_id, which idx_corpus_company_active serves. Before, `c.name LIKE ?` applied after the join scanned the postings for a name that never came, so a search for an employer that is not in the corpus stalled about ten seconds on production and then failed (T22).
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
@@ -50,6 +51,21 @@ interface SqliteStatement {
 
 interface SqliteDb {
   prepare(sql: string): SqliteStatement;
+}
+
+/** More employers than this match a name, and the filter stays a name match on the joined table. */
+export const EMPLOYER_ID_LIMIT = 2000;
+
+/**
+ * @description The employers whose name contains the typed words, read from the company table, which holds a few
+ *   thousand rows; postings are then filtered by those ids, never scanned for a name.
+ * @param db - A SQLite handle with the shared corpus reachable as `corpus`.
+ * @param name - The employer words the person typed.
+ * @returns The matching company ids, or null when more than EMPLOYER_ID_LIMIT match.
+ */
+export function employerIds(db: SqliteDb, name: string): number[] | null {
+  const rows = db.prepare('SELECT id FROM corpus.companies WHERE name LIKE ? LIMIT ?').all(`%${name}%`, EMPLOYER_ID_LIMIT + 1) as Array<{ id: number }>;
+  return rows.length > EMPLOYER_ID_LIMIT ? null : rows.map((row) => Number(row.id));
 }
 
 /** @description Express query shape narrowed to the filter values accepted by the browse feed. */
@@ -149,9 +165,12 @@ export interface BrowseFilters {
  *   `p.target_role = 1` is written bare rather than wrapped in COALESCE so an index can serve
  *   it — the same sargability rule the scored feed's guard enforces.
  * @param query - The browse request query.
+ * @param exclusions - The person's hidden jobs and employers (career-job-feedback).
+ * @param employers - The ids employerIds found for the typed employer name; without them the name is matched on the
+ *   joined company table.
  * @returns The split predicates and their positional bind arguments.
  */
-export function browseFilters(query: BrowseQuery, exclusions?: unknown[]): BrowseFilters {
+export function browseFilters(query: BrowseQuery, exclusions?: unknown[], employers?: number[] | null): BrowseFilters {
   const g = (k: string) => param(query, k);
   const location = resolveCareerLocation(query);
   const posting: string[] = ['p.active = 1'];
@@ -166,7 +185,10 @@ export function browseFilters(query: BrowseQuery, exclusions?: unknown[]): Brows
   // broken search rather than a policy. Someone searching a job database is asking about
   // the database. `lane=target` opts back into the tracked lane for callers that want it.
   if (g('lane') === 'target') posting.push('p.target_role = 1');
-  if (g('company')) { company.push('c.name LIKE ?'); companyArgs.push(`%${g('company')}%`); }
+  // Matching employers known (employerIds): postings by company id, on the posting side so every search arm applies it.
+  if (g('company') && employers && employers.length) {
+    posting.push(`p.company_id IN (${employers.map(() => '?').join(', ')})`); postingArgs.push(...employers);
+  } else if (g('company')) { company.push('c.name LIKE ?'); companyArgs.push(`%${g('company')}%`); }
   if (g('remote') === '1') { posting.push(`p.remote = ? AND ${fullyRemoteSql()}`); postingArgs.push(1); }
   if (g('remote') === '0') { posting.push(`(p.remote = ? OR NOT ${fullyRemoteSql()})`); postingArgs.push(0); }
   if (g('state')) { posting.push('p.state = ?'); postingArgs.push(g('state').toUpperCase()); }
@@ -464,7 +486,14 @@ export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery, exclusions?: u
   const sort = String(query.sort || 'recent');
   const order = BROWSE_SORT_MAP[sort] || BROWSE_SORT_MAP.recent;
   const { page, per, offset } = browsePageGeometry(query);
-  const filters = browseFilters(query, exclusions);
+  const employerName = param(query, 'company');
+  const employers = employerName ? employerIds(db, employerName) : null;
+  if (employers && employers.length === 0) {
+    // No employer of that name: answer at once rather than scan the postings for one (T22).
+    return { jobs: [], location: browseFilters(query, exclusions).location, page, per, browse: true, pooled: false, poolSize: null,
+      fullText: false, deep: !!(param(query, 'q') || param(query, 'description')), exhausted: true, capped: false };
+  }
+  const filters = browseFilters(query, exclusions, employers);
   if (filters.location) requireGeoIndex(db);
   const term = param(query, 'q');
 

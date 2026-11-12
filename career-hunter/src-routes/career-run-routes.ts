@@ -16,6 +16,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep native refresh health independent of corpus scans and application-local cron memory; report unavailable native progress without falsely claiming the pull is idle.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | POST /run/build runs matching and scoring as one background run. Awaited, a match over the corpus says nothing to the kernel for 10 seconds and the call is refused with 503, so Find & score jobs matched nothing and then scored nothing. CAREER_BUILD_LIMIT bounds one person's scoring on an installation that shares its model with strangers.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel POST /run/build is the bounded title pass with matching first: saved titles, a cap of 50, seven days, 30 minutes, a retained receipt and a refusal with no saved titles. The merge had moved the Job Board's button to the unbounded generic run. An installation that set CAREER_BUILD_LIMIT keeps that run, bounded by its limit.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The refusal with no saved titles names the page Settings (was Career Settings). Words only.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: POST /run/pull follows the rule POST /run/refresh has. It started the engine's pull, which writes the shared job sources, for any caller holding career.execute, on the native kernel too, where the installation refreshes those sources and nothing else may write them. Both routes now ask refuseSharedPull: on the native kernel 409 with manualRefreshAvailable false and refreshMode installation-managed, and nothing starts; elsewhere 403 unless the caller is a Career administrator. score and match are unchanged, and so is the catalog binding. Guard: tests/career-run-pull-rule.test.mjs.
  */
 
 /**
@@ -74,15 +76,28 @@ function refreshCallerSub(req: Request): string | null {
   return callerSub(req) ?? getTrustedServiceUserSub(req);
 }
 
-function startRefresh(ctx: AppContext, req: Request, res: Response): void {
-  const userSub = refreshCallerSub(req);
-  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+/**
+ * @description The one rule for starting the shared pull by hand, wherever it is asked for. On the native kernel the
+ * installation refreshes the shared job sources, so no request may start a second shared-corpus writer; elsewhere only
+ * a Career administrator may. POST /run/refresh and POST /run/pull both answer from here, so the two cannot differ.
+ * @param userSub - The authenticated caller.
+ * @param res - The response; it is answered here when the request is refused.
+ * @returns True when the request was refused and nothing may start.
+ */
+function refuseSharedPull(userSub: string, res: Response): boolean {
   if (process.env.OSHAL_EGRESS === 'kernel') {
     res.status(409).json({ ok: false, manualRefreshAvailable: false, refreshMode: 'installation-managed',
       error: 'The installation refreshes the shared job sources. This screen cannot start a separate shared-corpus writer.' });
-    return;
+    return true;
   }
-  if (!isCareerAdmin(userSub)) { res.status(403).json({ error: 'admin only' }); return; }
+  if (!isCareerAdmin(userSub)) { res.status(403).json({ error: 'admin only' }); return true; }
+  return false;
+}
+
+function startRefresh(ctx: AppContext, req: Request, res: Response): void {
+  const userSub = refreshCallerSub(req);
+  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (refuseSharedPull(userSub, res)) return;
   const cron = require('./career-hunter-cron') as typeof import('./career-hunter-cron');
   if (cron.isEveningChainRunning()) {
     res.status(409).json({ ok: false, err: 'refresh already running' });
@@ -254,7 +269,7 @@ async function startNativeScore(
   }
   if (!terms.length) {
     res.status(409).json({ ok: false, reason: 'no-title-profile',
-      error: 'Save target job titles in Career Settings before scoring fresh jobs.' });
+      error: 'Save target job titles in Settings before scoring fresh jobs.' });
     return;
   }
   const { args, env } = titles.buildTitlePassInvocation(terms, limit, profile.remoteOnly);
@@ -283,6 +298,8 @@ async function runManualVerb(ctx: AppContext, req: Request, res: Response): Prom
     res.status(400).json({ error: 'verb' });
     return;
   }
+  // A manual pull writes the shared job sources, so it follows the refresh's rule; score and match are the caller's own.
+  if (verb === 'pull' && refuseSharedPull(userSub, res)) return;
   const nativeScore = verb === 'score' && process.env.OSHAL_EGRESS === 'kernel';
   const limit = req.body?.limit === undefined ? manualScore.LIMIT : req.body.limit;
   if (nativeScore && (!Number.isSafeInteger(limit) || limit < 1 || limit > manualScore.LIMIT)) {

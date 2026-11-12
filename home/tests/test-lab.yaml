@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Expand home-device-inspect-and-guide with Samsung Family Hub weekly refrigerator assessment, week-over-week comparison, grocery cart starter, weekly meal list builder, and phone-control optional dependency.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: register home-lan-devices (TV plans, records and the network-TV /control refusal against the compiled routes) and home-tvs (the TVs and streaming sticks section in Chromium at 412 x 915); home-device-inspect-and-guide also proves local discovery lists no made-up device and no TV. All run in store-ci's new home job. The press on a real TV is the person's own, from their own computer: no test sends one.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register home-tv-plans: Jarvis presses TV buttons through the kernel's computer.run_plan. The two plan tools' computerPlan declarations are pinned exactly and every command the compiled plan routes answer is checked against the kernel's plan grammar (mirrored from oshal-kernel computer_plans.rs, with negative controls); the descriptions, the next step and the persona name computer.run_plan and the planId. A real press still needs the person's own session and computer: no test sends one.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 4): home-tv-plans and home-tvs expect what is playing and the media presses on an Android TV's card and in Jarvis's TV tool.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -174,6 +175,7 @@ cases:
       - home-lan-discover declares exactly {program phone-bridge, verbs [lan-discover]} and home-lan-control exactly {program phone-bridge, verbs [lan-control]}; no other tool declares a plan.
       - Every scan and press plan answers 200 with the bridge prefix, its own tool's declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB, and a computer the kernel can read; a scan never fits the press declaration, nor a press the scan one.
       - The grammar check refuses a second command, a redirection, another prefix or flag, an undeclared verb, unpadded or URL-safe base64, a JSON array or string and an oversized argument; the declaration check refuses another program, no verbs, an unknown verb and an extra key.
+      - 1.7.0 On an Android TV, now_playing, play, pause, next, previous and stop are planned with bridge 1.8.0, a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it across a new scan.
       - Both tool descriptions, the plans' next step and the persona say to pass the planId to computer.run_plan, then record the computer's answer with home-lan-record, and otherwise to say it is planned and point to the Smart Home TV buttons; none names computer.run or computer.list.
     prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
     sideEffects: none
@@ -188,6 +190,7 @@ cases:
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/browser/home-tvs.test.cjs] }
     expected:
+      - 1.7.0 An Android TV's card has Previous, Pause, Play, Next and What's playing, each at least 44 x 44; Pause sends one closed lan-control pause and the card says what is playing behind another app and shows it on the Now playing line; a Samsung TV and a Roku have no media row.
       - The section shows with one Scan for TVs button that says what it does; the empty screen keeps one primary; opening the page writes nothing; no console error.
       - With no computer it says what to do and Scan is off.
       - Scan replaces an old bridge with phone-control's real install command, runs the planned scan, saves the TVs and adds the Android TV to Phone & Device Control.

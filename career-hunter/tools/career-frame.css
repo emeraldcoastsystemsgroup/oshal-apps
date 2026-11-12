@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application (Roger, 2026-11-10: "a full application by itself ... full screen, custom navigation, thoughtful layout", in the Little Monsters format). This file is its skin and its frame: the palette every Career page wears while career-frame.js owns the window, the top bar (brand, sections, More, the person's chips), the row of a section's pages under it, and the phone's bottom bar. Nothing here applies unless career-frame.js has set data-career-frame on the page, so a Career page hosted by anything other than the cockpit looks as it did.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The person's role in Career sits beside their name as one pill ("Ada · Job seeker"), and under the name in the phone's top-bar menu (judge's report 2026-11-11, change 11). The name keeps its own element, so the pill is drawn by the two together.
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
@@ -97,6 +98,14 @@ html[data-career-frame], html[data-career-frame] body { background-color: var(--
 }
 .cf-chip b { font-variant-numeric: tabular-nums; }
 .cf-pill { display: inline-flex; align-items: center; min-height: 32px; max-width: 160px; padding: 0 12px; border-radius: 999px; background: var(--bg-tertiary); color: var(--cf-ink-2); font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+/* The person and their role in Career, one pill: the name, a middle dot, the role. A long role gives way before the name does. */
+.cf-who { display: inline-flex; align-items: center; min-height: 32px; max-width: 320px; border-radius: 999px; background: var(--bg-tertiary); color: var(--cf-ink-2); font-weight: 600; font-size: 13px; overflow: hidden; }
+.cf-who > .cf-pill { flex: 0 0 auto; min-height: 0; padding: 0 0 0 12px; border-radius: 0; background: none; }
+.cf-who > .cf-pill:last-child { padding-right: 12px; }
+.cf-who > .cf-role { flex: 0 1 auto; min-width: 0; padding: 0 12px 0 0; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-who > .cf-role:first-child { padding-left: 12px; }
+.cf-who > .cf-pill + .cf-role::before { content: "·"; margin: 0 6px; }
+.cf-menu .cf-role { padding: 0 12px 8px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
 .cf-more-phone, .cf-bottombar { display: none; }
 .cf-subnav[hidden], .cf-bottombar[hidden] { display: none !important; }
 
@@ -137,6 +146,7 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   .cf-brand span { overflow: hidden; text-overflow: ellipsis; }
   .cf-brand img { width: 32px; height: 32px; }
   .cf-topbar nav, .cf-more-desk, .cf-side > .cf-pill { display: none; }
+  .cf-side > .cf-who { display: none; }
   .cf-more-phone { display: block; }
   .cf-more-phone > summary { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 22px; line-height: 1; }
   .cf-more-phone .cf-menu { min-width: 250px; max-width: calc(100vw - 16px); }

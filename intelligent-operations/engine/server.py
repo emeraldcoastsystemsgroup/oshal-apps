@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded package-owned detection engine, reached through the native engine relay.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Relay typed percolator operations with a versioned hello; no caller-provided URLs, filesystem paths, shell or cluster credentials.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | T71: relay retire (scope, keep, olderThanSeconds): the package names the generations its source bindings keep and the engine removes the scope's others once older than an hour.
 """
 import hashlib
 import json
@@ -27,6 +28,7 @@ class Handler(socketserver.StreamRequestHandler):
             if request.get('cmd')=='health':result=BACKEND.status()
             elif request.get('cmd')=='publish':result=BACKEND.publish(args.get('scope'),args.get('revision'),args.get('rules'))
             elif request.get('cmd')=='match':result=BACKEND.match(args.get('scope'),args.get('revision'),args.get('document'))
+            elif request.get('cmd')=='retire':result=BACKEND.retire(args.get('scope'),args.get('keep'),args.get('olderThanSeconds'))
             else:raise Failure('Unknown detection command.','invalid-request')
             self.write({'id':identifier,'result':result})
         except (Failure,ValueError,KeyError,TypeError,OSError) as error:

@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Quote box-side paths as PowerShell expandable strings through one validating helper (psBoxPath). The dataset import wrapped its curated directory, image and caption paths in psLiteral (single quotes), so the default box root "$env:USERPROFILE/lora-characters" reached the worker unexpanded and the first live run failed New-Item with DriveNotFound ($env:String); the training and validation commands had always double-quoted the same root. The helper admits exactly a box path (an optional leading $env:NAME, then letters, digits, space and _ . : ( ) - / \), refuses every quote, backtick, further $, newline, control character and "..", and now also quotes the interpreter, script, --box-root and --dataset paths so a malformed root fails at dispatch instead of being pasted into a shell. The write fragment is exported so a real-PowerShell guard can run the shipped statements.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Export hasEdgeWorker(): whether pickEdgeClient would find an online GPU edge worker right now, for the studio's one read-only GET /worker. The studio withholds Train, Validate, Improve and Overnight where none is registered (UX audit 2026-11-06), from the same selection the dispatch uses, so the page never offers an action the dispatch would refuse as box_required.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: LORA_CONTROLLER_URL has no default (open-work audit 2026-11-10: the default named a house LAN address); a command that needs the callback address refuses in words until the installation sets it.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.10.4: LORA_DIRECTOR_AGENT_ID is lora-director's own id a0000000-0000-0000-0000-000000000065 (oshal-app.yaml bots, personas/lora-director.yaml agent_id). Store PR #47 (2026-08-02) moved lora-director off a0...0049, which belongs to intelligent-trades' trading-research-analyst, but this constant kept 049, so the box tasks' fromAgentId and the ingest review ticket's assignee named the Trades analyst and scripts/check-store-bots.mjs listed the routes as calling a bot this package neither declares nor imports.
  */
 
 /**
@@ -46,7 +47,7 @@ import type { RemoteClientRecord } from '@/features/remote-client';
 const logger = createChildLogger({ module: 'lora-train-dispatch' });
 
 /** The LoRA Studio bot identity (the task's fromAgentId and the owner of review tickets). */
-export const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
+export const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000065';
 
 /*
  * ── BOX FACTS (verified by driving the GPU box DIRECTLY end-to-end) ──────────────────────────────

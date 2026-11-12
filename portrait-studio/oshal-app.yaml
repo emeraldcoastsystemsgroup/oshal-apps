@@ -29,6 +29,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.17.3: Roger, 2026-11-06 (F15): Generate is always drawn at Step 3, disabled with the reason beside it when it cannot run (no create access, no image model); a numbered stepper and a Step 1 line that names the next two steps; a first press that only wakes the image model makes the portrait without a second press.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.17.4: Roger, 2026-11-06: bounded Step 1 cropper (<=460x340px), compact Step 3 two-column minor-adjustment grid paired with a live image preview, plus Roman Soldier armor preset and Gladiator armor fix.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.17.5: Jarvis routing words (backlog P4-16g): portrait-artist adds 'headshot from'. "Make a professional headshot from this photo of me" tied Camera Ops on 'photo' and now reaches Portrait Studio; "Take a photo of me with the webcam" stays with Camera Ops. No route, tool or permission changed.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Release 1.17.6 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: portrait-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -43,7 +44,8 @@ rating:
       degrade: disable
 displayName: Portrait Studio
 description: "Edit face crops and generation settings in a saved source project, retain original photos, and hand rendered results into the image editor."
-version: 1.17.5
+version: 1.17.6
+chatBot: portrait-artist
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -169,6 +171,7 @@ settings:
 bots:
   - agentId: b0100000-0000-0000-0000-000000000001
     name: portrait-artist
+    posture: inline
     routingKeywords:
       - portrait
       - portrait studio

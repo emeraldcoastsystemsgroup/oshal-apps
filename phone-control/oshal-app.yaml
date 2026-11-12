@@ -21,6 +21,14 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: Bluetooth pairing asks first (open-work audit 2026-11-10; Orbit Add hub 2.6 items 1-2): the bridge holds every pairing request until the person presses Allow or Reject on the page (no answer in 30 s is Reject, one Allow per window, a device that paired in the window without an Allow is removed when it closes), trusts and reconnects only devices the person allowed (ble-pair-answer, ble-keep for a device paired before), and the tests name no house address.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen is a tree with details (Roger, 2026-11-10). Each computer is a row with the phones and TVs that connect through it, and its bound programs, under it; a device's Details show how it connects, through what, its state, its control switch and what it can do, in tables beside the tree (under the row on a phone); a saved phone or TV can be renamed there. Rows start at the left and the list fills the page. In Add a device every button shows all of its words.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: his Fire TV was on Prime Video; the page showed an old Marquee picture and the TV Concierge answered "The phone is not connected to this computer"). The computer's adb had lost the TV and nothing reconnected it; the page then showed the last picture the TV's own oshal app had sent as if it were live and hid the reason. Now every command and picture read reconnects a phone or TV reached over the network once before reporting anything; a device still not connected is named with its kind, its computer and Sync; a stored picture is shown only under a note that it is not live. No route, permission or data change.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Release 1.7.0 (T45 part 3; Roger, 2026-11-11: "deep links that open the actual film on the TV"): Open a Link on a TV (phone-control-open-link, POST /devices/:id/open-link) opens a title's link on a saved Android or Fire TV inside its streaming app, waking the TV first; the bridge (1.7.0) carries oshal_phone_links.py.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): the bridge's lan-control on an Android or Fire TV reads what is playing and in which app, and play, pause, next, previous and stop reach the app playing even when another app is in front; the answer reads the TV's media sessions again and says what the press did. Smart Home 1.7.0 puts them on a TV's card and in Jarvis's TV tool. The bridge source budget is 240 KiB; the install command is ~81 KB and stays under the 100 KiB the honesty test allows. No route, tool, permission or egress changed.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.0 (T45 part 2; Roger, 2026-11-10: "plays it on any device in his connected devices"): Open a Link on a TV also opens a Marquee page in the TV's oshal app (app oshal, Orbit for Android 0.8.6), so Marquee 1.28.0 plays the person's own copy on a TV; the bridge (1.9.0) sends it as oshal://open?path=... and says when the app is missing or older than 0.8.6. No permission or egress changed.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.1 (concierge audit batch 1, Create concierge pattern): device-concierge carries runtime harness claude-code, as Create's create-editor does. The bridge says 1.9.1 with no verb changed (its version follows the package's), so a computer updates it on its next use.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.0 (T27; Roger, 2026-11-10: "we should be able to rename connections"): Rename for a computer in the tree saves the kernel's given name (PATCH /api/computers/{id}), the name the Devices page shows. The bridge says 1.10.0 with no verb changed. No route, tool, permission or egress of this package changed.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Release 1.11.0 (T80; Roger, 2026-11-12: "hey jarvis in the game room open rings of power season 3 where i left off .. make it do that"): Play a Show on a TV (phone-control-play-show, POST /devices/:id/play) plays a show or film by its name on a saved Android or Fire TV, the way a person does with the remote: Prime Video's search, the matching result, then Resume (where the person left off) or Play, answered with what the TV says is playing. The bridge (1.11.0) carries oshal_phone_play.py. Proven on the office Fire TV: Season 3, Episode 3 resumed where Roger was.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.12.0 (T79, the device inventory, first slice): What a TV can play (phone-control-tv-apps, POST /devices/:id/apps) says which streaming apps a saved Android or Fire TV has, so Jarvis can answer "what can my TV play" and pick the app: the bridge (1.12.0) carries oshal_phone_apps.py, whose lan-control tv_apps reads the TV's package list once and maps it through a closed list (Netflix, Prime Video, Disney+, Max, Hulu, YouTube and the oshal TV app), answering each app's key, name and package and only a count of the other packages; nothing on the TV is pressed, woken or opened. Bound as Open a Link on a TV; no permission or egress changed. Tested against a scripted TV; not yet run on a real TV.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Release 1.12.1 (T79): the tool Jarvis lists saved devices with is "List My Phones and TVs", and its description says it lists TVs too, with whether each is a phone or a TV. It already listed both; its name said phones only, so a request for a TV could pass it by. No route, permission or data changed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -43,7 +51,11 @@ description: >-
   check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
   (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and
   Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
-version: 1.6.1
+  On a saved Android or Fire TV it plays a show or film by its name in Prime Video, resuming where the
+  person left off, opens a title's link in its streaming app, and says what the TV is playing.
+  It also says which streaming apps a saved Android or Fire TV has, among Netflix, Prime Video,
+  Disney+, Max, Hulu, YouTube and the oshal TV app.
+version: 1.12.1
 status: active
 scope: person
 chatBot: device-concierge
@@ -192,10 +204,10 @@ summary:
 
 tools:
   - name: phone-control-list-devices
-    displayName: List My Phones
+    displayName: List My Phones and TVs
     type: api
     category: operations
-    description: List this person's phones in Phone & Device Control, each with the computer it connects through and whether control is allowed.
+    description: List this person's phones and TVs saved in Phone & Device Control, each with its name, whether it is a phone or a TV, its address, the computer it connects through and whether control is allowed.
     executor:
       executorType: api
       apiEndpoint: GET /api/phone-control/devices
@@ -205,7 +217,7 @@ tools:
       type: object
       properties: {}
       additionalProperties: false
-    usageInstructions: Choose a phone returned here; never guess a phone id.
+    usageInstructions: Choose a phone or TV returned here, by the name the person gave it; never guess an id.
     routingTags:
       - operations
       - phone-control
@@ -704,7 +716,7 @@ tools:
         - id
         - action
       additionalProperties: false
-    usageInstructions: Use an id from List My Phones; shares the same move/click/drag/type/key primitive contract as interactive screen clicks and automation jobs.
+    usageInstructions: Use an id from List My Phones and TVs; shares the same move/click/drag/type/key primitive contract as interactive screen clicks and automation jobs.
     routingTags:
       - operations
       - phone-control
@@ -882,6 +894,70 @@ tools:
     skills: [phone-device-control]
     tags: [route-backed]
 
+  - name: phone-control-open-link
+    displayName: Open a Link on a TV
+    type: api
+    category: operations
+    description: Open a film's or show's link on a saved Android or Fire TV, inside its streaming app (netflix, prime, disney, max, hulu, youtube) when named, or a Marquee page in the oshal TV app (oshal); the TV is woken first. Answers the plan the person's computer runs.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}/open-link
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+        url: { type: string, minLength: 9, maxLength: 256 }
+        app: { type: string, enum: [netflix, prime, disney, max, hulu, youtube, oshal] }
+      required: [id, url]
+      additionalProperties: false
+    usageInstructions: Pass the TV's id or name, the https link to the title on the service's own site, and the app; the link opens that title in the app.
+    routingTags: [operations, phone-control, devices, tv, streaming]
+    skills: [phone-device-control]
+    tags: [route-backed]
+  - name: phone-control-play-show
+    displayName: Play a Show on a TV
+    type: api
+    category: operations
+    description: Play a show or film by its name on a saved Android or Fire TV in Prime Video, the way a person does with the remote - the app's search, the matching show, then Resume (where the person left off) or Play - and say what the TV is playing afterwards.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}/play
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+        title: { type: string, minLength: 2, maxLength: 80 }
+        app: { type: string, enum: [prime] }
+      required: [id, title]
+      additionalProperties: false
+    usageInstructions: Pass the TV's id or name and the show's or film's name as the person said it (without the season or episode); Prime Video resumes the episode the person was watching. Run the plan it answers on the TV's computer, then say what it reports is playing.
+    routingTags: [operations, phone-control, devices, tv, streaming, play]
+    skills: [phone-device-control]
+    tags: [route-backed]
+  - name: phone-control-tv-apps
+    displayName: What a TV can play
+    type: api
+    category: operations
+    description: Say which streaming apps a saved Android or Fire TV has installed, among Netflix, Prime Video, Disney+, Max, Hulu, YouTube and the oshal TV app, read from the TV's app list without pressing anything on it.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}/apps
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Pass the TV's id or name. Run the plan it answers on the TV's computer; it lists each app it found by key (netflix, prime, disney, max, hulu, youtube, oshal), name and package, and unknownCount, how many other packages the TV lists (system ones included), which it never names. Use an app's key as the app for Open a Link on a TV, or Play a Show on a TV for prime.
+    routingTags: [operations, phone-control, devices, tv, streaming]
+    skills: [phone-device-control]
+    tags: [route-backed]
   - name: phone-control-execute-device
     displayName: Execute Device Control Sequence
     type: api

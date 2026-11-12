@@ -7,6 +7,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the corpus-only browse feed against a real SQLite corpus built from the engine's own schema.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Require title/description keywords from the main box, preserve independent advanced filters on employer matches, and exercise the legacy fallback.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | T22: an employer name nobody in the corpus has answers an empty page at once and reads no posting; a known one filters postings by company id; more than EMPLOYER_ID_LIMIT matching employers keep the name match. Before, the name was matched after the postings join, so an unknown employer scanned the corpus (about ten seconds on production, then a failure).
  */
 /**
  * Regression guards for the pre-resume BROWSE feed.
@@ -528,4 +529,37 @@ test('sort=salary ranks annual USD roles ahead of raw non-USD figures such as NV
   } finally {
     db.exec('ROLLBACK');
   }
+});
+
+/** The SQL a page asked the corpus, in order, with the database's own answers. */
+function recording(handle) {
+  const asked = [];
+  return { asked, db: { prepare(sql) { asked.push(sql); return handle.prepare(sql); } } };
+}
+
+test('an employer nobody in the corpus has answers an empty page at once and reads no posting (T22)', () => {
+  const { asked, db: watched } = recording(db);
+  const page = browse.fetchBrowsePage(watched, { company: 'Nowhere Industries' });
+  assert.deepEqual([page.jobs, page.exhausted, page.page], [[], true, 1]);
+  assert.deepEqual(asked, ['SELECT id FROM corpus.companies WHERE name LIKE ? LIMIT ?'], 'only the company table is asked');
+});
+
+test('a known employer filters the postings by company id, in every arm, with the same answers (T22)', () => {
+  const { asked, db: watched } = recording(db);
+  assert.deepEqual(titles(browse.fetchBrowsePage(watched, { company: 'acme' })), ['Senior SRE']);
+  assert.ok(asked.slice(1).every((sql) => !/c\.name LIKE/.test(sql)), 'the name is not matched on the joined table');
+  assert.ok(asked.slice(1).some((sql) => /p\.company_id IN \(\?\)/.test(sql)), 'postings are filtered by the employer id');
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, { company: 'North' })).sort(), ['Data Analyst', 'Staff Platform Engineer']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, { company: 'acme', q: 'sre' })), ['Senior SRE'], 'a keyword search keeps the employer filter');
+  const filters = browse.browseFilters({ company: 'acme' }, [], [11]);
+  assert.match(filters.postingWhere, /p\.company_id IN \(\?\)/);
+  assert.deepEqual(filters.postingArgs.slice(-1), [11]);
+});
+
+test('more matching employers than the limit keep the name match (T22)', () => {
+  const many = { prepare: () => ({ all: () => Array.from({ length: browse.EMPLOYER_ID_LIMIT + 1 }, (_, i) => ({ id: i })) }) };
+  assert.equal(browse.employerIds(many, 'co'), null);
+  const filters = browse.browseFilters({ company: 'co' }, [], null);
+  assert.match(filters.where, /c\.name LIKE \?/);
+  assert.doesNotMatch(filters.postingWhere, /company_id IN/);
 });

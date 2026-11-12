@@ -13,6 +13,11 @@ Normalized posting dict:
     {ats_job_id, title, location, remote, department, url, description, posted_at}
 """
 # CHANGE LOG
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register the ManpowerGroup reader (Experis, Manpower), kept in listed_boards with the listed boards.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | A SuccessFactors tile's job takes the remote answer its tile gives (listed_place); a table list's job is judged from its place and link text as before.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | The SuccessFactors reader takes the place a tile list shows beside a job (listed_boards.listed_place). Syntax's 71 jobs were read with no place, because a tile holds it in a labelled field and not under the class the reader looked for. A table list is read as before, and a job's id, title and link do not change in either.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register the Talentsoft reader, kept in listed_boards with the two it joins.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Register the Randstad USA and Motion Recruitment readers, kept in listed_boards: each board is read from its own listing pages to the count it states.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Two readers for boards whose page loads its jobs from a search service the browser page reader may not call. A newer SuccessFactors career site lists no job in its page (Altria, Skyworks, NTT DATA Business Solutions, Amway said "No jobs found" to the page reader); when the page lists none, the SuccessFactors reader asks the site's own search service, read to the total it states. A classic site's page is read as before, so its stored jobs keep their ids. New Dayforce reader (Regency Centers, ASRC Federal, Mirion, Carhartt, Imperial Dade): the board's search service, with the anti-forgery token the board's page asks for first, read to the count it states.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | The Jibe reader takes an employer's own careers host as its token ("careers.costco.com"): 22 employers' sites answered HTTP 403 to the browser page reader and answer this listing. A Jibe listing read to the count it states is the whole board, so a job that leaves it closes; a listing cut short closes nothing. A Jibe job's place is its city, state and country, not the employer's label for the site: 397 of Ulta Beauty's 13,620 open jobs had a state.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Read the place an Avature list shows beside each job: the element the board marks as the location (ManTech), or the line under the title when it ends with a city, region and country (Deloitte). Every Avature job was stored with no place, so none matched a search by place. A list that shows no place for a job ("Multiple Locations", a shop's street address) still stores none. The workplace a board marks beside the place ("Remote Type: Fully Remote", "Hybrid", "Onsite") is the job's remote answer. The next page starts after the jobs on this one, not after its links: Trader Joe's list links each job four times, so the reader stepped over three pages in four and read 60 of 190 jobs.
@@ -32,6 +37,7 @@ from datetime import datetime
 
 from . import http
 from .public_education_ats import GovernmentJobs, PageUp
+from .listed_boards import ManpowerGroup, MotionRecruitment, Randstad, Talentsoft, listed_place
 from .work_arrangement import looks_remote as _looks_remote, remote_location
 from .salary_text import parse_salary as _parse_salary
 
@@ -1003,11 +1009,9 @@ class SuccessFactors:
                 if url in seen:
                     continue
                 seen.add(url); page_new += 1
-                row = a.find_parent(["tr", "li", "div"])
-                loc = row.find(class_=re.compile("jobLocation|job-location", re.I)) if row else None
-                loct = loc.get_text(strip=True) if loc else None
+                loct, remote = listed_place(a)
                 out.append({"ats_job_id": href, "title": a.get_text(strip=True), "location": loct,
-                            "remote": _looks_remote(loct, a.get_text()), "department": None,
+                            "remote": _looks_remote(loct, a.get_text()) if remote is None else remote, "department": None,
                             "url": url, "description": None, "posted_at": None})
             if not page_new:
                 break
@@ -1998,7 +2002,7 @@ class Dayforce:
 REGISTRY = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, Amazon, Microsoft,
             Radancy, Google, SuccessFactors, OracleORC, Phenom, Eightfold, Apple,
             Pinpoint, Jibe, Avature, ICIMS, Brassring, GDCareers, GSRoles, HtmlList,
-            Webflow, Symphony, PageUp, GovernmentJobs, Dayforce, Web]
+            Webflow, Symphony, PageUp, GovernmentJobs, Dayforce, Randstad, MotionRecruitment, Talentsoft, ManpowerGroup, Web]
 BY_NAME = {c.NAME: c for c in REGISTRY}
 # Order to try when slug-probing an unknown company (Workday excluded — not probeable):
 PROBE_ORDER = [Greenhouse, Lever, Ashby, SmartRecruiters, Workable]

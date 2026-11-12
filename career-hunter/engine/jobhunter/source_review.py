@@ -6,6 +6,7 @@ sources and employers with no feed, repairs one only on evidence from the employ
 writes a report the Companies page shows.
 """
 # CHANGE LOG
+# 4 | maintainer@emeraldcoastsystemsgroup.com | A careers link or homepage on a board vendor's site lends the employer no name in `_resembles`. Its site label is the vendor's ("lever" from jobs.lever.co/acme, "myworkdayjobs" from acme.wd5.myworkdayjobs.com), so any board with that word in it (cleverdevices) looked like the employer, and the review could move the employer onto another company's board. The employer's own name and its own site still count.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Two hosts on one board vendor's domain are no longer the same site. `_same_site` compared the last two labels of a host, so foo.avature.net and bar.avature.net, two employers' boards, counted as one site. On a vendor's domain the whole host must now match. The vendor domains are read from the two patterns the engine already keeps of vendors' hosts, and from the resolver's own reading of an address.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is not reviewed and not counted as having no feed.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Recheck dead sources and employers with no feed after each full pull under a bounded public-only budget, repair only on the employer's own evidence, report name-only matches as suggestions, and record what changed and what is still broken.
@@ -263,7 +264,9 @@ def _resembles(row, token):
     names = {re.sub(r"[^a-z0-9]", "", slug) for slug in discover._slugs(row["name"])}
     names |= {word for word in re.findall(r"[a-z0-9]+", row["name"].lower()) if len(word) >= 4 and word not in _COMMON_WORDS}
     names -= _COMMON_WORDS  # Trimming "American Group" leaves a word that would match anyone's board.
-    names |= {_site(url)[0] for url in (row["careers_url"], row["homepage"]) if url and urlsplit(url).hostname}
+    # A link on a board vendor's site is the employer's page there: its site label is the vendor's, not the employer's.
+    names |= {_site(url)[0] for url in (row["careers_url"], row["homepage"])
+              if url and urlsplit(url).hostname and not _on_vendor_domain(urlsplit(url).hostname)}
     return any(board == name or (len(name) >= 4 and name in board) or (len(board) >= 4 and board in name) for name in names)
 
 

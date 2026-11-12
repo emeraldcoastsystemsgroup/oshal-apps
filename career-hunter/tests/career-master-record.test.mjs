@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The master record reader (lib/career-master-record.js, 1.51.0) over a made-up person's store written the way Career writes it: every bullet once under its role, every skill under its group, the history newest first with its dates (a Resume Studio save labelled, an unreadable line counted), Strengthen answers under their theme names, snapshot dates without opening a snapshot, the counts, the private writing notes on the record but never in the Markdown, nothing written on a read-only folder with the database opened immutable, a link or an oversized source refused before it is read, and no file of another person's folder touched.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the record and its file say Other experience, My résumé, Questions you answered and Improve it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé, and the line about answers that could not be read says so.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,10 +57,10 @@ test('every bullet once under its role, every skill under its group, history new
   }
   const cloud = between(md, '### Cloud (expert)', '### Leadership');
   for (const skill of profile.skills.Cloud.items) assert.ok(cloud.includes(`- ${skill}`), `${skill} under Cloud`);
-  assert.ok(between(md, '### Leadership', '## Additional experience').includes('- ALEX-SKILL-Mentoring'));
+  assert.ok(between(md, '### Leadership', '## Other experience').includes('- ALEX-SKILL-Mentoring'));
   assert.deepEqual(r.history.map((h) => h.when), ['2026-11-09 02:35:36', '2026-06-15 09:00:00', '2026-06-05 10:15:00']);
-  assert.deepEqual(r.history[0], { at: '20261109-023536-891855', when: '2026-11-09 02:35:36', source: 'Saved from Resume Studio', added: ['headline updated'], words: '' });
-  const history = between(md, '## History, newest first', '### Strengthen answers');
+  assert.deepEqual(r.history[0], { at: '20261109-023536-891855', when: '2026-11-09 02:35:36', source: 'Saved from My résumé', added: ['headline updated'], words: '' });
+  const history = between(md, '## History, newest first', '### Questions you answered');
   assert.ok(history.indexOf('2026-11-09 02:35:36') < history.indexOf('2026-06-15 09:00:00'));
   assert.ok(history.indexOf('2026-06-15 09:00:00') < history.indexOf('2026-06-05 10:15:00'));
   assert.ok(history.includes('> ALEX-WORDS first fact\n> second line'), 'the person\'s own words keep their lines');
@@ -98,10 +100,10 @@ test('a linked or oversized source is refused before it is read, and the refusal
   const cases = [
     ['a linked profile', link('career_db.json', path.join(bob.userDir, 'career_db.json')), /career profile is a link/],
     ['a linked history', link('enrichment_log.jsonl', path.join(bob.userDir, 'enrichment_log.jsonl')), /history of what you added is a link/],
-    ['an oversized library', (dir) => fs.writeFileSync(path.join(dir, 'experience-bank.json'), ' '.repeat(512 * 1024 + 1)), /additional experience library is larger than Career keeps/],
+    ['an oversized library', (dir) => fs.writeFileSync(path.join(dir, 'experience-bank.json'), ' '.repeat(512 * 1024 + 1)), /Your other experience is larger than Career keeps/],
     ['an oversized profile', (dir) => fs.truncateSync(path.join(dir, 'career_db.json'), 4 * 1024 * 1024 + 1), /career profile is larger than Career keeps/],
     ['a linked snapshot folder', link('backups', path.join(bob.userDir, 'backups')), /snapshot folder is not a folder/],
-    ['a linked owner database', link('user-mal.db', bob.userDb), /Strengthen answers could not be read/],
+    ['a linked owner database', link('user-mal.db', bob.userDb), /Your answers on Improve my résumé could not be read/],
   ];
   cases.forEach(([name, plant, refusal], index) => {
     const dir = path.join(root, `mallory-${index}`), store = writeStore(dir, { mark: 'MAL', userDb: 'user-mal.db' });

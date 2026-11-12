@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify Ambient Recall 1.2.1 Continuous Profile Learning & Eavesdrop Business Cards routes (GET/POST /api/person-model/profile-cards, POST /api/person-model/recall), concierge tools, and Profile & Cards UI tab.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: the manifest pin follows the version (Ambient Recall's routing words 'say', 'said' and 'meeting', backlog P4-16h).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: the owner's address is the test's own OSHAL_OWNER_ADDRESS (an example address), never a default in the package; the manifest pin follows the version.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: the version pin follows the release (concierge audit batch 2a).
  */
 'use strict';
 
@@ -69,7 +70,7 @@ test('person-model manifest unhides Ambient Recall tile, declares lastingStorage
   assert.equal(manifest.name, 'person-model');
   assert.equal(manifest.displayName, 'Ambient Recall');
   assert.equal(manifest.status, 'active');
-  assert.equal(manifest.version, '1.2.3');
+  assert.equal(manifest.version, '1.2.4');
   assert.equal(manifest.lastingStorage, true);
   assert.equal(manifest.ui?.static?.[0]?.toolName, 'ambient-recall');
   assert.equal(manifest.ui?.static?.[0]?.iframeUrl, '/api/person-model/app');

@@ -36,6 +36,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.7: "plant" is no longer a routing word ("I spent the afternoon in the garden, what should I plant?" reached Design Studio); its plant work is reached through "mechanism", "design" and the application's name.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.8 (UX audit 2026-11-06): one primary on a product page (the next open phase); a phase no engine measures is closed with Mark done by hand, as a secondary; a failed or absent engine read is said in words with what to do, never the route path. Guard: tests/ux-words.test.js.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.9 (UX audit 2026-11-06): add one-line phase progress stepper above product posters, move process/closure prose into Help dialog, put Settings and Help in header overflow menu, hide duplicate Reload when framed in the cockpit shell, sort products newest-first, and pin New product to the bottom right on Products.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.10 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: design-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -60,7 +61,7 @@ description: >-
   engine's evidence line and the artifact revision. The design partner on the
   right rail works through the chain with you. The spider is the first product;
   a lifting machine is the first whose plant is generated from its own design.
-version: 0.4.9
+version: 0.4.10
 status: active
 scope: person
 # The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel
@@ -121,6 +122,7 @@ dependencies:
 bots:
   - agentId: 3e9b6c1a-7d42-4f0b-9a58-61c0d2e4f7a3
     name: design-partner
+    posture: inline
     persona: personas/design-partner.yaml
     role: engineering/design-partner
     jarvisMode: delegate

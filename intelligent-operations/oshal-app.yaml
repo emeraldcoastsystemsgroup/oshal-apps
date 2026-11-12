@@ -1,3 +1,4 @@
+# CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, concierge audit batch 2b (Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"; the Create concierge pattern, Intelligent Trades 1.54.0 and Intelligent Career 1.57.0 the worked examples): the concierge panel and Jarvis's hand-offs were answered by ops-rca-specialist, the RCA pipeline's own investigator, sitting in as chatBot. The front desk is now ops-concierge (personas/ops-concierge.yaml), an inline bot that answers from the person's own Operations records through this package's route tools (ops-remove-source still held for approval), carries the specialist's concierge-panel rules word for word, and follows Create's create-editor: the plain-prose rule, the ```tool_call fence and runtime harness claude-code. The routing words move to it, not copied. ops-rca-specialist and ops-incident-reviewer stay the workers: the investigate, review and revise phases are unchanged, and the Console, Cloud & SSH commands and Pod console still ask the specialist for their JSON packets. One bot binding on the existing app.open (authorization.yaml); no permission, role, route or tool changed. Guard: tests/ops-create-concierge.test.cjs (Test Lab create-concierge).
 # CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2, Systems tab infrastructure stack tree (lanes/ops-stack-tree-2026-11-10.md): each monitored installation card on Systems renders a collapsible + / − hierarchical stack tree (Server -> Cluster/VM -> Node -> Workloads) with bottom-up child-to-parent alert and health roll-up, per-level readings, last-heard times, operational actions (Runbook, Restart / Incident, Rules) and one-click jumps (Platform Ops, App Ops, Console), and excludes personal satellite devices (oshal-node-desktop, phones, TVs); Triage (#overview), the four desks, layout and navigation remain untouched. Guard: tests/systems-stack-tree.test.cjs.
 # CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1, Monitoring Trust M2 rework (2026-11-10T04:25:04Z decision): remove monitoring-scope (no set_config, no oshal.current_sub, no system:monitoring, no row migration; monitoring data stays in its existing owner scope as in 1.7.0). Keep removed-source topology scan filtering in systemsSummary and scheduled discovery auto-disable when its source is removed, and Systems device trust controls (pending self-registered device approval with Ed25519 key fingerprint and allowed source CIDR editing, per-card allowed address editing, and headless --register / Windows / macOS / --config-pack instructions). Guards: tests/monitoring-trust-m2.test.cjs.
 # CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0, Monitoring Trust M2 (monitoring-trust-proposal-2026-11-10.md Option A): shared monitoring scope across operators and monitoring service principals, automatic idempotent migration of legacy personal-scope monitoring records (sources, mappings, policies, heartbeats, topology scans, runbooks) with zero desk history lost, removed-source topology scan filtering in systemsSummary and scheduled discovery auto-disable when its source is removed, and Systems device trust controls (pending self-registered device approval with Ed25519 key fingerprint and allowed source CIDR editing, per-card allowed address editing, and headless --register / Windows / macOS / --config-pack instructions). Guards: tests/monitoring-trust-m2.test.cjs.
@@ -55,6 +56,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5: Investigate again: an evidence card whose ticket failed or was cancelled opens a fresh ticket for the same sealed evidence through the same POST /investigations (again:true) and records the earlier attempt; the scheduled tick never retries. On the Spark three dev-droplet investigations were settled no_live_claimant while the operator worker was down (2026-10-23 to 2026-11-03) and could never run again. The Overview incident card keeps the Operations tickets of a person with more than 1,000 tickets (its cap on the whole list said "Incident work response is unavailable"), and both incident lists and the evidence cards name each investigation by its alert. Git explorer: a provider switch's late load no longer erases a newer message (the store gate failed on it under load).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: Monitored installations (Roger, 2026-11-03: no proof the dev droplet is monitored). A droplet's InstallationHeartbeat alert arrives every minute through the same producer door and route as its alerts, and is never admitted as an event: Operations keeps its time and readings, 15-minute history for 14 days, the readings in the source's telemetry banks and the droplet with its containers in the topology. Systems and Overview show each installation: when it was last heard, every check in words, what is firing and the charts. The processing tick raises InstallationSilent when one stops reporting for 10 minutes (a dead droplet cannot report its own death), the next report clears it, and a gap in the schedule itself blames nobody. Fixed on the way: every later outage of an alert was refused as a conflict, because its event id had no start time. No catalog change, no new asset path: delivering it suspends no assignment.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10, what a fourth review proved on the real stack (2026-11-04). Only the tick's own decisions reach the phone, because 1.1.8 paged a replay's synthetic alerts. Each report carries what Prometheus lists and how long it has been up, which now decides whether an alert cleared, including when no resolve ever comes, so a quick restart, a dead exporter or a wrong clock says nothing false and a reboot leaves nothing standing. An engine outage spends no retries and names a critical once. A message fits the shortest rail with what is firing first. Each failing step is its own news. A rail that keeps refusing is on the attention list. The kernel's conflict wording retries like any conflict. Discovery and detection stop at the tick's deadline, and correlation deferred by it is owed to the next tick.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3, T71 (Roger, 2026-11-11: "Open search needs to be on a rotation and sumerization"): rule generations rotate. After a source policy is activated, the engine retires the person's generations no source binding keeps, once older than an hour (engine retire, pipeline retireUnbound); each rules change used to leave its index in the search forever. Engine build changes (identity.json): restart the engine after delivery.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8, what a third review proved on the real stack (2026-11-04). The phone: a message is owed until the rail takes it, from the decisions on record, naming the latest word per alert, and cleared is not said while another of that type is on the card or when a dead Prometheus's alerts time out. The tick: alarms first, one failing step stops only itself, it tells the phone once per failing streak, and it starts nothing new after 25 s so the kernel never ends it at 60 s. A blip that becomes an outage gets its evidence after the window. Stop watching refuses a server still reporting. Jarvis says when the silence watch has stopped. The Overview no longer says healthy under a firing critical, and a page with failed reads no longer calls a healthy server silent or offers to delete it.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7, what two independent reviews of Monitored installations proved. The alarm: a failed admit no longer loses InstallationSilent or its resolve, both stay owed and the tick retries them; one report between two silences is a second occurrence; a resolve evaluated first makes the older firing late; a flap inside the window is recorded and told with no second packet or ticket. The phone: critical alerts only, as they fire, fire again and clear, and a second container is its own symptom and message. Jarvis: ops-attention and ops-systems name what is silent and what critical is firing. Evidence: a packet seals one series per reading and is bounded in bytes, and one already over the ceiling is a refused start instead of holding a slot for good. GET /telemetry says when the watch last ran; scans every 10 minutes; a delivery whose admission failed answers 503; stopping the watch leaves nothing behind. Guards: tests/installations-alarm.test.cjs, tests/installations-screen.test.cjs.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
@@ -84,7 +86,7 @@ description: >-
   against a resolved signal before the canonical ticket is updated. Four monitoring desks over the
   same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert
   topic and role: what is firing in security, in the platform, in the applications or in releases.
-version: 1.8.2
+version: 1.9.0
 status: active
 scope: public
 theme: light-blue
@@ -177,7 +179,9 @@ workflow:
       action: complete
       approval:
         approver: admin
-chatBot: ops-rca-specialist
+# The front-desk inline concierge answers the concierge panel and Jarvis (1.9.0, the Create concierge pattern: trading 1.54.0,
+# career 1.57.0); ops-rca-specialist and ops-incident-reviewer stay the workers of the RCA pipeline above.
+chatBot: ops-concierge
 ui:
   static:
     - toolName: operations-workspace
@@ -423,8 +427,11 @@ tools:
     routingTags: [operations, systems]
     tags: [operations, route-backed]
 bots:
-  - agentId: a0000000-0000-0000-0000-000000000016
-    name: ops-rca-specialist
+  - agentId: 0be32215-3a5a-43cd-9f84-afc659aa1d65
+    name: ops-concierge
+    persona: personas/ops-concierge.yaml
+    posture: inline
+    role: operations/concierge
     routingKeywords:
       - needs my attention in operations
       - operations attention
@@ -461,6 +468,22 @@ bots:
       - release alerts
       - platform alerts
       - application alerts
+    capabilities:
+      - operations-attention
+      - systems-health
+      - operations-alerts
+      - incident-investigations
+      - response-and-recovery
+      - anomalies
+      - swarm-hand-off
+    selectorDescriptor: >-
+      Select for the person's Intelligent Operations front desk: what needs their attention, whether their monitored
+      servers and installations are reporting, degraded systems, what is firing on App Ops, Sec Ops, Platform Ops and
+      Dev Ops, their investigations, response plans and verified recovery, anomaly baselines and swarm hand-offs, read
+      from their own saved records. Root-cause investigation stays with the RCA pipeline (ops-rca-specialist and
+      ops-incident-reviewer).
+  - agentId: a0000000-0000-0000-0000-000000000016
+    name: ops-rca-specialist
     persona: personas/ops-rca-specialist.yaml
     role: incident/rca
     capabilities:

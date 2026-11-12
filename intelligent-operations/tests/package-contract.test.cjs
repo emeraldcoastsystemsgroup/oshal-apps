@@ -1,3 +1,5 @@
+/* CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.0 (concierge audit batch 2b): the front-desk concierge ops-concierge is declared before the two RCA workers, whose identities are unchanged. */
+/* CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.3: rule generations rotate (T71: an activation retires the person's OpenSearch rule generations no source binding keeps). */
 /* CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.2: Systems tab infrastructure stack tree (+ / − expandable Server -> Cluster/VM -> Node -> Workloads with bottom-up alert/health roll-up and personal satellite exclusion; Triage and all other tabs untouched). */
 /* CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.1: Monitoring Trust M2 rework (data stays in existing owner scope; removed-source topology/discovery cleanup and Systems device trust controls). */
 /* CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.0: Monitoring Trust M2 shared monitoring scope, legacy personal-scope migration, removed-source topology/discovery cleanup, and Systems device trust controls. */
@@ -105,7 +107,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.8.2');
+  assert.equal(manifest.version, '1.9.0');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);
@@ -116,7 +118,7 @@ test('Operations owns its workspace and Test Lab catalog while preserving specia
   // UX audit 2026-11-06: Scenario lab (#replay), Credentials & access (#credentials) and Topology (#estate, now Systems' Graph view) merged away; their addresses lead to Data pipeline and Connections & access.
   for(const page of ['systems','data','streams','sources','connections','commands','library','runbooks','app-ops','sec-ops','platform-ops','dev-ops'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
   assert.equal(manifest.ticketType, 'intelligent-operations');
-  assert.deepEqual(manifest.bots.map(bot => bot.name), ['ops-rca-specialist', 'ops-incident-reviewer']);
+  assert.deepEqual(manifest.bots.map(bot => bot.name), ['ops-concierge', 'ops-rca-specialist', 'ops-incident-reviewer']);
   const page = fs.readFileSync(path.join(root, 'ui/index.html'), 'utf8');
   assert.match(page, /Source preview/);
   const code = fs.readFileSync(path.join(root, 'ui/operations.js'), 'utf8');

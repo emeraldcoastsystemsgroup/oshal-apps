@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The master record route (routes/career-master-record-routes.js, 1.51.0) over loopback HTTP with the real reader and made-up stores under JOBHUNTER_STORE_ROOT: refused without a signed-in person; every concierge page's whole answer is at most 12 KB and the pages together are exactly the page's Markdown, each item once (a line longer than a page and multi-byte text included); a bad page number is refused and a missing one is 404; one person never sees another's record; and a person with no store gets an empty record without a folder being made for them.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the file is headed My Career data.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -84,7 +85,7 @@ test('every page is at most 12 KB and the pages together are exactly the Markdow
     assert.equal(text.split(`[ALICE-R${r}-B${String(b).padStart(3, '0')}]`).length - 1, 1, `bullet R${r}-B${b} once`);
   }
   assert.ok(text.includes(LONG_WORDS.trim()), 'a history line longer than a page is split across pages and comes back whole');
-  assert.ok(pages[0].body.text.startsWith('# Master record — ALICE Fixture'), 'page 1 starts with the counts');
+  assert.ok(pages[0].body.text.startsWith('# My Career data: ALICE Fixture'), 'page 1 starts with the counts');
 });
 
 test('a page number that is not a whole number from 1 is refused; a page past the end is 404', async () => {

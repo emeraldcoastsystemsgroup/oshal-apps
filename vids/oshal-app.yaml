@@ -11,6 +11,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: a daily trade recap asked for in a conversation becomes one anchor clip (vids-generate-clip, held for approval) from the figures already in the conversation. Guarded by vids/tests/vids-api-tools.test.cjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: single brief form (remove duplicate Generation source/settings Properties), withhold Generate clip when no worker is online with setup in Help, close inline Concierge on load, and replace Save brief / Reload saved with one top row (New brief, Undo/Redo icons, Saved caption) and automatic saving.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.6 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
@@ -69,7 +70,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.6.5
+version: 1.6.6
 authorization:
   version: 1
   catalog: authorization.yaml
@@ -128,6 +129,7 @@ uses:
 bots:
   - agentId: b00e0000-0000-0000-0000-000000000001
     name: vids-operator
+    posture: inline
     persona: personas/vids-operator.yaml
     role: media/video
     capabilities:

@@ -12,6 +12,12 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: readiness 1.5.3, and phone-control-module-names registers the guard that every name a phone-control browser module uses resolves to a declaration, an import or a browser global (red on 1.5.2, whose session-computer.js called isTvNode without importing it).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: readiness 1.5.4, and phone-control-ble-pairing registers the Bluetooth pairing suite: the real bridge process against a scripted BlueZ on a private dbus-daemon (no pairing is answered or trusted until the person allows it).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: readiness 1.6.0; register phone-control-home-tree (the first screen as a tree with details, rename, and Add a device buttons that show all of their words).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: readiness 1.8.0 (it still said 1.6.1); phone-control-lan expects what is playing and the media keys on an Android TV (T45 part 4).
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: readiness 1.9.0; phone-control-lan expects a Marquee page opened in the oshal TV app (T45 part 2).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: readiness 1.9.1.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: readiness 1.10.0; phone-control-home-tree also renames a computer through the kernel's given name.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): phone-control-play registers the play-a-show suite (a scripted Fire TV: search, the matching show, Resume, playing).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): readiness 1.12.0 (it still said 1.10.0); phone-control-apps registers the TV apps suite (a scripted TV: which streaming apps it has from one read of its app list, nothing pressed, other packages only counted).
 version: 1
 cases:
   - id: package-readiness
@@ -22,7 +28,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.6.1 with its store open.
+      - The installed phone-control package answers its identity and version 1.12.0 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -273,6 +279,48 @@ cases:
     regressionTests:
       - { level: integration, file: tests/phone-control-bridge.test.mjs }
 
+  - id: phone-control-play
+    name: A show plays by its name on a Fire TV, against a scripted TV
+    purpose: Prove the bridge's lan-control play_title (bridge/oshal_phone_play.py) does what a person does with the remote and reads the screen after every move (T80, Roger 2026-11-12, "hey jarvis in the game room open rings of power season 3 where i left off").
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-play.test.mjs
+    expected:
+      - Prime Video's search link opens its results; one Down moves onto the matching show; OK opens its page; OK presses Resume; the keys sent are wake, Down, OK, OK.
+      - The answer names the button pressed (Resume Episode 3), the episode line (Season 3, Episode 3 - The Secret Fire) and playing true from Prime Video's own session.
+      - A YouTube session left saying playing does not make it playing while Prime Video is paused.
+      - No matching show, another app, a one-letter name and Prime Video not installed are refused in words (not_found, not_yet, bad_title, not_installed).
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "A scripted TV in memory; no adb, network or device is contacted." }
+    limits: { timeoutMs: 120000, maxMemoryMb: 256 }
+    installation: never
+  - id: phone-control-apps
+    name: Which streaming apps a TV has, against a scripted TV
+    purpose: Prove the bridge's lan-control tv_apps (bridge/oshal_phone_apps.py) says which streaming apps an Android or Fire TV has from one read of its package list, through a closed list of known apps, and presses nothing on the TV (T79, the device inventory, first slice).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-apps.test.mjs
+    expected:
+      - A Fire TV answers Netflix, Prime Video (its own Fire TV package), YouTube and the oshal TV app with their keys and packages, and counts its four other packages without naming them.
+      - The only command the TV receives is pm list packages; no key, wake or app is sent.
+      - A Google TV answers its own packages, and one service installed twice is one app.
+      - An empty list and an adb failure are refused in words (no_app_list, not_connected); a Roku and a Samsung TV are refused in words (android_only), also by the installed bridge verb.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "A scripted TV in memory; no adb, network or device is contacted." }
+    limits: { timeoutMs: 120000, maxMemoryMb: 256 }
+    installation: never
   - id: phone-control-lan
     name: TVs and streaming sticks on the home network, against protocol fakes
     purpose: Prove the bridge's lan-discover and lan-control verbs (bridge/oshal_phone_lan.py) refuse any address that is not a private home-network address and any action outside the closed list, send the exact Wake-on-LAN bytes only to the MACs named, read a Samsung, Roku or Cast device read-only, press keys on a fake Roku ECP server and a fake Samsung TLS WebSocket TV, keep the Samsung pairing token 0600 on the computer, and find two fake TVs without running adb or installing anything.
@@ -288,6 +336,8 @@ cases:
       - The fake Samsung TV gets no key before Allow ("Press Allow on the TV, then Retry."); after Allow the token is saved 0600 in a 0700 folder, never appears in an answer, and is used on the next connection.
       - The fake Roku records one POST /keypress/<Key> per press; a 403 answers roku_control_off in words.
       - Discovery of two fake TVs answers their kinds, names, power and MACs, sends no packet, and never calls adb.
+      - 1.9.0 launch_url with app oshal opens only a Marquee page of the installation in the oshal TV app as oshal://open?path=...; an app older than 0.8.6 answers app_too_old and a missing one not_installed.
+      - 1.8.0 On an Android TV, now_playing only reads (dumpsys media_session and dumpsys window) and names the app, the title, its state and that it is behind the home screen; pause, play, next, previous and stop send their media key and answer what the sessions say after; nothing played yet answers nothing_playing; a Roku or Samsung TV answers android_only.
     prerequisites:
       - runner:node-test
       - runtime:python3

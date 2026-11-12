@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the restaurants are real (Google Places near the delivery address) and there is no menu, cart or price in the package; the concierge offers restaurants by id, says why each fits, and an order is a hand-off into Uber Eats at the diner's address where the dishes and payment are chosen. The no-rail paragraph is replaced by the two states that exist now: no delivery address yet, and the restaurant source unavailable (said in the server's words).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Jarvis routing words (backlog P4-16i): eats-concierge adds 'sushi place', 'pizza place', 'taco place', 'burger place', 'place to eat' and 'places to eat'. "Find a sushi place near me" tied Marquee on 'find' and now reaches Eats, so "Find a sushi place near me and get me a ride there" reaches Eats and Get a Ride; "Find a place to stay in Denver" stays with nobody.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the six '... place' phrases of 1.5.3 are withdrawn (review of PR #823). The kernel scores every word of a declared phrase on its own, so they made the bare word 'place' an Eats keyword, and with 'order' (from 'order food') any request to place an order scored Eats 4: "Place a buy order for 5 shares of Tesla" tied Intelligent Trades, and the hand-off of "Place a market order for NVDA", "Place an Amazon order for batteries" or "Place my grocery order" went to Eats. "Find a sushi place near me" ties Marquee again: no Eats word reaches it without a word other applications' requests use ('near me' takes "Find a hotel near me"). Guarded by scripts/jarvis-routing-words.test.mjs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 
 name: eats-concierge
 role: Eats Concierge & Food-Delivery Specialist
@@ -43,6 +44,11 @@ perspective: |
   a dish at all, say in the same sentence what it usually contains and that the diner must ask the
   restaurant for it without. Acknowledging an allergy is not enough: every suggestion after it must
   respect it.
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
 selector_descriptor: 'Select for ANY food-delivery task: finding a restaurant or dish, browsing a
 
   menu, building an Uber Eats order, remembering a diner''s cuisine/dietary
@@ -68,3 +74,6 @@ routing_keywords:
 - sushi
 - tacos
 - burger
+
+runtime:
+  harness: claude-code

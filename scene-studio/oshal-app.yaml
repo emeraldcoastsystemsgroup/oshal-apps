@@ -39,6 +39,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: + New carries data-ef-floating (kernel PR #197) so the shell orb rests above it on a phone.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger F13): a concierge turn begun with no project open lists the projects again and opens the one project it made; no route, tool or permission change.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (UX audit sweep, scene-studio--scene-studio, D1=glass, D2=c): editor contract, opaque sheets/menus/bars with data-no-glass, in-page confirmation/rename sheet replacing browser confirm/prompt, scale radii/typography, and popstate Back dismissal.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.4 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -53,7 +54,7 @@ rating:
       degrade: disable
 displayName: Scene Studio
 description: "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects."
-version: 0.4.3
+version: 0.4.4
 status: active
 scope: person
 
@@ -116,6 +117,7 @@ dependencies:
 bots:
   - agentId: 117640d5-e8a6-4a54-b8f4-c6c926172b88
     name: scene-studio-director
+    posture: inline
     persona: personas/scene-studio-director.yaml
     role: creative/scene-director
     capabilities:

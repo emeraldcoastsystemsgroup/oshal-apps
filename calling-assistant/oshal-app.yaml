@@ -6,10 +6,11 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.12: UX audit split (calling-assistant--calling-settings): Calls (New call and reports, the no-Twilio empty state, Start call disabled with its reason, answer rows) and Calling settings (connection row, caps, consent, Check recorded audio, the public origin under Advanced).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.13: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Release 0.1.14 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: calling-assistant
 displayName: Calling Assistant
 description: Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.
-version: 0.1.13
+version: 0.1.14
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
@@ -78,6 +79,7 @@ workflow:
 bots:
   - agentId: ca116e18-e9b7-4d4d-a1fc-136a8403c0dc
     name: calling-operator
+    posture: inline
     persona: personas/calling-operator.yaml
     role: communications/calling
     capabilities: [phone-tasks, ivr-navigation, human-handoff]

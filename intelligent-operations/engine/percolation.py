@@ -1,9 +1,11 @@
 """Immutable stored-query generations on an actual OpenSearch percolator.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Publish, seal and exhaustively match scoped rule generations; incomplete searches never become no-match.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | T71 (Roger, 2026-11-11: "Open search needs to be on a rotation"): retire removes a scope's generations the package no longer keeps (no source binding names them), once older than an hour, so a dry run or an evaluation in flight keeps its own. Every rules change used to leave its index forever; each costs the search heap. A removed generation is rebuilt from its kept policy if it is published again.
 """
 import hashlib
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 
@@ -105,6 +107,22 @@ class Percolator:
         _,refresh=self.call('POST','/'+index+'/_refresh');checked_shards(refresh)
         _,seal=self.call('PUT','/'+index+'/_settings',{'index.blocks.write':True})
         if seal.get('acknowledged') is not True:raise Failure('Rule generation was not sealed.')
+
+    def retire(self,scope,keep,older_than=None):
+        """Remove this scope's generations not in keep and older than older_than seconds (an hour unless given)."""
+        if not isinstance(scope,str) or not HEX.fullmatch(scope):raise Failure('Invalid scoped generation identity.','invalid-rule')
+        if not isinstance(keep,list) or not keep or len(keep)>500 or not all(isinstance(r,str) and HEX.fullmatch(r) for r in keep):raise Failure('Kept generations must be 1-500 revisions.','invalid-request')
+        age=3600 if older_than is None else older_than
+        if type(age)!=int or not 0<=age<=86400:raise Failure('Retirement age must be 0-86400 seconds.','invalid-request')
+        prefix='ops-rules-'+scope+'-';kept=set(keep);now=int(time.time()*1000);removed=0
+        _,rows=self.call('GET','/_cat/indices/'+prefix+'*?format=json&h=index,creation.date')
+        for row in rows if isinstance(rows,list) else []:
+            name=str(row.get('index',''));revision=name[len(prefix):]
+            if not name.startswith(prefix) or not HEX.fullmatch(revision) or revision in kept:continue
+            created=str(row.get('creation.date',''))
+            if not created.isdigit() or now-int(created)<age*1000:continue
+            self.call('DELETE','/'+name,allowed=(200,404));removed+=1
+        return {'retired':removed,'kept':len(kept)}
 
     def match(self,scope,revision,document):
         index=self.index(scope,revision)

@@ -6,7 +6,7 @@ All metrics default on and remain individually configurable.
 
 | Metric | Source column / period |
 |---|---|
-| `approval-review` — Application approvals | `review` in the SELECT below |
+| `approval-review` — Career's picks (the Career Review page shows the picks My jobs will show, read like the board) | `review` in the SELECT below |
 | `scored-24h` — Scores updated / 24h | `day` in the SELECT below |
 | `scored-5d` — Scores updated / 5d | `five` in the SELECT below |
 | `tracked-applications` — Tracked applications | `tracked` in the SELECT below |

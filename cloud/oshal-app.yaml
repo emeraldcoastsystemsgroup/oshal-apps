@@ -7,6 +7,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: Cloud opens on its own Cloud Accounts screen (UX audit 2026-11-05, cloud-accounts, D). ribbon.defaultView was `chat`, so opening Cloud showed the global list of every Jarvis conversation, and the accounts tile (in the bottom section, behind the menu on a phone) framed the whole platform Connections page. The tile now opens ui/index.html from this package's own assets: Google Cloud not connected, one primary Connect Google Cloud; connected, the account tiles from /api/cloud/home-summary and one primary Ask the cloud bot. It sits in the top section and is the default view.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: a refused connect is said on the Cloud screen. Where the kernel refuses Google Cloud (the trial has no public web address) the connect window landed on Connections with the reason while this screen kept saying to finish signing in; it now shows the reason the Connections page announces (oshal-connections channel) as an alert.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: UX design-standard sweep (D1=glass, D2=c, cloud--cloud-accounts): declare DS-00 dashboard contract, load surface-glass.css, align card/tile radii and typography to the standard scale, keep controls opaque, and tighten empty-state copy within the phone word budget.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.0 (T73; Roger, 2026-11-12: "tell me what projects are there and which projects have a real billing account"): the cloud-gcp-projects tool and GET /api/cloud/gcp/projects read the person's Google Cloud projects, each project's billing and their billing accounts with their own GCP connection (egress to cloudresourcemanager.googleapis.com and cloudbilling.googleapis.com, which the kernel allows for gcp since 07cb278c). Read-only.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.1 (T73): the Cloud Accounts screen lists the person's projects with each one's billing and offers Reconnect Google Cloud when Google hides billing from the saved connection (made before the billing permission was asked for), so it can be granted from there; a read without a connection, or with one that could not be renewed, is said with the button that fixes it.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — cloud (DevOps/Cloud bundle, ADR-038)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -55,7 +57,7 @@ description: >-
   Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the
   cloud-ops-bot reads your projects/services/instances via your connector token and
   acts on your behalf (read-only by default). The API-based replacement for gcloud.
-version: 1.2.2
+version: 1.3.1
 status: active
 
 # (theme dropped at the carve: core declared `theme: blue`, which is NOT a known
@@ -74,6 +76,14 @@ routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
     mountPath: /api/cloud/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/gcp-projects.js
+    factory: createGcpProjectsRoutes
+    mountPath: /api/cloud/gcp/projects
     auth: oidc
     requiresAuth: true
     requiresContext: true
@@ -184,3 +194,31 @@ summary:
   metricsPointer: /metrics
   tilesPointer: /tiles
   itemsPointer: /items
+
+# 1.3.0 (T73): Google Cloud projects and billing, read with the person's own GCP connection. The kernel places that
+# connection only on the hosts the gcp connector names (connectors/gcp.yaml apiHosts, kernel 07cb278c).
+egress:
+  - host: cloudresourcemanager.googleapis.com
+    credential: { connector: gcp, header: authorization, prefix: "Bearer " }
+  - host: cloudbilling.googleapis.com
+    credential: { connector: gcp, header: authorization, prefix: "Bearer " }
+
+tools:
+  - name: cloud-gcp-projects
+    displayName: Google Cloud Projects and Billing
+    type: api
+    category: cloud
+    description: >-
+      List the person's Google Cloud projects with each project's billing (enabled or not, the billing account it is
+      linked to, and whether that account is open or closed), and every billing account they can see, read with their
+      own Google Cloud connection. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/cloud/gcp/projects" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read-only. Answer project and billing questions from what it returns: status "real billing", "linked to a closed
+      billing account", "no billing", or "billing not visible" (then say: reconnect Google Cloud on the Cloud Accounts
+      screen so this app can read billing). A refusal is said in its own words; never suggest gcloud when this tool can answer.
+    routingTags: [cloud, gcp, google-cloud, projects, billing]
+    tags: [cloud, route-backed]
+

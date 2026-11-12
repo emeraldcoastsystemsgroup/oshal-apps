@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.1 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — drone-relay ("Drone Relay")
 #
@@ -79,7 +84,7 @@ description: >-
   mission that Drone Ops re-validates and a human approves there.
   A designer concierge sizes and explains through the same tools. Simulated;
   nothing here flies.
-version: 0.5.0
+version: 0.5.1
 status: active
 scope: person
 
@@ -133,6 +138,7 @@ uses:
 bots:
   - agentId: 569e21a7-3cb2-4703-8558-cc70be68ebab
     name: relay-designer
+    posture: inline
     persona: personas/relay-designer.yaml
     role: engineering/drone-relay
     capabilities:

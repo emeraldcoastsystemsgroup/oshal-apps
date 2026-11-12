@@ -18,13 +18,14 @@
   26 | maintainer@emeraldcoastsystemsgroup.com | More gains "Master record (everything saved)" (1.51.0): the read-only page with every role, bullet, skill and history record Career keeps, with Download and Print.
   27 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   28 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1, 5 and 12. With no résumé the page showed an editing panel, a Send button and a lone "⋯" beside "No résumé yet", with nothing to edit. The editor panel, the phone's Edit with AI bar and the More button now stay hidden until a résumé exists (a loaded document with content, or GET /resume/state saying so; when that read gives no answer the page shows them as before). The line "Editing your MASTER resume — changes here update the durable profile…" reads "This is your main résumé. Each application starts from it."; the editor's heading and the opening text are in plain words; the guidance example is an ordinary one; résumé carries its accents in every line a person reads (the AI Office document keeps its stored title). Guard: tests/career-resume-studio-screen.test.mjs.
+  29 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled My résumé (was Resume Studio). The picker, the Save button and every status line say main résumé, the words the page already used when it opened it (was master résumé); the More menu says Download my data and Other experience, and the empty line says My jobs. The value the picker and the routes carry is still `master`. Guard: tests/career-page-names.test.mjs.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Resume Studio</title>
+<title>My résumé</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
@@ -135,7 +136,7 @@
 <div class="wrap">
   <div class="preview" data-ds-work>
     <nav class="toolbar" id="docbar">
-      <select id="pick" aria-label="Résumé"><option value="">Pick a résumé…</option><option value="master">⭐ My résumé (master)</option></select>
+      <select id="pick" aria-label="Résumé"><option value="">Pick a résumé…</option><option value="master">⭐ Main résumé</option></select>
       <button id="save" class="ck-btn" disabled hidden>Save &amp; re-render PDF</button>
       <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open résumé PDF</a>
       <a id="coverPdf" href="#" target="_blank" rel="noopener" style="display:none">Open cover PDF</a>
@@ -144,11 +145,11 @@
       <p id="err" role="alert" hidden></p>
     </nav>
     <div class="ck-menu" id="moreMenu" popover role="menu">
-      <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Master record (everything saved)</a>
-      <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
+      <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Download my data (everything saved)</a>
+      <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Other experience</a>
       <a role="menuitem" data-career-tool="career-board" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a>
       <button type="button" role="menuitem" id="openMaterials">Add career materials…</button>
-      <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved master résumé</button>
+      <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved main résumé</button>
     </div>
     <section id="noProfile" class="ck-empty" hidden>
       <div class="ck-empty-icon" aria-hidden="true">📄</div>
@@ -159,8 +160,8 @@
     </section>
     <div id="sheet" class="sheet" data-no-glass hidden></div>
     <div id="officeHost" class="office-host" hidden></div>
-    <div id="empty" class="empty">Pick a résumé to start editing. The ⭐ master résumé is your main one: each
-      application starts from it, and you can always edit it. A résumé written for one job comes from the Job Board.
+    <div id="empty" class="empty">Pick a résumé to start editing. The ⭐ main résumé is the one each application
+      starts from, and you can always edit it. A résumé written for one job comes from My jobs.
       Then tell the editor what to change ("tighten the summary", "lead the third bullet with the outcome") and
       watch it update.</div>
   </div>
@@ -251,7 +252,7 @@ async function openOffice(j){
   try { await office.open(j); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; return true; }
   catch (e) {
     officeView(false);
-    add('sys', 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your master résumé opens in this classic view.');
+    add('sys', 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.');
     return false;
   }
 }
@@ -262,7 +263,7 @@ async function saveOffice(quiet){
   state.resume = fresh.resume || {}; docRevision = revisionOf(fresh); dirty = false;
   if (!quiet) {
     showError('');
-    setStatus((j.changed ? 'Saved to your master résumé' : 'Matches your master résumé') + (j.notes.length ? '. ' + j.notes.join(' ') : ''));
+    setStatus((j.changed ? 'Saved to your main résumé' : 'Matches your main résumé') + (j.notes.length ? '. ' + j.notes.join(' ') : ''));
   }
   publishContext();
   return j;
@@ -304,7 +305,7 @@ function selectLoadedDocument(){
   const id = String(state.postingId), sel = $('pick');
   if (![...sel.options].some(o => o.value === id)) {
     const o = document.createElement('option'); o.value = id;
-    o.textContent = id === 'master' ? '⭐ My résumé (master)'
+    o.textContent = id === 'master' ? '⭐ Main résumé'
       : `${window.__meta.title || 'Selected job packet'} — ${window.__meta.company || ''}`;
     sel.appendChild(o);
   }
@@ -425,7 +426,7 @@ function publishContext(){
   try {
     window.__bridge.emitContext({
       surface: 'resume-studio',
-      title: isMaster ? 'Master résumé (the durable career profile)'
+      title: isMaster ? 'Main résumé (the durable career profile)'
         : `Tailored résumé — ${(window.__meta && window.__meta.title) || ''} at ${(window.__meta && window.__meta.company) || ''}`,
       recordId: String(state.postingId),
       digest: resumeDigest(),
@@ -440,7 +441,7 @@ function publishContext(){
           + '{"op":"set_headline","text"} {"op":"set_summary","text"} {"op":"set_clearance","text"} '
           + '{"op":"set_competencies","items":[]} {"op":"set_skills","items":[]} '
           + '{"op":"update_experience","index":<1-based role number>,"bullets":[]}'
-          + (isMaster ? '. MASTER doc: bullets only, never a title/org/span.'
+          + (isMaster ? '. Main résumé: bullets only, never a title/org/span.'
             : ' {"op":"set_cover_paragraphs","items":[]}')
           + ' Edit only facts already present — never invent an employer, title, date, or metric.',
       }],
@@ -457,7 +458,7 @@ document.addEventListener('surface-bridge:custom', (evt) => {
   // opens — by then our load-time publish has already been and gone.
   if (detail.name === 'request_context') { publishContext(); return; }
   if (detail.name !== 'resume_action' || !readyDocument()) return;
-  if (officeOpen()) { setStatus('Edit the master résumé in the document, or ask its Concierge.'); return; }
+  if (officeOpen()) { setStatus('Edit the main résumé in the document, or ask its Concierge.'); return; }
   const actions = Array.isArray(detail.data && detail.data.actions)
     ? detail.data.actions
     : [detail.data];
@@ -486,7 +487,7 @@ async function loadList(){
   sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a résumé…' : 'No tailored résumés yet') + '</option>';
   // The master is ALWAYS the first real entry: it is the durable profile packets are generated from.
   const master = document.createElement('option');
-  master.value = 'master'; master.textContent = '⭐ My résumé (master)';
+  master.value = 'master'; master.textContent = '⭐ Main résumé';
   sel.appendChild(master);
   jobs.forEach((x) => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.title} — ${x.company}`; sel.appendChild(o); });
   if (state.postingId && String(state.postingId) === keep) selectLoadedDocument();
@@ -521,9 +522,9 @@ async function loadDoc(id){
       : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
     renderPreview(); publishContext(); showError(''); $('save').hidden = false;
     if (isMaster && !hasContent(state.resume)) checkProfile(); else setResumeReady(true);
-    $('save').textContent = isMaster ? 'Save master résumé' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
+    $('save').textContent = isMaster ? 'Save main résumé' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
     if (isMaster && office && hasContent(state.resume)) {
-      if (await openOffice(j)) { if (epoch === documentEpoch) { $('save').textContent = 'Save to master résumé'; publishContext(); } return; }
+      if (await openOffice(j)) { if (epoch === documentEpoch) { $('save').textContent = 'Save to main résumé'; publishContext(); } return; }
     } else officeView(false);
     if (!isMaster) {
       $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
@@ -580,22 +581,22 @@ async function persist(){
 async function save(){
   if (!readyDocument()) return;
   if (officeOpen()) {
-    setDocumentBusy('saving'); setStatus('saving your master résumé…');
+    setDocumentBusy('saving'); setStatus('saving your main résumé…');
     try { saving = saveOffice(false); await saving; }
-    catch (e) { setStatus(''); showError('Couldn\u2019t save to your master résumé. ' + e.message); }
+    catch (e) { setStatus(''); showError('Couldn\u2019t save to your main résumé. ' + e.message); }
     finally { saving = null; setDocumentBusy(''); }
     return;
   }
   const doc = state, epoch = documentEpoch, isMaster = doc.postingId === 'master';
   setDocumentBusy('saving');
-  setStatus(isMaster ? 'saving your master résumé…' : 'saving + re-rendering…');
+  setStatus(isMaster ? 'saving your main résumé…' : 'saving + re-rendering…');
   try {
     saving = persist();
     const j = await saving; if (state !== doc || epoch !== documentEpoch) return;
     if (isMaster) {
       const log = (j.changelog || []).join('; ');
       showError(''); setStatus(j.changed ? 'Saved' : 'no changes to save');
-      add('sys', j.changed ? ('Updated your master résumé: ' + (log || 'saved.')) : 'No changes to save — your master résumé already matches.');
+      add('sys', j.changed ? ('Updated your main résumé: ' + (log || 'saved.')) : 'No changes to save: your main résumé already matches.');
     } else {
       showError(j.ok ? '' : 'Couldn\u2019t save. Try again.'); setStatus(j.ok ? 'Saved — PDF re-rendered' : '');
       add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
@@ -622,7 +623,7 @@ async function settle(){
 async function prepareDocumentHandoff(){
   await settle();
   if (!state.postingId || !state.resume) return null;
-  if (officeOpen()) { setStatus('saving the document into your master résumé before the assistant reads…'); await saveOffice(true); setStatus('saved for the assistant'); }
+  if (officeOpen()) { setStatus('saving the document into your main résumé before the assistant reads…'); await saveOffice(true); setStatus('saved for the assistant'); }
   for (let attempt = 0; dirty && attempt < 3; attempt++) {
     $('save').disabled = true; setStatus('saving your edits before the assistant reads…');
     try { saving = persist(); await saving; } finally { saving = null; $('save').disabled = false; }
@@ -631,7 +632,7 @@ async function prepareDocumentHandoff(){
   if (dirty) throw new Error('Your latest résumé edits could not be saved, so the assistant was not given this résumé.');
   const isMaster = state.postingId === 'master', meta = window.__meta || {};
   return { app: 'career-hunter', screen: 'surface', surface: 'resume-studio', recordId: String(state.postingId),
-    title: (isMaster ? 'Master résumé' : `Tailored résumé — ${meta.title || ''} at ${meta.company || ''}`).slice(0, 200),
+    title: (isMaster ? 'Main résumé' : `Tailored résumé — ${meta.title || ''} at ${meta.company || ''}`).slice(0, 200),
     fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length,
       ...(officeOpen() ? { officeDocument: office.documentId(), editIn: 'the Word document on this screen; its Concierge edits it' } : {}) } };
 }
@@ -667,8 +668,8 @@ $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftK
 $('save').addEventListener('click', save);
 $('replaceMaster').addEventListener('click', async () => {
   if (!officeOpen() || documentBusy) return;
-  setDocumentBusy('saving'); setStatus('replacing the document with your saved master résumé…');
-  try { await office.replaceFromMaster(); setStatus('Replaced with your saved master résumé (the earlier text is in Revision history).'); }
+  setDocumentBusy('saving'); setStatus('replacing the document with your saved main résumé…');
+  try { await office.replaceFromMaster(); setStatus('Replaced with your saved main résumé (the earlier text is in Revision history).'); }
   catch (e) { setStatus(''); showError('Couldn\u2019t replace the document. ' + e.message); }
   finally { setDocumentBusy(''); }
 });
@@ -695,7 +696,7 @@ function showNoProfile(indexing, failed){
   $('noProfile').hidden = false; $('sheet').hidden = true; $('empty').hidden = true;
   $('save').hidden = true; $('pick').hidden = true; $('aiBar').hidden = true;
   $('noProfileTitle').textContent = indexing ? 'Indexing your résumé…' : failed ? 'Résumé indexing failed' : 'No résumé yet';
-  $('noProfileText').textContent = indexing ? 'This usually takes 2 to 3 minutes. Your master résumé opens here when it is ready.'
+  $('noProfileText').textContent = indexing ? 'This usually takes 2 to 3 minutes. Your main résumé opens here when it is ready.'
     : failed ? 'Upload it again to retry.' : 'Upload your résumé and Career builds your profile from it.';
   $('uploadBtn').hidden = indexing;
 }

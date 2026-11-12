@@ -1,4 +1,14 @@
 # CHANGE LOG
+# 58 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6: local-search also runs career-search-memory-routes (Find jobs' searches kept on the account: two browsers of one person through the compiled route, another person isolated, refusals change nothing).
+# 59 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: register create-concierge (career-concierge is the front desk, career-hunter the worker).
+# 60 | maintainer@emeraldcoastsystemsgroup.com | listed-boards also runs the ManpowerGroup contract (career-manpowergroup.test.mjs): Experis and Manpower read from their own search to the total it states.
+# 57 | maintainer@emeraldcoastsystemsgroup.com | 1.55.1: job-board-truth also runs career-matches-save-and-order (New matches: an unsaved match never says Saved, a saved one is not filled and cannot be saved again, the list asks by date posted, and only a chosen sort is put back).
+# 56 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: register shared-pull-rule (POST /run/pull follows the rule POST /run/refresh has, through the compiled routes over loopback HTTP with the real administrator rule and a recorder in place of the engine dispatch).
+# 55 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: page-names expects the page career-strengthen to be named Improve my résumé in the manifest, its title and its heading, and Improve it only in Career's own bar under Résumé.
+# 54 | maintainer@emeraldcoastsystemsgroup.com | Register one-route-apply-by-hand (judge's report 2026-11-11, changes 6, 8 and 9): Career's picks lead Saved with Prepare application and the approvals address forwards there; the application page's Send step is Open the employer's form, Download résumé and cover letter and I applied, with the connected computer as the option; Applications is the Job Board's applied side with one status line a job, and the activity page is reached from it. ux-audit-screens, career-own-frame and job-board-truth say what those pages do now: To approve is no stage, the activity page's lanes and computer row changed, and the bar marks My jobs or Applications by stage.
+# 53 | maintainer@emeraldcoastsystemsgroup.com | Register the names and the roles (judge's report 2026-11-11, changes 4, 11, 12, 13 and 14): page-names (the manifest's label, each page's title and heading agree and no served page, script, route answer, tool description or persona line carries a retired name) and roles-for-people (the role templates' labels with their ids, versions and members as they were, the role beside the person's name in Chromium for a job seeker and an administrator at a computer and at a phone, and Settings' job-source controls shown only to an administrator).
+# 52 | maintainer@emeraldcoastsystemsgroup.com | listed-boards expects what the review of the readers added: a count written with a separator is read in full, a Randstad id comes from the link, a read sent to another host is cut, a job the reader cannot store keeps the read from being whole, a link is kept only on the board's host, and a link that only resembles a board names no reader.
+# 51 | maintainer@emeraldcoastsystemsgroup.com | Register listed-boards (the Randstad USA, Motion Recruitment and Talentsoft readers and the place a SuccessFactors tile list shows, against pages in the shapes those boards served on 2026-11-11, through the pull's own one-source read into real SQLite).
 # 50 | maintainer@emeraldcoastsystemsgroup.com | Register the words-and-truth sweep (judge's report 2026-11-11): recruiters-start-empty (the real engine init on temporary SQLite, read by the compiled route, and the Recruiters page's empty state in Chromium); job-board-truth (the Job Board without a résumé, the inbox reply on a job's row, and the tick box that replaced a vendor-named button); search-under-frame (Search with the shipped frame at both sizes); plain-words-pages (Resume Studio, the LinkedIn profile page, Settings and Insights in Chromium, and the guard that reads every served page for retired words).
 # 49 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: career-own-frame also runs the day plan's arithmetic (career-today) and expects the bar in a job seeker's words and Home as the day.
 # 48 | maintainer@emeraldcoastsystemsgroup.com | source-maintenance expects what the review fixes added: a careers link on someone else's site is never connected, a suggestion is kept until the employer has a board or is removed, a redirect into a private address is refused by the real connection guard, and a part that asks to end the process does not stop the pull.
@@ -1227,6 +1237,7 @@ cases:
       files:
         - tests/career-geo.test.mjs
         - tests/career-search-memory.test.mjs
+        - tests/career-search-memory-routes.test.mjs
         - tests/career-vendored-map.test.mjs
         - tests/career-search-screen.test.mjs
         - tests/career-experience-contract.test.mjs
@@ -1234,6 +1245,7 @@ cases:
       - Town, ZIP and explicit coordinates resolve offline; invalid inputs refuse without a nationwide fallback.
       - Indexed exact distance filters every candidate path before bounds and paging; unknown coordinates are not invented.
       - Remembered searches are bounded and account-scoped in one browser, and storage failures remain visible.
+      - The last search and the named searches are kept on the account, so a second browser of the same person opens on them; a browser's older searches go to an account that holds none and never over one that does; another person sees none of them.
       - The native experience reuses the admitted search page and existing role templates.
     prerequisites:
       - runner:node-test
@@ -1803,10 +1815,10 @@ cases:
       - A status change then a list over a WAL-header store on a read-only pin shows every firm; a failed list is an alert with Retry, never the empty state.
       - Every Career screen carries data-career-surface; the experience library's fields have an edge and one primary at a time.
       - With no résumé, Resume Studio is one empty state that uploads it; Save is secondary and enabled only by a change; the paper stays white.
-      - The Job Board is one pipeline whose stages answer the old addresses; an empty stage offers Find jobs; To approve explains an empty add.
+      - The Job Board is one pipeline whose stages answer the old addresses, in the row of the bar section each is in; an empty stage offers Find jobs; the approvals address forwards to Career's picks on Saved.
       - Career Review hides the brief without a connected action; Strengthen and Mobile empty states offer the step that fills them.
       - Search results start under the search row on a phone with filters in one sheet; Settings is one home of sections that saves on change.
-      - Submission activity has one status row, lane chips and a counters row; Companies splits the table from Source health.
+      - Submission activity has lane chips in the words an application has, a computer row only for a person who has had a computer, and no row of zero counters; Companies splits the table from Source health.
     prerequisites: [runner:node-test, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the temporary recruiter store."}
@@ -2035,6 +2047,8 @@ cases:
       - Another application's screen opens under Career's bar, and only one the person's profile lists.
       - A Career page hosted by anything other than the cockpit is left as it was.
       - A phone gets one 56px top bar and a bottom bar of Home, Find jobs, My jobs, Applications and More, with nothing wider than the screen.
+      - Applications and My jobs are the two sides of the Job Board, each marked on its own stages, and the cockpit is asked for that page with the stage each opens on.
+      - Home's pipeline is New matches as a number, Saved, Getting ready, Applied, Interviewing and Offer, and the day's step about Career's picks opens Saved.
       - The bar is a job search in a job seeker's words, Home, Find jobs, My jobs, Applications, Resume, Profile and contacts, and every other page is under More.
       - Home for a person with no resume says what Career does and shows three numbered steps with one filled button.
       - Home for a person with a resume lists the day in order, replies from the inbox first, each step with one button and only when there is something to do, and a quiet day says so.
@@ -2116,8 +2130,8 @@ cases:
     limits: {timeoutMs: 180000, maxMemoryMb: 1024}
     installation: never
   - id: job-board-truth
-    name: The Job Board without a résumé, inbox replies, and approving with other experience
-    purpose: Hold the Job Board and the To approve view to what is true for the person. The shipped pages run in Chromium at 1440 by 900 and 412 by 915 over fixture answers in the shapes the routes give.
+    name: The Job Board without a résumé, inbox replies, and the approvals address
+    purpose: Hold the Job Board and the address the To approve stage had to what is true for the person. The shipped pages run in Chromium at 1440 by 900 and 412 by 915 over fixture answers in the shapes the routes give.
     level: integration
     runner:
       kind: node-test
@@ -2126,14 +2140,18 @@ cases:
         - tests/career-job-lists-truth.test.mjs
         - tests/career-approvals-stage.test.mjs
         - tests/career-mobile-screen.test.mjs
+        - tests/career-matches-save-and-order.test.mjs
     expected:
       - With no résumé New matches asks for it with one button, lists no saved job and asks for no jobs.
       - A saved job with no fit carries the link Add your résumé to see your fit, 44px tall on a phone.
       - While a first résumé is being read the stage says so, and with a résumé or no answer the page is as it was.
       - A job's newest reply from the inbox is one 44px line such as Interview reply and the day, shows no text from the message, and opens that job's application.
       - The saved list offers Unsave, New matches offers Save, and no star or shortlist is left.
-      - Include my other experience is offered only while Additional experience lists the saved independent work, and Approve sends the extra flag only when it is ticked.
-      - No text on these pages names the vendor's project, and a status the person set says so.
+      - In New matches a job the person has not saved never says Saved; a saved one's button reads Saved, cannot be pressed again and is not filled, and pressing Save makes an unsaved row read the same.
+      - New matches asks for its jobs by date posted, newest first, and shows Date posted as its sort; Saved still asks by Best AI fit; a remembered sort is put back only when the person chose it.
+      - The approvals address forwards to Career's picks on the Job Board, reads no application record and offers no second way to write documents.
+      - On the Mobile page, Include my other experience is offered only while Additional experience lists the saved independent work.
+      - No text on these pages names the vendor's project.
     prerequisites: [runner:node-test, fixture:store-toolchain]
     sideEffects: none
     isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
@@ -2186,3 +2204,164 @@ cases:
     isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
     limits: {timeoutMs: 300000, maxMemoryMb: 1024}
     installation: never
+  - id: listed-boards
+    name: Boards read from their own listing pages
+    purpose: Hold the Randstad USA, Motion Recruitment, Talentsoft and ManpowerGroup readers, and the place a SuccessFactors tile list shows beside a job, to pages in the shapes those boards serve, through the nightly pull's own one-source read into a real SQLite store.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-listed-boards.test.mjs
+        - tests/career-manpowergroup.test.mjs
+    expected:
+      - A Randstad USA job is known by the job reference in its link and not by the line-of-business number before it.
+      - A Motion Recruitment job is known by the number that ends its link, and its title is the card's heading alone.
+      - A Talentsoft vacancy keeps the place its card shows, and one whose card shows none is counted toward the board's total and not kept.
+      - Each board is read a page at a time to the count it states, and jobs that moved between pages are read on a second pass.
+      - A whole read closes a job that left the board, and a refused page, an answer that is not the listing or a board that states no count closes nothing.
+      - A SuccessFactors tile gives its job the place and the workplace it shows, and a job it says is outside the United States is not filed under a US state.
+      - A SuccessFactors table list is read as it was, and a job's id does not change.
+      - A job-search link on any of the three boards names its reader, and a link that only resembles one names none.
+      - A board's count written with a separator is read in full, and a count that is not a whole number is unknown, which is never whole.
+      - A Randstad job whose link and reference field differ is known by the link, and by the field only when its link is on another site.
+      - A read that a redirect takes to another host, or through one, is cut there and is not whole.
+      - A job the board lists but the reader cannot store keeps the read from being whole, so its stored copy is not closed.
+      - A job's link is resolved against its board and kept only on the board's host.
+      - A page that shows one job twice does not shift the pages after it.
+      - A tile outside the United States whose place leaves its country out is not filed under a US state.
+      - Experis and Manpower are read from their own search (POST /api/services/Jobs/searchjobs), a hundred jobs a page with offset counting pages, to the total it states; a page it refuses is asked again, and one it keeps refusing ends the read with what was read kept and nothing closed.
+      - The job lists of experis.com and manpower.com name the ManpowerGroup reader, and a link that only resembles one names none.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove the temporary SQLite store; the boards' answers are fixtures and no employer site is read.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 256
+    installation: never
+  - id: page-names
+    name: One name for each page, in a job seeker's words
+    purpose: Hold the names of Career's pages together. One guard reads the shipped manifest, every page and script a route serves, the built routes and libraries, the tool descriptions and the persona, with their comments left out.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-page-names.test.mjs
+    expected:
+      - The manifest names the pages Find jobs, My jobs, My résumé, Other experience, Improve my résumé, LinkedIn profile, Settings, Download my data and Job market, and no two pages share a name.
+      - Career's own bar says Improve it for Improve my résumé under Résumé, and no other page, answer or line for the assistant uses the short form.
+      - Each page's title is its name, and a page that carries a heading carries its name.
+      - The saved list of jobs is headed My jobs.
+      - No page or script a route serves says Search Jobs, Job Board, Resume Studio, Additional experience, Strengthen, Profile Studio, Career Settings, Master record or Insights.
+      - The résumé every application starts from is the main résumé on every page, and the stored document title it is found by is unchanged.
+      - No answer a route sends carries a retired name; log lines and the instruction a model is given are not answers.
+      - The manifest's description, its tool descriptions and the persona say the same names.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing is written; the guard only reads the package's files."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: roles-for-people
+    name: Roles named for people and shown beside the person's name
+    purpose: Hold Career's two roles to words for people and to what the server says. The role templates are read from the shipped manifest and catalog; the shipped frame, stylesheet and Settings page run in Chromium at 1440 by 900 and 412 by 915 over a profile built from the manifest's own tiles, with the Companies page left out for a person the server would not admit to it.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-role-label.test.mjs
+        - tests/browser/career-role-proof.mjs
+        - tests/career-settings-administrator.test.mjs
+    expected:
+      - The role templates are labelled Job seeker and Job source administrator, and their ids, versions and members are exactly as they were.
+      - The page whose presence the frame reads is the one the catalog binds to career.administer, which a job seeker does not hold.
+      - On a computer the bar says the role beside the person's name as one pill, and no label in the bar is clipped, also at 1024 wide.
+      - On a phone the top bar's menu says the role under the person's name, inside the screen, with no sideways scroll.
+      - A profile that cannot be read shows the name and no role.
+      - The borrowed pages under Profile and contacts read Photo and Posts, and open what they opened.
+      - A job seeker's Settings has one button under Check for new jobs now and no job-source control; an administrator keeps every one.
+      - When the Companies route cannot be asked, Settings stays as a job seeker sees it.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: one-route-apply-by-hand
+    name: One route to a sent application, applying by hand first, and Applications in the bar
+    purpose: Hold the day of someone looking for a job to one route. The shipped Job Board, application page, activity page, Home and frame run in Chromium at 1440 by 900 and at 412 by 915 with touch, over fixture answers in the shapes the routes give, each page at its real address where the frame must recognise it. The words an application carries are also run as plain functions.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-apply-one-route.test.mjs
+        - tests/career-apply-by-hand.test.mjs
+        - tests/career-applications-section.test.mjs
+        - tests/career-approvals-stage.test.mjs
+        - tests/career-submission-activity.test.mjs
+    expected:
+      - To approve is not a stage. A job Career picked leads Saved, marked Career picked this for you, with the Prepare application button a saved job has, and a pick the person already prepared is not shown.
+      - Prepare application on a pick promotes the job and opens the one application page, and the route that wrote documents without guidance is never called. Remove declines a pick and says so.
+      - The view=approve address opens Saved on those jobs and says so when there are none, and the approvals address forwards there.
+      - With the documents ready, Send is Open the employer's form as the one filled button, then Download résumé and cover letter, then I applied.
+      - I applied records the application as the person's own word, through the application record's own route when the job has one, and the page reads Sent with You marked this as applied yourself.
+      - With no computer connected there is no button that needs one, the page says what is needed and How to set up your computer explains it. With one connected, Send it for me from my computer follows the three and opens the exact approval.
+      - The bar marks Applications on Applied, Interviewing, Offer and Closed and My jobs on the rest, each stage asks the feed for its own status, and no menu lists the activity page.
+      - Each applied job carries one line, Sent, with its day and how Career knows. What is being sent leads Applied as Waiting, Sending, Needs your answer or Did not go through, and one quiet link opens the activity page only then.
+      - A move is said in one line that names the job, and the bar's count and the stage row follow.
+      - The activity page shows its computer row only to a person who has had a computer, and a job Career only picked is not listed there.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 1024}
+    installation: never
+  - id: shared-pull-rule
+    name: Starting the shared pull by hand has one rule
+    purpose: Hold POST /run/pull to the rule POST /run/refresh has. The compiled routes are driven over loopback HTTP with the real administrator allow-list, the real caller resolution and the real settings read; the engine dispatch is a recorder, so what was started is counted.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-run-pull-rule.test.mjs
+    expected:
+      - On the native kernel a manual pull answers 409 with manualRefreshAvailable false and refreshMode installation-managed, the refresh's own body, for an administrator too, and no engine starts.
+      - Off the native kernel a person who is not a Career administrator gets the refresh's own 403 and no engine starts.
+      - Off the native kernel a Career administrator still starts one pull as themselves.
+      - Score and match start for any signed-in person, as before.
+      - A caller who is not signed in gets 401 and an unknown verb gets 400, as before.
+      - The TypeScript source and the built route carry the rule once and ask it from refresh and from pull only.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the loopback listener; no engine is started and nothing is written."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 256}
+    installation: never
+  - id: create-concierge
+    name: Career's front desk is its own inline concierge (Create pattern)
+    purpose: Intelligent Career follows the Create concierge pattern (Intelligent Trades 1.54.0 the worked example). career-concierge answers in the app with career-hunter's own speaking, advisor and hard rules, the same tool authorizations, the same Career facts and its own authorization binding; career-hunter stays the worker.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-create-concierge.test.mjs
+    expected:
+      - The manifest's chatBot is career-concierge, inline, with the resume routing words; career-hunter keeps the worker role.
+      - The concierge carries Speaking to the person, the advisor half and the hard rules word for word, plain prose and the tool_call fence, and hands ticket work to career-hunter.
+      - Every route-backed tool is authorized for the concierge exactly as for the worker.
+      - The concierge reads Career's facts, is bound to app.open and career.execute, and is listed in the store's CONCIERGES.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+

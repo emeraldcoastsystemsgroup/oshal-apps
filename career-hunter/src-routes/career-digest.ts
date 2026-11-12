@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Use the dependency-leaf user-store API so digest callers avoid the main registrar cycle.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Complete exported digest data and registrar documentation for package consumers.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Send Twilio digests through the caller-scoped in-process operation instead of a full-environment child process.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The digest says where to turn it off by the page's name, Settings (was Career Settings). Words only.
  */
 /**
  * Career daily digest — the batch notifier that tells each career-hunter user about
@@ -104,7 +105,7 @@ export function formatDigestEmail(hits: DigestHit[], board: string): { subject: 
     `Review, tune your resume, and apply from your board: ${board}`,
     '',
     `— OSHAL Career Hunter (automated daily digest, at most one per day).`,
-    `You get this because the daily digest is ON in Career Settings — turn it off there any time.`,
+    `You get this because the daily digest is ON in Career, under Settings. Turn it off there any time.`,
   ].join('\n');
   return { subject, body };
 }
@@ -119,7 +120,7 @@ export function formatDigestEmail(hits: DigestHit[], board: string): { subject: 
 export function formatDigestSms(hits: DigestHit[], board: string): string {
   const top = hits.slice(0, 3).map((h) => `${h.fit}% ${h.title} @ ${h.company}`).join('; ');
   const more = hits.length > 3 ? ` +${hits.length - 3} more` : '';
-  return `OSHAL Career: ${hits.length} new high-fit match${hits.length === 1 ? '' : 'es'} — ${top}${more}. Board: ${board} (daily digest; turn off in Career Settings)`;
+  return `OSHAL Career: ${hits.length} new high-fit match${hits.length === 1 ? '' : 'es'} — ${top}${more}. Board: ${board} (daily digest; turn off in Career, under Settings)`;
 }
 
 /** Read the user's digest settings, defaulting to enabled/auto when no row exists. */

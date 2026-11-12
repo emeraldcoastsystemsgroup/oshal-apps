@@ -1,0 +1,70 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0 (concierge audit T15): the package's first Test Lab catalog, registered under testing.catalog. It names the readiness smoke, the native-port contract, the queue read the front-desk concierge answers from (queue-read) and the Create concierge pattern guard (create-concierge).
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only package smoke without user data or provider calls.
+    level: integration
+    runner: { kind: smoke, smoke: package-readiness }
+    expected: [The installed intelligent-processing readiness marker satisfies the manifest assertions.]
+    prerequisites: []
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: safe-smoke
+  - id: package-contract
+    name: The ported queue declares something runnable
+    purpose: >-
+      Prove the native port stays runnable and free of platform-only parts - the workflow and the concierge name bots the
+      package declares or imports, only the readiness route and the native queue read are declared, the queue screen talks
+      only to the kernel ticket routes and the application opens on that screen.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/package-contract.test.cjs] }
+    expected:
+      - Every phase and the concierge name a declared or imported bot, and every declared bot is inline with a plain-prose persona inside the package.
+      - The routes are exactly the canonical readiness route and the queue read, and the one tool is the route-backed GET processing-queue.
+      - The queue screen calls only GET /api/tickets and POST /api/v1/tickets, counts each alert once and opens as the default view.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: queue-read
+    name: The concierge's queue read
+    purpose: >-
+      Prove (1.1.0) that GET /api/intelligent-processing/queue, compiled from its TypeScript source and served on real Express
+      over HTTP with a stand-in kernel ticket port, reads the caller's own tickets of this queue and answers their counts,
+      phases and times in words without naming an alert it cannot see.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/processing-queue-route.test.cjs] }
+    expected:
+      - The port is asked once for ticket type intelligent-processing at its maximum of 200, and another type in its answer is left out.
+      - Counts are total, open, waiting on a person (awaiting approval or blocked), failed, done and cancelled, with one summary sentence.
+      - The newest 25 tickets carry status, phase, a state in words, ISO times and their ages; titles are said to be not carried.
+      - A caller with no sign-in is refused before the port is read; a refused or missing port is answered as unavailable.
+      - The route reads nothing but the port and is the canonical compile of src-routes/processing-queue.ts.
+    prerequisites: [runner:node-test, dependency:express, dependency:typescript]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: create-concierge
+    name: Processing's front desk is its own inline concierge (Create pattern)
+    purpose: >-
+      Prove (concierge audit T15, 1.1.0) that Intelligent Processing follows the Create concierge pattern, Intelligent
+      Operations' ops-concierge the nearest worked example - processing-concierge answers the concierge panel and Jarvis in
+      place of the imported RCA investigator ops-rca-specialist - and that the workflow and both imports are unchanged.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/processing-create-concierge.test.cjs] }
+    expected:
+      - The manifest's chatBot is processing-concierge, declared by this package, inline, with its own persona and role, and it runs no phase.
+      - The investigate, review and revise phases still run the imported ops-rca-specialist and ops-incident-reviewer, and ops-concierge is not imported.
+      - No routing word, capability or routing tag is added, and none of the specialist's 35 words is about this queue.
+      - The persona carries plain prose, the tool_call fence and runtime harness claude-code, and the specialist's concierge-panel rules word for word.
+      - The one route tool is a GET of the package's own queue route authorized auto; there is no catalog, and the persona is listed in CONCIERGES.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never

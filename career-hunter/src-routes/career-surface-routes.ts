@@ -8,6 +8,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Admit only the named public community-source directory JSON beside existing static assets.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve Career's home page (GET /home, career-home.html): the first screen of Career as its own application, and the page that hosts another application's screen under Career's bar.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | T63: the retired /board and /board/* addresses answer a hand-off page to the native board (src-routes/hand-off-page.ts) instead of a 308. On the native kernel a package cannot redirect: the response has no `redirect` and no Location header is relayed, so these answered HTTP 500 on the test slot (2026-11-11).
  */
 
 /**
@@ -21,6 +22,7 @@ import { type Request, type RequestHandler, type Response, type Router } from 'e
 import path from 'path';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
+import { handOffPage } from './hand-off-page';
 
 const logger = createChildLogger({ module: 'career-surface-routes' });
 const TOOL_DIR = path.resolve(__dirname, '..', 'tools');
@@ -54,9 +56,12 @@ function serveStatic(req: Request, res: Response): void {
   });
 }
 
-/** Redirect retired classic-board URLs to the bounded native surface. */
+/**
+ * Send retired classic-board URLs on to the bounded native surface with a hand-off page. A kernel relays a package's
+ * status, body and content type and no other header, so the 308 these answered never reached the browser (HTTP 500).
+ */
 function redirectClassicBoard(_req: Request, res: Response): void {
-  res.redirect(308, '/api/career-hunter/board-native');
+  res.status(200).type('html').send(handOffPage('/api/career-hunter/board-native', 'Open My jobs'));
 }
 
 /**

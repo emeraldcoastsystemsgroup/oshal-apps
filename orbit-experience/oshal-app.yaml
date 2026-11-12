@@ -11,10 +11,11 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Include the complete shared user product bundle in one reviewed member assignment; retain each component's exact catalog roles and data boundaries.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Map Jarvis to its explicit Editor chat-user catalog role without requiring optional Print or changing the member selection; template version 4 needs normal review.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Scan to Print 0.7.0 adopts an ADR-149 catalog, so its member role is the catalog's `maker` (the whole app, as @app-admin was); template version 3 carries it, and existing version 2 assignments keep their grants until an administrator reviews and applies the upgrade.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7 (concierge audit T15, the store's PENDING list): the Orbit screen's concierge is the required member jarvis's oshal-assistant (imported under dependencies.required.bots), as on the Jarvis experience since its entry 6, instead of the platform general-bot, which holds none of this experience's data. A Jarvis request that names this experience now stays with the assistant (the kernel keeps a request whose application's concierge is the assistant) instead of being handed to general-bot. No member, role or authorization change.
 name: orbit-experience
 displayName: Orbit
 description: Explore your admitted applications, relationships and recent work in the Orbit map.
-version: 1.1.6
+version: 1.1.7
 status: active
 suite: ai-productivity
 rating:
@@ -85,6 +86,7 @@ dependencies:
       - private-app-2
       - intelligent-sales
       - private-app-3
+    bots: [{ app: jarvis, name: oshal-assistant }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
   optional:
@@ -272,4 +274,4 @@ testing:
   version: 1
   catalog: tests/test-lab.yaml
 connectors: []
-chatBot: general-bot
+chatBot: oshal-assistant # imported from the required member jarvis (dependencies.required.bots)

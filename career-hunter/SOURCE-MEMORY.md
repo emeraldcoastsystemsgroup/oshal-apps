@@ -228,6 +228,29 @@ data. jobs.sap.com answers a Cloudflare check even to its search service, and Ca
 uses the installation's existing network namespace policy, not a new network
 proxy or a pinned-address transport.
 
+Since 1.55.0 three boards that serve their jobs in the listing page, and state how many they hold, have readers in
+`engine/jobhunter/listed_boards.py`. Each reads plain public pages, a page at a time, with no browser. Randstad USA
+(`randstad`, token `https://www.randstadusa.com/jobs/`) carries thirty jobs a page as data in the page, then
+`/jobs/page-N/`; a job's id is the job reference in its link (`/jobs/<line of business>/<job reference>/<title>/`), not
+the number before it. Motion Recruitment (`motionrecruitment`, token `https://motionrecruitment.com/tech-jobs`) lists
+twenty a page, then `?start=N`; a job's id is the number that ends its link. A Talentsoft board (`talentsoft`, token the
+board's host, as in `akka-cand.talent-soft.com`) lists twelve a page at `/job/list-of-jobs.aspx?page=N&LCID=2057`; a
+vacancy keeps the place its card shows, and one whose card shows none is counted and not kept. A board is whole when the
+jobs seen reach the count it last stated, less one in 200 because jobs open and close during a read; a pass that falls
+short is read once more. A refused page, an answer that is not the listing, or a board that states no count closes
+nothing. Neither does a read that a redirect takes to another host or through one (`unexpected_redirect`), or one in
+which the board lists a job the reader cannot store, such as a job with no title or a card that is not the card the
+reader knows (`listing_row_invalid`): that job is still on the board. A Talentsoft card that shows no place is not such a
+job. A job's link is kept only on its board's host. A pasted link names one of these readers only on the employer's own
+site, bare or under `www`, at `/jobs` or `/tech-jobs` or below it, or for a Talentsoft tenant. Since 1.56.1 the ManpowerGroup sites
+(`manpowergroup`, token the site's `www` host: `www.experis.com`, `www.manpower.com`) are read from the search their own
+list asks, `POST /api/services/Jobs/searchjobs`, because their list pages stopped carrying job links on 2026-11-11. It
+answers a hundred jobs a page as data, with the total in `filters.totalCount`; its `offset` counts pages, not jobs. A
+page it refuses (429, 5xx or no answer in time) is asked again with a growing wait; one it keeps refusing ends the read,
+what was read is kept and nothing is closed. Their links name the reader at `/en/all-jobs`, `/en/search` and `/en/job/`. A SuccessFactors site that
+lists its jobs as tiles (careers.syntax.com) gives each job the place and the workplace its tile shows; a job the tile
+says is outside the United States is not given a place that reads as a US state.
+
 Supplied job descriptions remain complete within the explicit capture limits;
 missing descriptions remain unknown. Generic enumeration is always unconfirmed,
 even when the final visible page has no Next control, and cannot close missing

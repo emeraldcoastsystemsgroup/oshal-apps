@@ -8,6 +8,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: batches the local model drew failed only at the approved run (a one-node window, a flame at y=1.1, type "shape"), when it could no longer correct them. The operation schema now states layer types and path bounds, so the kernel refuses them before a card is held and the model corrects its call; the contract carries a worked drawing.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.19.2: align editingContract sourceVersion with the manifest version.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: align editingContract sourceVersion with the manifest version.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: align editingContract sourceVersion with the manifest version.
  */
 import { applyOperation, createProject, validateProject } from './model.mjs';
 import { COMMON, FIELDS } from './model-validation.mjs';
@@ -79,7 +80,7 @@ export function applyAgentOperations(value, operations) {
   return validateProject(next, { assetMode: 'reference' });
 }
 export function editingContract() {
-  return { editor: 'create', version: 1, sourceVersion: '1.20.0', maxOperations: 16, maxInputBytes: 16384,
+  return { editor: 'create', version: 1, sourceVersion: '1.20.1', maxOperations: 16, maxInputBytes: 16384,
     operations: forms, operationSchema,
     conventions: { drawing: 'Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.',
       coordinates: 'Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.',

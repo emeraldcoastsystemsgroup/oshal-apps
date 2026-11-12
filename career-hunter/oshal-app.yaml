@@ -116,8 +116,23 @@
 # 114 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 (Roger, 2026-11-11: "it's about building the day in the life of someone who is looking for a job"; and of Social and Email, "all the previous attempts have been flat"). Home is the job seeker's day: under the search box, Today lists the day's steps in order, each one line with one button and only when there is something to do: replies from the inbox against their job, new matches since yesterday, applications ready to approve, recruiter follow-ups due, applications with no reply for a week, interviews in progress, the next thing for the person's profile (Portrait Studio's readiness, the LinkedIn plan, Social drafts) and the next resume improvement. A person with no resume sees one sentence saying what Career does, three numbered steps and one filled button. A job on Home opens that job and shows the newest reply from the inbox. The bar is a job search in a job seeker's words: Home, Find jobs, My jobs, Applications, Resume, Profile and contacts, More. Everything is read in the browser from routes that exist; no route, permission or engine change. An independent judge scored Career 29 of 55 against Little Monsters' 44 (lanes/career-vs-little-monsters-2026-11-11/JUDGE-REPORT.md); this is its changes 2 and 4 and part of 9.
 # 115 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 also (Roger, 2026-11-11, T55: "the job runs daily and rotates through a handful of endpoints to try to connect them ... if they can't be connected to, opens a ticket for the human to take action and requests approval for archive. If a partial run was completed it goes to a developer ... a bot that has a run book that is trying to find new job sites and connect them ... they have to be timeboxed"): source maintenance runs at the end of the nightly pull, after the source review. A source the review failed to connect three runs in a row, with no successful pull for 14 days, becomes one decision for a person on the Companies page, Source health, with what was tried and two buttons, Archive (Remove) and Keep trying (new POST /companies-admin/keep, bound to career.administer). Readers whose reads stay partial for three pulls get one repair brief per reader and reason, written for a developer, with Copy and Download. A discovery runbook rotates through employers with no job site, 20 a night and 3 minutes each, and connects a board only when it is on the employer's own site, has at least 3 jobs and no other employer holds it; anything weaker is a suggestion a person can accept. Every pass has a hard time box and cannot fail the pull. A new job, career-source-maintenance (for Career administrators, 07:15 Central), puts the night's counts in the briefing. See SOURCE-MAINTENANCE.md. Not in this release: a kernel ticket for each decision (a ticket an application creates cannot carry a title until the kernel change the coordinator has taken), and a model that searches the web for new employers.
 # 116 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0 also (Roger, 2026-11-11: "would an independent judge say ours or little monsters is easier"; the judge scored Career 29 of 55 against 44). The words and the truth of each page, from that report: a new person's Recruiters list starts empty with one button, Add a recruiter, and the engine no longer seeds the owner's contacts into it; approving has one Approve and a tick box, Include my other experience; examples are ordinary jobs. With no résumé the Job Board says Add your résumé to get matches and lists nothing, and a saved job says Add your résumé to see your fit. A job's row shows its newest reply from an employer. One word for each thing: Save, Saved, Unsave; the stages Getting ready, Closed, Removed, Needs your answer; résumé with its accents. Search keeps one box on a computer and starts its first job within 320px on a phone, with 44px job titles and one line about the pay estimate. Resume Studio shows no editor, Send or menu until a résumé exists. The LinkedIn profile page reads Write, Check, Update LinkedIn and names no operator bot. Settings reads What I'm looking for, Companies I want, Check for new jobs now and Email updates. Insights heads the shared numbers The job market Career can see and draws Your search only from the person's own counts. No route, table or permission changed. Six new test files and four Test Lab cases hold it.
+# 117 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 (Roger, 2026-11-10: every employer on the S4 staffing list is tried and those that return jobs are connected; the seven that returned no data were tried again on 2026-11-11). Three boards are read from their own listing pages by readers in a new engine module, listed_boards: Randstad USA (the page carries its jobs as data; a job is known by the job reference in its link, not the line-of-business number before it; the page stated 4,909 jobs), Motion Recruitment (a job is known by the number that ends its link; 783 jobs) and a Talentsoft board, Akkodis (871 vacancies, none filed under the United States by the board's own location list). Each is read a page at a time to the count the board states, so a whole read closes a job that left and a refused or short one closes nothing; a pasted link to any of them names its reader. Syntax's public board is careers.syntax.com, a SuccessFactors site that lists jobs as tiles: the reader read its 71 jobs with no place, and now takes the place and the workplace each tile shows (7 of the 71 in the United States). IBM answers a browser check (HTTP 202, x-amzn-waf-action: challenge) to plain requests and to the page reader. No route, table, permission or page changes.
+# 118 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also: nine fixes from an independent review of the listed-board readers, before they run nightly. A Talentsoft count written with a separator ("1,234") was read as 1, which called one page a whole board. A Randstad job's id is read from its link; it had come from the field beside it. A read that a redirect takes off the board's host is cut. A job the board lists but the reader cannot store keeps the read from being whole, so its stored copy is not closed. A job's link is kept only on the board's host. A value sent in place of a number no longer stops a read. A page that shows one job twice does not shift the pages after it. A pasted link names one of these readers only for what that reader reads. A tile outside the United States whose place leaves its country out is not filed under a US state.
+# 119 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also (the judge's report of 2026-11-11, changes 4, 11, 12, 13 and 14): one name for each page, in a job seeker's words, and roles named for people. The page labels read Find jobs (was Search Jobs), My jobs (Job Board), My résumé (Resume Studio), Other experience (Additional experience), Improve it (Strengthen), LinkedIn profile (Profile Studio), Settings (Career Settings), Download my data (Master record) and Job market (Insights); each page's title and heading, every link and every answer that names a page say the same, and the résumé every application starts from is the main résumé. The two role templates are labelled Job seeker (was Career Hunter Member) and Job source administrator (was Career Hunter Administrator): labels only. Their ids, versions and members are unchanged and authorization.yaml is untouched, and the kernel's assignment plan revision digests a template's id, version and members and never its label (oshal-kernel crates/packages/src/composite_roles/revision.rs, AuthorityTemplate), so every assignment stays current. The bar shows the person's role beside their name, and Settings shows the job-source controls (the shared pull, pull health, jobs per score pass, the AI model and the Firecrawl key) only to a person the server admits to the Companies page. No id, tool name, address, route, permission or file name changed. Guards: tests/career-page-names.test.mjs, tests/career-role-label.test.mjs, tests/career-settings-administrator.test.mjs, tests/browser/career-role-proof.mjs.
+# 120 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also (the judge's report of 2026-11-11, changes 6, 8 and 9; Roger: "it's about building the day in the life of someone who is looking for a job"). One route from a saved job to a sent application: To approve is no longer a stage. The jobs Career picked lead Saved in My jobs, marked "Career picked this for you", with the Prepare application button a saved job has, and the approvals address forwards there; the approve route that wrote documents with no guidance is no longer called from Career's framed pages. Applying by hand is the main route: the application page's third step is Send, with Open the employer's form, Download résumé and cover letter and I applied; Send it for me from my computer follows and is offered only while a computer is connected. Applications in the bar is the jobs a person has applied to (Applied, Interviewing, Offer, Closed) and My jobs is New matches, Saved, Getting ready and Removed; the activity page is still served and still this tile, but no menu lists it and Applications links to it while something is being sent. Each applied job says in one line that it was sent and how Career knows; a job that changes stage is said in one line and the bar's count follows. Pages, scripts and tests only: no route, table, status value, permission, tile or role changed with this entry.
+# 121 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also: the tile career-strengthen is labelled Improve my résumé (was Improve it). "Improve it" reads well under the Résumé section of Career's own bar and says nothing by itself, and the workspace group's toolbar and the cockpit's main menu show a tile by its label alone. The page's title and heading and every sentence that names the page say Improve my résumé; Career's own bar still shows Improve it under Résumé (tools/career-frame.js), as it shows Photo for Portrait Studio's page. Label and words only: the tool name, its address, its group and its grants are unchanged.
+# 122 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also: starting the shared pull by hand has one rule. POST /run/pull started the engine's pull, which writes the shared job sources, for any caller holding career.execute, on the native kernel too. It now follows POST /run/refresh exactly: on the native kernel 409 with manualRefreshAvailable false and refreshMode installation-managed, and nothing starts; elsewhere 403 unless the caller is a Career administrator. score and match are unchanged. No binding changed: authorization.yaml is as it was, and the handler keeps the gate, as the refresh's does.
+# 123 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 also: nine fixes from an independent review of this version. Career's picks lead Saved whatever filters are restored, and Home's step opens the picks address; an employer address is a link only when it is http or https; Settings offers no Pull jobs now where the installation refreshes the sources; I applied on a page left open does not move a job backwards; a job the person applied to themselves reads Applied, not Sent; the bar a tab remembers says no role until the fresh profile answers; after I applied a computer attempt that did not go through is closed through the queue's existing cancel route; /run/Pull and /run/pull/ start nothing; the Career Review tile is Career's picks and counts the picks My jobs will show. No route, table or permission was added.
+# 124 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 (T22): a job search by an employer name nobody in the corpus has answers an empty page at once; matching employers filter postings by company id in every search arm (src-routes/career-browse-feed.ts employerIds). It used to scan the postings for the name, about ten seconds on production, then a failed search.
+# 125 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0 (T63): the retired /board and /board/* addresses answer a hand-off page to the native board (src-routes/hand-off-page.ts) instead of a 308, which a kernel does not relay from a package (HTTP 500 there). Guard: tests/career-board-handoff.test.mjs.
+# 126 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0 also (@career-sources' 1.55.1, carried in this release): Recommended for you (New matches). A match the person has not saved no longer says Saved beside its Save button (Saved was the row's fallback line); a saved match's button reads Saved, cannot be pressed again and is not filled. The list is ordered by date posted, newest first (it was Best AI fit), and only a sort the person chose is put back on a later visit. Guard: tests/career-matches-save-and-order.test.mjs.
+# 127 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6 (Roger: Career search remembers criteria on the account, across devices). Find jobs kept the last search and the named searches in one browser only, so another browser or a phone opened empty. The account now holds them in a small file in the person's own Career folder (GET and POST /api/career-hunter/search-memory, routes/career-search-memory-routes.js), changed one operation at a time under the browser's own rules (tools/career-search-memory.js); the page reads the account's copy before its first search, and a browser's searches from before 1.56.0 go to an account that holds none. Guard: tests/career-search-memory-routes.test.mjs.
+# 128 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9 (the Create concierge pattern; Intelligent Trades 1.54.0 is the worked example): Intelligent Career's front desk is career-concierge, an inline bot that answers in the app and acts through Career's tools under career-hunter's own speaking, advisor and hard rules (personas/career-concierge.yaml), with the same tool authorizations and the same Career facts; the resume routing words move to it. career-hunter stays the worker: career-application tickets, the engine rail and the Resume Studio, job guide and profile studio calls.
+# 129 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0 also (@career-sources' 1.56.1, carried here): Experis and Manpower read from their own job search (the manpowergroup reader in engine/jobhunter/listed_boards.py; last night's pull recorded Experis empty because its list pages stopped carrying job links), and the source review no longer takes a board vendor's name (lever, myworkdayjobs) from an employer's careers link as the employer's own (source_review.py). Find jobs' saved-search panel says the searches are kept on the account (T6's wording, two lines).
 # 105 | maintainer@emeraldcoastsystemsgroup.com | 1.52.0 (S-6, 2026-11-10): Local round-trip editing for the master resume. Declares `localEditing` (export via `career_resume_local_export`, import via `career_resume_local_import`, format `odt`, itemId `master`) so Jarvis can export the master resume to a connected computer's bound word processor (LibreOffice Writer) and import edited revisions back through the whitelisted `base-save` path while keeping the previous snapshot in `backups/` and `enrichment_log.jsonl`.
 # 100 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
+# 130 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9 (checked live after 1.57.0): the Concierge button opens Career's concierge, and the concierge knows how many jobs the person saved. Career's whole-window rule hid the cockpit's chat panel outright, so pressing Concierge on any Career page showed nothing (production and the test slot); the panel is now hidden only while closed. Asked "How many jobs have I saved", the concierge said none while Home showed 1 saved: the facts gain jobs.saved (Home's Saved card count; an unreadable saved-job file gives null, never 0). No new permission, no role change, no kernel change.
+# 131 | maintainer@emeraldcoastsystemsgroup.com | 1.57.2, T72: the first concierge or Jarvis question after a Career reload no longer refuses "specialist context read timed out". The facts' sample count walked every active posting of the 7.4 GB shared corpus (1.4 s warm, past the kernel's 30 s deadline cold) for a person with few or no scored jobs; it now starts from the person's own scored signals (CROSS JOIN, idx_user_scored): under 1 ms there, 12 to 18 ms for 5,000 to 300,000 signals. No permission, route or data change.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -213,20 +228,20 @@ rating:
 displayName: Intelligent Career
 description: >-
   Search employers' public job feeds, score selected recent openings against your private career
-  profile, and save jobs to your board. Move a selected job to your submission queue, choose optional
-  additional experience, generate and review its resume and cover letter, then approve submission.
+  profile, and save jobs to your board. Move a selected job to your submission queue, choose any other
+  experience to include, generate and review its résumé and cover letter, then approve submission.
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
-  Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.
-  Your Master record page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.54.0
+  Edit your main résumé as a Word document on the My résumé page, with AI Office's Concierge beside it.
+  The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
+version: 1.57.2
 
 localEditing:
   itemId: master
   format: odt
   exportTool: career_resume_local_export
   importTool: career_resume_local_import
-  description: Export your master resume as an OpenDocument Text (.odt) document for local editing in LibreOffice Writer and import edited versions back while keeping previous snapshots.
+  description: Export your main résumé as an OpenDocument Text (.odt) document for local editing in LibreOffice Writer and import edited versions back while keeping previous snapshots.
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -275,13 +290,13 @@ authorization:
   roleTemplates:
     - id: member
       version: 1
-      label: Career Hunter Member
+      label: Job seeker
       members:
         - app: career-hunter
           role: member
     - id: admin
       version: 1
-      label: Career Hunter Administrator
+      label: Job source administrator
       members:
         - app: career-hunter
           role: admin
@@ -426,9 +441,30 @@ guestTier: readonly
 # engine does NO LLM work of its own: each model call it needs is sent through the worker
 # rail (/api/career-hunter/engine) to THIS bot, cost-attributed to the run's owner.
 # ─────────────────────────────────────────────────────────────────────────────
-chatBot: career-hunter
+# The front-desk inline concierge answers in the app (1.57.0, T9, the Create concierge pattern: trading 1.54.0);
+# career-hunter stays the worker for career-application tickets and the engine rail.
+chatBot: career-concierge
 
 bots:
+  - agentId: cb000000-0000-0000-0000-000000000005
+    name: career-concierge
+    persona: personas/career-concierge.yaml
+    posture: inline
+    role: career/concierge
+    # A resume request reaches Career (and its Resume Studio) by these words, not by AI Office's "a word document".
+    routingKeywords: [my resume, master resume, edit my resume, tighten my resume, update my resume]
+    capabilities:
+      - job-search
+      - job-fit-advice
+      - job-matching
+      - application-status
+      - application-strategy
+      - resume-tailoring
+      - career-coaching
+    selectorDescriptor: >-
+      Select for the signed-in person's own job search in Intelligent Career: their saved matches and fit, applications
+      and their status, their main résumé, interview preparation, recruiters and the job market, answered from their real
+      Career data. Hands career-application tickets and engine work to career-hunter.
   - agentId: cb000000-0000-0000-0000-000000000001
     name: career-hunter
     persona: personas/career-hunter.yaml   # package copy — the one persona (worker + advisor)
@@ -441,8 +477,6 @@ bots:
     container: career-bot
     port: 5000
     role: career/job-hunt-owner
-    # A resume request reaches Career (and its Resume Studio) by these words, not by AI Office's "a word document".
-    routingKeywords: [my resume, master resume, edit my resume, tighten my resume, update my resume]
     capabilities:
       - ats-scraping
       - job-scoring
@@ -744,7 +778,7 @@ tools:
         experienceRevision: {type: string, pattern: '^[a-f0-9]{64}$'}
       required: [postingId]
     usageInstructions: >-
-      Additional experience is opt-in per application. Read career_experience_bank to obtain IDs
+      Other experience is opt-in per application. Read career_experience_bank to obtain IDs
       and its current revision; pass experienceIds and experienceRevision only for entries the user
       chose. Otherwise use the core resume alone.
       Call career_draft with input.postingId (the posting id from the ticket or
@@ -757,12 +791,12 @@ tools:
   # The master record (1.51.0): everything Career keeps for the person, read-only, in pages of at most 12 KB whose
   # text together is the Master record page's Download. Same career.read permission as the other reads.
   - name: career_master_record
-    displayName: Read the master record
+    displayName: Read everything Career keeps
     type: api
     description: >-
       Read everything Career keeps for the signed-in person, in pages of at most 12 KB: the counts, every role with its
-      numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the
-      dated history of what was added, Strengthen answers and snapshot dates, and the link to the Master record page.
+      numbered bullets and skills, skills by group, other experience, education and certifications, evidence, the
+      dated history of what was added, the answers given on Improve my résumé and snapshot dates, and the link to the Download my data page.
       Read-only.
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/master-record?page={input.page}"}
     defaultAuthMode: auto
@@ -774,12 +808,12 @@ tools:
       required: [page]
     usageInstructions: >-
       Start with page 1; it carries the counts and the page link. When the person asks for everything (every bullet,
-      every skill, the history of what they added), answer with the counts and the link to the Master record page,
+      every skill, the history of what they added), answer with the counts and the link to the Download my data page,
       where Download saves it all as one file and Print is in More. Do not paste the whole record into the chat. Read
       further pages (nextPage) only for the part the person asks about and quote it as saved. If revision differs
       between pages, the record changed: start again from page 1.
   - name: career_experience_bank
-    displayName: Read additional experience library
+    displayName: Read other experience
     type: api
     description: Read the original owner's recorded optional projects, other work and skills, with IDs for per-application selection. Does not edit the core resume.
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/experience-bank?summary=1"}
@@ -789,7 +823,7 @@ tools:
     displayName: Draft with saved independent experience
     type: api
     description: >-
-      Legacy opt-in for the original owner's saved independent portfolio. Prefer career_experience_bank and career_draft for explicit additional experience selection.
+      Legacy opt-in for the original owner's saved independent portfolio. Prefer career_experience_bank and career_draft for explicit other experience selection.
     executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
     defaultAuthMode: auto
     inputSchema:
@@ -1052,9 +1086,10 @@ tools:
 # label, preserving group order by FIRST APPEARANCE and item order within a group; the
 # entries below are listed in the order they render so the manifest reads like the rail.
 #   (no group) Mobile — the pinned front door, deliberately the ungrouped lead band
-#   Job Search  board · submissions · recruiters · insights — find work and watch it move
-#   Resume      strengthen · resume studio — the artifact you send
-#   Presence    profile studio · portrait studio — how you look to a recruiter
+#   Job Search  find jobs · my jobs · submissions · recruiters · job market — find work and watch it move
+#   Resume      improve it · my résumé · other experience · download my data — the artifact you send
+#   Presence    LinkedIn profile · portrait studio — how you look to a recruiter
+# The labels are the names a person reads (1.55.0, tests/career-page-names.test.mjs); `group:` is the cockpit ribbon's band.
 #
 # `section: bottom` items are FORCED ungrouped by the renderer (they are the pinned base
 # tray, already visually divided), so they carry no `group:` — adding one is a silent no-op:
@@ -1080,26 +1115,31 @@ ui:
       iframeUrl: /api/career-hunter/review
       section: top
     # ── Job Search ──────────────────────────────────────────────────────────
-    # Search Jobs leads the group on purpose: it is the one screen in it that works
-    # before anything is set up. The Job Board below needs an indexed résumé to say
+    # Find jobs leads the group on purpose: it is the one screen in it that works
+    # before anything is set up. My jobs below needs an indexed résumé to say
     # anything at all — this searches the shared corpus and never mentions a match.
     - toolName: career-search
-      label: Search Jobs
+      label: Find jobs
       icon: codicon codicon-search
       iframeUrl: /api/career-hunter/search-ui
       section: top
       group: Job Search
-    # UX audit 2026-11-06 (1.48.1: the stage control is on the live board, career-job-lists.html): the Job Board is the one pipeline. Prepare & submit (?view=queue),
-    # Application status (?view=status) and Approvals (/approvals, ?view=approve) are its stages,
-    # chosen by the stage control on the page, so they left the menu; their routes and addresses
-    # still answer. Mobile left the menu too (a screen size, not a task; its route stays). To bring
-    # any of them back, restore its entry from git history (career-hunter 1.47.11).
+    # This one page (career-job-lists.html) is two sections of Career's own bar since 1.55.0
+    # (tools/career-frame.js): My jobs is its stages New matches, Saved, Getting ready (?view=queue)
+    # and Removed; Applications is Applied (?view=status), Interviewing, Offer and Closed. The row of
+    # stages on the page shows the side it is on. To approve is not a stage: the jobs Career picked
+    # lead Saved, and /approvals and ?view=approve still answer and open them there.
+    # Prepare & submit, Application status, Approvals and Mobile left the menu in 1.48.1 (UX audit
+    # 2026-11-06); their routes and addresses still answer. To bring one back, restore its entry
+    # from git history (career-hunter 1.47.11).
     - toolName: career-board
-      label: Job Board
+      label: My jobs
       icon: codicon codicon-briefcase
       iframeUrl: /api/career-hunter/board-native
       section: top
       group: Job Search
+    # Still a tile and still served, so a host can open it. Career's own bar lists it in no menu:
+    # Applications links to it while something is being sent from the person's computer.
     - toolName: career-submission-activity
       label: Submission activity
       icon: codicon codicon-history
@@ -1112,45 +1152,45 @@ ui:
       iframeUrl: /api/career-hunter/recruiters-ui
       section: top
       group: Connections
-    # Insights is search ANALYTICS (pipeline funnel, open roles by company/state, salary
+    # Job market (was Insights) is search ANALYTICS (pipeline funnel, open roles by company/state, salary
     # bands) — it reads the hunt, so it belongs with the hunt, not with the resume.
     - toolName: career-insights
-      label: Insights
+      label: Job market
       icon: codicon codicon-graph-line
       iframeUrl: /api/career-hunter/insights-ui
       section: top
       group: Review
     # ── Resume ──────────────────────────────────────────────────────────────
     - toolName: career-strengthen
-      label: Strengthen
+      label: Improve my résumé
       icon: codicon codicon-sparkle
       iframeUrl: /api/career-hunter/strengthen-ui
       section: top
       group: Resume
     - toolName: career-resume-studio
-      label: Resume Studio
+      label: My résumé
       icon: codicon codicon-edit
       iframeUrl: /api/career-hunter/resume-studio
       section: top
       group: Resume
     - toolName: career-experience-library
-      label: Additional experience
+      label: Other experience
       icon: codicon codicon-library
       iframeUrl: /api/career-hunter/experience-library
       section: top
       group: Resume
-    # The Master record (1.51.0): everything Career keeps for the person, read-only, with Download and Print.
+    # Download my data (the Master record of 1.51.0): everything Career keeps for the person, read-only, with Download and Print.
     - toolName: career-master-record
-      label: Master record
+      label: Download my data
       icon: codicon codicon-book
       iframeUrl: /api/career-hunter/master-record-ui
       section: top
       group: Resume
     # ── Presence — how a recruiter sees you before they read the resume ──────
-    # Profile Studio — LinkedIn profile customization (plan -> approve -> desktop
+    # LinkedIn profile (was Profile Studio) — LinkedIn profile customization (plan -> approve -> desktop
     # browser-control apply via linkedin-profile-operator; no LinkedIn edit API exists).
     - toolName: career-profile-studio
-      label: Profile Studio
+      label: LinkedIn profile
       icon: codicon codicon-account
       iframeUrl: /api/career-hunter/profile-studio
       section: top
@@ -1178,7 +1218,7 @@ ui:
       iframeUrl: /api/career-hunter/companies-admin
       section: bottom
     - toolName: career-settings
-      label: Career Settings
+      label: Settings
       icon: codicon codicon-settings-gear
       iframeUrl: /api/career-hunter/settings
       section: bottom

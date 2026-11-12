@@ -8,6 +8,8 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): with no scored jobs the screen was one button over "Try Rescan after scoring more jobs" with no way to get there, and the intro told people to tap a mic in boxes that were not there. An empty list is now one empty state, "No gaps to work on yet", whose one primary is the step that makes gaps: Upload your résumé (Resume Studio) when no résumé is indexed, otherwise Score jobs on the Job Board (gaps come from jobs scored against the résumé). The mic line shows only above real answer boxes; Open · Answered is a segmented control once there are answered stories; Rescan gaps is a 44px secondary. Guard: tests/career-strengthen-screen.test.mjs.
   3 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed Improve it (was Strengthen), the name it has under Résumé in the bar; its empty state says My jobs. Guard: tests/career-page-names.test.mjs.
+  6 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there), so the title and the heading carry the whole name. Career's own bar still says Improve it under Résumé.
 -->
 
 <!--
@@ -22,7 +24,7 @@
 -->
 <html lang="en" data-theme="midnight" data-career-surface="strengthen-ui"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Strengthen</title>
+<title>Improve my résumé</title>
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme and follows it live.
      Custom properties do NOT cross an iframe boundary, so the surface must carry the tokens and
      set its own data-theme; theme files scope to [data-theme="…"] with no :root fallback, hence
@@ -79,7 +81,7 @@
 <link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
-  <h1>Strengthen your résumé</h1>
+  <h1>Improve my résumé</h1>
   <p class="sub" id="intro">Gaps the AI found across your matched jobs, grouped into themes.</p>
   <p class="sub" id="micHint" hidden>Answer one with a real example: type it, or tap the mic in its box. It is woven into your profile, so every future tailored résumé pulls from it.</p>
   <div class="bar">
@@ -192,7 +194,7 @@ let gapView='open';
 async function emptyGaps(){
   let hasResume=true;
   try{const r=await fetch('/api/career-hunter/resume/state',{cache:'no-store'});if(r.ok)hasResume=Boolean((await r.json()).hasResume);}catch(_){}
-  const [tool,href,label]=hasResume?['career-board','/api/career-hunter/board-native','Score jobs on the Job Board']:['career-resume-studio','/api/career-hunter/resume-studio','Upload your résumé'];
+  const [tool,href,label]=hasResume?['career-board','/api/career-hunter/board-native','Score jobs in My jobs']:['career-resume-studio','/api/career-hunter/resume-studio','Upload your résumé'];
   listEl.innerHTML=`<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">✨</div><h2>No gaps to work on yet</h2><p>Gaps come from jobs scored against your résumé.</p><a class="ck-primary" id="gapNext" data-career-tool="${tool}" href="${href}">${label}</a></div>`;
   $('gapNext').onclick=e=>{if(window.parent===window)return;e.preventDefault();CareerJobActions.navigate(tool,href);};
 }

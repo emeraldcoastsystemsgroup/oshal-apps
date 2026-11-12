@@ -27,6 +27,14 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Guard the exact original-Writer metadata-only Motion catalogue POST separately while preserving approval for every mutation POST.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | The Games concierge guard follows Game Show's real labels after its one-press start: Play against the computer and Host for friends instead replace Host this show, Solo night and Pick tonight.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Verify all 15 studio, editor, and device packages that mount registerDocumentSession conform strictly to the Create concierge pattern.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2a: ten more side-chat bots run inline, are registered in CONCIERGES and carry Create's persona rules, with the tool_call fence exactly when the package offers route tools.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Create's region-edit spend and LoRA's routes name their package's own declared bot (create-editor, lora-director) in source and compiled routes, and no route problem names those files.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): the Movies and Spotify concierges run inline as their packages' chatBots with Create's persona rules, the fence exactly when the package offers route tools, and the rule that returns their chat route's reply object with the prose in its "say" field; their route files raise no problem.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Commons, Orbit and Studio name jarvis's oshal-assistant, Classroom Little Monsters' class-tutor and Job Apply Career's career-concierge, each imported from a required member that declares it inline; every Classroom role template maps Little Monsters to a role granting class-tutor's binding, and Job Apply's workflow keeps its imported career-hunter worker.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Life, System, the Developer Workspace Index and Hello OSHAL borrow jarvis's oshal-assistant by name: no bot, workflow or bot import of their own, and no concierge binding problem.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2b: Intelligent Operations and Kalshi. Each side-chat bot runs inline, is registered in CONCIERGES and carries Create's persona rules with the tool_call fence (both packages offer route tools), and none is a bot its package's workflow runs: Operations' front desk is ops-concierge, not its RCA investigator ops-rca-specialist, whose phases stay as they were.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit (T15), the batch after 2b: Intelligent Processing. Its chatBot is a bot it declares itself (the kernel runs a bot with its owner's tools, so the imported ops-rca-specialist answered with Operations' tools and no read of this queue), inline, registered in CONCIERGES, with Create's persona rules and the tool_call fence over its own route tool; it is no worker of the workflow, which still runs the imported specialist and reviewer, and Operations' ops-concierge is not imported in its place.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -35,7 +43,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CONCIERGES, PENDING, conciergeBindingProblems, personaProblems, readManifests, routeBotProblems, unexpected } from './check-store-bots.mjs';
+import { CONCIERGES, PENDING, conciergeBindingProblems, personaProblems, posture, readManifests, routeBotProblems, unexpected } from './check-store-bots.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const yaml = createRequire(path.join(path.resolve(process.env.STORE_CI_TOOLCHAIN || path.join(ROOT, 'scripts', 'toolchain')), 'package.json'))('js-yaml');
@@ -253,4 +261,186 @@ test('Create and Video editing agents bind actual bounded API tools, immutable m
    assert.match(persona.perspective,/Never invent lineage/);
   }
  }
+});
+
+test('all 15 studio, editor, and device packages that mount registerDocumentSession conform strictly to the Create concierge pattern', () => {
+  const studioApps = [
+    'brand-graphics', 'cad-studio', 'circuit-lab', 'creative-studio', 'design-studio',
+    'lora', 'motion-studio', 'pdf-workbench', 'phone-control', 'portrait-studio',
+    'presentations', 'publishing-studio', 'scan-to-print', 'scene-studio', 'vids',
+  ];
+  for (const pkg of studioApps) {
+    const manifest = yaml.load(fs.readFileSync(path.join(ROOT, pkg, 'oshal-app.yaml'), 'utf8'));
+    assert.ok(typeof manifest.chatBot === 'string' && manifest.chatBot.length > 0, `${pkg} declares explicit chatBot`);
+    const bot = (manifest.bots || []).find((b) => b.name === manifest.chatBot);
+    assert.ok(bot, `${pkg} declares bot ${manifest.chatBot}`);
+    assert.equal(bot.posture, 'inline', `${pkg} bot ${bot.name} has posture: inline`);
+    const rel = `${pkg}/${bot.persona}`;
+    assert.ok(CONCIERGES.includes(rel), `${rel} is registered in CONCIERGES`);
+    const persona = yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    assert.equal(persona.runtime?.harness, 'claude-code', `${rel} uses claude-code harness`);
+    assert.match(persona.perspective, /plain prose/i, `${rel} carries plain-prose rule`);
+    assert.ok(persona.perspective.includes('```tool_call'), `${rel} teaches the \`\`\`tool_call fence`);
+  }
+});
+
+test('concierge audit batch 2a: ten more side-chat bots follow the Create concierge pattern', () => {
+  for (const pkg of ['animatronics', 'calling-assistant', 'codex-packer', 'drone-relay', 'eats', 'identity', 'little-monsters', 'person-model', 'purchasing', 'rides']) {
+    const manifest = yaml.load(fs.readFileSync(path.join(ROOT, pkg, 'oshal-app.yaml'), 'utf8'));
+    const bot = (manifest.bots || []).find((b) => b.name === manifest.chatBot);
+    assert.ok(bot, `${pkg} declares its side-chat bot ${manifest.chatBot}`);
+    assert.equal(posture(bot), 'inline', `${pkg} side-chat bot runs inline`);
+    const rel = path.join(pkg, bot.persona.replace(/^\.\//, ''));
+    assert.ok(CONCIERGES.includes(rel), `${rel} is registered in CONCIERGES`);
+    const persona = yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    assert.equal(persona.runtime?.harness, 'claude-code', `${rel} names Create's harness`);
+    assert.match(persona.perspective, /plain prose/i, `${rel} carries the plain-prose rule`);
+    const routeTools = (manifest.tools || []).some((t) => t && t.executor && t.executor.executorType === 'api');
+    assert.equal(persona.perspective.includes('```tool_call'), routeTools, `${rel} teaches the tool_call fence exactly when its package offers route tools`);
+  }
+});
+
+/** A route constant's value in source (`const X = '...'`, `export const X = '...'`) or compiled (`exports.X = '...'`) form. */
+function routeConstant(rel, name) {
+  const match = new RegExp(`(?:const|exports\\.)\\s*${name}\\s*=\\s*'([^']+)'`).exec(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+  assert.ok(match, `${rel} sets ${name}`);
+  return match[1];
+}
+
+test('Create region edits and LoRA routes name their own package\'s declared bot (T15)', () => {
+  const manifests = readManifests(ROOT, yaml);
+  const own = (app, name) => manifests.get(app).bots.find((bot) => bot.name === name).agentId;
+  const files = {
+    'create/src-routes/create-region-edit-routes.ts': ['REGION_EDIT_COST_AGENT_ID', own('create', 'create-editor')],
+    'create/routes/create-region-edit-routes.js': ['REGION_EDIT_COST_AGENT_ID', own('create', 'create-editor')],
+    'lora/src-routes/bot-lora-routes.ts': ['LORA_DIRECTOR_AGENT_ID', own('lora', 'lora-director')],
+    'lora/routes/bot-lora-routes.js': ['LORA_DIRECTOR_AGENT_ID', own('lora', 'lora-director')],
+    'lora/src-routes/lora-train-dispatch.ts': ['LORA_DIRECTOR_AGENT_ID', own('lora', 'lora-director')],
+    'lora/routes/lora-train-dispatch.js': ['LORA_DIRECTOR_AGENT_ID', own('lora', 'lora-director')],
+  };
+  const problems = routeBotProblems(ROOT, manifests);
+  for (const [rel, [name, id]] of Object.entries(files)) {
+    assert.equal(routeConstant(rel, name), id, `${rel} ${name} is the package's own bot`);
+    assert.ok(!problems.some((problem) => problem.includes(rel)), `${rel} calls only bots its package declares`);
+  }
+});
+
+test('the Movies and Spotify concierges run inline as their chatBots and follow the Create concierge pattern (T15)', () => {
+  const problems = routeBotProblems(ROOT, readManifests(ROOT, yaml));
+  for (const pkg of ['movies', 'spotify']) {
+    const manifest = yaml.load(fs.readFileSync(path.join(ROOT, pkg, 'oshal-app.yaml'), 'utf8'));
+    const bot = (manifest.bots || []).find((b) => b.name === manifest.chatBot);
+    assert.ok(bot, `${pkg} names its own concierge as chatBot`);
+    assert.equal(bot.name, manifest.workflow.workerBot, `${pkg} chatBot is its workflow bot`);
+    assert.equal(bot.posture, 'inline', `${pkg} concierge runs inline`);
+    assert.equal(bot.container, undefined, `${pkg} concierge has no dedicated container`);
+    assert.notEqual(bot.requiresOwnNode, true, `${pkg} concierge needs no node`);
+    const rel = path.join(pkg, bot.persona);
+    assert.ok(CONCIERGES.includes(rel), `${rel} is registered in CONCIERGES`);
+    const persona = yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    assert.equal(persona.agent_id, bot.agentId, `${rel} carries the declared identity`);
+    assert.equal(persona.runtime?.harness, 'claude-code', `${rel} names Create's harness`);
+    assert.match(persona.perspective, /plain prose/i, `${rel} carries the plain-prose rule`);
+    const routeTools = (manifest.tools || []).some((t) => t && t.executor && t.executor.executorType === 'api');
+    assert.equal(persona.perspective.includes('```tool_call'), routeTools, `${rel} teaches the tool_call fence exactly when its package offers route tools`);
+    const route = fs.readFileSync(path.join(ROOT, pkg, 'src-routes', `${pkg}-routes.ts`), 'utf8');
+    assert.ok(route.includes('Reply with ONLY a JSON object'), `${pkg} chat route still asks for its reply object`);
+    assert.ok(flat(persona.perspective).includes('with your prose in its "say" field'), `${rel} returns that object instead of refusing it`);
+    for (const dir of ['routes', 'src-routes']) {
+      assert.ok(!problems.some((problem) => problem.startsWith(`route ${pkg}/${dir}/`)), `${pkg}/${dir} calls only bots the kernel runs with its tools`);
+    }
+  }
+});
+
+test('experience and Job Apply concierges are imported inline member concierges, not general-bot (T15)', () => {
+  const manifests = readManifests(ROOT, yaml);
+  const load = (app) => yaml.load(fs.readFileSync(path.join(ROOT, app, 'oshal-app.yaml'), 'utf8'));
+  const expected = {
+    'commons-experience': ['jarvis', 'oshal-assistant'], 'orbit-experience': ['jarvis', 'oshal-assistant'],
+    'studio-experience': ['jarvis', 'oshal-assistant'], 'classroom-experience': ['little-monsters', 'class-tutor'],
+    'job-apply': ['career-hunter', 'career-concierge'],
+  };
+  const bindings = conciergeBindingProblems(ROOT, yaml, manifests);
+  for (const [app, [owner, bot]] of Object.entries(expected)) {
+    const manifest = load(app);
+    assert.equal(manifest.chatBot, bot, `${app} names ${bot}`);
+    assert.ok(manifest.dependencies.required.apps.includes(owner), `${app} requires ${owner}`);
+    assert.ok(manifest.dependencies.required.bots.some((b) => b.app === owner && b.name === bot), `${app} imports ${owner}/${bot}`);
+    const declared = manifests.get(owner);
+    if (declared) assert.equal(posture(declared.bots.find((b) => b.name === bot)), 'inline', `${owner}/${bot} runs inline`);
+    assert.ok(!bindings.some((problem) => problem.startsWith(`app ${app} `)), `${app} has a concierge the kernel runs with its data`);
+  }
+  const jobApply = load('job-apply');
+  assert.equal(jobApply.workflow.workerBot, 'career-hunter', 'Job Apply keeps its Career worker');
+  assert.ok(jobApply.dependencies.required.bots.some((b) => b.app === 'career-hunter' && b.name === 'career-hunter'), 'and still imports it');
+  // A Classroom person can run class-tutor: every template maps Little Monsters to a role that grants its bot binding.
+  const lm = load('little-monsters');
+  const catalog = yaml.load(fs.readFileSync(path.join(ROOT, 'little-monsters', lm.authorization.catalog), 'utf8'));
+  const tutorId = lm.bots.find((b) => b.name === 'class-tutor').agentId;
+  const needs = catalog.bindings.bots.find((b) => b.id === tutorId).allOf;
+  for (const template of load('classroom-experience').experience.roleTemplates) {
+    const roles = template.members.filter((m) => m.app === 'little-monsters').map((m) => m.role);
+    assert.ok(roles.length, `${template.id} maps Little Monsters`);
+    const granted = new Set(roles.flatMap((role) => catalog.roles[role].grants.map((g) => g.permission)));
+    for (const permission of needs) assert.ok(granted.has(permission), `${template.id} grants ${permission} for class-tutor`);
+  }
+});
+
+test('launchers, the developer index and the example borrow the platform assistant instead of general-bot (T15)', () => {
+  const bindings = conciergeBindingProblems(ROOT, yaml, readManifests(ROOT, yaml));
+  for (const app of ['life', 'system', 'dev-workspace-index', 'hello-oshal']) {
+    const manifest = yaml.load(fs.readFileSync(path.join(ROOT, app, 'oshal-app.yaml'), 'utf8'));
+    assert.equal(manifest.chatBot, 'oshal-assistant', `${app} borrows the platform assistant`);
+    assert.deepEqual(manifest.bots || [], [], `${app} declares no bot of its own`);
+    assert.equal(manifest.workflow, undefined, `${app} runs no workflow, so Jarvis keeps a request that names it`);
+    for (const tier of ['required', 'optional']) assert.deepEqual(manifest.dependencies?.[tier]?.bots || [], [], `${app} imports no bot`);
+    assert.ok(!bindings.some((problem) => problem.startsWith(`app ${app} `)), `${app} has no concierge binding problem`);
+  }
+});
+
+test('concierge audit batch 2b: Intelligent Operations and Kalshi follow the Create concierge pattern, with a front desk apart from the workers', () => {
+  for (const [pkg, chat] of [['intelligent-operations', 'ops-concierge'], ['kalshi', 'kalshi-quant']]) {
+    const manifest = yaml.load(fs.readFileSync(path.join(ROOT, pkg, 'oshal-app.yaml'), 'utf8'));
+    assert.equal(manifest.chatBot, chat, `${pkg} names its own side-chat bot`);
+    const bot = (manifest.bots || []).find((b) => b.name === manifest.chatBot);
+    assert.ok(bot, `${pkg} declares its side-chat bot ${manifest.chatBot}`);
+    assert.equal(bot.posture, 'inline', `${pkg} side-chat bot runs inline, explicitly`);
+    const phases = (manifest.workflow?.phases || []).map((phase) => phase.bot).filter(Boolean);
+    assert.ok(!phases.includes(bot.name) && manifest.workflow?.workerBot !== bot.name, `${pkg} side-chat bot is not a worker of its workflow`);
+    const rel = path.join(pkg, bot.persona.replace(/^\.\//, ''));
+    assert.ok(CONCIERGES.includes(rel), `${rel} is registered in CONCIERGES`);
+    const persona = yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    assert.equal(persona.runtime?.harness, 'claude-code', `${rel} names Create's harness`);
+    assert.match(persona.perspective, /plain prose/i, `${rel} carries the plain-prose rule`);
+    assert.ok((manifest.tools || []).some((t) => t?.executor?.executorType === 'api'), `${pkg} offers route tools`);
+    assert.ok(persona.perspective.includes('```tool_call'), `${rel} teaches the tool_call fence`);
+  }
+});
+
+test('concierge audit (T15): Intelligent Processing answers from its own front desk, not an imported worker or Operations\' front desk', () => {
+  const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'intelligent-processing', 'oshal-app.yaml'), 'utf8'));
+  const imported = ['required', 'optional'].flatMap((tier) => manifest.dependencies?.[tier]?.bots || []);
+  const bot = (manifest.bots || []).find((b) => b.name === manifest.chatBot);
+  assert.equal(manifest.chatBot, 'processing-concierge', 'Intelligent Processing names its own side-chat bot');
+  assert.ok(bot, 'the chatBot is declared by the package, so the kernel runs it with the package\'s own route tools');
+  assert.ok(!imported.some((b) => b.name === manifest.chatBot), 'the chatBot is not an imported bot');
+  assert.ok(!imported.some((b) => b.name === 'ops-concierge'), 'Operations\' front desk is not borrowed: its tools read Operations\' records');
+  assert.equal(bot.posture, 'inline', 'the side-chat bot runs inline, explicitly');
+  const phases = (manifest.workflow?.phases || []).map((phase) => phase.bot).filter(Boolean);
+  assert.ok(!phases.includes(bot.name), 'the side-chat bot is not a worker of its workflow');
+  assert.deepEqual([...new Set(phases)], ['ops-rca-specialist', 'ops-incident-reviewer'], 'the workflow still runs the imported workers');
+  for (const worker of ['ops-rca-specialist', 'ops-incident-reviewer']) {
+    assert.ok(imported.some((b) => b.app === 'intelligent-operations' && b.name === worker), `${worker} is still imported`);
+  }
+  const rel = path.join('intelligent-processing', bot.persona.replace(/^\.\//, ''));
+  assert.ok(CONCIERGES.includes(rel), `${rel} is registered in CONCIERGES`);
+  const persona = yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+  assert.equal(persona.agent_id, bot.agentId, `${rel} carries the declared identity`);
+  assert.equal(persona.runtime?.harness, 'claude-code', `${rel} names Create's harness`);
+  assert.match(persona.perspective, /plain prose/i, `${rel} carries the plain-prose rule`);
+  const tools = (manifest.tools || []).filter((t) => t?.executor?.executorType === 'api');
+  assert.ok(tools.length > 0, 'Intelligent Processing offers its own route tools');
+  for (const tool of tools) assert.match(tool.executor.apiEndpoint, /^GET \/api\/intelligent-processing\//, `${tool.name} reads a route of its own package`);
+  assert.ok(persona.perspective.includes('```tool_call'), `${rel} teaches the tool_call fence`);
+  assert.ok(!conciergeBindingProblems(ROOT, yaml, readManifests(ROOT, yaml)).some((problem) => problem.startsWith('app intelligent-processing ')));
 });

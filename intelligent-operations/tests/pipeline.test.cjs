@@ -1,5 +1,6 @@
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual percolation and transactional reduction under concurrency, replay, late states and backend failure.
 // CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The engine fixture now deletes every rule index it published when it closes (tests/fixtures/detection.cjs): the browser case checks its published index exists while the engine is open and is gone once the fixture has closed, instead of deleting it a second time.
+// CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | T71: an activation retires the person's rule generations no source binding keeps (not the bound one, not another person's, not one under an hour old); the engine's retire refuses an empty or malformed keep list and a bad age.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience}=require('./fixtures/intake.cjs'),{engineFixture}=require('./fixtures/detection.cjs');
@@ -20,6 +21,27 @@ test('actual OpenSearch percolates every sealed rule page and excludes disabled 
   await assert.rejects(x.engine('match','other-person',{revision:saved.policy.id,document:{environment:'local-lab'}}),/HTTP 404/);
  }finally{await x.close();}
 });
+test('an activation retires the person\'s rule generations no source binding keeps, never a bound one, another person\'s or a young one (T71)',async()=>{
+ const x=await env();try{
+  const first=await publishPolicy(x.p,x.engine,x.owner,source,policy(),0);
+  const changed=policy();changed.rules[0].name='Changed interpretation';
+  const second=await publishPolicy(x.p,x.engine,x.owner,source,changed,1);
+  assert.notEqual(second.policy.id,first.policy.id);
+  assert.deepEqual([second.retirement.retired,second.retirement.kept],[0,1],'the first generation is under an hour old, so the activation keeps it');
+  const other=await x.engine('publish','another-person',{revision:first.policy.id,rules:first.policy.rules.map(({id,enabled,query})=>({id,enabled,query}))});
+  assert.equal(other.revision,first.policy.id);
+  const scope=hash(['detection-owner-v1',x.owner]),index=revision=>process.env.OSHAL_TEST_SEARCH+'/ops-rules-'+scope+'-'+revision;
+  const retired=await x.engine('retire',x.owner,{keep:[second.policy.id],olderThanSeconds:0});assert.deepEqual([retired.retired,retired.kept],[1,1]);
+  assert.equal((await fetch(index(first.policy.id))).status,404,'the unbound generation is gone');
+  assert.equal((await fetch(index(second.policy.id))).status,200,'the bound one stays');
+  await assert.rejects(x.engine('match',x.owner,{revision:first.policy.id,document:{environment:'local-lab'}}),/HTTP 404/);
+  assert.equal((await x.engine('match',x.owner,{revision:second.policy.id,document:{environment:'local-lab'}})).complete,true);
+  assert.equal((await x.engine('match','another-person',{revision:first.policy.id,document:{environment:'local-lab'}})).complete,true,'another person\'s scope is untouched');
+  await x.engine('retire','another-person',{keep:[second.policy.id],olderThanSeconds:0});
+  for(const bad of [{keep:[]},{keep:['not-a-revision']},{keep:[second.policy.id],olderThanSeconds:-1},{keep:[second.policy.id],olderThanSeconds:'0'}])await assert.rejects(x.engine('retire',x.owner,bad),/./,JSON.stringify(bad));
+ }finally{await x.close();}
+});
+
 test('100 distinct occurrences across two SQL workers reserve one evidence job; replay does not inflate counts',async()=>{
  const x=await env();try{
   await publishPolicy(x.p,x.engine,x.owner,source,policy(),0);

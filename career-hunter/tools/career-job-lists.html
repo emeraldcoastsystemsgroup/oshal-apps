@@ -6,8 +6,11 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   5 | maintainer@emeraldcoastsystemsgroup.com | The phone swipe deck (see career-job-lists.js 5): the card's settle transition is off while it is held, the reason text is clamped to seven lines instead of being a scroll box that took the gesture, every part of the card lets a sideways drag through, and the held card shows Save or Pass.
   6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11 (see career-job-lists.js 6): the newest inbox reply on a job's row is a 44px line that opens its application; "Add your résumé to see your fit" is a 44px link on a phone; the search row, filters and view links step aside while New matches has no résumé to match against.
-  7 | maintainer@emeraldcoastsystemsgroup.com | On a phone "Add your résumé to see your fit" takes its own line under a job's facts; as an inline 44px box it sat beside the place and pushed the posted date out of line. -->
-<html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Job Board</title>
+  7 | maintainer@emeraldcoastsystemsgroup.com | On a phone "Add your résumé to see your fit" takes its own line under a job's facts; as an inline 44px box it sat beside the place and pushed the posted date out of line.
+  8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed My jobs (was Job Board), and its own link says the same. Words only. Guard: tests/career-page-names.test.mjs.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9 (see career-job-lists.js 7): a job Career picked carries its mark above its title; a job a person has applied to carries one status line; one quiet link under the stage row opens the activity page while something is being sent or did not go through; the line that says a job moved stays in view above the phone's bottom bar instead of sitting under the last row. The page loads career-status-line.js for those words and career-submit.js to read what is being sent.
+  10 | maintainer@emeraldcoastsystemsgroup.com | The list's Search button is outlined: on My jobs and Applications the filled button is the next thing to do on a job, and Search sat filled above every one of them. -->
+<html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script><link rel="stylesheet" href="/api/career-hunter/static/career-journey.css"><link rel="stylesheet" href="/api/career-hunter/static/career-kit.css"><style>
 html,body{overscroll-behavior:contain}
 html.in-shell #pageTitle{display:none}
@@ -21,6 +24,14 @@ html.in-shell #pageTitle{display:none}
 .reply-line{display:inline-flex;align-items:center;min-height:44px;margin:4px 0 0;padding:0 12px;border:1px solid var(--ds-line-control,var(--line));border-radius:var(--ds-radius-m,10px);background:var(--ds-surface-2,var(--panel));color:var(--ds-ink,var(--text));font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
 .reply-line:hover{border-color:var(--accent)}
 .fit-link{color:var(--ds-accent-ink,var(--accent));font-weight:600}
+.pick-mark{display:block;width:fit-content;margin:0 0 2px;padding:2px 10px;border-radius:var(--ds-radius-m,10px);background:color-mix(in srgb,var(--accent) 14%,var(--ds-surface,var(--panel)));color:var(--ds-accent-ink,var(--accent));font-size:12px;font-weight:700}
+.app-line{margin:6px 0 0;font-size:14px;line-height:20px;color:var(--ds-ink-2,var(--muted))}
+.app-line b{color:var(--ds-ink,var(--text))}
+.app-line:is([data-line="failed"],[data-line="answer"]) b{color:var(--ds-bad,var(--status-error))}
+#activityLink{display:inline-flex;align-items:center;min-height:44px;margin:0;font-size:14px;color:var(--ds-accent-ink,var(--accent))}
+#activityLink[hidden]{display:none}
+#actionState{position:sticky;bottom:calc(var(--cf-bottom,0px) + 12px);z-index:5;width:fit-content;max-width:100%;margin:16px auto 0;padding:10px 16px;border:1px solid var(--ds-edge,var(--line));border-radius:var(--ds-radius-m,10px);background:var(--ds-surface,var(--panel));color:var(--ds-ink,var(--text));font-size:14px;font-weight:600;box-shadow:var(--ds-elev-float,0 2px 6px rgb(0 0 0 / .16))}
+#actionState:empty{display:none}
 #openBoardFilters,#matchesLayoutSwitch{display:none}
 .match-deck{display:flex;flex-direction:column;gap:12px}
 .match-deck-stage{position:relative;min-height:340px}
@@ -54,10 +65,11 @@ html.in-shell #pageTitle{display:none}
 <link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 <main class="wrap">
 <div id="careerStages"></div>
-<nav class="journey-nav" aria-label="Career workspace" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">Search jobs</a><a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native">Job Board <span data-stage-count="saved"></span></a><a class="btn" data-career-tool="career-submissions" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit <span data-stage-count="queued"></span></a><a class="btn" data-career-tool="career-application-status" href="/api/career-hunter/board-native?view=status">Application status <span data-stage-count="tracked"></span></a></nav>
-<header><h1 id="pageTitle">Job Board</h1><p class="muted" id="pageDescription"></p></header>
+<nav class="journey-nav" aria-label="Career workspace" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">Search jobs</a><a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native">My jobs <span data-stage-count="saved"></span></a><a class="btn" data-career-tool="career-submissions" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit <span data-stage-count="queued"></span></a><a class="btn" data-career-tool="career-application-status" href="/api/career-hunter/board-native?view=status">Application status <span data-stage-count="tracked"></span></a></nav>
+<header><h1 id="pageTitle">My jobs</h1><p class="muted" id="pageDescription"></p></header>
+<a id="activityLink" href="/api/career-hunter/submissions" data-career-tool="career-submission-activity" hidden>Follow what is being sent</a>
 <div class="actions" id="searchModes" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">All openings</a><span class="btn" aria-current="page">Recommended for you</span><div class="ck-seg" id="matchesLayoutSwitch" role="tablist" aria-label="Matches view" hidden><button type="button" role="tab" data-layout="deck" aria-selected="true">Cards</button><button type="button" role="tab" data-layout="list" aria-selected="false">List</button></div></div>
-<form class="search-row" id="keywordSearch" role="search"><input type="search" id="q" aria-label="Search job titles, companies and descriptions" placeholder="Search title, company or description…"><button class="btn primary" type="submit">Search</button><button type="button" class="ck-btn" id="openBoardFilters" aria-haspopup="dialog">Filters</button></form>
+<form class="search-row" id="keywordSearch" role="search"><input type="search" id="q" aria-label="Search job titles, companies and descriptions" placeholder="Search title, company or description…"><button class="btn" type="submit">Search</button><button type="button" class="ck-btn" id="openBoardFilters" aria-haspopup="dialog">Filters</button></form>
 <details class="filters" id="filters"><summary>Sort and filter</summary><div class="filter-fields" id="boardFilterFields">
 <label>Sort<select id="sort"><option value="ai">Best AI fit</option><option value="recent">Newest</option><option value="posted">Date posted</option><option value="salary">Salary</option><option value="company">Company</option><option value="generated">Prepared</option><option value="applied">Application date</option></select></label>
 <label>Results per page<select id="per"><option>25</option><option selected>50</option><option>100</option><option>200</option></select></label>
@@ -74,5 +86,5 @@ html.in-shell #pageTitle{display:none}
   <header><h2 id="boardFilterSheetTitle">Filters</h2><span><button type="button" class="ck-tertiary" id="boardSheetClear">Clear filters</button><button type="button" class="ck-tertiary" id="boardSheetDone">Done</button></span></header>
   <div class="ck-sheet-body" id="boardFilterSheetBody"></div>
 </dialog>
-<script src="/api/career-hunter/static/career-job-actions.js"></script><script src="/api/career-hunter/static/career-navigation.js"></script><script src="/api/career-hunter/static/career-job-feedback.js"></script><script src="/api/career-hunter/static/career-stages.js"></script><script src="/api/career-hunter/static/career-job-lists.js"></script>
+<script src="/api/career-hunter/static/career-job-actions.js"></script><script src="/api/career-hunter/static/career-navigation.js"></script><script src="/api/career-hunter/static/career-job-feedback.js"></script><script src="/api/career-hunter/static/career-stages.js"></script><script src="/api/career-hunter/static/career-status-line.js"></script><script src="/api/career-hunter/static/career-submit.js"></script><script src="/api/career-hunter/static/career-job-lists.js"></script>
 </body></html>

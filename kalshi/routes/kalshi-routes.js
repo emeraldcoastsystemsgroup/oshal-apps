@@ -30,6 +30,7 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com | The predictions get graded. GET /grade says where the ledger stands (past their close and ungraded, still open, graded, last grade); POST /grade grades what is past its close through Kalshi's public market data (kalshi-grade.ts) and returns the run and the new standing, carrying on after `after` so the Scorecard walks a long list in calls that each fit the kernel's 60 seconds; POST /scan/tick hands the same grader to the tick, which runs it whenever it does not scan. No Kalshi account is read and no order is placed. Before this nothing on the native kernel graded: the Scorecard stood at graded 0 with 3,430 and 1,395 pending.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Browse and explain: GET /markets lists every market the last scan walked (open now, filtered by q/category/verdict, sorted by closes/edge/volume, bounded by limit) with each row's verdict in words; GET /markets/:ticker returns one market with its full walkthrough, from the snapshot first and otherwise read live from Kalshi's public API and priced against the shipped calibration table (503 when the runtime has no market reader, 404 when Kalshi has no such market). GET /scan no longer ships the browse rows (marketsScanned counts them). The kalshi-quant bot reaches both through the manifest's tools. Guard: tests/kalshi-markets-routes.test.js.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | GET /scan serves only the hands whose market is still open (openHands) and reports closedSinceScan: a snapshot served hours after its scan listed closed markets, and the concierge recommended them.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | The background tick hands scheduledTick a calibrator (lib/kalshi-calibration-store.js rebuildTurn over the kernel's kalshiGet, normalizeMarket and getCandles), and every reader of the calibration table (the first-scan answer, GET /calibration, GET /status, the live lookup) takes it through readCalibration, so a rebuilt table is used before the shipped one; GET /calibration and /status say which (`source`) (T48).
  *
  * @module kalshi-routes
  */
@@ -84,6 +85,8 @@ const kalshi_trends_1 = require("./kalshi-trends");
 const kalshi_pops_1 = require("./kalshi-pops");
 const kalshi_grade_1 = require("./kalshi-grade");
 const kalshi_scan_cron_1 = require("./kalshi-scan-cron");
+/** One turn of the calibration rebuild over the caller's own tables (lib/kalshi-calibration-store.js). */
+const calibrationStore = require('../lib/kalshi-calibration-store');
 const log = (0, logger_1.createChildLogger)({ module: 'kalshi-routes' });
 /**
  * ONE pop cache per process. It memoizes priced markets AND carries the rate-limit clock, so two
@@ -154,6 +157,11 @@ function createKalshiRoutes(ctx) {
     const pool = ctx.pool;
     // Kalshi's public market data, which grading reads results from. An installation without the reader says so.
     const marketReader = typeof prediction_markets_1.kalshiGet === 'function' ? (path) => (0, prediction_markets_1.kalshiGet)(path) : null;
+    // The tick's calibration turn reads Kalshi through the same throttled reader, and needs its market and price readers too.
+    const calibrator = marketReader && typeof prediction_markets_1.normalizeMarket === 'function' && typeof prediction_markets_1.getCandles === 'function'
+        ? (budgetMs) => calibrationStore.rebuildTurn(pool, { get: marketReader, normalize: prediction_markets_1.normalizeMarket,
+            candles: prediction_markets_1.getCandles }, { budgetMs })
+        : undefined;
     const toolsDir = surfaceDir(ctx.appPackageDir);
     const router = (0, express_1.Router)();
     ensureKalshiSchema(pool).catch((err) => log.error({ err }, 'kalshi schema ensure failed'));
@@ -178,7 +186,7 @@ function createKalshiRoutes(ctx) {
             // Why a scan cannot run on this installation, shown before any tick has tried and failed.
             const unavailable = (0, kalshi_scan_engine_1.scanUnavailableReason)(ctx.appPackageDir);
             if (!snap) {
-                const calib = (0, kalshi_scan_engine_1.loadCalibration)(ctx.appPackageDir);
+                const calib = await (0, kalshi_scan_engine_1.readCalibration)(pool, ctx.appPackageDir);
                 res.json({
                     generatedAt: null, hands: [], evaluable: 0, openPaged: 0, scorecard: [], awaitingFirstScan: true,
                     exchangeActive: false, calibrationGeneratedAt: calib.table?.generatedAt ?? null, calibrationFileMtime: calib.mtime,
@@ -291,7 +299,7 @@ function createKalshiRoutes(ctx) {
                 return;
             }
             // Not in the last scan: one live read of that market, priced against the shipped table (engine, never a walk).
-            const live = await (0, kalshi_scan_engine_1.lookupMarketLive)(ticker, ctx.appPackageDir);
+            const live = await (0, kalshi_scan_engine_1.lookupMarketLive)(ticker, ctx.appPackageDir, pool);
             if (!live.ok) {
                 res.status(live.status).json({ error: live.error });
                 return;
@@ -346,7 +354,7 @@ function createKalshiRoutes(ctx) {
             return;
         }
         try {
-            const outcome = await (0, kalshi_scan_cron_1.scheduledTick)(ctx, marketReader ? () => (0, kalshi_grade_1.gradeDue)(pool, marketReader) : undefined);
+            const outcome = await (0, kalshi_scan_cron_1.scheduledTick)(ctx, marketReader ? () => (0, kalshi_grade_1.gradeDue)(pool, marketReader) : undefined, calibrator);
             if (!outcome.ran && outcome.reason === 'unavailable') {
                 res.status(503).json({ error: 'kalshi_scan_unavailable', detail: outcome.detail });
                 return;
@@ -524,17 +532,17 @@ function createKalshiRoutes(ctx) {
             res.status(503).json({ error: err.message });
         }
     });
-    router.get('/calibration', (req, res) => {
+    router.get('/calibration', async (req, res) => {
         if (!(0, trading_routes_helpers_1.callerSub)(req)) {
             res.status(401).json({ error: 'authentication required' });
             return;
         }
-        const { table, mtime } = (0, kalshi_scan_engine_1.loadCalibration)(ctx.appPackageDir);
+        const { table, mtime, source } = await (0, kalshi_scan_engine_1.readCalibration)(pool, ctx.appPackageDir);
         if (!table) {
             res.status(503).json({ error: (0, kalshi_scan_engine_1.calibrationMissing)(ctx.appPackageDir) });
             return;
         }
-        res.json({ mtime, table });
+        res.json({ mtime, source, table });
     });
     router.get('/status', async (req, res) => {
         const sub = (0, trading_routes_helpers_1.callerSub)(req);
@@ -543,13 +551,13 @@ function createKalshiRoutes(ctx) {
             return;
         }
         try {
-            const { table, mtime } = (0, kalshi_scan_engine_1.loadCalibration)(ctx.appPackageDir);
+            const { table, mtime, source } = await (0, kalshi_scan_engine_1.readCalibration)(pool, ctx.appPackageDir);
             const cfg = await (0, kalshi_scan_engine_1.resolveConfig)(ctx, sub);
             const snap = await (0, kalshi_scan_engine_1.readSnapshot)(pool);
             const runtime = (0, kalshi_scan_cron_1.scanRuntimeStatus)();
             res.json({
                 exchangeActive: await (0, prediction_markets_1.exchangeTradingActive)().catch(() => false),
-                calibration: table ? { generatedAt: table.generatedAt, fileMtime: mtime, sampleCounts: table.sampleCounts } : null,
+                calibration: table ? { generatedAt: table.generatedAt, fileMtime: mtime, source, sampleCounts: table.sampleCounts } : null,
                 // Kept for compatibility with the surface's older field name; the snapshot IS the cache now.
                 scanCachedAt: snap?.generatedAt ?? null,
                 scan: {

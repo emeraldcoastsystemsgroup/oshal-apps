@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Approvals, Prepare & submit and Application status are stages of the Job Board (career-hunter 1.48.0), so the group delegates five destinations and the board carries the rest; pin 1.1.8.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band carries Career's Master record (career-hunter 1.51.0), borrowed from the member's own surface.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.1.12: the group's concierge is Career's own (career-concierge).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home, a real member surface that carries the job search box; Search Jobs follows it.
  */
 'use strict';
@@ -56,7 +57,8 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.11');
+  assert.equal(group.version, '1.1.12');
+  assert.equal(group.chatBot, members.get('career-hunter').chatBot, 'the group\'s concierge is Career\'s own (1.1.12)');
   assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social']);
   for (const surface of ['career-settings', 'career-companies']) {
     const item = group.toolbar.find(item => item.app === 'career-hunter' && item.surface === surface);

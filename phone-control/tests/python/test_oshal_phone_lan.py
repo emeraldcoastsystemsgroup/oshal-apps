@@ -4,6 +4,10 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.5.0: the bridge's TV module (bridge/oshal_phone_lan.py) against local protocol fakes, never a real TV: argument checks and refusals (a public address is refused), the Wake-on-LAN packet bytes received on a local UDP socket, the neighbor-table, interface, SSDP, Samsung, Roku and Cast parsers, an SSDP responder, a fake Roku ECP server that records each keypress, a fake Samsung TV speaking TLS WebSocket (self-signed certificate made with openssl) for the Allow prompt, the pairing token saved 0600 on this computer, key presses and the browser launch, and the whole discovery with two fake TVs: nothing installed, no adb connect, Wake-on-LAN only to the MACs named. Run by tests/phone-control-lan.test.mjs in store-ci.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 3): launch_url wakes the TV and opens the link with am start -W; with an app it opens in that streaming app only on its own site and only when installed.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (T45 part 4): now_playing names the app, the title, its state and that it is behind the home screen, reading only; pause, play, next, previous and stop send their media key and answer what the sessions say after; nothing played yet and a Roku or Samsung TV are refused in words.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (T45 part 2): a Marquee page opens in the oshal TV app as oshal://open?path=...; any other address, an app older than 0.8.6 and a missing app are refused in words.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | OK is KEYCODE_ENTER (66) on an Android TV.
 """Unit and protocol-fake tests for oshal_phone_lan.py (stdlib unittest)."""
 
 import base64, hashlib, http.server, json, os, shutil, socket, ssl, stat, struct, subprocess, sys, tempfile
@@ -16,6 +20,7 @@ sys.path.insert(0, BRIDGE)
 sys.dont_write_bytecode = True
 import oshal_phone_bridge as bridge  # noqa: E402
 import oshal_phone_lan as lan  # noqa: E402
+import oshal_phone_links as links  # noqa: E402
 
 MAC_A = '02:00:5e:10:20:30'
 MAC_B = '02:00:5e:40:50:60'
@@ -449,6 +454,49 @@ class Samsung(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'samsung_refused')
 
 
+# 1.8.0 (T45 part 4): `dumpsys media_session` as an Android 9 to 11 TV prints it: YouTube playing (or paused) behind the
+# home screen, and a Netflix session that has stopped and carries no title.
+MEDIA_EMPTY = """MEDIA SESSION SERVICE (dumpsys media_session)
+
+  0 sessions listeners.
+  Global priority session is null
+  Media button session is null
+  Sessions Stack - have 0 sessions:
+"""
+
+
+def media_sessions(playing):
+    return f"""MEDIA SESSION SERVICE (dumpsys media_session)
+
+  4 sessions listeners.
+  Global priority session is null
+Record for full_user=0
+  Media key listener: null
+  Media button session is com.amazon.firetv.youtube/YouTube (userId=0)
+  Sessions Stack - have 2 sessions:
+    YouTube com.amazon.firetv.youtube/YouTube (userId=0)
+      ownerPid=8123, ownerUid=10071, userId=0
+      package=com.amazon.firetv.youtube
+      launchIntent=null
+      mediaButtonReceiver=null
+      active=true
+      flags=3
+      rating type=0
+      controller=android.media.session.ISessionController$Stub$Proxy@3c1d2e
+      state=PlaybackState {{state={3 if playing else 2}, position=48211, buffered position=0, speed=1.0, updated=1234, actions=822, custom actions=[], active item id=-1, error=null}}
+      audioAttrs=AudioAttributes: usage=USAGE_MEDIA content=CONTENT_TYPE_MOVIE flags=0x800 tags= bundle=null
+      volumeType=1, controlType=2, max=15, current=8
+      metadata: size=5, description=Big Buck Bunny 60fps 4K, Blender Foundation, null
+      queueTitle=null, size=0
+    NetflixMediaSession com.netflix.ninja/NetflixMediaSession (userId=0)
+      ownerPid=7001, ownerUid=10066, userId=0
+      package=com.netflix.ninja
+      active=false
+      state=PlaybackState {{state=1, position=0, buffered position=0, speed=0.0, updated=99, actions=0, custom actions=[], active item id=-1, error=null}}
+      metadata: size=0, description=null, null, null
+"""
+
+
 class Android(unittest.TestCase):
     def setUp(self):
         self.commands, self.connected = [], []
@@ -458,9 +506,27 @@ class Android(unittest.TestCase):
             self.commands.append((serial, command))
             if command.startswith('pm list packages'):
                 return 0, 'package:' + lan.APP_PACKAGE if self.installed else '', ''
+            if command.startswith('pm path '):
+                name = command.split()[-1]
+                return (0, 'package:/data/app/' + name + '/base.apk', '') if name in self.streaming else (1, '', '')
+            if command.startswith('am start') and 'oshal://open' in command and self.old_oshal:
+                return 0, 'Starting: Intent { act=android.intent.action.VIEW }\nError: Activity not started, unable to resolve Intent { act=android.intent.action.VIEW pkg=com.oshal.remote }\n', ''
+            if command.startswith('am start'):
+                return 0, 'Starting: Intent\nStatus: ok\n', ''
+            if command == 'dumpsys media_session':
+                return 0, media_sessions(self.playing) if self.playing is not None else MEDIA_EMPTY, ''
+            if command == 'dumpsys window windows':
+                return 0, '  mCurrentFocus=Window{4f2a1c u0 com.amazon.tv.launcher/com.amazon.tv.launcher.ui.HomeActivity}\n', ''
+            if command in ('input keyevent 127', 'input keyevent 86'):
+                self.playing = False if self.playing is not None else None
+            if command == 'input keyevent 126':
+                self.playing = True if self.playing is not None else None
             return 0, 'Events injected: 1' if command.startswith('monkey') else 'ok', ''
 
-        self.installed = True
+        self.installed, self.streaming = True, {'com.netflix.ninja', 'com.amazon.firetv.youtube', 'com.oshal.remote'}
+        self.playing = True
+        self.old_oshal = False
+        links.SETTLE_S = 0
         self.ctx = context(list_devices=lambda: (self.devices, 0), adb_shell=shell,
                            verb_adb_connect_tv=lambda args: self.connected.append(args) or {'serial': args['address']})
 
@@ -469,7 +535,7 @@ class Android(unittest.TestCase):
         return lan.verb_lan_control(self.ctx, args)
 
     def test_keys_are_keyevents_through_the_bridge_adb(self):
-        for action, code in (('volume_up', 24), ('mute', 164), ('select', 23), ('back', 4), ('off', 223)):
+        for action, code in (('volume_up', 24), ('mute', 164), ('select', 66), ('back', 4), ('off', 223)):
             reply = self.control(action)
             self.assertEqual(self.commands[-1], ('192.168.50.20:5555', f'input keyevent {code}'))
             self.assertEqual(reply['key'], code)
@@ -478,13 +544,76 @@ class Android(unittest.TestCase):
 
     def test_a_page_opens_through_a_quoted_view_intent_and_the_app_only_when_installed(self):
         self.control('launch_url', url='https://home.test/a?b=1&c=$x')
-        self.assertEqual(self.commands[-1][1],
-                         "am start -a android.intent.action.VIEW -d 'https://home.test/a?b=1&c=$x'")
+        self.assertEqual([c for _, c in self.commands[-2:]], ['input keyevent KEYCODE_WAKEUP',
+                         "am start -W -a android.intent.action.VIEW -d 'https://home.test/a?b=1&c=$x'"])
         self.assertEqual(self.control('open_app')['opened'], lan.APP_PACKAGE)
         self.installed = False
         with self.assertRaises(bridge.Refusal) as caught:
             self.control('open_app')
         self.assertEqual(caught.exception.code, 'app_not_installed')
+
+    def test_a_link_opens_in_its_streaming_app_on_its_own_site_only_and_when_installed(self):
+        reply = self.control('launch_url', url='https://www.netflix.com/title/80057281', app='netflix')
+        self.assertEqual((reply['opened'], reply['app']), ('com.netflix.ninja', 'netflix'))
+        self.assertEqual(self.commands[0][1], 'input keyevent KEYCODE_WAKEUP', 'the TV is woken before the link')
+        self.assertEqual(self.commands[-1][1],
+                         "am start -W -a android.intent.action.VIEW -d 'https://www.netflix.com/title/80057281' com.netflix.ninja")
+        self.assertEqual(self.control('launch_url', url='https://m.youtube.com/watch?v=aqz-KE-bpKQ', app='youtube')['opened'],
+                         'com.amazon.firetv.youtube')
+        for url, app, code in (('https://www.netflix.com.evil.test/title/1', 'netflix', 'not_that_app'),
+                               ('https://www.hulu.com/watch/1', 'netflix', 'not_that_app'),
+                               ('https://www.disneyplus.com/video/1', 'disney', 'not_installed'),
+                               ('https://www.netflix.com/title/1', 'kodi', 'unknown_app')):
+            with self.assertRaises(bridge.Refusal) as caught:
+                self.control('launch_url', url=url, app=app)
+            self.assertEqual(caught.exception.code, code, url)
+
+    def test_a_marquee_page_opens_in_the_oshal_tv_app_and_an_old_or_missing_app_is_said(self):
+        reply = self.control('launch_url', url='https://home.test/api/free-library/app#/guide/movie/35/play', app='oshal')
+        self.assertEqual((reply['opened'], reply['app']), ('com.oshal.remote', 'oshal'))
+        self.assertEqual(self.commands[-1][1], "am start -W -a android.intent.action.VIEW -d "
+                         "'oshal://open?path=%2Fapi%2Ffree-library%2Fapp%23%2Fguide%2Fmovie%2F35%2Fplay' com.oshal.remote")
+        for url in ('https://home.test/api/computers', 'https://home.test/api/free-library/app?x=1', 'https://home.test/api/free-library/media/x'):
+            with self.assertRaises(bridge.Refusal) as caught:
+                self.control('launch_url', url=url, app='oshal')
+            self.assertEqual(caught.exception.code, 'not_that_app', url)
+        self.old_oshal = True
+        with self.assertRaises(bridge.Refusal) as caught:
+            self.control('launch_url', url='https://home.test/api/free-library/app', app='oshal')
+        self.assertEqual(caught.exception.code, 'app_too_old')
+        self.streaming.discard('com.oshal.remote')
+        with self.assertRaises(bridge.Refusal) as caught:
+            self.control('launch_url', url='https://home.test/api/free-library/app', app='oshal')
+        self.assertEqual(caught.exception.code, 'not_installed')
+
+    def test_what_is_playing_names_the_app_the_title_and_that_it_is_behind_the_home_screen(self):
+        reply = self.control('now_playing')
+        self.assertEqual([c for _, c in self.commands], ['dumpsys media_session', 'dumpsys window windows'], 'reading presses nothing')
+        self.assertEqual(reply['now'], {'package': 'com.amazon.firetv.youtube', 'app': 'YouTube', 'state': 'playing',
+                                        'title': 'Big Buck Bunny 60fps 4K', 'active': True, 'inFront': False})
+        self.assertEqual([(x['app'], x['state'], x['title']) for x in reply['sessions']],
+                         [('YouTube', 'playing', 'Big Buck Bunny 60fps 4K'), ('Netflix', 'stopped', None)])
+        self.assertEqual((reply['front'], reply['mediaKeysTo']), ('com.amazon.tv.launcher', 'com.amazon.firetv.youtube'))
+
+    def test_a_media_key_reaches_the_app_in_the_background_and_the_answer_reads_what_it_did(self):
+        reply = self.control('pause')
+        self.assertEqual([c for _, c in self.commands], ['input keyevent 127', 'dumpsys media_session', 'dumpsys window windows'])
+        self.assertEqual((reply['key'], reply['now']['app'], reply['now']['state'], reply['now']['inFront']), (127, 'YouTube', 'paused', False))
+        self.assertEqual(self.control('play')['now']['state'], 'playing', 'the answer is read after the press, not assumed')
+        for action, code in (('next', 87), ('previous', 88), ('stop', 86)):
+            self.assertEqual(self.control(action)['key'], code)
+            self.assertIn(('192.168.50.20:5555', f'input keyevent {code}'), self.commands)
+
+    def test_nothing_played_yet_is_said_and_other_tvs_refuse_media_in_words(self):
+        self.playing = None
+        self.assertEqual(self.control('now_playing')['now'], None)
+        with self.assertRaises(bridge.Refusal) as caught:
+            self.control('pause')
+        self.assertEqual(caught.exception.code, 'nothing_playing')
+        for kind in ('roku', 'samsung-tizen'):
+            with self.assertRaises(bridge.Refusal) as caught:
+                lan.verb_lan_control(self.ctx, {'kind': kind, 'address': '192.168.50.21', 'action': 'now_playing'})
+            self.assertEqual(caught.exception.code, 'android_only', kind)
 
     def test_a_tv_this_computer_never_connected_is_connected_on_the_press(self):
         self.devices = []

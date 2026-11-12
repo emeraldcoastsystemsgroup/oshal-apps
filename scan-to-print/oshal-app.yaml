@@ -13,6 +13,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Use route-backed native held approval for the new calibration read/update tools; preserve strict source CAS and original-owner HTTP authority.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: add 004-share-links.sql + native/004-share-links.sql for caller-scoped revocable read-only 3D share links, GLB/USDZ exports, 3D crop/rotate/measure tools, and AR preview.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: expose original-owned saved calibration read/update tools and additive provenance migrations without reconstruct or print side effects.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Release 0.10.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
 #
@@ -96,7 +97,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.10.0
+version: 0.10.1
 status: active
 scope: person
 
@@ -182,6 +183,7 @@ authorization:
 bots:
   - agentId: b4039c9b-a918-48b1-a98f-c66ecc70c4b4
     name: scan-to-print-operator
+    posture: inline
     persona: personas/scan-to-print-operator.yaml
     role: reconstruction/scan-to-print
     capabilities:

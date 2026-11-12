@@ -25,6 +25,7 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  * 21 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: register the read-only Master record page and its data route (career-master-record-routes.ts).
  * 22 | maintainer@emeraldcoastsystemsgroup.com   | 1.52.0: register local editing export and version-preserving import routes for the master resume (career-local-roundtrip-routes.ts).
+ * 23 | maintainer@emeraldcoastsystemsgroup.com   | 1.56.0, T6: Find jobs' remembered searches are kept on the account (GET and POST /search-memory, career-search-memory-routes.ts).
  */
 
 /**
@@ -47,6 +48,7 @@ import { registerCareerAutofillRoutes } from './career-autofill-routes';
 import { registerCareerAutomationRoutes } from './career-automation';
 import { registerCareerBoardRoutes, registerCareerResumeAlias } from './career-board-routes';
 import { registerCareerBrowseRoutes } from './career-browse-routes';
+import { registerCareerSearchMemoryRoutes } from './career-search-memory-routes';
 import { registerCareerCompanyRoutes } from './career-company-routes';
 import { registerCareerDigestRoutes } from './career-digest';
 import { registerCareerGuestSeedRoutes } from './career-guest-seed-routes';
@@ -110,6 +112,7 @@ function registerExtractedRouteFamilies(router: Router, ctx: AppContext): void {
   registerCareerApplicationReadRoutes(router, ctx);
   registerCareerBoardRoutes(router, ctx);
   registerCareerBrowseRoutes(router);
+  registerCareerSearchMemoryRoutes(router);
   registerCareerRecruiterRoutes(router);
   registerCareerStrengthenRoutes(router, ctx);
   registerCareerApplicationMutationRoutes(router, ctx);

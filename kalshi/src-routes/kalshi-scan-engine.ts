@@ -33,6 +33,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The snapshot keeps every market the walk kept (payload.markets, one browse row each: book, horizon, the evaluator's better-side hand or why it skipped the market), not only the playable hands, so the Markets tab and the quant can browse Kalshi and explain every verdict (kalshi-market-explainer). Guard: tests/kalshi-markets-routes.test.js.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | The package ships its calibration table (data/kalshi-calibration.json, the platform study's table generated 2026-07-13, with a provenance block), so the scan can run on the native runtime. A missing table's sentence is in words: the page printed it as the gate reason with /package/... file paths in it; the places looked are logged instead. Guard: tests/kalshi-calibration-shipped.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | appIsActive answers true on the native kernel without a query: there is no swarm_applications registry there, the package's SQL namespace answered the query with zero rows, and every scheduled tick quit with app_inactive (live 2026-10-30, 41 ticks, no scan). The kernel ticks only an installed, active application with a standing activation. Off the kernel the Docker stack's registry check is unchanged. Guard: tests/kalshi-scan-schedule.test.js.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The scan and the live lookup read the calibration table through readCalibration: the newest table the package rebuilt from Kalshi's tape (lib/kalshi-calibration-store.js), else the shipped one (T48).
  *
  * @module kalshi-scan-engine
  */
@@ -68,6 +69,25 @@ import {
 import { browseMarket, type BrowseMarket } from './kalshi-market-explainer';
 
 const log = createChildLogger({ module: 'kalshi-scan-engine' });
+
+/** The calibration rebuild's storage (lib/kalshi-calibration-store.js): the newest rebuilt table, else the shipped one. */
+const calibrationStore = require('../lib/kalshi-calibration-store') as {
+  calibrationTableFor(pool: AppContext['pool'] | undefined, fallback: () => { table: CalibrationTable | null; mtime: string | null },
+    onError?: (error: Error) => void): Promise<{ table: CalibrationTable | null; mtime: string | null; source: 'rebuilt' | 'shipped' | null }>;
+};
+
+/**
+ * @description The calibration table the scan and the pages read: the newest table this package rebuilt from Kalshi's
+ * tape (the background tick's calibration turns), else the table the package ships. A failed read of the rebuilt table is
+ * logged and the shipped table is used.
+ * @param pool - The caller's pool.
+ * @param appPackageDir - This package's directory, where the shipped table is.
+ * @returns The table, its time, and whether it was rebuilt or shipped.
+ */
+export async function readCalibration(pool: AppContext['pool'] | undefined, appPackageDir?: string): Promise<{ table: CalibrationTable | null; mtime: string | null; source: 'rebuilt' | 'shipped' | null }> {
+  return calibrationStore.calibrationTableFor(pool, () => loadCalibration(appPackageDir),
+    (err) => log.error({ err }, 'kalshi: the rebuilt calibration table could not be read; the shipped table is used'));
+}
 
 /** The scan's hands come from the calibration engine — score them under that name. */
 export const SCAN_STRATEGY = 'calibration';
@@ -485,7 +505,7 @@ async function recordScanPredictions(pool: AppContext['pool'], hands: BetHand[])
  */
 export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig, appPackageDir?: string): Promise<ScanPayload> {
   const started = Date.now();
-  const { table, mtime } = loadCalibration(appPackageDir);
+  const { table, mtime } = await readCalibration(pool, appPackageDir);
   if (!table) throw new Error(calibrationMissing(appPackageDir));
   const [active, walk] = await Promise.all([
     exchangeTradingActive().catch(() => false),
@@ -695,15 +715,16 @@ export type LiveLookup = { ok: true; row: BrowseMarket; calibrationGeneratedAt: 
  * never a feed walk (that belongs to the scheduled tick).
  * @param ticker - The Kalshi market ticker, already validated by the route.
  * @param appPackageDir - This package's directory, where its calibration table is read.
+ * @param pool - The caller's pool, where a rebuilt calibration table is read first.
  * @returns The browse row, or a typed refusal.
  */
-export async function lookupMarketLive(ticker: string, appPackageDir?: string): Promise<LiveLookup> {
+export async function lookupMarketLive(ticker: string, appPackageDir?: string, pool?: AppContext['pool']): Promise<LiveLookup> {
   const reader = { kalshiGet, normalizeMarket, getSeriesMeta, evaluateMarket } as Record<string, unknown>;
   const missing = Object.entries(reader).filter(([, fn]) => typeof fn !== 'function').map(([name]) => name);
   if (missing.length) {
     return { ok: false, status: 503, error: `${ticker} is not in the last scan, and this installation has no Kalshi market reader to look it up live (${missing.join(', ')})` };
   }
-  const { table } = loadCalibration(appPackageDir);
+  const { table } = await readCalibration(pool, appPackageDir);
   if (!table) return { ok: false, status: 503, error: calibrationMissing(appPackageDir) };
   let raw: { market?: unknown };
   try { raw = await kalshiGet(`/markets/${encodeURIComponent(ticker)}`); }

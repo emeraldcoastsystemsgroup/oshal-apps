@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The words a judge asked Career to retire stay retired (report 2026-11-11, changes 1 and 5). Over the pages and scripts a route serves, with their comments left out: no line names the vendor's own project or one person's field as an example; saving a job is Save, Saved and Unsave, never a star or a shortlist; résumé is never written without its accents outside the screen named Resume Studio; and the stage names are the ones career-stages.js defines (Getting ready, Closed, Removed, Needs your answer). tools/career-board.html is served by no route (routes/career-surface-routes.js) and is not read here; the home page, the frame and the Companies page are held by their own tests.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: the stages are My jobs (New matches, Saved, Getting ready, Removed) and Applications (Applied, Interviewing, Offer, Closed); To approve, Document records and Queued for documents are named on no served page.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: no served page sends a person to a button the one application route no longer has (Customize documents, Continue to submission review, Connect submission browser), and Settings describes that route with the buttons it has.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,9 +48,22 @@ test('résumé is written with its accents wherever a person reads it', () => {
 test('the stages carry the names a job seeker reads', () => {
   globalThis.window = undefined;
   createRequire(import.meta.url)(join(tools, 'career-stages.js'));
-  const { STAGES, MORE } = globalThis.CareerStages;
-  assert.deepEqual(STAGES.map((stage) => [stage.id, stage.label]), [['matches', 'New matches'], ['saved', 'Saved'], ['approve', 'To approve'], ['preparing', 'Getting ready'], ['applied', 'Applied'], ['interviewing', 'Interviewing']]);
-  assert.deepEqual(MORE.map((stage) => [stage.id, stage.label, stage.status]), [['offer', 'Offer', 'offer'], ['closed', 'Closed', 'rejected'], ['dismissed', 'Removed', 'dismissed'], ['generated', 'Document records', 'generated'], ['promoted', 'Queued for documents', 'promoted'], ['deferred', 'Needs your answer', 'deferred']]);
+  const { STAGES, PIPELINE } = globalThis.CareerStages;
+  // My jobs, then Applications (judge's report, changes 6 and 9): To approve is not a stage and there is no More menu.
+  assert.deepEqual(STAGES.map((stage) => [stage.id, stage.label, stage.status, stage.side]), [
+    ['matches', 'New matches', '', 'jobs'], ['saved', 'Saved', 'saved', 'jobs'], ['preparing', 'Getting ready', 'queue', 'jobs'], ['dismissed', 'Removed', 'dismissed', 'jobs'],
+    ['applied', 'Applied', 'tracked', 'applications'], ['interviewing', 'Interviewing', 'interview', 'applications'], ['offer', 'Offer', 'offer', 'applications'], ['closed', 'Closed', 'rejected', 'applications']]);
+  assert.deepEqual(PIPELINE.map((stage) => stage.label), ['New matches', 'Saved', 'Getting ready', 'Applied', 'Interviewing', 'Offer'], 'Home\'s pipeline');
+  assert.equal(globalThis.CareerStages.MORE, undefined);
+  for (const name of files) assert.doesNotMatch(shown(name), /To approve|Document records|Queued for documents/, `${name} names a stage that is gone`);
   // "Not selected" is still the word for a reply that turns an application down (the Job Board's reply line); the stage it lands in is Closed.
   for (const name of files) assert.doesNotMatch(shown(name), /'Preparing'|' · Not selected'|'Dismissed'|Dismissed\.|'Needs you'|Needs you —/, `${name} repeats a retired stage name`);
+});
+
+test('no page sends a person to a button the application route no longer has', () => {
+  const retired = [/Customize documents/, /Continue to submission review/, /Connect submission browser/, /Move to submission queue/];
+  for (const name of files) for (const phrase of retired) assert.doesNotMatch(shown(name), phrase, `${name} still says ${phrase}`);
+  const settings = shown('career-settings.html');
+  const flow = settings.slice(settings.indexOf('id="nativeWorkflow"'), settings.indexOf('</div>', settings.indexOf('id="nativeWorkflow"')));
+  for (const button of ['Prepare application', 'Open the employer’s form', 'I applied', 'Send it for me from my computer']) assert.ok(flow.includes(`<b>${button}</b>`), `Settings names ${button}`);
 });

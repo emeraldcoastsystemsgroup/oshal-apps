@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Job Board, Prepare & submit, Application status, Approvals). The real tools/career-board.html in Chromium over a synthetic fixture: one stage control (New matches · Saved · To approve · Preparing · Applied · Interviewing · More); the old addresses ?view=queue and ?view=status open Preparing and Applied, and ?view=approve opens the To approve view; switching stage in place keeps the frame; an empty stage is one empty state whose primary is Find jobs, with no "0 shown" and no bare page label; pay and fit filters leave the Preparing stage; desktop filters are an auto-fit grid with Clear filters, and a phone gets them in a Filters sheet.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: the shared stage control reads Getting ready (was Preparing); the expected stage names follow.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9: this unserved page draws the shared stage control, which now shows the row of one bar section and has no To approve; the expected row follows.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | ?view=approve opens Saved on this page and never goes to the approvals address: that address forwards to the Job Board with the same query, so the two would have sent a browser back and forth.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +34,7 @@ test('phone: the stage control, old addresses and an empty stage', async () => {
   try {
     const stages = page.getByRole('tablist', { name: 'Application stages' });
     await stages.getByRole('tab', { name: 'Getting ready' }).waitFor();
-    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'To approve1', 'Getting ready', 'Applied', 'Interviewing1']);
+    assert.deepEqual(await stages.locator('a[role=tab]').allTextContents(), ['New matches', 'Saved', 'Getting ready', 'Removed'], 'the row of the section Getting ready is in');
     assert.equal(await stages.getByRole('tab', { name: 'Getting ready' }).getAttribute('aria-selected'), 'true', '?view=queue is Getting ready');
     assert.equal(await page.locator('#min_pay').isVisible(), false, 'no pay filter while preparing');
     await page.getByRole('heading', { name: 'Nothing to prepare yet' }).waitFor();
@@ -50,7 +52,7 @@ test('phone: the stage control, old addresses and an empty stage', async () => {
   } finally { await context.close(); }
 });
 
-test('?view=status opens Applied and ?view=approve opens the To approve view', async () => {
+test('?view=status opens Applied, and ?view=approve opens Saved without leaving the page', async () => {
   const status = await openScreen(browser, 'career-board.html', career(), DESKTOP, '?view=status');
   try {
     const applied = status.page.getByRole('tab', { name: 'Applied' });
@@ -59,7 +61,11 @@ test('?view=status opens Applied and ?view=approve opens the To approve view', a
   } finally { await status.context.close(); }
   const approve = await openScreen(browser, 'career-board.html', career(), DESKTOP, '?view=approve');
   try {
-    await approve.page.waitForURL(`${ORIGIN}/api/career-hunter/approvals`);
+    const saved = approve.page.getByRole('tab', { name: 'Saved' });
+    await saved.waitFor();
+    assert.equal(await saved.getAttribute('aria-selected'), 'true');
+    assert.equal(new URL(approve.page.url()).pathname, '/screen', 'the page stayed');
+    assert.ok(!approve.calls.some((c) => c.path.startsWith('/api/career-hunter/approvals')), 'it never goes to the approvals address, which forwards back to the Job Board');
   } finally { await approve.context.close(); }
 });
 

@@ -21,9 +21,12 @@
   15 | maintainer@emeraldcoastsystemsgroup.com | 1.52.2 (Roger, 2026-11-10, on a phone: Target titles "says saved after a tabbed out change but it doesnt save" and has "no way to save changes"). The caption said Saved whatever the server answered, and the server keeps at most 16 titles of 3 to 60 characters, so a dropped title vanished under a Saved caption. The list is now a multi-line box, one title per line, with a Save titles button; the line under it says how many were saved and names the ones not kept, or says Not saved with the reason. Matching area, digest and automation captions say Not saved when the save is refused.
   16 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   17 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 14, words only (no control moved, hidden or renamed in a request). The sections read What I'm looking for (was Matching), Companies I want (was Target companies), Check for new jobs now (was Refresh and sources) and Email updates (was Email and keys), each with one line in a job seeker's words. The example job titles are ordinary ones, and the lines that named the vendor's platform say Career. Guard: tests/career-settings-home.test.mjs.
+  18 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 14's last line, and the page names. The page is titled and headed Settings (was Career Settings), and the lines that name another page say My jobs, My résumé and Find jobs. The job-source controls are shown only to a person the server admits to the Companies page, which is bound to career.administer: Sources and pull health, Pull jobs now, Jobs per score pass, the AI model and the Firecrawl key. Everyone else sees one button under Check for new jobs now, which starts the same check without the count box, and Email updates without the two engine cards. The page asks the Companies route as it already did for the source link; until that answers, and when it cannot be asked, the page shows what a job seeker sees. Hiding is presentation: no route or binding changed. Guard: tests/career-settings-administrator.test.mjs.
+  19 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the line under Job preparation & submission named two buttons the application route no longer has (Customize documents, Review and submit). It names the route as it is: Prepare application, then on the Send step Open the employer's form and I applied, with Send it for me from my computer while a computer is connected. Words only. Guard: tests/career-words.test.mjs.
+  20 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 3: Pull jobs now leaves the page when the refresh state says a pull cannot be started here (career-settings-support.js sets hidden on it); the button's own rule keeps the attribute stronger than the .btn display. Guard: tests/career-settings-administrator.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="settings" data-ds-category="form" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Career Hunter — Settings</title>
+<title>Settings</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
@@ -35,7 +38,7 @@ html.in-shell h1,html.in-shell .lede{display:none}
 #linkedinJobsCsv{box-sizing:border-box;width:100%;min-height:110px;resize:vertical}
 #titleTerms{box-sizing:border-box;width:100%;min-height:132px;resize:vertical;padding:8px 10px;border:1px solid var(--ds-edge);border-radius:var(--ds-radius-m,8px);background:var(--ds-surface);color:var(--ds-ink);font:inherit;line-height:1.45}
 #titleSaved{margin-left:0}
-#cancelScore[hidden]{display:none!important}
+#cancelScore[hidden],#runPull[hidden]{display:none!important}
 /* UX audit 2026-11-06: one Settings home of sections. */
 .settings-home{list-style:none;margin:0 0 16px;padding:0;border:1px solid var(--ds-edge);border-radius:var(--ds-radius-l);background:var(--ds-surface);overflow:hidden}
 .settings-home li+li{border-top:1px solid var(--ds-hairline)}
@@ -46,6 +49,8 @@ html.in-shell h1,html.in-shell .lede{display:none}
 html[data-settings-section] .settings-home, html[data-settings-section] .lede{display:none}
 html:not([data-settings-section]) [data-section], html:not([data-settings-section]) #sectionBack{display:none!important}
 #sectionBack{margin:0 0 12px}
+/* The administrator's controls are out of the page until the server has said the person is one (see showAdministrator). */
+html:not([data-career-administrator]) [data-administrator], html[data-career-administrator] [data-seeker]{display:none!important}
 [data-saved]{margin-left:8px}
 .off-section{display:none!important}
 .card details.help{margin-top:6px;color:var(--ds-ink-2)}
@@ -67,19 +72,19 @@ input[type=checkbox]{width:22px;height:22px}
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 <link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head><body>
 <div class="wrap" data-ds-work>
-  <h1>Career Settings</h1>
+  <h1>Settings</h1>
   <p class="lede">What you are looking for, the companies you want, and how Career checks for jobs and replies.</p>
   <ul class="settings-home" aria-label="Settings sections">
     <li><a href="#matching" data-open="matching">What I'm looking for<small>Job titles, where and how far, remote work, nightly matches</small></a></li>
     <li><a href="#companies" data-open="companies">Companies I want<small>Career checks these every night</small></a></li>
     <li><a href="#imports" data-open="imports">Imports<small>Jobs you saved on LinkedIn</small></a></li>
-    <li><a href="#refresh" data-open="refresh">Check for new jobs now<small>Look again, see how the last check went, and how applications are prepared</small></a></li>
-    <li><a href="#keys" data-open="keys">Email updates<small>Replies about your applications, and the AI and web search Career uses</small></a></li>
+    <li><a href="#refresh" data-open="refresh">Check for new jobs now<small>Look again<span data-administrator>, see how the last check went,</span> and see how applications are prepared</small></a></li>
+    <li><a href="#keys" data-open="keys">Email updates<small>Replies about your applications<span data-administrator>, and the AI and web search Career uses</span></small></a></li>
     <li><a href="#materials" data-open="materials">Résumé and materials<small>Your résumé, work samples and other materials</small></a></li>
   </ul>
   <button type="button" class="ck-tertiary" id="sectionBack">‹ Settings</button>
 
-  <div class="card" id="sourceConfiguration" data-section="refresh">
+  <div class="card" id="sourceConfiguration" data-section="refresh" data-administrator>
     <h2>Sources &amp; pull health</h2>
     <p class="hint">Review each employer's careers address, supported job board and last pull result. Add your own careers URLs under Companies I want. Source failures stay separate from a successful refresh.</p>
     <div class="row">
@@ -114,7 +119,7 @@ input[type=checkbox]{width:22px;height:22px}
     <p id="communitySourceStatus" class="hint" role="status"></p>
   </div>
 
-  <div class="card" data-section="keys">
+  <div class="card" data-section="keys" data-administrator>
     <h2>AI model</h2>
     <p class="hint">Job scoring and résumé/cover writing use the <b>AI model this installation runs</b> — no separate key needed here. Manage the connection in <a href="/utilities" target="_top">Utilities &amp; Connectors</a>.</p>
     <div class="row">
@@ -122,7 +127,7 @@ input[type=checkbox]{width:22px;height:22px}
     </div>
   </div>
 
-  <div class="card" data-section="keys">
+  <div class="card" data-section="keys" data-administrator>
     <h2>Firecrawl (optional)</h2>
     <p class="hint">A Firecrawl API key enables richer web search for finding recruiters and careers pages. Only used if you enter one.</p>
     <div class="row">
@@ -133,14 +138,15 @@ input[type=checkbox]{width:22px;height:22px}
     </div>
   </div>
 
-  <div class="card" data-section="refresh">
-    <h2>Refresh</h2>
-    <p class="hint">The shared pull refreshes job listings and their keyword index. Score fresh now checks openings from the last seven days against your saved target titles and matching area, including teaching and support roles. Review Sources &amp; pull health for individual employer outcomes.</p>
+  <div class="card" id="checkNow" data-section="refresh">
+    <h2><span data-seeker>Check for new jobs now</span><span data-administrator>Refresh</span></h2>
+    <p class="hint" data-seeker>Career looks again at jobs posted in the last seven days and scores them against your job titles and where you want to work.</p>
+    <p class="hint" data-administrator>The shared pull refreshes job listings and their keyword index. Score fresh now checks openings from the last seven days against your saved target titles and matching area, including teaching and support roles. Review Sources &amp; pull health for individual employer outcomes.</p>
     <div class="row">
-      <button class="btn" id="runPull">Pull jobs now</button>
-      <label class="hint" style="margin:0">Jobs per score pass <input id="scoreLimit" type="number" min="1" max="50" step="1" value="50" style="width:5em"></label>
-      <button class="btn" id="runScore">Score fresh now</button>
-      <button class="btn" id="cancelScore" type="button" hidden>Stop scoring</button>
+      <button class="btn" id="runPull" data-administrator>Pull jobs now</button>
+      <label class="hint" style="margin:0" data-administrator>Jobs per score pass <input id="scoreLimit" type="number" min="1" max="50" step="1" value="50" style="width:5em"></label>
+      <button class="btn" id="runScore"><span data-seeker>Check for new jobs now</span><span data-administrator>Score fresh now</span></button>
+      <button class="btn" id="cancelScore" type="button" hidden><span data-seeker>Stop checking</span><span data-administrator>Stop scoring</span></button>
       <span id="runOut" class="hint" style="margin:0" role="status" aria-live="polite"></span>
     </div>
   </div>
@@ -149,8 +155,8 @@ input[type=checkbox]{width:22px;height:22px}
     <h2>Job preparation &amp; submission</h2>
     <p class="hint" id="operationModeStatus" role="status">Checking available automation controls…</p>
     <div id="nativeWorkflow" hidden>
-      <p class="hint">Nightly matching refreshes your fits. On your Job Board, choose a job and <b>Customize documents</b> to generate its résumé and cover letter. <b>Review and submit</b> approves that job's exact packet for your connected browser worker. Application email updates monitor your recorded applications.</p>
-      <a class="btn" href="/api/career-hunter/board-native">Open Job Board</a>
+      <p class="hint">Nightly matching refreshes your fits. In My jobs, press <b>Prepare application</b> on a job to write its résumé and cover letter with you. On its Send step, <b>Open the employer’s form</b>, apply, and press <b>I applied</b>; with a computer connected, <b>Send it for me from my computer</b> is offered there too. Email updates watch for replies to the applications you have recorded.</p>
+      <a class="btn" href="/api/career-hunter/board-native">Open My jobs</a>
     </div>
   </div>
 
@@ -194,16 +200,16 @@ input[type=checkbox]{width:22px;height:22px}
 
   <div class="card" data-section="materials">
     <h2>Your résumé &amp; career materials</h2>
-    <p class="hint">Upload or edit your master résumé, work samples, LinkedIn exports and job emails in Resume Studio.</p>
+    <p class="hint">Upload or edit your main résumé, work samples, LinkedIn exports and job emails on My résumé.</p>
     <div class="row">
-      <a class="btn primary" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Open Resume Studio</a>
+      <a class="btn primary" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Open My résumé</a>
       <a class="btn" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio#materials">Add career materials</a>
     </div>
   </div>
 
   <div class="card" data-section="matching" hidden>
     <h2>Remote only</h2>
-    <p class="hint">When this is on, the <b>automated match</b> considers only postings the feed flags as remote: the nightly AI scoring pass skips on-site roles (so no tokens are spent on jobs you would not take), your digest carries remote roles only, and your job board defaults to remote. The Job Search screen keeps its own Any / Remote / On-site pills, and an explicit pill always wins.</p>
+    <p class="hint">When this is on, the <b>automated match</b> considers only postings the feed flags as remote: the nightly AI scoring pass skips on-site roles (so no tokens are spent on jobs you would not take), your digest carries remote roles only, and your job board defaults to remote. Find jobs keeps its own Any / Remote / On-site pills, and an explicit pill always wins.</p>
     <div class="row">
       <span id="remoteState" class="pill-no">Checking…</span>
     </div>
@@ -298,7 +304,7 @@ function setCareerOperationMode(managed){
   $('#nativeWorkflow').hidden=careerOperationMode!=='per-job';
   $('#operationModeStatus').textContent=careerOperationMode==='per-job'
     ? 'Matching and email monitoring have their own Enable and Pause controls below. Document preparation starts from a selected job.'
-    : 'Automation availability could not be checked. You can still prepare and review individual jobs on your Job Board.';
+    : 'Automation availability could not be checked. You can still prepare and review individual jobs in My jobs.';
   if(legacy&&previous!=='legacy'){void refreshDigest();void refreshAutomation();}
 }
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
@@ -347,7 +353,7 @@ function scoreRunState(data,runId,limit=50){
   const r=data.runs.find(r=>r.runId===runId);
   if(!r)return{phase:'unconfirmed',done:false,text:'Scoring is no longer listed as active. Checking for its saved completion…'};
   if(r.state==='succeeded'&&[r.scored,r.skipped,r.limit].every(Number.isSafeInteger)&&r.limit>=1&&r.limit<=50&&r.scored>=0&&r.skipped>=0&&r.scored+r.skipped<=r.limit)
-    return{phase:'succeeded',done:true,text:'Scoring complete: '+r.scored+' job'+(r.scored===1?'':'s')+' updated, '+r.skipped+' skipped. Refresh Job Board to see the current matches.'};
+    return{phase:'succeeded',done:true,text:'Scoring complete: '+r.scored+' job'+(r.scored===1?'':'s')+' updated, '+r.skipped+' skipped. Open My jobs again to see the current matches.'};
   if(r.state==='running')return{phase:'running',done:false,text:'Scoring is running. This pass considers up to '+limit+' job'+(limit===1?'':'s')+' posted within 7 days, using the indexing date only for undated postings, and your saved area and remote preference.'};
   if(r.state==='cancelling')return{phase:'cancelling',done:false,text:'Stopping scoring. Waiting for confirmation…'};
   if(r.state==='finishing')return{phase:'finishing',done:false,text:'Scoring is saving its result. Waiting for the saved completion…'};
@@ -366,11 +372,11 @@ async function followScoreRun(runId,o,limit){
     if(state.done)return state.phase;
     missing=state.phase==='unconfirmed'?missing+1:0;
     unavailable=state.phase==='unavailable'?unavailable+1:0;
-    if(missing>=3){o.textContent='Scoring is no longer active; its completion could not be confirmed. Check Job Board before trying again.';return'unconfirmed';}
+    if(missing>=3){o.textContent='Scoring is no longer active; its completion could not be confirmed. Check My jobs before trying again.';return'unconfirmed';}
     if(unavailable>=3)return'unavailable';
     await new Promise(resolve=>setTimeout(resolve,2000));
   }
-  o.textContent='Scoring progress could not be confirmed. The run may still be finishing; check Job Board.';
+  o.textContent='Scoring progress could not be confirmed. The run may still be finishing; check My jobs.';
   return'unconfirmed';
 }
 async function requestScoreStop(runId,o,button){
@@ -396,7 +402,7 @@ async function run(verb,label){
       toast('Score started');
       const acceptedLimit=Number.isSafeInteger(r.limit)&&r.limit>=1&&r.limit<=50?r.limit:limit;
       o.textContent='Score accepted: up to '+acceptedLimit+' job'+(acceptedLimit===1?'':'s')+' posted within 7 days, or indexed within 7 days when undated. Waiting for progress…';
-      if(!r.runId){o.textContent='Score accepted; progress is unavailable. Check Job Board later.';return;}
+      if(!r.runId){o.textContent='Score accepted; progress is unavailable. Check My jobs later.';return;}
       activeScoreRunId=r.runId;
       rememberScoreRun(r.runId,acceptedLimit);
       const state=await followScoreRun(r.runId,o,acceptedLimit);
@@ -407,7 +413,7 @@ async function run(verb,label){
     }
     o.textContent=r.ok?'Done.':'Failed: '+String(r.error||r.err||'Run could not start').slice(-120);
     toast(r.ok?label+' complete':label+' failed');
-  }catch{ o.textContent='Could not confirm the request. Check progress or Job Board before trying again.'; }
+  }catch{ o.textContent='Could not confirm the request. Check progress or My jobs before trying again.'; }
   finally{if(button)button.disabled=false;if(verb==='score'){activeScoreRunId=null;const stop=$('#cancelScore');if(stop)stop.hidden=true;}}
 }
 async function restoreScoreRun(){
@@ -483,7 +489,7 @@ async function refreshTitles(){
   const nightly = s.nightlyMatching;
   $('#nightlyMatchOut').textContent = nightly
     ? 'Last completed '+new Date(nightly.completedAt).toLocaleString()+': '+nightly.keywordMatched+' keyword matches updated, '+nightly.scored+' AI-scored, '+nightly.skipped+' skipped.'
-    : 'No completed nightly matching pass recorded yet. Check My Jobs for activation and run status.';
+    : 'No completed nightly matching pass recorded yet. The line below says whether it is turned on.';
   if (scope) {
     if (document.activeElement !== $('#scopeNear')) $('#scopeNear').value = scope.near;
     if (document.activeElement !== $('#scopeRadius')) $('#scopeRadius').value = scope.radiusMiles;
@@ -581,7 +587,7 @@ $('#titleRun').onclick = async()=>{
   const o=$('#titleOut'); o.innerHTML='<span class="spin"></span> Scoring title-matching roles…';
   const r = await jpost(API+'/title-pass/run-now',{limit});
   o.textContent = r.started
-    ? 'Scoring started for jobs posted in the last 7 days (or first seen this week when the feed has no posted date), up to '+limit+'. Check Job Board for new matches shortly.'
+    ? 'Scoring started for jobs posted in the last 7 days (or first seen this week when the feed has no posted date), up to '+limit+'. Check My jobs for new matches shortly.'
     : ('Not started: '+(r.reason||r.error||'failed')+(r.reason==='no-title-profile'?' — save some target titles first.':''));
   toast(r.started?'Title pass started':'Title pass not started');
 };
@@ -667,13 +673,21 @@ $('#remoteJobsOnly').addEventListener('change',async()=>{
   $('#remoteOnly').checked=$('#remoteJobsOnly').checked; $('#scopeRemote').checked=true;
   try{ await saveRemoteOnly(); savedCaption('scope',true); }catch(_){ savedCaption('scope',false); }
 });
-/* Administrator rows: the companies route answers 403 to a member, so the link is shown only to an administrator. */
-fetch(API+'/companies-admin',{headers:{Accept:'application/json'},cache:'no-store'}).then(r=>{ $('#adminSources').hidden=!r.ok; }).catch(()=>{});
-/* Each explanation is one line; the rest is under Help. */
-document.querySelectorAll('.card > p.hint:first-of-type').forEach(p=>{
+/* The job-source controls (Sources and pull health, the shared pull, jobs per score pass, the AI model, the Firecrawl key)
+   are the administrator's. The server says who that is: the Companies page is bound to career.administer, so its route
+   answers an administrator and refuses everyone else. Until it answers, and when it cannot be asked, the page shows what
+   a job seeker sees. This is presentation; every route keeps its own binding. */
+function showAdministrator(on){
+  document.documentElement.toggleAttribute('data-career-administrator',on===true);
+  $('#adminSources').hidden=on!==true;
+}
+fetch(API+'/companies-admin',{headers:{Accept:'application/json'},cache:'no-store'}).then(r=>showAdministrator(r.ok)).catch(()=>showAdministrator(false));
+/* Each explanation is one line; the rest is under Help, shown to whoever the explanation is for. */
+document.querySelectorAll('.card > p.hint:first-of-type, .card > p.hint[data-administrator]').forEach(p=>{
   const text=p.textContent.trim(), cut=text.search(/[.!?](\s|$)/);
   if(text.length<=140||cut<0||cut>=text.length-2) return;
   const more=document.createElement('details'); more.className='help'; more.innerHTML='<summary>Help</summary>';
+  if(p.hasAttribute('data-administrator')) more.setAttribute('data-administrator','');
   const rest=document.createElement('p'); rest.className='hint'; rest.innerHTML=p.innerHTML; more.append(rest);
   p.textContent=text.slice(0,cut+1); p.after(more);
 });

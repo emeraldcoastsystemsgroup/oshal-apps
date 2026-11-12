@@ -33,6 +33,7 @@
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /draft and POST /signals/organize run on the package's own social-writer (a0…0040): the native kernel refused the email-summarizer comms bot (b0…0001) with "this bot requires an enrolled node", so the Workspace and Composer could not draft at all. A package's own node-posture bot answers a plain completion there.
  * 2026-10-13 14:50:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: an X draft came back at 315 of 280 characters and the person had to trim it before it could publish. POST /draft for X goes through draftWithinXLimit: a draft over 280 is sent back to the bot to shorten (at most twice), and one still over answers `tooLong` {length, max}, which the composer says in words. Guard: tests/social-draft-limit.test.cjs.
  * 2026-11-06 21:15:00 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace into one surface; GET /composer 302-redirects to /api/social/workspace?view=compose preserving query parameters; tools/social-composer.html is removed (Workspace · Compose carries every Composer capability).
+ * 2026-11-11 07:40:00 | maintainer@emeraldcoastsystemsgroup.com | 1.7.2: GET /composer answers a hand-off page to the Workspace instead of a 302. On the native kernel the response has no redirect and no Location header is relayed, so the old address answered HTTP 500.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -78,6 +79,7 @@ const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const social_publish_1 = require("./social-publish");
+const hand_off_page_1 = require("./hand-off-page");
 const kernel_egress_1 = require("./kernel-egress");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -238,12 +240,12 @@ function createSocialRoutes(ctx) {
     const assetRoot = ctx.appPackageDir
         ? path.join(ctx.appPackageDir, 'tools')
         : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
-    /** GET /composer — the old Composer address: redirects (302) to the one Workspace, opened on Compose, keeping every query parameter. */
+    /** GET /composer — the old Composer address: a hand-off page to the one Workspace, opened on Compose, keeping every query parameter (a kernel relays no redirect from a package). */
     router.get('/composer', (req, res) => {
         const q = new URLSearchParams(req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '');
         if (!q.get('view'))
             q.set('view', 'compose');
-        res.redirect(302, `/api/social/workspace?${q.toString()}`);
+        res.status(200).type('html').send((0, hand_off_page_1.handOffPage)(`/api/social/workspace?${q.toString()}`, 'Open the workspace'));
     });
     /** GET /facebook — the Facebook Pages stream surface (read feed + publish to a Page). */
     router.get('/facebook', servePage(assetRoot, 'facebook-stream.html'));

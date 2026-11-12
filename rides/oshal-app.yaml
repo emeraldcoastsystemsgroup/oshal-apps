@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: "home to the airport" from Jarvis sent Uber a trip from a Washington street to Helsinki airport (the words were geocoded on their own). Home and work come from the rider's profile, a missing one is asked for, and a dropoff farther than a car ride is refused. Guarded by rides/tests/rides-saved-places.test.js.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (UX audit 2026-11-06, rides-history + rides-concierge): the Trips tile's ?view=history is read: it opens Trips, one row per trip newest first (when, from → to, the estimate then) with Ride again, which fills Get a Ride and prices it. ribbon.hideAssistant: the in-page concierge is the one assistant entry. The page follows the theme it wears (the parent-token copy that froze the first theme's palette is gone). Swap prices at once; the fare basis is one line under the fares; the Search list repeats no recent trip and shows three places plus More places; on a phone the map comes first.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7 (UX audit 2026-11-06, rides-concierge + rides-history): add a phone "Where to?" field directly under the map above the ride options, edit saved Home and Work places in a Settings dialog, and withhold unconfigured Home/Work presets instead of saying "Use saved home if configured".
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.8 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
@@ -77,7 +78,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.5.7
+version: 1.5.8
 status: active
 
 source:

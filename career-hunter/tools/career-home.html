@@ -6,6 +6,9 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Career's home page (Roger, 2026-11-10: Career as "a full application by itself ... thoughtful layout", in the Little Monsters format). The first screen: a greeting and one search box, the person's pipeline as six stage cards that open the Job Board on that stage, their newest jobs, the state of their résumé with the one next step, and a card for every section they are admitted to. Everything is read from routes Career already serves (jobs/stats, jobs, resume/state, readiness) and from the person's own ribbon profile. With ?open=<view> it is also the page that shows another application's screen (Portrait Studio) under Career's bar, and only a screen the person's profile lists.
   2 | maintainer@emeraldcoastsystemsgroup.com | Home is the day of someone looking for a job (Roger, 2026-11-11), and Email, Portrait Studio and Social are worked into it instead of only being reachable. Under the search box, "Today" lists the day's steps from tools/career-today.js, each one line with one button: replies from the inbox against their job, new matches since yesterday, applications ready to approve, follow-ups due, interviews to prepare, the next thing for the person's profile, the next résumé improvement. A person with no résumé sees one sentence saying what Career does and three numbered steps, and no row of zero counters (an independent judge scored the first Home below Little Monsters for exactly that). One filled button on the page: the first step's. A job under "Your jobs" opens that job, and shows the newest reply from the inbox. This week's sent, answered and interview counts sit above the pipeline.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The links say Open My jobs and Open My résumé, and the résumé card's line says main résumé. Words only. Guard: tests/career-page-names.test.mjs.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9. The pipeline is New matches, Saved, Getting ready, Applied, Interviewing and Offer: To approve is no longer a stage (the jobs Career picked lead Saved, and the day's step about them counts the picks still waiting, CareerStages.picks). The New matches card shows the number of jobs scored for the person since yesterday, the same number the day's step gives, where it showed an arrow; when that number could not be read it shows a dash, never a zero. Getting ready and Applied show their real counts (career-stages.js 4). Submission activity has no card under Everything in Career: it is reached from Applications while something is being sent.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: a card under Everything in Career shows a page's own name (Improve my résumé) where the bar shows a shorter one under its section (Improve it): a card stands alone.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="home" data-ds-category="dashboard" data-ds-first-action="type">
 <head>
@@ -153,7 +156,7 @@
 
   <div class="cols" id="jobsRow" hidden>
     <section class="card panel" aria-labelledby="jobsTitle">
-      <header><h2 id="jobsTitle">Your jobs</h2><a id="jobsAll" href="/api/career-hunter/board-native" data-open="board">Open the Job Board →</a></header>
+      <header><h2 id="jobsTitle">Your jobs</h2><a id="jobsAll" href="/api/career-hunter/board-native" data-open="board">Open My jobs →</a></header>
       <ul class="jobs" id="jobs" aria-busy="true"></ul>
       <div class="empty" id="jobsEmpty" hidden>
         <p>Nothing saved yet. Search every opening Career has collected, and save the ones worth a closer look.</p>
@@ -164,7 +167,7 @@
       <section class="card panel" aria-labelledby="resumeTitle">
         <header><h2 id="resumeTitle">Your résumé</h2></header>
         <div class="state"><div class="logo" aria-hidden="true">CV</div><div><strong id="resumeHead">Checking…</strong><span id="resumeLine"></span></div></div>
-        <a class="quiet" id="resumeAction" href="/api/career-hunter/resume-studio" data-open="resume-studio" hidden>Open Resume Studio</a>
+        <a class="quiet" id="resumeAction" href="/api/career-hunter/resume-studio" data-open="resume-studio" hidden>Open My résumé</a>
       </section>
     </div>
   </div>
@@ -188,12 +191,11 @@
   /** One line for each page a card can open, by its view name. */
   const ABOUT = {
     search: 'Every opening Career has collected, by title, skill, place or pay.',
-    board: 'Your saved jobs, stage by stage, from new match to offer.',
-    'submission-activity': 'What was sent, when, and what came back.',
+    board: 'Your saved jobs and your applications, stage by stage, from new match to offer.',
     recruiters: 'The recruiters you are in touch with, and what to do next.',
     insights: 'Where the openings are, and how your search is trending.',
     strengthen: 'Turn your roles into stories an interviewer remembers.',
-    'resume-studio': 'Your master résumé, and a tailored copy for each job.',
+    'resume-studio': 'Your main résumé, and a tailored copy for each job.',
     'experience-library': 'Projects and work that are not on your résumé yet.',
     'master-record': 'Everything Career knows about your career, in one record.',
     'profile-studio': 'How your profile reads to a recruiter, and what to fix.',
@@ -218,15 +220,18 @@
     $('dateLine').textContent = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   }
 
-  function stageCards(counts) {
-    const stages = (window.CareerStages && window.CareerStages.STAGES) || [];
+  /**
+   * The pipeline's cards. A stage is counted by its own key; New matches is counted by the jobs scored for the person
+   * since yesterday (the home summary's scored-24h), and shows a dash when that could not be read.
+   */
+  function stageCards(counts, summary) {
+    const stages = (window.CareerStages && window.CareerStages.PIPELINE) || [];
+    const fresh = ((summary && Array.isArray(summary.metrics) ? summary.metrics : []).find((m) => m && m.id === 'scored-24h') || {}).value;
     $('stages').innerHTML = stages.map((stage) => {
-      // A stage is counted by its own key, or by the board status it filters; New matches is a ranking, not a count.
-      const key = stage.count || stage.status, raw = counts && key ? counts[key] : undefined;
-      const n = Number(raw), known = Boolean(counts) && Boolean(key), shown = known ? (Number.isFinite(n) ? n : 0) : null;
-      const own = String(stage.href).indexOf('/api/career-hunter/board-native') === 0, query = own ? String(stage.href).split('?')[1] || '' : '';
-      return '<a class="card stage" href="' + esc(stage.href) + '"' + (own ? ' data-open="board" data-query="' + esc(query) + '"' : '') + ' data-stage="' + esc(stage.id) + '" data-has="' + (shown > 0 ? 'yes' : 'no') + '">'
-        + '<b>' + (shown == null ? '→' : shown.toLocaleString()) + '</b><span>' + esc(stage.label) + '</span></a>';
+      const raw = stage.id === 'matches' ? (/^\d+$/.test(String(fresh)) ? Number(fresh) : null) : counts ? Number(counts[stage.count]) || 0 : null;
+      const query = String(stage.href).split('?')[1] || '';
+      return '<a class="card stage" href="' + esc(stage.href) + '" data-open="board" data-query="' + esc(query) + '" data-stage="' + esc(stage.id) + '" data-has="' + (raw > 0 ? 'yes' : 'no') + '">'
+        + '<b>' + (raw == null ? (counts ? '–' : '…') : raw.toLocaleString()) + '</b><span>' + esc(stage.label) + '</span></a>';
     }).join('');
   }
 
@@ -295,18 +300,18 @@
   function resume(state) {
     const has = Boolean(state && state.hasResume), busy = Boolean(state && (state.indexing || state.building));
     $('resumeHead').textContent = !state ? 'Could not be checked' : busy ? 'Reading your résumé…' : has ? (state.name || 'Your résumé is in') : 'No résumé yet';
-    $('resumeLine').textContent = !state ? 'Open Resume Studio to see it.' : has
+    $('resumeLine').textContent = !state ? 'Open My résumé to see it.' : has
       ? Number(state.roles || 0).toLocaleString() + ' roles read · ' + Number(state.scored || 0).toLocaleString() + ' jobs scored'
       : 'Add it and Career ranks every job for you.';
     const action = $('resumeAction');
-    action.textContent = has ? 'Open Resume Studio' : 'Add your résumé';
+    action.textContent = has ? 'Open My résumé' : 'Add your résumé';
     action.hidden = false;
   }
   function explore(entries) {
-    const shown = entries.filter((entry) => entry.view !== 'home');
+    const shown = entries.filter((entry) => entry.view !== 'home' && !(frame && frame.isQuiet(entry.view)));
     $('explorePanel').hidden = !shown.length;
     $('explore').innerHTML = shown.map((entry) => '<a class="card tile" href="' + esc(entry.own ? entry.href : '/api/career-hunter/home?open=' + encodeURIComponent(entry.view)) + '" data-open="' + esc(entry.view) + '"><strong>'
-      + esc(entry.label) + '</strong><span>' + esc(ABOUT[entry.view] || '') + '</span></a>').join('');
+      + esc(entry.full || entry.label) + '</strong><span>' + esc(ABOUT[entry.view] || '') + '</span></a>').join('');
   }
 
   /** ?open=<view>: show another application's screen, and only one this person's profile lists. */
@@ -330,19 +335,25 @@
     if (frame && frame.kind === 'cockpit') frame.navigate('search', query);
     else location.href = '/api/career-hunter/search-ui' + (query ? '?' + query : '');
   });
+  /** The stage counts, with the number of Career's picks still waiting (counts.approve). Like every read here, slow picks leave their step out and never hold the page. */
+  function stageCounts() {
+    if (!window.CareerStages) return null;
+    const picks = Promise.race([window.CareerStages.picks(), new Promise((resolve) => setTimeout(() => resolve([]), 8000))]);
+    return Promise.all([window.CareerStages.counts(), picks]).then(([counts, jobs]) => Object.assign(counts, { approve: jobs.length }));
+  }
   /** Read the day in one pass. Another application's answers are asked for only when this person can open that application. */
   async function day() {
     const entries = frame ? await frame.entries() : [], can = (view) => entries.some((entry) => entry.view === view);
     const C = '/api/career-hunter';
     const [resumeState, readiness, stats, counts, summary, updates, applied, saved, recruiters, plan, portrait, drafts] = await Promise.all([
-      get(C + '/resume/state'), get(C + '/readiness'), get(C + '/jobs/stats'), window.CareerStages ? window.CareerStages.counts() : null, get(C + '/home-summary'),
+      get(C + '/resume/state'), get(C + '/readiness'), get(C + '/jobs/stats'), stageCounts(), get(C + '/home-summary'),
       get(C + '/jobs/updates'), get(C + '/jobs?status=tracked&page=1&per=50'), get(C + '/jobs?status=saved&page=1&per=6'),
       can('recruiters') ? get(C + '/recruiters') : null, can('profile-studio') ? get(C + '/profile-studio/plan') : null,
       can('portrait-studio') ? get('/api/portrait-studio/readiness') : null, can('social-workspace') ? get('/api/social/content/drafts') : null]);
     const input = { resume: resumeState, readiness, stats, counts, summary, updates, applied: (applied && applied.jobs) || [], recruiters: (recruiters && recruiters.recruiters) || [], plan, portrait, drafts };
     const now = Date.now();
     resume(resumeState);
-    stageCards(counts);
+    stageCards(counts, summary);
     jobRows((saved && saved.jobs) || []);
     weekLine(window.CareerToday.week(input, now));
     const mine = ((saved && saved.jobs) || []).length + input.applied.length;
@@ -350,7 +361,7 @@
     explore(entries);
   }
   greet(null);
-  stageCards(null);
+  stageCards(null, null);
   get('/api/auth/user').then(greet);
   day();
 })();

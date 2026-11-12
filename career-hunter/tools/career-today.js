@@ -4,6 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career's home is the day of someone looking for a job (Roger, 2026-11-11: "it's about building the day in the life of someone who is looking for a job"). This file turns what Career, the inbox check, Portrait Studio and Social already know into the day's steps, in the order a day goes: read your replies, review new matches, send what is ready, follow up, prepare for interviews, be seen, get stronger. A step exists only when there is something to do, each has one button, and a person with no résumé gets three numbered steps and nothing else. An independent judge scored Career's earlier home below Little Monsters because it showed counts and no next step.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 6: To approve is no longer a stage, so the step that sent a person there follows. The jobs Career picked lead Saved, and the step says so in those words ("2 jobs Career picked are waiting for you", See Career's picks) and opens Saved. Its id and its place in the day are unchanged. It reads counts.approve only: the home summary's approval-review also counts picks the person has since prepared, and a step that opened a list with none of them in it would be a dead end.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the photo step's button reads Add a photo (was Open Portrait Studio). Career's bar calls that page Photo, and the button says what the person does there; the page it opens is unchanged.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: the step about Career's picks opens ?view=approve (was ?view=saved). The Job Board puts a person's remembered filters back on a plain visit to Saved, and a remembered search could hide the very picks this step had counted; ?view=approve is the picks address, which the page treats as explicit and restores nothing over. Guard: tests/career-today.test.mjs, tests/career-applications-section.test.mjs.
  */
 (function (root) {
   'use strict';
@@ -79,7 +82,7 @@
 
   function presenceStep(input) {
     var portrait = input.portrait && input.portrait.portrait, plan = input.plan && input.plan.plan, drafts = input.drafts && Array.isArray(input.drafts.drafts) ? input.drafts.drafts.length : 0;
-    if (portrait && portrait.ready === false) return { id: 'portrait', kind: 'person', title: 'Add a professional portrait', detail: 'Recruiters look at the photo first. Take one or upload one, and pick a style.', action: { label: 'Open Portrait Studio', view: 'portrait-studio' } };
+    if (portrait && portrait.ready === false) return { id: 'portrait', kind: 'person', title: 'Add a professional portrait', detail: 'Recruiters look at the photo first. Take one or upload one, and pick a style.', action: { label: 'Add a photo', view: 'portrait-studio' } };
     if (plan && plan.state === 'draft') return { id: 'profile', kind: 'person', title: 'Your LinkedIn profile is written and waiting for you', detail: 'Read it, change what you like, then approve it.', action: { label: 'Review it', view: 'profile-studio' } };
     if (drafts) return { id: 'posts', kind: 'person', title: plural(drafts, 'post draft is', 'post drafts are') + ' waiting', detail: 'Posting about your field keeps you in front of the people who hire.', action: { label: 'Open your drafts', view: 'social-workspace' } };
     return null;
@@ -112,11 +115,14 @@
     var data = input || {}, resume = data.resume;
     var allowed = function (step) { return step && (!views || !step.action || !step.action.view || views.indexOf(step.action.view) !== -1); };
     if (resume && resume.hasResume === false && !resume.indexing && !resume.building) return { firstRun: true, steps: firstRun().filter(allowed) };
-    var steps = [], fresh = metric(data.summary, 'scored-24h'), approve = count(data.counts && data.counts.approve) || metric(data.summary, 'approval-review');
+    // counts.approve is the number of Career's picks the person can still act on (CareerStages.picks). The home summary's
+    // approval-review also counts picks they have since prepared, so it is not a fallback: the step would open a list with none.
+    // The step opens ?view=approve, the picks address: the Job Board puts back no remembered filter over an address that names what to show.
+    var steps = [], fresh = metric(data.summary, 'scored-24h'), approve = count(data.counts && data.counts.approve);
     var interviews = count(data.stats && data.stats.interviewing) || count(data.counts && data.counts.interview);
     steps.push(replyStep(data, now));
     if (fresh) steps.push({ id: 'matches', kind: 'star', title: plural(fresh, 'job was', 'jobs were') + ' scored for you since yesterday', detail: 'Save the ones worth a closer look and pass on the rest.', action: { label: 'Review them', view: 'board', query: 'view=matches' } });
-    if (approve) steps.push({ id: 'approve', kind: 'send', title: plural(approve, 'application is', 'applications are') + ' ready for you to approve', detail: 'Nothing is sent until you say so.', action: { label: 'Review and approve', view: 'board', query: 'view=approve' } });
+    if (approve) steps.push({ id: 'approve', kind: 'send', title: plural(approve, 'job Career picked is', 'jobs Career picked are') + ' waiting for you', detail: 'Prepare the ones you want to apply to and remove the rest. Nothing is sent until you say so.', action: { label: 'See Career\'s picks', view: 'board', query: 'view=approve' } });
     steps = steps.concat(followSteps(data, now));
     if (interviews) steps.push({ id: 'interviews', kind: 'talk', title: plural(interviews, 'interview is', 'interviews are') + ' in progress', detail: 'Go over the role, the company and your stories before you talk.', action: { label: 'Prepare', view: 'board', query: 'view=interviewing' } });
     steps.push(presenceStep(data), strongerStep(data));

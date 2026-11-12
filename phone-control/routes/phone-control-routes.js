@@ -10,6 +10,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: allow POST /devices (phone-control-register-device) to auto-resolve computerNodeId from the owner's computer reports or existing devices when omitted, default platform/form, normalize bare Android IPv4 addresses to :5555, and add POST /devices/:id/execute (phone-control-execute-device) for single-step and multi-step Swarm device control.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: a device registered without computerNodeId resolves to one of the caller's own computers (their bridge reports, then their saved devices) or is refused with words (400 computer_required); the fixed fallback computer id, one person's own computer, is gone. The serial refusal's example address is a neutral one.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: serve phone-home.js, the first screen's tree and details.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 3; Roger, 2026-11-11: "deep links that open the actual film on the TV"): POST /devices/:id/open-link plans a link opened on a saved Android or Fire TV, in the named streaming app (netflix, prime, disney, max, hulu, youtube), from the TV's own computer through lan-control launch_url, which wakes the TV first.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (T45 part 2; Roger, 2026-11-10: "plays it on any device in his connected devices"): open-link takes app oshal for a Marquee page (its own page or a #/ screen of letters, digits, / _ and -), which the TV's oshal app opens in the person's own session; any other address with app oshal is refused in words.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80; Roger, 2026-11-12: "make it do that"): POST /devices/:id/play plans lan-control play_title on a saved Android or Fire TV: a show or film by its name in Prime Video (the app\'s search, the matching result, Resume or Play), answered with what the TV says is playing.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79, the device inventory, first slice): POST /devices/:id/apps plans lan-control tv_apps on a saved Android or Fire TV: which streaming apps it has (netflix, prime, disney, max, hulu, youtube and the oshal TV app), read from its package list through the bridge's closed list without pressing anything, so Jarvis can say what the TV can play and pick the app.
  */
 
 'use strict';
@@ -233,6 +237,96 @@ function executeDeviceSteps(store, db, owner, device, body = {}) {
   };
 }
 
+/** The streaming apps a link can be opened in on an Android or Fire TV (the bridge's oshal_phone_links.py). */
+const STREAMING_APPS = Object.freeze(['netflix', 'prime', 'disney', 'max', 'hulu', 'youtube', 'oshal']);
+
+/**
+ * @description 1.7.0 (T45 part 3): the plan that opens a link on a saved Android or Fire TV, in the named streaming app
+ * when one is named, from the TV's own computer (the bridge's lan-control launch_url, which wakes the TV first).
+ * @param {object} store The store module. @param {object} db The store. @param {object} owner The caller.
+ * @param {object} device The saved TV. @param {{url:string, app?:string}} body The link and its app.
+ * @returns {object} The command and the computer run request that sends it.
+ */
+function openLinkPlan(store, db, owner, device, body = {}) {
+  if (device.platform !== 'android' || device.form !== 'tv') throw store.refusal(400, 'not_android_tv', 'Links open on a saved Android or Fire TV.');
+  const url = String(body.url || '').trim();
+  if (url.length > 256 || !/^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/.test(url)) {
+    throw store.refusal(400, 'url_invalid', 'Only an https address of at most 256 characters can be opened on a TV.');
+  }
+  const app = body.app === undefined || body.app === null || body.app === '' ? '' : String(body.app).toLowerCase();
+  if (app && !STREAMING_APPS.includes(app)) throw store.refusal(400, 'app_invalid', `Name the streaming app: ${STREAMING_APPS.join(', ')}.`);
+  if (app === 'oshal' && !/^https:\/\/[^/]+\/api\/free-library\/app(?:#\/[A-Za-z0-9/_-]*)?$/.test(url)) {
+    throw store.refusal(400, 'url_invalid', 'The oshal TV app opens only Marquee\'s own page.');
+  }
+  const address = String(device.address || '').replace(/:\d+$/, '');
+  const args = { kind: 'android-tv', address, action: 'launch_url', url, ...(app ? { app } : {}) };
+  const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
+  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'open_link', summary: `open ${app || 'link'} ${url}`.slice(0, 160), ok: true, exitCode: 0 });
+  return {
+    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
+    computerRunRequest: {
+      endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
+      method: 'POST', body: { tool: 'shell.exec', arguments: { command, timeout_ms: 45000 }, limit_ms: 50000 }
+    }
+  };
+}
+
+/**
+ * @description 1.11.0 (T80; Roger, 2026-11-12: "hey jarvis in the game room open rings of power season 3 where i left off"):
+ * the plan that plays a show or film by its name on a saved Android or Fire TV, from the TV's own computer (the bridge's
+ * lan-control play_title: the app's search, the matching result, Resume or Play, then what the TV says is playing).
+ * @param {object} store The store module. @param {object} db The store. @param {object} owner The caller.
+ * @param {object} device The saved TV. @param {{title:string, app?:string}} body The show's name and its app (prime).
+ * @returns {object} The command and the computer run request that sends it.
+ */
+function playShowPlan(store, db, owner, device, body = {}) {
+  if (device.platform !== 'android' || device.form !== 'tv') throw store.refusal(400, 'not_android_tv', 'A show plays by name on a saved Android or Fire TV.');
+  const title = String(body.title || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (title.length < 2 || title.length > 80) throw store.refusal(400, 'title_invalid', 'Name the show or film (2 to 80 characters).');
+  const app = body.app === undefined || body.app === null || body.app === '' ? 'prime' : String(body.app).toLowerCase();
+  if (!PLAY_APPS.includes(app)) throw store.refusal(400, 'app_invalid', `A show plays by name in ${PLAY_APPS.join(', ')} so far; for another app open its link.`);
+  const address = String(device.address || '').replace(/:\d+$/, '');
+  const args = { kind: 'android-tv', address, action: 'play_title', title, app };
+  const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
+  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'play_show', summary: `play ${app} ${title}`.slice(0, 160), ok: true, exitCode: 0 });
+  return {
+    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
+    computerRunRequest: {
+      endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
+      method: 'POST', body: { tool: 'shell.exec', arguments: { command, timeout_ms: 55000 }, limit_ms: 60000 }
+    }
+  };
+}
+
+/** The apps a show plays in by its name (the bridge's oshal_phone_play.py). */
+const PLAY_APPS = Object.freeze(['prime']);
+
+/**
+ * @description 1.12.0 (T79, the device inventory): the plan that reads which streaming apps a saved Android or Fire TV
+ * has, from the TV's own computer (the bridge's lan-control tv_apps: the TV's package list once, mapped through a closed
+ * list of known apps; every other package is only counted). It presses nothing on the TV, so it carries no body.
+ * @param {object} store The store module. @param {object} db The store. @param {object} owner The caller.
+ * @param {object} device The saved TV.
+ * @returns {object} The command and the computer run request that sends it.
+ */
+function tvAppsPlan(store, db, owner, device) {
+  if (device.platform !== 'android' || device.form !== 'tv') throw store.refusal(400, 'not_android_tv', 'Which streaming apps a TV has is read on a saved Android or Fire TV.');
+  const address = String(device.address || '').replace(/:\d+$/, '');
+  const args = { kind: 'android-tv', address, action: 'tv_apps' };
+  const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
+  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'tv_apps', summary: 'which streaming apps the TV has', ok: true, exitCode: 0 });
+  return {
+    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
+    computerRunRequest: {
+      endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
+      method: 'POST', body: { tool: 'shell.exec', arguments: { command, timeout_ms: 45000 }, limit_ms: 50000 }
+    }
+  };
+}
+
 function buildProvisionCommandPlan(store, db, owner, body = {}) {
   const rawTarget = String(body.serialOrIp || body.serial || body.address || '').trim();
   if (!/^[A-Za-z0-9._:-]{3,96}$/.test(rawTarget)) {
@@ -335,6 +429,21 @@ function mountPhones(router, store, db) {
     const device = resolveDevice(store, db, req.owner, req.params.id);
     if (!device) return res.status(404).json({ error: 'device_not_found' });
     try { return res.json(executeDeviceSteps(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
+  });
+  router.post('/devices/:id/open-link', (req, res) => {
+    const device = resolveDevice(store, db, req.owner, req.params.id);
+    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    try { return res.json(openLinkPlan(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
+  });
+  router.post('/devices/:id/play', (req, res) => {
+    const device = resolveDevice(store, db, req.owner, req.params.id);
+    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    try { return res.json(playShowPlan(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
+  });
+  router.post('/devices/:id/apps', (req, res) => {
+    const device = resolveDevice(store, db, req.owner, req.params.id);
+    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    try { return res.json(tvAppsPlan(store, db, req.owner, device)); } catch (error) { return refuse(res, error); }
   });
   router.post('/rdp/command-plan', (req, res) => {
     try { return res.json(buildRdpCommandPlan(store, req.body || {})); } catch (error) { return refuse(res, error); }

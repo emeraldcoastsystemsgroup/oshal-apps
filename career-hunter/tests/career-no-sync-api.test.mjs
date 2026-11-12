@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Prove one admission deadline bounds hung credential queries and decryption before spawn and releases automatic leases.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Follow the kernel-owned Profile Studio dispatch boundary after capability binding and asset staging moved behind one awaited input object.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: invert the demo-operator carve case into the guard that every subject, the DEMO_MODE operator included, gets the empty login sandbox, no model key and no smuggled verdict or rail entry, while each real child receives its own runner-minted loopback rail entries; dispatch now brokers only Firecrawl, ignores any Anthropic row the query could return, and still fails closed on a Firecrawl decrypt failure.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | T63: the retired board addresses answer a hand-off page to board-native; the source check pins that and no redirect call, where it pinned a 308 a kernel never delivered.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -199,7 +200,9 @@ test('mounted commands cannot bypass brokerage, shared leases, or transactional 
     const upload = readFileSync(join(packageRoot, tree, `career-resume-upload.${extension}`), 'utf8');
     assert.doesNotMatch(surfaces, /child_process|resolveEngineCli|buildCareerEngineProcessEnv/);
     assert.match(surfaces, /board-native/);
-    assert.match(surfaces, /redirect\)?\(308, ['"]\/api\/career-hunter\/board-native['"]\)/);
+    // T63: a hand-off page, not a 308: a kernel relays no Location header from a package.
+    assert.match(surfaces, /handOffPage\)?\(['"]\/api\/career-hunter\/board-native['"]/);
+    assert.doesNotMatch(surfaces, /res\.redirect\(/);
     assert.match(cron, /career-engine-dispatch/);
     assert.match(artifacts, /tryAcquireRun/);
     assert.match(artifacts, /writeFileAtomic/);

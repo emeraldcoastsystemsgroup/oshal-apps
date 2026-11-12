@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Search the shared openings through the original owner's read-only namespace, with explicit city/ZIP or saved-home radius and real pagination.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The refusal with no saved place names where to save it as the page does: Settings, What I'm looking for, Matching area (was Career Settings). Words only.
  */
 'use strict';
 const fs = require('node:fs');
@@ -36,7 +37,7 @@ function searchQuery(input, layout) {
   if (home) {
     if (query.near && !/^(home|my home)$/i.test(query.near)) throw new CareerLocationError('Choose home or an explicit city/ZIP.');
     const scope = layout && readJobSearchScope(layout.userDir);
-    if (!scope) throw new CareerLocationError('Save your home city or ZIP in Career Settings → Matching area, or provide a city/ZIP for this search.');
+    if (!scope) throw new CareerLocationError('Save your home city or ZIP in Settings → What I\'m looking for → Matching area, or provide a city/ZIP for this search.');
     delete query.near;
     query.lat = String(scope.lat); query.lon = String(scope.lon);
     query.radius_miles = String(input.radiusMiles ?? scope.radiusMiles);

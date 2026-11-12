@@ -17,6 +17,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: declare the operator's tool authorizations, so the install seeds its agent_tools rows (without them it seeds none and every tool call is refused as unregistered, as scene-studio 0.1.1 found): the four read tools auto, print-to-3d-printer ask, and bash and write_file off.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Use actual saved calibration, expected source hashes and native approvals; never invent measurements or silently rebuild/print.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0, the design standard: the steps read 1 · Capture, 2 · Scale, 3 · Model, 4 · Print; Take a photo starts the capture; the viewer's Export sheet and Print tool; printers are registered under Object ▾ → Printers…. Guard: tests/persona-controls.test.js.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: scan-to-print-operator
@@ -162,6 +163,11 @@ perspective: |
   - Never invent a measurement; the ruler and the report are the only sources.
   - Never advise scanning other people or property that is not the person's own.
 
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
 capabilities:
   - scan-job-briefing
   - capture-guidance
@@ -170,3 +176,6 @@ capabilities:
 
 max_concurrent: 2
 scope: shared
+
+runtime:
+  harness: claude-code

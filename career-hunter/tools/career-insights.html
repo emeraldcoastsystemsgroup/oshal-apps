@@ -9,10 +9,11 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: period window control (All · 90d · 30d · 7d), friendly labels ('Average pay, fit 70+', 'Remote or no state'), thousands separators everywhere, withhold empty pay tiles and zero-fit badges, link company and state rows to Search Jobs, and align radii/typography to the design standard.
   4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 15: the page drew one funnel that began with a count shared by everyone ("Sourced 225,871") and ran into the person's own steps, with "In-lane roles", "Qualified" and "Promoted" among its labels. It is three parts now. Your search is the person's own counts only, read from GET /jobs/stats: Saved, Prepared, Applied, Interview, Offer; with none of them it says "Save or apply to a job and your progress appears here" with Find jobs. How these jobs fit your résumé holds the numbers that come from the person's own scores, when there are any. The job market Career can see holds the shared numbers, says they are the same for everyone, and carries the period control, which only ever narrowed those. "In-lane roles" reads "Open technology and professional jobs", the engine's own description of that count (engine/jobhunter/lane.py). A read that fails says so in its own part. Guard: tests/career-insights-honest.test.mjs.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed Job market (was Insights). Guard: tests/career-page-names.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="insights-ui" data-ds-category="dashboard" data-ds-first-action="none"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Insights</title>
+<title>Job market</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-kit.css">
@@ -57,7 +58,7 @@
 <link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
 <body>
 <div class="wrap">
-  <h1>Insights</h1>
+  <h1>Job market</h1>
   <div id="body" data-ds-work>
     <section aria-labelledby="ownTitle">
       <h2 id="ownTitle">Your search</h2>

@@ -12,6 +12,8 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: UX audit batch 7 (social--social-composer MERGE): move social-composer below social-workspace in ui.static with label Compose (retained because business-experience and prepare-post name surface social-composer); /api/social/composer opens Workspace's Compose (?view=compose) while both Workspace and Composer carry the Business/Home audience view. Guard: tests/composer-merge.test.cjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace into one social-workspace surface (remove the duplicate social-composer tile from ui.static and route prepare-post handoffs to social-workspace; /api/social/composer 302-redirects to /api/social/workspace?view=compose preserving query parameters).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.7.1: Jarvis routing words (backlog P4-16a): social-writer adds 'a linkedin post', 'a facebook post', 'publish' and 'facebook'. "Draft a LinkedIn post about our product launch" went to Marketing Engine on its 'product launch' phrase, and "Publish this to X and Facebook at the same time" was a four-way tie, because Social declared its platform words only inside phrases; both reach Social now, while "Publish the book layout" stays with Publishing Studio. No route, tool or permission changed.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.7.2: the old /api/social/composer address answers a hand-off page to the Workspace, keeping every query parameter. It answered a 302, which the native kernel does not relay from a package (no `redirect` on its response, no Location header passed on), so the address answered HTTP 500 there. No contract change. Guards: tests/composer-handoff.test.cjs, tests/composer-merge.test.cjs and tests/workspace-browser.test.cjs (a browser follows the page).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.7.3 (concierge audit T15, the store's PENDING list): personas/email-summarizer.yaml is removed. It was the 2026-07-19 carve's copy of the communications-bot persona for the platform registrar; no bot here names it (social-writer uses personas/social-writer.yaml and the communications-bot is imported with email-summarizer's own persona), and it still taught the retired CLI scripts (node /app/scripts/oshal-gmail.js, oshal-outlook.js, oshal-signals.js and oshal-twilio.js), which scripts/check-store-bots.mjs refuses in any persona. No route, tool, bot or permission change.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — social (Social swarm, ADR-038)
@@ -29,7 +31,8 @@
 #     (draft→judge→refine→approve state machine + its own no-post gate) — this
 #     app's "LinkedIn Assistant" tile is a VIEW onto that kernel surface.
 # This package is the app: the Workspace/Signals/Composer surfaces + the
-# /api/social routes + the workflow + a package persona COPY for the registrar.
+# /api/social routes + the workflow + the social-writer persona (the communications-bot's
+# persona is email-summarizer's own; the registrar copy left in 1.7.3).
 # Framework: OSHAL (see docs/build-your-own-swarm-app.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -66,7 +69,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.7.1
+version: 1.7.3
 status: active
 
 source:

@@ -39,6 +39,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.8.8: on the native kernel the engine link counts as connected until a request through it fails. Status read "engine.connected: false" before the first simulation, so Jarvis asked the person to start the engine instead of designing the circuit. Guarded by circuit-lab/tests/engine-client.test.js.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 0.8.9: the open design saves unapplied inspector fields, run settings and pending autosaves before Jarvis or the concierge reads it, and redraws the saved design when their change returns (shared document handoff), keeping a field still being edited.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 0.9.2 (UX audit 2026-11-06): Run is the one primary at the right of the design app row with auto-run beside it (it sat under the part pills and the canvas, below the fold at 1440x900); the mouse, touch and keys paragraph is a Help disclosure. Guard: tests/ux-run-primary.test.js.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Release 0.9.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -59,7 +60,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.9.2
+version: 0.9.3
 status: active
 scope: person
 
@@ -112,6 +113,7 @@ dependencies:
 bots:
   - agentId: ad93b29f-5533-45f6-bda3-4a881391d0cd
     name: circuit-lab-engineer
+    posture: inline
     persona: personas/circuit-lab-engineer.yaml
     role: engineering/circuit-engineer
     capabilities:

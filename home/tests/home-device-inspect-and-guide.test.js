@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Verify weekly Samsung Family Hub refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, weekly meal list builder, and phone-control optional dependency.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: local discovery lists only what the installation's discovery file names (no made-up devices, never a TV), and a TV registered as a local device is refused by control instead of having its saved switch flipped.
  * 4   | maintainer@emeraldcoastsystemsgroup.com | home 1.5.0 (J-6): verify read-only samsungce.viewInside SmartThings capability operation (readSmartThingsViewInside, validateViewInsideDeviceInput, validateViewInsideFileId, renderViewInsideSvg), dictionary-keyed contents.value + supportedFocusAreas + lastUpdatedTime parsing, and home-view-inside manifest & route declarations.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com | home 1.6.2: the refrigerator cases hold the route to listing nothing until the inside was read, to keeping what a person set or added when a state saved from the fixed list is carried over, and to never carrying an item, comparison, order, meal or device id in its source again. All three fail on 1.6.1's route.
  *
  * Dependency-free `node --test` suite apart from the store toolchain's js-yaml.
  */
@@ -36,11 +37,15 @@ const {
   removeLocalSwarmDevice,
   saveSmartThingsToken,
   readSavedSmartThingsToken,
+  readPersistedJson,
+  writePersistedJson,
 } = require('../routes/home-local-swarm.js');
 const {
   formatFridgeAssessmentResponse,
   runWeeklyFridgeAssessment,
   mutateFridgeMealAndCart,
+  buildMealsForFocus,
+  NOTHING_READ,
 } = require('../routes/fridge-weekly-assessment.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -388,49 +393,105 @@ test('Local Swarm device discovery, registration, and control work with zero clo
   }
 });
 
-test('Weekly refrigerator assessment compares this week vs last week, starts a grocery cart, and builds a meal list from fridge contents + orders', () => {
+test('1.6.2: a refrigerator lists nothing until its inside has been read; a person\'s own list, orders and meals are theirs', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'home-fridge-weekly-'));
   const prevDir = process.env.OSHAL_PACKAGE_DATA_DIR;
   process.env.OSHAL_PACKAGE_DATA_DIR = tmpDir;
   try {
     const initial = formatFridgeAssessmentResponse('owner-1');
     assert.equal(initial.ok, true);
-    assert.equal(initial.companionDependency.app, 'phone-control');
     assert.equal(initial.weeklySchedule.enabled, true);
     assert.equal(initial.weeklySchedule.dayOfWeek, 'Sunday');
-    assert.equal(initial.telemetry.coolerTempF, 37);
-    assert.equal(initial.telemetry.freezerTempF, 0);
+    assert.equal(initial.weeklySchedule.lastRunAt, null, 'no run has happened');
     assert.equal(initial.telemetry.measuredAt, null, '37 and 0 are placeholders until the hub reports a temperature (1.6.1)');
-    assert.equal(runWeeklyFridgeAssessment('owner-1', { focus: 'use-first' }).telemetry.measuredAt, null, 'a run with no reported temperature reads none');
-    assert.ok(initial.currentSnapshot.items.some((i) => /Sauerkraut/i.test(i.name)));
-    assert.ok(initial.currentSnapshot.items.some((i) => /Coffee-mate/i.test(i.name)));
-    assert.ok(initial.currentSnapshot.items.some((i) => /Blackberries/i.test(i.name)));
-    assert.ok(initial.comparison.depletedFromLastWeek.length >= 3);
-    assert.ok(initial.comparison.runningLow.length >= 2);
-    assert.ok(initial.comparison.useFirst.length >= 3);
-    assert.ok(initial.mealPlan.entries.length >= 5);
+    // Nothing was read, so nothing is listed, and the words say so. Until 1.6.2 everyone was shown one fixed list.
+    assert.deepEqual([initial.currentSnapshot.items, initial.previousWeekSnapshot.items, initial.orderHistory, initial.cart.items, initial.mealPlan.entries], [[], [], [], [], []]);
+    assert.equal(initial.currentSnapshot.capturedAt, null);
+    assert.deepEqual(initial.reading, { read: false, capturedAt: null, words: NOTHING_READ });
+    assert.equal(initial.comparison.read, false);
+    assert.equal(initial.comparison.summaryText, NOTHING_READ);
+    assert.match(NOTHING_READ, /^Nothing has been read from this refrigerator yet/);
+    assert.deepEqual([initial.comparison.depletedFromLastWeek, initial.comparison.runningLow, initial.comparison.useFirst], [[], [], []]);
+    assert.deepEqual([initial.deviceId, initial.companionDependency.phoneDeviceId], ['', ''], 'no household\'s device is written into the package');
+    assert.deepEqual(buildMealsForFocus('high-protein'), [], 'meal ideas come from a reading; there is none');
 
+    // A run reads the hub's temperature and nothing inside: it claims no capture and invents no meal.
+    const ran = runWeeklyFridgeAssessment('owner-1', { focus: 'use-first' });
+    assert.deepEqual([ran.telemetry.measuredAt, ran.currentSnapshot.capturedAt, ran.mealPlan.entries.length, ran.reading.read], [null, null, 0, false]);
+    assert.ok(!Number.isNaN(Date.parse(ran.weeklySchedule.lastRunAt)), 'the run itself is recorded');
+
+    // The list is the person's own: starting it marks it, adding puts an item on it.
     const started = mutateFridgeMealAndCart('owner-1', { action: 'start-cart', store: 'Weekly Swarm Cart' });
-    assert.equal(started.cart.status, 'active');
-    assert.equal(started.cart.store, 'Weekly Swarm Cart');
-    assert.ok(started.cart.activeItemCount >= 5);
+    assert.deepEqual([started.cart.status, started.cart.store, started.cart.activeItemCount], ['active', 'Weekly Swarm Cart', 0]);
+    const withAdded = mutateFridgeMealAndCart('owner-1', { action: 'add-cart-item', name: 'Sparkling Mineral Water', quantity: '2 cases' });
+    assert.deepEqual(withAdded.cart.items.map((i) => [i.name, i.quantity, i.inCart]), [['Sparkling Mineral Water', '2 cases', true]]);
+    assert.equal(withAdded.cart.activeItemCount, 1);
 
-    const withAdded = mutateFridgeMealAndCart('owner-1', {
-      action: 'add-cart-item',
-      name: 'Sparkling Mineral Water',
-      quantity: '2 cases',
-    });
-    assert.ok(withAdded.cart.items.some((i) => i.name === 'Sparkling Mineral Water' && i.inCart));
+    const measured = runWeeklyFridgeAssessment('owner-1', { coolerTempF: 36, freezerTempF: 0, focus: 'high-protein' });
+    assert.equal(measured.telemetry.coolerTempF, 36);
+    assert.ok(!Number.isNaN(Date.parse(measured.telemetry.measuredAt)), 'a run handed a reported temperature says when it was read');
+    assert.deepEqual([measured.mealPlan.focus, measured.mealPlan.entries], ['high-protein', []]);
 
-    const proteinPlan = runWeeklyFridgeAssessment('owner-1', { coolerTempF: 36, freezerTempF: 0, focus: 'high-protein' });
-    assert.equal(proteinPlan.telemetry.coolerTempF, 36);
-    assert.ok(!Number.isNaN(Date.parse(proteinPlan.telemetry.measuredAt)), 'a run handed a reported temperature says when it was read');
-    assert.equal(proteinPlan.mealPlan.focus, 'high-protein');
-    assert.match(proteinPlan.mealPlan.entries[0].title, /Double-Protein/i);
+    // A meal a person writes is kept when the focus changes; an order they log is kept.
+    const own = mutateFridgeMealAndCart('owner-1', { action: 'build-meal-list', focus: 'quick', customMeal: { title: 'Friday pizza night', day: 'Friday' } });
+    assert.deepEqual(own.mealPlan.entries.map((m) => [m.title, m.usesFromFridge]), [['Friday pizza night', []]]);
+    assert.deepEqual(mutateFridgeMealAndCart('owner-1', { action: 'build-meal-list', focus: 'use-first' }).mealPlan.entries.map((m) => m.title), ['Friday pizza night']);
+    assert.deepEqual(mutateFridgeMealAndCart('owner-1', { action: 'log-order', name: 'Oat milk' }).orderHistory.map((o) => o.name), ['Oat milk']);
   } finally {
     if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;
     else process.env.OSHAL_PACKAGE_DATA_DIR = prevDir;
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('1.6.2: a state saved from the fixed list is carried over with only what the person set or added', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'home-fridge-carried-'));
+  const prevDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+  process.env.OSHAL_PACKAGE_DATA_DIR = tmpDir;
+  try {
+    // The shape 1.6.1 saved: the fixed shelves, comparison, orders, list and meals, with what this person did among them.
+    const before = {
+      version: 1, deviceId: 'a-household-device', deviceName: 'Samsung Family Hub Refrigerator',
+      companionDependency: { app: 'phone-control', status: 'declared-optional', phoneDeviceId: 'a-household-phone', description: 'old' },
+      weeklySchedule: { enabled: false, cadence: 'weekly', dayOfWeek: 'Tuesday', time: '07:30', cron: '0 9 * * 0', lastRunAt: '2026-11-09T15:00:00.000Z', nextRunAt: '2026-11-16T15:00:00.000Z' },
+      telemetry: { coolerTempF: 35, freezerTempF: -2, measuredAt: '2026-11-09T15:00:00.000Z', doorStatus: 'closed', cameraZones: 3, imageUrl: '/api/home/fridge-image' },
+      currentSnapshot: { capturedAt: '2026-11-09T15:00:00.000Z', items: [{ id: 'fixed-1', name: 'A fixed shelf item', shelf: 'Top Shelf', category: 'x', quantity: '1', status: 'stocked', daysInFridge: 3 }] },
+      previousWeekSnapshot: { capturedAt: '2026-11-02T15:00:00.000Z', items: [{ name: 'A fixed staple', shelf: 'Middle Shelf', statusLastWeek: 'Full', statusNow: 'Depleted (0 left)' }] },
+      orderHistory: [{ id: 'ord-fixed', name: 'A fixed order', category: 'x', lastOrderedDaysAgo: 7, typicalCadenceDays: 7, statusInFridge: 'depleted' },
+        { id: 'ord-1794300000000', name: 'Oat milk', category: 'Grocery', lastOrderedDaysAgo: 0, typicalCadenceDays: 7, statusInFridge: 'stocked' }],
+      cart: { status: 'active', store: 'Weekly Grocery Cart', startedAt: '2026-11-09T15:05:00.000Z', updatedAt: '2026-11-09T15:06:00.000Z', items: [
+        { id: 'cart-fixed', name: 'A fixed suggestion', quantity: '1', category: 'x', reason: 'Running low on the middle shelf', priority: 'high', inCart: true },
+        { id: 'cart-sparkling-mineral-water', name: 'Sparkling Mineral Water', quantity: '2 cases', category: 'Grocery', reason: 'Added for weekly meal plan', priority: 'medium', inCart: true }] },
+      mealPlan: { focus: 'quick', updatedAt: '2026-11-09T15:07:00.000Z', entries: [
+        { id: 'meal-custom-1794300000001', day: 'Friday', mealType: 'Dinner', title: 'Friday pizza night', usesFromFridge: [], usesFromOrdersOrCart: [], prepTimeMin: 15, notes: 'ours' },
+        { id: 'meal-1', day: 'Day 1', mealType: 'Dinner', title: 'A fixed meal', usesFromFridge: ['A fixed shelf item'], usesFromOrdersOrCart: [], prepTimeMin: 5, notes: 'fixed' }] },
+    };
+    assert.equal(writePersistedJson('owner-2', 'fridge-weekly-state.json', before), true);
+    const after = formatFridgeAssessmentResponse('owner-2');
+    assert.deepEqual([after.currentSnapshot.items, after.previousWeekSnapshot.items, after.currentSnapshot.capturedAt, after.reading.read], [[], [], null, false], 'the fixed shelves and comparison are gone');
+    assert.deepEqual(after.orderHistory.map((o) => o.name), ['Oat milk'], 'the order the person logged is kept');
+    assert.deepEqual(after.cart.items.map((i) => i.name), ['Sparkling Mineral Water'], 'the item the person added is kept');
+    assert.deepEqual([after.cart.status, after.cart.activeItemCount], ['active', 1]);
+    assert.deepEqual(after.mealPlan.entries.map((m) => m.title), ['Friday pizza night'], 'the meal the person wrote is kept');
+    assert.deepEqual([after.weeklySchedule.enabled, after.weeklySchedule.dayOfWeek, after.weeklySchedule.time, after.mealPlan.focus], [false, 'Tuesday', '07:30', 'quick'], 'their settings are kept');
+    assert.deepEqual([after.telemetry.coolerTempF, after.telemetry.freezerTempF, after.telemetry.measuredAt], [35, -2, '2026-11-09T15:00:00.000Z'], 'a temperature the hub reported is kept');
+    assert.deepEqual([after.deviceId, after.companionDependency.phoneDeviceId], ['', '']);
+    assert.equal(readPersistedJson('owner-2', 'fridge-weekly-state.json').version, 2, 'and it is saved in the new shape, once');
+  } finally {
+    if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;
+    else process.env.OSHAL_PACKAGE_DATA_DIR = prevDir;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('1.6.2: no item, comparison, order, meal or device id is written into the refrigerator route again', () => {
+  for (const file of ['src-routes/fridge-weekly-assessment.ts', 'routes/fridge-weekly-assessment.js']) {
+    const source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    assert.doesNotMatch(source, /\{ id: '[^']+', name: '[^']+'/, `${file}: an item written out with its id and name`);
+    assert.doesNotMatch(source, /name: '[^']+', shelf: '/, `${file}: a shelf item`);
+    assert.doesNotMatch(source, /statusLastWeek: '|usesFromFridge: \['|title: '[^']+', usesFrom/, `${file}: a fixed comparison, order or meal`);
+    assert.doesNotMatch(source, /['"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['"]/, `${file}: a device id`);
+    assert.doesNotMatch(source, /priority: '(high|medium|low)', inCart: (true|false) \},?\s*$/m, `${file}: a fixed list entry`);
   }
 });
 

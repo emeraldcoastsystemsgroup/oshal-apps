@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5 (concierge audit T15, the store's PENDING list): the example's concierge is jarvis's oshal-assistant, the platform assistant, instead of the platform general-bot, which holds none of an application's data. It still declares no bot and no dependency: borrowed by name exactly as the general-bot reference it replaces: the shell resolves a chatBot the package does not declare the way /api/swarm/bots/{selector}/ask does (kernel ui_applications.rs borrowed_concierge), so no dependency is added. A Jarvis request that names this application now stays with the assistant (kernel jarvis_routing.rs owner_of keeps a request whose application's concierge is the assistant) instead of going to general-bot. No route or permission change.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — hello-oshal (the minimal working example)
 #
@@ -19,10 +25,10 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Hello OSHAL
 description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
-version: 1.2.4
+version: 1.2.5
 status: active
 scope: person
-chatBot: general-bot
+chatBot: oshal-assistant
 
 uses: [test-catalog, app-dependencies]
 testing:
@@ -49,7 +55,7 @@ smoke:
     requiresAi: false
 
 # No packaged bot, no migrations, no dependencies — the smallest possible package. `chatBot`
-# references the stable framework concierge rather than declaring another agent.
+# borrows the platform assistant (jarvis's oshal-assistant) by name rather than declaring another agent.
 dependencies:
   required:
     apps: []

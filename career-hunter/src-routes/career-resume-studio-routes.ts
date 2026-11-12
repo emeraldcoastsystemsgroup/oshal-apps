@@ -17,6 +17,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /resume/doc?id=<posting> also returns the packet's verified story citations as meta.storiesCited (1.26.0), read from application.json's stories_cited, which generate_for writes and nothing served until now. The story review's live acceptance reads it to prove a generated packet cited a story; the document the studio edits is unchanged.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Read the saved candidate name from the packet snapshot so the editor preview identifies the actual resume without fetching a different current profile.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Add bounded original-owner master reads and revision-checked small edits without round-tripping the whole profile or weakening the existing save whitelist.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The answers a person reads say main résumé (was master resume). Words only: log lines, the instruction the classic editor's model is given, route paths and the item id `master` are unchanged.
  */
 
 /**
@@ -391,13 +392,13 @@ function parseEngineJson(out: string): Record<string, unknown> | null {
 async function getMasterDocument(ctx: AppContext, userSub: string, res: Response): Promise<void> {
   const result = await runCareerCliAwait(ctx.pool, userSub, ['resume', 'base']);
   if (result.limitReason) {
-    rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume load');
+    rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'main résumé load');
     return;
   }
   const parsed = result.ok ? parseEngineJson(result.out) : null;
   if (!parsed) {
     logger.error({ err: result.err.slice(-300), userSub }, 'master resume load failed');
-    res.status(500).json({ error: 'master resume load failed' });
+    res.status(500).json({ error: 'main résumé load failed' });
     return;
   }
   res.json(parsed);
@@ -412,19 +413,19 @@ async function masterRequest(ctx: AppContext, userSub: string, verb: string, inp
   try {
     const result = await runCareerCliAwait(ctx.pool, userSub, ['resume', verb], { CH_RESUME_DOC: payload });
     if (result.limitReason) {
-      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume'); return;
+      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'main résumé'); return;
     }
     const parsed = parseEngineJson(result.out);
-    if (!parsed) { res.status(502).json({ ok: false, error: 'The master resume request did not finish.' }); return; }
-    if (parsed.ok === true && !result.ok) { res.status(502).json({ ok: false, error: 'The master resume change was not confirmed. Read the section again.' }); return; }
+    if (!parsed) { res.status(502).json({ ok: false, error: 'The main résumé request did not finish.' }); return; }
+    if (parsed.ok === true && !result.ok) { res.status(502).json({ ok: false, error: 'The main résumé change was not confirmed. Read the section again.' }); return; }
     if (parsed.ok !== true) {
       res.status(parsed.error === 'master_changed' ? 409 : parsed.error === 'master_patch_too_large' ? 413 : 422)
-        .json({ ok: false, error: String(parsed.message || parsed.error || 'The master resume request was refused.').slice(0, 500) }); return;
+        .json({ ok: false, error: String(parsed.message || parsed.error || 'The main résumé request was refused.').slice(0, 500) }); return;
     }
     res.json(parsed);
   } catch (error) {
     logger.error({ userSub }, 'bounded master request failed');
-    res.status(500).json({ ok: false, error: 'The master resume request failed.' });
+    res.status(500).json({ ok: false, error: 'The main résumé request failed.' });
   }
 }
 
@@ -538,7 +539,7 @@ async function saveMasterResume(
   }
   const payload = JSON.stringify({ resume: body.resume });
   if (Buffer.byteLength(payload, 'utf8') > MASTER_DOC_MAX_BYTES) {
-    res.status(413).json({ ok: false, error: 'master resume payload too large' });
+    res.status(413).json({ ok: false, error: 'main résumé payload too large' });
     return;
   }
   try {
@@ -546,7 +547,7 @@ async function saveMasterResume(
       ctx.pool, userSub, ['resume', 'base-save'], { CH_RESUME_DOC: payload },
     );
     if (result.limitReason) {
-      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume save');
+      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'main résumé save');
       return;
     }
     const parsed = parseEngineJson(result.out) as
@@ -554,7 +555,7 @@ async function saveMasterResume(
     if (!parsed || parsed.ok !== true) {
       const refusal = String(parsed?.error || '').slice(0, 400);
       logger.error({ userSub, refusal, err: result.err.slice(-300) }, 'master resume save failed');
-      res.status(refusal ? 422 : 500).json({ ok: false, error: refusal || 'master resume save failed' });
+      res.status(refusal ? 422 : 500).json({ ok: false, error: refusal || 'main résumé save failed' });
       return;
     }
     const changelog = Array.isArray(parsed.changelog)

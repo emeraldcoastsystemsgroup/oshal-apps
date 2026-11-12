@@ -8,6 +8,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the Resume band borrows Career's Master record (career-hunter 1.51.0), the read-only page with every role, bullet, skill and history record, with Download and Print.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home (career-hunter 1.53.0), which leads the toolbar ungrouped. Home carries the job search box, the person's pipeline and their next step; Career's page frame draws this toolbar as one bar across the top of every Career page.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.12: the group's concierge is career-concierge, Career's own since career-hunter 1.57.0 (T9). Naming career-hunter, the group could not be activated again: the test slot's restart at 20:44 UTC 2026-11-11 left it loaded but inactive ("group concierge is not owned by an active required member"), and production would have done the same at its next restart. Guard: scripts/group-concierge.test.mjs in the store gate.
 #
 # A group carries NO code. It binds four installed applications into one front
 # door with one toolbar and a setup dashboard:
@@ -41,12 +42,13 @@ description: >-
   One front door for your job search: the board, search, resume and strengthen
   tools, your profile picture, and your LinkedIn and Facebook presence — with a
   setup page that shows what is connected and what still needs you.
-version: 1.1.11
+version: 1.1.12
 status: active
 scope: public
 theme: daylight
-# career-hunter is a required member, so its packaged concierge owns this group's right rail.
-chatBot: career-hunter
+# career-hunter is a required member, so its packaged concierge (career-concierge since career-hunter 1.57.0) owns this
+# group's right rail. The kernel refuses a group whose chatBot is no required member's concierge.
+chatBot: career-concierge
 
 source:
   type: git-subdir

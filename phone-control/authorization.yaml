@@ -8,6 +8,9 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: bind /sessions routes and concierge session tools (preferences, chat, whiteboard, saved captures, and transfers) to the existing admin-tier own-scope permissions so operator-phone-control-admin authority remains unchanged.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: bind POST /provision and phone-provision tool to [configuration.view, configuration.pair].
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: bind POST /devices/:id/execute, grant configuration.pair to device-concierge, and bind phone-control-register-device, phone-control-update-device, and phone-control-execute-device tools.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 3; Roger, 2026-11-11: "deep links that open the actual film on the TV"): bind POST /devices/:id/open-link and the phone-control-open-link tool to execution.view and execution.operate, as execute is bound.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): bind POST /devices/:id/play and phone-control-play-show to [execution.view, execution.operate], as Open a Link on a TV.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): bind POST /devices/:id/apps and phone-control-tv-apps to [execution.view, execution.operate], as Open a Link on a TV.
 # ─────────────────────────────────────────────────────────────────────────────
 
 version: 1
@@ -77,6 +80,9 @@ bindings:
     - { id: device-get, method: GET, path: '/devices/:id', allOf: [execution.view, execution.read] }
     - { id: device-command-plan, method: POST, path: '/devices/:id/command-plan', allOf: [execution.view, execution.operate] }
     - { id: device-execute, method: POST, path: '/devices/:id/execute', allOf: [execution.view, execution.operate] }
+    - { id: device-open-link, method: POST, path: '/devices/:id/open-link', allOf: [execution.view, execution.operate] }
+    - { id: device-play-show, method: POST, path: '/devices/:id/play', allOf: [execution.view, execution.operate] }
+    - { id: device-tv-apps, method: POST, path: '/devices/:id/apps', allOf: [execution.view, execution.operate] }
     - { id: rdp-command-plan, method: POST, path: /rdp/command-plan, allOf: [execution.view, execution.operate] }
     - { id: device-provision, method: POST, path: /provision, allOf: [configuration.view, configuration.pair] }
     - { id: device-update, method: POST, path: '/devices/:id', allOf: [configuration.view, configuration.manage] }
@@ -129,3 +135,6 @@ bindings:
     - { id: phone-control-register-device, allOf: [configuration.view, configuration.pair] }
     - { id: phone-control-update-device, allOf: [configuration.view, configuration.manage] }
     - { id: phone-control-execute-device, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-open-link, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-play-show, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-tv-apps, allOf: [execution.view, execution.operate] }

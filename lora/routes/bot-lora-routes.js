@@ -19,6 +19,7 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com | DELETE /characters/:subject (lora.configure): a character could not be deleted at all, so test characters stayed in every list. One owner-predicated delete; versions, scores, thumbnails, dataset rows and callback grants go with it through their cascade keys.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | GET /worker (lora.read): { gpuWorker } from hasEdgeWorker(), the same worker selection every dispatch uses. A pure read with no side effect; the studio reads it once on open and withholds Train, Validate, Improve and Overnight where no GPU worker is registered (UX audit 2026-11-06, lora--lora-studio), instead of offering actions that could only answer box_required.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: serve GET /ui/photo-upload.mjs (app.open) for the studio's Step 2 multi-photo device uploader with interactive crop and per-photo captioning.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.10.4: LORA_DIRECTOR_AGENT_ID is lora-director's own id a0000000-0000-0000-0000-000000000065 (oshal-app.yaml bots, personas/lora-director.yaml agent_id). Store PR #47 (2026-08-02) moved lora-director off a0...0049, which belongs to intelligent-trades' trading-research-analyst, but this constant kept 049, so the studio's lora-train tickets (train, validate, improve, overnight, dataset import and caption) named the Trades analyst's id as their assignee and scripts/check-store-bots.mjs listed the routes as calling a bot this package neither declares nor imports.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -95,7 +96,7 @@ const logger = (0, logger_1.createChildLogger)({ module: 'bot-lora-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** The LoRA Studio's own bot — reasons over training/validation, owns the cost line. */
-const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000049';
+const LORA_DIRECTOR_AGENT_ID = 'a0000000-0000-0000-0000-000000000065';
 exports.LORA_DIRECTOR_AGENT_ID = LORA_DIRECTOR_AGENT_ID;
 /** Signed-in caller's OIDC sub. */
 function callerSub(req) {

@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The queue screen, natively: ui/index.html (with its model ui/queue-model.js) is served from this package's own assets at /apps/intelligent-processing/ui/index.html and declared as the package's tile. It lists the caller's tickets on this queue from the kernel's GET /api/tickets, one row per alert, and files an alert with POST /api/v1/tickets. The cockpit rail's Intelligent Processing item opened the platform's /intelligent-processing page, which the native kernel never served (an empty 404). No route, bot, workflow or permission change.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.0.2: the application opens on its own queue screen. ribbon.defaultView named the kernel's framework `tickets` view, so /cockpit/?app=intelligent-processing landed on the global Tickets list of every application (UX audit 2026-11-05, intelligent-processing-queue, grade F) although the installed copy already declared and admitted the queue tile. defaultView now names that tile; the framework items stay as they were.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0, concierge audit T15, the batch after 2b (Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"; Intelligent Operations' ops-concierge 1.9.0 the nearest worked example): the concierge panel and Jarvis's hand-offs were answered by ops-rca-specialist, the RCA investigator this package imports from Intelligent Operations, sitting in as chatBot; the kernel runs a bot with its owner's route tools, so they had Operations' tools and no read of this queue (importing ops-concierge would have done the same). The front desk is now processing-concierge (personas/processing-concierge.yaml), an inline bot this package declares, answering from the person's own tickets on this queue through its one route tool, processing-queue: GET /api/intelligent-processing/queue (routes/processing-queue.js from src-routes/processing-queue.ts), a read of the kernel's ticket port (ctx.ticketService.listTickets, scoped by the kernel to the caller and this ticket type); no SQL, model call or write. Its persona carries the specialist's concierge-panel rules word for word and follows Create's create-editor: the plain-prose rule, the ```tool_call fence and runtime harness claude-code. The workflow is unchanged: investigate, review and revise still run the imported ops-rca-specialist and ops-incident-reviewer, and both imports stay. No routing word moves (the specialist's 35 words, now ops-concierge's, are all Operations' records) and the manifest adds no routing word, capability or routing tag, so scripts/jarvis-routing.mjs decides every measured request as before. The package keeps no named-permission catalog, so the kernel admits the concierge's turn and read on the caller's application tier as it admitted the specialist's; no permission, role or grant changed. Test Lab catalog registered (testing, uses test-catalog). Guards: tests/processing-create-concierge.test.cjs (create-concierge) and tests/processing-queue-route.test.cjs (queue-read), run by store-ci's Intelligent Processing step.
 name: intelligent-processing
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -24,7 +25,7 @@ description: >-
   Intelligent Operations' RCA pipeline (investigate, review, revise), proposing a fix for an operator
   to run. On this installation no alert source opens these tickets and the platform's System Health
   and Pipeline Admin screens are not available, so tickets are filed by hand with the alert text.
-version: 1.0.2
+version: 1.1.0
 status: active
 scope: public
 access:
@@ -37,6 +38,10 @@ source:
   ref: main
 uses:
   - app-dependencies
+  - test-catalog
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 smoke:
   - name: package-readiness
     method: GET
@@ -52,6 +57,15 @@ routes:
     factory: createPackageSmokeRoutes
     mountPath: /api/intelligent-processing/_smoke
     auth: service
+    requiresContext: true
+    requiresAi: false
+  # The queue read the front-desk concierge's processing-queue tool calls (1.1.0): the caller's own tickets on this
+  # queue from the kernel's ticket port; no SQL, no model call, no write.
+  - module: routes/processing-queue.js
+    factory: createProcessingQueueRoutes
+    mountPath: /api/intelligent-processing/queue
+    auth: oidc
+    requiresAuth: true
     requiresContext: true
     requiresAi: false
 dependencies:
@@ -79,7 +93,10 @@ workflow:
       bot: ops-incident-reviewer
     - name: revise
       bot: ops-rca-specialist
-chatBot: ops-rca-specialist
+# The front-desk inline concierge answers the concierge panel and Jarvis (1.1.0, the Create concierge pattern, as
+# Intelligent Operations' ops-concierge does); the imported ops-rca-specialist and ops-incident-reviewer stay the workers
+# of the RCA pipeline above.
+chatBot: processing-concierge
 ui:
   static:
     - toolName: intelligent-processing-queue
@@ -90,3 +107,30 @@ ui:
 ribbon:
   defaultView: intelligent-processing-queue   # its own queue screen, never the global Tickets list
   hideFrameworkItems: []
+
+tools:
+  - name: processing-queue
+    displayName: Intelligent Processing queue
+    type: api
+    category: operations
+    description: The person's own tickets on the Intelligent Processing queue - how many there are and how many are open, waiting on a person, failed or done, and, for the newest 25, each one's status, the RCA phase it has reached (investigate, review or revise) and when it was filed and last moved. It carries no alert title or text and no investigation findings.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-processing/queue" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what is on their Intelligent Processing queue, what is open, waiting on them, failed or done, or where an alert's investigation stands. Read the summary sentence aloud and offer to open the Intelligent Processing screen, where each alert's title is. Nothing here files, starts or approves anything.
+    tags: [processing, route-backed, read-only]
+# No routingKeywords, capabilities or routingTags here: the package declared none before 1.1.0 and the store's routing
+# mirror (scripts/jarvis-routing.mjs) scores them, so leaving them out keeps every routing decision as it was (Roger,
+# 2026-11-09: routing is never fixed by adding manifest words). The persona describes the bot.
+bots:
+  - agentId: 56031d28-b494-4649-9780-4421017e3a92
+    name: processing-concierge
+    persona: personas/processing-concierge.yaml
+    posture: inline
+    role: processing/concierge
+    selectorDescriptor: >-
+      Select for the person's Intelligent Processing front desk: how many of their self-monitoring alert tickets are on
+      this queue, which are open, waiting on a person, failed or done, the phase each has reached and when it was filed,
+      read from their own tickets. Investigation stays with the RCA pipeline (ops-rca-specialist and ops-incident-reviewer
+      of Intelligent Operations).

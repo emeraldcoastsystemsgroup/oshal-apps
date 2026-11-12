@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Job Board tells the truth without a résumé, shows the inbox's newest reply on a job's row, and uses one word for saving (judge's report 2026-11-11, changes 3 and 5). The shipped tools/career-job-lists.html in Chromium over fixture answers, at 1440x900 and 412x915: with no résumé New matches says "Add your résumé to get matches" with that one filled button, lists none of the person's saved jobs and asks for no jobs, and the button opens Resume Studio; a saved job with no fit carries the link "Add your résumé to see your fit" (44px on a phone) where it said "AI assessment pending"; while a first résumé is being read the stage says so; with a résumé, or with no answer about one, the page is as it was. A job's newest reply reads "Interview reply · Nov 8", "Offer · Nov 9", "Application received · Nov 2" or "Not selected · Nov 5", is at least 44px tall, carries no text from the message, and opens that job's application. The saved list offers Unsave, New matches offers Save, and no star or "shortlist" is left.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | On a phone the fit link has its own line under a job's facts: it sat beside the place and pushed the posted date out of line.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9: a move is said in one line that names the job, so Unsave reads "Unsaved: Office Manager 1 at Example Co."
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -156,6 +157,6 @@ test('one word for saving: Unsave on the saved list, no star and no shortlist an
     await page.locator('.job-row[data-job-id="1"]').getByRole('button', { name: 'Unsave', exact: true }).click();
     await page.waitForFunction(() => document.querySelectorAll('.job-row').length === 1);
     assert.deepEqual(state.writes, [{ path: '/api/career-hunter/jobs/1/status', body: { favorite: false } }]);
-    assert.match(await page.locator('#actionState').innerText(), /^Unsaved\./);
+    assert.equal(await page.locator('#actionState').innerText(), 'Unsaved: Office Manager 1 at Example Co. Its drafts and application records are kept.');
   } finally { await context.close(); }
 });

@@ -10,6 +10,7 @@ exports.processingTransaction = tx;
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved (2026-11-04). The worker's decisions say so, because only they may reach the phone: a replay or an Evaluate pressed after a policy edit paged critical alerts that were not happening. A re-fire that also escalated has its evidence already, so it does not wait for another. A promotion is written to the occurrence too, so a later re-evaluation does not undo it. The kernel's conflict wording changed, so the retry now matches both. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | A third review proved a real outage that began with a blip never got evidence or a ticket, however long it lasted: its re-fire inside the window was only recorded, and nothing fired again to open the new occurrence (2026-11-04). A re-fire is now remembered, and promoteRefired gives it its own evidence once the window has passed if it is still firing. A flap that clears first costs nothing. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Two holes an independent review proved (2026-11-03). A resolve evaluated before its firing (the percolator was down at the raise) now writes the symptom, so the older firing evaluates as late instead of opening a symptom on a recovered resource. A re-fire inside the policy window of the last admission is 'refired': recorded and told, with no new packet or ticket, so a flapping alert stops opening one of each per flap; after the window it is a new occurrence. */
+/** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | T71 (Roger, 2026-11-11: "Open search needs to be on a rotation"): after an activation the engine retires this person's rule generations no source binding keeps (retireUnbound: the bound policy ids plus the one just activated; older than an hour). Each rules change used to leave its index in the search forever. A failed clean-up is reported in the activation's result as retirement.error and never fails it. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Seal stored-query policies before activation and atomically record filtering, scoped suppression and pre-evidence work reservations. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Trial sealed policy candidates against owned deliveries without changing source bindings, counters or evidence work. */
 // @ts-nocheck
@@ -70,7 +71,19 @@ async function publishPolicy(pool, engine, owner, source, input, expectedRevisio
         else
             await c.query('INSERT INTO operations_policy_bindings(user_sub,id,revision,record) VALUES($1,$2,$3,$4)', [owner, source.id, binding.revision, JSON.stringify(binding)]);
         return { policy: published, binding };
-    });
+    }).then(async (activated) => ({ ...activated, retirement: await retireUnbound(pool, engine, owner, policy.id) }));
+}
+/** After an activation the engine removes this person's rule generations no source binding keeps (once older than an hour, so a dry
+ * run or an evaluation in flight keeps its own). A failed clean-up never fails the activation: the result says what happened. */
+async function retireUnbound(pool, engine, owner, current) {
+    try {
+        const rows = (await pool.query('SELECT record FROM operations_policy_bindings WHERE user_sub=$1', [owner])).rows;
+        const bound = rows.map(r => (typeof r.record === 'string' ? JSON.parse(r.record) : r.record)?.policyId).filter(id => typeof id === 'string');
+        return await engine('retire', owner, { keep: [...new Set([current, ...bound])] });
+    }
+    catch (error) {
+        return { error: String(error?.message || error).slice(0, 240) };
+    }
 }
 function document(record) { const n = record.normalized, d = n.data; return { source: n.source, environment: d.environment, alertType: d.alertType, severity: d.severity, status: d.status, resourceKind: d.resource.kind, resourceScope: d.resource.scope, resourceId: d.resource.id, time: n.time, ...(typeof d.message === 'string' ? { message: d.message.slice(0, 4096) } : {}) }; }
 async function previewPolicy(pool, engine, owner, source, input, deliveryIds) {

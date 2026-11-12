@@ -18,6 +18,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register lm-lesson-videos, lm-lesson-studio and lm-prep-media-route: the monster-taught lesson videos decoded, the lesson scripts on the real stage, and the streaming route with its installer.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register lm-ux-batch7 for My Files Saved view and Voice Settings student and teacher split.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register lm-curriculum-videos-and-rp for the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 reference features.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Register lm-index-handoff: the old /index.html address answers a hand-off page to the arcade, where it called a redirect a kernel does not relay (HTTP 500 there).
 version: 1
 cases:
   - id: lm-curriculum-videos-and-rp
@@ -209,6 +210,27 @@ cases:
       mode: none
     limits:
       timeoutMs: 180000
+    installation: never
+  - id: lm-index-handoff
+    name: Old index address hand-off
+    purpose: Prove the old /index.html address answers a page that sends the browser to the arcade, and that the route never calls a redirect, which a kernel does not relay from a package.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-index-handoff.test.cjs
+    expected:
+      - The page carries one address on this site (/api/education/arcade), a refresh at once, a link, and no script.
+      - An address with a query or a mark is written out; an address on another site is refused.
+      - The route source and the compiled route answer the page and contain no redirect call.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never
   - id: lm-prep-media-route
     name: Lesson video streaming route

@@ -26,6 +26,7 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com   | 1.27.0: register the owner-only Test Lab application seam (career-test-lab-applications.ts) beside the application mutations, so the Career worker rail's live acceptance can drive a real approve -> draft on an application it plants and removes.
  * 21 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: register the read-only Master record page and its data route (career-master-record-routes.ts).
  * 22 | maintainer@emeraldcoastsystemsgroup.com   | 1.52.0: register local editing export and version-preserving import routes for the master resume (career-local-roundtrip-routes.ts).
+ * 23 | maintainer@emeraldcoastsystemsgroup.com   | 1.56.0, T6: Find jobs' remembered searches are kept on the account (GET and POST /search-memory, career-search-memory-routes.ts).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.userPaths = exports.openUserDb = exports.listStoreUsers = exports.callerSub = exports.isCareerAdmin = exports.buildJobFilters = exports.enqueueForUser = void 0;
@@ -47,6 +48,7 @@ const career_autofill_routes_1 = require("./career-autofill-routes");
 const career_automation_1 = require("./career-automation");
 const career_board_routes_1 = require("./career-board-routes");
 const career_browse_routes_1 = require("./career-browse-routes");
+const career_search_memory_routes_1 = require("./career-search-memory-routes");
 const career_company_routes_1 = require("./career-company-routes");
 const career_digest_1 = require("./career-digest");
 const career_guest_seed_routes_1 = require("./career-guest-seed-routes");
@@ -110,6 +112,7 @@ function registerExtractedRouteFamilies(router, ctx) {
     (0, career_application_routes_1.registerCareerApplicationReadRoutes)(router, ctx);
     (0, career_board_routes_1.registerCareerBoardRoutes)(router, ctx);
     (0, career_browse_routes_1.registerCareerBrowseRoutes)(router);
+    (0, career_search_memory_routes_1.registerCareerSearchMemoryRoutes)(router);
     (0, career_recruiter_routes_1.registerCareerRecruiterRoutes)(router);
     (0, career_strengthen_routes_1.registerCareerStrengthenRoutes)(router, ctx);
     (0, career_application_routes_1.registerCareerApplicationMutationRoutes)(router, ctx);
@@ -133,4 +136,3 @@ function createCareerHunterRoutes(ctx) {
     (0, career_board_routes_1.registerCareerResumeAlias)(router);
     return router;
 }
-//# sourceMappingURL=career-hunter-routes.js.map

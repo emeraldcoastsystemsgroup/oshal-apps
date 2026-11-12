@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Resume Studio, grade D). The real tools/career-resume-studio.html in Chromium over a synthetic fixture: with no résumé indexed the page is one empty state whose primary uploads the résumé (POST /resume/upload, field "resume") and then says it is indexing, with no Save anywhere; with a résumé, Save is a secondary button disabled until a change, and a refused save is told beside it in a role=alert with its fix (the 422 the audit hit); the paper stays white with dark ink when the platform's automatic glass marks it in a dark theme; the cross-links live in More.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: More leads with Master record (everything saved), the read-only page with every role, bullet, skill and history record.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 12. With no résumé the editor panel, its Send button, the phone's Edit with AI bar and the More button are not shown, at both sizes; they appear once the upload has been read. With a résumé the panel says "This is your main résumé. Each application starts from it.", its heading and example are in plain words with no vendor's product in them, and "MASTER resume", "durable profile" and "reaches in" are gone. When the résumé check gives no answer the editor shows as it did before.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the picker says Main résumé and More says Download my data and Other experience.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -75,7 +76,7 @@ test('with a résumé the editor is there and speaks plainly', async () => {
     const example = await page.locator('#msg').getAttribute('placeholder');
     assert.equal(example, 'e.g. put my team-lead work first; shorten the second bullet');
     assert.equal(await page.locator('#moreBtn').isVisible(), true);
-    assert.deepEqual(await page.locator('#pick option').allTextContents(), ['No tailored résumés yet', '⭐ My résumé (master)']);
+    assert.deepEqual(await page.locator('#pick option').allTextContents(), ['No tailored résumés yet', '⭐ Main résumé']);
     assert.doesNotMatch(await page.locator('body').innerText() + example, /MASTER resume|durable profile|reaches in|SAP|DevOps/);
   } finally { await context.close(); }
 });
@@ -118,7 +119,7 @@ test('with a résumé: Save is secondary, enabled only by a change, and a refusa
     await alert.waitFor();
     assert.match(await alert.innerText(), /Upload your résumé first/);
     assert.equal(await page.locator('nav a:visible').count(), 0, 'no raw links in the toolbar');
-    assert.deepEqual(await page.locator('#moreMenu a').allInnerTexts(), ['Master record (everything saved)', 'Additional experience library', 'Prepare & submit']);
+    assert.deepEqual(await page.locator('#moreMenu a').allInnerTexts(), ['Download my data (everything saved)', 'Other experience', 'Prepare & submit']);
     assert.equal(await page.locator('#moreMenu a[data-career-tool="career-master-record"]').getAttribute('href'), '/api/career-hunter/master-record-ui');
   } finally { await context.close(); }
 });

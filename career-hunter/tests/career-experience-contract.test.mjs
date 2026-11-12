@@ -6,6 +6,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the actual experience and authority contract across valid patch releases rather than pinning an obsolete application version.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Search Jobs links to the board and the matched search since 08fd1631; configuration moved to the Intelligent Career ribbon.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: the experience opens on Career's home page (GET /home, bound to app.open like the search page), which carries the job search box; the search route keeps its own binding.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The two role templates are labelled for people, Job seeker and Job source administrator (judge's report 2026-11-11, change 11); their ids, versions and members are still pinned here exactly as they were.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -46,8 +47,8 @@ test('Career declares a real page experience on its authenticated home page, bes
 test('experience metadata keeps existing role templates and required applications unchanged', () => {
   assert.deepEqual(manifest.dependencies.required.apps, []);
   assert.deepEqual(manifest.authorization.roleTemplates, [
-    { id: 'member', version: 1, label: 'Career Hunter Member', members: [{ app: 'career-hunter', role: 'member' }] },
-    { id: 'admin', version: 1, label: 'Career Hunter Administrator', members: [{ app: 'career-hunter', role: 'admin' }] },
+    { id: 'member', version: 1, label: 'Job seeker', members: [{ app: 'career-hunter', role: 'member' }] },
+    { id: 'admin', version: 1, label: 'Job source administrator', members: [{ app: 'career-hunter', role: 'admin' }] },
   ]);
   assert.deepEqual(Object.keys(catalog.roles).sort(), ['admin', 'member']);
   assert.equal(manifest.experience.roleTemplates, undefined);

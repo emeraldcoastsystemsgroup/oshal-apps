@@ -21,6 +21,8 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (J-3, J-6): Add schema-bounded read-only SmartThings samsungce.viewInside operation (GET /api/home/view-inside, GET /api/home/view-inside/image/:fileId, tool home-view-inside) returning normalized upper/middle/lower bay snapshots, supportedFocusAreas, lastUpdatedTime, and preview image URLs for the app UI and Jarvis; name samsungce.viewInside in description and keep Inspect SmartThings Device and Refrigerator View Inside Camera in the first eight tools within the 200-character catalog budget.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: Home is tiles in groups (Roger, 2026-11-10: "Smart home needs a redesign ... connected devices are smart home items, fire sticks are as well"). The first screen shows Kitchen and appliances, TVs and streaming, the switch cards, Phones and tablets and Computers; the person's connected devices come from the kernel's device list and, when they can open it, Phone & Device Control (the optional dependency already declared). A tile opens the page for that thing: the refrigerator (Look inside, this week's shelves, grocery list, meal ideas), the TVs and their remotes; a phone or computer tile opens Phone & Device Control. Help and notes moves under More. No label names a provider key or a device capability. No route, tool, schedule or authorization change.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: a refrigerator temperature shows only when the hub reported it. The weekly state starts with 37 and 0 as placeholders and the tile and the refrigerator page showed them as readings; `telemetry.measuredAt` now says when a run was handed a reported temperature, and the page says Temperature not read yet until then. The weekly list, comparison, grocery list and meal ideas are unchanged (they are still the fixed list in routes/fridge-weekly-assessment.js; see BACKLOG).
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: the refrigerator lists nothing until its inside has really been read. Every person was shown one fixed set of shelf items, changes since "last week", orders, a grocery list and five meals as their own refrigerator, and the assistant read them out. They are gone from the source; the page and the three tools say that nothing has been read yet; a person's own list, logged orders and meals are kept, also from a state saved before; the description and the tools say what they do. No route or permission change.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.7.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): on an Android or Fire TV, home-lan-control also plans now_playing (what is playing and in which app) and play, pause, next, previous and stop, which reach the app playing even behind another app (Phone & Device Control's bridge 1.8.0, which Smart Home installs on the computer when it is older); home-lan-record's answer says what is playing after the press, and the TV's card shows a media row and a Now playing line. A Roku or Samsung TV refuses them in words. No route, permission or egress changed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -64,9 +66,9 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token, inspects SmartThings appliances and Samsung Family Hub refrigerators
   (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer
-  temperatures, door sensors and live component capabilities), runs weekly
-  refrigerator shelf comparisons to recommend a grocery cart and build a weekly
-  meal list from what is in the fridge and what you have ordered, keeps a
+  temperatures, door sensors and live component capabilities), keeps your own
+  grocery list, logged orders and meals beside the refrigerator's weekly check
+  (what is inside the refrigerator is not read yet), keeps a
   persistent Smart Home Operations Guide & Runbook, and turns "turn off the
   living room lights" into the right commands. Destructive actions (locks,
   garage, thermostat) are confirmed first. It also gives the weather forecast
@@ -75,7 +77,7 @@ description: >-
   streaming sticks on your home network through your own computer (Samsung,
   Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off,
   volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.
-version: 1.6.1
+version: 1.7.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -316,20 +318,21 @@ tools:
     displayName: Weekly Fridge Assessment & Cart
     type: api
     category: smart-home
-    description: Read the Samsung Family Hub refrigerator 3-bay optical shelf inventory, week-over-week comparison (depleted staples, running low, eat-first fresh items), recent order history, recommended grocery cart, and weekly meal list. Read-only.
+    description: Read what is known about the refrigerator. That is the weekly check's day and time, a temperature when the hub reported one, and the person's own grocery list, logged orders and meals. What is inside is not read yet, so no shelf list, comparison with last week or meal idea exists; the answer says so in `reading.words`. Read-only.
     executor: { executorType: api, apiEndpoint: "GET /api/home/fridge-assessment" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema: { type: object, properties: {} }
     usageInstructions: >-
       Call with {} whenever the person asks what is in the fridge, how this week compares to last week, what groceries
-      are running low or need to be ordered, or wants a meal list or grocery cart recommendation.
+      are running low, or for a meal list or their grocery list. When `reading.read` is false, tell them in the answer's
+      own words that nothing has been read from the refrigerator yet; never name an item that is not in the answer.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-assessment-run
     displayName: Run Fridge Assessment
     type: api
     category: smart-home
-    description: Trigger a fresh Samsung Family Hub refrigerator assessment, refresh telemetry and optical snapshot comparison against last week and past orders, and recompute grocery cart recommendations and the weekly meal plan.
+    description: Run the refrigerator's check now. It records the run and the temperatures the hub reports. It does not read what is inside and makes no list or meal idea.
     executor: { executorType: api, apiEndpoint: "POST /api/home/fridge-assessment" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -338,14 +341,14 @@ tools:
       properties:
         focus: { type: string, enum: ["use-first", "high-protein", "quick-prep"], description: "Optional meal-plan focus." }
     usageInstructions: >-
-      Call with {} or {"focus": "use-first"} when the person asks to run a refrigerator assessment now or refresh the
-      weekly fridge comparison and meal list.
+      Call with {} or {"focus": "use-first"} when the person asks to run the refrigerator's check now. Say what the
+      answer holds; when `reading.read` is false nothing inside was read.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-meal-cart
     displayName: Start Cart or Meal List
     type: api
     category: smart-home
-    description: Start or update the recommended grocery cart from the refrigerator assessment, log an ordered item, or customize the weekly meal list based on what is in the fridge and what the person has ordered.
+    description: Start or update the person's own grocery list (add, remove or tick an item), log an item they ordered, set the weekly check's day and time, or add a meal they describe. It suggests nothing from what is inside the refrigerator, which is not read yet.
     executor: { executorType: api, apiEndpoint: "POST /api/home/fridge-meal-plan" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -476,7 +479,9 @@ tools:
     description: >-
       Press one button on one saved TV or streaming stick - wake, turn off, volume up or down, mute, the arrows, OK,
       Home, Back, play or pause, open oshal on the TV, open the oshal TV app (Android), or pair (Samsung) - with the
-      person's own computer. Its answer is a plan: nothing has happened on the TV when it answers. When
+      person's own computer. On an Android or Fire TV it also reads what is playing and in which app (now_playing), and
+      sends play, pause, next, previous or stop to the app playing even when another app is in front; the recorded
+      answer says what is playing after the press. Its answer is a plan: nothing has happened on the TV when it answers. When
       computer.run_plan is offered to you, the press runs at once on the person's own computer: pass the planId from
       this tool's answer to computer.run_plan, then record the computer's answer with home-lan-record (op control, the
       device id and action the plan returned, and the one JSON line the computer printed as reply) and say what
@@ -490,7 +495,7 @@ tools:
       type: object
       properties:
         device: { type: string, minLength: 1, maxLength: 120, description: "The TV as home-lan-devices names it: its id, its name or part of it (\"the Samsung\", \"guest room Roku\")." }
-        action: { type: string, enum: [wake, off, volume_up, volume_down, mute, up, down, left, right, select, home, back, play_pause, launch_url, open_app, pair] }
+        action: { type: string, enum: [wake, off, volume_up, volume_down, mute, up, down, left, right, select, home, back, play_pause, launch_url, open_app, pair, now_playing, play, pause, next, previous, stop] }
         url: { type: string, maxLength: 256, description: "For launch_url only: the https page to open; leave out to open this installation." }
       required: [device, action]
     usageInstructions: >-

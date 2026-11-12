@@ -17,7 +17,7 @@ export function createHomeSummaryRoutes(ctx: AppContext): Router {
   "SELECT p.title,c.name AS company,s.fit_score,s.ai_fit_score,s.scored_at,s.ai_scored_at FROM career_user_job_scores s JOIN career_postings p ON p.id=s.posting_id JOIN career_companies c ON c.id=p.company_id WHERE s.user_sub = $1 AND s.scored_at<=$2 AND s.target_role=true ORDER BY s.scored_at DESC,s.posting_id LIMIT 3"
 ].map(text => ctx.pool.query({text,values:[String(sub),now],query_timeout:1800} as any)));
   const rows = (i: number): any[] => { const r=result[i]; return r.status==='fulfilled' ? r.value.rows : []; };
-  const metrics = [[0,"review","approval-review","Application approvals"],[1,"day","scored-24h","Scores updated / 24h"],[1,"five","scored-5d","Scores updated / 5d"],[2,"tracked","tracked-applications","Tracked applications"],[2,"interviews","interviews-5d","Recorded interviews / 5d"]].map(([i,key,id,label]) => ({id,label,value:result[Number(i)].status==='fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable'}));
+  const metrics = [[0,"review","approval-review","Career's picks"],[1,"day","scored-24h","Scores updated / 24h"],[1,"five","scored-5d","Scores updated / 5d"],[2,"tracked","tracked-applications","Tracked applications"],[2,"interviews","interviews-5d","Recorded interviews / 5d"]].map(([i,key,id,label]) => ({id,label,value:result[Number(i)].status==='fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable'}));
   const items: any[] = [];
   const item = (title: unknown, detail: string, body: string, actions: string[], tone = 'neutral') => {
    const text = clip(title,120), notes = clip(detail + '\n' + body,2000);

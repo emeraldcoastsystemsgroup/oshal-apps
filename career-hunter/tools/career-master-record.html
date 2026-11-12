@@ -6,12 +6,14 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | The Master record (1.51.0, Roger 2026-11-09: "give me every bullet and skill with the addendum history"). Read-only: the counts, then every role with its numbered bullets and skills, skills by group, additional experience, education and certifications, evidence, the history newest first (date, what was added, your own words), Strengthen answers and snapshot dates, and the documents kept outside Career. Download saves the server's Markdown as one .md file built here in the page (the kernel drops a package's download header); Print or save as PDF is in More. Career's private writing notes are shown last and are not in the download. Text is drawn as text, never as markup.
   2 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled Download my data (was Master record); its links say My résumé and Other experience, the answers given on Improve it are headed Questions you answered, and its loading and error lines speak of the person's data, and the file it saves is named career-data and the date (was master-record). Guard: tests/career-page-names.test.mjs.
+  4 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there); the line that sends a person there says the whole name.
 -->
 <html lang="en" data-career-surface="master-record" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Master record</title>
+<title>Download my data</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
@@ -66,10 +68,10 @@
   </div>
   <div class="ck-menu" id="moreMenu" popover role="menu">
     <button type="button" role="menuitem" id="print">Print or save as PDF</button>
-    <a role="menuitem" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Resume Studio</a>
-    <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
+    <a role="menuitem" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">My résumé</a>
+    <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Other experience</a>
   </div>
-  <p id="status" role="status" aria-live="polite">Loading your master record…</p>
+  <p id="status" role="status" aria-live="polite">Loading what Career keeps for you…</p>
   <div id="record" aria-busy="true"></div>
 </main>
 <script>
@@ -92,8 +94,8 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
 const join = (parts, glue) => parts.filter(Boolean).join(glue);
 
 function countsView(c) {
-  const tiles = [['Roles', c.roles], ['Bullets', c.bullets], ['Skills', c.skills], ['Additional experience', c.additional],
-    ['History records', c.history], ['Strengthen answers', c.strengthenAnswers], ['Snapshots', c.snapshots], ['Linked documents', c.linked]];
+  const tiles = [['Roles', c.roles], ['Bullets', c.bullets], ['Skills', c.skills], ['Other experience', c.additional],
+    ['History records', c.history], ['Questions answered', c.strengthenAnswers], ['Snapshots', c.snapshots], ['Linked documents', c.linked]];
   const also = `Also: ${plural(c.skillGroups, 'skill group')} and ${plural(c.roleSkills, 'skill')} tagged on roles, `
     + `${plural(c.education, 'education entry', 'education entries')}, ${plural(c.certifications, 'certification')}, ${plural(c.metrics, 'metric')}, `
     + `${plural(c.projects, 'project')}, ${plural(c.accountGroups, 'account group')}, ${plural(c.employers, 'employer')}, `
@@ -130,7 +132,7 @@ function skillsView(r) {
 }
 
 function additionalView(r) {
-  return section('additional', 'Additional experience', r.additional.length ? r.additional.map((e, i) => el('div', { class: 'card' },
+  return section('additional', 'Other experience', r.additional.length ? r.additional.map((e, i) => el('div', { class: 'card' },
     el('h3', {}, `${i + 1}. ${e.title || 'Untitled entry'}`),
     el('p', { class: 'meta' }, join([e.role, e.organization !== e.title ? e.organization : '', e.period, e.kind, e.source, e.archived ? 'archived' : ''], ' · ')),
     e.summary ? el('p', { class: 'text' }, e.summary) : null, e.bullets.length ? list(e.bullets, true) : null,
@@ -138,7 +140,7 @@ function additionalView(r) {
     [['Skills', e.skills], ['Technology', e.tech], ['Applications', e.applications]].filter(([, items]) => items.length)
       .map(([label, items]) => [el('h4', {}, label), chips(items)]),
     e.links.length ? [el('h4', {}, 'Links'), list(e.links.map((url) => el('a', { href: url, target: '_blank', rel: 'noopener' }, url)))] : null))
-    : none('No additional experience saved.'));
+    : none('No other experience saved.'));
 }
 
 function qualificationsView(r) {
@@ -163,7 +165,7 @@ function historyView(r) {
     a.answer ? el('blockquote', {}, a.answer) : none('Marked answered, with no words saved.')));
   return section('history', 'History, newest first', records.length ? records : none('No history of added facts yet.'),
     r.unreadableHistory ? none(`${plural(r.unreadableHistory, 'history line')} could not be read and ${r.unreadableHistory === 1 ? 'is' : 'are'} not shown.`) : null,
-    el('h3', {}, 'Strengthen answers'), answers.length ? answers : none('No Strengthen answers yet.'),
+    el('h3', {}, 'Questions you answered'), answers.length ? answers : none('No answers yet. The questions are on Improve my résumé.'),
     el('h3', {}, 'Snapshots taken before a change'), r.snapshots.length ? list(r.snapshots.map((s) => s.when)) : none('None.'));
 }
 
@@ -185,11 +187,11 @@ function render(r) {
   const root = $('record');
   if (!r.present) {
     root.replaceChildren(el('div', { class: 'ck-empty' }, el('div', { class: 'ck-empty-icon', 'aria-hidden': 'true' }, '📄'), el('h2', {}, 'No résumé yet'),
-      el('p', {}, 'Upload your résumé in Resume Studio and this record fills in.'),
-      el('a', { class: 'ck-btn', 'data-career-tool': 'career-resume-studio', href: '/api/career-hunter/resume-studio' }, 'Open Resume Studio')));
+      el('p', {}, 'Upload your résumé on My résumé and this page fills in.'),
+      el('a', { class: 'ck-btn', 'data-career-tool': 'career-resume-studio', href: '/api/career-hunter/resume-studio' }, 'Open My résumé')));
     return;
   }
-  const jump = [['profile', 'Profile'], ['experience', 'Experience'], ['skills', 'Skills'], ['additional', 'Additional'], ['education', 'Education'],
+  const jump = [['profile', 'Profile'], ['experience', 'Experience'], ['skills', 'Skills'], ['additional', 'Other experience'], ['education', 'Education'],
     ['evidence', 'Evidence'], ['history', 'History'], ['linked', 'Linked'], ...(notesView(r) ? [['notes', 'Notes']] : [])];
   root.replaceChildren(...countsView(r.counts), el('nav', { class: 'jump', 'aria-label': 'Sections' }, jump.map(([id, label]) => el('a', { href: '#' + id }, label))),
     profileView(r), section('experience', 'Experience', r.experience.length ? r.experience.map(roleView) : none('No roles saved.')),
@@ -197,16 +199,16 @@ function render(r) {
 }
 
 async function load() {
-  $('status').textContent = 'Loading your master record…';
+  $('status').textContent = 'Loading what Career keeps for you…';
   $('record').setAttribute('aria-busy', 'true');
   try {
     const response = await fetch('/api/career-hunter/master-record', { cache: 'no-store', credentials: 'same-origin' });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `The master record could not be read (${response.status}).`);
+    if (!response.ok) throw new Error(data.error || `Your data could not be read (${response.status}).`);
     current = data; render(data); $('status').textContent = ''; $('download').disabled = !data.present;
   } catch (error) {
     current = null; $('download').disabled = true; $('status').textContent = '';
-    $('record').replaceChildren(el('div', { class: 'ck-alert', role: 'alert' }, el('h2', {}, 'Could not open your master record'),
+    $('record').replaceChildren(el('div', { class: 'ck-alert', role: 'alert' }, el('h2', {}, 'Could not open your data'),
       el('p', {}, error.message), el('button', { type: 'button', class: 'ck-btn', id: 'retry' }, 'Retry')));
     $('retry').onclick = load;
   } finally { $('record').setAttribute('aria-busy', 'false'); }
@@ -215,7 +217,7 @@ async function load() {
 /** Download builds the file here: the kernel drops a package's download header, so the page names and saves it. */
 function download() {
   if (!current) return;
-  const name = `master-record-${current.asOf.slice(0, 10)}.md`;
+  const name = `career-data-${current.asOf.slice(0, 10)}.md`;
   const url = URL.createObjectURL(new Blob([current.markdown], { type: 'text/markdown;charset=utf-8' }));
   const link = el('a', { href: url, download: name });
   document.body.append(link); link.click(); link.remove();

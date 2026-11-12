@@ -18,6 +18,14 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: the verbs ble-pair-answer (the person's Allow or Reject for a device waiting to pair with OSHAL-KB) and ble-keep (keep a device that was paired before oshal asked); oshal_phone_ble.py no longer answers or trusts a pairing by itself.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: version only, to stay the package's version (the page installs the matching bridge by itself); nothing in the bridge changed.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: version only, to stay the package's version (the page installs the matching bridge by itself); nothing else here changed.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: ships oshal_phone_links.py (a link opened on an Android or Fire TV goes to the named streaming app).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): lan-control on an Android TV reads what is playing and in which app (now_playing) and sends play, pause, next, previous and stop to the app playing, in front or not (oshal_phone_links.py).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (T45 part 2; Roger, 2026-11-10: "plays it on any device in his connected devices"): launch_url with app oshal opens a Marquee page in the oshal TV app (oshal_phone_links.py).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: version only, as the package's version (the honesty test holds them equal); no verb changed.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: version only, as the package's version; no verb changed.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): lan-control play_title plays a show or film by its name on an Android or Fire TV.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): lan-control tv_apps says which streaming apps an Android or Fire TV has (oshal_phone_apps.py), reading its package list and pressing nothing.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1: the version follows the package (its device list tool now says it lists TVs too); no verb changed.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -31,10 +39,11 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.6.1'
+VERSION = '1.12.1'
 MAX_OUT = 19000
 CHUNK = 16000
-FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py')
+FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',
+         'oshal_phone_links.py', 'oshal_phone_play.py', 'oshal_phone_apps.py')
 WRAPPER = 'oshal-phone-bridge'
 ADB_PACKAGES = ['adb', 'android-libbase', 'android-libboringssl', 'android-libcutils', 'android-liblog', 'android-libziparchive']
 EARLIER_PORT_HEX = '0100007F:BADB'

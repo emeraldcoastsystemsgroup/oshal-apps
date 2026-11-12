@@ -5,6 +5,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Advertise cost-consent v1 and validate optional per-request cost-class caps before storage work. Enforce the cap on the actual post-queue provider immediately before generation; omitted caps preserve legacy behavior.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Accept the operator-only antigravity-cli rail (operator decision 2026-10-02, core ADR-130 amendment: the render bot's own harness picks the storyboard image rail). The provider must report itself available for this person before generation (the kernel's CLI rails are available only to the deployment operator in demo mode), and a person the resolver has no provider for gets region_edit_provider_unavailable on the edit and configured:false on the provider report, never another provider and never a 500. codex-cli stays refused by name; project.generate is still checked first.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a picture from a sentence (POST /generated-images, behind project.generate): saved as a layer of a new or named project, finished inside the request, local provider only, a daily ceiling counted from the person's saved images.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: image spend is attributed to create-editor (992feff6-bda5-4d30-a075-22fd6f4aa9ee), the concierge Create declares since its chatBot moved off general-bot. The constant still named the platform general-bot's core registry id a0...0099, which Create neither declares nor imports (scripts/check-store-bots.mjs PENDING). Attribution only: the native image provider reports no cost, so no spend row is written there, and generation, permissions and the cost cap are unchanged.
  */
 import { json, type Router, type Request, type Response, type RequestHandler } from 'express';
 import { createHash } from 'node:crypto';
@@ -23,8 +24,8 @@ import { CreateRegionEditStore, type RegionEditRecord, type RegionEditRequest } 
 import { compositeRegion, regionAnchor, regionCropBox, regionPrompt, type RegionSelection } from './create-region-edit-composite';
 
 const logger = createChildLogger({ module: 'create-region-edit-routes' });
-/** Image spend is attributed to the concierge Create declares (chatBot: general-bot, core registry a0...0099) and to the person. */
-export const REGION_EDIT_COST_AGENT_ID = 'a0000000-0000-0000-0000-000000000099';
+/** Image spend is attributed to the concierge Create declares (chatBot: create-editor, bots[] in oshal-app.yaml) and to the person. */
+export const REGION_EDIT_COST_AGENT_ID = '992feff6-bda5-4d30-a075-22fd6f4aa9ee';
 const bodyParser = json({ limit: 262144, strict: true });
 
 /** The slice of the media-generation provider contract this route uses; the kernel provider satisfies it. */

@@ -7,6 +7,8 @@
  *   application records (/api/career-hunter/applications) and the dispatcher's worker answer (/api/apply-operator/workers),
  *   never the old platform's /api/apply-operator/queue, /story or /shot. Each record status lands in its lane with what it
  *   is waiting on, and the "dispatcher not connected" answer is said plainly.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 6: a job Career only picked (approval_required) is not
+ *   activity, so its record has no row here; it leads Saved in My jobs. The other statuses land where they did.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -53,11 +55,12 @@ test('each record status lands in its lane with what it is waiting on', () => {
     { ticket_id: null, posting_id: 5, title: 'E', status: 'error' },
     { ticket_id: 't6', posting_id: 6, title: 'F', status: 'denied' },
   ], { available: false, workers: [] });
-  assert.deepEqual(q.items.map((i) => i.lane), ['needs_you', 'queued', 'needs_you', 'applied', 'failed', 'dismissed']);
-  assert.deepEqual(JSON.parse(JSON.stringify(q.counts)), { needs_you: 2, queued: 1, applied: 1, failed: 1, dismissed: 1 });
-  assert.equal(q.items[4].ticketId, 'posting-5', 'a record without a ticket still has a stable row id');
-  assert.equal(q.items[3].application_source, 'manual-mark', 'the record provenance reaches the proof renderer');
-  assert.match(q.items[0].executionDetail, /approval/);
+  assert.deepEqual(q.items.map((i) => [i.postingId, i.lane]), [[2, 'queued'], [3, 'needs_you'], [4, 'applied'], [5, 'failed'], [6, 'dismissed']], 'a job Career only picked (1) is not activity');
+  assert.deepEqual(JSON.parse(JSON.stringify(q.counts)), { needs_you: 1, queued: 1, applied: 1, failed: 1, dismissed: 1 });
+  assert.equal(q.items[3].ticketId, 'posting-5', 'a record without a ticket still has a stable row id');
+  assert.equal(q.items[2].application_source, 'manual-mark', 'the record provenance reaches the proof renderer');
+  assert.match(q.items[1].executionDetail, /Draft ready/);
+  assert.doesNotMatch(JSON.stringify(q), /approval/i, 'nothing sends a person to a stage that is gone');
   assert.equal(queueFromNative(undefined, null).items.length, 0);
 });
 

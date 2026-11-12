@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): verify social-composer stays in ui.static below social-workspace with label Compose so business-experience and prepare-post keep resolving it, /api/social/composer redirects to /api/social/workspace?view=compose outside AppView audience mode, Workspace Compose carries Composer's refine chips and free prompt, and neither surface prints '/utilities' or the 'Want a feed here?' callout.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Compose and Workspace are one application. ui.static carries one social-workspace tile and no social-composer tile; prepare-post and business-experience name social-workspace; tools/social-composer.html is gone; the compiled router answers GET /composer with a 302 to /api/social/workspace (view=compose, every query parameter kept); Workspace Compose carries every Composer capability (refine chips, free prompt, AI draft, LinkedIn/X/Facebook publish, prepare-post handoff and direct query prefill, connected-application offers), all gated on the full page.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | 1.7.2: the old Composer address answers a hand-off page, not a 302. The router case reads the address the page carries, and holds the answer to no Location header: a kernel relays a package's status, body and content type only, so the 302 this case used to expect answered HTTP 500 on a kernel. The stood-in platform exports can be constructed: the router builds its bot client as it loads, which the old arrow-function stand-in refused, so this case was failing on main with no gate job running it.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -23,7 +24,10 @@ const TOOLCHAIN = process.env.STORE_CI_TOOLCHAIN || path.join(STORE, 'scripts', 
 function compiledRouter() {
   const express = require(path.join(TOOLCHAIN, 'express'));
   const silent = { error() {}, info() {}, warn() {}, debug() {}, child() { return silent; } };
-  const stand = () => new Proxy({ createChildLogger: () => silent }, { get: (t, k) => (k in t ? t[k] : k === '__esModule' ? true : async () => null) });
+  // A stood-in export answers null when called and builds an empty object when constructed: the router constructs its bot
+  // client as it loads, and an arrow function cannot be constructed (this case was red on main for that, with no job running it).
+  const standIn = function standIn() { return new.target ? this : Promise.resolve(null); };
+  const stand = () => new Proxy({ createChildLogger: () => silent }, { get: (t, k) => (k in t ? t[k] : k === '__esModule' ? true : standIn) });
   const original = Module._load;
   Module._load = function load(request, parent, isMain) {
     if (request === 'express') return express;
@@ -61,12 +65,13 @@ test('the compiled router sends the old Composer address to Workspace Compose an
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   t.after(() => new Promise((r) => server.close(r)));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const at = async (p) => { const r = await fetch(base + p, { redirect: 'manual' }); return [r.status, r.headers.get('location')]; };
-  assert.deepEqual(await at('/api/social/composer'), [302, '/api/social/workspace?view=compose']);
-  assert.deepEqual(await at('/api/social/composer?handoff=h123'), [302, '/api/social/workspace?handoff=h123&view=compose']);
+  // The page writes its address into an attribute, so a query's & reads &amp; there; the browser reads it back as &.
+  const at = async (p) => { const r = await fetch(base + p, { redirect: 'manual' }); const to = (await r.text()).match(/<meta http-equiv="refresh" content="0; url=([^"]+)">/); return [r.status, r.headers.get('location'), to && to[1].replace(/&amp;/g, '&')]; };
+  assert.deepEqual(await at('/api/social/composer'), [200, null, '/api/social/workspace?view=compose']);
+  assert.deepEqual(await at('/api/social/composer?handoff=h123'), [200, null, '/api/social/workspace?handoff=h123&view=compose']);
   assert.deepEqual(await at('/api/social/composer?title=Launch&notes=Hi+there&audience=company'),
-    [302, '/api/social/workspace?title=Launch&notes=Hi+there&audience=company&view=compose']);
-  assert.deepEqual(await at('/api/social/composer?view=saved'), [302, '/api/social/workspace?view=saved'], 'an explicit view is kept');
+    [200, null, '/api/social/workspace?title=Launch&notes=Hi+there&audience=company&view=compose']);
+  assert.deepEqual(await at('/api/social/composer?view=saved'), [200, null, '/api/social/workspace?view=saved'], 'an explicit view is kept');
   const ws = await fetch(base + '/api/social/workspace');
   assert.equal(ws.status, 200);
   assert.match(await ws.text(), /id="pubBtn"/);

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.KALSHI_SCAN_SCHEDULE = exports.ALERT_TOPIC = void 0;
+exports.CALIBRATION_LEAST_MS = exports.CALIBRATION_UNTIL_MS = exports.KALSHI_SCAN_SCHEDULE = exports.ALERT_TOPIC = void 0;
 exports.scanRuntimeStatus = scanRuntimeStatus;
 exports.scanInFlight = scanInFlight;
 exports.manualRunAllowed = manualRunAllowed;
@@ -72,6 +72,7 @@ exports.scheduledTick = scheduledTick;
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Respect the core briefing enqueue decision before finishing or recording Jarvis delivery.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | No timer. The one-minute setInterval (and the boot setTimeout) ran each tick outside any request, so on the native kernel every cycle failed at its first query with "SQL connection requires an active admitted request", which the surface showed as the scan's last error. A tick now runs only inside an admitted request: scheduledTick is the body of POST /scan/tick, which the manifest's `background-scan` schedule fires as the person who activated it, and it reports why it did nothing (inactive, disabled, backing off, not due) instead of returning silently. scanNow refuses before any SQL with the installation's own reason when a scan cannot run here (no Kalshi market-feed reader, no calibration table). Guard: tests/kalshi-scan-schedule.test.js.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | A tick that does not scan grades: the caller hands scheduledTick a grader (kalshi-grade.ts) and a tick that is not due, switched off or backing off runs it and reports what it graded, so the job a person already turned on scores the predictions with no second job to activate. With a cadence under half an hour every firing would scan, so the first firing of each hour grades instead when anything is waiting. Guard: tests/kalshi-grade.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Each tick then takes a calibration turn with the time it has left (CALIBRATION_UNTIL_MS from its start): the route hands scheduledTick a calibrator over lib/kalshi-calibration-store.js, which walks Kalshi's settled-market tape in short turns and rebuilds the table every thirty days (T48). The table the package shipped was built on 2026-07-13 by a command-line study nothing runs any more.
  *
  * @module kalshi-scan-cron
  */
@@ -269,6 +270,10 @@ async function notifyJarvis(ctx, userSub, title, body) {
         return false;
     }
 }
+/** A tick stops starting calibration requests this long after it began (the kernel ends a call at 60 s; a request in flight may take ten more). */
+exports.CALIBRATION_UNTIL_MS = 40_000;
+/** Less time than this left, and the tick does not start a calibration turn. */
+exports.CALIBRATION_LEAST_MS = 3_000;
 /**
  * @description Whether this firing is the hour's first. With a cadence under half an hour every firing scans,
  * so this one grades instead when anything is waiting.
@@ -296,12 +301,46 @@ async function gradeOnTick(grade) {
 /**
  * @description One scheduled tick, inside the caller's admitted request (POST /scan/tick, fired by the
  * `background-scan` schedule): scan when the stored snapshot is older than the configured cadence (or
- * missing). A tick that does not scan grades the predictions whose markets have closed.
+ * missing). A tick that does not scan grades the predictions whose markets have closed. Then, with the time the
+ * tick has left, it takes a turn at rebuilding the calibration table (calibrateOnTick).
  * @param ctx - App context.
  * @param grade - Grades what is past its close; without it a tick only scans.
+ * @param calibrate - One turn of the calibration rebuild; without it a tick never rebuilds.
  * @returns What it did, or why it did nothing.
  */
-async function scheduledTick(ctx, grade) {
+async function scheduledTick(ctx, grade, calibrate) {
+    const startedMs = Date.now();
+    const outcome = await tickWork(ctx, grade);
+    // A tick that could not run at all takes no calibration turn either.
+    if ('reason' in outcome && ['already_running', 'app_inactive', 'unavailable'].includes(outcome.reason))
+        return outcome;
+    const calibration = await calibrateOnTick(calibrate, startedMs);
+    return calibration ? { ...outcome, calibration } : outcome;
+}
+/**
+ * @description A calibration turn with the time the tick has left: none when no calibrator was handed in or less than
+ * CALIBRATION_LEAST_MS remains. A failure is logged and the tick carries on without it.
+ * @param calibrate - The route's calibrator.
+ * @param startedMs - When the tick began.
+ * @returns What the turn did, or undefined when none ran.
+ */
+async function calibrateOnTick(calibrate, startedMs) {
+    const budgetMs = exports.CALIBRATION_UNTIL_MS - (Date.now() - startedMs);
+    if (!calibrate || budgetMs < exports.CALIBRATION_LEAST_MS)
+        return undefined;
+    try {
+        const turn = await calibrate(budgetMs);
+        if (turn.ran)
+            log.info({ ...turn }, turn.done ? 'kalshi tick finished a calibration rebuild' : 'kalshi tick walked the calibration tape');
+        return turn;
+    }
+    catch (err) {
+        log.error({ err }, 'kalshi tick calibration turn failed');
+        return undefined;
+    }
+}
+/** The tick's scan or grading (scheduledTick before its calibration turn). */
+async function tickWork(ctx, grade) {
     if (runtime.running)
         return { ran: false, reason: 'already_running' };
     const unavailable = (0, kalshi_scan_engine_1.scanUnavailableReason)(ctx.appPackageDir);

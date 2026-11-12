@@ -15,6 +15,14 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the Connection Concierge never offers Connect in console (hidden until an RDP session backend exists): an RDP question over HTTP gets Check RDP port only, or Use this computer first with no computer chosen, and a model reply naming connect_rdp is dropped by the route's own sanitizer. Red on 1.5.0, whose planner put Connect in console first. Manifest 1.5.1.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: manifest 1.5.2 (device-concierge routing words).
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: manifest 1.5.3 (the missing isTvNode import on Your devices).
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 3): POST /devices/:id/open-link plans a link opened on a saved Android or Fire TV in its streaming app (lan-control launch_url with app), refuses a non-https or spaced address, an unknown app, a phone and another person's TV; the bridge carries oshal_phone_links.py (1.7.0).
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: the version pin follows the release.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: open-link takes app oshal for a Marquee page and refuses any other address with it; the version pin follows the release.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: the version pin follows the release.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: the version pin follows the release.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): POST /devices/:id/play plans lan-control play_title (a show by its name in Prime Video) from the TV's computer with a minute to finish; a missing or overlong name, another app, control characters folded to spaces and a phone instead of a TV are said in words; the version pin follows the release.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): POST /devices/:id/apps plans lan-control tv_apps (which streaming apps the TV has) from the TV's computer, its command carrying exactly those arguments, for the TV by id or by name, and records the read against the TV; a phone is said in words, an unknown TV and another person's TV are 404; the bridge manifest names oshal_phone_apps.py and the version pin follows the release.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1: the bridge manifest is version 1.12.1.
  */
 'use strict';
 
@@ -168,9 +176,9 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.6.1');
+  assert.equal(manifest.version, '1.12.1');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
-    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
+    'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);
   for (const file of manifest.files) {
     const plain = await call('GET', `/bridge/files/${file.name}`);
@@ -236,6 +244,68 @@ test('command-plan translates move, click, drag, type, key and screen into owner
   assert.equal(execSteps.json.steps.length, 2);
   assert.equal(execSteps.json.steps[0].args.key, 'DOWN');
   assert.equal(execSteps.json.steps[1].args.key, 'OK');
+
+  // 1.7.0 (T45 part 3): a link opens on a saved Android or Fire TV in the named streaming app, from the TV's computer.
+  const link = await call('POST', `/devices/${autoTv.json.device.id}/open-link`, {
+    body: { url: 'https://www.netflix.com/title/80057281', app: 'netflix' }
+  });
+  assert.equal(link.status, 200, JSON.stringify(link.json));
+  assert.equal(link.json.verb, 'lan-control');
+  assert.deepEqual(link.json.args, { kind: 'android-tv', address: '192.168.1.60', action: 'launch_url', url: 'https://www.netflix.com/title/80057281', app: 'netflix' });
+  assert.match(link.json.command, /^python3 -I "\$HOME\/\.local\/share\/oshal-phone-bridge\/oshal_phone_bridge\.py" lan-control --b64 [A-Za-z0-9+/=]+$/);
+  assert.equal(link.json.computerRunRequest.endpoint, `/api/computers/${encodeURIComponent(NODE)}/run`);
+  assert.equal(link.json.computerRunRequest.body.arguments.command, link.json.command);
+  // 1.11.0 (T80): a show plays by its name on the TV (the app's search, the matching result, Resume or Play).
+  const show = await call('POST', `/devices/${autoTv.json.device.id}/play`, { body: { title: 'The Rings of Power' } });
+  assert.equal(show.status, 200, JSON.stringify(show.json));
+  assert.deepEqual(show.json.args, { kind: 'android-tv', address: '192.168.1.60', action: 'play_title', title: 'The Rings of Power', app: 'prime' }, 'Prime Video unless named');
+  assert.match(show.json.command, /^python3 -I "\$HOME\/\.local\/share\/oshal-phone-bridge\/oshal_phone_bridge\.py" lan-control --b64 [A-Za-z0-9+/=]+$/);
+  assert.equal(show.json.computerRunRequest.body.arguments.command, show.json.command);
+  assert.equal(show.json.computerRunRequest.body.limit_ms, 60000, 'a minute: search, page, Resume and the check');
+  const folded = await call('POST', `/devices/${autoTv.json.device.id}/play`, { body: { title: 'Rings\u0007 of\nPower', app: 'PRIME' } });
+  assert.deepEqual([folded.status, folded.json.args.title, folded.json.args.app], [200, 'Rings of Power', 'prime'], 'control characters fold to spaces');
+  for (const [body, code] of [[{ title: 'x' }, 'title_invalid'], [{ title: 'y'.repeat(81) }, 'title_invalid'], [{ title: 'Stranger Things', app: 'netflix' }, 'app_invalid']]) {
+    const refused = await call('POST', `/devices/${autoTv.json.device.id}/play`, { body });
+    assert.deepEqual([refused.status, refused.json.error], [400, code], JSON.stringify(body));
+  }
+  // 1.12.0 (T79): which streaming apps the TV has, read on the TV's computer from its app list; nothing is pressed.
+  const tvApps = await call('POST', `/devices/${autoTv.json.device.id}/apps`);
+  assert.equal(tvApps.status, 200, JSON.stringify(tvApps.json));
+  assert.equal(tvApps.json.verb, 'lan-control');
+  assert.deepEqual(tvApps.json.args, { kind: 'android-tv', address: '192.168.1.60', action: 'tv_apps' });
+  assert.match(tvApps.json.command, /^python3 -I "\$HOME\/\.local\/share\/oshal-phone-bridge\/oshal_phone_bridge\.py" lan-control --b64 [A-Za-z0-9+/=]+$/);
+  assert.deepEqual(JSON.parse(Buffer.from(tvApps.json.command.split(' --b64 ')[1], 'base64').toString('utf8')), tvApps.json.args, 'the command carries exactly the planned arguments');
+  assert.equal(tvApps.json.computerRunRequest.endpoint, `/api/computers/${encodeURIComponent(NODE)}/run`);
+  assert.equal(tvApps.json.computerRunRequest.body.arguments.command, tvApps.json.command);
+  assert.equal((await call('POST', '/devices/living-room-fire-tv/apps')).json.device.id, autoTv.json.device.id, 'the TV by its name');
+  assert.ok((await call('GET', `/devices/${autoTv.json.device.id}`)).json.history.some((event) => event.action === 'tv_apps'), 'the read is recorded against the TV');
+  const phoneApps = await call('POST', `/devices/${ios.id}/apps`);
+  assert.deepEqual([phoneApps.status, phoneApps.json.error], [400, 'not_android_tv'], 'a phone is said in words');
+  assert.match(phoneApps.json.message, /Android or Fire TV/);
+  assert.equal((await call('POST', '/devices/no-such-tv/apps')).status, 404);
+  assert.equal((await call('POST', `/devices/${autoTv.json.device.id}/apps`, { person: 'bob' })).status, 404, 'another person cannot read this TV');
+  // 1.9.0: a Marquee page opens in the TV's oshal app.
+  const marquee = await call('POST', `/devices/${autoTv.json.device.id}/open-link`, { body: { url: 'https://home.test/api/free-library/app#/guide/movie/35/play', app: 'oshal' } });
+  assert.equal(marquee.status, 200, JSON.stringify(marquee.json));
+  assert.deepEqual(marquee.json.args, { kind: 'android-tv', address: '192.168.1.60', action: 'launch_url', url: 'https://home.test/api/free-library/app#/guide/movie/35/play', app: 'oshal' });
+  const plain = await call('POST', '/devices/192.168.1.60/open-link', { body: { url: 'https://example.org/watch' } });
+  assert.equal(plain.status, 200);
+  assert.equal(plain.json.args.app, undefined, 'no app named: the TV chooses');
+  for (const [body, code] of [
+    [{ url: 'http://www.netflix.com/title/1', app: 'netflix' }, 'url_invalid'],
+    [{ url: 'https://www.netflix.com/title/1 ; reboot', app: 'netflix' }, 'url_invalid'],
+    [{ url: 'https://www.netflix.com/title/1', app: 'kodi' }, 'app_invalid'],
+    [{ url: 'https://www.netflix.com/title/1', app: 'oshal' }, 'url_invalid'],
+    [{ url: 'https://home.test/api/free-library/app?x=1', app: 'oshal' }, 'url_invalid'],
+    [{ url: 'https://home.test/api/computers', app: 'oshal' }, 'url_invalid'],
+  ]) {
+    const refused = await call('POST', `/devices/${autoTv.json.device.id}/open-link`, { body });
+    assert.equal(refused.status, 400, JSON.stringify(body));
+    assert.equal(refused.json.error, code);
+  }
+  assert.equal((await call('POST', `/devices/${ios.id}/open-link`, { body: { url: 'https://www.netflix.com/title/1' } })).json.error, 'not_android_tv');
+  assert.equal((await call('POST', '/devices/no-such-tv/open-link', { body: { url: 'https://www.netflix.com/title/1' } })).status, 404);
+  assert.equal((await call('POST', `/devices/${autoTv.json.device.id}/open-link`, { person: 'bob', body: { url: 'https://www.netflix.com/title/1' } })).status, 404, 'another person cannot reach this TV');
 
   const navTurn = await call('POST', '/concierge/turn', {
     body: { mode: 'phone', prompt: 'move down one and select', device: { name: 'Living Room Fire TV', platform: 'android', form: 'tv' } }

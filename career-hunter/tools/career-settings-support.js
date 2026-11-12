@@ -6,6 +6,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Allow durable private imports to settle and show the installation's actual pull timer when the operator may read it.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Prefer safe native corpus observations for every admitted Career reader, keeping current work, prior publication and source coverage distinct.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Drive automation controls from verified installation mode and keep legacy toggles unavailable when capabilities cannot be read.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 3: Pull jobs now is out of the page whenever GET /run/refresh says manualRefreshAvailable is false, for everyone. On the native kernel the installation refreshes the shared job sources and POST /run/pull refuses every caller, so an administrator was shown a button that could only fail (it was greyed until the first press ended, then live again). Where a pull can be started from this page the administrator's button is unchanged. Guard: tests/career-settings-administrator.test.mjs.
  */
 (function () {
   'use strict';
@@ -54,7 +55,8 @@
       installationManaged = data.refreshMode === 'installation-managed';
       if(typeof setCareerOperationMode==='function')setCareerOperationMode(installationManaged);
       byId('targetAdd').disabled = installationManaged;
-      byId('runPull').disabled = data.manualRefreshAvailable === false;
+      // A pull this page cannot start is not offered: its route refuses everyone, an administrator included, where the installation refreshes the shared sources.
+      byId('runPull').disabled = byId('runPull').hidden = data.manualRefreshAvailable === false;
       if (data.refreshMode === 'installation-managed') {
         say('targetOut', 'This installation manages shared-source enrollment. The regional directory below links to available hiring sites.');
         if(data.observationAvailable===true){say('refreshHealth',nativeRefreshText(data));return;}

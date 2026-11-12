@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 2: employerUrl() answers a job's address only when it parses as an http: or https: address, and '' otherwise. A job is read from a source, so its address can be any text; a page that makes a link of it asks here first, so a script or data address is never something a person can press. The entry below was numbered 11 twice when two branches met and is 12 now. Guard: tests/career-apply-by-hand.test.mjs.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9 (say each move out loud): a move that ends with opening another page is said on the page it opens. announce() keeps the one line for this tab for a few seconds and announced() hands it over once, so "Getting ready: Office Manager at Acme." is read on the application page the press opened.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Prepare & submit, Application status, Approvals and Mobile left the menu as Job Board stages, so a link naming one of them opens the Job Board on that stage (Approvals through ?view=approve) instead of asking the shell for a screen it no longer has.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Turning a job on names no spending figure; its cap is set on the Jobs screen.
@@ -9,6 +11,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Explain employer-detail verification, supported size and storage refusals when preparation stops.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Explain when employer details are unavailable before document preparation.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share explicit owner-only save, star, score and document-queue actions between open search and the job board; never submit an application from these preparation actions.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. Two messages name a page as it is now called: other experience (was Additional experience) and Settings (was Career Settings). Words only. Guard: tests/career-page-names.test.mjs.
  */
 (function(root){
   'use strict';
@@ -77,10 +80,31 @@
   function message(reason){
     if(reason==='already_submitted')return 'This job is recorded as submitted. Its submission documents are read-only.';
     if(reason==='preparation_failed')return 'Document generation failed. Use Regenerate to try again.';
-    if(['experience_selection_invalid','experience_selection_changed','experience_unavailable'].includes(reason))return 'Additional experience changed or could not be loaded. Reopen preparation and select its current entries.';
+    if(['experience_selection_invalid','experience_selection_changed','experience_unavailable'].includes(reason))return 'Your other experience changed or could not be loaded. Reopen preparation and select its current entries.';
     if(reason==='model_identity_unavailable')return 'The scoring configuration could not be verified. Retry when the Career service is available.';
     if(reason==='model_identity_mismatch')return 'The scoring model changed during this request. Please retry to use the current configuration.';
-    return ({profile_too_large_for_scoring:'The saved career profile is too large for one scoring request. Preparation stopped without changing your profile.',job_details_unavailable:'Employer details could not be loaded. Open the posting and retry when it is available.',job_context_too_large:'The employer description is too large to prepare in one request. Open the original posting to review it.',job_context_unavailable:'Saved employer details could not be verified. Open the original posting and retry.',job_context_limit_reached:'Saved job detail storage is full. Older details expire automatically; please try again later.',resume_required:'Upload your résumé to prepare this application.',posting_not_found:'This posting is no longer available.',score_unavailable:'Scoring is unavailable. Please retry.',already_submitted:'This application is already submitted.',renderer_unavailable:'The PDF renderer is unavailable. Please check Career Settings.'})[reason]||'Could not prepare the documents. Please retry.';}
+    return ({profile_too_large_for_scoring:'The saved career profile is too large for one scoring request. Preparation stopped without changing your profile.',job_details_unavailable:'Employer details could not be loaded. Open the posting and retry when it is available.',job_context_too_large:'The employer description is too large to prepare in one request. Open the original posting to review it.',job_context_unavailable:'Saved employer details could not be verified. Open the original posting and retry.',job_context_limit_reached:'Saved job detail storage is full. Older details expire automatically; please try again later.',resume_required:'Upload your résumé to prepare this application.',posting_not_found:'This posting is no longer available.',score_unavailable:'Scoring is unavailable. Please retry.',already_submitted:'This application is already submitted.',renderer_unavailable:'The PDF renderer is unavailable. Please check Settings.'})[reason]||'Could not prepare the documents. Please retry.';}
   function openApplication(id,tracked=false,step){const query=new URLSearchParams({view:tracked?'status':'queue',application:String(id)});if(step)query.set('step',step);navigate(tracked?'career-application-status':'career-submissions','/api/career-hunter/board-native?'+query);}
-  root.CareerJobActions={favorite,prepare,save,promote,navigate,openApplication,poll,monitor,message};
+  const ANNOUNCE_KEY='career-move-line',ANNOUNCE_MS=20000;
+  /** Keep one line about a job that just moved for the page this press is about to open. */
+  function announce(text){try{if(text)root.sessionStorage.setItem(ANNOUNCE_KEY,JSON.stringify({text:String(text),at:Date.now()}));}catch(_){/* the move happened; only its line is lost */}}
+  /** Hand over the kept line once, and only while it is still about the press that opened this page. */
+  function announced(){
+    try{
+      const kept=JSON.parse(root.sessionStorage.getItem(ANNOUNCE_KEY)||'null');root.sessionStorage.removeItem(ANNOUNCE_KEY);
+      return kept&&typeof kept.text==='string'&&Date.now()-Number(kept.at)<ANNOUNCE_MS?kept.text:'';
+    }catch(_){return '';}
+  }
+  /**
+   * @description A job's address as a link a person may follow: only an address that parses as http: or https:.
+   * The parser decides, not the look of the first letters, so a scheme hidden behind spaces, tabs or capitals is still refused.
+   * @param {*} value - The address the job carries (job.url), as its source gave it.
+   * @returns {string} The parsed address, or '' when there is none or it is not a web address.
+   */
+  function employerUrl(value){
+    if(typeof value!=='string'||!value.trim())return '';
+    try{const url=new URL(value.trim());return url.protocol==='http:'||url.protocol==='https:'?url.href:'';}
+    catch(_){return '';/* not an address at all */}
+  }
+  root.CareerJobActions={favorite,prepare,save,promote,navigate,openApplication,poll,monitor,message,announce,announced,employerUrl};
 })(typeof window==='undefined'?globalThis:window);

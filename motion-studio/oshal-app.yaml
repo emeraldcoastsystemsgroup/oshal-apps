@@ -16,11 +16,12 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: the workbench retries a request refused only because the project storage lock was busy (503 motion_storage_busy, raised before any write); a manual edit right after a concierge change was lost with "Your project storage is busy. Retry shortly.". Guarded by tests/busy-retry.test.mjs.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Publish an executable whole-text command shape and real approval-card semantics in the actual model-visible tool description.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: "Edit saved motion compositions with selectable layers, video and audio clips, motion blur, native properties, inline captions, keyframes, masks and photos."
-version: 0.4.1
+version: 0.4.2
 runtime: process
 lastingStorage: true
 status: active

@@ -118,6 +118,7 @@
     "identity|routes/package-smoke.js|createPackageSmokeRoutes|/api/identity/_smoke|service|no-sql-write",
     "intelligent-operations|routes/package-smoke.js|createPackageSmokeRoutes|/api/intelligent-operations/_smoke|service|no-sql-write",
     "intelligent-processing|routes/package-smoke.js|createPackageSmokeRoutes|/api/intelligent-processing/_smoke|service|no-sql-write",
+    "intelligent-processing|routes/processing-queue.js|createProcessingQueueRoutes|/api/intelligent-processing/queue|oidc|no-sql-write",
     "jarvis-experience|routes/experience.js|createExperienceRoutes|/api/jarvis-experience|oidc|no-sql-write",
     "jarvis-experience|routes/package-smoke.js|createPackageSmokeRoutes|/api/jarvis-experience/_smoke|service|no-sql-write",
     "job-apply|routes/home-summary.js|createHomeSummaryRoutes|/api/job-apply/home-summary|oidc|no-sql-write",

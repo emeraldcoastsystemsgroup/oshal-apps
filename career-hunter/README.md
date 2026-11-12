@@ -1,5 +1,40 @@
 # Career Hunter — oshal app package
 
+## Page names and roles (1.55.0)
+
+Each page has one name, in a job seeker's words. The manifest's label, the page's title and heading, every link and every
+answer that names a page say the same (`tests/career-page-names.test.mjs`). Ids, tool names, addresses, routes and file
+names are unchanged.
+
+| Page (tool name) | Name | Was |
+|---|---|---|
+| `career-search` | Find jobs | Search Jobs |
+| `career-board` | My jobs | Job Board |
+| `career-resume-studio` | My résumé | Resume Studio |
+| `career-experience-library` | Other experience | Additional experience |
+| `career-strengthen` | Improve my résumé (Improve it in Career's own bar, under Résumé) | Strengthen |
+| `career-profile-studio` | LinkedIn profile | Profile Studio |
+| `career-settings` | Settings | Career Settings |
+| `career-master-record` | Download my data | Master record |
+| `career-insights` | Job market | Insights |
+
+The résumé every application starts from is the **main résumé** (was master résumé); the value routes and tools carry for
+it is still `master`. Sections below that were written for an earlier version keep the names the pages had then.
+
+Two roles, named for people. The role templates' ids, versions and members are unchanged, and so is `authorization.yaml`:
+
+| Role (template id) | Label | Holds |
+|---|---|---|
+| `member` | Job seeker | everything about their own search |
+| `admin` | Job source administrator | the same, and `career.administer`: the Companies page and source health |
+
+Career's bar shows the person's role beside their name. It is read from the person's own profile: the kernel lists the
+Companies page there only for a person it would admit to it, and that page is bound to `career.administer`
+(`tests/career-role-label.test.mjs`). Settings shows the job-source controls (Sources and pull health, Pull jobs now, Jobs
+per score pass, the AI model, the Firecrawl key) only to a person the Companies route admits; everyone else has one button
+under Check for new jobs now (`tests/career-settings-administrator.test.mjs`). That is presentation: no route or binding
+changed.
+
 ## Job search workflow (1.30.0)
 
 Search Jobs exposes keywords, title, description and company above the results.
@@ -922,26 +957,36 @@ Repeated links to the same employer opening are consolidated within loaded
 results after removing tracking parameters; distinct requisition parameters
 remain separate.
 
-### Application flow and Additional experience (1.46.0)
+### Application flow (1.55.0)
 
-1. Search for a job and star it. Starred active openings come first on the Job
-   Board, across pages, including those still awaiting a score. An explicit save
-   remains visible outside the age and matching-area defaults; other selected
-   filters and hidden preferences still apply. Submitted applications remain in
-   Application status.
-2. **Move to submission queue** only moves and stars the job. It does not start
-   generation or submit anything. The queue opens that newly moved job's
-   preparation panel.
-3. Use the core résumé, enter job-specific guidance, and optionally select
-   **Additional experience**. Then choose **Generate résumé & cover letter**.
-4. Review both documents, customize them in the résumé bank if needed, and
-   choose **Review and submit application** to review the exact packet and
-   approve submission.
-5. Follow application/email updates in **Application status**. Interview
-   preparation appears after the application has been recorded.
+One route takes a job from found to applied. Each step names the button a person presses.
 
-Select a job title to read its posting and fit assessment. The old Details
-button and personal + OSHAL button are removed from this flow.
+1. **Find jobs**: search, and press **Save** on a job. It is now in **My jobs**, under Saved. Jobs Career picked for the
+   person lead that list, marked "Career picked this for you"; **Remove** declines one.
+2. **My jobs**: press **Prepare application** on a saved or picked job. That moves the job to Getting ready and opens
+   its application page. It generates nothing and sends nothing.
+3. **1 · Tailor**: the main résumé is the starting point. Write what this employer should understand, optionally tick
+   entries from **Other experience**, then press **Generate résumé & cover letter**.
+4. **2 · Review documents**: read both documents, use **Edit documents** if something should change, then press
+   **Continue to send**.
+5. **3 · Send**: **Open the employer's form** (the posting's own address, in a new tab), **Download résumé and cover
+   letter**, and, once the form is in, **I applied**. Career records the application as the person's own word and says
+   so: "You marked this as applied yourself. Career has no confirmation that it was sent." **Pressed I applied by
+   mistake?** on that page puts the job back in Getting ready.
+   With a computer connected, **Send it for me from my computer** follows those three buttons and opens the exact
+   documents and details to approve (**Approve & submit**). With none connected the page says so, offers no button
+   that needs one, and **How to set up your computer** explains the steps.
+6. **Applications**: the job is under Applied, with one line that says how Career knows. The line leads with Applied
+   for a job the person marked themselves, and with Sent only when their computer reported it or Career holds the
+   confirmation page. Interviewing, Offer and Closed are the other stages there. A reply from the inbox shows on the job's row, and **Prepare for
+   interview** is on its application page. While Career is sending something from the person's computer, or a send
+   did not go through, that job leads Applied (Waiting, Sending, Needs your answer or Did not go through) and one
+   link, **Follow what is being sent**, opens the activity page.
+
+Select a job's title to read its posting and fit assessment. There is no separate To approve stage:
+`/api/career-hunter/approvals` and `?view=approve` still answer, and open My jobs on Career's picks.
+
+### Other experience (1.46.0)
 
 The Additional experience library holds independent products/projects, other
 employment, volunteering and optional skills separately from the core résumé.

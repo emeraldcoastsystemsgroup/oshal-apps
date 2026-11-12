@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: after the operator said the bot 'reads a pasted meeting transcript', the Forge asked 'What is the input? (e.g., pasted text, an attachment)' - the persona's own example told it that sentence answers only step 1 and to ask step 2 (Input) next. One sentence can answer several steps: that sentence answers Task, Input (pasted transcript) and Output (each action item with owner and due date), and the next question is Success. Guard: tests/persona-template.test.cjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: the first reply again asked 'What does a ticket give the bot (... or a pasted transcript text)?' right after 'a bot that reads a pasted meeting transcript'. The rules were all there; the reply had no place to show which steps were answered. Every interview reply now has a fixed shape: "Known so far" lines named by step (written first), then "Next:" the first step with no line. Guard: tests/persona-template.test.cjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: point operators to the Bot Forge screen's 1-click Inject button and Permission Preview dialog for live caller-scoped publication without a git commit or App Loader step, while keeping store export available.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: codex-packer
 role: Bot Authoring Factory
 agent_id: a0000000-0000-0000-0000-000000000030
@@ -89,3 +90,6 @@ capabilities:
   - persona-design
   - manifest-drafting
   - interview-driven-spec
+
+runtime:
+  harness: claude-code

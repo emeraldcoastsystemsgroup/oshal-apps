@@ -16,6 +16,7 @@
  * Run (lane-run, like the Office fixture suites; it refuses rather than skips without its services):
  *   OSHAL_TEST_POSTGRES=postgresql://…@127.0.0.1:35689/postgres OSHAL_PLATFORM_ROOT=<kernel>/platform \
  *   NODE_PATH=scripts/toolchain/node_modules node --test career-hunter/tests/career-resume-office-browser.spec.mjs
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the Save button and the status lines say main résumé.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -99,7 +100,7 @@ const frameOf = (page) => page.frameLocator('#officeFrame');
 async function openStudio(page, origin) {
   await page.goto(origin + '/api/career-hunter/resume-studio');
   await frameOf(page).locator('html[data-office-ready=true]').waitFor({ timeout: 30000 });
-  await page.getByRole('button', { name: 'Save to master résumé' }).waitFor();
+  await page.getByRole('button', { name: 'Save to main résumé' }).waitFor();
 }
 const paragraphText = (page, text) => frameOf(page).locator('.office-word-page [contenteditable=true]', { hasText: text }).first();
 
@@ -115,7 +116,7 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await routeConcierge(page, f.origin);
   await openStudio(page, f.origin);
   assert.equal(await page.locator('.chat').isVisible(), false, "Career's own resume editor panel is gone");
-  assert.match(await page.locator('#status').innerText(), /Matches your master résumé/);
+  assert.match(await page.locator('#status').innerText(), /Matches your main résumé/);
 
   const headline = paragraphText(page, 'PMP');
   await headline.fill('Principal Platform Engineering Leader');
@@ -127,8 +128,8 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await concierge.getByRole('button', { name: 'Approve', exact: true }).click();
   await paragraphText(page, 'Shipped the platform').waitFor({ timeout: 15000 });
 
-  await page.getByRole('button', { name: 'Save to master résumé' }).click();
-  await page.locator('#status', { hasText: 'Saved to your master résumé' }).waitFor({ timeout: 15000 });
+  await page.getByRole('button', { name: 'Save to main résumé' }).click();
+  await page.locator('#status', { hasText: 'Saved to your main résumé' }).waitFor({ timeout: 15000 });
   const saved = JSON.parse(fs.readFileSync(path.join(dir, 'career_db.json'), 'utf8'));
   assert.equal(saved.profile.headline, 'Principal Platform Engineering Leader');
   assert.deepEqual(saved.roles[0].deliverables, ['Shipped the platform', 'Cut deploy time 60%']);
@@ -138,7 +139,7 @@ test('Resume Studio edits the master resume as a Word document with the standard
   await openStudio(page, f.origin);
   await paragraphText(page, 'Principal Platform Engineering Leader').waitFor();
   await paragraphText(page, 'Shipped the platform').waitFor();
-  assert.match(await page.locator('#status').innerText(), /Matches your master résumé/);
+  assert.match(await page.locator('#status').innerText(), /Matches your main résumé/);
   const documentId = await page.locator('#officeFrame').evaluate((frame) => new URL(frame.src).searchParams.get('document'));
 
   // Refusal: another person can neither list nor read this person's resume document.

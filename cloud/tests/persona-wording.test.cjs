@@ -8,6 +8,7 @@
  *   persona must say so and give the steps on that same screen.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0 (UX audit 2026-11-05, cloud-accounts): Cloud opens on its own Cloud Accounts screen, not the global chat list, and that screen is the package's page with one Connect Google Cloud (not connected) or Ask the cloud bot (connected). The model runs as shipped in a VM context; the persona names the button on that screen.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: a refused connect (the kernel's connect_error, announced by the Connections page on oshal-connections) is shown on the Cloud screen as an alert.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1 (T73): the screen also reads the person's projects and billing from Cloud's own /api/cloud/gcp/projects once they are connected; it still reads nothing outside Cloud's own routes, and the persona sends a hidden-billing answer to Reconnect Google Cloud on this screen.
  */
 'use strict';
 const test = require('node:test');
@@ -43,7 +44,8 @@ test('the screen shows one primary: Connect Google Cloud when not connected, Ask
   assert.match(page, /'Connect Google Cloud'/); assert.match(page, /'Ask the cloud bot'/);
   assert.match(page, /type: 'app-ask', app: 'cloud'/);
   const calls = [...page.matchAll(/fetch\('([^']+)'/g)].map(m => m[1]);
-  assert.deepEqual(calls, ['/api/cloud/home-summary'], 'the screen reads only its own summary');
+  assert.deepEqual(calls, ['/api/cloud/home-summary', '/api/cloud/gcp/projects'], 'the screen reads only Cloud\'s own routes: its summary, then the projects once connected');
+  assert.match(page, /if \(v\.state === 'connected'\) card\.append\(projectsSection\(actions\)\)/, 'projects are read only once the person is connected');
   assert.doesNotMatch(page, /<h1/, 'the shell already shows the application name');
   assert.match(page, /new BroadcastChannel\('oshal-connections'\)/, 'a refused connect is said on screen');
   assert.match(page, /m\.type !== 'connect-outcome' \|\| m\.connector !== 'gcp'/);
@@ -54,4 +56,9 @@ test('the persona connects GCP on the same screen and never sends the person els
   assert.match(persona, /presses Connect Google Cloud\s+on that screen/);
   assert.match(persona, /Never\s+send them to another page, a breadcrumb link or a URL/);
   assert.doesNotMatch(persona, /Connections \(\/utilities\)/, 'no address for the person to go to');
+});
+
+test('1.3.1: a hidden-billing answer sends the person to Reconnect Google Cloud on this screen, which lists projects with billing', () => {
+  assert.match(persona, /tell them to press Reconnect Google Cloud on the Cloud Accounts screen/);
+  assert.match(persona, /lists their projects with each one's billing/);
 });

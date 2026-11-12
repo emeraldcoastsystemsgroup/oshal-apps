@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2 (UX audit 2026-11-06, eats-concierge): collapse a saved delivery address into a one-line "Deliver to <address> ▾" button until edited, move the four memory pills and What the concierge remembers out of browse into a Settings dialog, and open Eats Concierge on a phone as an opaque bottom half-sheet from one 48px button.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Jarvis routing words (backlog P4-16i): eats-concierge adds 'sushi place', 'pizza place', 'taco place', 'burger place', 'place to eat' and 'places to eat'. "Find a sushi place near me" tied Marquee on 'find' and now reaches Eats, so "Find a sushi place near me and get me a ride there" reaches Eats and Get a Ride; "Find a place to stay in Denver" stays with nobody. No route, tool or permission changed.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: eats-concierge withdraws 1.5.3's six '... place' routing phrases (review of PR #823): the kernel scores a phrase's words on their own, so 'place' became an Eats keyword and every "Place ... order" request (stocks, Amazon, groceries) scored Eats 4 with 'order', tying Intelligent Trades on "Place a buy order for 5 shares of Tesla" and taking the hand-off of the others. Routing words only; no route, tool or permission changed. Guarded by scripts/jarvis-routing-words.test.mjs.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.5 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -57,7 +58,7 @@ description: >-
   Google Places, your tastes and allergies remembered, and a one-tap hand-off into
   Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
   it to find food.
-version: 1.5.4
+version: 1.5.5
 status: active
 
 source:

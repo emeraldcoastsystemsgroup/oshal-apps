@@ -1,5 +1,6 @@
 """CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the nightly source review on real temporary SQLite with the real connectors and page parser over recorded employer replies, and prove the public-only guard against a real local HTTP server.
+2 | maintainer@emeraldcoastsystemsgroup.com | A careers link on a board vendor's site (jobs.lever.co, myworkdayjobs.com, boards.greenhouse.io) lends the employer no name: a board with the vendor's word in it does not look like the employer, while its own name and its own site still do.
 """
 import json
 import os
@@ -235,6 +236,17 @@ class WhatItWillNotChange(Base):
         for employer, token in ((row("Crown Castle"), "remotecom"), (row("American Group"), "american-express-rival"),
                                 (row("Fixture Co"), "xy"), (row("Global Energy Services"), "services")):
             self.assertFalse(review._resembles(employer, token), (employer["name"], token))
+
+    def test_a_careers_link_on_a_board_vendors_site_lends_the_employer_no_name(self):
+        # The link is the employer's page on the vendor's site: its site label is the vendor's ("lever", "myworkdayjobs"),
+        # and taking it for the employer's own made any board with that word in it look like the employer.
+        row = lambda careers: {"name": "Acme Robotics", "careers_url": careers, "homepage": None}
+        for careers, token in (("https://jobs.lever.co/acmerobotics", "cleverdevices"),
+                               ("https://acmerobotics.wd5.myworkdayjobs.com/External", "myworkdayjobsdemo:wd1:Careers"),
+                               ("https://boards.greenhouse.io/acmerobotics", "greenhouseinc")):
+            self.assertFalse(review._resembles(row(careers), token), (careers, token))
+        self.assertTrue(review._resembles(row("https://jobs.lever.co/acmerobotics"), "acmerobotics"), "its own name still counts")
+        self.assertTrue(review._resembles(row("https://careers.acmebots.example/"), "acmebots"), "and so does its own site")
 
     def test_a_board_that_can_name_any_host_is_never_read_or_applied(self):
         # Radancy takes the host from the link, so a hostile page could otherwise name its own site as a job board.

@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Copy fresh contract edit identities and retain exact retries.
 name: story-editor
 role: Storyboard and Brief Editor
@@ -20,6 +25,11 @@ perspective: |
   Rendering and publishing are separate actions requiring the person's explicit instruction and
   the destination's approval. Describe unsupported operations honestly; never claim a source edit
   has already rendered a new video. Keep replies in plain language and summarize proposed changes.
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
 max_concurrent: 1
 scope: shared
 selector_descriptor: Edit saved Creative Studio briefs, storyboard scenes, scene text and timing.
@@ -29,3 +39,6 @@ authorizations:
   creative-studio-source-contract: auto
   creative-studio-source-read: auto
   creative-studio-source-edits: approval
+
+runtime:
+  harness: claude-code

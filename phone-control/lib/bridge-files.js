@@ -8,6 +8,10 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: ship oshal_phone_mirror.py in the signed bridge manifest alongside oshal_phone_bridge.py and oshal_phone_ble.py.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship oshal_phone_ops.py alongside oshal_phone_mirror.py and raise uncompressed source budget to 140 KiB (gzipped install payload stays ~58 KiB, well under the 128 KiB single-argument shell ceiling).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: ship oshal_phone_lan.py (TVs and streaming sticks on the home network) and raise the uncompressed source budget to 200 KiB. What binds is the one install command, a single shell argument that Linux caps at 128 KiB: with the five sources (~184 KiB) it is ~70 KiB (gzip level 9, then base64), and tests/phone-control-honesty.test.cjs still refuses one over 100 KiB.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: ship oshal_phone_links.py (a link opened on an Android or Fire TV goes to the named streaming app).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (T45 part 4): oshal_phone_links.py gains what is playing and the media keys, and the six sources with the wrapper are 208,098 bytes, over the 200 KiB budget; raise it to 240 KiB. What binds is still the one install command: it is ~81 KB (gzip level 9, then base64), and tests/phone-control-honesty.test.cjs still refuses one over 100 KiB, under Linux's 128 KiB single-argument cap.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): ship oshal_phone_play.py (a show or film played by its name on an Android or Fire TV).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): ship oshal_phone_apps.py (which streaming apps an Android or Fire TV has, read without pressing anything).
  */
 
 'use strict';
@@ -31,9 +35,12 @@ const BRIDGE_FILES = Object.freeze([
   { name: 'oshal_phone_mirror.py', mode: 0o644 },
   { name: 'oshal_phone_ops.py', mode: 0o644 },
   { name: 'oshal_phone_lan.py', mode: 0o644 },
+  { name: 'oshal_phone_links.py', mode: 0o644 },
+  { name: 'oshal_phone_play.py', mode: 0o644 },
+  { name: 'oshal_phone_apps.py', mode: 0o644 },
   { name: 'oshal-phone-bridge', mode: 0o755, text: WRAPPER }
 ]);
-const MAX_SOURCE_BYTES = 200 * 1024;
+const MAX_SOURCE_BYTES = 240 * 1024;
 
 let cached = null;
 

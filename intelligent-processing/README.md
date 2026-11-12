@@ -5,6 +5,14 @@ A queue for self-monitoring alerts that need a root cause. A ticket of type
 revise) on Intelligent Operations' own bots, which this package imports
 (`dependencies.required.bots`), so Intelligent Operations must be installed and active.
 
+The concierge panel and Jarvis talk to `processing-concierge`, this package's own front desk (1.1.0, the
+Create concierge pattern). It answers from the person's own tickets on this queue through its one tool,
+`processing-queue` (`GET /api/intelligent-processing/queue`, a read of the kernel's ticket port): how many
+there are, which are open, waiting on a person, failed or done, the phase each has reached and when it was
+filed. It names no alert (the port carries no title; the queue screen shows them), files and approves
+nothing and never writes an RCA report; the three phases still run `ops-rca-specialist` and
+`ops-incident-reviewer`.
+
 ## On the native kernel
 
 - No alert source opens these tickets here: the platform's Alertmanager intake

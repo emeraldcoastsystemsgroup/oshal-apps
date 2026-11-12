@@ -8,10 +8,11 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Map Little Monsters required Email component explicitly in every version-3 template; existing assignments require reviewed replacement.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Declare Email directly as required so the existing version-3 role member satisfies native import.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.0.6 (concierge audit T15, the store's PENDING list): the Classroom screen's concierge is the required member little-monsters' class-tutor (imported under dependencies.required.bots), the inline concierge Little Monsters offers beside its own screens, which make up most of this experience's surfaces, instead of the platform general-bot, which holds none of this experience's data. class-tutor needs app.open and tutor.execute in Little Monsters, which the student, teacher and admin roles this experience maps all grant. No member, role or authorization change.
 name: classroom-experience
 displayName: Classroom
 description: Classwork, class schedules and personal learning through existing school roles and roster rules.
-version: 1.0.5
+version: 1.0.6
 status: active
 suite: ai-knowledge
 rating:
@@ -40,6 +41,7 @@ dependencies:
       - presentations
       - circuit-lab
       - email-summarizer
+    bots: [{ app: little-monsters, name: class-tutor }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
   optional:
@@ -192,4 +194,4 @@ testing:
   version: 1
   catalog: tests/test-lab.yaml
 connectors: []
-chatBot: general-bot
+chatBot: class-tutor # imported from the required member little-monsters (dependencies.required.bots)

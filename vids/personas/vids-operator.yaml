@@ -7,6 +7,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Daily Trade Recap's concierge said it could not see "Sessions with no recap / 7 days" (and earlier invented 2, then 3, while the tile showed 0) and printed /api/daily-trade-recap/review. The kernel now gives a concierge turn an ON SCREEN NOW block read from the screen's Home summary; the concierge answers counts from it exactly, says so when it is unavailable, and names screens and tiles instead of /api/ paths.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | In a conversation the operator calls vids-generate-clip, vids-brand-graphic and vids-jobs (route-backed, the two generating ones held for approval) instead of stopping at a shaped prompt; a 503 is said as the Vids worker not running.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | A recap asked for in a conversation becomes one anchor clip through vids-generate-clip from the figures already in the conversation (asked after Intelligent Trades gave the day's P/L, it answered that trade_recap_pipeline was unavailable and did nothing); the conversation section names the route-backed tools it now holds.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 
 name: vids-operator
 role: Veo Specialist & Vids Studio Operator
@@ -169,3 +170,6 @@ authorizations:
   bash: "off"
   google_search: "off"
   fetch: "off"
+
+runtime:
+  harness: claude-code

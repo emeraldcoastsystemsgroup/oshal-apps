@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the shared document handoff on the shipped Resume Studio and Profile Studio pages in Chromium with the real shared module: unsaved edits are saved through the compiled routes before an assistant reads (the master resume through the real engine dispatch, runner, launcher and engine on a fixture store; the profile plan through the PostgreSQL ProfilePlanStore compiled in the core checkout, on a disposable database), the context carries the record id and revision, an edit saved through the same routes is shown after refresh, the next manual edit reaches the next handoff, and unsaved edits survive a refresh. Scoped doubles: the kernel leaves in tests/helpers/career-route-harness.mjs, the Firecrawl pool query (no row), and the Career bot turn (executeBotOrInline), which answers the studios' embedded editor and AI draft with fixed JSON and records the prompt it was given.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove a refused Resume Studio save shows the route's own reason in the editor log, so a merge cannot drop it again.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 13: the LinkedIn profile page shows its state in words (Draft, not draft); the wait for a loaded plan follows.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): a refused save's reason says main résumé.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -207,7 +208,7 @@ test('resume: a refused save tells the person the reason the route gave', { time
   await page.evaluate(() => { state.resume.summary = 'x'.repeat(100_000); });
   await page.locator('#save').click();
   await page.waitForFunction(() => document.querySelector('#status').textContent === 'save failed');
-  assert.equal((await page.locator('#log .msg.sys').allTextContents()).at(-1), 'Save failed: master resume payload too large');
+  assert.equal((await page.locator('#log .msg.sys').allTextContents()).at(-1), 'Save failed: main résumé payload too large');
   assert.equal(await masterSummary('erin'), 'Seasoned platform lead.', 'the refused document was not stored');
 });
 

@@ -25,6 +25,8 @@
   8 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: withhold Connect a computer from guest visitors (/api/guest/session + /api/auth/user), contain overscroll, hide redundant framed headers, and align radii/typography to the design standard.
   9 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   10 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 5: the lanes read Needs your answer (was Needs you) and Removed (was Dismissed), the names the Job Board's stages have, and a status the person set themselves says so ("You marked this as applied yourself") instead of naming an operator. Lane ids and statuses are as they were.
+  11 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The lines and the link that named the Job Board say My jobs. Words only. Guard: tests/career-page-names.test.mjs.
+  12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6, 8 and 9. This page is a page of Applications now, reached from there while something is being sent. (a) Its lanes read in the one vocabulary an application has (career-status-line.js): Waiting, Sending, Sent, Needs your answer, Did not go through, Removed (were Queued, Submitting, Completed, Failed); ids and statuses are unchanged. (b) The row "No computer connected" is shown only to a person who has had a computer: one the kernel has seen (observedBrowserNodes), one still bound to Career, or a record of something Career sent or tried to send from one. A person who applies by hand and has never connected a computer no longer opens on a red row. (c) The counters "marked manually", "verified in 24 h" and "verified in 5 days" are gone; the two that remain say what is being sent and what did not go through, and the row is absent when both are zero. (d) A job Career only picked is not activity: those records are left out (they lead Saved in My jobs), which also retires the line that sent a person to approve on the Job Board. (e) Whether Connect a computer is offered is CareerSubmit.canConnect(), the rule the application page uses. Guard: tests/career-submission-activity.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="submissions" data-ds-category="collection" data-ds-first-action="tap"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -110,6 +112,7 @@
   .apply-counters b { color:var(--ds-ink); }
   .career-lanes > button { min-height:44px; }
   .nodebar[hidden] { display:none !important; }
+  .worker[hidden], .apply-counters[hidden] { display:none !important; }
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css"/>
 <script src="/api/artifacts/send-to.js" defer></script>
@@ -162,7 +165,7 @@
     <label>Computer <select id="nodeSel"><option value="">default</option></select></label>
     <span class="nodehint" id="nodeHint"></span>
   </div>
-  <div class="worker" id="worker"><span class="dot"></span><div><b>Checking your computer…</b></div></div>
+  <div class="worker" id="worker" hidden></div>
   <div class="ck-seg career-lanes" id="lanes" role="tablist" aria-label="Submission lanes"></div>
   <div class="apply-counters" id="applyCounters" aria-label="Submission runs"></div>
   <p id="submissionNotice" role="status" hidden></p>
@@ -210,18 +213,17 @@ function applicationProofHtml(record){
   return `<div class="application-proof proof-${esc(proof.tone)}"><b>${esc(proof.label)}</b><span>${esc(proof.detail)}</span></div>`;
 }
 // APPLICATION_PROVENANCE_END
-const LANES=[['queued','Queued'],['submitting','Submitting'],['applied','Completed'],['needs_you','Needs your answer'],['failed','Failed'],['dismissed','Removed']];
+const LANES=[['queued','Waiting'],['submitting','Sending'],['applied','Sent'],['needs_you','Needs your answer'],['failed','Did not go through'],['dismissed','Removed']];
 
 // NATIVE_QUEUE_START
 /** Each application record status, as the lane it belongs in and what it is waiting on. */
 const STATUS_LANES=Object.freeze({
-  approval_required:['needs_you','Waiting for your approval on the Job Board.'],
   drafting:['queued','Drafting the résumé for this posting.'],
   drafted:['needs_you','Draft ready: review it, then submit it.'],
   applied:['applied',''],
   denied:['dismissed','You declined this one.'],
   dismissed:['dismissed','Removed.'],
-  error:['failed','The draft failed; queue it again from the Job Board.'],
+  error:['failed','The draft failed; queue it again from My jobs.'],
 });
 /** The worker banner from the native dispatcher answer (GET /api/apply-operator/workers). */
 function workerFromNative(w){
@@ -230,7 +232,7 @@ function workerFromNative(w){
   const observed=Array.isArray(w&&w.observedBrowserNodes)?w.observedBrowserNodes:[];
   const seen=observed.map(n=>Number(n.lastSeen)).filter(Number.isFinite).sort((a,b)=>b-a)[0];
   const detail=available?'Ready to claim the next submission.'
-    :w&&w.reason==='application_submission_dispatcher_not_connected'?'The desktop submission dispatcher is not connected, so nothing is submitted automatically. Submit from the Job Board yourself, or connect a desktop worker.'
+    :w&&w.reason==='application_submission_dispatcher_not_connected'?'The desktop submission dispatcher is not connected, so nothing is submitted automatically. Submit from My jobs yourself, or connect a desktop worker.'
     :(w&&w.reason?String(w.reason).replace(/_/g,' '):'No desktop worker answered.');
   return {available,connected:workers.length>0,detail,lastSeenAt:seen?new Date(seen).toISOString():null};
 }
@@ -251,7 +253,8 @@ function queueFromNative(applications, workers, submissions=[]){
       metrics:a.metrics,confirmationFile:a.confirmationFile,application_source:a.status==='submitted'?'worker-reported':null};
   });
   const submittedIds=new Set(nativeItems.map(i=>i.postingId));
-  const items=(Array.isArray(applications)?applications:[]).filter(a=>!submittedIds.has(a.posting_id)).map(a=>{
+  // A job Career only picked (approval_required) is not activity: it leads Saved in My jobs until the person prepares or removes it.
+  const items=(Array.isArray(applications)?applications:[]).filter(a=>!submittedIds.has(a.posting_id)&&(a.status||'approval_required')!=='approval_required').map(a=>{
     const [lane,detail]=STATUS_LANES[a.status]||['failed','Unknown state: '+String(a.status||'none')+'.'];
     return {ticketId:a.ticket_id||('posting-'+a.posting_id),postingId:a.posting_id,title:a.title,company:a.company,lane,status:a.status,
       executionState:lane==='queued'?'queued':'settled',executionDetail:detail,updatedAt:a.updated_at,application_source:a.application_source};
@@ -266,13 +269,8 @@ let filter='';            // '' = all lanes
 let openTicket=null;      // the run whose story is expanded
 let stories={};           // ticketId -> beats (kept across polls so an open run doesn't flicker)
 let lastSig='';           // change signature, so a poll that changed nothing doesn't re-render
-let isGuestVisitor=false; // true when /api/guest/session or /api/auth/user identifies a trial guest
-const guestProbe=Promise.all([
-  fetch('/api/guest/session',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null),
-  fetch('/api/auth/user',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null),
-]).then(([g,u])=>{
-  isGuestVisitor=Boolean((g&&(g.guest===true||g.active===true))||(u&&(u.guest===true||/^urn:oshal:guest:|^guest[-:]/i.test(String(u.sub||u.principal_id||'')))));
-}).catch(()=>{});
+let isGuestVisitor=false; // true when CareerSubmit.canConnect() says this is a guest visit
+const guestProbe=CareerSubmit.canConnect().then(ok=>{isGuestVisitor=!ok;}).catch(()=>{});
 const resuming=new Set();
 const applicationProofs=new Map(); // postingId -> redacted summary; no task id or path is retained.
 let applicationProofReadAt=0;
@@ -286,8 +284,14 @@ function rel(ms){
 }
 function ago(iso){ if(!iso) return ''; const d=Date.parse(iso); if(isNaN(d)) return ''; const ms=Date.now()-d, days=Math.floor(ms/86400000); return days>=2?days+' days ago':days===1&&ms>=129600000?'2 days ago':rel(ms)+' ago'; }
 
-function renderWorker(w){
+/**
+ * The computer's row. "No computer connected" is news only to a person who has had one, so the row is drawn when a
+ * computer is ready, bound to Career or was seen before, or when Career has sent or tried to send something from one.
+ */
+function renderWorker(w, attempted){
   const el=$('worker');
+  el.hidden=!(w.available||w.connected||w.lastSeenAt||attempted);
+  if(el.hidden){ el.innerHTML=''; return; }
   const cls = w.available ? 'ok' : (w.connected ? 'warn' : 'off');
   const head = w.available ? 'Computer ready'
              : w.wedged ? 'Your computer stopped taking work'
@@ -341,17 +345,12 @@ function storyHtml(it){
   return `<div class="story">${beats.map(b=>beatHtml(it.ticketId,b)).join('')}</div>`;
 }
 
-/** Job Apply's counters, folded in: computed from these same records (the native submission truth). */
+/** What is under way, in the words the lanes use: being sent, and did not go through. Absent when there is neither. */
 function renderCounters(all){
   const el=$('applyCounters'); if(!el) return;
-  const now=Date.now(), within=(it,h)=>{const t=Date.parse(it.updatedAt);return Number.isFinite(t)&&now-t<=h*3600000;};
-  const verified=all.filter(it=>it.lane==='applied'&&it.confirmationFile);
-  const c={active:all.filter(it=>['queued','submitting'].includes(it.lane)).length,
-    review:all.filter(it=>it.lane==='failed'||it.status==='unknown').length,
-    manual:all.filter(it=>it.application_source==='manual-mark').length,
-    day:verified.filter(it=>within(it,24)).length,five:verified.filter(it=>within(it,120)).length};
-  el.hidden=!all.length;
-  el.innerHTML=`<span><b>${c.active}</b> active</span><span><b>${c.review}</b> failed or unknown</span><span><b>${c.manual}</b> marked manually</span><span><b>${c.day}</b> verified in 24 h</span><span><b>${c.five}</b> verified in 5 days</span>`;
+  const sending=all.filter(it=>['queued','submitting'].includes(it.lane)).length, failed=all.filter(it=>it.lane==='failed').length;
+  el.hidden=!sending&&!failed;
+  el.innerHTML=`<span><b>${sending}</b> being sent</span><span><b>${failed}</b> did not go through</span>`;
 }
 function portalOf(url){ try{ return new URL(url).hostname.replace(/^www\./,''); }catch(_){ return ''; } }
 function rowHtml(it){
@@ -465,7 +464,7 @@ async function poll(){
   if(!q||!q.worker) return;
   await Promise.all([proofLoad, guestProbe]);
 
-  renderWorker(q.worker);
+  renderWorker(q.worker,(q.items||[]).some(it=>it.submissionId));
   renderLanes(q.counts||{});
 
   const items=(q.items||[]).filter(it=>!filter||it.lane===filter);
@@ -488,7 +487,7 @@ async function poll(){
   renderCounters(q.items||[]);
   $('list').innerHTML = items.length ? items.map(rowHtml).join('')
     : filter ? '<div class="empty">Nothing in this lane.</div>'
-    : '<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📨</div><h2>Nothing sent yet</h2><p>Prepare a job on the Job Board, review it, then choose Review and submit.</p><a class="ck-primary" id="openBoard" data-career-tool="career-board" href="/api/career-hunter/board-native">Open Job Board</a></div>';
+    : '<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📨</div><h2>Nothing sent yet</h2><p>When Career sends an application from your computer, each step shows here. The jobs you applied to yourself are in Applications.</p><a class="ck-primary" id="openBoard" data-career-tool="career-board" href="/api/career-hunter/board-native">Open My jobs</a></div>';
   const ob=$('openBoard'); if(ob) ob.onclick=e=>{ if(window.parent===window) return; e.preventDefault(); CareerJobActions.navigate('career-board', ob.href); };
   }finally{pollBusy=false;}
 }

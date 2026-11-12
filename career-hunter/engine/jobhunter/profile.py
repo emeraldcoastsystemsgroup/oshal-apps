@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. One refusal of a résumé save says main résumé (was master resume). Words only.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | A master save never stores the credential line base_document() shows in place of an empty headline as the headline. Live 2026-11-09 02:35 the save before a Chat rail message wrote it into a master whose headline was empty, which no one had edited. Guard: tests/career-resume-office.test.mjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Include recorded active additional work in private fit context without copying it into the core resume.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Allow complete existing large skills and role-bullet lists in master edits and share a model-free snapshot mapping with bounded editor reads.
@@ -1019,7 +1020,7 @@ def replace_resume_fields(doc: dict) -> dict:
     rails: pre-image backup with rotation, bounded audit record, atomic replace, and cache
     invalidation. Returns {ok, changed, changelog} or {ok: False, error}."""
     if not isinstance(doc, dict) or not isinstance(doc.get("resume"), dict):
-        return {"ok": False, "error": "invalid master resume document"}
+        return {"ok": False, "error": "invalid main résumé document"}
     if not config.CAREER_DB.exists():
         return {"ok": False, "error": "no career profile yet — upload a resume first"}
     text = _read_profile_text()

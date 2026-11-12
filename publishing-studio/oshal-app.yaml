@@ -14,13 +14,14 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare real bounded Publishing routes and original held agent contracts.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: automatically save inspector drafts and refresh the concierge document handoff.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the page opens inside the cockpit. Its query rule refused the v= every cockpit frame carries and the audience= an experience adds, so the screen showed {"error":"publishing_personal_scope_only"} instead of the studio. Found by the main menu's every-screen sweep. No contract change.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
   Original-owned bounded English print and animated layouts, starter templates, linked stories,
   styles, masters, subject cutouts, comments, social scheduling and native Typst PDF/PNG/MP4 output.
-version: 0.5.2
+version: 0.5.3
 runtime: process
 lastingStorage: true
 status: active

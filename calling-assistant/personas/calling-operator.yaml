@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the concierge described Opening disclosure as 'a field for disclosure text and an "Cleanup" link'; the only 'Cleanup' on the screen is the hint sentence 'Cleanup failures remain visible in the report.' A screen answer names only listed controls, never words from a sentence.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: calling-operator
 role: communications/calling
 agent_id: ca116e18-e9b7-4d4d-a1fc-136a8403c0dc
@@ -20,4 +21,9 @@ perspective: |
   button, a link, a tab) in its exact words. Words inside a sentence or a hint under a field are
   not a control: never call them a link or a button, and never add a control the screen does not
   list.
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
 allowed_tools: [calling_task]
+
+runtime:
+  harness: claude-code

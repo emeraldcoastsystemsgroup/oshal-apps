@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual board/search entry, responsive job results, filters and retained workflow boundaries over synthetic local HTTP.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the search page's link to the saved list says My jobs.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -103,7 +104,7 @@ test('standalone Board and Open jobs search round trip through their actual rout
   await page.getByRole('link', { name: 'Open jobs search', exact: true }).click();
   await page.waitForURL(`${fixture.origin}/api/career-hunter/search-ui`);
   assert.equal(await page.locator('#q').inputValue(), '');
-  await page.getByRole('link', { name: 'Job Board', exact: true }).click();
+  await page.getByRole('link', { name: 'My jobs', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#q')?.value === 'platform engineering');
   assert.equal(await page.locator('#remote').isChecked(), true);
   clean(value);
@@ -166,7 +167,7 @@ test('no-resume browsing retains search access and hides submission tools', asyn
 test('failed search stays an error while navigation and filters remain available', async t => {
   const value = await open(t, 'search-ui', { denied: true }), { page } = value;
   assert.match(await page.locator('#list').innerText(), /Synthetic access denied/);
-  assert.equal(await page.getByRole('link', { name: 'Job Board', exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole('link', { name: 'My jobs', exact: true }).isVisible(), true);
   assert.equal(await page.locator('#q').isEnabled(), true); clean(value);
 });
 

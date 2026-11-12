@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Career Settings, grade C). The real tools/career-settings.html in Chromium over a synthetic fixture: it opens on one list of sections with Matching first and no cards; a section row opens only that section with a way back; Matching has one "Remote jobs only" toggle that saves on change (POST /settings/remote-only) with no Save button; target titles save on change with a "Saved" caption; a member never sees the administrator source link and an administrator does; the hardcoded school and county directory is gone.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.52.2: the Target titles list is free text, so it keeps a Save titles button beside save-on-change (career-settings-titles.test.mjs holds its behaviour).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 14: the sections read What I'm looking for, Companies I want, Imports, Check for new jobs now, Email updates and Résumé and materials, each with one line in a job seeker's words; every section still opens the controls it held; the example job titles are ordinary ones; and no line a person can open on the page names the vendor's platform or one person's field.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Pull jobs now is the administrator's (career-settings-administrator.test.mjs), so the section a job seeker opens is checked by the one button every person has there. The rows' full lines are still what the page ships; what each person sees of them is held by that file.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -65,7 +66,7 @@ const SECTIONS = [
   ['matching', "What I'm looking for", 'Job titles, where and how far, remote work, nightly matches', '#titleTerms'],
   ['companies', 'Companies I want', 'Career checks these every night', '#targetUrl'],
   ['imports', 'Imports', 'Jobs you saved on LinkedIn', '#linkedinJobsImport'],
-  ['refresh', 'Check for new jobs now', 'Look again, see how the last check went, and how applications are prepared', '#runPull'],
+  ['refresh', 'Check for new jobs now', 'Look again, see how the last check went, and see how applications are prepared', '#runScore'],
   ['keys', 'Email updates', 'Replies about your applications, and the AI and web search Career uses', '#mailEnable'],
   ['materials', 'Résumé and materials', 'Your résumé, work samples and other materials', 'a[data-career-tool="career-resume-studio"]'],
 ];

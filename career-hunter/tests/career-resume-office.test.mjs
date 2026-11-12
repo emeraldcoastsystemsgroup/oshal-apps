@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the master resume as a Word document (tools/career-resume-office.js): the document Career makes passes AI Office's own model validation, an untouched document maps back to exactly the master, and an edited document saved through the REAL `resume base-save` engine path keeps the career profile valid (roles, titles, unsent fields intact). A changed role heading, a removed role and an extra section are said, never silently saved.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Saving the document never changes the master by itself (live 2026-11-09 02:35, a Send in the Chat rail): with an empty headline the document shows the credential line in its place, and the save stored that line as the headline; a skill holding two semicolons came back as three skills in a new "Additional Skills" group. Over a profile with both, the untouched document says "Matches your master resume" on open and on Save, Save sends nothing, and even a forced save through the real `resume base-save` changes no byte, backup or history; a real bullet edit saves only that bullet. A skill containing the " · " separator survives an untouched round trip.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the document's status lines say main résumé.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -178,8 +179,8 @@ test('an empty headline and a skill with semicolons: the untouched document matc
   assert.ok(office.sameResume(mapped.resume, master.resume));
   const saves = [];
   await withHost(master, saves, async (host, statuses) => {
-    assert.deepEqual(statuses, ['Matches your master résumé'], 'opening the untouched document says it matches');
-    assert.equal((await host.saveToMaster()).changed, false, 'Save to master résumé says Matches your master résumé');
+    assert.deepEqual(statuses, ['Matches your main résumé'], 'opening the untouched document says it matches');
+    assert.equal((await host.saveToMaster()).changed, false, 'Save to main résumé says Matches your main résumé');
   });
   assert.deepEqual(saves, [], 'nothing is sent to the master save');
   const forced = engine('base-save', s, { CH_RESUME_DOC: JSON.stringify({ resume: mapped.resume }) });

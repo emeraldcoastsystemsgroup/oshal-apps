@@ -18,6 +18,8 @@
   sort / page.
 
   CHANGE LOG
+  54 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the saved-search panel says the searches are kept on your account, on every device you sign in on (it still said "in this browser" after 1.56.0 moved them to the account); signed out, it says to sign in to keep searches on your account.
+  53 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6 (Roger: Career search remembers criteria on the account, across devices). The last search and the named searches were kept only in this browser, so another browser or a phone started empty. The page now reads the account's copy before its first search (GET /api/career-hunter/search-memory) and changes it one operation at a time (POST): a search that worked, Save, Delete. This browser's searches from before 1.56.0 go to an account that holds none. When the account cannot be reached the page keeps working in this browser, as before.
   52 | maintainer@emeraldcoastsystemsgroup.com | On a phone the search row had two filled buttons, Search and Filters, because the theme fills every button in that row. Filters is outlined, so the one filled button is Search.
   51 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 5, 7 and 10. Under Career's own frame the strip "Job Board / All openings / Recommended for you" is hidden (the bar and the row under it already go there) and saved searches open from a button that says Saved searches; without the frame, or when the frame's bar came up with no Job Board link in it, the strip is as it was. A computer has one search box: Job title contains, Job description contains and Company moved into Filters, under Advanced. On a phone the first job starts within 320px of the frame: Results per page and Sort moved into the Filters sheet; every job title is a 44px target; the job type reads in words (Full time for fte) beside one 44px link, About this pay estimate, that says which wage survey and month, in a row of their own. Save and Saved replace the star, "Save to Job Board" and "On your Job Board"; the line under the frame no longer says shortlist. Guard: tests/career-search-words.test.mjs.
   49 | maintainer@emeraldcoastsystemsgroup.com | Add a collapsible filter rail with a Filters toggle button so the column can be minimised to a narrow strip on wide screens.
@@ -44,10 +46,11 @@
   7 | maintainer@emeraldcoastsystemsgroup.com | Keep the desktop filter rail independently scrollable and explain when the current filters have no further pages.
   8 | maintainer@emeraldcoastsystemsgroup.com | Offer remembered 25/50/100/200-result pages and reset paging when the size changes.
   10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): on a phone the first job card sat about 1,700px down under always-open fields, and "Search jobs" was written four times above the work. The eyebrow, title and field heading are gone (the shell names the screen) and the button reads Search; on a phone there is one search field and a Filters button whose full sheet holds the rail (near a city, radius, pay, arrangement, posted) and the Advanced title, description and company fields, with Done and Clear all, so results start under the search row. Job Board · All openings · Recommended is one 44px segmented control. Phones open on the list with a Map toggle; desktop puts the list (480px) beside the map. The pay and state method notes are (i) help tips. Clear all, the Any/Remote/On-site pills and the unlisted-pay checkbox are 44px targets. Guard: tests/career-search-layout.test.mjs.
+  52 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled Find jobs (was Search Jobs), and its links and lines say My jobs where they said Job Board. Guard: tests/career-page-names.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="search-ui" data-ds-category="collection" data-ds-first-action="type"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Search Jobs</title>
+<title>Find jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <script>
@@ -256,7 +259,7 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
   <header class="career-intro">
     <div><p class="sub">No résumé needed to search. Save a job to see how well it fits you.</p></div>
     <nav class="career-view-nav" aria-label="Job search views">
-      <a href="/api/career-hunter/board-native" data-career-tool="career-board">Job Board</a>
+      <a href="/api/career-hunter/board-native" data-career-tool="career-board">My jobs</a>
       <span aria-current="page">All openings</span><a href="/api/career-hunter/search-ui?view=matches" data-career-tool="career-search">Recommended for you</a>
       <button type="button" class="saved-search-toggle" popovertarget="savedSearchPopup" aria-label="Saved searches" title="Saved searches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></button>
     </nav>
@@ -282,7 +285,7 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
       <button type="button" class="btn" id="loadSearch" disabled>Open</button>
       <button type="button" class="btn" id="deleteSearch" disabled>Remove</button>
     </div>
-    <p class="location-note" id="savedSearchStatus" role="status">Named searches and your last successful search are remembered for your account in this browser.</p>
+    <p class="location-note" id="savedSearchStatus" role="status">Named searches and your last successful search are kept on your account, on every device you sign in on.</p>
   </section>
 
   <div class="cols">
@@ -448,13 +451,23 @@ const PAGE_SIZES = [25, 50, 100, 200];
 function pageSize(value){ const n=Number(value); return Number.isInteger(n)&&n>=1&&n<=200?n:50; }
 let page = 1;
 let requestController = null, mapLoading = false, mapFailed = false, mapData = null;
-let searchEpoch = 0, viewMode = 'list', memory = null, lastSuccessful = null;
+let searchEpoch = 0, viewMode = 'list', memory = null, accountMemory = null, lastSuccessful = null;
 const savingJobs = new Set();
 const browser = typeof window !== 'undefined';
 function note(id, text){ const node = $(id); if (node) node.textContent = text; }
 function persistLast(value){
   if (!memory) return;
   try { memory.remember(value); } catch (error) { note('savedSearchStatus', error.message); }
+  // The account keeps it too, so the next device opens on this search.
+  accountMemory?.send('remember', { criteria: value }).catch(error => note('savedSearchStatus', error.message));
+}
+/** Ask the account for its copy of the searches (GET) or change it by one operation (POST). */
+async function accountRequest(method, body){
+  const response = await fetch('/api/career-hunter/search-memory', body
+    ? { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { method });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || 'Your account could not keep this search. It is kept in this browser.');
+  return data;
 }
 function searchStatus(text){
   const node = $('searchStatus');
@@ -601,7 +614,7 @@ function aboutRow(j){
   return bits ? '<div class="job-about">' + bits + '</div>' : '';
 }
 function saveButton(j){
-  if (j.favorite) return '<a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native" title="Open your Job Board">Saved</a>';
+  if (j.favorite) return '<a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native" title="Open My jobs">Saved</a>';
   if (savingJobs.has(j.id)) return '<button class="btn primary" data-save-job="'+esc(j.id)+'" disabled aria-busy="true">Saving…</button>';
   return '<button class="btn primary" data-save-job="'+esc(j.id)+'">Save</button>';
 }
@@ -660,12 +673,12 @@ async function addToBoard(id,button){
     button.textContent='Saved';
     button.removeAttribute('aria-busy');
     const area=button.parentElement;
-    const link=document.createElement('a');link.dataset.careerTool='career-board';link.className='btn';link.href='/api/career-hunter/board-native?status=saved&days=';link.textContent='Open Job Board';area.appendChild(link);
+    const link=document.createElement('a');link.dataset.careerTool='career-board';link.className='btn';link.href='/api/career-hunter/board-native?status=saved&days=';link.textContent='Open My jobs';area.appendChild(link);
     const status=document.createElement('span');status.className='location-note';area.appendChild(status);
     if(result.error){status.textContent='Saved. Scoring could not start: '+result.error;return;}
     status.textContent='Scoring against your résumé…';
     window.CareerJobActions.poll(id,result.requestId,job=>{
-      status.textContent=!job?'Saved. Check your board for scoring progress.':job.board.phase==='failed'?'Saved. Scoring needs attention: '+window.CareerJobActions.message(job.board.error):'Fit: '+job.ai_fit_score+' · Choose Prepare application on your Job Board when you want documents.';
+      status.textContent=!job?'Saved. Check your board for scoring progress.':job.board.phase==='failed'?'Saved. Scoring needs attention: '+window.CareerJobActions.message(job.board.error):'Fit: '+job.ai_fit_score+' · Choose Prepare application in My jobs when you want documents.';
     });
   }catch(error){button.disabled=false;button.removeAttribute('aria-busy');button.textContent='Try saving again';searchStatus(error.message);}
   finally{savingJobs.delete(id);}
@@ -827,7 +840,14 @@ if (browser) {
   $('saveSearch').onclick = () => {
     if (!memory) return;
     if (!lastSuccessful || JSON.stringify(lastSuccessful) !== JSON.stringify(criteria())) return note('savedSearchStatus', 'Wait for a successful search before saving these criteria.');
-    try { memory.save($('savedSearchName').value, criteria()); renderSaved(); note('savedSearchStatus', 'Search saved for your account in this browser.'); }
+    const name = $('savedSearchName').value, value = criteria();
+    if (accountMemory) {
+      accountMemory.send('save', { name, criteria: value })
+        .then(() => { renderSaved(); note('savedSearchStatus', 'Search saved to your account. It is there on every device you sign in on.'); })
+        .catch(error => note('savedSearchStatus', error.message));
+      return;
+    }
+    try { memory.save(name, value); renderSaved(); note('savedSearchStatus', 'Search saved for your account in this browser.'); }
     catch (error) { note('savedSearchStatus', error.message); }
   };
   $('savedSearchList').onchange = renderSaved;
@@ -837,7 +857,13 @@ if (browser) {
   };
   $('deleteSearch').onclick = () => {
     if (!memory) return;
-    try { memory.remove($('savedSearchList').value); renderSaved(); note('savedSearchStatus', 'Saved search removed.'); }
+    const id = $('savedSearchList').value;
+    if (accountMemory) {
+      accountMemory.send('remove', { id }).then(() => { renderSaved(); note('savedSearchStatus', 'Saved search removed.'); })
+        .catch(error => note('savedSearchStatus', error.message));
+      return;
+    }
+    try { memory.remove(id); renderSaved(); note('savedSearchStatus', 'Saved search removed.'); }
     catch (error) { note('savedSearchStatus', error.message); }
   };
 }
@@ -849,8 +875,14 @@ async function startSearch(){
       if (account?.ok && identity.authenticated && identity.tenant && identity.principal_id) {
         memory = window.CareerSearchMemory.create(localStorage, identity.tenant + ':' + identity.principal_id);
         ['savedSearchName', 'savedSearchList', 'saveSearch'].forEach(id => { $(id).disabled = false; });
+        // The account's copy first, so a new device opens on the last search made anywhere (a slow answer is not waited for).
+        if (window.CareerSearchMemory.account) {
+          accountMemory = window.CareerSearchMemory.account(memory, accountRequest);
+          try { await Promise.race([accountMemory.pull(), new Promise((_, reject) => setTimeout(() => reject(new Error('slow')), 4000))]); }
+          catch (_) { accountMemory = null; note('savedSearchStatus', 'Your account\'s searches could not be read just now. This browser\'s are shown.'); }
+        }
         renderSaved();
-      } else note('savedSearchStatus', 'Sign in to remember searches for your account in this browser.');
+      } else note('savedSearchStatus', 'Sign in to keep searches on your account.');
     } catch (_) { note('savedSearchStatus', 'Remembered searches are unavailable in this browser. Search links still work.'); }
   }
   // Restore the person's collapsed or open filter column before the first search.

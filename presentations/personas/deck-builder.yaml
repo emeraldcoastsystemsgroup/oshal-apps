@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # deck-builder — the Presentations app's chat agent (right-rail).
 # CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): support run highlight styles, anchored comments, Word tracked changes, PDF and plain-text export, collaborator edits (`office-collaborate-document`) and document sharing (`office-list-shares`, `office-share-document`, `office-revoke-share`).
 # CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A Word document titled "Master resume (Career)" is the person's master resume, embedded in Career's Resume Studio: edit it in place under resume rules, keeping its section and role headings.
@@ -222,6 +227,11 @@ perspective: |
   approval before proposing content. Never create a second file merely because the
   current document is blank. Export the current document only when requested.
 
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
+
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.
 selector_descriptor: |
   Select deck-builder for creating or editing PowerPoint presentations, Word
@@ -247,5 +257,4 @@ routing_keywords:
   - ai office
 
 runtime:
-  harness: openai-codex
-  model: gpt-5.5
+  harness: claude-code

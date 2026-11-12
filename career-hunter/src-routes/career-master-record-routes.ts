@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | The master record (1.51.0): GET /master-record-ui serves the Master record page; GET /master-record answers the caller's whole record for that page, and GET /master-record?page=N one page of at most 12 KB for the concierge tool career_master_record. Both read only the caller's own store, found without creating one: no write, no engine run, no model, so the route spends nothing and changes nothing.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The two refusals speak of the person's data, as the page Download my data does (was the master record). Words only.
  */
 
 /**
@@ -48,7 +49,7 @@ export function serveMasterRecord(req: Request, res: Response): void {
     const whole = masterRecord.readMasterRecord(findUserPaths(userSub));
     const answer = page === null ? whole : masterRecord.pageOf(whole, page);
     if (!answer) {
-      res.status(404).json({ error: `The master record has no page ${page}.`, pages: masterRecord.pageOf(whole, 1)?.pages ?? 1 });
+      res.status(404).json({ error: `Your data has no page ${page}.`, pages: masterRecord.pageOf(whole, 1)?.pages ?? 1 });
       return;
     }
     res.setHeader('Cache-Control', 'private, no-store');
@@ -57,7 +58,7 @@ export function serveMasterRecord(req: Request, res: Response): void {
   } catch (err) {
     const status = (err as { status?: number }).status === 503 ? 503 : 500;
     logger.error({ err, userSub, page, ms: Date.now() - started }, 'master record read failed');
-    res.status(status).json({ error: status === 503 ? (err as Error).message : 'The master record could not be read.' });
+    res.status(status).json({ error: status === 503 ? (err as Error).message : 'Your data could not be read.' });
   }
 }
 

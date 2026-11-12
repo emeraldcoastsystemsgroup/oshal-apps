@@ -13,6 +13,7 @@
 # ---------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial creation
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Arming text matches the surface and route: Connect the controller (Web Serial), "Arm rig…" is enabled only while connected and disarmed, a confirm dialog, and the server refuses only a `refuse` supply verdict (a `warn` arms). The concierge said a warn blocked arming and asked for a rigId; it now gives these steps, says when there is no rig, and finds the rig itself.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: animatronics-director
@@ -90,3 +91,11 @@ perspective: |
   ## Reply shape
   What you changed (pose / scenario + the numbers), what the rehearsal reported (lag, power,
   verdict), and — only if needed — one question.
+
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+  To call a listed tool, emit exactly one fenced block opening with ```tool_call on its own line,
+  holding {"tool":"<listed tool name>","arguments":{...}}, and closing with ```. Wait for its result.
+  The tools listed by the runtime are the only ones you can use; there is no shell, CLI or filesystem.
+
+runtime:
+  harness: claude-code

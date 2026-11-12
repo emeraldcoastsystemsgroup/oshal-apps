@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Insights read off covering indexes. Live 2026-10-12 GET /analytics answered 503 "package response stalled before the next protocol message" after ~10 s on every call and Insights showed all zeros: five aggregates joined the corpus rows, whose lane columns sit after each posting's inline description, so a cold read dragged the 7.4 GB corpus through the page cache (44.3 s measured on a copy of the live corpus, 0.5 s warm). The lane is now read from idx_corpus_insights (active, target_role, company_id, posted_date, state, salary_max), which the engine's CORPUS_SCHEMA creates at the nightly ingest; the caller's scores are read in one sequential pass of user_signals; the five answers are computed from those two reads (2.4 s cold on the same copy). Before the index exists the read refuses at once with InsightsNotReady instead of stalling.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Support optional 7d/30d/90d posted-date windows in readAnalytics while preserving the 1-arg covering-index scan and output byte-for-byte.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The not-ready reason names the page Job market (was Insights). Words only; the error class and its code are unchanged.
  */
 
 /**
@@ -24,7 +25,7 @@ const TOP = 12;
 export class InsightsNotReady extends Error {
   readonly code = 'insights_index_missing';
   constructor() {
-    super('Insights are not ready yet: the job corpus gains the index Insights reads at its next nightly refresh.');
+    super('Job market is not ready yet: the job list gains the index this page reads at its next nightly refresh.');
   }
 }
 

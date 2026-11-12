@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.2 (concierge audit T15, the store's PENDING list): the launcher's concierge is jarvis's oshal-assistant, the platform assistant that routes a request to the application that owns it and hands off to that application's own concierge (Identity Hub, Storage and Cloud each have one), instead of the platform general-bot, which holds none of their data. borrowed by name exactly as the general-bot reference it replaces: the shell resolves a chatBot the package does not declare the way /api/swarm/bots/{selector}/ask does (kernel ui_applications.rs borrowed_concierge), so no dependency is added. A Jarvis request that names this application now stays with the assistant (kernel jarvis_routing.rs owner_of keeps a request whose application's concierge is the assistant) instead of going to general-bot. No route, member or dependency change.
+
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — system ("System")
 # Pure launcher (operator decision 2026-07-31, same shape as games/oshal-app.yaml):
@@ -18,12 +24,13 @@ displayName: System
 description: >-
   One desk for account infrastructure: Identity Hub, Storage, and Cloud accounts —
   each already its own app, gathered here so you don't have to hunt the full catalog.
-version: 1.0.1
+version: 1.0.2
 status: active
 scope: public
 theme: gray
-# Every account application is optional, so the framework concierge remains the stable rail.
-chatBot: general-bot
+# Every account application is optional, so the platform assistant (shipped with the kernel) is the stable rail: it hands a
+# request to the member application that owns it.
+chatBot: oshal-assistant
 
 source:
   type: git-subdir

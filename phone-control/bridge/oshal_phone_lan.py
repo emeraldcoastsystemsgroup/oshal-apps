@@ -4,11 +4,19 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: TVs and streaming sticks on the home network, found and pressed from the person's own computer (the server never scans a network). lan-discover reads the neighbor table of this computer's real network interfaces (private IPv4 only; docker, bridge, veth, VPN and tunnel interfaces skipped), asks SSDP for one second and avahi for Cast, Android TV remote and wireless-debugging services, sends Wake-on-LAN only to the MACs the caller names (TVs the person saved), probes the found addresses on the TV ports in parallel and fingerprints them read-only (Samsung Tizen /api/v2/, Roku /query/device-info, Google Cast eureka_info, adb state from the bridge's own adb and the installed oshal TV app version); it never connects adb to a new TV and never installs anything. lan-control sends one closed action to one TV at a private IPv4 address: Samsung Tizen over its TLS WebSocket remote channel (pairing token kept 0600 on this computer, never sent anywhere else; the first use answers "press Allow on the TV"), Roku over ECP keypresses, Android TV over the bridge's adb helpers (keyevents, a VIEW intent for an https page, the oshal TV app).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 3): launch_url on an Android TV takes an optional app (netflix, prime, disney, max, hulu, youtube) and opens the link in it through oshal_phone_links.py, waking the TV first.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (T45 part 4): on an Android TV, now_playing, play, pause, next, previous and stop go to oshal_phone_links.py (what is playing in which app, and the media keys that reach it in the background); other kinds refuse them in words.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | OK on an Android or Fire TV sends KEYCODE_ENTER (66): on a Fire TV the centre key (23) left a focused button unpressed in the oshal app (measured 2026-11-12).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): play_title on an Android or Fire TV plays a show or film by its name (oshal_phone_play.py).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): tv_apps on an Android or Fire TV says which streaming apps it has (oshal_phone_apps.py), from one read of its package list, pressing nothing; other kinds refuse it in words.
 """TVs and streaming sticks on this computer's home network: lan-discover and lan-control for oshal_phone_bridge.py."""
 
 from concurrent.futures import ThreadPoolExecutor
 import base64, hashlib, http.client, json, os, re, shutil, socket, ssl, struct, subprocess, time
 from xml.etree import ElementTree
+import oshal_phone_apps
+import oshal_phone_links
+import oshal_phone_play
 
 ADB_PORT = 5555
 SAMSUNG_REST_PORT = 8001
@@ -25,9 +33,9 @@ SSDP_SEARCH = (b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp
 AVAHI_TYPES = ('_googlecast._tcp', '_adb-tls-connect._tcp', '_androidtvremote2._tcp')
 KINDS = ('android-tv', 'samsung-tizen', 'roku')
 ACTIONS = ('wake', 'off', 'volume_up', 'volume_down', 'mute', 'up', 'down', 'left', 'right', 'select', 'home',
-           'back', 'play_pause', 'launch_url', 'open_app', 'pair')
+           'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'play_title', 'tv_apps') + oshal_phone_links.MEDIA_ACTIONS
 ANDROID_KEYCODES = {'wake': 224, 'off': 223, 'volume_up': 24, 'volume_down': 25, 'mute': 164, 'up': 19, 'down': 20,
-                    'left': 21, 'right': 22, 'select': 23, 'home': 3, 'back': 4, 'play_pause': 85}
+                    'left': 21, 'right': 22, 'select': 66, 'home': 3, 'back': 4, 'play_pause': 85}
 SAMSUNG_KEYS = {'off': 'KEY_POWER', 'volume_up': 'KEY_VOLUP', 'volume_down': 'KEY_VOLDOWN', 'mute': 'KEY_MUTE',
                 'up': 'KEY_UP', 'down': 'KEY_DOWN', 'left': 'KEY_LEFT', 'right': 'KEY_RIGHT', 'select': 'KEY_ENTER',
                 'home': 'KEY_HOME', 'back': 'KEY_RETURN', 'play_pause': 'KEY_PLAY'}
@@ -121,6 +129,13 @@ def need_action(ctx, kind, value):
                           'Use its arrows, OK, Home, Back and the volume buttons.')
     if kind == 'roku' and action == 'pair':
         raise ctx.Refusal('not_needed', 'A Roku needs no pairing: its buttons work right away.')
+    if kind != 'android-tv' and action in oshal_phone_links.MEDIA_ACTIONS:
+        raise ctx.Refusal('android_only', 'What is playing, and play, pause, next and previous for the app playing it, '
+                          'work on Android and Fire TVs. On this TV use Play/Pause.')
+    if kind != 'android-tv' and action == 'play_title':
+        raise ctx.Refusal('android_only', 'A show plays by its name on an Android or Fire TV.')
+    if kind != 'android-tv' and action == 'tv_apps':
+        raise ctx.Refusal('android_only', 'Which streaming apps a TV has is read on an Android or Fire TV.')
     if kind != 'android-tv' and action == 'open_app':
         raise ctx.Refusal('not_android', 'The oshal TV app runs on Android TVs. On this TV use Open oshal, which '
                           'opens the page in its browser.' if kind == 'samsung-tizen' else
@@ -997,11 +1012,6 @@ def android_control(ctx, address, action, mac, url):
         return {'paired': True, 'serial': serial}
     if action == 'open_app':
         return dict(android_open_app(ctx, serial), serial=serial)
-    if action == 'launch_url':
-        out = android_shell(ctx, serial, 'am start -a android.intent.action.VIEW -d ' + ctx.device_quote(url))
-        if 'Error' in out:
-            raise ctx.Refusal('no_browser', 'This TV has no app that opens web pages. Use Open the oshal app instead.')
-        return {'serial': serial, 'opened': 'browser', 'url': url}
     android_shell(ctx, serial, f'input keyevent {ANDROID_KEYCODES[action]}')
     result = {'serial': serial, 'key': ANDROID_KEYCODES[action], 'woke': woke}
     if action in ('wake', 'off'):
@@ -1020,6 +1030,21 @@ def verb_lan_control(ctx, args):
     mac = need_mac(ctx, args.get('mac')) if args.get('mac') not in (None, '') else ''
     url = need_url(ctx, args.get('url')) if action == 'launch_url' else ''
     started = time.monotonic()
-    result = CONTROLLERS[kind](ctx, address, action, mac, url)
+    if kind == 'android-tv' and action == 'launch_url':
+        serial = android_connect(ctx, address)
+        opened = oshal_phone_links.open_link(ctx, url, args.get('app'), lambda command: ctx.adb_shell(serial, command, 20)[1])
+        result = dict(opened, serial=serial)
+    elif kind == 'android-tv' and action == 'play_title':
+        serial = android_connect(ctx, address)
+        played = oshal_phone_play.play_title(ctx, args.get('app'), args.get('title'), lambda command: android_shell(ctx, serial, command, 25))
+        result = dict(played, serial=serial)
+    elif kind == 'android-tv' and action == 'tv_apps':
+        serial = android_connect(ctx, address)
+        result = dict(oshal_phone_apps.tv_apps(ctx, lambda command: android_shell(ctx, serial, command)), serial=serial)
+    elif kind == 'android-tv' and action in oshal_phone_links.MEDIA_ACTIONS:
+        serial = android_connect(ctx, address)
+        result = dict(oshal_phone_links.media(ctx, action, lambda command: android_shell(ctx, serial, command)), serial=serial)
+    else:
+        result = CONTROLLERS[kind](ctx, address, action, mac, url)
     return dict({'kind': kind, 'address': address, 'action': action, 'sent': True,
                  'tookMs': int((time.monotonic() - started) * 1000)}, **result)

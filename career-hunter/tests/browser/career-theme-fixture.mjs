@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve actual Career screens and shared theme assets over isolated HTTP with synthetic read-only data.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Allow bounded synthetic job responses and record existing parent navigation messages for board/search behavior proofs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 6: the approvals address is a forward to the Job Board, not a screen with a palette of its own, so it leaves the list of screens the theme proofs open.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,7 @@ export const screens = {
   mobile: 'career-mobile.html', submissions: 'career-submissions.html',
   'recruiters-ui': 'career-recruiters.html', 'insights-ui': 'career-insights.html',
   'strengthen-ui': 'career-strengthen.html', 'resume-studio': 'career-resume-studio.html',
-  'profile-studio': 'career-profile-studio.html', approvals: 'career-approvals.html', 'experience-library':'career-experience-bank.html',
+  'profile-studio': 'career-profile-studio.html', 'experience-library':'career-experience-bank.html',
   'companies-admin': 'career-companies.html', settings: 'career-settings.html',
 };
 

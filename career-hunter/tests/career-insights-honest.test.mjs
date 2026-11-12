@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Insights is honest about whose numbers are whose (judge's report 2026-11-11, change 15: one funnel began with a count shared by everyone and ran into the person's own steps). The shipped tools/career-insights.html in Chromium, at 1440x900 and 412x915. The market answer is the served readAnalytics over real SQLite built from the engine's own schema, so the page is held to the shape the route really gives; the person's counts are a fixture in the shape GET /jobs/stats gives. Your search shows only Saved, Prepared, Applied, Interview and Offer, with no shared total in it; with none of those it says what will appear and offers Find jobs; the shared numbers sit under "The job market Career can see", say they are the same for everyone, and own the period control; the numbers that come from the person's own scores have their own heading; "In-lane roles", "Sourced", "Qualified" and "Promoted" are gone; each part reports its own failed read.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the fixture's not-ready answer is the reason the route now gives.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +54,7 @@ function insights(state) {
     const p = url.pathname;
     if (p === '/api/career-hunter/jobs/stats') return typeof state.stats === 'number' ? { status: state.stats, json: { error: 'stats failed' } } : { json: state.stats };
     if (p === '/api/career-hunter/analytics') {
-      if (state.market) return { status: state.market, json: { error: 'Insights are not ready yet: the job corpus gains the index Insights reads at its next nightly refresh.', reason: 'insights_index_missing' } };
+      if (state.market) return { status: state.market, json: { error: 'Job market is not ready yet: the job list gains the index this page reads at its next nightly refresh.', reason: 'insights_index_missing' } };
       return { json: marketAnswer(Number(url.searchParams.get('days')) || undefined) };
     }
     if (p === '/api/career-hunter/search-ui') return { text: 'search' };
@@ -117,7 +118,7 @@ test('each part reports its own failed read and the other part still shows', asy
     await market.page.locator('#own .frow').first().waitFor();
     const alert = market.page.locator('#market [role=alert]');
     await alert.waitFor();
-    assert.match(await alert.innerText(), /The job market numbers could not be loaded: Insights are not ready yet/);
+    assert.match(await alert.innerText(), /The job market numbers could not be loaded: Job market is not ready yet/);
     assert.equal(await market.page.locator('#market .stat').count(), 0, 'no zeros in place of the numbers');
   } finally { await market.context.close(); }
   const own = await openScreen(browser, 'career-insights.html', insights({ stats: 500 }), DESKTOP);

@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register unrenewable expiring connection briefing source in Jarvis briefing settings.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: declare identity-advisor as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: UX audit split (identity--identity-home): Your accounts by default (granted and needs-attention accounts, the attention item first, one primary Add a connection) and a Connector catalog view (search, category filter, Show unavailable, 48 per page, Other last); one meta line replaces the hero and four tiles; one label set. No request or consent flow changed.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Release 1.2.7 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — identity ("Identity Hub")
@@ -65,7 +66,7 @@ description: >-
   LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect
   a new one. Plus an optional access review that flags what needs attention. OSHAL never
   shows or hands back a password — this launches accounts you've already authorized.
-version: 1.2.6
+version: 1.2.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -134,6 +135,7 @@ workflow:
 bots:
   - agentId: a0000000-0000-0000-0000-000000000045
     name: identity-advisor
+    posture: inline
     persona: personas/identity-advisor.yaml
     role: identity/access-advisor
     capabilities:

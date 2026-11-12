@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Size the oversize fixture so it can actually reach the engine on Linux, and assert that it does. At 263 KB it exceeded execve's 128 KiB per-variable limit, so the spawn failed before the refusal branch ran and the test only passed on Windows.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin the ADR-141 D7 stories key on the editor document: a role the review has not reached carries an empty list, never a missing key, so a surface reading it never has to guess whether the evidence is absent or the field is.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the picker, the Save button and the route's answers say main résumé; the value they carry is still `master`.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -216,8 +217,8 @@ test('the studio routes carry the master branch while numeric ids keep the packe
   assert.ok(saveHandler.indexOf('MASTER_ID') >= 0
     && saveHandler.indexOf('MASTER_ID') < saveHandler.indexOf('Number.isFinite(postingId)'),
   'the master branch runs before the numeric-id guard in /resume/save');
-  assert.match(source, /rejectEngineStart\(res, \{ started: false, limitReason: result.limitReason \}, 'master resume save'\)/);
-  assert.match(source, /master resume load/);
+  assert.match(source, /rejectEngineStart\(res, \{ started: false, limitReason: result.limitReason \}, 'main résumé save'\)/);
+  assert.match(source, /main résumé load/);
   const wrapper = fs.readFileSync(binPath, 'utf8');
   assert.match(wrapper, /if \(verb === 'resume'\) return resumeRuns\(rest\);/);
 });
@@ -226,9 +227,9 @@ test('the studio surface always offers the master entry and its save labels', ()
   const surface = fs.readFileSync(
     path.join(packageRoot, 'tools', 'career-resume-studio.html'), 'utf8',
   );
-  assert.match(surface, /master\.value = 'master'; master\.textContent = '⭐ My résumé \(master\)'/);
+  assert.match(surface, /master\.value = 'master'; master\.textContent = '⭐ Main résumé'/);
   // The actual master save payload is exercised by career-resume-studio-io.test.mjs.
-  assert.match(surface, /Save master résumé/);
+  assert.match(surface, /Save main résumé/);
   assert.match(surface, /j\.changelog/);
   const list = surface.slice(surface.indexOf('async function loadList'));
   assert.ok(list.indexOf("sel.appendChild(master)") < list.indexOf('jobs.forEach'),

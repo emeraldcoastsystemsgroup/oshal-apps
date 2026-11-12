@@ -43,6 +43,12 @@
      12 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: a refrigerator temperature shows only when the hub reported it
        (telemetry.measuredAt). The tile and the refrigerator page showed the state's placeholders, 37 and 0, as readings;
        until a reading exists the page says Temperature not read yet and the tile shows what the hub's device list reports.
+     13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: the refrigerator page lists nothing until its inside was read. The shelves, the comparison
+       with last week, the grocery list and the meal ideas each say so; the list's badge reads "Your list" (it is what the
+       person put on it), "Nothing listed yet" when empty; starting an empty list and asking for meal ideas say why nothing
+       happened. Until now the page showed one fixed set of groceries and meals as everyone's refrigerator.
+     14 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): the Now playing line and the media row
+       (Previous, Pause, Play, Next, What's playing) on an Android or Fire TV's card, every button at least 44 x 44.
 -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
@@ -199,6 +205,8 @@
   .tv-pad [data-action="right"] { grid-area:right; } .tv-pad [data-action="down"] { grid-area:down; }
   .tv-result { margin:0; font-size:13px; line-height:18px; color:var(--muted); min-height:18px; overflow-wrap:anywhere; }
   .tv-result .lnk { min-height:44px; }
+  .tv-card .tv-now { margin:0; font-size:13px; line-height:18px; color:var(--text); overflow-wrap:anywhere; }
+  .tv-media .btn { min-width:44px; min-height:44px; }
   .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--ds-surface, var(--panel2)); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:10px; font-size:14px; line-height:20px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
   .more-wrap { position:relative; }
@@ -381,7 +389,7 @@
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
           <div class="crow" style="margin-bottom:6px">
             <span class="nm">Grocery list</span>
-            <span class="pill ok" id="fridgeCartStatusBadge">Suggested</span>
+            <span class="pill ok" id="fridgeCartStatusBadge">Your list</span>
           </div>
           <div id="fridgeCartItems" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
           <div class="crow" style="margin-top:8px">
@@ -544,8 +552,10 @@ function renderFridgeComparisonAndShelves(a) {
     $('fridgeWeeklySchedBadge').textContent = a.weeklySchedule.enabled ? `Checked every ${a.weeklySchedule.dayOfWeek} ${a.weeklySchedule.time}` : 'Weekly check is paused';
   }
   const items = (a.currentSnapshot && a.currentSnapshot.items) || [];
+  // Nothing is listed until the inside has really been read (1.6.2): the page used to show one fixed list as everyone's refrigerator.
+  const wasRead = Boolean(a.reading && a.reading.read);
   if ($('fridgeShelfInventory')) {
-    $('fridgeShelfInventory').innerHTML = items.map((i) => {
+    $('fridgeShelfInventory').innerHTML = !items.length ? '<div class="dim" data-fridge-empty="shelves">Nothing has been read from this refrigerator yet.</div>' : items.map((i) => {
       const badgeCls = i.status === 'use-first' ? 'pill on' : (i.status === 'running-low' ? 'pill' : 'pill ok');
       return `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
         <span><strong style="color:var(--text)">${esc(i.name)}</strong> <span class="dim">(${esc(i.shelf)} · ${esc(i.quantity)})</span></span>
@@ -555,7 +565,8 @@ function renderFridgeComparisonAndShelves(a) {
   }
   const cmp = a.comparison || {};
   if ($('fridgeComparisonSummary')) $('fridgeComparisonSummary').textContent = cmp.summaryText || '';
-  if ($('fridgeComparisonLists')) {
+  if ($('fridgeComparisonLists') && !wasRead) $('fridgeComparisonLists').innerHTML = '';
+  else if ($('fridgeComparisonLists')) {
     const useFirst = (cmp.useFirst || []).map((u) => esc(u.name)).join(', ') || 'None';
     const depleted = (cmp.depletedFromLastWeek || []).map((d) => esc(d.name)).join(', ') || 'None';
     const low = (cmp.runningLow || []).map((r) => `${esc(r.name)} (${esc(r.quantity)})`).join(', ') || 'None';
@@ -570,10 +581,13 @@ function renderFridgeAssessment(a) {
   renderFridgeComparisonAndShelves(a);
   const cart = a.cart || { items: [], status: 'recommended', activeItemCount: 0 };
   if ($('fridgeCartStatusBadge')) {
-    $('fridgeCartStatusBadge').textContent = `${cart.status === 'active' ? 'Started' : 'Suggested'} · ${cart.activeItemCount || 0} items`;
+    // "Suggested" belongs to a list made from a reading; until one exists the list is only what the person put on it.
+    const kind = cart.status === 'active' ? 'Started' : (a.reading && a.reading.read ? 'Suggested' : 'Your list');
+    const onList = cart.activeItemCount || 0;
+    $('fridgeCartStatusBadge').textContent = (cart.items || []).length ? `${kind} · ${onList} item${onList === 1 ? '' : 's'}` : 'Nothing listed yet';
   }
   if ($('fridgeCartItems')) {
-    $('fridgeCartItems').innerHTML = (cart.items || []).map((c) =>
+    $('fridgeCartItems').innerHTML = !(cart.items || []).length ? '<div class="dim" data-fridge-empty="list">Nothing is on the list yet. Add an item below.</div>' : (cart.items || []).map((c) =>
       `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" ${c.inCart ? 'checked' : ''} onchange="toggleFridgeCartItem('${esc(c.id)}')" />
@@ -585,7 +599,7 @@ function renderFridgeAssessment(a) {
   }
   const meals = (a.mealPlan && a.mealPlan.entries) || [];
   if ($('fridgeMealPlanList')) {
-    $('fridgeMealPlanList').innerHTML = meals.map((m) =>
+    $('fridgeMealPlanList').innerHTML = !meals.length ? '<div class="dim" data-fridge-empty="meals">Meal ideas come from a reading of what is inside. None has been read yet.</div>' : meals.map((m) =>
       `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px">
         <div class="crow"><strong style="color:var(--text)">${esc(m.day)}: ${esc(m.title)}</strong><span class="pill">${esc(m.prepTimeMin)} min</span></div>
         <div class="dim" style="margin-top:2px"><strong>From Fridge:</strong> ${esc((m.usesFromFridge || []).join(', '))}</div>
@@ -647,7 +661,7 @@ async function startFridgeCart() {
   try {
     const a = await api('/fridge-meal-plan', { action: 'start-cart' }, 'POST');
     renderFridgeAssessment(a);
-    toast('Grocery list started with what is running low');
+    toast(((a.cart && a.cart.items) || []).length ? 'Grocery list started' : 'Nothing is on the list yet: add an item first');
   } catch (e) {
     toast('The list could not be started: ' + e.message);
   }
@@ -678,7 +692,7 @@ async function rebuildFridgeMealList() {
   try {
     const a = await api('/fridge-meal-plan', { action: 'build-meal-list', focus }, 'POST');
     renderFridgeAssessment(a);
-    toast('Meal ideas updated');
+    toast(((a.mealPlan && a.mealPlan.entries) || []).length ? 'Meal ideas updated' : 'No meal ideas yet: they come from a reading of what is inside');
   } catch (e) {
     toast('Failed: ' + e.message);
   }

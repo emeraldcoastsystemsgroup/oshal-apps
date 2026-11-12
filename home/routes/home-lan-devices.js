@@ -6,12 +6,13 @@
  * ----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: TVs and streaming sticks on the person's home network. This package never reaches a network (its sandbox has none): its routes build the closed phone-control bridge command (lan-discover, lan-control) that the Smart Home page or Jarvis runs on the person's own computer through the kernel's /api/computers, and they record what that computer answered: the TVs found (Samsung Tizen, Roku, Android TV, Google Cast) and each press's result. A plan always says planned, never done; a TV's on/off state changes only when the computer's answer for that TV said the press worked. Stored per person in lan-tvs.json under the package's lasting folder.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.3: a plan's next step says how Jarvis carries it out. home-lan-discover and home-lan-control declare a computerPlan, so the kernel offers home-bot computer.run_plan and attaches a planId to this answer: pass that planId to computer.run_plan, which runs exactly this command once on the person's own computer, then record the computer's answer with home-lan-record. Without computer.run_plan or a planId nothing ran: say it is planned and name the Smart Home TV button that runs it. The command is unchanged and still fits the kernel's plan grammar (tests/home-lan-devices.test.cjs).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): on an Android or Fire TV, now_playing reads what is playing and in which app, and play, pause, next, previous and stop reach the app playing it even when another app is in front (Phone & Device Control's bridge 1.8.0). The TV keeps what was last read as nowPlaying, and the answer says it in words; a Roku or Samsung TV refuses them in words.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BRIDGE_VERSION = exports.ACTION_WORDS = exports.LAN_ACTIONS = exports.LAN_KINDS = void 0;
+exports.BRIDGE_VERSION = exports.ACTION_WORDS = exports.MEDIA_ACTIONS = exports.LAN_ACTIONS = exports.LAN_KINDS = void 0;
 exports.privateIpv4 = privateIpv4;
 exports.readLan = readLan;
 exports.writeLan = writeLan;
@@ -25,6 +26,8 @@ exports.foundTv = foundTv;
 exports.mergeFound = mergeFound;
 exports.recordDiscover = recordDiscover;
 exports.applyControl = applyControl;
+exports.nowPlayingOf = nowPlayingOf;
+exports.playingWords = playingWords;
 exports.recordControl = recordControl;
 exports.recordAnswer = recordAnswer;
 exports.registerLanDeviceRoutes = registerLanDeviceRoutes;
@@ -34,18 +37,21 @@ const node_path_1 = __importDefault(require("node:path"));
 exports.LAN_KINDS = ['android-tv', 'samsung-tizen', 'roku'];
 /** @description The closed list of presses a plan can carry; the bridge refuses anything else on its own too. */
 exports.LAN_ACTIONS = ['wake', 'off', 'volume_up', 'volume_down', 'mute', 'up', 'down', 'left', 'right', 'select',
-    'home', 'back', 'play_pause', 'launch_url', 'open_app', 'pair'];
+    'home', 'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'now_playing', 'play', 'pause', 'next', 'previous', 'stop'];
+/** @description The presses that read or steer the app playing on an Android or Fire TV, in front or not (bridge 1.8.0). */
+exports.MEDIA_ACTIONS = ['now_playing', 'play', 'pause', 'next', 'previous', 'stop'];
 /** @description What each press is called on the page and in an answer. */
 exports.ACTION_WORDS = {
     wake: 'Wake', off: 'Turn off', volume_up: 'Volume up', volume_down: 'Volume down', mute: 'Mute', up: 'Up',
     down: 'Down', left: 'Left', right: 'Right', select: 'OK', home: 'Home', back: 'Back', play_pause: 'Play or pause',
     launch_url: 'Open oshal', open_app: 'Open the oshal TV app', pair: 'Pair', install_app: 'Install the TV app',
+    now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop',
 };
 const NOT_FOR = {
-    'android-tv': [], 'samsung-tizen': ['open_app'], roku: ['launch_url', 'open_app', 'pair'],
+    'android-tv': [], 'samsung-tizen': ['open_app', ...exports.MEDIA_ACTIONS], roku: ['launch_url', 'open_app', 'pair', ...exports.MEDIA_ACTIONS],
 };
-/** @description The phone-control bridge version that has the TV verbs; an older bridge answers unknown_verb. */
-exports.BRIDGE_VERSION = '1.5.0';
+/** @description The phone-control bridge version that has every TV press here (the media ones came in 1.8.0). */
+exports.BRIDGE_VERSION = '1.8.0';
 const BRIDGE_SCRIPT = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
 const STORE_FILE = 'lan-tvs.json';
 const MAX_TVS = 48;
@@ -237,6 +243,8 @@ function planControl(sub, body, host = '') {
         } };
 }
 function notForWords(tv, action) {
+    if (exports.MEDIA_ACTIONS.includes(action))
+        return `What is playing, and play, pause, next and previous for the app playing it, work on Android and Fire TVs. On ${tv.name} use Play/Pause.`;
     if (tv.kind === 'roku' && action === 'launch_url')
         return `${tv.name} is a Roku, which cannot open a web page.`;
     if (tv.kind === 'roku' && action === 'pair')
@@ -320,7 +328,7 @@ function mergeFound(store, found) {
             continue;
         }
         const old = store.tvs[at];
-        store.tvs[at] = { ...tv, id: old.id, lastResult: old.lastResult, samsung: tv.samsung ? { paired: tv.samsung.paired || Boolean(old.samsung?.paired) } : old.samsung };
+        store.tvs[at] = { ...tv, id: old.id, lastResult: old.lastResult, nowPlaying: old.nowPlaying ?? null, samsung: tv.samsung ? { paired: tv.samsung.paired || Boolean(old.samsung?.paired) } : old.samsung };
         updated += 1;
     }
     store.tvs.sort((a, b) => a.name.localeCompare(b.name));
@@ -371,8 +379,12 @@ function recordDiscover(sub, body, now = new Date().toISOString()) {
  */
 function applyControl(tv, action, reply, now) {
     const ok = reply.ok === true;
+    const media = ok && exports.MEDIA_ACTIONS.includes(action);
+    if (media)
+        tv.nowPlaying = nowPlayingOf(reply.now, now);
     const result = { action, ok, error: ok ? null : clip(reply.error, 40) || 'failed',
-        message: ok ? `${exports.ACTION_WORDS[action] || action}: done on ${tv.name}.` : clip(reply.message, 400) || 'The computer did not do it.', at: now };
+        message: media ? playingWords(tv, action, tv.nowPlaying ?? null)
+            : ok ? `${exports.ACTION_WORDS[action] || action}: done on ${tv.name}.` : clip(reply.message, 400) || 'The computer did not do it.', at: now };
     tv.lastResult = result;
     if (ok && (reply.power === 'on' || reply.power === 'off'))
         tv.power = reply.power;
@@ -383,6 +395,28 @@ function applyControl(tv, action, reply, now) {
     if (action === 'install_app' && ok)
         tv.adb = { state: 'device', appVersionCode: tv.adb?.appVersionCode ?? null, appInstalled: true };
     return result;
+}
+/**
+ * @description What the bridge said is playing, kept short, or null when nothing has played. Pure.
+ * @param value The bridge's now. @param at When it was read. @returns The record to keep.
+ */
+function nowPlayingOf(value, at) {
+    if (!value || typeof value !== 'object')
+        return null;
+    const item = value;
+    return { app: clip(item.app, 60) || 'An app', title: clip(item.title, 200) || null, state: clip(item.state, 20) || 'none', inFront: item.inFront === true, at };
+}
+/**
+ * @description A media press's answer in words: what is playing, in which app, and that it is behind another app. Pure.
+ * @param tv The TV. @param action The press. @param playing What it said after. @returns One sentence.
+ */
+function playingWords(tv, action, playing) {
+    if (!playing)
+        return `Nothing has played on ${tv.name} yet.`;
+    const what = playing.title ? `${playing.app}: ${playing.title}` : playing.app;
+    const where = playing.inFront ? '' : ' (behind another app)';
+    const state = playing.state === 'none' ? 'idle' : playing.state;
+    return action === 'now_playing' ? `On ${tv.name}, ${what} is ${state}${where}.` : `${exports.ACTION_WORDS[action]} sent on ${tv.name}; ${what} is now ${state}${where}.`;
 }
 function replyMatches(tv, action, reply) {
     if (reply.ok !== true)

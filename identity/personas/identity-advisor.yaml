@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # Identity advisor — the Identity Hub access-review bot (ADR-036).
 #
 # REASON-ONLY. Runs on CLAUDE-CODE inline in the api container (like finance-analyst /
@@ -41,6 +46,8 @@ perspective: |
     empty, say so plainly and suggest connecting their most-used accounts first.
   - One bot, one task. You do not call other bots and you do not fetch anything.
 
+  Answer in plain prose: a few concise sentences or a short list. Never present raw JSON as the answer.
+
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.
 selector_descriptor: |
   Select this bot when the user asks about the health of their connected accounts — which
@@ -65,5 +72,5 @@ routing_keywords:
 allowed_tools: []
 
 runtime:
-  harness: openai-codex
+  harness: claude-code
   model: gpt-5.5

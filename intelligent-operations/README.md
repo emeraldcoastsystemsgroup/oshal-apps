@@ -18,6 +18,11 @@ It uses the existing root-cause-analysis pipeline. File an incident as a ticket 
 
 Nothing is applied automatically. Remediation commands are proposals for an operator to run.
 
+The concierge panel and Jarvis talk to `ops-concierge`, the front desk (1.9.0, the Create concierge
+pattern). It answers from the person's own Operations records through this package's tools (reads, and
+removing a source only after the person approves it) and never writes an RCA report; the three phases
+above, and the Console, Cloud & SSH commands and Pod console screens, still ask `ops-rca-specialist`.
+
 ## On the native kernel
 
 - The platform's reviewer loop (`reviewerBot: queue-bot`, `maxRevisions: 2`) is written out as the

@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Search under Career's own frame (judge's report 2026-11-11, changes 5, 7 and 10). The shipped tools/career-search.html in Chromium with the shipped frame drawn from a fixture profile, at 1440x900 and 412x915: the strip "Job Board / All openings / Recommended for you" is not shown under the frame and saved searches open from a button that says so; with the frame off, or under a frame whose bar came up with no Job Board link, the strip is as it was. A computer has one search box, and Job title contains, Job description contains and Company sit in Filters and still reach the request. On a phone the first job starts within 320px of the frame, every job title is a 44px target, the job type is in words beside one 44px link "About this pay estimate" that names the survey and month, Results per page and Sort are in the Filters sheet and still reach the request, and nothing is wider than the screen. Save and Saved replace the star and the Job Board wording.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0's bar has Find jobs and My jobs as their own links and no row under it for Search, so the phone check reads the two links from the bottom bar.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The phone check also holds the search row to one filled button: Filters was filled beside Search.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the strip's first link and the fixture's tile say My jobs.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9: Applications is the Job Board's applied side, so a person who can open the Job Board has both My jobs and Applications in the phone's bottom bar; the expected links follow.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +22,7 @@ const item = (id, label, group, href, toolName) => ({ id, label, group, section:
 const profile = { name: 'career-hunter', profile: { name: 'career-hunter', ribbon: { items: [
   item('tool-career-home', 'Home', null, '/api/career-hunter/home', 'career-home'),
   item('tool-career-search', 'Search Jobs', 'Job Search', '/api/career-hunter/search-ui', 'career-search'),
-  item('tool-career-board', 'Job Board', 'Job Search', '/api/career-hunter/board-native', 'career-board'),
+  item('tool-career-board', 'My jobs', 'Job Search', '/api/career-hunter/board-native', 'career-board'),
   item('tool-career-resume-studio', 'Resume Studio', 'Resume', '/api/career-hunter/resume-studio', 'career-resume-studio'),
 ] } } };
 const hostile = '<img src=x onerror="window.__injected=1">';
@@ -58,7 +60,7 @@ test('phone: under the frame the first job starts within 320px, with 44px titles
     const first = page.locator('#list .job').first();
     await first.waitFor();
     assert.equal(await page.locator('.cf-bottombar').isVisible(), true, 'the phone has its bottom bar');
-    assert.deepEqual(await page.locator('.cf-bottombar a[data-cf-view="search"], .cf-bottombar a[data-cf-view="board"]').allTextContents(), ['Find jobs', 'My jobs'], 'and it already goes to those places');
+    assert.deepEqual(await page.locator('.cf-bottombar a[data-cf-view="search"], .cf-bottombar a[data-cf-view="board"]').allTextContents(), ['Find jobs', 'My jobs', 'Applications'], 'and it already goes to those places: the Job Board is My jobs and Applications');
     assert.equal(await page.locator('.career-view-nav').isVisible(), false, 'so the strip is not shown');
     const fill = (selector) => page.locator(selector).evaluate((el) => getComputedStyle(el).backgroundColor);
     assert.notEqual(await fill('#openSearchFilters'), await fill('#keywordSearch .ck-primary'), 'Search is the one filled button in the search row; Filters is outlined');
@@ -162,19 +164,19 @@ test('without the frame the strip of view links and its saved-search control are
   try {
     await page.locator('#list .job').first().waitFor();
     assert.equal(await page.locator('html').getAttribute('data-career-frame'), null);
-    assert.deepEqual((await page.locator('.career-view-nav > :is(a, span)').allTextContents()).map((t) => t.trim()), ['Job Board', 'All openings', 'Recommended for you']);
+    assert.deepEqual((await page.locator('.career-view-nav > :is(a, span)').allTextContents()).map((t) => t.trim()), ['My jobs', 'All openings', 'Recommended for you']);
     assert.equal(await page.locator('.saved-search-toggle').isVisible(), true);
     assert.equal(await page.locator('#savedSearchOpen').isVisible(), false);
   } finally { await context.close(); }
 });
 
-test('under a frame whose bar has no Job Board link, the strip stays as the way there', async () => {
+test('under a frame whose bar has no My jobs link, the strip stays as the way there', async () => {
   const { page, context } = await openScreen(browser, 'career-search.html', search([], false), DESKTOP, '', HERE);
   try {
     await framed(page);
     await page.locator('#list .job').first().waitFor();
     assert.equal(await page.locator('.cf-topbar a[data-cf-view]').count(), 0, 'the person\'s profile gave the frame no section');
-    await page.locator('.career-view-nav').getByRole('link', { name: 'Job Board', exact: true }).waitFor();
+    await page.locator('.career-view-nav').getByRole('link', { name: 'My jobs', exact: true }).waitFor();
     assert.equal(await page.locator('.saved-search-toggle').isVisible(), true);
     assert.equal(await page.locator('#savedSearchOpen').isVisible(), false, 'one saved-search control, not two');
   } finally { await context.close(); }

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (Roger, 2026-11-10: "a tree list on the left, tables on the right ... we should be able to rename connections ... on the add a device screen there are buttons that the text doesnt fit"). The real page in Chromium over the stand-in server, at desktop and phone size: computers with their phones and TVs under them, rows that start at the left, a details pane beside the tree (under the row on a phone) with a Connection table, a rename that calls the save route, and no button in Add a device that cuts its words.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0 (T27; Roger, 2026-11-10: "we should be able to rename connections"): a computer's Rename saves through the kernel's PATCH /api/computers/{id}, shows the new name in the tree, says a refused name in the kernel's words, and has no More options.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,6 +88,27 @@ for (const viewport of [{ width: 1280, height: 900 }, { width: 412, height: 915 
       await computer.locator(':scope > .pc-row-line').getByRole('button', { name: 'Details of spark-f255' }).click();
       const headings = await page.locator('.pc-details .pc-detail-heading').allInnerTexts();
       assert.deepEqual(headings.map((text) => text.toUpperCase()), ['CONNECTION', 'WHAT IT CAN DO'], 'a computer also lists what it can do');
+      // 1.10.0: a computer is renamed with the kernel's own given name, the one the Devices page shows.
+      const renames = [];
+      page.on('request', (request) => { if (request.method() === 'PATCH' && /\/api\/computers\/[^/]+$/.test(new URL(request.url()).pathname)) renames.push(request.postDataJSON()); });
+      const sparkDetails = page.locator('.pc-details');
+      assert.equal(await sparkDetails.getByRole('button', { name: 'More options' }).count(), 0, 'More options stays on saved phones and TVs');
+      // The first save is answered with the kernel's refusal (computers_rename's words); the page must say it, not rename.
+      let refuseOnce = true;
+      await page.route(/\/api\/computers\/[^/]+$/, (route) => {
+        if (route.request().method() !== 'PATCH' || !refuseOnce) return route.fallback();
+        refuseOnce = false;
+        return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ refused: 'invalid_request', detail: 'a device name is one line of at most 80 characters' }) });
+      });
+      await sparkDetails.getByRole('button', { name: 'Rename' }).click();
+      await sparkDetails.getByLabel('New name').fill('Office Spark');
+      await sparkDetails.getByRole('button', { name: 'Save' }).click();
+      await page.locator('.pc-details .pc-rename-status', { hasText: 'Not renamed: a device name is one line of at most 80 characters' }).waitFor();
+      assert.deepEqual(await names(page.locator('#computerRail')), ['my-computer', 'spark-f255', 'old-laptop'], 'a refused name renames nothing');
+      await sparkDetails.getByRole('button', { name: 'Save' }).click();
+      await page.locator('#computerRail .pc-rail-name', { hasText: 'Office Spark' }).first().waitFor();
+      assert.deepEqual(renames.slice(-1), [{ name: 'Office Spark' }], 'the kernel route is asked with the new name');
+      await page.request.fetch(`http://127.0.0.1:${port}/api/computers/${(await page.locator('#computerRail > li', { hasText: 'Office Spark' }).getAttribute('data-entry')).split(':')[1]}`, { method: 'PATCH', data: { name: 'spark-f255' } });
       assert.deepEqual(page.errors, []);
     } finally { await page.close(); }
   });

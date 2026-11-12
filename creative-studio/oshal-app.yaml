@@ -34,6 +34,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: the Saved pane is 180px beside an open concierge and under 1100px, narrower than "Refresh evidence" at 15px, so a page button now ends in an ellipsis instead of running past the pane (found on the trial at 1440x900 with the concierge open: the button ran over the pane's edge). The browser case at 1080x800 guards it.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: save titled story briefs and scene edits automatically with a Saved caption in the app row instead of a Save source button (UX audit creative-studio--creative-studio).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: starter story brief templates (RP-CRS-01), aspect-ratio resize across 16:9/9:16/1:1/4:5 (RP-CRS-02), brand kit styling from Create or custom colors/fonts (RP-CRS-03), package-stored H.264 storyboard MP4 builds and direct download (RP-CRS-04), approval-gated social publication schedules (RP-CRS-05), brief/scene comments with replies and resolve (RP-CRS-06), and scene trim/split with Video Studio handoff (RP-CRS-07).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: creative-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 chatBot: story-editor # Source editing is owned here; generation still uses the declared Vids worker.
@@ -53,7 +54,7 @@ description: "Edit and save story briefs and selectable storyboard scenes, with 
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.5.0
+version: 1.5.1
 lastingStorage: true
 authorization:
   version: 1
@@ -403,6 +404,7 @@ nativeMigrations:
 bots:
   - agentId: f0e5b11c-3d1a-42be-899c-90afcb22b536
     name: story-editor
+    posture: inline
     persona: personas/story-editor.yaml
     role: creative/source-editing
     capabilities: [storyboard-editing, brief-editing]

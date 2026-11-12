@@ -1,3 +1,8 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.1 (concierge audit batch 2b; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): kalshi-quant, the package's only bot and its side-chat concierge (chatBot), runs inline, now explicit (it already resolved to inline, so nothing moves off a node), and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence for the three route reads kalshi_market, kalshi_markets and kalshi_scan, and runtime harness claude-code (metadata; the kernel takes inference from the installation). No route, tool, schedule, routing word or order path changed: the quant still reads only and never places an order. Guard: tests/kalshi-create-concierge.test.js (Test Lab create-concierge).
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — kalshi ("Kalshi Prediction Markets", ADR-094)
 #
@@ -106,7 +111,16 @@ description: >-
 # A lookup's markets are now graded by two writes (those that settled YES, those that settled NO), the scores computed in
 # the statement from the row's own columns. The Scorecard says "Not finished" with how far it got when a walk stops
 # early, instead of saying Kalshi has no result for markets it never asked about.
-version: 1.8.1
+# 1.9.0: THE CALIBRATION TABLE IS REBUILT BY THE PACKAGE. The scan prices every market against a table of what a price
+# actually settled at, built on 2026-07-13 by a command-line study of the retired platform that nothing runs any more
+# (the page said 120 days old). The background-scan job now takes a turn at rebuilding it with the time each firing has
+# left (lib/kalshi-calibration-walk.js, lib/kalshi-calibration-store.js): the same questions the study asked Kalshi's
+# public API (twelve categories, their series, up to 60 settled markets a series and 400 a category, each market's
+# hourly prices at 24, 6 and 1 hours before close), one at a time, with the walk's place, samples and finished tables
+# in this package's own tables (migrations/077-kalshi-calibration.sql). A whole rebuild takes many firings (about
+# half a day); a table is rebuilt when it is thirty days old. Until the first rebuild finishes the shipped table is
+# read; GET /calibration and /status say which (`source`). No account, no order, nothing new to turn on.
+version: 1.9.1
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant
@@ -116,6 +130,7 @@ bots:
   - agentId: 0bfe0791-8c27-4267-ba30-b254f45d76b6
     name: kalshi-quant
     persona: personas/kalshi-quant.yaml
+    posture: inline
     role: kalshi/quant
     capabilities:
       - market-walkthrough
@@ -392,6 +407,8 @@ migrations:
   # overrides, and the per-user alert ledger. kalshi-scan-engine also self-heals these, so the
   # app works whether or not APP_PACKAGE_MIGRATIONS is on.
   - migrations/076-kalshi-scan-automation.sql
+  # The calibration rebuild's walk, samples and tables (1.9.0).
+  - migrations/077-kalshi-calibration.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the edge-scan page served by

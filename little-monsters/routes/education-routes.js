@@ -28,6 +28,7 @@
  * 19  | maintainer@emeraldcoastsystemsgroup.com | Mount SAT/ACT study, progress, practice and captioned lesson media.
  * 18  | maintainer@emeraldcoastsystemsgroup.com     | Mount the book routes (education-book-routes: /my-books and a book's chapter)
  * 20  | maintainer@emeraldcoastsystemsgroup.com     | Lesson media through education-prep-media: videos stream from lasting storage with byte ranges
+ * 21  | maintainer@emeraldcoastsystemsgroup.com     | The old /index.html address answers a hand-off page to the arcade. It called res.redirect, which the native kernel's response does not have, and answered HTTP 500 there (found 2026-11-11).
  * ---------------------------------------------------------------------------
  *
  * @module education-routes
@@ -88,6 +89,7 @@ const education_prep_routes_1 = require("./education-prep-routes");
 const education_prep_media_1 = require("./education-prep-media");
 const education_schema_1 = require("./education-schema");
 const education_authorization_1 = require("./education-authorization");
+const hand_off_page_1 = require("./hand-off-page");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-routes' });
 /** Canonical XP award table and level calculator retained as public route exports. */
 var education_progress_1 = require("./education-progress");
@@ -145,7 +147,8 @@ function registerEducationUiRoutes(router) {
     router.get('/icons.png', serveFile('lm-icons.png'));
     router.get('/education.css', serveFile('education.css'));
     router.get('/arcade', serveFile('games-arcade.html'));
-    router.get('/index.html', (_req, res) => res.redirect('/api/education/arcade'));
+    // A page, not a redirect: on the kernel this address answered HTTP 500 (hand-off-page.ts says why).
+    router.get('/index.html', (_req, res) => { res.status(200).type('html').send((0, hand_off_page_1.handOffPage)('/api/education/arcade', 'Open the arcade')); });
     router.get('/formula-lab', serveFile('formula-lab.html'));
     router.get('/stem-helpers', serveFile('stem-helpers.html'));
     router.get('/citations', serveFile('citations.html'));

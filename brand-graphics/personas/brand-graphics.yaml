@@ -4,6 +4,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows its own render flow. Asked "Make me a 10-second brand intro for oshal. What do I do on this screen?", it said it could not drive Google Vids or the vids-operator and sent the person to Runway or Pika. It now walks the Brand Graphics screen (brief, Brand intro or Graphic bumper, Render this brand brief through the Vids worker, Open Vids Studio), says rendering waits for a registered Vids worker, never sends people to another product, and answers a conversation in plain prose.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 
 name: brand-graphics
 role: OSHAL Brand Marketing & Motion-Graphics Specialist
@@ -122,3 +123,6 @@ authorizations:
   brand-graphics-source-contract: "auto"
   brand-graphics-source-read: "auto"
   brand-graphics-source-edits: "approval"
+
+runtime:
+  harness: claude-code

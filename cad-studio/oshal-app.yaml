@@ -38,6 +38,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.2.6: the open part saves its unsaved feature form and density before Jarvis or the concierge reads it, and redraws the saved part when their change returns (shared document handoff), keeping a field the person is still typing.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: live CAD Measure (mm/in), 3D View Cube + Fit to view, OBJ/MTL + 3MF + GLB + USDZ exports, View in AR, and confirmed printer handoff (RP-CAD-01..05).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -52,7 +53,7 @@ rating:
       degrade: disable
 displayName: CAD Studio
 description: "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports."
-version: 0.5.0
+version: 0.5.1
 status: active
 scope: person
 
@@ -104,6 +105,7 @@ dependencies:
 bots:
   - agentId: 7d0c2f4e-5b1a-4c8e-9f3d-2a6b8e1c4d70
     name: cad-studio-designer
+    posture: inline
     persona: personas/cad-studio-designer.yaml
     role: engineering/cad-designer
     capabilities:

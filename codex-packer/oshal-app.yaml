@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Bot Forge (codex-packer). The native kernel held only its migrated declaration, so it could not open. The Forge screen (/api/forge) and its one-click Inject were platform TypeScript routes that wrote packs into the platform workspace; neither exists natively, so Bot Forge opens as its concierge: the same interview, ending in a draft package (manifest plus persona) the operator commits to the store and installs from App Loader. The persona no longer teaches workspace paths, the codex CLI or shell commands.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: add the native Bot Forge workspace (/api/codex-packer/app) with 1-click caller-scoped Inject over native publish_authored and a mandatory Permission Preview dialog before publication; zero git commit or manual App Loader step required.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.1 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: codex-packer
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -23,7 +24,7 @@ description: >-
   produces, how you know it worked, the trigger, what it may change and what it must not keep), then
   drafts a single-purpose application and lets you Inject it live into your personal scope after
   reviewing a clear Permission Preview — with zero git commit or manual App Loader step required.
-version: 1.3.0
+version: 1.3.1
 runtime: process
 status: active
 scope: public
@@ -90,6 +91,7 @@ chatBot: codex-packer
 bots:
   - agentId: a0000000-0000-0000-0000-000000000030
     name: codex-packer
+    posture: inline
     persona: personas/codex-packer.yaml
     role: bot-authoring/factory
     capabilities:

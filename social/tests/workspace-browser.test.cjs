@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (social--social-signals MERGE + HIDE, social--social-workspace FIX-LAYOUT): the Workspace in Chromium over a loopback fixture of its routes, no network, accounts or credentials. The Signals tile is off the social menu and every suite, its address leads to Workspace · Engage, and Organize with AI there is one action, disabled with "No signals yet" until there are signals; Engage leads with the scan switch and never says "ingest" or "cron"; a signal's note opens in the composer with Save, Copy and Publish. On a phone a bottom bar Feed · Engage · Saved · Compose keeps Compose one tap away and "tap to comment" opens it with the article attached; the X tab chooses the format before X is linked and only Publish waits ("Connect X to publish"); touch targets are at least 44x44; a saved draft opens from its ⋯ menu; the selected tab's ink reaches 4.5:1 on the Graphite accent. No post is ever published.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): /api/social/composer opens Workspace's Compose (/api/social/workspace?view=compose) with Composer's refine chips (Punchier, Shorter, More technical, Add CTA, End with a question) and free Refine prompt; the social-composer tile moves below social-workspace with label Compose so business-experience keeps resolving it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Compose and Workspace are one application. The fixture answers /api/social/composer the way the route does (302 to /api/social/workspace with view=compose and every query parameter kept); the menu carries one Workspace tile and no Composer tile; a prepare-post link with title, notes and sourceUrl opens Compose prefilled.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.7.2: the fixture answers /api/social/composer with the route's own hand-off page (routes/hand-off-page.js), where it answered a 302. The two cases that open the old address now prove a browser follows the page to Workspace Compose with every query parameter.
  */
 'use strict';
 const test = require('node:test');
@@ -18,6 +19,7 @@ const PKG = path.join(__dirname, '..');
 const STORE = path.join(PKG, '..');
 const TOOLCHAIN = process.env.STORE_CI_TOOLCHAIN || path.join(STORE, 'scripts', 'toolchain', 'node_modules');
 const { chromium } = require(path.join(TOOLCHAIN, 'playwright'));
+const { handOffPage } = require(path.join(PKG, 'routes', 'hand-off-page.js'));
 
 const CARD = { title: 'Agents in production', whyItMatters: 'Teams ship agent loops now.', source: 'Example News', date: '2026-11-05', url: 'https://news.example.test/agents' };
 const SIGNAL = { action: 'Congratulate', person: 'Dana Lee', summary: 'Dana started a new job at Example Co', network: 'linkedin', type: 'new-job' };
@@ -33,7 +35,7 @@ function fixture() {
     state.requests.push({ method: req.method, path: url.pathname, body: raw ? JSON.parse(raw) : null });
     const p = url.pathname;
     if (p === '/api/social/workspace') return page(res, 'social-workspace.html');
-    if (p === '/api/social/composer') { const q = new URLSearchParams(url.search); if (!q.get('view')) q.set('view', 'compose'); res.writeHead(302, { location: '/api/social/workspace?' + q.toString() }); return res.end(); }
+    if (p === '/api/social/composer') { const q = new URLSearchParams(url.search); if (!q.get('view')) q.set('view', 'compose'); res.writeHead(200, { 'content-type': 'text/html' }); return res.end(handOffPage('/api/social/workspace?' + q.toString(), 'Open the workspace')); }
     if (p === '/api/social/signals/ui') return page(res, 'social-signals.html');
     if (p.startsWith('/shared/ui/')) { res.writeHead(200, { 'content-type': p.endsWith('.css') ? 'text/css' : 'text/javascript' }); return res.end(''); }
     if (p === '/api/social/profiles') return send(res, 200, { profiles: { linkedin: { name: 'Alice Rivers' } } });

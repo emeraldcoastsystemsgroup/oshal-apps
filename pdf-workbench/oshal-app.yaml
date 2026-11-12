@@ -10,13 +10,14 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: expose actual crop coordinates and valid native text placement; reject invalid annotations before queueing.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.5: the workbench page follows the portal theme contract and the kernel screen layout (one type scale, aligned labelled fields, glass cards, a document table, phone layout).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6: the workbench page is an editor layout: a top bar with the document actions, a left rail with documents and sources, the pages in the middle and a right inspector with the tools, each pane scrolling on its own.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 name: pdf-workbench
 suite: ai-creative
 displayName: PDF Workbench
 description: >-
   Select and edit actual PDF text, images and shapes in a shared document workspace. Owned
   source assets, page organization, forms, annotations, history and native PDF exports.
-version: 0.4.0
+version: 0.4.1
 runtime: process
 lastingStorage: true
 status: active

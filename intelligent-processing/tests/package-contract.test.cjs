@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The only route a ported package may declare is the store's canonical service-authenticated readiness route, byte-identical to the reviewed brand-graphics module; any other route module (a platform TypeScript port) is still refused.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The queue screen: the tile opens the package's own asset page, which loads its model and calls only the kernel's GET /api/tickets and POST /api/v1/tickets; the model (run as shipped in a VM context) keeps only this queue's tickets, counts a repeating alert once with its newest ticket and status, separates open, waiting and all, and files with this queue's kind.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Regression (UX audit 2026-11-05, F): the application opens on its own queue screen. ribbon.defaultView named the framework `tickets` view, so opening the application showed the global Tickets list of every application; defaultView must name a tile this package declares.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0 (concierge audit T15): the front-desk concierge reads this queue through one native route, so the package declares exactly two routes, the canonical readiness route and the queue read (routes/processing-queue.js, compiled from src-routes/processing-queue.ts; its behaviour is tests/processing-queue-route.test.cjs), and exactly one tool, the route-backed GET processing-queue over that read. A platform TypeScript port and a CLI executor tool are still refused.
  */
 'use strict';
 const { test } = require('node:test');
@@ -38,11 +39,16 @@ test('the package declares something runnable: a concierge or a workflow, each b
   for (const binding of imported) assert.ok(manifest.dependencies.required.apps.includes(binding.app), binding.app);
   const readiness = { module: 'routes/package-smoke.js', factory: 'createPackageSmokeRoutes',
     mountPath: `/api/${manifest.name}/_smoke`, auth: 'service', requiresContext: true, requiresAi: false };
-  assert.deepEqual(manifest.routes, [readiness], 'only the canonical readiness route is declared');
+  const queue = { module: 'routes/processing-queue.js', factory: 'createProcessingQueueRoutes',
+    mountPath: `/api/${manifest.name}/queue`, auth: 'oidc', requiresAuth: true, requiresContext: true, requiresAi: false };
+  assert.deepEqual(manifest.routes, [readiness, queue], 'only the canonical readiness route and the native queue read are declared');
   for (const file of ['routes/package-smoke.js', 'src-routes/package-smoke.ts']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(store, 'brand-graphics', file), 'utf8'), file);
   }
-  assert.equal(manifest.tools, undefined, 'no CLI executor tool is declared');
+  assert.deepEqual(fs.readdirSync(path.join(root, 'routes')).sort(), ['package-smoke.js', 'processing-queue.js'], 'no other route module ships');
+  assert.deepEqual(fs.readdirSync(path.join(root, 'src-routes')).sort(), ['package-smoke.ts', 'processing-queue.ts'], 'no platform TypeScript port ships');
+  assert.deepEqual((manifest.tools || []).map(tool => [tool.name, tool.executor?.executorType, tool.executor?.apiEndpoint]),
+    [['processing-queue', 'api', `GET /api/${manifest.name}/queue`]], 'no CLI executor tool is declared, only the route-backed queue read');
 });
 
 test('declared bots are inline, own a persona inside the package and answer in plain prose without platform tooling', () => {

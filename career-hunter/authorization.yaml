@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: bind the front-desk concierge (career-concierge) like career-hunter: app.open and career.execute (its turns spend the caller's provider money). No new permission and no role change.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6: bind Find jobs' remembered searches kept on the account, GET /search-memory to career.read and POST /search-memory (remember, save, remove, clear the last, hand over a browser's older searches; the caller's own file only) to career.change. No new permission and no role change, so every assignment grants what it granted.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Bind the two source maintenance routes to career.administer, the permission the Companies list and every source change already need: POST /companies-admin/keep (keep trying a source maintenance asked about) and POST /companies-admin/maintenance-report (the daily briefing job reads last night's maintenance). No new permission and no role change, so every assignment grants what it granted before.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Bind Career's home page (GET /home) to app.open, the permission every other Career page opens under. It is a page; what it shows comes from routes already bound (home summary, job counts, resume state). No new permission and no role change, so every assignment grants what it granted before.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Bind Add, Remove and Put back on the Companies page (POST /companies-admin/add, /remove, /restore) to career.administer, the permission the list and the source change route already need. No new permission and no role change, so every assignment grants what it granted before.
@@ -125,6 +127,8 @@ bindings:
     - { id: job-guide, method: POST, path: /jobs/:id/guide, allOf: [career.execute] }
     - { id: analytics, method: GET, path: /analytics, allOf: [career.read] }
     - { id: browse, method: GET, path: /browse, allOf: [career.read] }
+    - { id: search-memory-read, method: GET, path: /search-memory, allOf: [career.read] }
+    - { id: search-memory-change, method: POST, path: /search-memory, allOf: [career.change] }
     - { id: company-referral, method: POST, path: /company/:id/referral, allOf: [career.change] }
     # Applications (career-application-routes).
     - { id: applications, method: GET, path: /applications, allOf: [career.read] }
@@ -252,6 +256,7 @@ bindings:
     - { id: career_resume_local_export, allOf: [career.read] }
     - { id: career_resume_local_import, allOf: [career.change] }
   bots:
+    - { id: cb000000-0000-0000-0000-000000000005, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000004, allOf: [app.open, career.execute] }
   artifactActions:

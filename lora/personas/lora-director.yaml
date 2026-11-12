@@ -1,6 +1,7 @@
 # CHANGE LOG
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Use current saved character/caption source tools with real approval and fresh reads; keep training separate.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | The director reads characters and trained models with lora-characters and lora-models instead of saying it cannot list them.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Concierge pattern (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # lora-director — the LoRA Studio's character-training coordinator (?app=lora).
 # Runs INLINE on the api container (claude-code), reason-only: it explains training/validation
 # results, proposes which weak cells to target next, and (optionally, opt-in/metered) acts as a

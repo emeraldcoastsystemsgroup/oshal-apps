@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0, the first screen as a tree with details (Roger, 2026-11-10: "the initial screen is terrible, it should have all of the data about the connection and the tree function ... a tree list on the left, tables on the right ... we should be able to rename connections ... see the program node under the orbit node"). Each computer is a row; under it are the phones and TVs that connect through it and the programs bound on it. A row still opens its session; its Details button shows how it connects, through what, its state, what it can do, and Rename. The list used to be two flat groups in a half-width card with every row's text centred.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0 (T27; Roger, 2026-11-10: "we should be able to rename connections"): a computer in the tree has Rename too. It saves the kernel's own given name (PATCH /api/computers/{id}), the name the Devices page shows, so both screens name the device the same way; a refused name is said in the kernel's words. More options stays on saved phones and TVs.
  */
 import { computerStanding, isAndroidNode, isTvNode, phoneReachable } from '/api/phone-control/ui/computer-link.js';
 
@@ -90,14 +91,27 @@ function table(heading, rows) {
   return section;
 }
 
-/** The details of one entry: its tables and its actions (Open, Rename for a saved device, More options). */
+/**
+ * @description Give one of the person's computers a name: the kernel keeps it as the name its owner gave (the same one the Devices
+ * page shows), apart from the name the computer reports about itself. A refusal is thrown with the kernel's words.
+ * @param {string} id The computer. @param {string} name One line of at most 80 characters. @returns {Promise<void>} Saved.
+ */
+export async function renameComputer(id, name) {
+  const response = await fetch(`/api/computers/${encodeURIComponent(id)}`, { method: 'PATCH', credentials: 'same-origin',
+    headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ name }) });
+  if (response.ok) return;
+  const body = await response.json().catch(() => ({}));
+  throw new Error(body.detail || body.message || `the server answered ${response.status}`);
+}
+
+/** The details of one entry: its tables and its actions (Open, Rename, and More options for a saved phone or TV). */
 function buildDetails(entry, label, act) {
   const panel = make('div', 'pc-details'); panel.dataset.detailsFor = `${entry.kind}:${entry.id}`;
   const rows = detailRows(entry), head = make('div', 'pc-details-head');
   head.append(make('h2', 'pc-details-name', label));
   const actions = make('div', 'pc-details-actions'), open = make('button', 'ks-btn ks-btn-primary', 'Open');
   open.type = 'button'; open.addEventListener('click', act.open); actions.append(open);
-  if (entry.kind === 'phone') {
+  if (entry.kind === 'phone' || entry.kind === 'computer') {
     const rename = make('button', 'ks-btn', 'Rename'), form = make('form', 'pc-rename-form'), input = make('input');
     rename.type = 'button'; form.hidden = true; input.type = 'text'; input.maxLength = 80; input.value = label; input.setAttribute('aria-label', 'New name');
     const save = make('button', 'ks-btn ks-btn-primary', 'Save'), cancel = make('button', 'pc-tertiary-btn', 'Cancel'), said = make('span', 'pc-rename-status');
@@ -112,9 +126,13 @@ function buildDetails(entry, label, act) {
       save.disabled = true; said.textContent = 'Saving…';
       try { await act.rename(name); } catch (error) { said.textContent = `Not renamed: ${error.message}`; save.disabled = false; }
     });
-    const more = make('button', 'ks-btn', 'More options'); more.type = 'button'; more.setAttribute('aria-haspopup', 'menu');
-    more.addEventListener('click', (event) => { event.stopPropagation(); act.more(more); });
-    actions.append(rename, more); head.append(actions, form);
+    actions.append(rename);
+    if (entry.kind === 'phone') {
+      const more = make('button', 'ks-btn', 'More options'); more.type = 'button'; more.setAttribute('aria-haspopup', 'menu');
+      more.addEventListener('click', (event) => { event.stopPropagation(); act.more(more); });
+      actions.append(more);
+    }
+    head.append(actions, form);
   } else head.append(actions);
   panel.append(head, table('Connection', rows.connection));
   if (rows.abilities.length) panel.append(table('What it can do', rows.abilities));
@@ -159,7 +177,8 @@ export function renderHome(ctx, hooks) {
     const act = { open: () => hooks.selectDevice(ctx, { kind: entry.kind, id: phone ? phone.id : computer.id }, true),
       details: () => { state.homeDetails = open ? '' : key; redraw(); },
       more: (trigger) => hooks.openRowMenu(ctx, phone, trigger),
-      rename: async (name) => { await app.records.updatePhone(phone.id, { name }); await app.load(); } };
+      rename: phone ? async (name) => { await app.records.updatePhone(phone.id, { name }); await app.load(); }
+        : async (name) => { await renameComputer(computer.id, name); await app.load(); } };
     const item = buildRow(entry, label, sub, tone, isSelected(entry.kind, phone ? phone.id : computer.id), act, open);
     if (open) { shown = buildDetails(entry, label, act); if (!wide) item.append(shown); }
     return item;

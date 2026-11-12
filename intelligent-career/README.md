@@ -28,7 +28,7 @@ the six setup steps remain unchanged. See the member's
 
 | Member | What it brings |
 |---|---|
-| `career-hunter` | the job board, Search Jobs, Submissions, Recruiters, Approvals, Insights, Resume Studio, Strengthen, Profile Studio, Career Settings, Companies and source health |
+| `career-hunter` | Home, Find jobs, My jobs, Submission activity, Recruiters, Job market, My résumé, Other experience, Improve my résumé, Download my data, LinkedIn profile, Settings, Companies and source health (the names Career gives its pages since 1.55.0) |
 | `portrait-studio` | the profile picture |
 | `social` | LinkedIn Assistant, the Workspace, Signals, and the Accounts hub (LinkedIn / Facebook / X) |
 
@@ -57,7 +57,7 @@ signed-in user's session. A step is done only when the member answers `true`; an
 error or a missing answer shows as "can't check", never as done. **Fix** opens the
 member surface inside the same ribbon.
 
-Step 5 is the review itself: **Strengthen** walks your roles one at a time, asks
+Step 5 is the review itself: **Improve my résumé** (called Strengthen before Career 1.55.0) walks your roles one at a time, asks
 about the role still missing a story using that role's own resume bullet, and keeps
 your answer against the bullet it supports. Tailored resumes and covers then cite
 the story as evidence instead of restating the bullet. The step reports how many of

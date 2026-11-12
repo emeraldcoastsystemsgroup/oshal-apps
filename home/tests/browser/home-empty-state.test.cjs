@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05 (home-dashboard, D), in headless Chromium at 412 x 915 and in the 392 px cockpit frame with synthetic reads: with no hub the page is one empty state (No devices yet, one primary Connect a hub that opens the SmartThings and Google Home rows, each with a status pill), no schedule form, no Refresh and no inline Ask bar; a refused refresh (409) is an alert with Connect a hub, never silence; with devices the order is devices, scenes, schedules; the diagnostic brief stays withheld while no connected action mounts. Replaces home-phone-layout and home-reply-words, which proved the removed Ask bar.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The split: schedules are the Automations screen (?view=automations), with one empty state when there is nothing to run; the Smart Home screen is devices then scenes.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Verify #fridgeCameraSection renders the Samsung Family Hub weekly schedule badge, week-over-week shelf comparison, grocery cart starter, and 5-day meal list builder, and updates state on POST /api/home/fridge-meal-plan.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.6.2: the refrigerator page of a person nothing was read for lists nothing and says so in each part; starting an empty list says so; an item the person adds is on the list; a focus invents no meal. Until 1.6.2 this case asserted one fixed set of groceries and meals.
  */
 'use strict';
 const test = require('node:test');
@@ -95,7 +96,7 @@ test('Automations is its own screen: the schedules with something to run, one em
   } finally { await context.close(); }
 });
 
-test('with a Family Hub refrigerator device, #fridgeCameraSection renders weekly comparison, grocery cart starter, and 5-day meal list builder', async () => {
+test('1.6.2: a refrigerator nothing was read from lists nothing and says so; the grocery list is the person\'s own', async () => {
   const fs = require('node:fs');
   const os = require('node:os');
   const { formatFridgeAssessmentResponse, mutateFridgeMealAndCart } = require('../../routes/fridge-weekly-assessment.js');
@@ -132,14 +133,27 @@ test('with a Family Hub refrigerator device, #fridgeCameraSection renders weekly
     assert.equal(await page.textContent('#page-fridge h2'), 'Refrigerator');
     assert.match(await page.textContent('#fridgeWeeklySchedBadge'), /Checked every Sunday 09:00/);
     assert.equal(await page.textContent('#readViewInsideBtn'), 'Look inside');
-    assert.match(await page.textContent('#fridgeShelfInventory'), /Silver Floss Sauerkraut Jar/);
-    assert.match(await page.textContent('#fridgeComparisonLists'), /Organic Whole Milk/);
-    assert.match(await page.textContent('#fridgeMealPlanList'), /Prepped Glass-Bowl Chopped Salad/);
+    // Nothing was read from this refrigerator, so no shelf, comparison or meal is shown: until 1.6.2 the page listed one
+    // fixed set of groceries and meals here as this person's own.
+    const words = async (selector) => (await page.textContent(selector)).replace(/\s+/g, ' ').trim();
+    assert.equal(await words('#fridgeShelfInventory'), 'Nothing has been read from this refrigerator yet.');
+    assert.match(await words('#fridgeComparisonSummary'), /^Nothing has been read from this refrigerator yet, so there is no list of what is inside, no comparison with last week and no meal ideas\./);
+    assert.equal(await words('#fridgeComparisonLists'), '');
+    assert.equal(await words('#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
+    assert.equal(await words('#fridgeCartStatusBadge'), 'Nothing listed yet');
+    assert.equal(await words('#fridgeCartItems'), 'Nothing is on the list yet. Add an item below.');
+    // Starting an empty list says there is nothing on it; an item the person adds is on it, and then it starts.
     await page.locator('#startFridgeCartBtn').click();
-    await page.waitForFunction(() => document.getElementById('fridgeCartStatusBadge')?.textContent?.includes('Started'));
-    assert.match(await page.textContent('#fridgeCartStatusBadge'), /^Started · [67] items/);
+    await page.waitForFunction(() => /Nothing is on the list yet: add an item first/.test(document.body.innerText));
+    await page.locator('#fridge-cart-add-input').fill('Oat milk');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.waitForFunction(() => document.getElementById('fridgeCartItems')?.textContent?.includes('Oat milk'));
+    assert.equal(await words('#fridgeCartStatusBadge'), 'Started · 1 item');
+    assert.match(await words('#fridgeCartItems'), /^Oat milk \(1 item — Added for weekly meal plan\) In Cart$/);
+    // A focus changes no meal: ideas come from a reading.
     await page.locator('#fridge-meal-focus').selectOption('high-protein');
-    await page.waitForFunction(() => document.getElementById('fridgeMealPlanList')?.textContent?.includes('Double-Protein'));
+    await page.waitForFunction(() => /No meal ideas yet: they come from a reading of what is inside/.test(document.body.innerText));
+    assert.equal(await words('#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
     await page.locator('#page-fridge [data-page-back]').click();
     await page.waitForSelector('#homeView:not([hidden])');
     assert.equal(await page.isVisible('#fridgeCameraSection'), false, 'Back returns to Home');

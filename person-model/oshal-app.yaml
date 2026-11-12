@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: add Continuous Profile Learning and Eavesdrop Business Cards UI + backend (lastingStorage: true, GET/POST /api/person-model/profile-cards, GET/POST /api/person-model/recall), route-backed concierge tools (person-model-profile-cards, person-model-upsert-card, person-model-recall), and routing keywords for business cards, my profile, my address, who am i, people profiles, continuous learning, and eavesdropping.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: Jarvis routing words (backlog P4-16h): ambient-recall-concierge adds 'say', 'said' and 'meeting'. "What did Dave say about the budget in yesterday's meeting?" was a four-way tie (its phrase 'what did they say' never matches a named person) and now reaches Ambient Recall; "Summarize the meeting" stays with Intelligent Communication. No route, tool or permission changed.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: no house identifier in the default profile or sample cards (open-work audit 2026-11-10): the owner address comes only from OSHAL_OWNER_ADDRESS; no street address, LAN address, room device name or real phone number ships in the package.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Release 1.2.4 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 name: person-model
 suite: ai-knowledge
 rating:
@@ -24,7 +25,7 @@ description: >-
   build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted
   receipts with assistant-voice playback, open asks and commitments beside their source quotes,
   per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.
-version: 1.2.3
+version: 1.2.4
 runtime: process
 status: active
 scope: person
