@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Load the actual source-decision library in every strict compiled-route fixture while preserving admission and no-writer assertions.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | The shipped routes are handed the whole source-health library, as they are in the package: the list now also reads source maintenance through it, and a hand-picked pair of its functions answered 500.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The child's time limit is a guard against a hang, not a speed check: it ended this test at exactly its limit on a busy machine (load 13 to 22 on 20 cores, 2026-11-11) while the engine was still working. Raised to 3 minutes for the source-memory contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Resolve on the native kernel: saved for the next pull with no engine started, read back as waiting and then as what the pull did.
@@ -93,6 +94,7 @@ test('an administrator without a personal Career store can inspect the shared Co
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
       '../lib/career-source-health': require('../lib/career-source-health'),
       '../lib/career-source-requests': sourceRequests,
+    '../lib/career-source-decisions': require('../lib/career-source-decisions'),
     };
     new Function('require','module','exports',source)((id) => {
       assert.ok(id in leaves, `inspected dependency ${id}`); return leaves[id];
@@ -133,6 +135,7 @@ test('on the native kernel Resolve saves the change for the next pull and starts
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
       '../lib/career-source-health': require('../lib/career-source-health'),
       '../lib/career-source-requests': sourceRequests,
+    '../lib/career-source-decisions': require('../lib/career-source-decisions'),
     };
     new Function('require','module','exports',source)((id) => leaves[id], module, module.exports);
     const keep = (url,...handlers) => routes.set(url,handlers);
@@ -241,6 +244,7 @@ test('only a verified operator or configured administrator passes the existing C
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
       '../lib/career-source-health': {sourceHealthByCompany},
       '../lib/career-source-requests': sourceRequests,
+    '../lib/career-source-decisions': require('../lib/career-source-decisions'),
     };
     new Function('require','module','exports',readFileSync(new URL('../routes/career-company-routes.js',import.meta.url),'utf8'))(
       id => {assert.ok(id in leaves);return leaves[id];},module,module.exports);

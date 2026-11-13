@@ -1,4 +1,9 @@
-/** Compiled financial summary and explicit-review boundaries; no providers or AI used. */
+/**
+ * CHANGE LOG
+ * SEQ | AUTHOR | DESCRIPTION
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise financial summary and explicit advisory-review boundaries with actual compiled amount helpers while provider and execution replies stay synthetic.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Load the actual compiled coverage reader for advisory-route checks and retain the unknown-window prompt guard.
+ */
 const fs=require('fs'),path=require('path'),test=require('node:test'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 function moduleFor(file,dependencies){const module={exports:{}};new Function('require','module','exports',fs.readFileSync(path.join(root,file),'utf8'))(dependencies,module,module.exports);return module.exports;}
@@ -13,7 +18,7 @@ test('Finance refuses mixed-currency totals and retains unknown historical mode'
  const r=await summary('finance',async q=>({rows:q.text.includes('SELECT aggregate')?[{aggregate:{currency:'USD',netWorth:{net:200},accounts:[{currency:'USD'},{currency:'EUR'}]},synced_at:new Date()}]:[]}))();
  assert.equal(r.body.metrics.find(m=>m.id==='cached-net-worth').value,'Mixed currencies');assert.equal(r.body.metrics.find(m=>m.id==='snapshot-mode').value,'mode not recorded');
 });
-function financeRoute(query,execute){const handlers={};const stub={createChildLogger:()=>({error(){}}),BotNodeClient:class{},createRegistryEndpointResolver:()=>()=>{},resolveUserLlmConnection:async()=>null,executeBotOrInline:execute,runRuntimeSchemaBootstrap:()=>assert.fail('read must not bootstrap schema')};moduleFor('finance/routes/finance-routes.js',name=>name==='express'?{Router:()=>Object.fromEntries(['get','post','delete'].map(method=>[method,(p,fn)=>handlers[method+' '+p]=fn]))}:name==='path'?require('path'):stub).createFinanceRoutes({pool:{query}});return async(route,body,oidc={user:{sub:'alice'},isAuthenticated:()=>true},query={})=>{const res=response();await handlers[route]({body,oidc,query},res);return res;};}
+function financeRoute(query,execute){const handlers={};const stub={createChildLogger:()=>({error(){}}),BotNodeClient:class{},createRegistryEndpointResolver:()=>()=>{},resolveUserLlmConnection:async()=>null,executeBotOrInline:execute,runRuntimeSchemaBootstrap:()=>assert.fail('read must not bootstrap schema')};moduleFor('finance/routes/finance-routes.js',name=>name==='express'?{Router:()=>Object.fromEntries(['get','post','delete'].map(method=>[method,(p,fn)=>handlers[method+' '+p]=fn]))}:name==='path'?require('path'):['./finance-values','./finance-facts'].includes(name)?require(path.join(root,'finance/routes',name.slice(2)+'.js')):stub).createFinanceRoutes({pool:{query}});return async(route,body,oidc={user:{sub:'alice'},isAuthenticated:()=>true},query={})=>{const res=response();await handlers[route]({body,oidc,query},res);return res;};}
 test('review needs authenticated confirmation and bounded context before reading or execution',async()=>{
  const call=financeRoute(()=>assert.fail('read'),()=>assert.fail('execute'));
  assert.equal((await call('post /review',{},null)).statusCode,401);
@@ -25,7 +30,7 @@ test('review reads only its owner and requires saved accounts before analysis',a
  assert.equal((await call('post /review',{confirm:true,title:'A',notes:'B',user_sub:'bob'})).statusCode,409);
 });
 test('confirmed review passes saved evidence to advisory execution without ledger writes',async()=>{
- let executed=0;const call=financeRoute(async(sql,args)=>{assert.match(sql,/^SELECT /);assert.deepEqual(args,['alice']);return {rows:[{aggregate:{currency:'USD',generatedAt:'2026-09-01'},synced_at:'2026-09-01'}]};},async(ctx,client,id,request)=>{executed++;assert.equal(request.userSub,'alice');assert.match(request.text,/unverified source data/);assert.match(request.text,/saved payment evidence/);return {response:'Review result'};});
+ let executed=0;const call=financeRoute(async(sql,args)=>{assert.match(sql,/^SELECT /);assert.deepEqual(args,['alice']);return {rows:[{aggregate:{currency:'USD',generatedAt:'2026-09-01'},synced_at:'2026-09-01'}]};},async(ctx,client,id,request)=>{executed++;assert.equal(request.userSub,'alice');assert.match(request.text,/unverified source data/);assert.match(request.text,/saved payment evidence/);assert.match(request.text,/Transaction coverage is unknown/);return {response:'Review result'};});
  const r=await call('post /review',{confirm:true,title:'A',notes:'saved payment evidence'});assert.equal(r.statusCode,200);assert.equal(r.body.advisory,true);assert.equal(r.body.snapshotAt,'2026-09-01');assert.equal(executed,1);
 });
 test('cached brief GET never initializes schemas, executes or updates a missing brief',async()=>{

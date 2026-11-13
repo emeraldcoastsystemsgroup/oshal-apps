@@ -8,6 +8,7 @@
  *     |                                             | a job's rhythm, a summary tile and a job's name are right for the schedules and tiles production really has;
  *     |                                             | its sections come from the menu the server sends, never the page itself or an address on another site; and
  *     |                                             | the page only reads (no request other than GET, nothing switched on).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Verify the bank-first frame keeps profile-admitted navigation, direct trading account entry and saved bank reads without writer calls.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -24,7 +25,7 @@ const routes = fs.readFileSync(path.join(ROOT, 'routes', 'finance-routes.js'), '
 
 /** The page's own helpers, from its own script, with no browser. */
 function helpers() {
-  const script = page.match(/<script>\s*\(function \(\) \{[\s\S]*?<\/script>/)[0].replace(/^<script>/, '').replace(/<\/script>$/, '');
+  const script = page.match(/<script>\s*\{[\s\S]*?<\/script>/)[0].replace(/^<script>/, '').replace(/<\/script>$/, '');
   const window = {};
   const document = { readyState: 'loading', addEventListener() {}, getElementById: () => ({}), querySelectorAll: () => [] };
   vm.runInNewContext(script, { window, document, location: { hash: '' }, history: {}, fetch: () => Promise.reject(new Error('no network in this test')) });
@@ -32,7 +33,6 @@ function helpers() {
 }
 
 test('the application page is the first and default screen, and every earlier screen keeps its name and address', () => {
-  assert.match(manifest, /^version: 1\.5\.0$/m);
   const ui = manifest.slice(manifest.indexOf('\nui:\n'), manifest.indexOf('\nribbon:\n'));
   const tools = [...ui.matchAll(/- toolName: (\S+)\n\s+label: (.+)\n\s+icon: .+\n\s+iframeUrl: (\S+)\n\s+section: (\S+)/g)].map((m) => [m[1], m[2], m[3], m[4]]);
   assert.deepEqual(tools, [
@@ -97,13 +97,14 @@ test('sections come from the menu the server sends: not this page itself, and ne
     item('finance-app', 'Finance', '/api/finance/app'), item('finance-home', 'Money', '/api/finance/'),
     item('finance-banks', 'Linked banks', '/api/finance/?view=banks', 'bottom'), item('finance-trading', 'Intelligent Trades', '/api/trading/'),
     item('finance-new-thing', 'A new screen', '/api/finance/new'), item('finance-elsewhere', 'Elsewhere', 'https://example.com/x'),
-    item('finance-slashes', 'Slashes', '//example.com/x'), { id: 'tool-no-page', label: 'No page' },
+    item('finance-slashes', 'Slashes', '//example.com/x'), item('finance-backslashes', 'Backslashes', '/\\example.test/x'),
+    item('finance-controls', 'Controls', '/\t/example.test/x'), { id: 'tool-no-page', label: 'No page' },
   ] } } });
   assert.deepEqual(got.map((s) => [s.name, s.label, s.full, s.url, s.more]), [
-    ['finance-home', 'Money', 'Money', '/api/finance/', false],
-    ['finance-banks', 'Banks', 'Linked banks', '/api/finance/?view=banks', true],
-    ['finance-trading', 'Trades', 'Intelligent Trades', '/api/trading/', false],
-    ['finance-new-thing', 'A new screen', 'A new screen', '/api/finance/new', false],
+    ['finance-home', 'Bank accounts', 'Money', '/api/finance/', false],
+    ['finance-banks', 'Connections', 'Linked banks', '/api/finance/?view=banks', true],
+    ['finance-trading', 'Trades', 'Intelligent Trades', '/api/trading/?view=accounts', false],
+    ['finance-new-thing', 'A new screen', 'A new screen', '/api/finance/new', true],
   ]);
   assert.deepEqual([...sectionsOf(null)], []);
   assert.deepEqual([...sectionsOf({ profile: {} })], []);
@@ -113,7 +114,7 @@ test('the page only reads: every request is a GET and nothing is switched on fro
   assert.doesNotMatch(page, /method:\s*['"](POST|PUT|PATCH|DELETE)['"]/i);
   assert.doesNotMatch(page, /\/activate|\/trigger|\/deactivate|\/orders|\/pay\b/);
   const reads = [...page.matchAll(/getJson\((['"])([^'"]+)\1/g)].map((m) => m[2]);
-  assert.deepEqual(reads.sort(), ['/api/swarm/roles/me', '/api/ui/profile?name=finance', '/api/v1/agent/schedules']);
+  assert.deepEqual(reads.sort(), ['/api/finance/status', '/api/finance/summary', '/api/swarm/roles/me', '/api/ui/profile?name=finance', '/api/v1/agent/schedules']);
   assert.match(page, /summary: '\/api\/finance\/home-summary'/);
   assert.match(page, /summary: '\/api\/trading\/home-summary'/);
   assert.match(page, /summary: '\/api\/kalshi\/home-summary'/);

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: in Chromium over the shipped tools/trading.html and ui scripts, served with the SHIPPED accounts, book-read, order-flow, research and chart routes on a native-kernel-shaped host (no broker, no market-data connector, the person's armed paper book holding UPCO, a World price archive). The landing shows the Paper tile with its $100,000 and a PAPER pill, the hero total is the paper book's (it said "$0 · No accounts yet - connect a Schwab login"), and the positions rollup lists UPCO in the paper book; opening the account and the UPCO row draws the archive's stored prices as a chart line with its note, and Allocation says the paper book needs no broker. Seams: the shell's shared theme assets are empty stand-ins and the kernel schedule list answers none. Needs declared Express, Playwright and Chromium dependencies, supplied by either the Store toolchain or the isolated native runtime.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve declared dependencies in package-only native fixtures as well as Store checkouts.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Assert that the real-capital headline excludes the paper book while its separate balance and holdings remain visible.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the first screen is drawn from saved records, so this host also serves the shipped paper routes (GET /paper/today) and the paper book first shows as a card that says it is simulated and running; the tile, the hero and the rollup this test has always checked are reached by opening the screen's closed section "Balances and holdings, read from your broker now". Every earlier check stays.
  */
 'use strict';
 
@@ -14,7 +15,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { createSqlDouble, createIntentDouble } = require('./support/paper-doubles');
 const { standIns, loadShipped, nativeLandingPool, worldArchive } = require('./support/native-landing-host');
-const { paperHandlers } = require('../routes/trading-paper-routes');
+const { paperHandlers, createTradingPaperRoutes } = require('../routes/trading-paper-routes');
 
 const PKG = path.resolve(__dirname, '..');
 const dependencyRoots = [__dirname, path.join(PKG, '..', 'scripts', 'toolchain'),
@@ -44,6 +45,7 @@ function shippedRouters(ctx) {
     load('trading-research-routes.js').registerTradingResearchRoutes(api, ctx);
     charts = load('trading-charts-routes.js').createTradingChartsRoutes({ ...ctx, appPackageDir: PKG });
   });
+  api.use('/paper', createTradingPaperRoutes(ctx, () => express.Router()));
   api.use((_req, res) => res.status(404).json({ error: 'not_found', message: 'Not part of this test host.' }));
   return { api, charts };
 }
@@ -83,6 +85,11 @@ test('with no Schwab the landing shows the paper book, and its chart draws the W
   page.on('pageerror', (e) => errors.push(e.message));
 
   await page.goto(base + '/api/trading/');
+  const card = page.locator('#homeCards [data-story="paper|paper"]');
+  await card.waitFor();
+  assert.match(await card.innerText(), /Paper \(reference book\)[\s\S]*SIMULATED MONEY[\s\S]*This simulation counts prices only\./i);
+  assert.equal(await page.locator('#tiles').count(), 0, 'the tile, the hero and the rollup are drawn when their section is opened');
+  await page.locator('#homeBroker > summary').click();
   const tile = page.locator('#tiles .tile', { hasText: 'Paper (reference book)' });
   await tile.waitFor();
   await page.waitForFunction(() => document.getElementById('heroTotal').textContent !== '…');

@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Bounded concierge status reads the same owner profile as automatic facts, without an engine launch or full résumé text.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Carry selected additional experience metadata into document review and regeneration choices.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
@@ -461,6 +462,15 @@ async function getResumeDocument(ctx, req, res) {
         return;
     }
     if (String(req.query.id || '') === MASTER_ID) {
+        if (req.query.view === 'status') {
+            try {
+                res.json(require('../lib/career-resume-source').resumeStatus((0, career_user_store_1.findUserPaths)(userSub)?.userDir));
+            }
+            catch {
+                res.status(503).json({ error: 'Your saved résumé could not be read. Open My résumé to check it.' });
+            }
+            return;
+        }
         await getMasterDocument(ctx, userSub, res);
         return;
     }

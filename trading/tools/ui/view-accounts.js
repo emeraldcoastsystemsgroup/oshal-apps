@@ -33,6 +33,7 @@
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Keep paper capital and paper day change outside the real-capital headline.
   * 8 | maintainer@emeraldcoastsystemsgroup.com | Label native day P&L as open-position scope; closed-trade results and cash flows are not reconstructed.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Separate account detail and strategy links, show actual authority and open-position gain/loss.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the first screen is drawn by view-home.js from saved records (one card per account: state, plan, today, value). This landing stays whole as that screen's closed section "Balances and holdings, read from your broker now" and as the fallback when the saved-record read cannot be made, where one line says why. The skeleton is split so the closed section can draw the balances without a second watchlist or connected-login list; opening the Accounts screen no longer starts the GET /portfolio read that fills each tile's status line.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The design standard, UI only: the real-capital hero is drawn only once a real account is connected or its read failed (a dashboard shows no tile without a figure, §5.4), the account tiles are the page's declared work, a tile is a card rather than a button around its own buttons, the connected-login roster with Discover opens from ⚙ Settings instead of the landing, an idle paper tile says it is not started in one sentence without empty balance rows, a paper tile no longer repeats its type, and the positions rollup with no position is not drawn.
  */
 
@@ -44,24 +45,40 @@ let ACCT_TILES = [];
 let ACCT_EVENT_REFS = new Set();
 
 /**
- * @description The static skeleton of the landing page: hero, tiles host, rollup panel, roster panel.
- * Every dynamic region is an id'd host the async steps fill in place.
- * @returns {string} HTML for #main.
+ * @description The balances part of the landing: hero, tiles host and rollup panel, with the watchlist between them unless
+ * it is embedded in the first screen's closed section (the watchlist lives on Research).
+ * @param {boolean} embedded - true inside the first screen's closed section.
+ * @returns {string} HTML.
  */
-function accountsSkeleton() {
+function accountsBodySkeleton(embedded) {
   return '<div class="panel" id="heroPanel" hidden><div class="hero-total"><span class="n" id="heroTotal">…</span><span class="sub" id="heroSub">Total value · all accounts</span> <span id="heroDay" class="sub"></span></div>' +
       '<div class="err" id="heroMissing" style="font-size:12px;margin-top:6px" hidden></div></div>' +
-    '<div class="tiles" id="tiles" data-ds-work><div style="grid-column:1/-1">' + spinner('Loading accounts…') + '</div></div>' +
-    '<div class="panel" id="wlHost">' + spinner('Loading watchlist…') + '</div>' +
-    '<div class="panel"><h2>Positions across all accounts</h2><div id="rollup">' + spinner('Reading every account…') + '</div></div>' +
-    // The connected-login roster and Discover are configuration: they open from the ⚙ Settings screen (openSettings in
-    // app.js moves this panel there), not on the landing (UX audit decision intelligent-trades--intelligent-trades-home).
-    '<div class="panel" id="rosterPanel" hidden>' +
+    '<div class="tiles" id="tiles"' + (embedded ? '' : ' data-ds-work') + '><div style="grid-column:1/-1">' + spinner('Loading accounts…') + '</div></div>' +
+    (embedded ? '' : '<div class="panel" id="wlHost">' + spinner('Loading watchlist…') + '</div>') +
+    '<div class="panel"><h2>Positions across all accounts</h2><div id="rollup">' + spinner('Reading every account…') + '</div></div>';
+}
+
+/**
+ * @description The connected-login roster and Discover. They are configuration: they open from the ⚙ Settings screen
+ * (openSettings in app.js moves this panel there), not on the landing (UX audit decision intelligent-trades--intelligent-trades-home).
+ * @returns {string} HTML.
+ */
+function rosterPanelHtml() {
+  return '<div class="panel" id="rosterPanel" hidden>' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Connected Schwab accounts</h2>' +
         '<button class="btn ghost sm" style="margin-left:auto" id="discoverBtn">Discover accounts</button></div>' +
       '<div class="foot" style="margin:0 0 10px">Log into Schwab once from the cockpit (Settings → Connections) and every account under that login pulls in here. Re-run discovery after connecting a new login — and check <strong>all accounts</strong> on Schwab’s consent screen.</div>' +
       '<div id="discovered">' + spinner('Loading accounts…') + '</div>' +
     '</div>';
+}
+
+/**
+ * @description The static skeleton of the landing page: hero, tiles host, rollup panel, roster panel.
+ * Every dynamic region is an id'd host the async steps fill in place.
+ * @returns {string} HTML for #main.
+ */
+function accountsSkeleton() {
+  return accountsBodySkeleton(false) + rosterPanelHtml();
 }
 
 /**
@@ -512,11 +529,12 @@ function paperFallbackTile() {
  * accounts service is unavailable, the Paper tile so the page is still usable, and every other host
  * marked unavailable (no summary attempt — it lives behind the same service).
  * @param {Error} err - The loadBooks() failure.
+ * @param {Element} [panelHost] - Where the error panel goes: #main, or the first screen's closed section.
  * @returns {void}
  */
-function paintAccountsUnavailable(err) {
+function paintAccountsUnavailable(err, panelHost) {
   const msg = err && err.message ? err.message : 'unknown error';
-  main.insertAdjacentHTML('afterbegin', '<div class="panel err">The accounts service is unavailable (GET /accounts failed: ' + esc(msg) + '). ' +
+  (panelHost || main).insertAdjacentHTML('afterbegin', '<div class="panel err">The accounts service is unavailable (GET /accounts failed: ' + esc(msg) + '). ' +
     'Live accounts, books and balances cannot be listed right now; the Paper reference book is still open below. Use Refresh to retry.</div>');
   paintTiles([paperFallbackTile()]);
   paintHero(null, err, []);
@@ -537,25 +555,40 @@ function paintWatchlistHost() {
 }
 
 /**
- * @description VIEW 'accounts' — the landing page. Paints the skeleton, refreshes the roster, shows
- * one tile per book immediately, then fills balances from GET /summary. Every async step checks
- * stale(token) before painting so a navigation away can never be overpainted. A failed roster load
- * degrades to paintAccountsUnavailable() instead of blanking the page. The watchlist is its own
- * route, so it is kicked off before the roster load and fills either way.
+ * @description VIEW 'accounts'. The first screen (view-home.js) takes the render when it can read the person's saved
+ * records. A bookmark that names an account, or a read that cannot be made, gets this landing instead; a failed read is
+ * said in one line above it.
  * @param {number} token - RENDER_TOKEN at dispatch time.
  * @returns {Promise<void>}
  */
 async function renderAccountsView(token) {
+  if (typeof renderHomeView === 'function' && await renderHomeView(token)) return;
+  if (stale(token)) return;
   main.innerHTML = accountsSkeleton();
-  wireTiles(); wireDiscovered();
-  paintWatchlistHost();
+  if (typeof HOME !== 'undefined' && HOME.failed) main.insertAdjacentHTML('afterbegin', '<div class="panel foot" id="homeFallback" role="status">Saved activity could not be read, so balances read from your broker are shown instead. Reason: ' + esc(String(HOME.failed).replace(/[.\s]+$/, '')) + '.</div>');
+  await fillAccountsLanding(token, false);
+}
+
+/**
+ * @description Fill the landing's balances: refresh the roster, show one tile per book immediately, then fill balances from
+ * GET /summary. Every async step checks stale(token) before painting so a navigation away can never be overpainted. A failed
+ * roster load degrades to paintAccountsUnavailable() instead of blanking the page. The watchlist is its own route, so it is
+ * kicked off before the roster load and fills either way. Embedded in the first screen's closed section, the watchlist and
+ * the connected-login list are that screen's own, so they are not wired a second time.
+ * @param {number} token - RENDER_TOKEN at dispatch time.
+ * @param {boolean} embedded - true inside the first screen's closed section.
+ * @returns {Promise<void>}
+ */
+async function fillAccountsLanding(token, embedded) {
+  wireTiles();
+  if (!embedded) { wireDiscovered(); paintWatchlistHost(); }
   try {
     await loadBooks();
   } catch (e) {
-    if (!stale(token)) paintAccountsUnavailable(e);
+    if (!stale(token) && $('tiles')) paintAccountsUnavailable(e, embedded ? $('homeBrokerBody') : main);
     return;
   }
-  if (stale(token)) return;
+  if (stale(token) || !$('tiles')) return;
   ACCT_EVENT_REFS = new Set();
   const models = tileModelsFromBooks();
   paintTiles(models);
@@ -570,10 +603,10 @@ async function renderAccountsView(token) {
     paintTiles(models); paintHero(null, e, models); paintRollup(null, e);
     return;
   }
-  if (stale(token)) return;
+  if (stale(token) || !$('tiles')) return;
   mergeSummaryIntoTiles(models, summary);
   paintTiles(models); paintHero(summary, null, models); paintRollup(summary, null);
-  if (typeof showFocusedNativeAccount === 'function' && showFocusedNativeAccount(models)) return;
+  if (!embedded && typeof showFocusedNativeAccount === 'function' && showFocusedNativeAccount(models)) return;
   if (typeof loadNativeDashboardState === 'function') loadNativeDashboardState(token);
 }
 

@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Bounded concierge status reads the same owner profile as automatic facts, without an engine launch or full résumé text.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Carry selected additional experience metadata into document review and regeneration choices.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
@@ -43,7 +44,7 @@ import {
   writeFileAtomicAsync,
   type FileSnapshot,
 } from './career-file-transaction';
-import { callerSub, openUserDb, userPaths } from './career-user-store';
+import { callerSub, findUserPaths, openUserDb, userPaths } from './career-user-store';
 
 const logger = createChildLogger({ module: 'career-resume-studio-routes' });
 const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
@@ -461,6 +462,11 @@ async function getResumeDocument(ctx: AppContext, req: Request, res: Response): 
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   if (String(req.query.id || '') === MASTER_ID) {
+    if (req.query.view === 'status') {
+      try { res.json(require('../lib/career-resume-source').resumeStatus(findUserPaths(userSub)?.userDir)); }
+      catch { res.status(503).json({ error: 'Your saved résumé could not be read. Open My résumé to check it.' }); }
+      return;
+    }
     await getMasterDocument(ctx, userSub, res);
     return;
   }

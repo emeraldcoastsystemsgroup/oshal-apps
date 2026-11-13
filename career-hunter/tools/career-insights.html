@@ -9,6 +9,7 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: period window control (All · 90d · 30d · 7d), friendly labels ('Average pay, fit 70+', 'Remote or no state'), thousands separators everywhere, withhold empty pay tiles and zero-fit badges, link company and state rows to Search Jobs, and align radii/typography to the design standard.
   4 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 15: the page drew one funnel that began with a count shared by everyone ("Sourced 225,871") and ran into the person's own steps, with "In-lane roles", "Qualified" and "Promoted" among its labels. It is three parts now. Your search is the person's own counts only, read from GET /jobs/stats: Saved, Prepared, Applied, Interview, Offer; with none of them it says "Save or apply to a job and your progress appears here" with Find jobs. How these jobs fit your résumé holds the numbers that come from the person's own scores, when there are any. The job market Career can see holds the shared numbers, says they are the same for everyone, and carries the period control, which only ever narrowed those. "In-lane roles" reads "Open technology and professional jobs", the engine's own description of that count (engine/jobhunter/lane.py). A read that fails says so in its own part. Guard: tests/career-insights-honest.test.mjs.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Use the canonical owner workflow Getting ready count and Interviewing name; unavailable preparation counts stay unknown rather than borrowing historical generated rows.
   6 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed Job market (was Insights). Guard: tests/career-page-names.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="insights-ui" data-ds-category="dashboard" data-ds-first-action="none"><head>
@@ -87,10 +88,10 @@ const k=n=>n>=1000?'$'+Math.round(n/1000).toLocaleString('en-US')+'k':'$'+fmt(n)
 const stateLabel=s=>(!s||s==='(remote/\u2014)')?'Remote or no state':String(s);
 const stateHref=s=>(!s||s==='(remote/\u2014)')?'/api/career-hunter/search-ui?remote=1':'/api/career-hunter/search-ui?state='+encodeURIComponent(String(s));
 function statCard(v,l){ return `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`; }
-function funnelRow(lbl,n,max){ const w=max>0?Math.max(4,Math.round(n/max*100)):4; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${fmt(n)}</div></div>`; }
+function funnelRow(lbl,n,max){ if(n===null)return `<div class="frow"><div class="lbl">${lbl}</div><span class="note unknown">Unavailable</span></div>`; const w=max>0?Math.max(4,Math.round(n/max*100)):4; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${fmt(n)}</div></div>`; }
 let activeDays='';
 /** The person's own steps, in order: the count's key in GET /jobs/stats and the word for it. */
-const OWN_STEPS=[['saved','Saved'],['generated','Prepared'],['applied','Applied'],['interview','Interview'],['offer','Offer']];
+const OWN_STEPS=[['saved','Saved'],['queued','Getting ready'],['applied','Applied'],['interview','Interviewing'],['offer','Offer']];
 const el=id=>document.getElementById(id);
 /** The route's pay bands (career-insights bandOf) with their unit; a band it adds later shows as the route names it. */
 const BAND_WORDS={'<150k':'Under $150k a year','150-200k':'$150k to $200k a year','200-250k':'$200k to $250k a year','250-350k':'$250k to $350k a year','350k+':'$350k a year or more','n/a':'No pay figure'};
@@ -106,9 +107,9 @@ async function read(url){
 function ownHtml(result){
   if(!result.ok) return '<div class="empty" role="alert">Your own numbers could not be loaded: '+esc(result.why)+'</div>';
   const stats=result.data||{}, by=Object.fromEntries((stats.byStatus||[]).map(row=>[row.status,Number(row.n)||0]));
-  const steps=OWN_STEPS.map(([key,label])=>[label,key==='saved'?Number(stats.saved)||0:by[key]||0]);
+  const steps=OWN_STEPS.map(([key,label])=>[label,key==='saved'?Number(stats.saved)||0:key==='queued'?(Number.isSafeInteger(stats.queued)&&stats.queued>=0?stats.queued:null):by[key]||0]);
   const most=Math.max(...steps.map(step=>step[1]));
-  if(most<=0) return '<div class="ck-empty"><h2>Nothing here yet</h2><p>Save or apply to a job and your progress appears here.</p><a class="ck-primary" data-career-tool="career-search" href="/api/career-hunter/search-ui">Find jobs</a></div>';
+  if(most<=0&&steps.every(step=>step[1]!==null)) return '<div class="ck-empty"><h2>Nothing here yet</h2><p>Save or apply to a job and your progress appears here.</p><a class="ck-primary" data-career-tool="career-search" href="/api/career-hunter/search-ui">Find jobs</a></div>';
   return '<div class="funnel">'+steps.map(step=>funnelRow(step[0],step[1],most)).join('')+'</div>';
 }
 /** @description The numbers that come from the person's own fit scores, when there are any. @param {object} a - GET /analytics. @returns {string} Markup, or ''. */

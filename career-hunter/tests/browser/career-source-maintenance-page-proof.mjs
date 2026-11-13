@@ -1,12 +1,16 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Model the exact native revision-bound owner decision projection at the successful human response, retaining lost-response and refusal controls.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Require ticket-derived application human endpoints and reject any fallback to global kernel-only confirmation routes.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Confirm the same native decision through real browser HTTP and preserve truthful outcomes across refusal or unreadable acknowledgements on phone and desktop.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The suggestions on the page are the ones the engine keeps: two found two nights before the newest report, which itself suggested nothing, are listed with the date they were found, and one still takes Accept.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive source maintenance on the shipped Companies page in Chromium, through the shipped routes and library over the corpus the engine really writes: Needs you says what was tried, Archive and Keep trying are saved for the next pull exactly as the kernel takes them and the line says so, a brief is copied and downloaded whole, a suggestion takes the existing Accept, a removed employer appears on no card, employer text stays inert, and the cards fit a phone with 44px controls.
  */
-import {test, before, after} from 'node:test';
+import {test, before, beforeEach, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {readFileSync} from 'node:fs';
+import {readFileSync,rmSync,mkdirSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {randomUUID} from 'node:crypto';
 import http from 'node:http';
 import {buildCorpus, loadRoutes, HOSTILE} from '../helpers/career-maintenance-corpus.mjs';
 
@@ -15,13 +19,56 @@ const {chromium} = deps('playwright');
 const pageHtml = readFileSync(new URL('../../tools/career-companies.html', import.meta.url), 'utf8');
 
 let corpus, routes, server, origin, browser, override = null;
+let nativeMode = 'normal';
+const traffic = [], nativeTickets = new Map(), confirmations = new Set();
+const nativePort = {
+  async listTickets() { return [...nativeTickets.values()]; },
+  async getTicket(id) { return nativeTickets.get(id) || null; },
+  async createTicket(input) { const id=randomUUID(); nativeTickets.set(id,{ticketId:id,ticketType:input.ticketType,
+    workflow:'career-hunter:career-source-decision',status:'queued',revision:0,title:input.title,description:input.description}); return {ticketId:id}; },
+  async startTicket(id,input) { assert.ok(input.limits.wall_ms > 0); nativeTickets.get(id).status='awaiting_approval'; nativeTickets.get(id).revision++; return {status:'awaiting_approval'}; }
+};
+
+function nativeRoute(req,res,url,body) {
+  res.setHeader('content-type','application/json');
+  if(url.pathname==='/confirmations' || /^\/tickets\/[^/]+\/(approve|cancel)$/.test(url.pathname)) {
+    res.statusCode=403; res.end(JSON.stringify({error:'Global kernel authority is not granted.'})); return true;
+  }
+  const match=/^\/tickets\/([a-f0-9-]+)\/application\/(confirmation|decision)$/.exec(url.pathname);
+  if(!match)return false;
+  const ticket=nativeTickets.get(match[1]), token=req.headers['x-oshal-confirm'];
+  if(match[2]==='confirmation') {
+    if(req.method!=='POST' || ticket?.status!=='awaiting_approval') {
+      res.statusCode=403; res.end(JSON.stringify({error:'Owned app gate refused.'})); return true;
+    }
+    const confirmation=randomUUID(); confirmations.add(confirmation);
+    res.end(JSON.stringify({confirmation})); return true;
+  }
+  // A truncated typed acknowledgement avoids Chromium's transparent socket-reset replay.
+  const allowed=req.method==='POST' && ['approve','cancel'].includes(body.outcome)
+    && ticket?.status==='awaiting_approval' && confirmations.delete(token);
+  res.statusCode=allowed?200:403;
+  if (allowed && nativeMode === 'refuse') { res.statusCode=403; res.end(JSON.stringify({error:'Explicit fixture refusal.'})); return true; }
+  if (allowed && nativeMode === 'lost-no-commit') { res.end('{'); return true; }
+  if(allowed) {
+    ticket.status=body.outcome==='approve'?'done':'cancelled'; ticket.revision++;
+    ticket.applicationDecision={version:1,app:'career-hunter',ticketId:ticket.ticketId,ticketType:ticket.ticketType,workflow:ticket.workflow,
+      revision:ticket.revision,status:ticket.status,outcome:body.outcome,ownerVerified:true};
+  }
+  if (allowed && nativeMode === 'lost-commit') { res.end('{'); return true; }
+  res.end(JSON.stringify(allowed?{ticket:{...ticket,id:ticket.ticketId}}:{error:'Confirmation refused.'})); return true;
+}
 
 before(async () => {
   corpus = buildCorpus();
   process.env.OSHAL_EGRESS = 'kernel';
-  routes = loadRoutes(corpus).registered;
-  server = http.createServer((req, res) => {
+  routes = loadRoutes(corpus,{ticketService:nativePort}).registered;
+  server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture');
+    let raw=''; for await (const chunk of req) raw+=chunk;
+    const body=raw?JSON.parse(raw):{};
+    traffic.push({method:req.method,path:url.pathname,confirmation:req.headers['x-oshal-confirm'],outcome:body.outcome});
+    if(nativeRoute(req,res,url,body))return;
     const route = url.pathname.replace('/api/career-hunter', '');
     const handlers = url.pathname.startsWith('/api/career-hunter/') && routes.get(route);
     if (handlers) {
@@ -30,7 +77,7 @@ before(async () => {
           const answer = override && route === '/companies-admin/list' ? {...value, ...override} : value;
           res.statusCode = reply.statusCode; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(answer));
         }};
-      const request = {sub: 'fixture-admin', query: Object.fromEntries(url.searchParams), path: route, accepts: () => 'json'};
+      const request = {sub: 'fixture-admin', body, query: Object.fromEntries(url.searchParams), path: route, accepts: () => 'json'};
       handlers[0](request, reply, () => handlers[1](request, reply));
       return;
     }
@@ -41,6 +88,12 @@ before(async () => {
   await new Promise(done => server.listen(0, '127.0.0.1', done));
   origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch();
+});
+
+beforeEach(() => {
+  // Every browser case has a fresh private owner generation and explicit native-port fixture.
+  nativeMode='normal'; traffic.length=0; nativeTickets.clear(); confirmations.clear(); override=null;
+  rmSync(corpus.owner,{recursive:true,force:true}); mkdirSync(corpus.owner);
 });
 
 after(async () => {
@@ -89,37 +142,33 @@ test('the three cards sit above the nightly review and say what happened, with e
   await context.close();
 });
 
-test('Keep trying is saved for the next pull, the line says so, and it still says so after a reload', async () => {
-  const {page, context} = await open();
-  const quiet = corpus.id('Quiet Board Co');
-  const line = page.locator('#needsYou li', {hasText: 'Quiet Board Co'});
-  await line.locator('button.keep').click();
-  await line.locator('.saved').waitFor();
-  assert.equal(await line.locator('.saved').innerText(), 'Saved. From the next nightly pull, Career keeps trying Quiet Board Co and does not ask about it again for 60 days.');
-  assert.equal(await line.locator('button').count(), 0);
-  assert.deepEqual(saved('keep:employer'), [quiet]);
-  assert.deepEqual(saved('remove:employer'), [], 'nothing was archived');
-  await page.getByRole('tab', {name: 'Companies'}).click();
-  assert.match(await page.innerText('#sourceChanges'), /Quiet Board Co: Keep trying\. Waiting for the next nightly pull\./);
-  await page.goto(origin + '/companies-admin?view=health');
-  await page.waitForSelector('#needsYou li');
-  const again = page.locator('#needsYou li', {hasText: 'Quiet Board Co'});
-  assert.equal(await again.locator('.saved').innerText(), 'Keep trying is saved for the next nightly pull.');
-  assert.equal(await again.locator('button').count(), 0, 'not offered twice');
-  await context.close();
-});
-
-test('Archive is the existing Remove, saved for the next pull, with the employer\'s name inert in what it says', async () => {
-  const {page, context} = await open();
-  const hostile = corpus.id(HOSTILE);
-  const line = page.locator('#needsYou li').first();
-  await line.locator('button.archive').click();
-  await line.locator('.saved').waitFor();
-  assert.equal(await line.locator('.saved').innerText(), `Saved. The next nightly pull closes the jobs of ${HOSTILE} and stops reading it.`);
-  assert.deepEqual(saved('remove:employer'), [hostile]);
-  assert.equal(await page.evaluate(() => window.__injected), undefined);
-  await context.close();
-});
+for (const [label, button, nativeAction, outcome] of [['Keep trying','keep','cancel','keep'],['Archive','archive','approve','archive']]) {
+  test(label+' confirms the SAME native ticket before its conditional next-pull handoff '+(button==='keep'?'at412':'at1280'), async () => {
+    const {page,context}=await open(button==='keep'?{width:412,height:915}:undefined);
+    const line=button==='keep'?page.locator('#needsYou li',{hasText:'Quiet Board Co'}):page.locator('#needsYou li').first();
+    const before=traffic.length;
+    await line.locator('button.'+button).click();
+    await page.waitForFunction(()=>/Queued for the next nightly pull/.test(document.querySelector('#needsYou').textContent)
+      || [...document.querySelectorAll('#needsYou li .msg')].some(item=>!item.hidden && item.textContent));
+    assert.match(await page.innerText('#needsYou'),/Queued for the next nightly pull/,'actual choice reaches conditional queue');
+    const events=traffic.slice(before), confirmAt=events.findIndex(event=>/\/application\/confirmation$/.test(event.path));
+    assert.ok(confirmAt>=0,'actual button obtains an explicit app-owned native human confirmation');
+    const move=events.find(event=>/\/application\/decision$/.test(event.path));
+    assert.ok(move?.confirmation,'native choice carries one-use confirmation'); assert.equal(move.outcome,nativeAction);
+    assert.equal(events.some(event=>event.path==='/confirmations'||/\/(approve|cancel)$/.test(event.path)),false,'no global kernel authority fallback');
+    const syncs=events.filter(event=>event.path==='/api/career-hunter/companies-admin/decision-sync');
+    assert.equal(syncs.length,2,'prepare/read same ticket, then reconcile actual native outcome');
+    assert.equal(events.some(event=>/companies-admin\/(keep|remove)$/.test(event.path)),false,'no generic source-change bypass');
+    const handed=corpus.outbox().filter(entry=>entry.target.endsWith(':'+outcome)); assert.equal(handed.length,1);
+    assert.match(handed[0].target,/^decision:/);
+    assert.equal(await page.evaluate(()=>window.__injected),undefined);
+    await page.reload(); await page.waitForSelector('#needsYou li');
+    const again=button==='keep'?page.locator('#needsYou li',{hasText:'Quiet Board Co'}):page.locator('#needsYou li').first();
+    assert.match(await again.innerText(),/Queued for the next nightly pull/);
+    assert.equal(await again.locator('button.archive,button.keep').count(),0);
+    await context.close();
+  });
+}
 
 test('a brief is copied whole and downloaded whole under its reader and reason', async () => {
   const {page, context} = await open();
@@ -147,7 +196,7 @@ test('a suggestion takes the existing Accept: the board is saved for the next pu
 });
 
 test('on a phone the cards stay inside the screen and every control is at least 44px high', async () => {
-  override = {sourceChanges: []}; // As before anything was pressed, so every control is on the page.
+  override = {sourceChanges: [],sourceDecisions: []}; // As before anything was pressed, so every control is on the page.
   try {
     const {page, context} = await open({width: 412, height: 915});
     await page.waitForSelector('#forDeveloper li');
@@ -156,7 +205,7 @@ test('on a phone the cards stay inside the screen and every control is at least 
     const controls = await page.locator('#needsYou button:visible, #forDeveloper button:visible, #forDeveloper a.download:visible, #newSources button:visible').all();
     assert.deepEqual((await Promise.all(controls.map(control => control.innerText()))).sort(),
       ['Accept greenhouse:zzholdings', 'Archive', 'Archive', 'Copy brief', 'Download', 'Keep trying', 'Keep trying']);
-    for (const control of controls) assert.ok((await control.boundingBox()).height >= 44, await control.innerText());
+    for (const control of controls) { const box=await control.boundingBox(); assert.ok(box.height >= 44 && box.width >= 44,await control.innerText()); }
     await context.close();
   } finally { override = null; }
 });
@@ -169,8 +218,8 @@ test('a refusal is said on the line, and with no maintenance yet or an unreadabl
     let {page, context} = await open();
     const line = page.locator('#needsYou li').first();
     await line.locator('button.keep').click();
-    await page.waitForFunction(() => /no decision waiting/.test(document.querySelector('#needsYou li .msg').textContent));
-    assert.equal(await line.locator('.msg').innerText(), 'Fresh Co has no decision waiting.');
+    await page.waitForFunction(() => /source decision changed/i.test(document.querySelector('#needsYou li .msg').textContent));
+    assert.match(await line.locator('.msg').innerText(), /source decision changed/i);
     assert.equal(await line.locator('button.keep').isEnabled(), true);
     assert.deepEqual(saved('keep:employer').filter(id => id === fresh), []);
     await context.close();
@@ -191,3 +240,21 @@ test('a refusal is said on the line, and with no maintenance yet or an unreadabl
     await context.close();
   } finally { override = null; }
 });
+
+for (const mode of ['refuse','lost-no-commit','lost-commit']) {
+  test('native '+mode+' never retries a human choice or fabricates a source outcome',async()=>{
+    nativeMode=mode;
+    const {page,context}=await open({width:412,height:915}), line=page.locator('#needsYou li').first();
+    await line.locator('button.archive').click();
+    if(mode==='lost-commit') {
+      await page.waitForFunction(()=>/Queued for the next nightly pull/.test(document.querySelector('#needsYou').textContent));
+      assert.equal(corpus.outbox().length,1,'actual recorded Done is reconciled after a lost HTTP response');
+    } else {
+      await line.locator('.msg').waitFor({state:'visible'});
+      assert.equal(corpus.outbox().length,0); assert.equal(await line.locator('.saved').count(),0);
+      assert.equal(await line.locator('button.archive').isEnabled(),true);
+    }
+    assert.equal(traffic.filter(event=>/\/tickets\/.+\/application\/decision$/.test(event.path)).length,1,'no automatic second native choice');
+    await context.close();
+  });
+}

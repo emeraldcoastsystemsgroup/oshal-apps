@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FINANCE_FACT_KEYS = exports.FINANCE_FACTS_QUERY_MS = exports.FINANCE_FACTS_TOOL = void 0;
 exports.unknownFinanceFacts = unknownFinanceFacts;
+exports.transactionCoverageState = transactionCoverageState;
+exports.transactionCoverageComplete = transactionCoverageComplete;
+exports.transactionCoverageNotice = transactionCoverageNotice;
 exports.financeFacts = financeFacts;
 exports.readFinanceFacts = readFinanceFacts;
 /** The declared read the facts run under (oshal-app.yaml `tools:`); the kernel pins reader to tool. */
@@ -37,13 +40,83 @@ function oneCurrency(agg) {
     const seen = new Set(accounts.map((account) => account?.currency).filter(Boolean));
     return Boolean(currency) && seen.size <= 1 && (!seen.size || seen.has(currency));
 }
+/** One inventory decision feeds both the holdings count and the monetary scalar. */
+function holdingsFacts(agg) {
+    const rows = agg.holdings;
+    if (agg.holdingsComplete === false || !Array.isArray(rows)
+        || rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row)))
+        return { count: null, value: null };
+    const values = rows.map((row) => amount(row.value));
+    const value = values.every((v) => v !== null) ? amount(values.reduce((sum, v) => sum + v, 0)) : null;
+    return { count: rows.length, value };
+}
+/** Only objects carry coverage evidence; arrays and primitives are not records. */
+function coverageRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+/** Safe counts, including a positively reported zero. */
+function count(value) { return Number.isSafeInteger(value) && value >= 0; }
+/** Only a coherent bounded institution can establish a complete or explicitly clipped window. */
+function knownTransactionCoverage(value) {
+    const row = coverageRecord(value);
+    if (!row || typeof row.institution !== 'string' || !row.institution.trim() || row.institution.length > 200
+        || !count(row.returned) || row.returned > 2000 || !count(row.total) || row.total < row.returned
+        || !Number.isInteger(row.pages) || row.pages < 1 || row.pages > 4)
+        return null;
+    if (row.state === 'complete' && row.total === row.returned && row.reason === null
+        && row.pages === Math.max(1, Math.ceil(row.returned / 500)))
+        return row;
+    if (row.state === 'partial' && row.total > row.returned && row.returned === 2000 && row.pages === 4
+        && row.reason === 'page_limit')
+        return row;
+    return null;
+}
+/**
+ * @description Derive coverage from every bounded institution; contradictory or absent evidence is unknown.
+ * @param raw - The saved or freshly read aggregate.
+ * @returns Its positively supported window state.
+ */
+function transactionCoverageState(raw) {
+    const agg = coverageRecord(raw), c = coverageRecord(agg?.transactionCoverage);
+    if (!c || !count(c.returned) || !count(c.total) || !Array.isArray(c.institutions)
+        || !c.institutions.length || c.institutions.length > 100)
+        return 'unknown';
+    let returned = 0, total = 0, partial = false;
+    for (const rawInstitution of c.institutions) {
+        const row = knownTransactionCoverage(rawInstitution);
+        if (!row)
+            return 'unknown';
+        returned += row.returned;
+        total += row.total;
+        partial ||= row.state === 'partial';
+    }
+    const state = partial ? 'partial' : 'complete';
+    return Number.isSafeInteger(total) && returned === c.returned && total === c.total
+        && c.state === state && agg?.transactionsComplete === !partial ? state : 'unknown';
+}
+/**
+ * @description Require positive bounded provider-window evidence before using full-window totals.
+ * @param raw - The saved or freshly read aggregate.
+ * @returns Whether spending, income and trends cover the complete reported window.
+ */
+function transactionCoverageComplete(raw) { return transactionCoverageState(raw) === 'complete'; }
+/**
+ * @description Explain the reported window without inventing counts for legacy or unreadable metadata.
+ * @param raw - The aggregate whose full-window totals may be unavailable.
+ * @returns An empty string for complete coverage, otherwise a plain limitation.
+ */
+function transactionCoverageNotice(raw) {
+    const state = transactionCoverageState(raw);
+    if (state === 'complete')
+        return '';
+    const c = coverageRecord(coverageRecord(raw)?.transactionCoverage);
+    const detail = state === 'partial' ? `: ${c.returned.toLocaleString('en-US')} of ${c.total.toLocaleString('en-US')} reported transactions were read` : '';
+    return `Transaction coverage is ${state}${detail}. Full-window spending and income totals are unavailable.`;
+}
 /** The money figures of a one-currency snapshot; a mixed one reports none of them. */
-function moneyFacts(agg, single) {
-    const holdings = Array.isArray(agg.holdings) ? agg.holdings : [];
-    const months = (Array.isArray(agg.spendByMonth) ? agg.spendByMonth : [])
+function moneyFacts(agg, single, held) {
+    const months = (transactionCoverageComplete(agg) && Array.isArray(agg.spendByMonth) ? agg.spendByMonth : [])
         .filter((m) => typeof m?.month === 'string').sort((a, b) => String(b.month).localeCompare(String(a.month)));
-    const values = holdings.map((h) => amount(h?.value));
-    const held = values.every((v) => v !== null) ? amount(values.reduce((sum, v) => sum + v, 0)) : null;
     return {
         net_worth: single ? amount(agg.netWorth?.net) : null,
         assets: single ? amount(agg.netWorth?.assets) : null,
@@ -79,8 +152,9 @@ function financeFacts(linked, row, now) {
     facts.single_currency = single;
     facts.currency_is_usd = typeof agg.currency === 'string' ? agg.currency === 'USD' : null;
     facts.accounts = Array.isArray(agg.accounts) ? agg.accounts.length : null;
-    facts.holdings = Array.isArray(agg.holdings) ? agg.holdings.length : null;
-    return { ...facts, ...moneyFacts(agg, single) };
+    const holdings = holdingsFacts(agg);
+    facts.holdings = holdings.count;
+    return { ...facts, ...moneyFacts(agg, single, holdings.value) };
 }
 /**
  * @description Read the caller's saved finance state as specialist facts. Owner-scoped by the

@@ -9,9 +9,10 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: mint Swarm join codes for zero-touch APK provisioning, launch com.oshal.remote with serverUrl and joinCode extras, and wire #stagePushApkBtn for one-click stage APK updates.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console stays hidden until an RDP session backend exists (nothing implements /api/rdp/sessions; the page marks the button and its sign-in fields hidden), so the Any RDP Host steps and the Check RDP port refusal no longer send the person to it. The session viewer below is kept for that backend.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: a device waiting to pair with OSHAL-KB is asked about here (renderPairingQuestion: its name, the end of its address, the number when it has one, Allow / Reject through ble-pair-answer), the window is read every 2 s while it is open, and a device paired before oshal asked has Keep (ble-keep) instead of Add.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the server a pushed oshal app is told to sign in to is the page's own origin (installationOrigin); the fixed installation address it fell back to is gone.
  */
 
-import { bytesToBase64, isAndroidNode, isTvNode, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
+import { bytesToBase64, installationOrigin, isAndroidNode, isTvNode, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
 
 const PAIR_WINDOW_SECONDS = 120;
 const APK_CHUNK_BYTES = 36864;
@@ -521,7 +522,7 @@ async function provisionStageAndroidApk(ctx) {
     apk, bridge, nodeName: ctx.app.computer(nodeId)?.name || 'computer',
     onProgress: (m) => { ctx.$('stageStatus').textContent = m; }
   });
-  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
+  const serverUrl = installationOrigin();
   ctx.$('stageStatus').textContent = `Installing Open Swarm APK on ${phone.name} (${phone.address})…`;
   const installed = await bridge('adb-install-apk', {
     serial: phone.address, stageId: staged.stageId, sha256: staged.sha256,
@@ -560,7 +561,7 @@ async function installAndroidCompanionFromConnect(ctx, saveAndOpenPhone) {
     return;
   }
   const staged = await stageCompanionApk({ apk, bridge: ctx.bridge, nodeName: ctx.nodeName(), onProgress: (m) => ctx.say('androidStatus', m) });
-  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
+  const serverUrl = installationOrigin();
   ctx.say('androidStatus', `Installing oshal Orbit (${apk.file}) on ${serial}…`);
   const installed = await ctx.bridge('adb-install-apk', {
     serial, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true,

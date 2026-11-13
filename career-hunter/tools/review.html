@@ -12,6 +12,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   7 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The empty line says My jobs (was the Job Board). Guard: tests/career-page-names.test.mjs.
   8 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 9: the tile Application approvals is Career's picks (the summary's label), and its number is the picks My jobs will show, read the way the board reads them (career-stages.js picks()). It counted every record still waiting, including picks the person had already prepared or removed, so it could say more than the list it opens. No tile when none are left.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Recognize actual saved and application activity, share actionable match counts, and keep dated score updates and unavailable counts distinct.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="review" data-ds-category="dashboard" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Career Review</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script><script src="/api/career-hunter/static/career-stages.js"></script>
@@ -31,14 +32,72 @@ try{await mountConnectedActions({app,element:actionHost,contextForOffer:()=>note
 /* The brief only exists to hand work to a connected app; with no action it would take text and lose it. */
 const hasActions=()=>Boolean(actionHost.querySelector('button,a'));
 document.querySelector('#briefPanel').hidden=!hasActions();
-/* Each tile opens the Job Board stage it counts (one score window: 24 hours). */
-const TILE_TARGETS={'approval-review':['career-board','/api/career-hunter/board-native?view=approve'],'scored-24h':['career-board','/api/career-hunter/board-native?view=matches'],'tracked-applications':['career-board','/api/career-hunter/board-native?view=status'],'interviews-5d':['career-board','/api/career-hunter/board-native?view=interviewing']};
+/* Actionable sets open their own views; dated activity never links as if it were the same set. */
+const TILE_TARGETS={'approval-review':['career-board','/api/career-hunter/board-native?view=approve'],'new-matches':['career-board','/api/career-hunter/board-native?view=matches&page=1'],'saved-jobs':['career-board','/api/career-hunter/board-native?view=saved'],'preparing-applications':['career-board','/api/career-hunter/board-native?view=queue'],'pipeline-applications':['career-board','/api/career-hunter/board-native?view=status'],'earlier-preparation':['career-board','/api/career-hunter/board-native?view=queue&earlier=1&page=1']};
 const HELP_ONLY=/^(No saved work yet\. Open the app to begin\.|Separates pending application approvals)/;
 const hasValue=m=>m&&m.id!=='scored-5d'&&/^\d+$/.test(String(m.value))&&Number(m.value)>0;
+const isCount=value=>Number.isSafeInteger(value)&&value>=0;
 const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
-async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();/* Career's picks: the number is the picks My jobs will show (career-stages.js picks()), not every record still waiting, which counts a pick the person has already prepared or removed. */const waiting=(data.metrics||[]).find(m=>m&&m.id==='approval-review'&&Number(m.value)>0);const picked=waiting&&window.CareerStages?await CareerStages.picks().then(list=>list.length).catch(()=>null):null;const shown=(data.metrics||[]).map(m=>m&&m.id==='approval-review'&&picked!==null?{...m,value:String(picked)}:m);for(const m of shown.filter(hasValue)){const target=TILE_TARGETS[m.id];const card=document.createElement(target?'a':'div');card.className='metric';if(target){card.href=target[1];card.dataset.careerTool=target[0];}const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=String(m.label).replace(' / 24h',' today');card.append(v,l);metrics.append(card);}const rows=[],notes=[];const help=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(HELP_ONLY.test(String(item.text||''))){help.push(item.text);continue;}if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}
-const empty=!rows.length&&!notes.length&&!metrics.children.length;document.querySelector('#empty').hidden=!empty;document.querySelector('#recordedPanel').hidden=empty;document.querySelector('#layout').classList.toggle('solo',document.querySelector('#briefPanel').hidden||empty);
-document.querySelector('#helpText').replaceChildren(...help.filter(t=>!/^No saved work yet/.test(t)).map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));document.querySelector('#help').hidden=!document.querySelector('#helpText').children.length;if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context&&hasActions()){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}}wrap.append(table);list.append(wrap);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
+/** @description Read actual owner activity without turning an unavailable answer into zero. @returns {Promise<object|null>} Stats or unknown. */
+async function readStats(){try{const response=await fetch('/api/'+app+'/jobs/stats',{cache:'no-store'});return response.ok?await response.json():null;}catch{return null;}}
+/** @description Keep saved and application pipeline sets distinct from scoring history. @param {object|null} stats @returns {object[]} Metrics. */
+function activityMetrics(stats){
+  return [['new-matches','New matches',stats?.matches],['saved-jobs','Saved jobs',stats?.saved],['preparing-applications','Getting ready',stats?.queued],['pipeline-applications','Applications',stats?.tracked],['earlier-preparation','Earlier preparation',stats?.earlierPreparation]]
+    .filter(([, ,value])=>isCount(value)).map(([id,label,value])=>({id,label,value:String(value)}));
+}
+/** @description Explain unavailable sets instead of declaring an empty career. @param {object|null} stats @returns {string} Warning or empty. */
+function countWarning(stats){
+  if(!stats||!['saved','queued','tracked'].every(key=>isCount(stats[key])))return 'Saved jobs and applications could not be checked.';
+  return isCount(stats.matches)?'':'New matches could not be checked.';
+}
+/** @description Render only real nonzero metrics; historical activity stays an unlinked fact. @param {object[]} rows @returns {void} */
+function drawMetrics(rows){
+  const host=document.querySelector('#metrics');host.replaceChildren();
+  for(const m of rows.filter(hasValue)){
+    const target=TILE_TARGETS[m.id],card=document.createElement(target?'a':'div');card.className='metric';
+    if(target){card.href=target[1];card.dataset.careerTool=target[0];}
+    const value=document.createElement('strong'),label=document.createElement('span');value.textContent=m.value;label.textContent=m.label;card.append(value,label);host.append(card);
+  }
+}
+/** @description Separate saved evidence, plain notes and help without inventing personal activity. @param {object[]} items @returns {object} Sections. */
+function evidenceParts(items){
+  const rows=[],notes=[],help=[];
+  for(const item of items){const context=item.actions?.[0]?.context;if(HELP_ONLY.test(String(item.text||'')))help.push(item.text);else if(!item.detail&&!context)notes.push(item.text);else rows.push({item,context});}
+  return {rows,notes,help};
+}
+/** @description Draw actual recorded evidence and available next actions, keeping employer text inert. @param {object[]} rows @param {string[]} notes @returns {void} */
+function drawEvidence(rows,notes){
+  const list=document.querySelector('#records');list.replaceChildren();
+  if(rows.length){
+    const wrap=document.createElement('div'),table=document.createElement('table');wrap.className='table-scroll';table.className='records';table.setAttribute('data-sortable','');
+    const header=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');header.append(th);}
+    const body=table.createTBody();
+    for(const {item,context} of rows){
+      const row=body.insertRow(),nameCell=row.insertCell(),detail=row.insertCell(),action=row.insertCell(),name=document.createElement('strong');name.className='item';name.textContent=item.text;nameCell.append(name);detail.textContent=localInstants(item.detail||'');
+      if(context&&hasActions()){const button=document.createElement('button');button.textContent='Use this evidence';button.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});action.append(button);}
+    }
+    wrap.append(table);list.append(wrap);
+  }
+  for(const text of notes){const note=document.createElement('p');note.className='hint';note.textContent=text;list.append(note);}
+}
+/** @description Keep the empty state honest after all saved/pipeline sources have been checked. @param {boolean} empty @param {string[]} help @returns {void} */
+function drawState(empty,help){
+  document.querySelector('#empty').hidden=!empty;document.querySelector('#recordedPanel').hidden=empty;document.querySelector('#layout').classList.toggle('solo',document.querySelector('#briefPanel').hidden||empty);
+  document.querySelector('#helpText').replaceChildren(...help.filter(text=>!/^No saved work yet/.test(text)).map(text=>{const note=document.createElement('p');note.textContent=text;return note;}));
+  document.querySelector('#help').hidden=!document.querySelector('#helpText').children.length;
+}
+/** @description Refresh saved sets and dated evidence, preserving known activity even if another source fails. @returns {Promise<void>} */
+async function refresh(){
+  const stats=await readStats(),activity=activityMetrics(stats);drawMetrics(activity);
+  try{
+    const response=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await response.json();if(!response.ok)throw Error('Saved evidence cannot be checked right now.');
+    const waiting=(data.metrics||[]).find(m=>m&&m.id==='approval-review'&&Number(m.value)>0);
+    const picked=waiting&&window.CareerStages?await CareerStages.picks().then(rows=>rows.length).catch(()=>null):null;
+    const shown=(data.metrics||[]).filter(m=>m&&m.id!=='tracked-applications').map(m=>m.id==='approval-review'&&picked!==null?{...m,value:String(picked)}:m);
+    drawMetrics([...activity,...shown]);const {rows,notes,help}=evidenceParts(data.items||[]),warning=countWarning(stats);if(warning)notes.push(warning);
+    drawEvidence(rows,notes);drawState(!rows.length&&!notes.length&&!document.querySelector('#metrics').children.length,help);
+  }catch(error){drawEvidence([],[error.message,...(countWarning(stats)?[countWarning(stats)]:[])]);drawState(false,[]);}
+}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
 </script></body></html>

@@ -31,6 +31,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | The design standard, UI only: the page knows when it is framed in Today (html[data-framed]) and which view is shown (html[data-trading-view]); a loading spinner is marked as progress, so its pulse is not an endless decoration (DS-22); on a phone the sections' bottom bar tells Today how tall it is (--oshal-app-bottom-inset), so the assistant button rests above it. ⚙ Settings shows the Accounts landing's connected-login roster (Discover accounts), which the landing no longer draws.
  * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Clear account-page deep-link focus when navigating to a different view.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Retain the roster capability flag so Strategies opens the native portfolio research surface.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 1.57.0, start-up order only: the roster read (GET /accounts, which reaches the broker) starts at boot and no longer holds the first screen, which is drawn from saved records (view-home.js). Every other view waits for it in render(), as boot used to, because the roster says which accounts exist and whether this installation reads connected accounts. The paper schedule keeper still starts when the roster read has settled.
  */
 
 const $ = (id) => document.getElementById(id);
@@ -157,6 +158,9 @@ function bookLabel(ref) {
   return b.ref + (b.accountMasked ? ' ' + b.accountMasked : '');
 }
 let NATIVE_PORTFOLIO = false;
+/* The newest roster read (boot() starts the first, the first screen starts one on each later render): it settles, never
+   rejects, with GET /accounts' answer, or with null when the read failed. Null before boot. */
+let BOOKS_READY = null;
 async function loadBooks() {
   const j = await api('/accounts');
   BOOKS = j.books || [];
@@ -285,6 +289,9 @@ async function render() {
   main.onclick = null; main.onchange = null; main.onsubmit = null;
   main.innerHTML = spinner('Loading…');
   try {
+    // The roster read runs beside the first screen at start-up. Every other view reads what it loads (which accounts
+    // exist, whether this installation reads connected accounts), so it waits for it here, as boot() used to.
+    if (VIEW !== 'accounts' && BOOKS_READY) { await BOOKS_READY; if (stale(token)) return; DISP = bookLabel(BOOK); renderNav(); }
     // /status is scoped to BOOK. Assign it only if THIS render is still current (a slow response for
     // the previous account must not overwrite the current account's view-only/guardrail truth). On a
     // non-account view a failed /status is not fatal — the view still renders with safe defaults.
@@ -359,8 +366,13 @@ async function boot() {
   const token = RENDER_TOKEN;
   wireFrame();
   wireShell();
-  try { await loadBooks(); } catch { /* accounts surface unavailable — views degrade to the paper book */ }
-  if (typeof startPaperScheduleKeeper === 'function') startPaperScheduleKeeper();
+  // The roster read reaches the broker. A failed read leaves the accounts surface unavailable and views degrade to the paper book.
+  BOOKS_READY = loadBooks().catch(() => null);
+  BOOKS_READY.then(() => { if (typeof startPaperScheduleKeeper === 'function') startPaperScheduleKeeper(); });
+  // The first screen answers from saved records, so it does not wait for the broker. Anything else (another view, a
+  // bookmark that names an account or a book the roster must confirm) waits, exactly as before.
+  const savedRecordsFirst = VIEW === 'accounts' && BOOK === 'paper' && typeof renderHomeView === 'function' && !new URLSearchParams(location.search).get('account');
+  if (!savedRecordsFirst) await BOOKS_READY;
   if (stale(token)) return;
   // A bookmark naming a book that no longer exists must not brick the surface: fall back to paper.
   if (BOOK !== 'paper' && BOOK !== 'live' && !bookOf(BOOK)) { BOOK = 'paper'; MODE = 'paper'; if (VIEW === 'account') VIEW = 'accounts'; syncUrl(); }

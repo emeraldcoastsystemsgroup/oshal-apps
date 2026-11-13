@@ -44,23 +44,50 @@ There is one open decision for an employer at a time. A source that reads again,
 any other reason, has its open decision withdrawn without anyone deciding. When the runbook below connects a source, its
 open decision is withdrawn in the same transaction.
 
-A person answers on the Companies page:
+The existing morning job runs as the original Job source administrator who activated it. It creates or recovers one
+owner-private native ticket for each current source action. Another administrator has a separate journal and cannot
+adopt that owner's ticket. The job does not turn on a schedule or choose a receiver from an administrator list.
 
-- **Archive** is the existing **Remove**. The next pull closes the employer's open jobs, stops reading it, and marks the
-  decision `archived`. **Put back** under the **Removed** chip undoes the removal.
-- **Keep trying** leaves the employer listed. The next pull marks the decision `kept`, and the same source is not raised
-  again for 60 days. After that it is raised again if it still meets the conditions.
+A person answers on **Companies → Source health → Needs you**. **Archive** and **Keep trying** prepare or read the same
+native decision ticket, obtain a one-use human confirmation in the person's browser, and approve or cancel that ticket.
+The workflow's first and only phase is completion with an administrator approval gate: starting waits for the person;
+no bot or worker is dispatched. Approving finishes it **Done**; Keep trying cancels it **Cancelled**.
 
-Both travel as saved changes, the same way as every other change on that page; see
-[changing a source](SOURCE-MEMORY.md#changing-a-source). Keep trying is the target `keep:employer` through
-`POST /companies-admin/keep`, which needs `career.administer`. The route refuses an employer that is not listed, one that is
-removed, and one with no decision waiting.
+Only a Done or Cancelled outcome carrying the matching native application
+decision receipt can queue the corresponding source change. The kernel checks
+the original person's current own-scoped Execute grant and application gate
+when they answer; it verifies the exact actor, history revision and transition
+before projecting the receipt. A terminal status set through a legacy platform
+administrator route has no such receipt and stays on hold:
 
-| What the page says | Outcome | What happened |
-|---|---|---|
-| Kept: Career keeps trying this source and does not ask about it again before a date | `kept` | The decision is closed and the source is not raised again before that date |
-| Not applied: no decision was waiting for this source | `no_decision` | Nothing changed. The source had read again, or was answered already |
-| Not applied: this employer is removed. Put it back first | `removed_employer` | Nothing changed |
+- **Archive** asks the next pull to close the employer's open jobs, stop reading it and mark this action `archived`.
+  **Put back**, under **Removed**, can list the employer again.
+- **Keep trying** asks the next pull to mark this action `kept`. The employer stays listed and is not raised again for
+  60 days. It can be raised after that if it still meets the conditions.
+- **Failed**, unavailable or uncertain tickets never mean archive. **Check decision** reads the same binding and its
+  actual native state; it does not approve anything or create a replacement for an uncertain earlier create.
+
+The page says **Queued for the next nightly pull** until an actual pull result is recorded. A queued acknowledgement
+is not an archived source. Source changes shows the pull's recorded outcome.
+
+The saved target is private server output: `decision:<action id>:<encoded opened-at>:<archive|keep>`. Generic Resolve,
+Add, Remove and Keep routes cannot manufacture it; Remove or Keep on an open action requires the native ticket path.
+The pull checks that exact company, action id, opened-at and open state again in the transaction that decides and changes
+the source. A recovered, withdrawn, reopened or already answered action does nothing. A recorded successful read after
+opening also makes the old choice stale.
+
+| State or outcome | Meaning |
+|---|---|
+| Awaiting approval | The same native ticket waits for this person's choice; no source change is queued |
+| Queued for the next nightly pull | A verified human decision was handed off; application is still pending |
+| `kept` or `removed` | The pull applied that exact choice |
+| `stale_decision` | The action changed or recovered before application; nothing changed |
+| `decision_required` | An older generic change tried to answer an open decision and was refused |
+
+Ticket correlation uses complete bounded native title/description metadata after the kernel's original-owner/type
+filters. A nameless ticket, ambiguous match, full recovery page or lost create without exact proof stays on hold rather
+than opening a duplicate. The journal and deterministic request id survive retries; the pull applies a handed-off UUID
+once. The journal is in that original owner's private directory, never the shared corpus.
 
 An employer that is put back after being archived is judged by the same four conditions on the next pull.
 
@@ -176,7 +203,7 @@ and the table still loads.
 The **Source health** view shows three cards above the nightly review:
 
 - **Needs you**: each open decision with what was tried, and **Archive** and **Keep trying**. After a press the line says
-  the choice is saved for the next nightly pull.
+  the choice is queued only after the same ticket has a verified native human outcome. Uncertainty stays visible.
 - **For a developer**: each open brief with its reader, the reason in words, the employers and open jobs affected, and
   **Copy brief** and **Download**. The file is named `brief-<reader>-<reason>.md`.
 - **New sources found**: the employers connected last night, and every open suggestion with the date it was found, the
@@ -184,8 +211,8 @@ The **Source health** view shows three cards above the nightly review:
   already uses the board. Accepting it gives the employer that board at the next pull, which ends the suggestion.
 
 The manifest also offers a daily job, `career-source-maintenance`, at 07:15 in America/Chicago. It is an offer, so it runs
-once a Career administrator has turned it on. It calls `POST /companies-admin/maintenance-report`, which reads the newest
-report and answers at most 3 short lines for the person's briefing, each with a link to Source health:
+once a Career administrator has turned it on. It calls `POST /companies-admin/maintenance-report`, which prepares or
+reconciles that original owner’s native decisions, reads the newest report and answers at most 3 short lines for the person's briefing, each with a link to Source health:
 
 - how many more sources need a decision since last night, with how many decisions are waiting in all;
 - how many repair briefs opened last night, with how many are open in all;
@@ -193,7 +220,9 @@ report and answers at most 3 short lines for the person's briefing, each with a 
 
 A decision or a brief is told on the morning after it opened and not again; it stays on the page until it is answered or
 closed. The route answers nothing when nothing is new, or when the newest report is more than 24 hours old, so each
-report is told once.
+report is told once. Decision reconciliation still runs for current open actions even on a quiet morning. The route
+requires the existing `career.administer` and `career.execute` permissions. A changed catalog or old activation must be
+reviewed through the normal kernel controls; this implementation activates nothing.
 
 ## Tables
 
@@ -210,7 +239,6 @@ All are in the shared corpus and are created by the pull. A published corpus wit
 
 ## What it does not do
 
-- Open a kernel ticket or use an approval gate. The decision a person makes is the press on the Companies page.
 - Start a developer tool or change a reader. It writes the brief.
 - Search the web for employers that are not in the corpus, or guess a homepage or a board from a name.
 - Solve a human check, sign in, or work around a refusal.
@@ -224,7 +252,11 @@ temporary SQLite with the real readers, resolver, page parser, source review and
 replies. Time passing is made by moving the stored dates back. Run with `--corpus <file>` it leaves the corpus six such
 pulls produce. `tests/career-source-maintenance-routes.test.mjs` loads the shipped routes with their real library over
 that corpus, and `tests/browser/career-source-maintenance-page-proof.mjs` drives the shipped page in Chromium through
-those routes at 1280 and 412 pixels wide. The page reader is the one part doubled besides the network.
+those routes at 1280 and 412 pixels wide. Those application route/page contracts use an explicit native-ticket-port fixture; the corpus, journal, outbox,
+compiled handler and Chromium page remain real. The native kernel’s `career_source_decisions` installed-package
+regression separately crosses real role admission, process runner, owner lock, native ticket gate, human confirmation
+and stamped outbox with a synthetic corpus. The source-request engine contract crosses the actual conditional SQLite
+writer, including rollback, stale identities and a competing writer. No real sources, jobs or accounts are changed.
 
 The public-addresses-only guard is also crossed for real: `TheRealGuard` in the engine contract runs a pull through the
 real session and its connection guard against a real server on a local socket. The server answers the careers link with

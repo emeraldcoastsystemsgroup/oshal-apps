@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  24 | maintainer@emeraldcoastsystemsgroup.com | Offer default-off saved-job preparation with per-packet review or automatic readiness, explicitly stopping before submission.
   -----------------------------------------------------------------------------
   SEQ                 | AUTHOR                                      | DESCRIPTION
   -----------------------------------------------------------------------------
@@ -24,7 +25,8 @@
   18 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 14's last line, and the page names. The page is titled and headed Settings (was Career Settings), and the lines that name another page say My jobs, My résumé and Find jobs. The job-source controls are shown only to a person the server admits to the Companies page, which is bound to career.administer: Sources and pull health, Pull jobs now, Jobs per score pass, the AI model and the Firecrawl key. Everyone else sees one button under Check for new jobs now, which starts the same check without the count box, and Email updates without the two engine cards. The page asks the Companies route as it already did for the source link; until that answers, and when it cannot be asked, the page shows what a job seeker sees. Hiding is presentation: no route or binding changed. Guard: tests/career-settings-administrator.test.mjs.
   19 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the line under Job preparation & submission named two buttons the application route no longer has (Customize documents, Review and submit). It names the route as it is: Prepare application, then on the Send step Open the employer's form and I applied, with Send it for me from my computer while a computer is connected. Words only. Guard: tests/career-words.test.mjs.
   20 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 3: Pull jobs now leaves the page when the refresh state says a pull cannot be started here (career-settings-support.js sets hidden on it); the button's own rule keeps the attribute stronger than the .btn display. Guard: tests/career-settings-administrator.test.mjs.
--->
+  21 | maintainer@emeraldcoastsystemsgroup.com | Career Accounts uses native saved Gmail authorization separately from dated mailbox checks; LinkedIn profile work keeps the person's browser sign-in.
+ -->
 <html lang="en" data-theme="midnight" data-career-surface="settings" data-ds-category="form" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -32,6 +34,9 @@
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
 <style>
 html,body{overscroll-behavior:contain}
+#careerAccounts [hidden]{display:none!important}
+#careerAccounts button,#careerAccounts a{min-height:44px;min-width:44px;overflow-wrap:anywhere;white-space:normal}
+#careerAccounts a{display:inline-flex;align-items:center}
 html.in-shell h1,html.in-shell .lede{display:none}
 #linkedinJobsList a,#communitySourceList a{overflow-wrap:anywhere}
 #linkedinJobsList{max-height:420px;overflow:auto}
@@ -80,9 +85,26 @@ input[type=checkbox]{width:22px;height:22px}
     <li><a href="#imports" data-open="imports">Imports<small>Jobs you saved on LinkedIn</small></a></li>
     <li><a href="#refresh" data-open="refresh">Check for new jobs now<small>Look again<span data-administrator>, see how the last check went,</span> and see how applications are prepared</small></a></li>
     <li><a href="#keys" data-open="keys">Email updates<small>Replies about your applications<span data-administrator>, and the AI and web search Career uses</span></small></a></li>
+    <li><a href="#accounts" data-open="accounts">Accounts<small>Gmail for application replies and how LinkedIn uses your browser</small></a></li>
     <li><a href="#materials" data-open="materials">Résumé and materials<small>Your résumé, work samples and other materials</small></a></li>
   </ul>
   <button type="button" class="ck-tertiary" id="sectionBack">‹ Settings</button>
+
+  <div class="card" id="careerAccounts" data-section="accounts">
+    <h2>Accounts Career uses</h2>
+    <p class="hint">Gmail supplies application replies. A saved authorization does not prove mail-read access; Career checks that the mailbox matches the submission email on your résumé.</p>
+    <p id="careerAccountsState" class="hint" role="status">Open this section to read your saved authorization.</p>
+    <div id="careerSavedAccounts"></div>
+    <div class="row"><button type="button" class="btn primary" id="careerGmailConnect" disabled>Connect Gmail</button><button type="button" class="btn" id="careerAccountsRefresh">Refresh account status</button></div>
+    <p id="careerAccountsNotice" class="hint" role="status" aria-live="polite"></p>
+    <div class="row"><a id="careerGmailAgain" class="btn" target="_blank" rel="noopener" hidden>Open sign-in window again</a><button type="button" class="btn" id="careerGmailStop" hidden>Stop waiting</button></div>
+    <div id="careerMailboxEvidence"></div>
+    <p class="hint">Connecting Gmail here never starts a check or sends messages.</p>
+    <p><a class="btn" href="#keys">Email updates</a></p>
+    <h3>LinkedIn profile</h3>
+    <p class="hint">Profile updates use your signed-in browser. Sign in to LinkedIn in the browser attached to Orbit; a saved Social authorization does not verify that browser session.</p>
+    <div id="careerSocialAccount"><p class="hint">Social posting is optional and separate from your LinkedIn profile workflow.</p></div>
+  </div>
 
   <div class="card" id="sourceConfiguration" data-section="refresh" data-administrator>
     <h2>Sources &amp; pull health</h2>
@@ -149,6 +171,21 @@ input[type=checkbox]{width:22px;height:22px}
       <button class="btn" id="cancelScore" type="button" hidden><span data-seeker>Stop checking</span><span data-administrator>Stop scoring</span></button>
       <span id="runOut" class="hint" style="margin:0" role="status" aria-live="polite"></span>
     </div>
+  </div>
+
+  <div class="card" id="applicationWorkflow" data-section="refresh">
+    <h2>Saved-job preparation</h2>
+    <p class="hint">Off unless you turn it on. Career can prepare your saved jobs in the background, using your main résumé and any tailoring already saved for each job. This includes your existing saved jobs. New preparations use the choice below.</p>
+    <label class="choice"><input type="checkbox" id="workflowEnabled" disabled> Prepare saved jobs for me</label>
+    <fieldset id="workflowChoices" disabled><legend>Before an application is ready to submit</legend>
+      <label class="choice"><input type="radio" name="workflowMode" value="review" checked> Review each application first</label>
+      <label class="choice"><input type="radio" name="workflowMode" value="automatic"> Let Career finish preparation by itself</label>
+    </fieldset>
+    <p class="hint">Automatic preparation ends at ready to submit with the employer’s link. Career does not send an application to an employer automatically. Apply on the employer’s form, or separately approve the exact packet for a connected computer to send. Anything stuck stays in Getting ready with a reason.</p>
+    <p class="hint">Turning this off stops future preparations. Work already started may finish. Career does not retry stopped work by itself; open it in Getting ready to review and retry.</p>
+    <button class="btn primary" id="workflowSave" disabled>Save preparation choice</button>
+    <p id="workflowState" role="status">Reading your preparation choice…</p>
+    <a class="btn" href="/api/career-hunter/board-native?view=queue" data-career-tool="career-submissions">Open Getting ready</a>
   </div>
 
   <div class="card" id="operationAvailability" data-section="refresh">
@@ -652,7 +689,7 @@ $('#targetAdd').onclick = async()=>{
   refreshTargets(); setTimeout(refreshTargets, 8000); setTimeout(refreshTargets, 30000);
 };
 /* ── UX audit 2026-11-06: one Settings home, save on change, one Remote toggle ─────────────── */
-const SECTIONS=['matching','companies','imports','refresh','keys','materials'];
+const SECTIONS=['matching','companies','imports','refresh','keys','accounts','materials'];
 function showSection(){
   const id=location.hash.slice(1), on=SECTIONS.includes(id);
   if(on) document.documentElement.dataset.settingsSection=id; else delete document.documentElement.dataset.settingsSection;
@@ -700,6 +737,8 @@ refreshNightlyJob();
 refreshMailJob();
 refreshTargets();
 </script>
+<script src="/api/career-hunter/static/career-workflow-settings.js"></script>
 <script src="/api/career-hunter/static/career-settings-support.js"></script>
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-accounts.js"></script>
 </body></html>

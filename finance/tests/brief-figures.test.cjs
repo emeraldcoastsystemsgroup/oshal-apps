@@ -20,7 +20,10 @@
  *     |                                             | holding as part of the portfolio; the served persona no longer says crypto is out of scope.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: a sentence left out after "Inc." goes whole; its tail "($2.11), and U S
  *     |                                             | Dollar ($0.01)." is never kept as a fragment.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Model the saved analysis date returned by PostgreSQL and require unknown balances/totals to stay unknown in the written figures and quotable amounts.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com | Refuse cross-currency commentary money and keep negative asset balances signed.
  * -----------------------------------------------------------------------------
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Guard incomplete and unknown transaction coverage through actual saved readers, analysis or rendered views without changing independent balances.
  */
 'use strict';
 const test = require('node:test');
@@ -44,6 +47,7 @@ function aggregate() {
   return { generatedAt: '2026-10-12T00:00:00Z', currency: 'USD', netWorth: { assets: 1, liabilities: 2, net: -1 },
     accounts: ACCOUNTS, holdings: [{ name: 'Fund', value: 1000.1 }, { name: 'Stock', value: 2000.2 }],
     topSpending: [{ category: 'Groceries', total: 412.5, count: 9 }], spendByMonth: [{ month: '2026-09', spend: 1200, income: 3000 }, { month: '2026-10', spend: 1450, income: 3000 }],
+    transactionsComplete: true, transactionCoverage: { state: 'complete', returned: 30, total: 30, institutions: [{ institution: 'Example Bank', state: 'complete', returned: 30, total: 30, pages: 1, reason: null }] },
     recentTransactions: [], transactionWindowDays: 90, notes: [] };
 }
 
@@ -64,7 +68,7 @@ const SWEEP11 = [
 function financePool() {
   const pool = { data: { aggregate: aggregate(), brief: null }, saved: [],
     async query(text, values = []) {
-      if (/^\s*UPDATE oshal_finance_data SET brief/.test(text)) { pool.saved.push(values[1]); return { rows: [], rowCount: 1 }; }
+      if (/^\s*UPDATE oshal_finance_data SET brief/.test(text)) { pool.saved.push(values[1]); return { rows: [{ brief_at: '2026-11-12T19:05:00.000Z' }], rowCount: 1 }; }
       if (/^\s*(INSERT|UPDATE|DELETE|CREATE|ALTER)\b/i.test(text)) return { rows: [], rowCount: 0 };
       return { rows: [pool.data], rowCount: 1 };
     } };
@@ -171,6 +175,23 @@ test('mixed currencies are listed one by one and never summed', () => {
   assert.match(figures, /- Plaid Checking \(First Platypus Bank\): €110\.00/);
 });
 
+test('unknown account figures and required totals are never written or offered to the analyst as zero', () => {
+  const agg = aggregate(); agg.accounts = [{ ...ACCOUNTS[0], balance: null }, { ...ACCOUNTS[1], name: 'Known zero', balance: 0 }];
+  const totals = { currency: 'USD', mixedCurrencies: false, netWorth: null, totalAssets: null, totalLiabilities: 0, cashAndDeposits: null, investmentAccounts: 0, otherAssets: 0, creditOwed: 0, loansOwed: 0, holdingsValue: 0 };
+  const figures = brief.briefFigures(agg, totals);
+  assert.match(figures, /- Net worth: Unknown/);
+  assert.match(figures, /- Total assets: Unknown/);
+  assert.match(figures, /- Plaid Checking \(First Platypus Bank\): Unknown/);
+  assert.match(figures, /- Known zero \(First Platypus Bank\): \$0\.00/);
+  const allowed = brief.quotableAmounts(agg, totals);
+  assert.equal(allowed.some((a) => ['netWorth', 'totalAssets', 'cashAndDeposits', 'Plaid Checking balance'].includes(a.label)), false);
+  assert.equal(allowed.find((a) => a.label === 'Known zero balance').cents, 0);
+  agg.balancesComplete = false; agg.accounts = [];
+  const unreadable = brief.briefFigures(agg, totals);
+  assert.match(unreadable, /Account balances could not all be read/);
+  assert.doesNotMatch(unreadable, /No linked accounts/);
+});
+
 test('isQuotable matches to the cent, to the dollar and to a written scale only', () => {
   const allowed = [{ label: 'loan', cents: 6526200 }, { label: 'fund', cents: 300030 }];
   assert.equal(brief.isQuotable('65,262.00', undefined, allowed), true);
@@ -197,4 +218,44 @@ test('the analyst is told the buffer is cash and deposits as a whole and no hold
   const served = persona.slice(persona.indexOf('\nperspective:'), persona.indexOf('\nselector_descriptor:'));
   assert.doesNotMatch(served, /note that they are out of scope/);
   assert.match(served, /never call it out of scope/);
+});
+
+
+test('mixed-currency figures retain units but commentary cannot relabel or sum money', () => {
+  const agg = aggregate();
+  agg.accounts = [{ name: 'Dollar cash', type: 'depository', balance: 100, currency: 'USD' }, { name: 'Euro cash', type: 'depository', balance: 80, currency: 'EUR' }];
+  const totals = { currency: 'USD', mixedCurrencies: true, accountCount: 2, netWorth: null, totalAssets: null, totalLiabilities: null };
+  const figures = brief.briefFigures(agg, totals), allowed = brief.quotableAmounts(agg, totals);
+  assert.match(figures, /Dollar cash: \$100.00/); assert.match(figures, /Euro cash: €80.00/);
+  assert.deepEqual(allowed, []);
+  const prompt = brief.buildCommentaryPrompt(agg, figures, allowed);
+  assert.match(prompt, /do not write any money amounts or combine currencies/);
+  const output = brief.composeBrief(figures, '## The story\nYour euro cash is $80.00.\nYou can combine the accounts for $180.00.', allowed);
+  assert.doesNotMatch(output, /euro cash is \$80|for \$180/);
+});
+
+test('negative asset balances stay signed and missing-unit money remains unknown', () => {
+  const agg = aggregate(); agg.accounts = [{ name: 'Overdrawn', type: 'depository', balance: -25, currency: 'USD' }, { name: 'Unknown unit', type: 'depository', balance: 100, currency: null }];
+  const figures = brief.briefFigures(agg, { currency: 'USD', mixedCurrencies: false, netWorth: null, totalAssets: null, totalLiabilities: null });
+  assert.match(figures, /Overdrawn: -\$25.00/); assert.match(figures, /Unknown unit: Unknown/);
+  assert.deepEqual(brief.quotableAmounts(agg, { mixedCurrencies: false }), []);
+});
+
+
+for (const state of ['partial', 'unknown', 'legacy']) test(`new analysis excludes ${state} full-window rollups from quotes and context`, () => {
+  const agg = aggregate();
+  agg.topSpending = [{ category: 'Incomplete category', total: 9173.49, count: 2000 }];
+  agg.spendByMonth = [{ month: '2026-10', spend: 9173.49, income: 8261.37 }];
+  agg.recentTransactions = [{ date: '2026-10-01', name: 'Available transaction', amount: 12.5, currency: 'USD' }];
+  agg.transactionsComplete = state === 'legacy' ? undefined : false;
+  agg.transactionCoverage = state === 'legacy' ? undefined : { state, returned: 2000, total: state === 'partial' ? 2501 : null, institutions: [{ institution: 'Example', state, returned: 2000, total: state === 'partial' ? 2501 : null, pages: 4, reason: state === 'partial' ? 'page_limit' : 'unknown_total' }] };
+  const totals = { currency: 'USD', mixedCurrencies: false, netWorth: 1, totalAssets: 2, totalLiabilities: 1 };
+  const allowed = brief.quotableAmounts(agg, totals), figures = brief.briefFigures(agg, totals);
+  assert.equal(allowed.some(a => /spending| spend| income/.test(a.label)), false);
+  assert.equal(allowed.find(a => a.label === 'Available transaction on 2026-10-01').cents, 1250);
+  assert.match(figures, /Transaction coverage.*(?:partial|unknown)/i);
+  const prompt = brief.buildCommentaryPrompt(agg, figures, allowed);
+  assert.doesNotMatch(prompt, /9173\.49|8261\.37/);
+  assert.match(prompt, /Full-window spending, income and trends are unavailable/);
+  assert.equal(agg.topSpending[0].total, 9173.49, 'reading analysis inputs never rewrites a saved snapshot');
 });

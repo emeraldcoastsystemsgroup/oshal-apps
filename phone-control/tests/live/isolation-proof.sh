@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.2.0 disposable-kernel isolation proof: boots a throwaway Postgres 16 container and a throwaway oshald on a random loopback port (never 38788 or 38789) with mock personas enabled, installs phone-control from this branch, and runs isolation-proof.cjs to prove two-admin personal isolation and non-admin 403 refusal before tearing everything down.
-# Usage: OUT=<dir> OSHALD=<bin> OSHAL_BRIDGE_RUNNER=<runner.js> OSHAL_PACKAGE_NODE_MODULES=<dir> OSHAL_PLATFORM_DIR=<dir> [REF=HEAD] bash tests/live/isolation-proof.sh
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the proof it runs (isolation-proof.cjs) is an administrator, a person who is not one on their own computer, and a page-only account. PROOF=<script> and RECEIPT=<file name> run another proof on the same throwaway kernel (delivery-carry-proof.cjs, with REF naming the version installed first); the proof is told the throwaway applications folder and this package's folder.
+# Usage: OUT=<dir> OSHALD=<bin> OSHAL_BRIDGE_RUNNER=<runner.js> OSHAL_PACKAGE_NODE_MODULES=<dir> OSHAL_PLATFORM_DIR=<dir> [REF=HEAD] [PROOF=<proof.cjs> RECEIPT=<name.json>] bash tests/live/isolation-proof.sh
 set -euo pipefail
 pkg="$(cd "$(dirname "$0")/../.." && pwd)"
 store="$(cd "$pkg/.." && pwd)"
@@ -65,5 +66,6 @@ for _ in $(seq 1 120); do
   kill -0 "$kernel" || { tail -20 "$out/kernel.log" >&2; exit 1; }
   sleep 1
 done
-node "$pkg/tests/live/isolation-proof.cjs" "$base" "$token" "$out/isolation-receipt.json"
+OSHAL_PROOF_APPS="$work/apps" OSHAL_PROOF_PACKAGE="$pkg" \
+  node "${PROOF:-$pkg/tests/live/isolation-proof.cjs}" "$base" "$token" "$out/${RECEIPT:-isolation-receipt.json}"
 

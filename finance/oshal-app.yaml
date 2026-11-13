@@ -1,7 +1,11 @@
 # CHANGE LOG
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.3: carry partial and unknown transaction-window coverage through bank views, saved summaries, new analysis and specialist facts.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.2: specialist facts preserve unknown holdings inventory, count and value while retaining reported zero.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.1: native missing-balance and currency truth, consistent saved snapshots and atomic analysis input checks.
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.0: Bank snapshot and task-focused Finance frame; preserve dated saved analysis on Sync and retain unknown balances through actual Plaid and summary contracts.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: register every shipped test and preserve the existing readiness smoke for versioned Test Lab discovery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare the three apps the ribbon FRAMES (optional — an absent target leaves one tab empty, it does not break finance).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
@@ -76,7 +80,7 @@ description: >-
   month, with a plain-English brief; brokerage holdings count toward net worth as they
   stood at the last sync, and how investments performed over time is not tracked here.
   Read-only — nothing is traded or moved. No crypto.
-version: 1.5.0
+version: 1.6.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml

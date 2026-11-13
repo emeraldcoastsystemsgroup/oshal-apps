@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply the real ticket-port-shaped fixture and await the actual asynchronous response in source-decision route proofs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | For the source maintenance route and page proofs: have the engine's own contract build the corpus six real nightly pulls leave, open it the way a request does (attached read-only as `corpus`), and load the shipped Companies routes over it with their real library and a real outbox folder.
  */
 import {spawnSync} from 'node:child_process';
@@ -51,7 +52,7 @@ export function buildCorpus() {
  * @param {{db: object, owner: string}} corpus - From buildCorpus, or any corpus attached the same way.
  * @returns {{registered: Map<string, Function[]>, engine: {runs: number}, call: Function}}
  */
-export function loadRoutes({db, owner}) {
+export function loadRoutes({db, owner}, ctx = {}, requestLibrary = sourceRequests) {
   const registered = new Map();
   const module = {exports: {}};
   const engine = {runs: 0};
@@ -64,7 +65,8 @@ export function loadRoutes({db, owner}) {
     './career-engine-response': {},
     './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
     '../lib/career-source-health': sourceHealth,
-    '../lib/career-source-requests': sourceRequests,
+    '../lib/career-source-requests': requestLibrary,
+    '../lib/career-source-decisions': require('../../lib/career-source-decisions'),
   };
   const before = process.env.CAREER_HUNTER_ADMIN_SUBS;
   process.env.CAREER_HUNTER_ADMIN_SUBS = 'fixture-admin';
@@ -75,17 +77,16 @@ export function loadRoutes({db, owner}) {
     if (before === undefined) delete process.env.CAREER_HUNTER_ADMIN_SUBS; else process.env.CAREER_HUNTER_ADMIN_SUBS = before;
   }
   const keep = (url, ...handlers) => registered.set(url, handlers);
-  module.exports.registerCareerCompanyRoutes({get: keep, post: keep}, {});
+  module.exports.registerCareerCompanyRoutes({get: keep, post: keep}, ctx);
   const call = async (url, query = {}, sub = 'fixture-admin') => {
     const out = {status: 200, passed: false};
-    const res = {setHeader(){}, status(code) { out.status = code; return res; }, json(value) { out.body = value; }};
-    const req = {sub, query, path: url, accepts: () => 'json'};
+    let finish; const answered = new Promise(resolve => { finish = resolve; });
+    const res = {setHeader(){}, status(code) { out.status = code; return res; }, json(value) { out.body = value; finish(); }};
+    const req = {sub, query, body: query, path: url, accepts: () => 'json'};
     const handlers = registered.get(url);
     if (!handlers) throw new Error(`route ${url}`);
-    await new Promise(done => {
-      handlers[0](req, res, () => { out.passed = true; handlers[1](req, res); });
-      setImmediate(done);
-    });
+    handlers[0](req, res, () => { out.passed = true; Promise.resolve(handlers[1](req, res)).catch(error => finish(Promise.reject(error))); });
+    await answered;
     return out;
   };
   return {registered, engine, call};

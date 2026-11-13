@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Shared concierge on Career pages and the native shell; hide the retired host rail and its unformatted application bar, while the résumé document keeps its own assistant.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -10,6 +11,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page career-strengthen is labelled Improve my résumé, because its old label Improve it says nothing where a toolbar or a menu shows it alone. Under the Résumé section of this bar the short form reads well, so the bar keeps it (SHORT), the same way it says Photo for Portrait Studio's page. An entry the bar shortens also carries the page's own name as `full`, for a place that lists pages with no section around them (Home's cards).
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 6: the bar this tab remembers paints first, as before, but says no role; the role beside the name comes only from the person's fresh profile, and none is said when that cannot be read. A tab that last drew an administrator's bar said Job source administrator to the next person until the fresh profile answered. Guard: tests/browser/career-role-proof.mjs.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: the Concierge button opens Career's concierge. The rule that gives Career the whole window hid the cockpit's chat panel outright, so pressing Concierge (it asks the cockpit for that panel) showed nothing on production and on the test slot; it now hides the panel only while it is closed.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Paint fresh admitted navigation independently of optional name and counts, and bound frame reads without inventing a role or count.
  */
 (function (root) {
   'use strict';
@@ -196,6 +198,7 @@
   function hostKind(win) {
     try {
       if (win.top === win.self) return 'top';
+      if (win.frameElement?.id === 'active-app-frame') return 'native';
       return win.parent.document.querySelector('.cockpit-body, #ribbonContainer') ? 'cockpit' : 'other';
     } catch (_) { return 'other'; }
   }
@@ -247,9 +250,12 @@
    */
   function hostStyle() {
     var showing = 'body:has(.tool-view-container > iframe[src^="' + OWN_PREFIX + '"])';
-    var hidden = ['.header-bar', '.status-bar', '#ribbonContainer', '.ribbon-backdrop', '.chat-panel.collapsed', '.panel-resize-handle', '.tool-view-header',
+    var hidden = ['.header-bar', '.status-bar', '#ribbonContainer', '.ribbon-backdrop', '.chat-panel', '.panel-resize-handle', '.tool-view-header',
       '.zen-exit-btn', '#workspaceNavigation', '#workspaceNavigationMore'];
-    return hidden.map(function (selector) { return showing + ' ' + selector; }).join(', ') + ' { display: none !important; } ' +
+    var native = 'body:has(#active-app-frame[src^="' + OWN_PREFIX + '"])';
+    var nativeStyle = native + ' :is(#active-app-concierge, .app-focus-bar, #active-app-tools) { display:none !important; } ' +
+      native + ' #surface-viewer-card { border:0 !important; border-radius:0 !important; box-shadow:none !important; margin:0 !important; } ';
+    return nativeStyle + hidden.map(function (selector) { return showing + ' ' + selector; }).join(', ') + ' { display: none !important; } ' +
       showing + ' .cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; height: 100dvh !important; } ' +
       showing + ' :is(.main-content, .tool-view-container) { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; } ' +
       showing + ' > .visitor-back { bottom: calc(12px + var(--oshal-app-bottom-inset, 0px) + env(safe-area-inset-bottom, 0px)) !important; }';
@@ -263,12 +269,12 @@
    * @returns {object} The frame: kind, entries, navigate, mount.
    */
   function createFrame(win) {
-    var w = win, doc = w.document, kind = hostKind(w), cache = { app: '', entries: null, user: null, stats: null }, loading = null, mounted = null;
+    var w = win, doc = w.document, kind = hostKind(w), cache = { app: '', entries: null, user: null, stats: null }, loading = null, mounted = null, disposed = false, freshProfile = false;
     var off = doc.documentElement.getAttribute('data-career-frame') === 'off' || new URLSearchParams(w.location.search).get('frame') === 'off';
     var on = !off && kind !== 'other';
 
     function getJson(path) {
-      return w.fetch(path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      return w.fetch(path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' }, signal: w.AbortSignal.timeout(8000) })
         .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
         .catch(function () { return null; });
     }
@@ -276,7 +282,7 @@
     function remember() { try { w.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ app: cache.app, entries: cache.entries, name: firstName(cache.user) })); } catch (_) { /* storage is a convenience */ } }
     /** @description The application the cockpit has open (its address says), when it is one this frame draws. */
     function hostApp() {
-      if (kind !== 'cockpit') return '';
+      if (kind !== 'cockpit' && kind !== 'native') return '';
       try { var params = new URLSearchParams(w.parent.location.search), app = params.get('app') || params.get('profile') || ''; return PROFILES.indexOf(app) !== -1 ? app : ''; }
       catch (_) { return ''; }
     }
@@ -293,20 +299,32 @@
       };
       return next(0);
     }
-    /** @description The person's entries, name and counts, read once for the page. */
+    /** @description Update optional frame facts without waiting to show the fresh admitted profile. */
+    function metadata(key, value) {
+      if (disposed) return;
+      cache[key] = value;
+      if (freshProfile && cache.entries.length) remember();
+      if (mounted && freshProfile) draw(mounted, cache);
+    }
+    /** @description Read the fresh admitted entries once; name/counts enrich them independently. */
     function load() {
-      if (!loading) loading = Promise.all([readProfile(), getJson(USER_PATH), getJson(STATS_PATH)]).then(function (answers) {
-        cache.app = answers[0].app; cache.entries = answers[0].entries;
-        cache.user = answers[1]; cache.stats = answers[2];
-        if (cache.entries.length) remember();
-        return cache;
-      });
+      if (disposed) return Promise.resolve(cache);
+      if (!loading) {
+        loading = readProfile().then(function (profile) {
+          if (disposed) return cache;
+          cache.app = profile.app; cache.entries = profile.entries; freshProfile = true;
+          if (cache.entries.length) remember();
+          return cache;
+        });
+        void getJson(USER_PATH).then(function (value) { metadata('user', value); });
+        void getJson(STATS_PATH).then(function (value) { metadata('stats', value); });
+      }
       return loading;
     }
 
     /** @description Give this page the cockpit's whole window (see hostStyle). */
     function takeWindow() {
-      if (kind !== 'cockpit') return;
+      if (kind !== 'cockpit' && kind !== 'native') return;
       try {
         var host = w.parent.document;
         host.title = BRAND;
@@ -325,10 +343,10 @@
      * @returns {void}
      */
     function open(entry, query) {
-      if (!entry) return;
+      if (disposed || !entry) return;
       if (!entry.own) { w.location.href = HOME_PATH + '?open=' + encodeURIComponent(entry.view); return; }
       // The cockpit carries a query only in its own strict shape; any other query loads the page here instead.
-      if (kind === 'cockpit' && (!query || HOST_QUERY.test(query) && query.length <= 512)) {
+      if ((kind === 'cockpit' || kind === 'native') && (!query || HOST_QUERY.test(query) && query.length <= 512)) {
         var message = { type: 'app-navigate', tool: entry.id.slice('tool-'.length) };
         if (query) message.query = query;
         try { w.parent.postMessage(message, w.location.origin); return; } catch (_) { /* fall through to a plain load */ }
@@ -337,7 +355,7 @@
     }
     /** @description Open a page by its view name; unknown or unadmitted names do nothing. */
     function navigate(view, query) {
-      return load().then(function (state) { open(state.entries.filter(function (entry) { return entry.view === view; })[0], query); });
+      return load().then(function (state) { if (!disposed) open(state.entries.filter(function (entry) { return entry.view === view; })[0], query); });
     }
 
     function hrefOf(entry) { return entry.own ? entry.href : HOME_PATH + '?open=' + encodeURIComponent(entry.view); }
@@ -349,7 +367,7 @@
       var href = hrefOf(entry) + (query && entry.own ? (hrefOf(entry).indexOf('?') === -1 ? '?' : '&') + query : '');
       return '<a href="' + esc(href) + '" data-cf-view="' + esc(entry.view) + '"' + (query ? ' data-cf-query="' + esc(query) + '"' : '') + (current ? ' aria-current="page"' : '') + '>' + inner + '</a>';
     }
-    function backLink() { return '<a class="cf-all-applications" href="/cockpit/?screen=applications" target="_top">← All applications</a>'; }
+    function backLink() { return '<a class="cf-all-applications" href="' + (kind === 'native' ? '/admin?view=applications' : '/cockpit/?screen=applications') + '" target="_top">← All applications</a>'; }
     /** @description The More menu: pages of sections that did not fit, each section's other pages, then the rest. */
     function menuHtml(layout, active) {
       var groups = layout.primary.filter(function (part) { return part.pages.length > 1; }).map(function (part) {
@@ -369,7 +387,8 @@
       var name = firstName(state.user) || state.name || '', role = state.remembered ? '' : roleOf(state.entries);
       var inMore = Boolean(active && layout.more.some(function (entry) { return entry.view === active.view; }));
       var menu = menuHtml(layout, active);
-      return '<details class="cf-more cf-more-desk"><summary' + (inMore ? ' aria-current="page"' : '') + '>More ▾</summary><div class="cf-menu">' + menu + '</div></details>' +
+      var concierge = doc.documentElement.dataset.careerSurface !== 'resume-studio' && !w.location.pathname.endsWith('/resume-studio') ? '<button class="cf-concierge-toggle" type="button" aria-expanded="' + (doc.documentElement.dataset.careerConcierge === 'open' ? 'true' : 'false') + '">Concierge</button>' : '';
+      return concierge + '<details class="cf-more cf-more-desk"><summary' + (inMore ? ' aria-current="page"' : '') + '>More ▾</summary><div class="cf-menu">' + menu + '</div></details>' +
         (chip && board ? '<a class="cf-chip" href="' + esc(board.href + '?' + chip.query) + '" data-cf-view="board" data-cf-query="' + esc(chip.query) + '"><b>' + chip.count + '</b> ' + esc(chip.label) + '</a>' : '') +
         whoHtml(name, role) +
         '<details class="cf-more cf-more-phone"><summary aria-label="More">⋯</summary><div class="cf-menu">' + (name ? '<div class="cf-menu-label">' + esc(name) + '</div>' : '') +
@@ -419,10 +438,11 @@
     }
     /** @description Keep the frame's measures true for the page's own layout, and the host's assistant above the phone bar. */
     function measure(bar, sub, bottom) {
+      if (disposed) return;
       var phone = w.matchMedia && w.matchMedia(PHONE_QUERY).matches, style = doc.documentElement.style;
       style.setProperty('--cf-top', (bar.offsetHeight + (sub && !sub.hidden ? sub.offsetHeight : 0)) + 'px');
       style.setProperty('--cf-bottom', (phone && bottom ? bottom.offsetHeight : 0) + 'px');
-      if (kind !== 'cockpit') return;
+      if (kind !== 'cockpit' && kind !== 'native') return;
       try {
         var host = w.parent.document.documentElement;
         if (phone && bottom && bottom.offsetHeight) { host.style.setProperty('--oshal-app-bottom-inset', bottom.offsetHeight + 'px'); host.setAttribute('data-career-inset', ''); }
@@ -430,7 +450,8 @@
       } catch (_) { /* a host this page cannot read */ }
     }
     function releaseHost() {
-      if (kind !== 'cockpit') return;
+      disposed = true;
+      if (kind !== 'cockpit' && kind !== 'native') return;
       try {
         var host = w.parent.document.documentElement;
         if (host.hasAttribute('data-career-inset')) { host.style.removeProperty('--oshal-app-bottom-inset'); host.removeAttribute('data-career-inset'); }
@@ -444,7 +465,7 @@
         var a = event.target.closest ? event.target.closest('a[data-cf-view]') : null;
         if (!a || event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         var entry = (cache.entries || []).filter(function (candidate) { return candidate.view === a.getAttribute('data-cf-view'); })[0];
-        if (!entry || !entry.own || kind !== 'cockpit') return;
+        if (!entry || !entry.own || (kind !== 'cockpit' && kind !== 'native')) return;
         event.preventDefault();
         open(entry, a.getAttribute('data-cf-query') || '');
       });
@@ -452,6 +473,7 @@
     }
 
     function draw(parts, state) {
+      if (disposed) return;
       var active = activeEntry(state.entries, w.location.pathname, w.location.search), layout = sections(state.entries);
       parts.bar.innerHTML = barHtml(state, layout, active);
       var sub = subnavHtml(layout, active);
@@ -478,10 +500,14 @@
       if (before && Array.isArray(before.entries)) { cache.entries = before.entries; draw(parts, { entries: before.entries, user: null, stats: null, name: before.name, remembered: true }); }
       else parts.bar.innerHTML = '<a class="cf-brand" href="' + HOME_PATH + '"><img src="' + MARK_PATH + '" alt=""><span>' + BRAND + '</span></a>';
       wire();
+      var conciergeStyle = doc.createElement('link'); conciergeStyle.rel = 'stylesheet'; conciergeStyle.href = '/api/career-hunter/static/career-concierge.css'; doc.head.appendChild(conciergeStyle);
+      import('/api/career-hunter/static/career-concierge.mjs').then(function (module) { if (!disposed) return module.mountCareerConcierge(w); }).catch(function () {
+        doc.querySelectorAll('.cf-concierge-toggle').forEach(function (button) { button.disabled = true; button.title = 'The concierge could not load. Reload this page to try again.'; });
+      });
       var queued = 0;
       w.addEventListener('resize', function () { if (!queued) queued = w.requestAnimationFrame(function () { queued = 0; fit(parts.bar); measure(parts.bar, parts.sub, parts.bottom.hidden ? null : parts.bottom); }); });
       w.addEventListener('pagehide', releaseHost);
-      return load().then(function (state) { draw(parts, state); parts.bar.setAttribute('data-cf-ready', ''); return parts.bar; });
+      return load().then(function (state) { if (disposed) return null; draw(parts, state); parts.bar.setAttribute('data-cf-ready', ''); return parts.bar; });
     }
 
     /**
@@ -490,8 +516,9 @@
      * @returns {Promise<object|null>} The fresh counts, or null when there is no bar.
      */
     function refresh() {
-      if (!on || !mounted) return Promise.resolve(null);
+      if (!on || !mounted || disposed) return Promise.resolve(null);
       return load().then(function () { return getJson(STATS_PATH); }).then(function (stats) {
+        if (disposed) return null;
         if (stats) cache.stats = stats;
         draw(mounted, cache);
         return cache.stats;

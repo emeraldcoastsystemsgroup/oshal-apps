@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Load the actual source-decision library in the existing strict compiled-route dependency fixture.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: the shipped routes save each change for the next nightly pull exactly as the kernel takes it, refuse a name already listed, an unusable name or link, an unlisted employer and a change that is already true, leave nothing behind when they refuse, start no engine, and admit only an administrator.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The shipped routes are handed the whole source-health library, as they are in the package: the list now also reads source maintenance through it.
  */
@@ -41,6 +42,7 @@ function routes({owner, db, admins = new Set(['fixture-admin'])}) {
     './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
     '../lib/career-source-health': require('../lib/career-source-health'),
     '../lib/career-source-requests': sourceRequests,
+    '../lib/career-source-decisions': require('../lib/career-source-decisions'),
   };
   const before = process.env.CAREER_HUNTER_ADMIN_SUBS;
   process.env.CAREER_HUNTER_ADMIN_SUBS = [...admins].join(',');

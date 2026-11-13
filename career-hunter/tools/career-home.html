@@ -9,6 +9,10 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The links say Open My jobs and Open My résumé, and the résumé card's line says main résumé. Words only. Guard: tests/career-page-names.test.mjs.
   4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9. The pipeline is New matches, Saved, Getting ready, Applied, Interviewing and Offer: To approve is no longer a stage (the jobs Career picked lead Saved, and the day's step about them counts the picks still waiting, CareerStages.picks). The New matches card shows the number of jobs scored for the person since yesterday, the same number the day's step gives, where it showed an arrow; when that number could not be read it shows a dash, never a zero. Getting ready and Applied show their real counts (career-stages.js 4). Submission activity has no card under Everything in Career: it is reached from Applications while something is being sent.
   5 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: a card under Everything in Career shows a page's own name (Improve my résumé) where the bar shows a shorter one under its section (Improve it): a card stands alone.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Count actionable New matches from the same owner eligibility as its list, separately from dated scoring activity.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Show full recorded application progress for the past seven days and an optional personal goal, retaining input on refused saves and earning encouragement from the actual count only.
+  8 | maintainer@emeraldcoastsystemsgroup.com | Refresh progress after confirmed goal persistence, keep a saved target distinct from an unavailable count, and let the latest server goal win without repeating a write.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Paint independent Career facts as they arrive and enrich Today from admitted optional apps without holding the résumé, jobs, progress or navigation.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="home" data-ds-category="dashboard" data-ds-first-action="type">
 <head>
@@ -61,6 +65,15 @@
   .calm { padding: 18px 16px; border-radius: 14px; display: grid; gap: 10px; justify-items: start; color: var(--text-secondary); }
   .weekline { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--text-secondary); font-size: 14px; }
   .weekline b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .goal { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--border-color); border-radius: 14px; display: grid; gap: 10px; }
+  .goal p { color: var(--text-secondary); font-size: 14px; }
+  .goal progress { display: block; width: min(100%, 480px); height: 14px; margin-top: 8px; accent-color: var(--accent-primary); }
+  .goal summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+  .goal form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+  .goal label { display: grid; gap: 5px; color: var(--text-secondary); font-size: 14px; }
+  .goal input { min-height: 44px; width: 120px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-card); color: var(--text-primary); font: inherit; font-size: 16px; padding: 8px 12px; }
+  .goal button { cursor: pointer; }
+  .goal [role="status"] { min-height: 21px; }
   /* Pipeline */
   .stages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
   .stage { display: grid; gap: 2px; padding: 16px; text-decoration: none; border-radius: 14px; min-height: 92px; align-content: center; }
@@ -151,6 +164,19 @@
   <section aria-labelledby="pipelineTitle" id="pipelinePanel" hidden>
     <h2 class="section" id="pipelineTitle">Where everything stands</h2>
     <p class="weekline" id="week" style="margin-top:8px"></p>
+    <section class="goal" aria-label="Application goal">
+      <div id="goalSummary" hidden><p id="goalProgressText"></p><progress id="goalProgress" aria-label="Application goal progress" max="1" value="0"></progress></div>
+      <details id="goalEditor"><summary id="goalEditorTitle">Set a goal</summary>
+        <p>Choose a pace that suits you. A few well-chosen applications can be enough; the goal is optional.</p>
+        <form id="goalForm" aria-busy="false">
+          <label>Application goal for the past 7 days<input id="goalAmount" type="number" min="1" max="100" step="1" required inputmode="numeric" disabled></label>
+          <button class="quiet" type="submit" id="goalSave" disabled>Save goal</button>
+          <button class="quiet" type="button" id="goalDisable" hidden>Turn off goal</button>
+        </form>
+      </details>
+      <p id="goalStatus" role="status">Checking application progress…</p>
+      <button class="quiet" type="button" id="goalRetry" hidden>Check progress again</button>
+    </section>
     <div class="stages" id="stages" style="margin-top:10px"></div>
   </section>
 
@@ -221,16 +247,16 @@
   }
 
   /**
-   * The pipeline's cards. A stage is counted by its own key; New matches is counted by the jobs scored for the person
-   * since yesterday (the home summary's scored-24h), and shows a dash when that could not be read.
+   * The pipeline's cards use their actual owner-stage counts. New matches shares its list's eligibility;
+   * dated score updates remain activity, and an unavailable match count stays unknown.
    */
-  function stageCards(counts, summary) {
+  function stageCards(counts) {
     const stages = (window.CareerStages && window.CareerStages.PIPELINE) || [];
-    const fresh = ((summary && Array.isArray(summary.metrics) ? summary.metrics : []).find((m) => m && m.id === 'scored-24h') || {}).value;
+
     $('stages').innerHTML = stages.map((stage) => {
-      const raw = stage.id === 'matches' ? (/^\d+$/.test(String(fresh)) ? Number(fresh) : null) : counts ? Number(counts[stage.count]) || 0 : null;
-      const query = String(stage.href).split('?')[1] || '';
-      return '<a class="card stage" href="' + esc(stage.href) + '" data-open="board" data-query="' + esc(query) + '" data-stage="' + esc(stage.id) + '" data-has="' + (raw > 0 ? 'yes' : 'no') + '">'
+      const raw = stage.id === 'matches' ? (Number.isSafeInteger(counts?.matches)&&counts.matches>=0?counts.matches:null) : counts ? Number(counts[stage.count]) || 0 : null;
+      const href=stage.id==='matches'?stage.href+'&page=1':stage.href,query=String(href).split('?')[1]||'';
+      return '<a class="card stage" href="' + esc(href) + '" data-open="board" data-query="' + esc(query) + '" data-stage="' + esc(stage.id) + '" data-has="' + (raw > 0 ? 'yes' : 'no') + '">'
         + '<b>' + (raw == null ? (counts ? '–' : '…') : raw.toLocaleString()) + '</b><span>' + esc(stage.label) + '</span></a>';
     }).join('');
   }
@@ -267,9 +293,69 @@
     $('jobsRow').hidden = plan.firstRun && !hasWork;
   }
   function weekLine(week) {
+    weekState=week;
     const part = (n, one, many) => '<span><b>' + n.toLocaleString() + '</b> ' + (n === 1 ? one : many) + '</span>';
-    $('week').innerHTML = '<span>This week:</span>' + part(week.applied, 'application sent', 'applications sent') + part(week.replies, 'reply', 'replies') + part(week.interviews, 'interview reply', 'interview replies');
+    const applied=week.applied===null?'<span>Application count unavailable</span>':part(week.applied,'application recorded','applications recorded');
+    $('week').innerHTML = '<span>Past 7 days:</span>' + applied + part(week.replies, 'reply', 'replies') + part(week.interviews, 'interview reply', 'interview replies');
   }
+  let progressState=null,goalSaving=false,weekState=null,goalSequence=0;
+  const goalKnown=value=>value===null||(Number.isInteger(value)&&value>=1&&value<=100);
+  const completeProgress=progress=>progress?.period==='past7days'&&goalKnown(progress.goal)&&Number.isSafeInteger(progress.applied)
+    &&progress.applied>=0&&Number.isFinite(Date.parse(progress.asOf));
+  function goalBusy(busy) {
+    $('goalForm').setAttribute('aria-busy',String(busy));
+    for(const id of ['goalAmount','goalSave','goalDisable'])$(id).disabled=busy||!progressState;
+    $('goalRetry').disabled=busy;
+  }
+  function showGoal(progress) {
+    const valid=progress?.period==='past7days'&&goalKnown(progress.goal),countKnown=completeProgress(progress);
+    progressState=valid?progress:null;
+    const goal=progressState?.goal,hasGoal=typeof goal==='number';
+    $('goalSummary').hidden=!hasGoal;$('goalDisable').hidden=!hasGoal;
+    $('goalProgress').hidden=!hasGoal||!countKnown;$('goalRetry').hidden=countKnown;
+    $('goalEditorTitle').textContent=hasGoal?'Edit your goal':'Set a goal';
+    if(valid)$('goalAmount').value=hasGoal?String(goal):'';
+    if(hasGoal){
+      if(countKnown){$('goalProgress').max=goal;$('goalProgress').value=Math.min(progress.applied,goal);}
+      $('goalProgressText').textContent=countKnown?progress.applied+' of '+goal+' applications recorded in the past 7 days.'
+        +(progress.applied>=goal?' You reached the goal you set.':''):'Goal: '+goal+' applications in the past 7 days. Current application progress is unavailable.';
+    }else{$('goalProgressText').textContent='';}
+    if(weekState)weekLine({...weekState,applied:countKnown?progress.applied:null});
+    $('goalStatus').textContent=countKnown?'':'Application progress could not be checked.';goalBusy(goalSaving);
+  }
+  async function readGoalProgress(sequence) {
+    const response=await fetch('/api/career-hunter/jobs/progress',{cache:'no-store'}),fresh=await response.json();
+    if(!response.ok||!completeProgress(fresh)||(progressState?.asOf&&Date.parse(fresh.asOf)<Date.parse(progressState.asOf)))throw Error('Application progress could not be checked.');
+    return sequence===goalSequence?fresh:null;
+  }
+  async function goalAfterSave(goal,sequence) {
+    showGoal({...progressState,goal,applied:null});$('goalStatus').textContent='Goal saved. Checking current progress…';
+    try{
+      const fresh=await readGoalProgress(sequence);if(!fresh)return;showGoal(fresh);
+      $('goalStatus').textContent=fresh.goal!==goal?'The latest saved goal is shown.':goal===null?'Goal turned off.':'Goal saved.';
+    }catch(_){if(sequence===goalSequence)$('goalStatus').textContent=(goal===null?'Goal turned off.':'Goal saved.')+' Application progress could not be checked.';}
+  }
+  async function retryGoalProgress() {
+    if(goalSaving)return;goalSaving=true;const sequence=++goalSequence,draft=$('goalAmount').value;
+    const keepDraft=!!progressState&&draft!==(progressState.goal===null?'':String(progressState.goal));goalBusy(true);$('goalStatus').textContent='Checking current progress…';
+    try{
+      const fresh=await readGoalProgress(sequence);if(!fresh)return;showGoal(fresh);if(keepDraft)$('goalAmount').value=draft;
+      $('goalStatus').textContent='Application progress refreshed.';
+    }catch(_){if(sequence===goalSequence)$('goalStatus').textContent='Application progress could not be checked.';}
+    finally{if(sequence===goalSequence){goalSaving=false;goalBusy(false);}}
+  }
+  async function saveGoal(goal) {
+    if(goalSaving||!progressState)return;goalSaving=true;const sequence=++goalSequence;goalBusy(true);$('goalStatus').textContent='Saving goal…';
+    try{
+      const response=await fetch('/api/career-hunter/jobs/goal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({goal})});
+      const saved=await response.json();if(!response.ok||saved.ok!==true||saved.goal!==goal)throw Error(saved.error||'Application goal could not be saved.');
+      if(sequence===goalSequence)await goalAfterSave(saved.goal,sequence);
+    }catch(error){if(sequence===goalSequence)$('goalStatus').textContent=error.message||'Application goal could not be saved.';}
+    finally{if(sequence===goalSequence){goalSaving=false;goalBusy(false);}}
+  }
+  $('goalRetry').addEventListener('click',()=>{void retryGoalProgress();});
+  $('goalForm').addEventListener('submit',event=>{event.preventDefault();if($('goalForm').reportValidity())void saveGoal(Number($('goalAmount').value));});
+  $('goalDisable').addEventListener('click',()=>{void saveGoal(null);});
 
   function pay(job) {
     const min = Number(job.salary_min), max = Number(job.salary_max);
@@ -335,33 +421,62 @@
     if (frame && frame.kind === 'cockpit') frame.navigate('search', query);
     else location.href = '/api/career-hunter/search-ui' + (query ? '?' + query : '');
   });
-  /** The stage counts, with the number of Career's picks still waiting (counts.approve). Like every read here, slow picks leave their step out and never hold the page. */
-  function stageCounts() {
-    if (!window.CareerStages) return null;
-    const picks = Promise.race([window.CareerStages.picks(), new Promise((resolve) => setTimeout(() => resolve([]), 8000))]);
-    return Promise.all([window.CareerStages.counts(), picks]).then(([counts, jobs]) => Object.assign(counts, { approve: jobs.length }));
+  /** Read independent counts and picks without making a slow pick hold the pipeline. */
+  function stageCounts(input, paint) {
+    if (!window.CareerStages) return;
+    let picked = null;
+    void window.CareerStages.counts().then((counts) => {
+      input.counts = picked === null ? counts : { ...counts, approve: picked }; paint();
+    });
+    void window.CareerStages.picks().then((jobs) => {
+      picked = jobs.length;
+      if (input.counts) { input.counts = { ...input.counts, approve: picked }; paint(); }
+    });
   }
-  /** Read the day in one pass. Another application's answers are asked for only when this person can open that application. */
-  async function day() {
-    const entries = frame ? await frame.entries() : [], can = (view) => entries.some((entry) => entry.view === view);
-    const C = '/api/career-hunter';
-    const [resumeState, readiness, stats, counts, summary, updates, applied, saved, recruiters, plan, portrait, drafts] = await Promise.all([
-      get(C + '/resume/state'), get(C + '/readiness'), get(C + '/jobs/stats'), stageCounts(), get(C + '/home-summary'),
-      get(C + '/jobs/updates'), get(C + '/jobs?status=tracked&page=1&per=50'), get(C + '/jobs?status=saved&page=1&per=6'),
-      can('recruiters') ? get(C + '/recruiters') : null, can('profile-studio') ? get(C + '/profile-studio/plan') : null,
-      can('portrait-studio') ? get('/api/portrait-studio/readiness') : null, can('social-workspace') ? get('/api/social/content/drafts') : null]);
-    const input = { resume: resumeState, readiness, stats, counts, summary, updates, applied: (applied && applied.jobs) || [], recruiters: (recruiters && recruiters.recruiters) || [], plan, portrait, drafts };
-    const now = Date.now();
-    resume(resumeState);
-    stageCards(counts, summary);
-    jobRows((saved && saved.jobs) || []);
-    weekLine(window.CareerToday.week(input, now));
-    const mine = ((saved && saved.jobs) || []).length + input.applied.length;
-    today(window.CareerToday.plan(input, now, entries.map((entry) => entry.view)), entries, mine > 0);
-    explore(entries);
+  /** Optional apps are read only after this person's fresh admitted entries arrive. */
+  function enrichDay(entries, input, paint) {
+    const reads = [['recruiters', '/api/career-hunter/recruiters', 'recruiters'],
+      ['profile-studio', '/api/career-hunter/profile-studio/plan', 'plan'],
+      ['portrait-studio', '/api/portrait-studio/readiness', 'portrait'], ['social-workspace', '/api/social/content/drafts', 'drafts']];
+    for (const [view, path, key] of reads) if (entries.some((entry) => entry.view === view)) {
+      void get(path).then((value) => { input[key] = key === 'recruiters' ? value?.recruiters || [] : value; paint(); });
+    }
+  }
+  /** Paint real Career facts independently; an unrelated slow read never holds another card. */
+  function day() {
+    const C = '/api/career-hunter', input = { resume: null, counts: null, applied: [], saved: [], recruiters: [] };
+    let entries = null, pending = 8, resumeRead = false, live = true;
+    const settled = new Set();
+    const progressSequence = goalSequence;
+    window.addEventListener('pagehide', () => { live = false; }, { once: true });
+    const paint = () => {
+      if (!live || !entries) return;
+      input.progress = progressState;
+      if (settled.has('updates') && settled.has('progress')) weekLine(window.CareerToday.week(input, Date.now()));
+      const mine = input.saved.length + input.applied.length;
+      today(window.CareerToday.plan(input, Date.now(), entries.map((entry) => entry.view)), entries, mine > 0);
+      $('todayPanel').setAttribute('aria-busy', String(pending > 0 || !resumeRead));
+      if (pending > 0 || !resumeRead || !input.counts) $('calm').hidden = true;
+    };
+    const read = (key, path, apply) => {
+      void get(path).then((value) => {
+        if (!live) return;
+        input[key] = apply ? apply(value) : value; settled.add(key); pending -= 1; paint();
+      });
+    };
+    read('resume', C + '/resume/state', (value) => { resumeRead = true; resume(value); return value; });
+    read('readiness', C + '/readiness'); read('stats', C + '/jobs/stats'); read('summary', C + '/home-summary');
+    read('updates', C + '/jobs/updates'); read('applied', C + '/jobs?status=tracked&page=1&per=50', (value) => value?.jobs || []);
+    read('saved', C + '/jobs?status=saved&page=1&per=6', (value) => { const jobs = value?.jobs || []; jobRows(jobs); return jobs; });
+    read('progress', C + '/jobs/progress', (value) => { if (goalSequence === progressSequence) showGoal(value); return value; });
+    stageCounts(input, () => { if (live) { stageCards(input.counts); paint(); } });
+    void (frame ? frame.entries() : Promise.resolve([])).then((value) => {
+      if (!live) return;
+      entries = value; explore(entries); paint(); enrichDay(entries, input, paint);
+    });
   }
   greet(null);
-  stageCards(null, null);
+  stageCards(null);
   get('/api/auth/user').then(greet);
   day();
 })();

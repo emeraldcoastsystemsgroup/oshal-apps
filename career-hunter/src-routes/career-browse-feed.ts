@@ -4,6 +4,7 @@
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Default to literal keyword title tiers with stable newest ties; bound fallback description reads before text matching and final paging.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -80,6 +81,7 @@ export const BROWSE_SORT_MAP: Record<string, string> = {
   // no index can serve it, and ordering 1.6M postings by employer name to show twenty rows
   // measured 29.9s -- for an answer ("twenty jobs at companies starting with a digit") that
   // nobody asked for. Filter by company instead; that is indexed and instant.
+  relevant: 'p.first_seen_at DESC, p.id DESC',
   recent: 'p.first_seen_at DESC, p.id DESC',
   posted: 'p.posted_date DESC NULLS LAST, p.id DESC',
   salary: 'COALESCE(p.salary_max,p.salary_min,0) DESC, p.id DESC',
@@ -303,13 +305,15 @@ export function searchCandidateSql(
             CROSS JOIN corpus.postings_corpus p ON p.company_id = c.id
            WHERE c.name LIKE ? AND ${postingWhere}`,
   ));
-  // Arm 3 — the full posting text, and the ONLY arm that is not index-served. `description`
-  // is ~1.1GB of the ~2.0GB corpus and is stored inline, so this is a real table scan
-  // (measured 8-21s on the live store when few rows match). It is therefore opt-in per
-  // request and labelled as slow on the surface, never the default.
+  // Only a bounded recent eligible ID pool may read unindexed descriptions. A rare text
+  // must never force a scan of every description-heavy row before the arm finds its LIMIT.
   if (deep) {
     arms.push(arm(
-      `SELECT id AS cid FROM corpus.postings_corpus p${indexHint} WHERE ${postingWhere} AND p.description LIKE ?`,
+      `SELECT p.id AS cid FROM (
+         SELECT p.id FROM corpus.postings_corpus p${indexHint}
+          WHERE ${postingWhere} ORDER BY p.id DESC LIMIT ${ARM_POOL}
+       ) AS text_pool JOIN corpus.postings_corpus p ON p.id = text_pool.id
+       WHERE p.description LIKE ?`,
     ));
   }
   return { sql: arms.join('\n         UNION\n        '), arms: arms.length, parts: arms };
@@ -335,7 +339,7 @@ function runSearch(
   db: SqliteDb,
   query: BrowseQuery,
   filters: BrowseFilters,
-  plan: { order: string; per: number; offset: number },
+  plan: BrowsePlan,
 ): Record<string, unknown>[] {
   const term = param(query, 'q');
   const title = param(query, 'title');
@@ -367,7 +371,7 @@ function runSearch(
     else bindings.push(...filters.postingArgs, like);
   });
   return db.prepare(sql).all(
-    ...bindings, ...filters.args, ...extraArgs, plan.per, plan.offset,
+    ...bindings, ...filters.args, ...extraArgs, ...plan.orderArgs, plan.per, plan.offset,
   ) as Record<string, unknown>[];
 }
 
@@ -381,7 +385,7 @@ function runSearch(
 function runFeed(
   db: SqliteDb,
   filters: BrowseFilters,
-  plan: { order: string; per: number; offset: number },
+  plan: BrowsePlan,
 ): Record<string, unknown>[] {
   if (plan.order === BROWSE_SORT_MAP.salary && !filters.location) {
     let slot = 0;
@@ -443,7 +447,7 @@ function runFullText(
   expression: string,
   employer: string,
   filters: BrowseFilters,
-  plan: { order: string; per: number; offset: number },
+  plan: BrowsePlan,
   advanced: string,
 ): Record<string, unknown>[] {
   // UNION inside one `IN`, never `OR`. An `OR c.name LIKE ?` beside the match forces
@@ -471,8 +475,20 @@ function runFullText(
   if (employer) args.push(`%${employer}%`, ...filters.postingArgs);
   if (employer && advanced) args.push(advanced);
   return db.prepare(sql).all(
-    ...args, ...filters.args, plan.per, plan.offset,
+    ...args, ...filters.args, ...plan.orderArgs, plan.per, plan.offset,
   ) as Record<string, unknown>[];
+}
+
+interface BrowsePlan { order: string; orderArgs: unknown[]; per: number; offset: number }
+
+/** Literal title containment only; no résumé score or inferred job quality participates. */
+function searchOrder(query: BrowseQuery): Pick<BrowsePlan, 'order' | 'orderArgs'> {
+  const sort = String(query.sort || 'relevant');
+  const order = BROWSE_SORT_MAP[sort] || BROWSE_SORT_MAP.recent;
+  const words = sort === 'relevant' ? keywordTokens(param(query, 'q')) : [];
+  if (!words.length) return { order, orderArgs: [] };
+  const title = words.map(() => "instr(lower(COALESCE(p.title, '')), lower(?)) > 0").join(' AND ');
+  return { order: `CASE WHEN ${title} THEN 0 ELSE 1 END ASC, ${order}`, orderArgs: words };
 }
 
 /**
@@ -483,8 +499,8 @@ function runFullText(
  * @returns The page of score-free job cards plus the plan that produced it.
  */
 export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery, exclusions?: unknown[]): BrowsePage {
-  const sort = String(query.sort || 'recent');
-  const order = BROWSE_SORT_MAP[sort] || BROWSE_SORT_MAP.recent;
+  const sort = String(query.sort || 'relevant');
+  const ranking = searchOrder(query);
   const { page, per, offset } = browsePageGeometry(query);
   const employerName = param(query, 'company');
   const employers = employerName ? employerIds(db, employerName) : null;
@@ -504,13 +520,13 @@ export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery, exclusions?: u
   const expression = fullText ? ftsExpressionFor(query) : '';
   const capped=wantsText&&!fullText&&offset>MAX_OFFSET;
   if(capped)return {jobs:[],page,per,browse:true,pooled:true,poolSize:BROWSE_POOL,location:filters.location,fullText:false,deep:true,exhausted:true,capped};
-  const plan = { order, per, offset };
+  const plan = { ...ranking, per, offset };
 
   let jobs: Record<string, unknown>[];
   if (fullText && expression) {
     // Ranking by rowid is ranking by ingest order, which IS "newest first" here and
     // costs nothing; the date column would re-sort the match set for the same answer.
-    const ftsPlan = plan.order === BROWSE_SORT_MAP.recent
+    const ftsPlan = sort === 'recent'
       ? { ...plan, order: 'p.id DESC' } : plan;
     jobs = runFullText(db, expression, term, filters, ftsPlan, ftsExpressionFor({ ...query, q: '' }));
   } else if (wantsText) {
@@ -564,6 +580,11 @@ export function hasFullText(db: SqliteDb): boolean {
   } catch { return false; }
 }
 
+/** One literal tokenizer serves both indexed matching and deterministic title tiers. */
+function keywordTokens(text: string): string[] {
+  return String(text || '').split(/[^\p{L}\p{N}+#]+/u).map(word => word.trim()).filter(Boolean).slice(0, 8);
+}
+
 /**
  * @description Escapes a user's words into an FTS5 MATCH expression scoped to one column.
  *
@@ -576,11 +597,7 @@ export function hasFullText(db: SqliteDb): boolean {
  * @returns A MATCH expression, or '' when the input carries no usable token.
  */
 export function ftsMatchExpression(column: string, text: string): string {
-  const tokens = String(text || '')
-    .split(/[^\p{L}\p{N}+#]+/u)
-    .map((word) => word.trim())
-    .filter(Boolean)
-    .slice(0, 8);
+  const tokens = keywordTokens(text);
   if (!tokens.length) return '';
   return tokens.map((word) => `${column}:"${word.replace(/"/g, '""')}"`).join(' AND ');
 }

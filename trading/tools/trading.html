@@ -23,6 +23,10 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | Load native portfolio research before the Strategies dispatcher.
   3 | maintainer@emeraldcoastsystemsgroup.com | Load the non-executing rebalance planning component with portfolio review.
   10 | maintainer@emeraldcoastsystemsgroup.com | The page title is the application's display name, Intelligent Trades (it read "Trading", which the assistant repeated as the screen's name). Guard: tests/native-page-title.test.js.
+  11 | maintainer@emeraldcoastsystemsgroup.com | Load the pure dated account-status reader before account renderers; approved settings and running schedules are separate from execution evidence.
+  12 | maintainer@emeraldcoastsystemsgroup.com | Give retained activity one local next step, direct Deactivate and accessible evidence/settings disclosures on phone and desktop.
+  13 | maintainer@emeraldcoastsystemsgroup.com | Keep retained-count and evidence-summary text on the existing fourteen-pixel type scale.
+  14 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: load the first screen (account-story.js for its words, view-home.js for the screen) and style its cards: one card per account that says whether it is running or parked, what it did today and why its value moved, each with its source and time. Sizes and radii stay on the standard's scales; the card's one button and one link are 44px targets.
 -->
 <html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="none">
 <head>
@@ -260,6 +264,17 @@
   .native-eyebrow{margin:0 0 6px;color:var(--muted);font-size:12px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
   .native-state{display:inline-flex;align-items:center;padding:6px 10px;border:1px solid var(--native-border);border-radius:6px;background:var(--native-soft);font-size:12px;font-weight:700;line-height:1.4}
   .native-state.is-active{color:var(--buy);border-color:var(--buy);background:color-mix(in srgb,var(--buy) 10%,var(--panel))}
+  .native-assigned-name{font-size:16px;font-weight:650;margin:16px 0}
+  .native-execution-story{min-width:0;overflow-wrap:anywhere}
+  .native-execution-story>p:first-child{font-size:16px;margin:12px 0}
+  .native-execution-story>p:first-child strong{display:block;font-size:24px;line-height:1.25;margin-bottom:6px}
+  .native-recorded-count{font-size:14px;color:var(--muted)}
+  .native-status-actions{display:flex;align-items:start;gap:10px;flex-wrap:wrap;margin:18px 0}
+  .native-management-panel .native-status-actions .btn{min-height:44px;max-width:100%;white-space:normal}
+  .native-status-actions [role=status]{flex-basis:100%;margin:0}
+  .native-status-evidence,.native-strategy-settings{min-width:0;overflow-wrap:anywhere;border-top:1px solid var(--native-border);margin-top:18px}
+  .native-status-evidence>summary,.native-strategy-settings>summary{min-height:44px;box-sizing:border-box;padding:13px 0;cursor:pointer;font-size:14px;font-weight:700;line-height:1.5}
+  .native-status-evidence>summary:focus-visible,.native-strategy-settings>summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
   .native-account-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:20px 24px}
   .native-account-summary .kpi{border:0;border-radius:0;box-shadow:none;background:none;padding:0 20px;min-width:0}
   .native-account-summary .kpi:first-child{padding-left:0}
@@ -357,6 +372,36 @@
   .tile.view-only { opacity:1; }
   .tiles[data-ds-work] { margin-top:0; }
   :is(button, a, input, select, textarea, summary):focus-visible { outline:2px solid var(--ds-focus, var(--accent)); outline-offset:2px; }
+  /* The first screen (view-home.js draws it, account-story.js words it): a headline, then one card per account. Each card is
+     a chip, plain sentences, three dated parts (the plan, today, value), one button and at most one link. */
+  #homeCards { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap:16px; align-items:start; margin-bottom:16px; }
+  .story { margin:0; min-width:0; overflow-wrap:anywhere; }
+  .story-top p { margin:0 0 6px; font-size:15px; line-height:1.5; }
+  .story-top p:last-child { margin:0; }
+  .story-top span { color:var(--muted); }
+  .story-answer strong { font-size:18px; }
+  .story-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  .story-head h2 { font-size:18px; margin:0; }
+  .story-tag { margin:2px 0 0; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  .story-chips { display:flex; gap:6px; flex-wrap:wrap; margin:0; }
+  .story-chip { border:1px solid var(--ds-line-control, var(--line)); border-radius:6px; padding:3px 8px; font-size:12px; font-weight:800; letter-spacing:.5px; white-space:nowrap; }
+  .story-chip.is-running { border-color:var(--buy); color:var(--buy); }
+  .story-chip.is-blocked { border-color:var(--warn); color:var(--warn); }
+  .story-intro { margin:10px 0 0; font-size:15px; line-height:1.5; }
+  .story-part { border-top:1px solid var(--ds-hairline, var(--line)); margin-top:14px; padding-top:12px; }
+  .story-part h3 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+  .story-part p { margin:0 0 6px; font-size:14px; line-height:1.5; }
+  .story-part p.story-note, .story-part p.story-src { font-size:12px; color:var(--muted); }
+  .story-src time.warn { color:var(--warn); font-weight:700; }
+  .story-sum { display:grid; gap:4px; margin:8px 0; }
+  .story-sum div { display:flex; justify-content:space-between; gap:12px; font-size:14px; }
+  .story-sum dt { color:var(--muted); }
+  .story-sum dd { margin:0; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .story-actions { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:14px; }
+  .story-link { display:inline-flex; align-items:center; min-height:44px; color:var(--text); font-size:14px; font-weight:700; }
+  .story-broker > summary { min-height:44px; box-sizing:border-box; padding:11px 0; cursor:pointer; font-size:14px; font-weight:700; line-height:1.5; }
+  .story-broker[open] > summary { margin-bottom:12px; }
+  #homeFoot:empty, #homeTop:empty { display:none; }
   /* A desktop landing with one or two account tiles puts the watchlist beside them, so no empty band runs beside the
      paper card (UX audit decision intelligent-trades--intelligent-trades-home); three or more tiles keep the full width. */
   @media (min-width:1040px) {
@@ -433,6 +478,9 @@
 <script src="/api/trading/ui/native-management.js"></script>
 <script src="/api/trading/ui/native-portfolio.js"></script>
 <script src="/api/trading/ui/native-protection-controls.js"></script>
+<script src="/api/trading/ui/native-account-status.js"></script>
+<script src="/api/trading/ui/account-story.js"></script>
+<script src="/api/trading/ui/view-home.js"></script>
 <script src="/api/trading/ui/native-account-controls.js"></script>
 <script src="/api/trading/ui/native-account-management.js"></script>
 <script src="/api/trading/ui/native-account-details.js"></script>

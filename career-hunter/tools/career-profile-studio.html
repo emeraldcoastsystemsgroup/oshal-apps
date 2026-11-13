@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  6 | maintainer@emeraldcoastsystemsgroup.com | Give skill-removal buttons44px targets and wrap long skill labels without changing edit or save behavior.
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
@@ -58,8 +59,8 @@
   #sendError[hidden] { display:none; }
   .note { font-size:14px; color:var(--muted); white-space:pre-wrap; margin:8px 0 0; line-height:1.5; }
   .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
-  .chip { background:var(--panel2); border:1px solid var(--line); border-radius:20px; min-height:36px; padding:4px 12px; font-size:14px; display:inline-flex; gap:8px; align-items:center; }
-  .chip button { all:unset; color:var(--bad); cursor:pointer; font-weight:700; min-width:24px; min-height:24px; display:inline-grid; place-items:center; }
+  .chip { background:var(--panel2); border:1px solid var(--line); border-radius:20px; min-height:36px; max-width:100%; overflow-wrap:anywhere; padding:4px 12px; font-size:14px; display:inline-flex; gap:8px; align-items:center; }
+  .chip button { all:unset; color:var(--bad); cursor:pointer; font-weight:700; min-width:44px; min-height:44px; flex-shrink:0; display:inline-grid; place-items:center; }
   .chip button:focus-visible { outline:2px solid var(--ds-focus, var(--accent)); border-radius:6px; }
   .bgprev { width:100%; aspect-ratio:4/1; object-fit:cover; border-radius:10px; border:1px solid var(--line); background:var(--bg); display:none; }
   .hint { font-size:12px; color:var(--muted); margin-top:6px; line-height:16px; }

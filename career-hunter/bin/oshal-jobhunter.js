@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * CHANGE LOG ADDITION
+ * CHANGE LOG
+ * 47 | maintainer@emeraldcoastsystemsgroup.com | Select incremental keyword and AI work for nightly passes without changing explicit refresh commands.
+ * 46 | maintainer@emeraldcoastsystemsgroup.com | Map saved-job preparation to the existing owner-leased engine without any submission command.
  * 41 | maintainer@emeraldcoastsystemsgroup.com | Preserve non-secret native network mode across the engine environment boundary so public employer reads use the signed kernel broker.
  * 32 | maintainer@emeraldcoastsystemsgroup.com | Route bounded job-specific interview preparation and practice through the existing original-owner engine lease and model rail.
  * CHANGE LOG
@@ -365,12 +367,12 @@ function corpusRuns(verb, rest) {
       + ' if os.environ.get("CH_NIGHTLY_MATCH")=="1":\n'
       + '  if not terms or limit!=50: raise ValueError("Invalid nightly matching bounds")\n'
       + '  from jobhunter import match\n'
-      + '  keyword_matched=match.rescore_recent(14)\n'
+      + '  keyword_matched=match.rescore_new()\n'
       + ' elif os.environ.get("CH_BOARD_MATCH")=="1":\n'
       + '  if not terms or limit is None or limit>50: raise ValueError("Invalid board matching bounds")\n'
       + '  from jobhunter import match\n'
       + '  keyword_matched=match.rescore_recent(int(os.environ.get("CH_MATCH_DAYS","45")))\n'
-      + ' done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms,fresh_days=fresh_days,remote_only=remote_only,recent_first=True) if terms else (0,0))\n'
+      + ' done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms,fresh_days=fresh_days,remote_only=remote_only,recent_first=True,new_only=os.environ.get("CH_NIGHTLY_MATCH")=="1") if terms else (0,0))\n'
       + ' print(json.dumps({"result":"complete","scored":done,"skipped":skipped,"terms":len(terms),"keywordMatched":keyword_matched}),flush=True)\n'
       + 'except Exception as error:\n'
       + ' print(json.dumps({"result":"failed","errorType":type(error).__name__}),flush=True)\n'
@@ -502,6 +504,7 @@ function applicationRuns(verb, rest) {
     case 'interview-prepare':
     case 'interview-practice': return [['-c', 'import os,json\nfrom jobhunter.interview_prep import run\n'
       + 'print(json.dumps(run(int(os.environ.get("CH_JOB","0")),operation="'+(verb==='interview-practice'?'practice':'prepare')+'",request_id=os.environ.get("CH_REQUEST_ID",""),question_id=os.environ.get("CH_QUESTION_ID",""),answer=os.environ.get("CH_ANSWER",""),plan_id=os.environ.get("CH_PLAN_ID",""))))']];
+    case 'prepare-saved': return [['-c', 'import os,json\nfrom jobhunter.workflow import prepare_saved\nprint(json.dumps(prepare_saved(os.environ.get("CH_WORKFLOW_BATCH",""))))']];
     case 'draft': return [['-m', 'jobhunter', 'apply', ...rest]];
     case 'prepare-job': return [['-c', 'import os,json\nfrom jobhunter.prepare import prepare_job\n'
       + 'print(json.dumps(prepare_job(int(os.environ.get("CH_JOB","0")),documents=os.environ.get("CH_DOCUMENTS")!="0",include_oshal=os.environ.get("CH_OSHAL")=="1",request_id=os.environ.get("CH_REQUEST_ID",""),guidance=os.environ.get("CH_GUIDANCE",""),experience_ids=json.loads(os.environ.get("CH_EXPERIENCE_IDS","[]")),experience_revision=os.environ.get("CH_EXPERIENCE_REVISION",""))))']];

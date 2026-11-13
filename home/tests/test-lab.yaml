@@ -2,6 +2,7 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register home-overview for the recovered experience and its actual data contracts.
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
 # 2   | maintainer@emeraldcoastsystemsgroup.com     | Name the family view's schedule-text behaviour the same test now asserts (the trigger object formatted as the full page does, under a fixed US time zone).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
@@ -236,3 +237,29 @@ cases:
     installation: never
     regressionTests:
       - { level: browser, file: tests/browser/home-tiles.test.cjs }
+  - id: home-overview
+    name: Searchable Smart Home overview and reported device controls
+    purpose: Exercise the shipped overview and extracted assets at desktop, phone and framed-phone sizes with synthetic reads and controlled refusal
+      responses.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/browser/home-overview.test.cjs
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Synthetic browser contexts close after every case; no real person, provider or device is contacted.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 1024
+    installation: never
+    expected:
+    - Search, room groups and selected-device detail preserve existing actions and connection setup.
+    - Missing switch or brightness stays unknown; refused brightness restores the last reported value.
+    - Scenes use keyboard-accessible controls; phone controls fit and unsupported actions are not invented.

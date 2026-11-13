@@ -1,11 +1,13 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Saved Remove writes a durable dismissal and keeps drafts and application history.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Job Board tells the truth without a résumé, shows the inbox's newest reply on a job's row, and uses one word for saving (judge's report 2026-11-11, changes 3 and 5). The shipped tools/career-job-lists.html in Chromium over fixture answers, at 1440x900 and 412x915: with no résumé New matches says "Add your résumé to get matches" with that one filled button, lists none of the person's saved jobs and asks for no jobs, and the button opens Resume Studio; a saved job with no fit carries the link "Add your résumé to see your fit" (44px on a phone) where it said "AI assessment pending"; while a first résumé is being read the stage says so; with a résumé, or with no answer about one, the page is as it was. A job's newest reply reads "Interview reply · Nov 8", "Offer · Nov 9", "Application received · Nov 2" or "Not selected · Nov 5", is at least 44px tall, carries no text from the message, and opens that job's application. The saved list offers Unsave, New matches offers Save, and no star or "shortlist" is left.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | On a phone the fit link has its own line under a job's facts: it sat beside the place and pushed the posted date out of line.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9: a move is said in one line that names the job, so Unsave reads "Unsaved: Office Manager 1 at Example Co."
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | An unscored job says Not scored yet while retaining résumé guidance, saved controls and truthful replies.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -97,14 +99,14 @@ test('while a first résumé is being read New matches says so and offers nothin
 });
 
 for (const [name, resume] of [['a résumé', HAS], ['no answer about a résumé', 503]]) {
-  test(`with ${name} the page is as it was: matches are listed and an unscored job reads AI assessment pending`, async () => {
+  test(`with ${name} the page is as it was: matches are listed and an unscored job reads Not scored yet`, async () => {
     const state = { resume, jobs: [job(1, { favorite: false }), job(2, { favorite: false, ai_fit_score: 77 })], writes: [] };
     const matches = await openScreen(browser, 'career-job-lists.html', board(state), at(DESKTOP), '?view=matches');
     try {
       await matches.page.locator('.job-row[data-job-id="2"]').waitFor();
       assert.equal(await matches.page.locator('.job-row').count(), 2);
       assert.equal(await matches.page.getByText('Add your résumé').count(), 0);
-      assert.match(await matches.page.locator('.job-row[data-job-id="1"]').innerText(), /AI assessment pending/);
+      assert.match(await matches.page.locator('.job-row[data-job-id="1"]').innerText(), /Not scored yet/);
       assert.equal(await matches.page.locator('#keywordSearch').isVisible(), true);
       assert.deepEqual(await matches.page.locator('.job-row[data-job-id="1"] .row-actions button').allInnerTexts(), ['Save', 'Not interested']);
     } finally { await matches.context.close(); }
@@ -112,8 +114,8 @@ for (const [name, resume] of [['a résumé', HAS], ['no answer about a résumé'
     try {
       await saved.page.locator('.job-row[data-job-id="1"]').waitFor();
       await saved.page.waitForFunction(() => performance.getEntriesByType('resource').some((r) => r.name.endsWith('/api/career-hunter/resume/state') && r.responseEnd > 0));
-      await saved.page.getByRole('button', { name: 'Unsave' }).waitFor();
-      assert.match(await saved.page.locator('.job-row[data-job-id="1"]').innerText(), /AI assessment pending/);
+      await saved.page.getByRole('button', { name: 'Remove' }).waitFor();
+      assert.match(await saved.page.locator('.job-row[data-job-id="1"]').innerText(), /Not scored yet/);
       assert.equal(await saved.page.getByText('Add your résumé').count(), 0);
     } finally { await saved.context.close(); }
   });
@@ -147,16 +149,16 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
   });
 }
 
-test('one word for saving: Unsave on the saved list, no star and no shortlist anywhere', async () => {
+test('one word for saving: Remove on the saved list, no star and no shortlist anywhere', async () => {
   const state = { resume: HAS, jobs: [job(1, { ai_fit_score: 70 }), job(2)], writes: [] };
   const { page, context } = await openScreen(browser, 'career-job-lists.html', board(state), at(DESKTOP));
   try {
     await page.locator('.job-row[data-job-id="2"]').waitFor();
     assert.match(await page.locator('#pageDescription').innerText(), /^Your saved jobs\./);
     assert.doesNotMatch(await page.locator('body').innerText(), /★|\bstar\b|shortlist|Save to Job Board/i);
-    await page.locator('.job-row[data-job-id="1"]').getByRole('button', { name: 'Unsave', exact: true }).click();
+    await page.locator('.job-row[data-job-id="1"]').getByRole('button', { name: 'Remove', exact: true }).click();
     await page.waitForFunction(() => document.querySelectorAll('.job-row').length === 1);
-    assert.deepEqual(state.writes, [{ path: '/api/career-hunter/jobs/1/status', body: { favorite: false } }]);
-    assert.equal(await page.locator('#actionState').innerText(), 'Unsaved: Office Manager 1 at Example Co. Its drafts and application records are kept.');
+    assert.deepEqual(state.writes, [{ path: '/api/career-hunter/jobs/1/status', body: { status: 'dismissed', favorite: false } }]);
+    assert.equal(await page.locator('#actionState').innerText(), 'Removed: Office Manager 1 at Example Co.');
   } finally { await context.close(); }
 });

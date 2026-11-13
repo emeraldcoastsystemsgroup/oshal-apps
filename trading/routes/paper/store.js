@@ -8,6 +8,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Read all daily report fills in the original owner/book scope with an explicit coverage bound.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Manual paper orders: DECISION_GET and ORDER_FOR_DECISION, recordManualDecision, loadDecision, orderForDecision and writeManualFill (one transaction: version-checked account, order, position, equity snapshot). Buy a stock on the native paper book had no native path.
  *
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Explicit valuation-only plans retain recorded position peaks; execution plans keep their existing peak advancement.
+ *
  * @module paper/store
  */
 'use strict';
@@ -213,7 +215,7 @@ async function writePositions(client, sub, write) {
   for (const p of write.plan.positions) {
     open.add(p.symbol);
     await client.query(SQL.POSITION_UPSERT, [sub, p.symbol, p.qty, p.avgCost, p.currentPrice, p.lastPriceAt || null,
-      p.peak == null ? p.currentPrice : Math.max(p.peak, p.currentPrice), p.openedAt || write.at, write.at]);
+      write.plan.valuationOnly === true ? p.peak : p.peak == null ? p.currentPrice : Math.max(p.peak, p.currentPrice), p.openedAt || write.at, write.at]);
   }
   for (const symbol of write.previousSymbols) if (!open.has(symbol)) await client.query(SQL.POSITION_DELETE, [sub, symbol]);
 }

@@ -8,9 +8,10 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: support mouse-wheel scrolling across desktop computers, Swarm-enrolled Android nodes, RDP sessions, and phones, and normalize WheelEvent.deltaY across line/page deltaMode so Linux/Firefox wheel ticks scroll reliably.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: pass com.oshal.remote and serverUrl in installSessionCompanionApk for zero-touch companion launch.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: support register_device Concierge actions and DPAD_UP/DPAD_DOWN/DPAD_LEFT/DPAD_RIGHT/DPAD_CENTER key aliases in ANDROID_KEY_MAP.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the oshal Companion app is told to sign in to the page's own origin (installationOrigin); the fixed installation address it fell back to is gone.
  */
 
-import { bytesToBase64, iosGestureFromDrag } from '/api/phone-control/ui/computer-link.js';
+import { bytesToBase64, installationOrigin, iosGestureFromDrag } from '/api/phone-control/ui/computer-link.js';
 import { executeRdpConciergeAction, rdpLabel, resolveCompanionApk, sendRdpInput, stageCompanionApk } from '/api/phone-control/ui/phone-rdp.js';
 
 const MAX_ROUNDS = 5;
@@ -453,7 +454,7 @@ async function installSessionCompanionApk(ctx) {
       ctx.status(`Installing and launching oshal Companion (${apk.file})…`);
       const installed = await ctx.phoneCommand(phone, 'adb-install-apk', {
         serial: phone.address, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true,
-        launchPackage: 'com.oshal.remote', serverUrl: globalThis.location?.origin || 'https://oshal.agenticfederal.us'
+        launchPackage: 'com.oshal.remote', serverUrl: installationOrigin()
       }, 'install apk', `Install oshal Companion on ${phone.name}`, 180000);
       if (!installed) return;
       ctx.status(installed.ok ? `Installed and opened oshal Companion on ${phone.name}.` : (installed.message || 'APK install failed.'));

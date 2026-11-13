@@ -12,9 +12,11 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: surface #deviceKindGuide (iPhone vs Android clarity), pairAndroid host-scoped adb-connect ignoring already-connected Fire TVs, and prefill the phone IP into #connectAddress with main Wireless debugging port prompt when mDNS discovery is unavailable on the subnet.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: auto-probe the first usable Linux computer on startup, auto-register connected ADB TVs and phones into Phones & TVs, and pass serverUrl + minted joinCode to adb-install-apk for zero-touch TV provisioning.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: while the iPhone pairing window is open the page reads it every 2 s and asks about each device waiting to pair (Allow / Reject, renderPairingQuestion); a device paired before oshal asked shows Keep instead of Add.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the server the oshal TV app is told to sign in to, and the address in the copy-and-paste push script, are the page's own origin (installationOrigin); the fixed installation address is gone.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Keep native Orbit install and exact enrolled-device links separate from optional Linux bridge setup; never offer Android or other non-Linux devices as bridge hosts.
  */
 
-import { bridgeMatches, bridgeSupport, computerStanding } from '/api/phone-control/ui/computer-link.js';
+import { bridgeMatches, bridgeSupport, computerStanding, installationOrigin } from '/api/phone-control/ui/computer-link.js';
 import { mountConnectConcierge } from '/api/phone-control/ui/phone-concierge.js';
 import { keepBleDevice, mountRdpAndTvBle, renderPairingQuestion, resolveCompanionApk, stageCompanionApk } from '/api/phone-control/ui/phone-rdp.js';
 
@@ -72,7 +74,7 @@ export function mountSetup(app) {
   app.onChange(() => {
     renderComputers(ctx);
     if (!ctx.view.node && app.state.loadedOnce && !ctx.view.autoProbedOnce) {
-      const candidate = app.state.computerList.find((c) => computerStanding(c).usable && bridgeSupport(c).ok);
+      const candidate = bridgeComputers(app).find((c) => computerStanding(c).usable);
       if (candidate && app.state.reports.has(String(candidate.id))) {
         ctx.view.autoProbedOnce = true;
         chooseComputer(ctx, candidate.id, false);
@@ -104,19 +106,19 @@ function stopWaitPoll(ctx) {
 
 function syncWaitPoll(ctx) {
   const { app, view, say } = ctx;
-  const shouldWait = app.state.connectOpen && app.state.loadedOnce && !app.state.computerList.length && !app.state.computersRefused;
+  const shouldWait = app.state.connectOpen && app.state.loadedOnce && !bridgeComputers(app).length && !app.state.computersRefused;
   if (!shouldWait) { stopWaitPoll(ctx); return; }
   if (view.waitTimer) return;
   view.waitUntil = Date.now() + WAIT_LIMIT_MS;
-  say('waitingForComputer', 'Waiting for your computer…');
+  say('waitingForComputer', 'Waiting for a Linux bridge computer…');
   view.waitTimer = setInterval(() => {
-    if (!app.state.connectOpen || app.state.computerList.length || app.state.computersRefused) {
+    if (!app.state.connectOpen || bridgeComputers(app).length || app.state.computersRefused) {
       stopWaitPoll(ctx);
       return;
     }
     if (Date.now() >= view.waitUntil) {
       stopWaitPoll(ctx);
-      say('waitingForComputer', 'Still waiting for your computer. Open Add a device again once oshal Node is signed in.');
+      say('waitingForComputer', 'Still waiting for a Linux bridge computer. Orbit devices can connect directly above; reopen this sheet after signing in on Linux if you need the bridge.');
       return;
     }
     if (document.visibilityState !== 'hidden') void app.load();
@@ -129,7 +131,7 @@ function syncTvDeepLink(ctx) {
   if (location.hash !== '#connect-tv' || ctx.view.tvFocusedOnce || !ctx.app.state.loadedOnce) return;
   ctx.view.tvFocusedOnce = true;
   if (!ctx.view.node) {
-    const candidate = ctx.app.state.computerList.find((c) => computerStanding(c).usable && bridgeSupport(c).ok);
+    const candidate = bridgeComputers(ctx.app).find((c) => computerStanding(c).usable);
     if (candidate) chooseComputer(ctx, candidate.id, false);
   }
   if (!ctx.$('tvCard').hidden) {
@@ -164,8 +166,38 @@ function buildComputerRow(ctx, computer) {
   return row;
 }
 
+/** The existing bridge requires an explicitly reported Linux host. */
+function bridgeComputers(app) {
+  return app.state.computerList.filter((computer) => String(computer.platform || '').toLowerCase() === 'linux');
+}
+
+function nativeDeviceRow(computer) {
+  const row = document.createElement('li'), copy = document.createElement('div');
+  const name = document.createElement('strong'), state = document.createElement('span');
+  name.textContent = computer.name || `Device ${String(computer.id).slice(0, 8)}`;
+  const control = computer.can_control === true ? 'on' : computer.can_control === false ? 'off' : 'not reported';
+  state.textContent = `${computer.platform || 'System not reported'} · ${computer.connected === true ? 'Connected' : computer.connected === false ? 'Not connected' : 'Connection not reported'} · Control ${control}`;
+  copy.append(name, state);
+  const link = document.createElement('a');
+  link.className = 'ks-btn'; link.textContent = 'View device'; link.target = '_top';
+  link.href = `/cockpit/tools/devices.html?device=${encodeURIComponent(`device:${computer.id}`)}`;
+  row.append(copy, link);
+  return row;
+}
+
+function renderNativeDevices(ctx) {
+  const { app, $ } = ctx, list = $('nativeDevicesList');
+  list.replaceChildren(); list.hidden = true;
+  if (!app.state.loadedOnce) return;
+  if (app.state.computersRefused) { ctx.say('nativeDevicesStatus', app.state.computersRefused); return; }
+  const nodes = app.state.computerList;
+  ctx.say('nativeDevicesStatus', nodes.length ? 'Choose a device to review its connection and control settings.' : 'No devices are available. Install Orbit and sign in on your device.');
+  list.replaceChildren(...nodes.map(nativeDeviceRow)); list.hidden = !nodes.length;
+}
+
 function renderComputers(ctx) {
   const { app, $, view } = ctx;
+  renderNativeDevices(ctx);
   const body = $('computersBody');
   const head = $('computersHead');
   const wrap = $('computersTableWrap');
@@ -185,14 +217,17 @@ function renderComputers(ctx) {
     return;
   }
   refused.hidden = true;
-  const hasComputers = app.state.computerList.length > 0;
-  $('downloadNode').classList.toggle('ks-btn-primary', !hasComputers);
+  const computers = bridgeComputers(app), hasComputers = computers.length > 0;
+  if (view.node && !computers.some((computer) => String(computer.id) === view.node)) {
+    view.node = null; showCards(ctx, false);
+    ctx.say('computersStatus', 'That device is no longer a Linux bridge candidate. Review its direct connection above.');
+  }
   head.hidden = !hasComputers;
   wrap.hidden = !hasComputers;
   empty.hidden = hasComputers;
   if (!hasComputers) { body.textContent = ''; syncWaitPoll(ctx); return; }
   stopWaitPoll(ctx);
-  body.replaceChildren(...app.state.computerList.map((item) => buildComputerRow(ctx, item)));
+  body.replaceChildren(...computers.map((item) => buildComputerRow(ctx, item)));
   app.refreshTables();
 }
 
@@ -215,7 +250,7 @@ function chooseComputer(ctx, id, scrollToSetup = true) {
   const computer = app.computer(id);
   const standing = computerStanding(computer);
   const support = bridgeSupport(computer);
-  const refusal = !computer ? 'That computer is no longer in your list. Reload this page.' : !standing.usable ? standing.fix : !support.ok ? support.text : '';
+  const refusal = !computer ? 'That computer is no longer in your list. Reload this page.' : !bridgeComputers(app).includes(computer) ? 'This device is not a Linux bridge computer. Use View device above for its direct connection.' : !standing.usable ? standing.fix : !support.ok ? support.text : '';
   if (refusal) {
     view.node = null;
     showCards(ctx, false);
@@ -474,7 +509,7 @@ function refreshTvPushScript(ctx) {
   const serial = rawAddr.includes(':') ? rawAddr : `${rawAddr}:5555`;
   const localApk = ctx.view.node ? ctx.app.state.reports.get(ctx.view.node)?.report?.tvApk || null : null;
   const apk = ctx.view.tvApk || localApk;
-  const origin = globalThis.location?.origin || 'https://your-oshal-host';
+  const origin = installationOrigin() || 'https://your-oshal-host';
   const fileName = apk?.file || 'oshal-firetv.apk';
   const url = apk?.url ? `${origin}${apk.url}` : `${origin}/api/devices/downloads/${encodeURIComponent(fileName)}`;
   const shaLine = apk?.sha256 ? `echo "${apk.sha256}  oshal-firetv.apk" | sha256sum -c -` : 'sha256sum oshal-firetv.apk';
@@ -590,7 +625,7 @@ async function loadTvOneStep(ctx, requireApk = false) {
   if (!(await waitForTvAuthorized(ctx, address, serial, connected))) return;
   if (!apk) { await finishSaveTv(ctx, serial, false); return; }
   let staged = await stageVerifiedApk(ctx, apk);
-  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
+  const serverUrl = installationOrigin();
   const installPayload = {
     serial, stageId: staged.stageId, sha256: staged.sha256,
     launchPackage: 'com.oshal.remote', serverUrl
@@ -766,7 +801,7 @@ function runConciergeConnectAction(ctx, kind) {
 
 function wireSetupHandlers(ctx) {
   const { $ } = ctx;
-  $('downloadNode').textContent = downloadNodeLabel();
+  $('downloadNode').textContent = 'Install or update Orbit';
   $('setUp').addEventListener('click', () => ctx.run(() => setUpComputer(ctx, false), 'setupStatus', 'Set up'));
   $('replaceEarlier').addEventListener('click', () => ctx.run(() => setUpComputer(ctx, true), 'setupStatus', 'Set up'));
   $('removeBridge').addEventListener('click', () => { $('removeBridgeConfirm').hidden = false; });

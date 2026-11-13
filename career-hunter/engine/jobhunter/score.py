@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Nightly new-only mode excludes stored AI fits and removed jobs, drains a shrinking backlog without offset skips, and leaves explicit refresh unchanged.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | One job whose details cannot be read is skipped instead of ending the pass. An employer refusing one page had discarded every score and keyword match of the resume match, every run, since 2026-10-29.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy workplace metadata before remote-only selection without changing saved title, date or scoring budgets.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Fingerprint trusted native routing identity before cache selection and record each guarded completion's actual provider/model without sharing mutable worker metadata.
@@ -409,9 +410,119 @@ def _commit_one(res, model) -> bool:
     return True
 
 
+def _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only,
+               days, first_seen_days, fresh_days, allow_posted_date_window, recent_first):
+    """Build the same explicit refresh selection or a pending-only nightly backlog."""
+    # Generic passes use the shared technology/professional lane. Explicit user titles
+    # are their own selection: adjunct/instructor roles must not be rejected just because
+    # the shared classifier does not label them technology work. Empty terms cannot
+    # remove the generic lane gate.
+    title_any = [str(term).strip() for term in (title_any or []) if str(term).strip()]
+    #
+    # `active = 1` and `target_role = 1` are valid in BOTH dialects: the 097 view casts
+    # those BOOLEANs back to int (`boolean = integer` is a hard error in Postgres). Exact
+    # equality also lets SQLite use idx_corpus_lane_seen; NULL target_role remains excluded.
+    # Existing scores remain candidates: their exact private evidence may have changed.
+    # Freshness is checked below after the same title/area/date gates and before inference.
+    where = "active = 1 AND target_role = 1"
+    if title_any:
+        where = "active = 1"
+    if scope:
+        where += ' AND ' + search_scope.predicate(scope, config.POSTGRES)
+    if remote_only:
+        # The user's standing preference (career_score_settings.remote_only). Gating HERE and not
+        # only at display is deliberate: an on-site role a remote-only candidate would never take
+        # should not cost a scoring inference in the first place. `remote` is 0/1 in both
+        # compatibility views. Contradictory legacy flags are not evidence.
+        where += " AND " + search_scope.fully_remote_predicate()
+    if min_keyword:
+        where += f" AND COALESCE(fit_score,0) >= {int(min_keyword)}"
+    if new_only:
+        where += " AND ai_fit_score IS NULL AND COALESCE(status,'new') <> 'dismissed'"
+    else:
+        where += _freshness_where(days, first_seen_days, fresh_days, allow_posted_date_window)
+    selector_sql, params = _selector_where(title_any, company_any)
+    where += selector_sql
+    prefix, source = '', 'postings'
+    if fresh_days and not config.POSTGRES and not new_only:
+        # The OR between remote and local geometry otherwise makes SQLite choose the
+        # active/geo index and read millions of rows before the date gate. Materialize
+        # the disjoint posted/undated ranges first, using the existing date indexes.
+        n = int(fresh_days)
+        prefix = ("WITH seen_candidates AS MATERIALIZED ("
+                  "SELECT id AS fresh_id, posted_date FROM postings "
+                  f"WHERE first_seen_at >= datetime('now','-{n} days')), "
+                  "fresh_candidates AS MATERIALIZED ("
+                  f"SELECT id AS fresh_id FROM postings WHERE posted_date >= date('now','-{n} days') "
+                  "UNION ALL SELECT fresh_id FROM seen_candidates WHERE posted_date IS NULL) ")
+        source = 'fresh_candidates CROSS JOIN postings ON postings.id = fresh_candidates.fresh_id'
+    sql = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {_order_by(recent_first)}"
+    return sql, params
+
+
+def _batch_rows(sql, params, rescore):
+    """Read saved evidence for a bounded selection before any scoring work."""
+    with db.connect() as conn:
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+        fingerprints = db.score_fingerprints(conn, [r['id'] for r in rows if r.get('ai_fit_score') is not None]) if not rescore else {}
+        companies = {}
+        company_ids = sorted({r['company_id'] for r in rows if fingerprints.get(r['id'])})
+        for start in range(0, len(company_ids), 500):
+            ids = company_ids[start:start + 500]
+            found = conn.execute(f"SELECT id,name FROM {db.companies_table()} WHERE id IN ({','.join('?' for _ in ids)})", ids)
+            companies.update((r['id'], r) for r in found.fetchall())
+    return rows, fingerprints, companies
+
+
+def _select_stale(rows, fingerprints, companies, prof_summary, model_identity, rescore, budget):
+    """Count inspected candidates separately from actual stale inputs."""
+    selected = []
+    inspected = 0
+    for row in rows:
+        inspected += 1
+        stale = rescore or row.get('ai_fit_score') is None or not fingerprints.get(row['id'])
+        if not stale:
+            try:
+                _, fingerprint, _, _ = _scoring_inputs(row, prof_summary, companies[row['company_id']],
+                                                      model_identity=model_identity)
+                stale = job_context.needs_refresh(row) or fingerprint != fingerprints[row['id']]
+            except ValueError:
+                stale = True  # An unreadable saved copy: _score_one reports it against this job alone.
+        if stale:
+            selected.append(row)
+            if budget and len(selected) >= budget:
+                break
+    return selected, inspected
+
+
+def _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers):
+    """Save model results and preserve explicit unavailable-worker failures."""
+    model = model_identity.cache_key
+    total = len(selected)
+    scored = skipped = refused = 0
+
+    with cf.ThreadPoolExecutor(max_workers=workers) as ex:
+        for i, res in enumerate(ex.map(lambda r: _score_one(r, prof_summary,
+                prior_fingerprint=None if rescore else fingerprints.get(r['id']),
+                model_identity=model_identity), selected), 1):
+            committed = _commit_one(res, model)
+            if res.get('unchanged'):
+                pass
+            elif committed:
+                scored += 1
+            else:
+                skipped += 1
+                refused += bool(res.get('refused'))
+            if i % 25 == 0 or i == total:
+                print(f"   {i}/{total}  ({scored} scored)", flush=True)
+    if refused:
+        print(f"   {refused} skipped: employer details unavailable", flush=True)
+    return scored, skipped, refused
+
+
 def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=None, company_any=None,
                 days=None, recent_first=False, first_seen_days=None, *, fresh_days=None,
-                allow_posted_date_window=False, remote_only=False) -> tuple[int, int]:
+                allow_posted_date_window=False, remote_only=False, new_only=False) -> tuple[int, int]:
     """AI-score the in-lane backlog. Returns (scored, skipped).
 
     Two freshness windows, and they are NOT interchangeable:
@@ -439,108 +550,30 @@ def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=N
     scope = search_scope.load(config.CAREER_DB.parent)
     if scope:
         prof_summary += search_scope.summary(scope)
-    # Generic passes use the shared technology/professional lane. Explicit user titles
-    # are their own selection: adjunct/instructor roles must not be rejected just because
-    # the shared classifier does not label them technology work. Empty terms cannot
-    # remove the generic lane gate.
-    title_any = [str(term).strip() for term in (title_any or []) if str(term).strip()]
-    #
-    # `active = 1` and `target_role = 1` are valid in BOTH dialects: the 097 view casts
-    # those BOOLEANs back to int (`boolean = integer` is a hard error in Postgres). Exact
-    # equality also lets SQLite use idx_corpus_lane_seen; NULL target_role remains excluded.
-    # Existing scores remain candidates: their exact private evidence may have changed.
-    # Freshness is checked below after the same title/area/date gates and before inference.
-    where = "active = 1 AND target_role = 1"
-    if title_any:
-        where = "active = 1"
-    if scope:
-        where += ' AND ' + search_scope.predicate(scope, config.POSTGRES)
-    if remote_only:
-        # The user's standing preference (career_score_settings.remote_only). Gating HERE and not
-        # only at display is deliberate: an on-site role a remote-only candidate would never take
-        # should not cost a scoring inference in the first place. `remote` is 0/1 in both
-        # compatibility views. Contradictory legacy flags are not evidence.
-        where += " AND " + search_scope.fully_remote_predicate()
-    if min_keyword:
-        where += f" AND COALESCE(fit_score,0) >= {int(min_keyword)}"
-    where += _freshness_where(days, first_seen_days, fresh_days, allow_posted_date_window)
-    selector_sql, params = _selector_where(title_any, company_any)
-    where += selector_sql
-    prefix, source = '', 'postings'
-    if fresh_days and not config.POSTGRES:
-        # The OR between remote and local geometry otherwise makes SQLite choose the
-        # active/geo index and read millions of rows before the date gate. Materialize
-        # the disjoint posted/undated ranges first, using the existing date indexes.
-        n = int(fresh_days)
-        prefix = ("WITH seen_candidates AS MATERIALIZED ("
-                  "SELECT id AS fresh_id, posted_date FROM postings "
-                  f"WHERE first_seen_at >= datetime('now','-{n} days')), "
-                  "fresh_candidates AS MATERIALIZED ("
-                  f"SELECT id AS fresh_id FROM postings WHERE posted_date >= date('now','-{n} days') "
-                  "UNION ALL SELECT fresh_id FROM seen_candidates WHERE posted_date IS NULL) ")
-        source = 'fresh_candidates CROSS JOIN postings ON postings.id = fresh_candidates.fresh_id'
-    sql = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {_order_by(recent_first)}"
+    sql, params = _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only,
+                             days, first_seen_days, fresh_days, allow_posted_date_window, recent_first)
     budget = int(limit) if limit is not None and int(limit) > 0 else None
     # No more than ten candidate inspections per allowed model call. The cursor rotates
     # through unchanged candidates, so they cannot permanently hide later stale inputs.
-    inspection_limit = budget * 10 if budget else None
+    inspection_limit = budget * 10 if budget and not new_only else None
     cursor_key = score_freshness.fingerprint({
         'owner': config.USER_SUB, 'store': config.STORE,
         'sql': sql, 'params': params, 'profile': prof_summary,
         'model': model, 'contract': SCORING_CONTRACT_VERSION, 'system': SYSTEM,
         'prompt': PROMPT, 'rescore': rescore,
     })
-    positions, offset = score_freshness.read_cursor(cursor_key) if budget else ({}, 0)
+    positions, offset = score_freshness.read_cursor(cursor_key) if budget and not new_only else ({}, 0)
     if inspection_limit:
         sql += f" LIMIT {inspection_limit + 1} OFFSET {offset}"
-    with db.connect() as conn:
-        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
-        fingerprints = db.score_fingerprints(conn, [r['id'] for r in rows if r.get('ai_fit_score') is not None]) if not rescore else {}
-        companies = {}
-        company_ids = sorted({r['company_id'] for r in rows if fingerprints.get(r['id'])})
-        for start in range(0, len(company_ids), 500):
-            ids = company_ids[start:start + 500]
-            found = conn.execute(f"SELECT id,name FROM {db.companies_table()} WHERE id IN ({','.join('?' for _ in ids)})", ids)
-            companies.update((r['id'], r) for r in found.fetchall())
+    if new_only and budget:
+        sql += f" LIMIT {budget}"
+    rows, fingerprints, companies = _batch_rows(sql, params, rescore)
     more = inspection_limit is not None and len(rows) > inspection_limit
     if inspection_limit:
         rows = rows[:inspection_limit]
-    selected = []
-    inspected = 0
-    for row in rows:
-        inspected += 1
-        stale = rescore or row.get('ai_fit_score') is None or not fingerprints.get(row['id'])
-        if not stale:
-            try:
-                _, fingerprint, _, _ = _scoring_inputs(row, prof_summary, companies[row['company_id']],
-                                                      model_identity=model_identity)
-                stale = job_context.needs_refresh(row) or fingerprint != fingerprints[row['id']]
-            except ValueError:
-                stale = True  # An unreadable saved copy: _score_one reports it against this job alone.
-        if stale:
-            selected.append(row)
-            if budget and len(selected) >= budget:
-                break
-    total = len(selected)
-    scored = skipped = refused = 0
-
-    with cf.ThreadPoolExecutor(max_workers=workers) as ex:
-        for i, res in enumerate(ex.map(lambda r: _score_one(r, prof_summary,
-                prior_fingerprint=None if rescore else fingerprints.get(r['id']),
-                model_identity=model_identity), selected), 1):
-            committed = _commit_one(res, model)
-            if res.get('unchanged'):
-                pass
-            elif committed:
-                scored += 1
-            else:
-                skipped += 1
-                refused += bool(res.get('refused'))
-            if i % 25 == 0 or i == total:
-                print(f"   {i}/{total}  ({scored} scored)", flush=True)
-    if refused:
-        print(f"   {refused} skipped: employer details unavailable", flush=True)
-    if budget and skipped == refused:
+    selected, inspected = _select_stale(rows, fingerprints, companies, prof_summary, model_identity, rescore, budget)
+    scored, skipped, refused = _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers)
+    if budget and not new_only and skipped == refused:
         # Invalid/retryable outputs must remain reachable on the next attempt. Successful
         # earlier rows are already fingerprinted, so retaining this position costs no
         # repeat inference for them. A refusing employer can last for weeks, so it does not

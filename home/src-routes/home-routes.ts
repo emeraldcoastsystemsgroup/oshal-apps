@@ -31,6 +31,7 @@
  * 12  | maintainer@emeraldcoastsystemsgroup.com   | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
  * 13  | maintainer@emeraldcoastsystemsgroup.com   | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
  * 14  | maintainer@emeraldcoastsystemsgroup.com   | home 1.5.0 (J-6): add schema-bounded read-only SmartThings `samsungce.viewInside` server operation (`GET /api/home/view-inside` and `GET /api/home/view-inside/image/:fileId`) returning interior camera bay metadata and SVG bay previews for the Smart Home app and Jarvis.
+ * 15  | maintainer@emeraldcoastsystemsgroup.com   | Serve the extracted overview renderer and stylesheet as exact known UI assets; keep all home device actions and authorization unchanged.
  *
  * @module home-routes
  */
@@ -501,6 +502,16 @@ export function createHomeRoutes(ctx: AppContext): Router {
     res.sendFile(path.join(assetRoot, 'home-tvs.js'), (err) => {
       if (err) { logger.error({ err }, 'serve home TVs module failed'); res.status(404).send('Not found'); }
     });
+  });
+  router.get('/ui/home-overview.js', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(assetRoot, 'home-overview.js'));
+  });
+  router.get('/ui/home-overview.css', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(assetRoot, 'home-overview.css'));
   });
 
   /** GET /api/home/devices — the caller's cached, deduped device index. Cheap (no LLM).

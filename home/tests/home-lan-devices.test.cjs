@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: TVs and streaming sticks. A scan and a press are plans (planned, never executed) carrying the closed phone-control bridge command; the press plan is built per kind with the closed action list and refuses what a TV cannot do; a scan's answer registers private-address TVs for that person only, merged by hardware address; a TV's on/off state changes only when that TV's own answer says the press worked; an answer for another TV or press is refused; POST /control answers a network TV 409 instead of flipping its saved switch; the routes need a person; the manifest declares the four tools inside /api/home with TV routing words and no new egress; and the page's pure helpers choose the right buttons, computer and words.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.3: Jarvis presses TV buttons through computer.run_plan. home-lan-discover and home-lan-control must declare exactly computerPlan {program: phone-bridge, verbs: [lan-discover]} and {program: phone-bridge, verbs: [lan-control]} (no other tool plans), and every command the compiled scan and press plan routes answer must fit the kernel's grammar exactly, mirrored from oshal-kernel crates/oshald/src/computer_plans.rs (declared, PlanShape::fits, argument): the bridge prefix, the tool's own declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB. Negative controls prove the mirror refuses what the kernel refuses. Removing a declaration or drifting the command turns this red; a plan that does not fit is never kept, so Jarvis could press nothing. The descriptions, the plans' next step and the persona name computer.run_plan and the planId, and no longer computer.run.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): on an Android TV, now_playing, play, pause, next, previous and stop are planned with bridge 1.8.0, a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it, also across a new scan; the card has the media row and the Now playing line only on an Android TV.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise the generated overview asset handlers with exact contained paths and actual MIME/cache headers; retain every device-plan, ownership and result assertion.
  */
 'use strict';
 const test = require('node:test');
@@ -178,6 +179,19 @@ function homeRoutes() {
 }
 const req = (sub, body, headers = {}) => ({ oidc: sub ? { user: { sub }, isAuthenticated: () => true } : undefined, body, headers });
 function res() { return { statusCode: 200, headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(n) { this.statusCode = n; return this; }, json(b) { this.body = b; return this; } }; }
+
+test('the extracted overview assets use exact contained routes with their actual MIME types', () => {
+  const routes = homeRoutes();
+  for (const [file, type] of [['home-overview.js', 'application/javascript; charset=utf-8'], ['home-overview.css', 'text/css; charset=utf-8']]) {
+    const out = res(); out.sendFile = filename => { out.filename = filename; };
+    routes[`GET /ui/${file}`]({ params: { file: '../../private' } }, out);
+    assert.equal(out.filename, path.join(ROOT, 'tools', file));
+    assert.ok(fs.statSync(out.filename).size > 0);
+    assert.equal(out.headers['Content-Type'], type);
+    assert.equal(out.headers['Cache-Control'], 'no-cache');
+  }
+  assert.equal(Object.keys(routes).some(route => route.startsWith('GET /ui/') && route.includes(':')), false);
+});
 
 test('the routes need a person, live under /lan, and /control answers a network TV in words without flipping it', async () => {
   const routes = homeRoutes();

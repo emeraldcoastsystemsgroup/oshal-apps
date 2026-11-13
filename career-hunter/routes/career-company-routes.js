@@ -16,6 +16,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: three administrator routes save the change for the next nightly pull, refusing a name already listed, an unusable link, an unlisted employer and a change that is already true.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance on the Companies page: the list carries the newest maintenance report, the decisions waiting for a person and the open repair briefs; POST /companies-admin/keep saves "keep trying" for the next nightly pull, refusing an employer with no decision waiting; POST /companies-admin/maintenance-report answers the daily briefing job.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The page a refused person meets says job source administrator, the label the role template now carries (was Career Hunter administrator). Words only.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Prepare original-owner native human decision tickets, reconcile exact confirmed outcomes and refuse generic source-change bypasses.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCareerAdmin = isCareerAdmin;
@@ -23,11 +24,12 @@ exports.registerCareerCompanyRoutes = registerCareerCompanyRoutes;
 const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
 const career_user_store_1 = require("./career-user-store");
-const { sourceHealthByCompany, latestSourceReview, sourceMaintenance, maintenanceBriefing, decisionWaiting, KEEP_TRYING_DAYS } = require('../lib/career-source-health');
-const { saveChange, sourceChanges, validTarget, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING } = require('../lib/career-source-requests');
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
 const career_surface_routes_1 = require("./career-surface-routes");
+const { sourceHealthByCompany, latestSourceReview, sourceMaintenance, maintenanceBriefing, decisionWaiting, KEEP_TRYING_DAYS } = require('../lib/career-source-health');
+const { saveChange, sourceChanges, validTarget, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING, decisionChangeState } = require('../lib/career-source-requests');
+const decisions = require('../lib/career-source-decisions');
 const logger = (0, logger_1.createChildLogger)({ module: 'career-company-routes' });
 const CAREER_ADMIN_SUBS = new Set((process.env.CAREER_HUNTER_ADMIN_SUBS || '')
     .split(',')
@@ -145,10 +147,11 @@ function listCompanies(req, res) {
          FROM corpus.companies c
         ORDER BY active_jobs DESC, c.name`).all();
         const health = sourceHealthByCompany(db);
+        const maintenance = sourceMaintenance(db), owned = ownedDecisionSnapshot((0, career_user_store_1.userPaths)(userSub).userDir, userSub, maintenance?.actions || []);
         res.json({ companies: companies.map((company) => ({ ...company,
-            pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
-        })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db),
-            sourceMaintenance: sourceMaintenance(db),
+                pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
+            })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db),
+            sourceMaintenance: maintenance, sourceDecisions: owned.items, sourceDecisionError: owned.error,
             sourceChangeMode: canChangeSources() ? 'now' : 'next-pull', sourceChanges: sourceChanges(db, (0, career_user_store_1.userPaths)(userSub).userDir) });
     }
     catch (err) {
@@ -239,8 +242,7 @@ function keepRequest(companyId, listed) {
         return { status: 409, error: `${listed.name} is removed.` };
     if (!corpusDecisionWaiting(companyId))
         return { status: 409, error: `${listed.name} has no decision waiting.` };
-    return { companyId, target: KEEP_TRYING,
-        message: `Saved. From the next nightly pull, Career keeps trying ${listed.name} and does not ask about it again for ${KEEP_TRYING_DAYS} days.` };
+    return { status: 409, error: 'Answer this source’s native decision ticket in Needs you.' };
 }
 /** What to queue for Remove, Put back or Keep trying on a listed employer, or an answer that refuses it. */
 function employerRequest(req, kind) {
@@ -253,6 +255,8 @@ function employerRequest(req, kind) {
     if (kind === 'keep')
         return keepRequest(companyId, listed);
     const removed = listed.discover_status === 'removed';
+    if (kind === 'remove' && corpusDecisionWaiting(companyId))
+        return { status: 409, error: 'Answer this source’s native decision ticket in Needs you.' };
     if (kind === 'remove' && removed)
         return { status: 409, error: `${listed.name} is already removed.` };
     if (kind === 'restore' && !removed)
@@ -296,24 +300,119 @@ function employerChange(kind) {
  * @param res - Answers `{ report: [...] }`.
  * @returns Nothing.
  */
-function maintenanceReport(req, res) {
-    const userSub = (0, career_user_store_1.callerSub)(req);
-    const db = userSub && (0, career_user_store_1.openCorpusDb)();
-    if (!db) {
+function ownedDecisionSnapshot(dir, owner, actions) {
+    try {
+        return { items: decisions.snapshot(dir, owner, actions) };
+    }
+    catch (err) {
+        logger.error({ err }, 'source decision journal unavailable');
+        return { items: [], error: 'Your source decision records could not be read. No decision is assumed.' };
+    }
+}
+function freshDecision(reference) {
+    const db = (0, career_user_store_1.openCorpusDb)();
+    if (!db)
+        throw new Error('The current source decisions could not be read.');
+    try {
+        const row = db.prepare(`SELECT a.id, a.company_id AS companyId, c.name AS company, a.opened_at AS openedAt, a.evidence
+      FROM corpus.source_actions a JOIN corpus.companies c ON c.id=a.company_id
+      WHERE a.id=? AND a.company_id=? AND a.opened_at=? AND a.kind='archive' AND a.state='open'
+      AND COALESCE(c.discover_status,'') NOT IN ('removed','manual')`).get(reference.id, reference.companyId, reference.openedAt);
+        if (!row || recoveredDecision(db, row.companyId, row.openedAt))
+            return null;
+        try {
+            row.evidence = JSON.parse(row.evidence || '{}');
+        }
+        catch (err) {
+            logger.error({ err }, 'source decision evidence unreadable');
+            row.evidence = {};
+        }
+        return row;
+    }
+    finally {
+        db.close();
+    }
+}
+function recoveredDecision(db, companyId, openedAt) {
+    if (!db.prepare("SELECT 1 FROM corpus.sqlite_master WHERE type='table' AND name='source_pull_state'").get())
+        return false;
+    const row = db.prepare('SELECT last_success_at FROM corpus.source_pull_state WHERE company_id=?').get(companyId);
+    const aware = (value) => {
+        const parts = typeof value === 'string' && /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/i.exec(value);
+        if (!parts)
+            return null;
+        const seconds = Date.parse(parts[1] + parts[3]);
+        return Number.isFinite(seconds) ? { seconds, fraction: (parts[2] || '').padEnd(9, '0') } : null;
+    };
+    const success = aware(row?.last_success_at), original = aware(openedAt);
+    return !!success && !!original && (success.seconds > original.seconds
+        || success.seconds === original.seconds && success.fraction > original.fraction);
+}
+function decisionOptions(ctx, ownerSub) {
+    return { userDir: (0, career_user_store_1.userPaths)(ownerSub).userDir, ownerSub, tickets: ctx.ticketService, currentAction: freshDecision,
+        changeState: (id) => {
+            const db = (0, career_user_store_1.openCorpusDb)();
+            if (!db)
+                throw new Error('The source change result could not be read.');
+            try {
+                return decisionChangeState(db, id);
+            }
+            finally {
+                db.close();
+            }
+        } };
+}
+async function maintenanceReport(ctx, req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req), db = userSub && (0, career_user_store_1.openCorpusDb)();
+    if (!db || !userSub) {
         res.json({ report: [] });
         return;
     }
     try {
-        const report = maintenanceBriefing(db);
-        logger.info({ items: report.length }, 'source maintenance briefing answered');
-        res.json({ report });
+        const report = maintenanceBriefing(db), state = sourceMaintenance(db);
+        const items = [];
+        for (const action of state?.actions || [])
+            items.push(await decisions.sync(decisionOptions(ctx, userSub), action));
+        logger.info({ items: report.length, decisions: items.length }, 'source maintenance briefing answered');
+        res.json({ report, decisions: items });
     }
     catch (err) {
-        logger.error({ err, userSub }, 'source maintenance briefing failed');
-        res.status(500).json({ error: 'read failed' });
+        logger.error({ err }, 'source maintenance briefing failed');
+        res.status(500).json({ error: 'Source maintenance could not be checked. No source change is assumed.' });
     }
     finally {
         db.close();
+    }
+}
+async function syncDecision(ctx, req, res) {
+    const owner = (0, career_user_store_1.callerSub)(req), body = req.body;
+    if (!owner) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)
+        || Object.keys(body).some(key => !['actionId', 'companyId', 'openedAt', 'ticketId'].includes(key))
+        || !Number.isSafeInteger(body.actionId) || body.actionId < 1 || !Number.isSafeInteger(body.companyId) || body.companyId < 1
+        || typeof body.openedAt !== 'string' || body.openedAt.length > 80 || !Number.isFinite(Date.parse(body.openedAt))
+        || body.ticketId != null && typeof body.ticketId !== 'string') {
+        res.status(400).json({ ok: false, error: 'Select the exact current source decision.' });
+        return;
+    }
+    try {
+        const reference = { id: body.actionId, companyId: body.companyId, openedAt: body.openedAt }, action = freshDecision(reference) || (body.ticketId ? reference : null);
+        if (!action) {
+            res.status(409).json({ ok: false, error: 'This source decision changed. Refresh Source health.' });
+            return;
+        }
+        const decision = await decisions.sync(decisionOptions(ctx, owner), action, body.ticketId ?? null);
+        const queued = decision.state === 'queued_next_pull', applied = decision.state === 'applied';
+        const ready = ['awaiting_approval', 'queued_next_pull', 'applied'].includes(decision.state);
+        res.status(queued ? 202 : 200).json({ ok: ready, queued, applied, decision,
+            error: ready ? undefined : decision.error || 'The decision needs attention. No source change was queued.' });
+    }
+    catch (err) {
+        logger.error({ err }, 'source decision sync refused');
+        res.status(409).json({ ok: false, error: 'The original source decision could not be verified. No change was queued.' });
     }
 }
 async function setCompanyUrl(ctx, req, res) {
@@ -366,6 +465,7 @@ function registerCareerCompanyRoutes(router, ctx) {
     router.post('/companies-admin/remove', requireCareerAdmin, employerChange('remove'));
     router.post('/companies-admin/restore', requireCareerAdmin, employerChange('restore'));
     router.post('/companies-admin/keep', requireCareerAdmin, employerChange('keep'));
-    router.post('/companies-admin/maintenance-report', requireCareerAdmin, maintenanceReport);
+    router.post('/companies-admin/maintenance-report', requireCareerAdmin, (req, res) => { void maintenanceReport(ctx, req, res); });
+    router.post('/companies-admin/decision-sync', requireCareerAdmin, (req, res) => { void syncDecision(ctx, req, res); });
 }
 //# sourceMappingURL=career-company-routes.js.map

@@ -9,6 +9,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve Career's home page (GET /home, career-home.html): the first screen of Career as its own application, and the page that hosts another application's screen under Career's bar.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | T63: the retired /board and /board/* addresses answer a hand-off page to the native board (src-routes/hand-off-page.ts) instead of a 308. On the native kernel a package cannot redirect: the response has no `redirect` and no Location header is relayed, so these answered HTTP 500 on the test slot (2026-11-11).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve .mjs module scripts from /static: 1.60.8 shipped career-concierge.mjs and this route refused it, so the shared concierge never loaded on a deployed kernel.
  */
 
 /**
@@ -47,7 +48,7 @@ export function createCareerToolFileHandler(fileName: string): RequestHandler {
 /** Serve one allowlisted static asset and log package/path drift. */
 function serveStatic(req: Request, res: Response): void {
   const file = path.basename(String(req.params.file));
-  if (file !== 'career-local-sources.json' && !/\.(css|js|png|svg)$/.test(file)) { res.status(404).end(); return; }
+  if (file !== 'career-local-sources.json' && !/\.(css|js|mjs|png|svg)$/.test(file)) { res.status(404).end(); return; }
   res.sendFile(path.join(TOOL_DIR, file), (err: unknown) => {
     if (err) {
       logger.error({ err, file }, 'career static asset serve failed');

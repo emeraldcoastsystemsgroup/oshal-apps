@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Follow package1.15.0; no bridge verb changes.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -26,6 +27,11 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): lan-control play_title plays a show or film by its name on an Android or Fire TV.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): lan-control tv_apps says which streaming apps an Android or Fire TV has (oshal_phone_apps.py), reading its package list and pressing nothing.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1: the version follows the package (its device list tool now says it lists TVs too); no verb changed.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79): lan-control tv_apps also answers the TV's model and maker when they can be read (oshal_phone_apps.py); no verb changed.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the version follows the package (every person now adds and controls their own devices; that is the package's permission catalog); no verb changed.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Follow package1.16.0; version metadata only, with the same bridge verbs and protocol.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Follow package1.17.0; version metadata only, with unchanged bridge verbs and protocol.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.18.0 (the Fire TV phone-app guide is a package route, not a bridge verb); version metadata only, with unchanged bridge verbs and protocol.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -39,7 +45,7 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.12.1'
+VERSION = '1.18.0'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',

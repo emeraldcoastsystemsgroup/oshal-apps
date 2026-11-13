@@ -23,14 +23,14 @@ shared colors. This group adds no separate theme preference, CSS renderer or scr
 Version **1.0.1** also borrows Recruiters, Approvals and Insights so the Career
 group retains the six existing Career destinations when top workspace navigation
 replaces their repeated global sidebar entries. Member routes, permissions and
-the six setup steps remain unchanged. See the member's
+their original setup destinations remain available. See the member's
 [appearance and fixture boundaries](../career-hunter/README.md#shared-appearance-1200).
 
 | Member | What it brings |
 |---|---|
 | `career-hunter` | Home, Find jobs, My jobs, Submission activity, Recruiters, Job market, My résumé, Other experience, Improve my résumé, Download my data, LinkedIn profile, Settings, Companies and source health (the names Career gives its pages since 1.55.0) |
 | `portrait-studio` | the profile picture |
-| `social` | LinkedIn Assistant, the Workspace, Signals, and the Accounts hub (LinkedIn / Facebook / X) |
+| `social` | LinkedIn Assistant and the optional Social Workspace with its own account flows |
 
 ## How the toolbar is built
 
@@ -42,28 +42,34 @@ dead tile. Nothing in `oshal-app.yaml` is a copied URL.
 
 ## The setup page
 
-The group's first tile is **Setup**, rendered by the kernel from the six steps in
+The group's first tile is **Setup**, rendered by the kernel from the member readiness steps in
 the manifest:
 
 1. Upload your resume
 2. Take or upload a profile picture
-3. Connect Facebook
-4. Pick the articles you want to comment on
-5. Review your resume story by story
-6. Add performance reports and other documents
+3. Pick the articles you want to comment on
+4. Review your resume story by story
+5. Add performance reports and other documents
 
 Each step asks a `readiness:` probe the member declares over its own store, in the
 signed-in user's session. A step is done only when the member answers `true`; an
 error or a missing answer shows as "can't check", never as done. **Fix** opens the
 member surface inside the same ribbon.
 
-Step 5 is the review itself: **Improve my résumé** (called Strengthen before Career 1.55.0) walks your roles one at a time, asks
+Step 4 is the review itself: **Improve my résumé** (called Strengthen before Career 1.55.0) walks your roles one at a time, asks
 about the role still missing a story using that role's own resume bullet, and keeps
 your answer against the bullet it supports. Tailored resumes and covers then cite
 the story as evidence instead of restating the bullet. The step reports how many of
 your roles carry a story, so it is done only when every job title has one.
 
 ## Install
+
+Career **Settings → Accounts** shows saved Gmail authorization separately from the dated
+result of Career's last mailbox check. Connect or reconnect there through the native sign-in
+window; connecting does not start a mailbox check or send mail. Career's email monitor requires
+the Gmail mailbox to match the résumé's submission email. LinkedIn profile updates use your
+signed-in browser. Optional Social account flows remain in the Social Workspace when it is
+available to your role; Facebook is not a Career setup requirement.
 
 Installing the group resolves all three members (npm-style, fail-closed). A group
 activates only while every member is active — after installation, open:
@@ -78,7 +84,7 @@ lands the subdomain on the group instead of on one member app.
 ## Navigation contract checks
 
 From the public store checkout, run `node --test intelligent-career/tests/toolbar.test.cjs`.
-The suite reads the actual group and four member manifests, checks the six delegated
+The suite reads the actual group and member manifests, checks the delegated
 Career destinations, and verifies that every reference resolves exactly once without
 copying a URL or adding application code. It needs `js-yaml` from the core checkout
 at `OSHAL_CORE_ROOT` (default: sibling `oshal`).

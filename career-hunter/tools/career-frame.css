@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application (Roger, 2026-11-10: "a full application by itself ... full screen, custom navigation, thoughtful layout", in the Little Monsters format). This file is its skin and its frame: the palette every Career page wears while career-frame.js owns the window, the top bar (brand, sections, More, the person's chips), the row of a section's pages under it, and the phone's bottom bar. Nothing here applies unless career-frame.js has set data-career-frame on the page, so a Career page hosted by anything other than the cockpit looks as it did.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The person's role in Career sits beside their name as one pill ("Ada · Job seeker"), and under the name in the phone's top-bar menu (judge's report 2026-11-11, change 11). The name keeps its own element, so the pill is drawn by the two together.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Give phone section links 44 px targets and wrap the row so every page stays reachable.
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
@@ -151,9 +152,9 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   .cf-more-phone > summary { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 22px; line-height: 1; }
   .cf-more-phone .cf-menu { min-width: 250px; max-width: calc(100vw - 16px); }
   .cf-menu a { min-height: 44px; font-size: 15px; }
-  .cf-subnav { height: 48px; padding: 0 12px; }
+  .cf-subnav { height: auto; min-height: 48px; padding: 2px 12px; flex-wrap: wrap; overflow: visible; }
   .cf-subnav .cf-subnav-label { display: none; }
-  .cf-subnav a { min-height: 36px; }
+  .cf-subnav a { min-height: 44px; }
   .cf-bottombar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 85;
     height: calc(58px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);

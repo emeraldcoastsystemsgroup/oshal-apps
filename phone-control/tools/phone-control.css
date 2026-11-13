@@ -8,6 +8,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: pair-grid session controls (zero wrapped toolbars, >=44px targets), 380px Phone Concierge right pane, quick-control dock, AssistiveTouch bar, collapsible On screen & History cards, whiteboard canvas overlay, remote pointer cursor, session drawers, and Connection Concierge layout.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio workspace — single-row top studio bar with device switcher and inline controls, 100%-height true-aspect center stage, collapsible 340px Controls | Concierge right rail with zero outer scrollbar and bottom-pinned (12px) Jarvis composer card, fullscreen stage (.is-fullscreen / :fullscreen) with floating HUD, compact TV remote bar, non-blocking DRM surface notice, and touch gesture indicator.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen fills the page as a tree with a details pane; row text starts at the left (the kernel's button style centred it); a device's details are tables; buttons in Add a device wrap instead of cutting their words.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Your devices has a searchable list, a clear selected-device workspace, separate state labels and progressive connection details; overview controls retain 44px targets on phones.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Signed-in native devices have wrapping names, separate reported state and usable direct links in Add a device.
  */
 
 .ks-page.pc-page { max-width: 1440px; --ks-radius-sm: 10px; }
@@ -84,19 +86,56 @@ body:has(#sessionView:not([hidden])) { margin: 0; padding: 0; overflow: hidden; 
   border-radius: 14px; box-shadow: none; backdrop-filter: none;
 }
 
+/* Device overview: browse connections first, then take one explicit next step. */
+.pc-purpose { margin: 8px 0 0; color: var(--ds-ink-2, var(--text-secondary, #475569)); font-size: 16px; line-height: 1.5; }
+.pc-device-search { display: grid; gap: 8px; margin-bottom: 20px; }
+.pc-device-search label { font-size: 14px; font-weight: 650; }
+.pc-search-field { display: flex; gap: 8px; min-width: 0; }
+.pc-search-field input { min-width: 0; flex: 1 1 auto; }
+.pc-device-search .ks-help { margin: 0; min-height: 0; }
+.pc-device-search .ks-help:empty { display: none; }
+#devicesView .pc-next-step .ks-btn-primary {
+  background: var(--ds-accent, var(--accent-primary, #2563eb));
+  border-color: var(--ds-accent, var(--accent-primary, #2563eb));
+  color: var(--ds-on-accent, var(--text-on-accent, #ffffff));
+}
+.pc-page #addDeviceBtn.ks-btn-primary {
+  background: var(--ds-accent, var(--accent-primary, #2563eb));
+  border-color: var(--ds-accent, var(--accent-primary, #2563eb));
+  color: var(--ds-on-accent, var(--text-on-accent, #ffffff));
+}
+.pc-eyebrow { margin: 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ds-ink-2, var(--text-secondary, #475569)); }
+.pc-device-state { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-state-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 8px; font-size: 13px;
+  background: var(--ds-surface-2, var(--bg-secondary, #f1f5f9)); color: var(--ds-ink-2, var(--text-secondary, #475569)); }
+.pc-state-pill.is-connected { color: var(--ds-ok, var(--status-success, #15803d)); }
+.pc-state-pill.is-here, .pc-here-label { color: var(--ds-accent-ink, var(--accent-primary, #2563eb)); }
+.pc-page .pc-here-label { font-size: 12px; font-weight: 650; }
+.pc-next-step { display: grid; gap: 16px; justify-items: start; padding: 20px; border-radius: 14px;
+  background: var(--ds-surface-2, var(--bg-secondary, #f1f5f9)); }
+.pc-next-copy { margin: 0; max-width: 58ch; color: var(--ds-ink-2, var(--text-secondary, #475569)); font-size: 16px; line-height: 1.55; }
+.pc-advanced { min-width: 0; border-top: 1px solid var(--ds-hairline, var(--border-color, #cbd5e1)); padding-top: 12px; }
+.pc-page .pc-advanced > summary { min-height: 44px; width: 100%; padding: 8px 12px; margin-bottom: 12px; }
+.pc-advanced .pc-details-actions { margin-top: 16px; }
+.pc-rename-controls { display: grid; gap: 12px; justify-items: start; width: 100%; }
+.pc-rename-form { width: 100%; }
+
 /* First screen: device rows (§4.6, C-REM-1) */
 /* 1.6.0: the tree fills the page; on a wide screen the open device's details stand beside it. */
 .pc-devices-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (min-width: 900px) { .pc-devices-list { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); } }
-.pc-details-pane { padding: 16px; min-height: 120px; }
+@media (min-width: 900px) {
+  .pc-devices-list { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
+  .pc-details-pane { position: sticky; top: 16px; }
+}
+.pc-details-pane { padding: 24px; min-height: 120px; }
 .pc-details-pane[hidden] { display: none; }
 .pc-row-line { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
 .pc-device-row { flex-wrap: wrap; }
-.pc-page .pc-rail-item { justify-content: flex-start; }
+.pc-page .pc-rail-item { justify-content: flex-start; white-space: normal; }
 .pc-row-line > .pc-rail-item { flex: 1 1 0; }
 .pc-page .pc-row-details { flex: none; min-height: 44px; }
 .pc-page .pc-tree-toggle {
-  flex: none; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 8px; background: transparent;
+  flex: none; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 10px; background: transparent;
   color: var(--ds-ink, var(--text-primary, #0f172a)); font-size: 18px; font-weight: 700; cursor: pointer;
 }
 .pc-device-row:not(.has-children) > .pc-row-line { padding-left: 44px; }
@@ -106,9 +145,9 @@ body:has(#sessionView:not([hidden])) { margin: 0; padding: 0; overflow: hidden; 
 .pc-children .pc-device-row > .pc-row-line { padding-left: 0; }
 .pc-program-row { display: grid; gap: 2px; padding: 8px 12px; font-size: 15px; }
 .pc-program-row small { font-size: 13px; color: var(--ds-ink-2, var(--text-secondary, #475569)); }
-.pc-details { flex: 1 1 100%; display: grid; gap: 14px; padding: 8px 4px 12px; }
+.pc-details { flex: 1 1 100%; min-width: 0; display: grid; gap: 20px; padding: 4px 0; }
 .pc-details-head { display: grid; gap: 10px; }
-.pc-page .pc-details-name { margin: 0; font-size: 18px; }
+.pc-page .pc-details-name { margin: 0; font-size: 24px; overflow-wrap: anywhere; }
 .pc-details-actions, .pc-rename-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .pc-rename-form[hidden] { display: none; }
 .pc-rename-form input { flex: 1 1 200px; min-width: 0; }
@@ -140,8 +179,8 @@ body:has(#sessionView:not([hidden])) { margin: 0; padding: 0; overflow: hidden; 
   background: var(--ds-surface-3, color-mix(in srgb, var(--text-primary, #0f172a) 12%, var(--bg-primary, #ffffff)));
   border-color: var(--ds-accent, var(--accent-primary, #2563eb));
 }
-.pc-rail-name { display: grid; gap: 4px; min-width: 0; }
-.pc-rail-name small { font-size: 14px; color: var(--ds-ink-2, var(--text-secondary, #475569)); overflow-wrap: anywhere; }
+.pc-rail-name { display: grid; gap: 4px; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.pc-rail-name small { font-size: 14px; color: var(--ds-ink-2, var(--text-secondary, #475569)); white-space: normal; overflow-wrap: anywhere; }
 .pc-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 6px; background: var(--ds-warn, var(--status-warning, #d97706)); }
 .pc-dot.tone-ok { background: var(--ds-ok, var(--status-success, #16a34a)); }
 .pc-row-more { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; font-size: 18px; }
@@ -616,3 +655,10 @@ tr.pc-row-selected td { background: var(--ds-surface-3, color-mix(in srgb, var(-
   .pc-pointer-grid { grid-template-columns: repeat(3, minmax(72px, 1fr)); }
   .pc-page table.stack-on-phone td::before { font-size: 12px; }
 }
+
+/* Direct native connections remain distinct from optional bridge setup. */
+.pc-native-devices { display: grid; gap: 8px; list-style: none; padding: 0; margin: 12px 0 0; }
+.pc-native-devices > li { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; min-width: 0; padding: 12px 0; border-top: 1px solid var(--ds-hairline, #d7dde5); }
+.pc-native-devices > li > div { flex: 1 1 200px; min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.pc-native-devices span { color: var(--ds-ink-2, var(--text-secondary, #475569)); font-size: 14px; }
+.pc-page #nativeOrbitSetup .ks-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }

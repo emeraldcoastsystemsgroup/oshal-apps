@@ -10,6 +10,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Use current native destinations/operator admission and preserve explicit shared and bot payloads.
  * @module print-ingest-routes
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141 readiness (0.2.1): GET /readiness answers the Intelligent Career group's "subscribe to the print service" step from the caller's own print_intake rows — done once a printed document has actually reached this inbox; asked in the user's session by the kernel setup dashboard.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): POST /printed/collect takes the documents printed to the owner's own computers out of the kernel's queue in the owner's own session (kernel intents print_jobs.list and print_jobs.take) and files each one through the same intake as awaiting approval, with the device it was printed to, the sending address, its pages, size and time in the sidecar (source 'printer'); nothing is approved or filed to a corpus here. A job is taken from the kernel only after its row exists (or the same text was filed before), so a failure leaves it waiting for the next try. The intake itself moved into fileIntake, shared by POST /documents unchanged.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -119,6 +120,8 @@ function normalizeSidecar(raw) {
         receivedAt: safeField(input.receivedAt),
         textCharacters: Number(input.textCharacters) || 0,
         textPages: Number(input.textPages) || 0,
+        bytes: Number(input.bytes) || 0,
+        truncated: input.truncated === true,
     };
 }
 /**
@@ -165,6 +168,93 @@ function presentIntake(row) {
         createdAt: row.created_at,
         decidedAt: row.decided_at,
     };
+}
+/**
+ * @description File one document's text into the caller's own inbox, awaiting approval: refused when empty or too
+ * long, the original intake when the same text was filed before (no second copy), else a new row with the
+ * recommendation. Nothing is approved and nothing is written to a corpus here.
+ * @param ctx - The app context. @param rag - The destinations source. @param req - The request (for operator standing).
+ * @param sub - The caller's sub. @param text - The document's text. @param raw - Its untrusted sidecar.
+ * @returns The status and body of the intake.
+ */
+async function fileIntake(ctx, rag, req, sub, text, raw) {
+    if (!text.trim())
+        return { status: 422, body: { error: 'no_text', detail: 'the document carried no recoverable text' } };
+    if (text.length > MAX_TEXT_CHARS) {
+        return { status: 413, body: { error: 'too_large', detail: `text exceeds ${MAX_TEXT_CHARS} characters` } };
+    }
+    const sidecar = normalizeSidecar(raw);
+    const contentSha256 = node_crypto_1.default.createHash('sha256').update(text, 'utf8').digest('hex');
+    const existing = await ctx.pool.query('SELECT * FROM print_intake WHERE owner_sub = $1 AND content_sha256 = $2', [sub, contentSha256]);
+    if (existing.rows.length)
+        return { status: 200, body: { duplicate: true, intake: presentIntake(existing.rows[0]) } };
+    const rules = await loadRules(ctx, sub);
+    const catalog = (0, print_classify_1.destinationCatalog)(await rag.destinations());
+    const recommendation = (0, print_classify_1.buildRecommendation)({
+        sidecar, text, destinations: catalog, rules, callerIsAdmin: callerIsAdmin(req),
+    });
+    const inserted = await ctx.pool.query(`INSERT INTO print_intake
+       (owner_sub, content_sha256, title, text_chars, text_body, sidecar, recommendation, applied_rule_id)
+     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
+     RETURNING *`, [sub, contentSha256, recommendation.title, text.length, text,
+        JSON.stringify(sidecar), JSON.stringify(recommendation),
+        recommendation.appliedRule?.ruleId || null]);
+    return {
+        status: 201,
+        body: { intake: presentIntake(inserted.rows[0]), autoApprovable: (0, print_classify_1.ruleMayAutoApprove)(recommendation, catalog) },
+    };
+}
+/** How long one collect may keep taking jobs; a package route call ends at 60 s. */
+const COLLECT_MS = 40_000;
+/**
+ * @description The sidecar a printed job is filed with: which of the owner's computers it was printed to (the printer),
+ * the sending computer's address, its name, pages, size and when it was printed. All of it is what a computer on that
+ * network said, so normalizeSidecar bounds it and none of it ever decides ownership.
+ * @param job - The job. @returns The raw sidecar.
+ */
+function printedSidecar(job) {
+    const printedAt = Number(job.printedAt);
+    return {
+        source: 'printer', printerName: job.device, clientIp: job.sender, documentName: job.document, jobName: job.document,
+        textPages: job.pages, textCharacters: job.chars, bytes: job.bytes, truncated: job.truncated === true,
+        receivedAt: Number.isFinite(printedAt) && printedAt > 0 ? new Date(printedAt).toISOString() : '',
+    };
+}
+/**
+ * @description Take the documents printed to the owner's computers out of the kernel's queue, in the owner's own
+ * session, and file each one as awaiting approval. A job is taken only after its row exists, or after the same text
+ * was found filed, so a failure leaves it waiting in the kernel for the next try.
+ * @param ctx - The app context (with the kernel's intents). @param rag - The destinations source.
+ * @param req - The request. @param sub - The caller's sub.
+ * @returns How many were filed, were already filed, could not be filed, and still wait.
+ */
+async function collectPrinted(ctx, rag, req, sub) {
+    const intent = ctx.intent;
+    const until = Date.now() + COLLECT_MS;
+    const counts = { filed: 0, duplicates: 0, unfiled: 0, waiting: 0 };
+    while (Date.now() < until) {
+        const listed = (await intent('print_jobs.list', { limit: 5 }));
+        const jobs = Array.isArray(listed?.jobs) ? listed.jobs : [];
+        counts.waiting = Number(listed?.waiting) || 0;
+        if (!jobs.length)
+            break;
+        const ids = [];
+        for (const job of jobs) {
+            const filed = await fileIntake(ctx, rag, req, sub, String(job.text ?? ''), printedSidecar(job));
+            if (filed.status === 201)
+                counts.filed += 1;
+            else if (filed.status === 200)
+                counts.duplicates += 1;
+            else
+                counts.unfiled += 1;
+            ids.push(String(job.id));
+        }
+        const taken = (await intent('print_jobs.take', { ids }));
+        counts.waiting = Number(taken?.waiting) || 0;
+        if (!counts.waiting)
+            break;
+    }
+    return counts;
 }
 /**
  * @description Build the print-ingest routes.
@@ -226,37 +316,32 @@ function createPrintIngestRoutes(ctx) {
             return;
         }
         const body = (req.body || {});
-        const text = String(body.text || '');
-        if (!text.trim()) {
-            res.status(422).json({ error: 'no_text', detail: 'the document carried no recoverable text' });
+        const filed = await fileIntake(ctx, ragService, req, sub, String(body.text || ''), body.sidecar);
+        res.status(filed.status).json(filed.body);
+    });
+    /** POST /printed/collect (T11): the documents printed to the owner's own computers wait in the kernel until this
+     *  inbox, opened by the owner, takes them; each is filed here awaiting approval. The kernel hands them only to the
+     *  owner's own session, so an operator acting as the owner, a schedule or another application gets a refusal. */
+    router.post('/printed/collect', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'unauthenticated' });
             return;
         }
-        if (text.length > MAX_TEXT_CHARS) {
-            res.status(413).json({ error: 'too_large', detail: `text exceeds ${MAX_TEXT_CHARS} characters` });
+        if (typeof ctx.intent !== 'function') {
+            res.status(503).json({ error: 'printer_unavailable', detail: 'This swarm cannot hand printed documents to the inbox.' });
             return;
         }
-        const sidecar = normalizeSidecar(body.sidecar);
-        const contentSha256 = node_crypto_1.default.createHash('sha256').update(text, 'utf8').digest('hex');
-        const existing = await ctx.pool.query('SELECT * FROM print_intake WHERE owner_sub = $1 AND content_sha256 = $2', [sub, contentSha256]);
-        if (existing.rows.length) {
-            res.status(200).json({ duplicate: true, intake: presentIntake(existing.rows[0]) });
-            return;
+        try {
+            res.json(await collectPrinted(ctx, ragService, req, sub));
         }
-        const rules = await loadRules(ctx, sub);
-        const catalog = (0, print_classify_1.destinationCatalog)(await ragService.destinations());
-        const recommendation = (0, print_classify_1.buildRecommendation)({
-            sidecar, text, destinations: catalog, rules, callerIsAdmin: callerIsAdmin(req),
-        });
-        const inserted = await ctx.pool.query(`INSERT INTO print_intake
-         (owner_sub, content_sha256, title, text_chars, text_body, sidecar, recommendation, applied_rule_id)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)
-       RETURNING *`, [sub, contentSha256, recommendation.title, text.length, text,
-            JSON.stringify(sidecar), JSON.stringify(recommendation),
-            recommendation.appliedRule?.ruleId || null]);
-        res.status(201).json({
-            intake: presentIntake(inserted.rows[0]),
-            autoApprovable: (0, print_classify_1.ruleMayAutoApprove)(recommendation, catalog),
-        });
+        catch (err) {
+            logger.error({ err }, 'print-ingest printed collect failed');
+            res.status(502).json({
+                error: 'printed_unavailable',
+                detail: 'Printed documents could not be taken in right now. They wait in the swarm and are taken next time you open the inbox.',
+            });
+        }
     });
     /** POST /documents/import-artifact — the ADR-139 "Send to…" destination: {ref} redeems the
      *  owner-bound handle, extracts its text on the kernel doc-extract rail, and files the result

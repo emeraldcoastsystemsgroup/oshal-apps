@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Print Ingest company view asserted as behaviour over the package's REAL routes: GET /documents from routes/print-ingest-routes.js (the whole router, loaded with only express and the framework aliases stubbed, a stub pool, walked the way Express walks it) and GET /home-summary from routes/home-summary.js, their answers JSON round-tripped as Express sends them. On open the view makes exactly those two reads and every query behind them is a SELECT of the caller's own rows; it never approves, rejects, imports, reads the destinations or the readiness count, and never writes. The inbox paints as four stats (awaiting approval, failed or partial, received in 5 days from the route's counts; fully filed from the list), a title ladder, a table of the newest ten (state, origin, characters, the machine's proposal or where each copy went, received), a failed-or-partly-filed list with the route's reasons and the route's notes. The 200-row cap, odd rows, counts the summary could not check, signed out, refused (the catalog-less admin-only admission named), the route's own failure, an unreadable answer and an unreachable server each read as what they are. The page's body script binds and reads nothing under the view and runs its whole start without it or without the kit; the full page keeps its own colour scheme under the bootstrap.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 0.4.0 (T11): the full page's start first takes the documents printed to the owner's computers (POST /printed/collect), then reads the inbox; under an audience view the body script still reads nothing.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -385,7 +386,7 @@ async function runBody(activeView) {
 
 test('under an audience view the body script binds nothing and reads nothing; the full page runs its whole start, with or without the kit', async () => {
   assert.deepEqual(await runBody('company'), { listeners: 0, reads: [], painted: '' });
-  const full = { listeners: 3, reads: ['GET /api/print-ingest/documents?state=awaiting_approval'], painted: '<div class="empty">Nothing here. Print something to the swarm printer and it will appear.</div>' };
+  const full = { listeners: 3, reads: ['POST /api/print-ingest/printed/collect', 'GET /api/print-ingest/documents?state=awaiting_approval'], painted: '<div class="empty">Nothing here. Print something to the swarm printer and it will appear.</div>' };
   assert.deepEqual(await runBody(null), full);
   assert.deepEqual(await runBody(undefined), full);
 });

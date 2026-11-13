@@ -17,9 +17,11 @@
         "%it manager%",
         "%information technology manager%",
         "%chief technology%",
-        "%chief information%",
-        "%cto%",
-        "%cio%"
+        "%chief information%"
+      ],
+      "words": [
+        "cto",
+        "cio"
       ]
     },
     {

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Search the shared openings through the original owner's read-only namespace, with explicit city/ZIP or saved-home radius and real pagination.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The refusal with no saved place names where to save it as the page does: Settings, What I'm looking for, Matching area (was Career Settings). Words only.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Default to deterministic title-first search while preserving declared sorts and explaining the bounded legacy sample.
  */
 'use strict';
 const fs = require('node:fs');
@@ -31,7 +32,7 @@ function searchQuery(input, layout) {
   }
   if (input.useHome !== undefined && typeof input.useHome !== 'boolean') throw new CareerLocationError('useHome must be true or false.');
   if (input.remote !== undefined && !['any','remote','on-site'].includes(input.remote)) throw new CareerLocationError('Choose any, remote or on-site jobs.');
-  if (input.sort !== undefined && !['recent','posted','salary','title'].includes(input.sort)) throw new CareerLocationError('Choose a supported sort order.');
+  if (input.sort !== undefined && !['relevant','recent','posted','salary','title'].includes(input.sort)) throw new CareerLocationError('Choose a supported sort order.');
   const home = input.useHome === true || /^(home|my home)$/i.test(query.near || '');
   let homeLabel = null;
   if (home) {
@@ -45,7 +46,7 @@ function searchQuery(input, layout) {
   } else if (input.radiusMiles !== undefined) query.radius_miles = String(input.radiusMiles);
   if (input.remote && input.remote !== 'any') query.remote = input.remote === 'remote' ? '1' : '0';
   if (input.days !== undefined) query.days = String(input.days);
-  query.sort = input.sort || 'recent'; query.per = String(input.per ?? 25); query.page = String(input.page ?? 1);
+  query.sort = input.sort || 'relevant'; query.per = String(input.per ?? 25); query.page = String(input.page ?? 1);
   // A radius without a known center is a refusal, never a nationwide fallback.
   resolveCareerLocation(query);
   return {query, homeLabel};
@@ -79,7 +80,9 @@ function searchCareerOpenings(principal, input, root = '/career') {
   if (homeLabel) { delete linkQuery.lat; delete linkQuery.lon; linkQuery.near = homeLabel.replace(/^ZIP (\d{5})$/, '$1'); }
   return {...result, location, asOf:new Date().toISOString(), sourcePublishedAt:stat.mtime.toISOString(),
     locationSource:homeLabel ? 'saved_matching_area' : location ? 'explicit_location' : 'nationwide',
-    note:location ? 'Distances are straight-line city/ZIP approximations, not driving miles. Jobs without coordinates are excluded from a radius search.' : 'Public employer openings; these results are not resume fit scores.',
+    note:(location ? 'Distances are straight-line city/ZIP approximations, not driving miles. Jobs without coordinates are excluded from a radius search.' : 'Public employer openings; these results are not resume fit scores.')
+      +(query.sort==='relevant'?' Most relevant puts titles containing every searched keyword first, then newest. Without keywords, newest first.':'')
+      +(result.pooled?' This limited search sample may omit older description matches.':''),
     ...(homeLabel ? {homeReference:'Home uses your saved Career matching area: '+homeLabel+'. This search does not change that preference.'} : {}),
     searchUrl:'/api/career-hunter/search-ui?'+new URLSearchParams(linkQuery).toString()};
 }

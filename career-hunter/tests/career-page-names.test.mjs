@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | One name for each Career page, in a job seeker's words (judge's report 2026-11-11, changes 4, 12, 13 and 14). The bar already read Home, Find jobs, My jobs, Applications, Résumé, Profile & contacts and More, while the pages under it, their titles and headings and the entries under More still said Search Jobs, Job Board, Resume Studio, Additional experience, Strengthen, Profile Studio, Career Settings, Master record and Insights. This holds the names together: the manifest's label, the page's title and its heading agree for every page a tile opens, the résumé every application starts from is the main résumé, and no page, script, answer, tool description or persona line a person can meet carries a retired name. Ids, tool names, addresses, routes and file names are not names a person reads and did not change.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Retire core résumé in served words while preserving the stored Office lookup title and backend identities.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page that was Improve it is Improve my résumé. "Improve it" reads well under the Résumé section of Career's own bar and says nothing by itself, and the workspace group's toolbar and the cockpit's main menu list the tile by its label alone. The manifest's label, the page's title and its heading are the full name; Career's own bar still says Improve it there, the way it says Photo for Portrait Studio's page; and no other page, script, answer or line for the assistant uses the short form.
  */
 import { test } from 'node:test';
@@ -62,7 +63,7 @@ const alone = (word) => new RegExp(`(?<![A-Za-z0-9_$.\\-/])${word}(?![A-Za-z0-9_
 const RETIRED = [/Search Jobs/, /Job Board/, /R[eé]sum[eé] Studio/, /[Aa]dditional experience/, alone('Strengthen'), /Profile Studio/, /Career Settings/,
   /[Mm]aster record/, alone('Insights')];
 /** The old word for the main résumé as a person met it; `master` as a value or a name in code is not a person's word. */
-const MASTER_RESUME = [/master r[eé]sum[eé]/i, /(?<![A-Za-z0-9_'"=./-])MASTER(?![A-Za-z0-9_'"])/, / \(master\)/];
+const MASTER_RESUME = [/core r[eé]sum[eé]/i,/master r[eé]sum[eé]/i, /(?<![A-Za-z0-9_'"=./-])MASTER(?![A-Za-z0-9_'"])/, / \(master\)/];
 
 /** @returns {Array<string>} `file:line: text` for every line of `text` a pattern matches. */
 function hits(label, text, patterns) {

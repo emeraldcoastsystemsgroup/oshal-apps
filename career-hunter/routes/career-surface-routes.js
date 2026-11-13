@@ -42,7 +42,7 @@ function createCareerToolFileHandler(fileName) {
 /** Serve one allowlisted static asset and log package/path drift. */
 function serveStatic(req, res) {
     const file = path_1.default.basename(String(req.params.file));
-    if (file !== 'career-local-sources.json' && !/\.(css|js|png|svg)$/.test(file)) {
+    if (file !== 'career-local-sources.json' && !/\.(css|js|mjs|png|svg)$/.test(file)) {
         res.status(404).end();
         return;
     }

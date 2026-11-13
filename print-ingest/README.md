@@ -4,6 +4,13 @@
 
 An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. It cannot print to a home or office printer.
 
+**Printing from your own computer (0.4.0).** With Orbit's *Let people print to this computer* on, computers on
+the same private network see a printer named after that computer. Orbit sends each job to the swarm with its own
+device credential; the swarm reads the text out of the PDF and keeps it, never the file, for the computer's owner,
+at most 50 waiting and each for 7 days. Opening Print Inbox takes them, in your own session only, and each arrives
+awaiting approval, marked *Came from a printer* with the computer it was printed to, the sending address, its
+pages, size and time.
+
 Everything printed lands in **one inbox**. A `print-queue` ticket proposes where the document should
 be filed — a bot's corpus, the swarm's shared knowledge, or private to you — and **nothing is written
 to any corpus until a human approves it**. An approved document can be filed to several destinations
@@ -82,6 +89,7 @@ decision made twice a week. Their bounds are enforced, not documented:
 | `GET` | `/api/print-ingest/documents?state=` | The inbox |
 | `POST` | `/api/print-ingest/documents/:id/approve` | `{ destinations: [id], title? }` → fan-out |
 | `POST` | `/api/print-ingest/documents/:id/reject` | Discard, and keep the decision |
+| `POST` | `/api/print-ingest/printed/collect` | Take the documents printed to your own computers into the inbox, awaiting approval |
 | `GET` | `/api/print-ingest/app` | The inbox surface |
 
 Intake takes **text, not the binary**: the printer already recovers a document's text, so the swarm
@@ -119,6 +127,9 @@ node <oshal>/scripts/oshal-app.js validate print-ingest
 
 # Tests: plain node, zero dependencies, against the COMPILED routes/*.js
 node print-ingest/tests/run.js
+
+# Printed documents: the collect route over the real compiled router, and the printed row on the page
+node --test print-ingest/tests/printed-collect.test.cjs print-ingest/tests/printed-row.test.cjs
 
 # The company view: static kit contract + behaviour over the real compiled routes (plain node)
 node --test print-ingest/tests/audience-view.test.cjs

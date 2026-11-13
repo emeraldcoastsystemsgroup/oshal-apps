@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update mock bridge status version to 1.4.1.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (nothing implements /api/rdp/sessions): the Connect sheet case proves the button and its Username, Password and Domain fields are not shown, the Any RDP Host steps point at Check RDP port, Check RDP port still answers through the bridge, and the sheet makes no /api/rdp/sessions request (red on 1.5.0, which showed the button). The session viewer kept for that backend is now reached from a listed session (the page's own oshal.pc.hasRdp path) instead of the hidden button, with the same click, dictation, voice Concierge and APK push assertions.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: a Fire TV on Prime Video, an old Marquee picture on the page, "The phone is not connected" from the TV Concierge): in Chromium, a TV whose computer lost it is reconnected by the page with one connect and shows a live picture with no note; a TV that does not answer keeps its own app's stored picture under a note that it is not live, with the TV's name, the computer and Sync, and the concierge says the same and never "phone".
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Select the saved TV by its device kind instead of subtitle wording while preserving all reconnect and stored-picture assertions.
  */
 'use strict';
 
@@ -549,7 +550,7 @@ test('1.6.1: a TV the computer lost is reconnected by the page; one that stays l
   const sentConnects = () => calls.filter((c) => String(c.arguments?.command || '').includes(' adb-connect-tv ')).length;
   const pictureShown = () => { const img = document.getElementById('screenImage'); return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20; };
   // The saved TV's row, whatever the earlier cases named it: the first row that says it is a TV (its own enrolled app, when listed, comes after it).
-  const tvRow = (view) => view.locator('.pc-rail .pc-rail-item').filter({ hasText: /TV · / }).first();
+  const tvRow = (view) => view.locator('.pc-rail li[data-entry^="phone:"][data-device-kind="TV"] > .pc-row-line .pc-rail-item').first();
   try {
     // The TV slept, so adb refuses its picture. Nobody presses Sync: the page reconnects it and the picture is live.
     calls = []; tvLost = true; tvAnswersConnect = true; enrolledTv = false;

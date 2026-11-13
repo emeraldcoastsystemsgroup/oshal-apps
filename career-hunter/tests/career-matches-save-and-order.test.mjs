@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Recommended for you (New matches), reported from a phone 2026-11-11. The shipped tools/career-job-lists.html in Chromium over fixture answers, at 1440x900 and 412x915 (the List layout): a match the person has not saved does not say "Saved" anywhere and has one filled Save; a saved match's button reads Saved, is pressed no more and is not filled; pressing Save writes the favourite and the row then reads the same as a saved match. New matches asks for its jobs by date posted, newest first, and its Sort shows Date posted; Saved still asks by Best AI fit; a sort remembered from an earlier visit that the person never chose is not put back, and one they chose is.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the phone List view from its Filters sheet while preserving save and stage-count checks.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,7 +48,9 @@ const sortsAsked = (calls) => calls.filter((c) => c.path.startsWith('/api/career
  */
 async function asList(page, size) {
   if (size !== PHONE) return;
+  await page.getByRole('button', { name: 'Filters', exact: true }).tap();
   await page.getByRole('tab', { name: 'List' }).tap();
+  await page.getByRole('button', { name: 'Done', exact: true }).tap();
 }
 
 for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {

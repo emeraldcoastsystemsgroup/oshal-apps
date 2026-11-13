@@ -1,7 +1,11 @@
 # CHANGE LOG
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Verify partial and unknown transaction coverage, strict saved readers and analysis quote permissions across bank audiences.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Keep specialist holdings count/value unknown for incomplete or absent inventories and retain known zero controls.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Cover unknown and mixed-currency saved balances, independently dated analysis and concurrent Sync refusal.
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Register bank-snapshot-browser for the recovered experience and its actual data contracts.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register all shipped package tests with explicit runner and fixture boundaries; retain readiness smoke identity.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register finance-facts: the analyst's specialist-context facts and its Jarvis routing words.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register plaid-link: real Plaid Link request shape, paged sync, Plaid-side disconnect and the page's add/disconnect/OAuth-return controls.
@@ -91,6 +95,7 @@ cases:
       files:
         - tests/finance-facts.test.cjs
     expected:
+      - Missing, malformed or explicitly incomplete holdings inventory yields unknown count and value; complete empty or reported zero stays zero, with original-owner read-only queries preserved.
       - The reader returns exactly the declared scalar keys, owner-scoped by the principal sub, for no link, linked but unsynced, a synced snapshot and a mixed-currency snapshot.
       - A failed read returns every fact null with facts.complete false and reports the error, never throwing.
       - The manifest declares uses specialist-context, the finance_facts tool and the finance-analyst bot, and the route factory registers the reader.
@@ -118,7 +123,9 @@ cases:
         - tests/plaid-link.test.cjs
     expected:
       - Link asks for transactions with investments optional and sends PLAID_REDIRECT_URI only when it is set.
-      - Sync reads /accounts/get and pages /transactions/get until the window's total is read.
+      - Partial, malformed, repeated or missing transaction evidence retains available rows and coverage notices while withholding full-window spending and income.
+      - Complete empty and exact-page controls retain known zero; saved summaries, analysis and specialist facts enforce the same coverage boundary.
+      - Sync reads /accounts/get and at most four transaction pages; only consistent complete coverage permits full-window totals. Missing balances or inventory remain unknown, and reported zero stays known.
       - removeItem treats an already-gone item as removed and surfaces any other Plaid refusal.
       - GET /status lists only the caller's linked institutions with their item ids.
       - DELETE /items/:itemId disconnects at Plaid before deleting the row, clears the saved snapshot, keeps the row on a Plaid refusal, removes an unreadable legacy link locally and does not find another person's link.
@@ -157,7 +164,7 @@ cases:
     name: Re-analyze writes on POST; reads never write
     purpose: >-
       Exercise the compiled finance routes with a pool double that refuses any mutation during a GET using the native
-      kernel's own refusal text: GET /brief only reads the saved brief, POST /brief/refresh runs the analyst and saves it.
+      kernel's own refusal text: GET /brief only reads the saved brief, Sync preserves its original date, and POST /brief/refresh runs the analyst and returns the persisted saved date.
       The analyst double records the prompt so the exact totals it is given can be checked. The live re-drive on the
       installed kernel (Re-analyze at 412x915) is the companion proof for the kernel's read admission.
     level: unit
@@ -167,11 +174,12 @@ cases:
       files:
         - tests/brief-refresh.test.cjs
     expected:
+      - A concurrent Sync cannot publish analysis for an older aggregate as current; the previous saved analysis date is preserved.
       - GET /brief, with or without ?refresh=1, returns the saved brief or 404 no_saved_brief and never asks the analyst or issues a mutation.
       - POST /brief/refresh runs the analyst once, saves the brief with one UPDATE and the next GET returns it; before any sync it answers 409 no_data.
       - Totals are summed in cents by account group (Plaid Sandbox accounts give cash and deposits 62589 and total assets 86541.74); the saved brief opens with them written in code and the review prompt carries them as VERIFIED TOTALS.
       - A missing payment rail names Connections and Payments and never an environment variable.
-      - The page reads with GET /brief?cached=1, re-analyzes with POST /brief/refresh and shows no saved brief as a notice.
+      - The page reads with GET /brief?cached=1, requests analysis with POST /brief/refresh, shows no saved brief as a notice and keeps older analysis visibly dated after Sync.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -193,11 +201,12 @@ cases:
       files:
         - tests/brief-figures.test.cjs
     expected:
+      - Unknown or different currency units are not combined or relabeled by commentary; known per-account units and signed asset balances remain visible.
       - The saved brief opens with net worth, total assets, total owed and every account's balance written in code from the stored accounts (Plaid Student Loan $65,262.00 owed).
       - A commentary that states an amount not listed ($6,526.20, $99,540.09, ~$105k) or narrates its working is asked once to rewrite, and a clean rewrite is saved after the figures.
       - When it repeats them, each offending sentence is left out with a visible note while correct sentences stay.
       - A sentence left out after an abbreviation ("Inc.") goes whole; its tail is never kept as a fragment (sweep 14).
-      - A commentary quoting listed amounts, whole dollars or a listed amount at its scale is saved as written; mixed currencies are never summed.
+      - A commentary quoting listed amounts, whole dollars or a listed amount at its scale is saved as written; mixed currencies are never summed; missing account amounts stay unavailable in code-written figures and are not admitted as quotable zero.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -283,7 +292,7 @@ cases:
       files:
       - tests/overview-layout.test.cjs
     expected:
-    - The brief panel follows the tiles and precedes Accounts, Holdings and Spending; Re-analyze posts /brief/refresh.
+    - The brief panel follows the tiles and precedes Accounts, Holdings and Spending; Request analysis explicitly posts /brief/refresh.
     - No pm_ text, no transfer form and no POST /pay anywhere; liabilities read negative in their own group; Linked banks holds Add account and the transfer history.
     prerequisites:
     - runner:node-test
@@ -328,10 +337,10 @@ cases:
       files:
       - tests/browser/finance-app.browser.test.cjs
     expected:
-    - The bar reads Home, Money, Trades, World, Markets, Recap, More; Home shows every summary's tiles, the finance jobs grouped by application
+    - The bar reads Home, Bank accounts, Trades, More; authorized optional applications remain in More. Home shows account summaries and finance jobs grouped by application
       with last run, result, next run and run counts, another application's job left out, and what needs attention first.
-    - A section opens inside the page, the address keeps it across a reload, and More holds Linked banks.
-    - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden.
+    - A section opens inside the page, the address keeps it across a reload, and Bank accounts keeps its Overview and Linked banks views.
+    - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden for this frame and restored when it is removed.
     - The page makes GET requests only.
     - A summary that does not answer is said in words and the other summaries and the jobs still show.
     prerequisites:
@@ -346,3 +355,29 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 1024
     installation: never
+  - id: bank-snapshot-browser
+    name: Dated bank snapshot, explicit Sync and saved analysis
+    purpose: Exercise the actual bank page with independent persisted snapshot and analysis dates, synthetic Link callbacks and explicit failures.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/browser/finance-bank-snapshot.browser.test.cjs
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Synthetic browser contexts close after every case; no real person, provider or device is contacted.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 1024
+    installation: never
+    expected:
+      - Withheld totals remain Unknown, reported zero remains zero, and an analysis conflict preserves the previous dated analysis with a visible retry.
+      - Opening reads only; source and snapshot dates stay visible and unknown amounts differ from known zero.
+      - Sync preserves the older dated analysis; Request analysis returns the actual saved date and reload retains it.
+      - Link and OAuth never silently request analysis; failures preserve context and phone controls remain usable.

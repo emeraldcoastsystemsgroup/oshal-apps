@@ -11,6 +11,9 @@
   8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio workspace — single-row top bar with device switcher and inline Home/Back/Recents/Sync/+ Add Device/Controls/Concierge/Full screen controls, 100%-height true-aspect center stage with 3-step live iPhone guide and non-blocking DRM overlay, collapsible 340px Controls | Concierge right rail with bottom-pinned (12px) Jarvis composer (+ screen context, speaker read-aloud, mic dictation, Send) and zero outer rail scrollbar, and guided Android pairing steps with Samsung Auto Blocker tip.
   9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console and the RDP sign-in fields only it used (Username, Password, Domain) are hidden: nothing implements /api/rdp/sessions (the kernel answers 404 "application is not installed" on every slot), so the RDP card offers what works, the setup scripts, Copy setup script and Check RDP port, and says this console does not open RDP desktops. Unhide them together with a session backend.
   10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen is a tree (computers, with their phones, TVs and programs under them) beside a details pane.
+  11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): device features are every person's for their own devices, so the card an account reads when it may only open the page no longer says they are the administrator's; it says what the account cannot do and whom to ask.
+  12 | maintainer@emeraldcoastsystemsgroup.com | Give Your devices a clear purpose and searchable connection list; existing session and Add a device actions stay in place.
+  13 | maintainer@emeraldcoastsystemsgroup.com | Offer native Orbit installation and exact registered-device links before optional Linux bridge setup; connection and control stay distinct.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -29,6 +32,7 @@
       <div>
         <h1 id="pageHeading">Your devices</h1>
         <p id="pageLede" class="ks-lede" role="status" aria-live="polite">Reading your phones and computers…</p>
+        <p class="pc-purpose">Choose a device, check its connection, then open its screen.</p>
       </div>
       <div class="ks-actions" id="pageActions">
         <button id="addDeviceBtn" type="button" class="ks-btn ks-btn-primary">Add a device</button>
@@ -37,11 +41,19 @@
 
     <section id="notAllowed" class="ks-card pc-not-allowed" aria-labelledby="notAllowedHeading" hidden>
       <h2 id="notAllowedHeading">Not available on your account</h2>
-      <p class="ks-help">Connecting and controlling phones, TVs and computers here is for this installation's administrator only. Nothing of anyone else's is shown to you.</p>
+      <p class="ks-help">Your account can open this page, but it cannot add or control phones, TVs or computers. Ask whoever gives access here for Phone &amp; Device Control on your own devices. Nothing of anyone else's is shown to you.</p>
     </section>
 
     <div id="devicesView" class="pc-devices-list" data-ds-work>
       <nav class="pc-rail ks-card" aria-label="Your computers and the devices under them">
+        <div class="pc-device-search">
+          <label for="deviceSearch">Find a device or program</label>
+          <div class="pc-search-field">
+            <input id="deviceSearch" type="search" placeholder="Device or program name" autocomplete="off" />
+            <button id="deviceSearchClear" class="pc-tertiary-btn" type="button" aria-label="Clear device search" hidden>Clear</button>
+          </div>
+          <p id="deviceSearchStatus" class="ks-help" role="status" aria-live="polite"></p>
+        </div>
         <h2 class="pc-rail-title">Computers</h2>
         <ul id="computerRail" class="pc-rail-list"></ul>
         <h2 class="pc-rail-title" id="phoneRailTitle">Phones &amp; TVs</h2>
@@ -556,23 +568,31 @@
           <button type="button" class="ks-btn" id="askConnectConciergeBtn">Ask Concierge to fix this</button>
         </div>
 
+        <section class="ks-card" id="nativeOrbitSetup" aria-labelledby="nativeOrbitHeading">
+          <div class="ks-card-head">
+            <div>
+              <h2 id="nativeOrbitHeading">Connect with Orbit</h2>
+              <p class="ks-help">Install Orbit on your phone, tablet, supported TV or computer, then sign in to this installation. Review its control settings on the device; signing in does not turn on control.</p>
+            </div>
+            <div class="ks-actions">
+              <a class="ks-btn ks-btn-primary" id="downloadNode" href="/cockpit/tools/downloads.html" target="_top">Install or update Orbit</a>
+            </div>
+          </div>
+          <h3 class="pc-detail-heading">Devices already added</h3>
+          <p id="nativeDevicesStatus" class="ks-help" role="status" aria-live="polite">Reading your devices…</p>
+          <ul id="nativeDevicesList" class="pc-native-devices" aria-label="Your registered devices" hidden></ul>
+        </section>
+
         <section class="ks-card" aria-labelledby="computersHeading">
           <div class="ks-card-head">
             <div>
-              <h2 id="computersHeading">Your computers</h2>
-              <p class="ks-help">A phone or TV connects through the Linux computer next to it. That computer runs oshal Node with control allowed.</p>
-            </div>
-            <div class="ks-actions">
-              <a class="ks-btn ks-btn-primary" id="downloadNode" href="/cockpit/tools/devices.html" target="_top">Download oshal Node for Linux, macOS or Windows</a>
+              <h2 id="computersHeading">Optional Linux bridge</h2>
+              <p class="ks-help">For a phone or TV connected through USB or Wi-Fi ADB, Bluetooth keyboard or AirPlay, choose a Linux computer below. Other signed-in devices remain available directly above.</p>
             </div>
           </div>
           <div id="computersEmpty" class="pc-computers-empty" hidden>
-            <ol id="installSteps" class="pc-steps">
-              <li>Install</li>
-              <li>Sign in</li>
-              <li>Press Allow</li>
-            </ol>
-            <p id="waitingForComputer" class="ks-help" role="status" aria-live="polite">Waiting for your computer…</p>
+            <p class="ks-help">No Linux bridge computer is signed in. This bridge is optional. To use it, install Orbit on a Linux computer, sign in and review its control setting there.</p>
+            <p id="waitingForComputer" class="ks-help" role="status" aria-live="polite">Waiting for a Linux bridge computer…</p>
           </div>
           <p id="computersRefusedMsg" class="ks-help pc-alert" role="alert" hidden></p>
           <div id="computersTableWrap" class="table-scroll" hidden>

@@ -9,6 +9,9 @@
 #   pressed, woken or opened; every other package is only counted, never named; one service installed twice is one
 #   app; an empty list and an adb failure are refused in words; a Roku and a Samsung TV are refused in words, by the
 #   module and by the installed bridge verb; the closed list holds every app Open a Link and Play a Show know.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79): the read also answers the TV's model and maker from two
+#   getprop reads, keeping only a plain name; a property it cannot read, or one that is not a plain name, is left out
+#   and never fails the read; still nothing is pressed, woken or opened.
 """Tests for oshal_phone_apps.py: which streaming apps an Android or Fire TV has (stdlib unittest, no TV)."""
 
 import base64
@@ -41,16 +44,24 @@ ANDROID_TV = '\r\n'.join('package:' + name for name in (
 
 
 class ScriptedTv:
-    """A TV as the bridge's adb shell reaches it: it answers pm list packages and records every command it receives."""
+    """A TV as the bridge's adb shell reaches it: it answers pm list packages and getprop, and records every command it
+    receives. `props` maps a property to its answer, or to None for a property whose read fails."""
 
-    def __init__(self, listing, fail=''):
+    def __init__(self, listing, fail='', props=None):
         self.listing, self.fail, self.commands = listing, fail, []
+        self.props = {'ro.product.model': 'AFTMD001', 'ro.product.manufacturer': 'Amazon'} if props is None else props
 
     def __call__(self, serial, command, timeout=30):
         self.commands.append((serial, command))
         if self.fail:
             return 1, '', self.fail
+        if command.startswith('getprop '):
+            value = self.props.get(command[len('getprop '):], '')
+            return (1, '', 'getprop failed') if value is None else (0, value + '\n', '')
         return (0, self.listing, '') if command == 'pm list packages' else (0, '', '')
+
+
+READS = ['pm list packages', 'getprop ro.product.model', 'getprop ro.product.manufacturer']
 
 
 def context(tv, connected):
@@ -70,7 +81,7 @@ class TvApps(unittest.TestCase):
     def test_a_fire_tv_names_its_streaming_apps_and_presses_nothing(self):
         tv = ScriptedTv(FIRE_TV)
         reply, connected = tv_apps(tv)
-        self.assertEqual(tv.commands, [(SERIAL, 'pm list packages')], 'one read; no key, wake or app was sent')
+        self.assertEqual(tv.commands, [(SERIAL, read) for read in READS], 'reads only; no key, wake or app was sent')
         self.assertEqual(reply['apps'], [
             {'key': 'netflix', 'name': 'Netflix', 'package': 'com.netflix.ninja'},
             {'key': 'prime', 'name': 'Prime Video', 'package': 'com.amazon.firebat'},
@@ -78,6 +89,7 @@ class TvApps(unittest.TestCase):
             {'key': 'oshal', 'name': 'oshal TV app', 'package': 'com.oshal.remote'}])
         self.assertEqual(reply['unknownCount'], 4)
         self.assertEqual((reply['kind'], reply['action'], reply['serial']), ('android-tv', 'tv_apps', SERIAL))
+        self.assertEqual((reply['model'], reply['maker']), ('AFTMD001', 'Amazon'))
         answer = json.dumps(reply)
         for unknown in ('com.amazon.tv.launcher', 'com.android.settings', 'org.example.privatebank'):
             self.assertNotIn(unknown, answer, 'a package outside the closed list is counted, never named')
@@ -105,7 +117,7 @@ class TvApps(unittest.TestCase):
                 tv_apps(tv)
             self.assertEqual(caught.exception.code, 'no_app_list', listing)
             self.assertIn('without a list of its apps', caught.exception.message)
-            self.assertEqual(tv.commands, [(SERIAL, 'pm list packages')])
+            self.assertEqual(tv.commands, [(SERIAL, 'pm list packages')], 'no property is read without a list')
         with self.assertRaises(bridge.Refusal) as caught:
             tv_apps(ScriptedTv(FIRE_TV, fail=f"error: device '{SERIAL}' not found"))
         self.assertEqual(caught.exception.code, 'not_connected')
@@ -126,6 +138,15 @@ class TvApps(unittest.TestCase):
         reply = json.loads(lines[0])
         self.assertEqual((reply['ok'], reply['error'], done.returncode), (False, 'android_only', 3),
                          'tv_apps is one of the installed verb\'s closed actions')
+
+    def test_a_property_that_cannot_be_read_or_is_not_a_plain_name_is_left_out_and_never_fails_the_read(self):
+        odd = {'ro.product.model': '<script>x</script>', 'ro.product.manufacturer': None}
+        tv = ScriptedTv(FIRE_TV, props=odd)
+        reply, _ = tv_apps(tv)
+        self.assertNotIn('model', reply)
+        self.assertNotIn('maker', reply)
+        self.assertEqual(len(reply['apps']), 4, 'the apps are still answered')
+        self.assertEqual(tv.commands, [(SERIAL, read) for read in READS], 'still reads only')
 
     def test_the_closed_list_holds_every_app_open_a_link_and_play_a_show_know(self):
         known = {key: (name, packages) for key, name, packages in apps.KNOWN_APPS}

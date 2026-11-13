@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Treat the relationship tombstone as authoritative over retained saved receipts in lists, counts and decorations.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner saved stars and preparation receipts independent of application status in the owner's published generation.
  */
 'use strict';
@@ -28,6 +29,10 @@ function updateBoardState(dir, id, patch) {
   finally { try { fs.unlinkSync(temp); } catch(e) { if(e.code!=='ENOENT') throw e; } }
   return state.jobs[id];
 }
-function favoriteIds(state) { return Object.entries(state.jobs).filter(([,v])=>v.favorite===true).map(([id])=>Number(id)); }
-function decorateJob(state, job) { const saved=state.jobs[job.id] || {}; return {...job,favorite:saved.favorite===true,board:saved}; }
+function favoriteIds(state,db) {
+ const ids=Object.entries(state.jobs).filter(([,v])=>v.favorite===true).map(([id])=>Number(id));
+ if(!db||!ids.length)return ids;
+ return db.prepare(`SELECT posting_id FROM user_signals WHERE posting_id IN (${ids.map(()=>'?').join(',')}) AND COALESCE(status,'new')<>'dismissed'`).all(...ids).map(row=>row.posting_id);
+}
+function decorateJob(state, job) { const saved=state.jobs[job.id] || {},active=job.status!=='dismissed'; return {...job,favorite:active&&saved.favorite===true,board:active?saved:{...saved,favorite:false}}; }
 module.exports={readBoardState,updateBoardState,favoriteIds,decorateJob};

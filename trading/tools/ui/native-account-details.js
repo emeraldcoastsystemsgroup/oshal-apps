@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Give each real account a separate holdings, recorded value and benchmark dashboard with no financial action controls.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Holdings performance: gain/loss bars per holding and any holding's daily price against the comparison symbol, so the page shows performance on day one while account history is still being recorded.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Account tiles show the shared execution status rather than infer active trading from approval and scheduling.
  */
 'use strict';
 function nativeDetailsHref(a){return '/api/trading/?view=accounts&sub=details&account='+encodeURIComponent(a.accountId)+'&connection='+encodeURIComponent(a.connectionKey);}
@@ -127,7 +128,8 @@ async function loadNativeDashboardState(token){
  ACCT_TILES.filter(a=>a.nativeReadOnly).forEach(a=>{
   const current=p?.accounts?.find(row=>sameNativeAccount(row,a)),watch=m?.watches?.find(row=>sameNativeAccount(row,a)),policy=b?.policies?.find(row=>sameNativeAccount(row,a));
   if(current){a.label=current.label;a.positions=current.holdings||[];a.equity=current.equity;a.cash=current.cash;}
-  a.executionLabel=!m?'Trading status unavailable':!watch?.authority?.active?'Live trading: '+nativeAuthorityLabel(watch,current||a):s?.status==='active'?'Live trading: active':'Live trading paused · schedule '+(s?.status||'unavailable');
+  const story=typeof NativeAccountStatus==='undefined'?null:NativeAccountStatus.live({account:current||a,watch,schedule:s,latestSession:p?.researchWindow?.latestCompletedSession});
+  a.executionLabel=story?story.label+' · '+story.detail+' · Last check '+(story.lastCheck?new Date(story.lastCheck).toLocaleString():'Unknown'):'Status unknown · Account-status reader unavailable';
   a.protectionLabel='Watcher exits: '+(nativeProtectionLabel(policy,!!b)==='Active'&&s?.status!=='active'?'paused · schedule '+(s?.status||'unavailable'):nativeProtectionLabel(policy,!!b));
  });paintTiles(ACCT_TILES);
 }

@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Both host shells yield their retired rail to the shared in-app concierge, scoped only to the exact Career frame.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -145,11 +146,10 @@ test('the cockpit\'s chrome is hidden only while it is showing a Career page', (
   const scope = 'body:has(.tool-view-container > iframe[src^="/api/career-hunter/"])';
   for (const rule of css.split('}').map((part) => part.trim()).filter(Boolean)) {
     // Commas inside :is(...) and :has(...) belong to one selector.
-    for (const selector of rule.split('{')[0].split(/,(?![^()]*\))/)) assert.ok(selector.trim().startsWith(scope), selector.trim().slice(0, 80));
+    for (const selector of rule.split('{')[0].split(/,(?![^()]*\))/)) assert.ok(selector.trim().startsWith(scope) || selector.trim().startsWith('body:has(#active-app-frame[src^="/api/career-hunter/"])'), selector.trim().slice(0, 80));
   }
-  for (const part of ['.header-bar', '#ribbonContainer', '.status-bar', '.chat-panel.collapsed', '.tool-view-header']) assert.ok(css.includes(scope + ' ' + part), part);
-  // The Concierge button opens the cockpit's chat panel: hidden outright, pressing it showed nothing (1.57.1).
-  assert.equal(/ \.chat-panel(?![.\w-])/.test(css), false, 'an open concierge panel is never hidden');
+  for (const part of ['.header-bar', '#ribbonContainer', '.status-bar', '.chat-panel', '.tool-view-header']) assert.ok(css.includes(scope + ' ' + part), part);
+  assert.equal(/ \.chat-panel(?![.\w-])/.test(css), true, 'the retired rail yields to the shared Career assistant');
   assert.equal(css.includes('zen-mode'), false, 'no class is left on the cockpit that would outlive the Career page');
   assert.equal(/jarvis|orb/i.test(css), false, 'the floating assistant stays');
 });

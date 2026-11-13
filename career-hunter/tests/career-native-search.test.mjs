@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the genuine read-only search and saved-home radius against disposable SQLite, including private owner isolation, paging and identity rechecks.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep Most relevant as the unchosen default, preserve explicit sorts and explain bounded title-first results without resume scoring.
  */
 import test, {before, after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,6 +29,18 @@ const yaml=require('../../scripts/toolchain/node_modules/js-yaml');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'career-native-search-'));
 const principal={subject:'alice',issuer:'fixture',id:'alice-id',tenant:'fixture-tenant',state:'active'};
 const previous={};let alice,bob,scopeBytes,corpusBytes;
+
+test('native search accepts title-first relevance and retains every explicit order',()=>{
+  assert.equal(search.searchQuery({q:'Engineer'},alice).query.sort,'relevant');
+  for(const sort of ['relevant','recent','posted','salary','title']){
+    assert.equal(search.searchQuery({q:'Engineer',sort},alice).query.sort,sort);
+  }
+  assert.throws(()=>search.searchQuery({sort:'ai_fit_score'},alice),/supported sort/);
+  const result=search.searchCareerOpenings(principal,{q:'Engineer',sort:'relevant',per:2},root);
+  assert.equal(new URLSearchParams(result.searchUrl.split('?')[1]).get('sort'),'relevant');
+  assert.match(result.note,/titles containing every searched keyword first/i);
+  assert.match(result.note,/without keywords, newest first/i);
+});
 before(()=>{
   for(const [key,value] of Object.entries({OSHAL_CAREER_OWNER_MOUNT:'1',JOBHUNTER_STORE_ROOT:root})){
     previous[key]=process.env[key];process.env[key]=value;

@@ -14,6 +14,7 @@ exports.openCorpusDb = openCorpusDb;
 exports.listStoreUsers = listStoreUsers;
 /**
  * CHANGE LOG
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Apply owner pipeline index migrations only on writable opens.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -31,6 +32,7 @@ exports.listStoreUsers = listStoreUsers;
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Read checkpointed native owner generations immutably so WAL-mode board, stats and resume reads need no sidecar files on the read-only mount. Keep normal locking when WAL contains pending data or the store is mutable.
  * 13 | maintainer@emeraldcoastsystemsgroup.com   | A store last written before a column existed reads that column as empty. A read cannot add it, and the board answered 500 until its owner's next write.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | findUserPaths finds the caller's existing store without creating a tenant, directory or database, for read-only surfaces such as the master record (1.51.0): userPaths makes a store for a person who has none, which a read must never do.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Permit explicit owner-only read handles through the existing immutable/WAL contract; defaults retain corpus attachment and writable owner-only requests fail before resolving paths.
  */
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -128,11 +130,18 @@ function shadowColumnsOlderStoreLacks(db) {
  * so nightly corpus replacement cannot leave a pooled connection on a stale inode.
  * @param userSub - Authenticated caller subject that owns the signals database.
  * @param readonly - Whether SQLite must reject writes through this handle.
+ * @param options - Corpus attachment defaults on; false admits only a read-only existing owner store.
  * @returns An attached SQLite handle, or null until both store databases have been seeded.
  */
-function openUserDb(userSub, readonly = true) {
-    const { corpusDb, userDb, userDir } = userPaths(userSub);
-    if (!fs_1.default.existsSync(corpusDb) || !fs_1.default.existsSync(userDb))
+function openUserDb(userSub, readonly = true, options = {}) {
+    const withCorpus = options.corpus !== false;
+    if (!withCorpus && !readonly)
+        throw Error('Owner-only database access must be read-only.');
+    const owner = withCorpus ? userPaths(userSub) : findUserPaths(userSub);
+    if (!owner)
+        return null;
+    const { userDb, userDir } = owner, corpusDb = withCorpus ? corpusDbPath() : null;
+    if ((corpusDb && !fs_1.default.existsSync(corpusDb)) || !fs_1.default.existsSync(userDb))
         return null;
     // Reads can be mounted against the published generation read-only. Keep compatibility
     // migrations on the writable path so opening the board never mutates a read request's store.
@@ -147,8 +156,12 @@ function openUserDb(userSub, readonly = true) {
     const source = immutable ? `${(0, url_1.pathToFileURL)(userDb).href}?immutable=1` : userDb;
     const db = new better_sqlite3_1.default(source, { readonly });
     try {
-        db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
-        tuneDatabase(db);
+        if (corpusDb) {
+            db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
+            tuneDatabase(db);
+        }
+        else
+            db.pragma('busy_timeout=4000');
         if (readonly) {
             shadowColumnsOlderStoreLacks(db);
             db.pragma('query_only=true');
@@ -248,6 +261,7 @@ function migrateApplicationProvenance(userDb, userDir) {
     const db = new better_sqlite3_1.default(userDb);
     try {
         db.pragma('busy_timeout=120000');
+        require('../lib/career-signal-migrations').migrate(db);
         let columns = new Set(db.prepare('PRAGMA table_info(user_signals)').all()
             .map((row) => row.name));
         for (const [name, declaration] of Object.entries(PROVENANCE_COLUMNS)) {

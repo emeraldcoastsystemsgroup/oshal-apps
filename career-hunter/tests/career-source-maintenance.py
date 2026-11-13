@@ -1,6 +1,8 @@
 """CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Prove source maintenance through a real full pull on real temporary SQLite, with the real readers, resolver, page parser, source review and saved-change path over recorded employer replies: a source the review could not connect on three runs becomes one decision with what was tried, Keep trying and Archive answer it, readers that stay partial become one repair brief, and the runbook connects an employer's job site only on evidence, inside hard time limits, without ever stopping the pull. Run with `--corpus <file>` it leaves the corpus six such pulls produce, which the route and page proofs read through the shipped library.
 2 | maintainer@emeraldcoastsystemsgroup.com | Six review fixes, each with a case that fails without it: a careers link on someone else's site is never connected as the employer's own, by a page read or a list read; a part that asks to end the process ends its pass and never the pull; connecting keeps a saved careers link and changes nothing once the employer has a board, a person's choice or a removal; a suggestion stays until the employer has a board or is removed; two hosts on one vendor's domain are two sites; and a redirect into a private address is refused by the real connection guard, against a real local server.
+3 | maintainer@emeraldcoastsystemsgroup.com | Keep real full-pull acceptance on exact confirmed action identities while retaining every nondecision source change.
+4 | maintainer@emeraldcoastsystemsgroup.com | Apply queued immutable decision identities on the next real pull without time-warping their opening timestamp.
 """
 import json
 import os
@@ -11,6 +13,7 @@ import tempfile
 import threading
 import time
 import unittest
+from urllib.parse import quote
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -233,8 +236,9 @@ class Escalating(Base):
 
     def test_keep_trying_closes_the_decision_and_the_source_is_not_raised_again_for_sixty_days(self):
         dead = self.dead_source()
-        change = self.hand(dead, "keep:employer")
-        self.nights(1)
+        opened = self.actions(dead)[0]
+        change = self.hand(dead, "decision:%s:%s:keep" % (opened["id"], quote(opened["opened_at"], safe="-_.~")))
+        self.pull()  # A real next pull preserves the immutable opened_at already queued.
         applied = self.rows("source_requests", "id=?", (change,))[0]
         self.assertEqual(applied["outcome"], "kept")
         kept = self.actions(dead, "kept")[0]
@@ -250,8 +254,9 @@ class Escalating(Base):
 
     def test_archive_is_the_existing_remove_and_a_removed_employer_never_appears_again(self):
         dead = self.dead_source()
-        self.hand(dead, "remove:employer")
-        report = self.nights(1)
+        opened = self.actions(dead)[0]
+        self.hand(dead, "decision:%s:%s:archive" % (opened["id"], quote(opened["opened_at"], safe="-_.~")))
+        report = self.pull()  # Do not rewrite an already queued action identity with days_pass.
         archived = self.actions(dead, "archived")
         self.assertEqual(len(archived), 1)
         self.assertTrue(archived[0]["decided_at"])

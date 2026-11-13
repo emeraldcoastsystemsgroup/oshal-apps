@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the bridge carries oshal_phone_links.py.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): the bridge carries oshal_phone_play.py.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): the bridge carries oshal_phone_apps.py.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): installationOrigin, the address a phone or TV is told to sign in to: the origin of the page the person opened, which is the installation they are on. The four places that push the oshal app to a device carried one installation's public address as a fallback; on another installation that would have sent the person's device to a server that is not theirs.
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -77,6 +78,17 @@ export function bytesToBase64(bytes) {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
+}
+
+/**
+ * @description The address of the installation this page was opened on, which a phone or TV is told to sign in to:
+ * the page's own origin. Never a fixed address. Outside a page there is none, and the oshal app then opens on its
+ * own sign-in screen and asks for the server.
+ * @returns {string} The origin, or '' outside a page.
+ */
+export function installationOrigin() {
+  const origin = globalThis.location?.origin;
+  return typeof origin === 'string' && /^https?:\/\/[^/\s]+$/.test(origin) ? origin : '';
 }
 
 /** @description UTF-8 text as base64, in a browser or in node. Pure. @param {string} text Text. @returns {string} Base64. */

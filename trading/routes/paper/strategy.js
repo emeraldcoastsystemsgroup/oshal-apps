@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Mark held paper shares on fresh regular-session quotes after a decision is already checked or unchanged, without fills or changes to peak, high-water, daily risk or settlement anchors.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Daily models use persisted holdings/risk state, shared costed sizing and next-session retirement settlement; request bounded extended history from the current clock.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A local paper account can run a saved portfolio strategy: the owner (or the concierge on their behalf) assigns one, and each scheduled pass of a regular session rebalances the simulated book in whole shares to the strategy's current targets (the same portfolioNextTargets the live accounts use) once per new decision. Daily closes and quotes come from read-only Schwab when configured, else the platform archive. No broker order path exists here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Assigning computes the strategy's current targets first and refuses (422 strategy_history_unavailable) when a year of daily prices cannot be read: the archive serves at most 365 days, short of the monthly warmup, so a login without Schwab is told at assignment instead of failing at the open.
@@ -6,6 +7,7 @@
 'use strict';
 const {randomUUID}=require('node:crypto');
 const store=require('./store');
+const {valuationPlan}=require('./valuation');
 const {regularSession,tickWindow,etParts}=require('./market');
 const {normalizePortfolioStrategy,portfolioNextTargets}=require('../trading-portfolio-sim');
 const {portfolioStrategySymbols}=require('../trading-portfolio-rotation');
@@ -175,33 +177,61 @@ function rebalancePlan(account,positions,targets,prices,name){
 }
 
 /**
- * @description One scheduled pass for a paper account that runs a saved strategy: during a regular session,
- * at most once per session (retrying a failed read after 30 minutes), read the strategy's current targets and,
- * when its decision date is new, rebalance the simulated book to them.
- * @param {{pool:object,intent:Function,newId?:Function}} deps - Book-scoped pool, intent, id source.
- * @param {{pool:object}} root - The owner's unscoped pool (assignment records).
+ * @description Mark an already-decided strategy book using fresh quotes, retaining its committed daily anchor.
+ * @param {object} deps - Book-scoped SQL and read-only market intent.
  * @param {string} sub - Owner.
- * @param {object} assignment - The stored assignment.
- * @param {{now:Date,trigger:string,runId:string|null}} opts - Pass provenance.
- * @returns {Promise<object>} What the pass did.
+ * @param {object} state - Account, positions, assignment, committed anchor, prior summary and market source.
+ * @param {object} opts - Pass provenance and clock.
+ * @param {object|null} signal - Already-computed unchanged monthly signal, when present.
+ * @returns {Promise<object>} Atomic valuation receipt or the original write fence refusal.
+ */
+async function valueStrategy(deps,sub,state,opts,signal=null){
+ const {account,config,positions,assignment,committed,prior,schwab}=state,{now}=opts;
+ const symbols=[...new Set(positions.map(p=>p.symbol))];
+ const prices=symbols.length?await currentPrices(deps.intent,symbols,schwab):new Map();
+ const summary={strategy:assignment.strategyName,strategyId:assignment.strategyId,decisionAsOf:signal?.decisionAsOf||assignment.lastDecisionAsOf||committed?.decisionAsOf||null,
+  ...(signal?{targets:signal.targets}:Array.isArray(prior?.targets)?{targets:prior.targets}:{}),priceSource:schwab?'schwab-read-only':'world-archive',valuationOnly:true,...(committed?{daily:committed}:{})};
+ const plan=valuationPlan(account,positions,prices,now,config.maxQuoteAgeMinutes,summary),window=tickWindow(now);
+ const result=await store.writeTick(deps.pool,sub,{window,trigger:opts.trigger,runId:opts.runId,at:now.toISOString(),sessionDate:etParts(now).date,plan,account,ids:[],previousSymbols:symbols});
+ return result.written?{ok:true,window,valuationOnly:true,strategy:assignment.strategyName,orders:[]}:{skipped:result.reason,window};
+}
+
+/**
+ * @description Read targets at most once per session; a new decision alone can rebalance. Other regular-session
+ * passes refresh held-share values without changing decisions, fills or risk state. Failed reads retry after 30 minutes.
+ * @param {object} deps - Book-scoped pool, intent and optional id source.
+ * @param {object} root - Owner assignment pool.
+ * @param {string} sub - Owner.
+ * @param {object} assignment - Stored assignment.
+ * @param {object} opts - Pass provenance and clock.
+ * @returns {Promise<object>} Pass receipt.
  */
 async function runStrategyTick(deps,root,sub,assignment,opts){
- const {now}=opts,session=etParts(now).date,window=tickWindow(now);
+ const {now}=opts,session=etParts(now).date,window=tickWindow(now),checked=assignment.lastCheckedSession===session;
  const [account,config]=await Promise.all([store.loadAccount(deps.pool,sub),store.loadConfig(deps.pool,sub)]);
  if(!account||!config||!config.armed)return {skipped:'not_armed'};
  if(!regularSession(now))return {skipped:'market_closed',window};
- if(assignment.lastCheckedSession===session)return {skipped:'checked_today',window,strategy:assignment.strategyName};
- if(assignment.lastAttemptAt&&now.getTime()-Date.parse(assignment.lastAttemptAt)<RETRY_MS)return {skipped:'retry_later',window};
+ if((!checked||String(assignment.lastResult).startsWith('failed:'))&&assignment.lastAttemptAt&&now.getTime()-Date.parse(assignment.lastAttemptAt)<RETRY_MS)return {skipped:'retry_later',window};
  const {id,createdAt,...stored}=assignment,keep=patch=>saveRecord(root,sub,KIND,{...stored,...patch},assignment.bookRef);
  try{
   let schwab=false;try{schwab=(await deps.intent('trading.config',{})).configured===true;}catch{}
-  const symbols=[...new Set([...assignment.symbols,'SPY'])];
-  const positions=await store.loadPositions(deps.pool,sub),daily=assignment.config.modelVersion===3;
-  const committed=daily?(await store.listTicks(deps.pool,sub)).find(t=>t.summary?.daily)?.summary.daily:null;
-  if(committed?.session===session)return {skipped:'checked_today',window,strategy:assignment.strategyName};
+  const symbols=[...new Set([...assignment.symbols,'SPY'])],daily=assignment.config.modelVersion===3;
+  const [positions,ticks]=await Promise.all([store.loadPositions(deps.pool,sub),store.listTicks(deps.pool,sub)]);
+  const committed=daily?ticks.find(t=>t.summary?.daily)?.summary.daily:null,prior=ticks.find(t=>t.summary?.strategyId===assignment.strategyId)?.summary;
+  if(committed?.session>session)throw Error('This paper account has future daily state.');
+  const state={account,config,positions,assignment,committed,prior,schwab};
+  if(checked||committed?.session===session){
+   const marked=await valueStrategy(deps,sub,state,opts);
+   if(marked.ok&&String(assignment.lastResult).startsWith('failed:'))await keep({lastResult:'current'});
+   return marked;
+  }
   const series=await dailyCloses(deps.intent,symbols,schwab,now),asOf=lastCompletedSession(now);
   const signal=daily?require('./daily-strategy').decide(assignment.config,series,asOf,positions,committed):portfolioNextTargets(assignment.config,series,asOf);
-  if(assignment.lastDecisionAsOf===signal.decisionAsOf){await keep({lastCheckedSession:session,lastAttemptAt:now.toISOString(),lastResult:'current'});return {ok:true,window,unchanged:signal.decisionAsOf};}
+  if(assignment.lastDecisionAsOf===signal.decisionAsOf){
+   const marked=await valueStrategy(deps,sub,state,opts,signal);
+   if(marked.ok)await keep({lastCheckedSession:session,lastAttemptAt:now.toISOString(),lastResult:'current'});
+   return {...marked,unchanged:signal.decisionAsOf};
+  }
   const needed=[...new Set([...positions.map(p=>p.symbol),...signal.targets.map(t=>t.symbol),...(daily?assignment.symbols:[])])];
   const prices=await currentPrices(deps.intent,needed,schwab);
   const unpriced=needed.filter(s=>!prices.has(s));

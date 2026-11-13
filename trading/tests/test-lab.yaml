@@ -1,3 +1,7 @@
+# CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | Register today-read, account-story and today-home-browser (1.57.0; files tests/native-today-read, native-account-story and native-today-home-browser, named so the store's trading test command runs them): the first screen answers from saved records whether each account is running or parked and in what, what it did today and why its value moved, with a source and a time on each part, one button per card and no control that can change money; the two landing browser cases open the screen's closed section.
+# CHANGE LOG: 31 | maintainer@emeraldcoastsystemsgroup.com | Verify contextual account guidance, independently dated counts, disclosure accessibility, exact strategy binding and preserved explicit controls.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register paper valuation and entry-fee reporting regressions without live account or order actions.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Register recovered tracking and dated account evidence; refresh device overview expectations.
 # CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Register handoff-registration and page-title (1.54.1): the Trades page registers its document session with its application named and its start-up runs to the end; the page title is the display name.
 # CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | Register trading-create-concierge: Intelligent Trades conforms to the Create concierge pattern (inline front-desk trading-concierge, watchlist tools, registerDocumentSession, back-office trading-analyst hand-off).
 # CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Register portfolio-record-read-conflict: a saved-record read that meets another writer mid-scan is read again (1.53.9).
@@ -432,7 +436,8 @@ cases:
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/paper-landing-browser.test.js] }
     expected:
-      - The landing shows the Paper (reference book) tile with $100,000 and a PAPER pill, the hero total is $100,000, and the positions rollup lists UPCO in the paper book.
+      - The first screen shows the paper book as a card that says it is simulated money and that its value counts prices only.
+      - Opening "Balances and holdings, read from your broker now" shows the Paper (reference book) tile with $100,000 and a PAPER pill, real capital apart from paper money, and the positions rollup listing UPCO in the paper book.
       - Opening the account and the UPCO row draws a chart from the World archive with its stored-prices note, and Allocation says the paper book needs no broker.
     prerequisites:
       - runner:node-test
@@ -468,6 +473,7 @@ cases:
       - With no live accounts the landing lists the paper accounts (label, value, assigned strategy, armed state, last pass) and both buttons navigate to Reports and Strategy research.
       - A failed paper read keeps the honest "No connected trading accounts" copy and invents no roster; an archived paper account is not offered.
       - A connected live account keeps the live account-strategies roster; the paper panel never replaces it.
+      - Paper failures and reference last passes retain their dates; Armed is a setting and missing order counts stay unknown.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -493,7 +499,8 @@ cases:
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/native-schwab-browser.test.js] }
     expected:
-      - Account balances, holdings and navigation work at desktop and phone widths.
+      - A connected account with no saved record first shows as a card that says nothing is set to run on it, with the value the page read.
+      - Opening "Balances and holdings, read from your broker now", account balances, holdings and navigation work at desktop and phone widths.
       - No unsupported book creation or live-order controls appear in native read-only accounts.
       - Full-year execution CSV exports work on desktop and phone and deduplicate boundary fills.
       - A failed history chunk withholds the export and replaces the loading status with an error.
@@ -1530,6 +1537,7 @@ cases:
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/native-account-management-browser.test.js] }
     expected:
+      - After opening settings, saved approval terms, confirmation, cancellation and Stop assertions remain intact.
       - A foreign connection cannot resolve another account page.
       - Tracking and backtests never claim broker orders or spend expected funding.
       - Account pages remain usable on desktop and phone with no brokerage writes.
@@ -1610,6 +1618,7 @@ cases:
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/native-account-selection-browser.test.js] }
     expected:
+      - Opening Strategy settings and approval preserves the original account selection, strategy save and activation assertions.
       - Each account displays its own strategy, effective live authority and independent watcher state.
       - Saving requires a completed study for the exact account and connection and leaves live execution inactive.
       - Unsaved changes disable activation of older reviews and cancel restores the assigned selection.
@@ -1841,4 +1850,131 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: account-status-evidence
+    name: Account outcomes require dated exact-account evidence
+    purpose: Verify the pure account evidence reader and shipped UI with synthetic local receipts.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-account-status.test.js] }
+    expected:
+      - Approval is strict; stale, mismatched, malformed or missing evidence stays unknown. A completed cycle alone is not alignment.
+      - One next step follows the existing classification; recorded submitted zero and unknown retain their own observation date.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 120000 }
+    installation: never
+
+  - id: account-status-browser
+    name: Account evidence on desktop and phone
+    purpose: Verify the pure account evidence reader and shipped UI with synthetic local receipts.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-account-status-browser.test.js] }
+    expected:
+      - Shipped renderers show dates and targets versus holdings at1440 and412px, separate approval, and send no mutations or page errors.
+      - Contextual actions only open local evidence or settings with keyboard focus; directly visible Deactivate and contextual actions are at least 44 px.
+      - Missing or mismatched account, connection or strategy withholds foreign execution evidence; a newer failed attempt never supplies the older submitted count date.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 120000 }
+    installation: never
+  - id: today-read
+    name: The first screen's read answers from saved records only
+    purpose: Run the shipped GET /paper/today handler and its modules on a statement-exact in-memory database with invented accounts; no broker, kernel or real record.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-today-read.test.js] }
+    expected:
+      - The route is registered, refuses a caller who is not admitted, sends SELECT statements only, opens no transaction and calls no kernel intent.
+      - A connected account reports its plan with the share held in the strategy's fallback fund, today's orders and fills in New York time by who sent them, and a value change in two parts that add up to the cent.
+      - An unreadable order list is unknown, never empty or zero; a receipt for another account or strategy is dropped; nothing outside the listed fields is sent.
+      - One person never receives another person's accounts; paper accounts answer from their own ledgers on a prices-only basis and archived ones are left out.
+      - None of the read's files joins the order-authority set, and the manifest's orderAuthority sources are unchanged.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Discard the per-case in-memory records and ledgers. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: account-story
+    name: Each account card says in words what its saved records mean
+    purpose: Run the shipped card wording module on the facts the shipped read returns for invented accounts.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-account-story.test.js] }
+    expected:
+      - Each state has its own chip, sentence and one next step, taken from the status the Manage strategy page computes.
+      - Parked, mostly parked and partly parked follow the plan's fallback share and name the strategy's own rule; no plan means no chip.
+      - Today says what was sent and by whom, what filled and what is still open; the value is a change and two parts that add up, and Unknown stays Unknown.
+      - A paper card says it is simulated and that its value counts prices only, without interest or dividends.
+      - Every part names a source and a time, a hostile label is escaped, a card has one button and no control that can change money, and no sentence gives advice.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Discard the per-case in-memory records and ledgers. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: today-home-browser
+    name: The first screen on desktop and phone
+    purpose: Drive the shipped page, scripts and route handlers in Chromium on a fixture host with invented accounts; no broker, kernel or real account.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-today-home-browser.test.js] }
+    expected:
+      - Opening the screen asks for saved records and the job list, starts no /portfolio or /summary read, and sends no POST, PATCH or DELETE and no statement but SELECT.
+      - Each card shows the plan, today and value with a source and a time, one button of at least 44 px, and no control that can change an order, a strategy, an approval or a job; at 412 px nothing scrolls sideways.
+      - Each button opens Manage strategy at the place it names, and the links open Account details or the paper account; none sends a mutation.
+      - The former landing opens from one closed section and is whole; the broker is read for it only then. A failed saved-record read is said in one line above the former landing.
+      - The screen paints while the roster read is still waiting; other screens wait for it; a later render reads the roster again and a roster that cannot be read is said.
+      - With an armed paper account and its job off, the only mutation is the page's existing keeper activating the person's own paper job.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 180000 }
+    installation: never
+  - id: paper-strategy-valuation
+    name: Fresh paper marks preserve strategy decisions and risk anchors
+    purpose: Exercise real paper strategy, atomic store and screen modules against synthetic market data and an in-memory SQL transaction
+      fixture; no broker, real account or network.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/paper-strategy-valuation.test.js
+    expected:
+    - Already-checked and unchanged-decision passes mark fresh held-share values with no fills, signal/rebalance or cash/basis/peak/high-water
+      changes.
+    - Missing, stale, future and nonfinite quotes preserve last-known values and report failure; recovery is truthful.
+    - Committed daily state survives more than twenty valuations; window, version and disarm fences stay atomic and ordinary execution
+      remains unchanged.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Discard per-case in-memory account, assignment, quote and SQL fixtures.
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: paper-realized-fees
+    name: Posted purchase costs appear exactly once in realized net
+    purpose: Exercise real paper strategy, atomic store and screen modules against synthetic market data and an in-memory SQL transaction
+      fixture; no broker, real account or network.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/paper-realized-fees.test.js
+    expected:
+    - Actual costed daily plan, atomic ledger/account and realized screen agree on posted entry fees.
+    - Net includes buys and sells; trade counts, win/loss rates and averages remain closing-fill metrics within the existing windows.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Discard per-case in-memory account, assignment, quote and SQL fixtures.
+    limits:
+      timeoutMs: 30000
     installation: never

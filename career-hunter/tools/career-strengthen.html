@@ -10,6 +10,7 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
   5 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed Improve it (was Strengthen), the name it has under Résumé in the bar; its empty state says My jobs. Guard: tests/career-page-names.test.mjs.
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there), so the title and the heading carry the whole name. Career's own bar still says Improve it under Résumé.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Name the existing saved-job Check my fit action as the next step that produces résumé gaps.
 -->
 
 <!--
@@ -194,8 +195,8 @@ let gapView='open';
 async function emptyGaps(){
   let hasResume=true;
   try{const r=await fetch('/api/career-hunter/resume/state',{cache:'no-store'});if(r.ok)hasResume=Boolean((await r.json()).hasResume);}catch(_){}
-  const [tool,href,label]=hasResume?['career-board','/api/career-hunter/board-native','Score jobs in My jobs']:['career-resume-studio','/api/career-hunter/resume-studio','Upload your résumé'];
-  listEl.innerHTML=`<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">✨</div><h2>No gaps to work on yet</h2><p>Gaps come from jobs scored against your résumé.</p><a class="ck-primary" id="gapNext" data-career-tool="${tool}" href="${href}">${label}</a></div>`;
+  const [tool,href,label]=hasResume?['career-board','/api/career-hunter/board-native','Check my fit in My jobs']:['career-resume-studio','/api/career-hunter/resume-studio','Upload your résumé'];
+  listEl.innerHTML=`<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">✨</div><h2>No gaps to work on yet</h2><p>Gaps come from jobs scored against your résumé.${hasResume?' Open a saved job and choose Check my fit.':''}</p><a class="ck-primary" id="gapNext" data-career-tool="${tool}" href="${href}">${label}</a></div>`;
   $('gapNext').onclick=e=>{if(window.parent===window)return;e.preventDefault();CareerJobActions.navigate(tool,href);};
 }
 async function load(){

@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the main résumé name and accents in the actual role question, retaining exact Python parity and original role/bullet evidence.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the story review's state (GET /stories) straight from the caller's career_db.json with the same projection as engine/jobhunter/stories.py state(), so the read starts no Python child. The native kernel's package sandbox exports no .py source, so `python3 -m jobhunter stories list` could not import the engine there and the Stories screen answered 502; the read never needed the engine's lease, credential brokerage or model rail.
  */
 'use strict';
@@ -71,7 +72,7 @@ function questionFor(roleState) {
   const bullets = roleState.bullets || [];
   if (bullets.length) {
     const lead = bullets[0].trim().replace(/\.+$/, '');
-    return `At ${label} your resume says: "${lead}". Walk me through one time you actually did `
+    return `At ${label} your main résumé says: "${lead}". Walk me through one time you actually did `
       + 'that — what the situation was, what you personally decided or built, and how it '
       + 'turned out. Numbers if you have them.';
   }

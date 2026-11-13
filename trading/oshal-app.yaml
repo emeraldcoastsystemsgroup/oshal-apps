@@ -1,3 +1,6 @@
+# CHANGE LOG: 55 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the Accounts screen answers from saved records whether each account is running or parked and in what, what it did today and why its value moved, with a source and a time on each part (GET /paper/today inside the existing paper routes). Version only here: no route declaration, tool, schedule, migration, grant or orderAuthority change.
+# CHANGE LOG: 54 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0: lead account management with a dated outcome, one local review step and directly available Deactivate while preserving all execution authority and controls.
+# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: Dated execution evidence and target versus holding comparison, distinct live approval/schedule controls and truthful paper status. No order or performance calculation change.
 # CHANGE LOG: 53 | maintainer@emeraldcoastsystemsgroup.com | 1.54.1: the Trades page's start-up runs to the end again, and the page is titled Intelligent Trades. 1.54.0 registered its document session without naming the application; the kernel helper refuses that, and because the call came first, the research hand-off was never received, Go under "Continue your research" did nothing and the connected actions were never mounted (a page error on every open). tools/ui/connected-actions.js now names the application; tests/native-handoff-registration.test.js runs the page's script against the kernel's own helper when a kernel checkout is named and against its exact refusal otherwise. tools/trading.html's title read "Trading"; it is the display name (tests/native-page-title.test.js).
 # CHANGE LOG: 52 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: conform Intelligent Trades to the Create concierge pattern (create/oshal-app.yaml, video/oshal-app.yaml): add dedicated front-desk inline chatBot trading-concierge (personas/trading-concierge.yaml, claude-code, plain prose, ```tool_call fence, tool-first Schwab and watchlist checks, back-office hand-off to trading-analyst), add screen-mirroring watchlist tools (trading_watchlist, trading_watchlist_add, trading_watchlist_remove), and mount registerDocumentSession in tools/ui/connected-actions.js. orderAuthority untouched.
 # CHANGE LOG: 51 | maintainer@emeraldcoastsystemsgroup.com | 1.53.9: a saved-record read that meets another writer's commit mid-scan is read again (twice at most). Production 2026-11-09 15:20Z and 17:20Z: the paper autopilot's strategy lookup failed with "conflict: scoped collection revision changed" while the person's portfolio watcher saved its watch record in the same minute. Reads only; no order path, route, tool or authorization changes.
@@ -150,7 +153,7 @@ description: >-
   against the S&P 500; research stocks; and test strategies in a separate paper book,
   with a decision trail from signals to orders. Trading actions follow the connected
   account's supported controls. Cash equities. No crypto.
-version: 1.54.1
+version: 1.57.0
 lastingStorage: true
 status: active
 

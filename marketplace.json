@@ -269,7 +269,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Your household money in one place: link your banks and brokerages via Plaid to see balances, net worth and spending, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.5.0",
+      "version": "1.6.3",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -530,7 +530,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Edit your main résumé as a Word document on the My résumé page, with AI Office's Concierge beside it. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.57.2",
+      "version": "1.60.9",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -711,7 +711,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Control your smart home by chat. Connect a hub at /utilities (SmartThings or Google Nest); the home-bot reads your real devices + scenes via your connector token, inspects SmartThings appliances and Samsung Family Hub refrigerators (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer temperatures, door sensors and live component capabilities), keeps your own grocery list, logged orders and meals beside the refrigerator's weekly check (what is inside the refrigerator is not read yet), keeps a persistent Smart Home Operations Guide & Runbook, and turns \"turn off the living room lights\" into the right commands. Destructive actions (locks, garage, thermostat) are confirmed first. It also gives the weather forecast for any US city, address or ZIP code from the National Weather Service (weather.gov): today, tonight and the coming days. It finds the TVs and streaming sticks on your home network through your own computer (Samsung, Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -1541,7 +1541,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Your stock portfolio and trading desk. Connect your brokerage account (Charles Schwab) to see its positions, day change and how it performed over a week, a month or a year against the S&P 500; research stocks; and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.54.1",
+      "version": "1.57.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1872,7 +1872,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, three member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.1.12",
+      "version": "1.1.13",
       "theme": "daylight",
       "dependencies": {
         "apps": [
@@ -2319,7 +2319,7 @@
       "suite": "ai-knowledge",
       "displayName": "Print Ingest",
       "description": "An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it. It cannot print to a home or office printer.",
-      "version": "0.3.9",
+      "version": "0.4.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3609,7 +3609,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.0",
+      "version": "1.9.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3894,7 +3894,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.12.1",
+      "version": "1.18.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],

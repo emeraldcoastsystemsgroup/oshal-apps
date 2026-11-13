@@ -18,6 +18,8 @@
   sort / page.
 
   CHANGE LOG
+  56 | maintainer@emeraldcoastsystemsgroup.com | G7 adds honest deterministic title-first ordering, preserving chosen sorts and disclosing bounded fallback samples.
+  55 | maintainer@emeraldcoastsystemsgroup.com | G17: default fresh phone searches to20 results, retain chosen sizes, show returned ranges and actual card counts, and keep secondary actions in one44px More menu.
   54 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the saved-search panel says the searches are kept on your account, on every device you sign in on (it still said "in this browser" after 1.56.0 moved them to the account); signed out, it says to sign in to keep searches on your account.
   53 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6 (Roger: Career search remembers criteria on the account, across devices). The last search and the named searches were kept only in this browser, so another browser or a phone started empty. The page now reads the account's copy before its first search (GET /api/career-hunter/search-memory) and changes it one operation at a time (POST): a search that worked, Save, Delete. This browser's searches from before 1.56.0 go to an account that holds none. When the account cannot be reached the page keeps working in this browser, as before.
   52 | maintainer@emeraldcoastsystemsgroup.com | On a phone the search row had two filled buttons, Search and Filters, because the theme fills every button in that row. Filters is outlined, so the one filled button is Search.
@@ -47,6 +49,7 @@
   8 | maintainer@emeraldcoastsystemsgroup.com | Offer remembered 25/50/100/200-result pages and reset paging when the size changes.
   10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): on a phone the first job card sat about 1,700px down under always-open fields, and "Search jobs" was written four times above the work. The eyebrow, title and field heading are gone (the shell names the screen) and the button reads Search; on a phone there is one search field and a Filters button whose full sheet holds the rail (near a city, radius, pay, arrangement, posted) and the Advanced title, description and company fields, with Done and Clear all, so results start under the search row. Job Board · All openings · Recommended is one 44px segmented control. Phones open on the list with a Map toggle; desktop puts the list (480px) beside the map. The pay and state method notes are (i) help tips. Clear all, the Any/Remote/On-site pills and the unlisted-pay checkbox are 44px targets. Guard: tests/career-search-layout.test.mjs.
   52 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled Find jobs (was Search Jobs), and its links and lines say My jobs where they said Job Board. Guard: tests/career-page-names.test.mjs.
+  57 | maintainer@emeraldcoastsystemsgroup.com | Acknowledged Save keeps the job without starting scoring or a score poll; explicit fit and preparation remain in My jobs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="search-ui" data-ds-category="collection" data-ds-first-action="type"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -153,6 +156,10 @@ details.adv[open] summary::before{content:"\25BE  "}
 .meta .pay{color:var(--good);font-weight:650}
 .tag{border:1px solid var(--line);border-radius:20px;padding:1px 9px;font-size:12px}
 .acts{margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap}
+.job-more-menu{margin:0;padding:6px;width:240px;max-width:calc(100vw - 24px);box-sizing:border-box}
+.job-more-menu:popover-open{display:grid;gap:4px}
+.job-more-menu button{min-height:44px;text-align:left;justify-content:flex-start}
+.job-more-trigger{min-width:44px;gap:6px}
 .btn{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;
      min-height:44px;padding:8px 14px;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;cursor:pointer}
 .btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -383,16 +390,18 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44
         <button type="button" class="btn" id="savedSearchOpen" popovertarget="savedSearchPopup">Saved searches</button>
         <div class="view-options" id="viewOptions">
         <label class="sortwrap" for="per">Results per page
-          <select id="per" name="per"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select>
+          <select id="per" name="per"><option value="20">20</option><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select>
         </label>
         <label class="sortwrap">Sort by
-          <select id="sort" name="sort">
+          <select id="sort" name="sort" aria-describedby="sortHelp">
+            <option value="relevant">Most relevant</option>
             <option value="recent">Newest first</option>
             <option value="posted">Recently posted</option>
             <option value="salary">Highest salary</option>
             <option value="title">Job title A&ndash;Z</option>
           </select>
         </label>
+        <p id="sortHelp" class="location-note" style="max-width:28rem;margin:0">Most relevant puts titles containing every searched keyword first, then newest. Without keywords, newest first.</p>
         </div>
       </div>
       <div class="chips" id="chips"></div>
@@ -447,8 +456,9 @@ const FILTERS = [
 ];
 const FIELDS = FILTERS.map(([id]) => id).concat(['sort', 'per']);
 const ADVANCED = ['title', 'description', 'company'];
-const PAGE_SIZES = [25, 50, 100, 200];
-function pageSize(value){ const n=Number(value); return Number.isInteger(n)&&n>=1&&n<=200?n:50; }
+const PAGE_SIZES = [20, 25, 50, 100, 200];
+function defaultPageSize(){ return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 820px)').matches ? 20 : 50; }
+function pageSize(value){ const n=Number(value); return Number.isInteger(n)&&n>=1&&n<=200?n:defaultPageSize(); }
 let page = 1;
 let requestController = null, mapLoading = false, mapFailed = false, mapData = null;
 let searchEpoch = 0, viewMode = 'list', memory = null, accountMemory = null, lastSuccessful = null;
@@ -550,7 +560,7 @@ function fill(c){
   $('per').value = String(per);
   $('include_unknown_pay').checked = c.include_unknown_pay === '1';
   $('pay_period').value = c.pay_period || 'year';
-  if (!$('sort').value) $('sort').value = 'recent';
+  if (!$('sort').value) $('sort').value = 'relevant';
   setRemote(c.remote || '');
   showMap(c.view);
   // Advanced opens when it holds something, so a filter is never hidden from the person
@@ -618,6 +628,28 @@ function saveButton(j){
   if (savingJobs.has(j.id)) return '<button class="btn primary" data-save-job="'+esc(j.id)+'" disabled aria-busy="true">Saving…</button>';
   return '<button class="btn primary" data-save-job="'+esc(j.id)+'">Save</button>';
 }
+/** The existing feedback and employer filter stay secondary, behind one accessible control. */
+function moreActions(job){
+  const id='job-more-'+String(job.id), title=esc(job.title||'this job');
+  return '<button type="button" class="btn job-more-trigger" data-job-more="'+esc(id)+'" popovertarget="'+esc(id)+'" aria-haspopup="dialog" aria-label="More for '+title+'">⋯ More</button>'
+    + '<div class="ck-menu job-more-menu" id="'+esc(id)+'" popover role="dialog" aria-label="More actions for '+title+'">'
+    + '<button type="button" class="btn" data-job-feedback="'+esc(job.id)+'">Not interested</button>'
+    + '<button type="button" class="btn" data-company="'+esc(job.company||'')+'">More at this company</button></div>';
+}
+
+/** Open once, position within the viewport, and let native Escape/outside dismissal restore focus. */
+function openJobMenu(trigger){
+  const menu=$(trigger.dataset.jobMore);
+  if(!menu)return;
+  if(menu.matches(':popover-open')){menu.hidePopover();return;}
+  menu.showPopover({source:trigger});
+  const button=trigger.getBoundingClientRect(), box=menu.getBoundingClientRect();
+  const top=button.bottom+6+box.height<=innerHeight-8?button.bottom+6:button.top-box.height-6;
+  menu.style.top=Math.max(8,top)+'px';
+  menu.style.left=Math.max(8,Math.min(button.left,innerWidth-box.width-8))+'px';
+  menu.querySelector('button')?.focus();
+}
+
 function jobCard(j){
   const pay = salary(j);
   const bits = [
@@ -635,12 +667,15 @@ function jobCard(j){
     + '<div class="acts">'
     + saveButton(j)
     + (j.url ? '<a class="btn" href="' + esc(j.url) + '" target="_blank" rel="noopener">Employer posting ↗</a>' : '')
-    + '<button class="btn" data-job-feedback="'+esc(j.id)+'">Not interested</button>'
-    + '<button class="btn" data-company="' + esc(j.company || '') + '">More at this company</button>'
+    + moreActions(j)
     + '</div></div>';
 }
 
 listEl.addEventListener('click', e => {
+  const more=e.target.closest && e.target.closest('[data-job-more]');
+  if(more){e.preventDefault();openJobMenu(more);return;}
+  const secondary=e.target.closest && e.target.closest('[data-job-feedback],[data-company]');
+  secondary?.closest('[popover]')?.hidePopover();
   const read=e.target.closest && e.target.closest('[data-read-job]');if(read){void readPosting(Number(read.dataset.readJob));return;}
   const save=e.target.closest && e.target.closest('[data-save-job]');
   if(save){ addToBoard(Number(save.dataset.saveJob),save); return; }
@@ -669,34 +704,35 @@ async function addToBoard(id,button){
   button.setAttribute('aria-busy','true');
   button.textContent='Saving…';
   try{
-    const result=await window.CareerJobActions.save(id);
+    await window.CareerJobActions.save(id);
     button.textContent='Saved';
     button.removeAttribute('aria-busy');
     const area=button.parentElement;
     const link=document.createElement('a');link.dataset.careerTool='career-board';link.className='btn';link.href='/api/career-hunter/board-native?status=saved&days=';link.textContent='Open My jobs';area.appendChild(link);
     const status=document.createElement('span');status.className='location-note';area.appendChild(status);
-    if(result.error){status.textContent='Saved. Scoring could not start: '+result.error;return;}
-    status.textContent='Scoring against your résumé…';
-    window.CareerJobActions.poll(id,result.requestId,job=>{
-      status.textContent=!job?'Saved. Check your board for scoring progress.':job.board.phase==='failed'?'Saved. Scoring needs attention: '+window.CareerJobActions.message(job.board.error):'Fit: '+job.ai_fit_score+' · Choose Prepare application in My jobs when you want documents.';
-    });
+    status.textContent='Saved to My jobs. Open it when you want to check your fit or prepare an application.';
   }catch(error){button.disabled=false;button.removeAttribute('aria-busy');button.textContent='Try saving again';searchStatus(error.message);}
   finally{savingJobs.delete(id);}
 }
 
-function renderCount(data){
-  const n = data.jobs.length;
-  const notes = [];
-  if (data.deep) notes.push('descriptions searched');
-  if (data.capped) notes.push('narrow the filters to page further');
-  countEl.innerHTML = (n ? '<b>' + n + '</b> job' + (n === 1 ? '' : 's') + (page > 1 ? ' · page ' + page : '') : '')
-    + (notes.length ? ' <span class="note">· ' + esc(notes.join(' · ')) + '</span>' : '');
+function renderCount(data, shown = data.jobs.length){
+  const n=data.jobs.length, size=Number(data.per), current=Number(data.page);
+  const per=Number.isInteger(size)&&size>0?size:pageSize($('per').value);
+  const number=Number.isInteger(current)&&current>0?current:page;
+  const start=(number-1)*per+1, end=start+n-1;
+  const range=start+'–'+end;
+  const text=!n?'No jobs on this page':shown===n?'Showing '+range:'Showing '+shown+' jobs · results '+range;
+  const notes=[];
+  if(data.pooled)notes.push('limited search sample; older description matches may be omitted');
+  if(data.deep)notes.push('descriptions searched');
+  if(data.capped)notes.push('narrow the filters to page further');
+  countEl.innerHTML='<b>'+esc(text)+'</b>'+(notes.length?' <span class="note">· '+esc(notes.join(' · '))+'</span>':'');
 }
 
 function renderPager(data){
   const more = !data.exhausted && !data.capped;
   const endNote = data.exhausted
-    ? '<span class="note">End of results for these filters. Broaden the search to find more.</span>' : '';
+    ? '<span class="note">'+(data.pooled?'End of this limited search sample. More jobs may match; narrow the search to explore further.':'End of results for these filters. Broaden the search to find more.')+'</span>' : '';
   if (page === 1 && !more){ pagerEl.innerHTML = endNote; return; }
   pagerEl.innerHTML =
     (page > 1 ? '<button class="btn" id="prev">← Previous</button>' : '')
@@ -728,15 +764,15 @@ async function search(firstResult=false){
     if (epoch !== searchEpoch) return;
     if (data.error || response.ok === false) throw new Error(data.message || data.detail || data.error || 'Search could not complete.');
     if (data.empty){
-      listEl.innerHTML = '<div class="empty">No jobs have been collected yet.</div>';
+      listEl.innerHTML = '<div class="empty">No jobs have been collected yet.</div>'; countEl.textContent='';
       mapData = null; if (browser) window.CareerSearchMap?.clear(); searchStatus('');
       return;
     }
     const jobs = CareerFeedback.unique(data.jobs || []);
-    CareerFeedback.configure(jobs,data.exclusions||[],(rules,removed)=>{if(removed){refilter();return;}const visible=new Set(CareerFeedback.visible(jobs,rules).map(j=>String(j.id)));for(const el of listEl.querySelectorAll('.job'))if(!visible.has(el.id.replace('job-','')))el.remove();searchStatus('Preference saved. Hidden jobs will stay out of future searches.');});
+    CareerFeedback.configure(jobs,data.exclusions||[],(rules,removed)=>{if(removed){refilter();return;}const visible=new Set(CareerFeedback.visible(jobs,rules).map(j=>String(j.id)));for(const el of listEl.querySelectorAll('.job'))if(!visible.has(el.id.replace('job-','')))el.remove();renderCount(data,visible.size);searchStatus('Preference saved. Hidden jobs will stay out of future searches.');});
     listEl.innerHTML = jobs.length ? jobs.map(jobCard).join('')
       : '<div class="empty">Nothing matched.<br/>Try different keywords in the search box above, or remove a filter.</div>';
-    renderCount(data); renderPager(data);if(firstResult)window.scrollTo({left:0,top:0,behavior:'instant'});
+    renderCount(data,jobs.length); renderPager(data);if(firstResult)window.scrollTo({left:0,top:0,behavior:'instant'});
     if (data.location) note('locationStatus', data.location.label + ' · ' + data.location.radius_miles + ' mile radius. Distances use approximate city/base coordinates, not driving routes.');
     else note('locationStatus', 'Enter a city and state or ZIP, or choose Use my location to narrow the search.');
     mapData = data; paintMap();

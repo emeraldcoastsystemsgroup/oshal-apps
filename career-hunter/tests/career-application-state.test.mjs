@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the same owner-store test boundary from the new preparation library and retain all manual-ledger assertions.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -70,7 +71,7 @@ Module._load = function loadWithApplicationStubs(request, ...rest) {
   if (request === './career-engine-runner') {
     return { tryAcquireRun: () => ({ status: 'ok', token: 'lease' }), releaseRun() {} };
   }
-  if (request === './career-user-store') {
+  if (request === './career-user-store' || request === '../routes/career-user-store') {
     return {
       callerSub: (req) => req.userSub,
       careerTenant: () => 'default',
@@ -252,7 +253,7 @@ test('board Mark applied records manual_mark and preserves stronger provenance a
   userDbOverride = {
     prepare: (sql) => sql.includes('SELECT p.id')
       ? { get: () => ({ id: 42, title: 'Engineer', location: 'Remote', company: 'Acme' }) }
-      : sql.includes('SELECT status,resume_path')
+      : sql.includes('SELECT s.status,s.resume_path')
         ? { get: () => ({ status: 'generated', resume_path: null, cover_path: null }) }
         : sql.includes('SELECT 1 AS found')
           ? { get: () => ({ found: 1 }) }

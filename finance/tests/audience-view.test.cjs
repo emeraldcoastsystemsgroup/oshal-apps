@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard incomplete and unknown transaction coverage through actual saved readers, analysis or rendered views without changing independent balances.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -54,4 +55,31 @@ test('the head block parses and reads only this package\x27s own routes', () => 
   assert.ok(reads.length >= 1, 'the block reads through fetch');
   for (const r of reads) assert.ok(ALLOWED_PREFIXES.some(p => r === p || r.startsWith(p + '/')), 'read stays on an allowed prefix: ' + r);
   assert.doesNotMatch(block, /innerHTML\s*=/, 'the block builds no HTML from data');
+});
+
+
+/** Execute the actual audience view callbacks; only their transport and presentation kit are doubled. */
+async function audienceModel(audience, aggregate) {
+  const vm = require('node:vm'); let boot;
+  const kit = { boot(value) { boot = value; }, money: value => value == null ? 'Unknown' : String(value),
+    when: () => 'saved date', date: value => value, num: value => String(value) };
+  const context = { window: { AppView: kit, location: {} }, fetch: async url => ({ ok: true,
+    json: async () => url.endsWith('/status') ? { connected: 1, institutions: ['Example'] }
+      : url.endsWith('/payments') ? { payments: [] } : { aggregate, syncedAt: '2026-10-01T00:00:00Z' } }) };
+  vm.runInNewContext(block, context);
+  return boot.audiences[audience]({ refresh() {} });
+}
+
+for (const audience of AUDIENCES) test(`${audience} audience withholds clipped spending and explains unknown coverage`, async () => {
+  const model = await audienceModel(audience, { currency: 'USD', netWorth: { net: 100, assets: 100, liabilities: 0 },
+    accounts: [], holdings: [], transactionsComplete: false, transactionCoverage: { state: 'partial', returned: 2000, total: 2501, institutions: [{ institution: 'Example', state: 'partial', returned: 2000, total: 2501, pages: 4, reason: 'page_limit' }] },
+    topSpending: [{ category: 'Clipped', total: 25000 }], spendByMonth: [{ month: '2026-10', spend: 25000, income: 30000 }] });
+  assert.equal(model.stats.find(s => s.id === 'spend').value, 'Unknown');
+  if (audience === 'company') assert.equal(model.stats.find(s => s.id === 'income').value, 'Unknown');
+  assert.doesNotMatch(JSON.stringify(model), /25000|30000/);
+  const section = model.sections.find(s => s.id === (audience === 'family' ? 'spending' : 'months'));
+  assert.match(section.empty, /Transaction coverage is partial/);
+  assert.match(section.empty, /2,000 of 2,501/);
+  assert.match(section.empty, /unavailable/);
+  assert.equal(model.stats.find(s => s.id === 'net').value, '100');
 });

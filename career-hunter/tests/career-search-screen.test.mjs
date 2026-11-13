@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | G17 keeps page-size choices and describes page ranges, empty pages and duplicate-card counts without a search total.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit sort restoration while using title-first relevance only when no choice exists.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 10: the pay-source link reads "About this pay estimate" with the survey's occupation and month (was "BLS May 2025 · US national"), and Save replaces "Save to Job Board"; the expected card text and the fixture button follow.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add tests for the collapsible filter rail toggle with aria attributes and per-account storage key.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Verify the search page styles define scrollbar-color and ::-webkit-scrollbar-thumb using CSS variables so the thumb colour follows the theme.
@@ -115,6 +117,18 @@ test('the screen searches the corpus feed, not the resume-scored board', async (
   assert.ok(requests.length, 'the screen never issued a search');
   assert.ok(requests.every((u) => u.startsWith('/api/career-hunter/browse')),
     `Search Jobs called the scored board:\n${requests.join('\n')}`);
+});
+
+test('the unchosen sort is relevant and restored choices survive a keyword change',async()=>{
+  const {context,requests,el}=boot();await settle();
+  assert.equal(lastQuery(requests).get('sort'),'relevant');
+  for(const sort of ['recent','posted','salary','title','relevant']){
+    vm.runInContext(`fill({sort:${JSON.stringify(sort)},q:'director',per:'20'});`,context);
+    el('q').value='operations';
+    vm.runInContext('refilter()',context);await settle();
+    assert.equal(lastQuery(requests).get('sort'),sort);
+    assert.equal(lastQuery(requests).get('q'),'operations');
+  }
 });
 
 test('the primary keyword search is directly below the heading and outside the filter rail', () => {
@@ -365,7 +379,7 @@ test('selectable page sizes reach the API, reset paging, and preserve filters', 
   const {context, requests, el} = boot({jobs:Array.from({length:200},(_,id)=>({id,title:'Role'})),exhausted:false});
   await settle();
   el('q').value='engineer';
-  for (const size of [25,50,100,200]) {
+  for (const size of [20,25,50,100,200]) {
     el('per').value=String(size);
     await el('per').listeners.change[0](); await settle();
     assert.equal(lastQuery(requests).get('per'),String(size));
@@ -448,3 +462,15 @@ test('the collapsed flag is read from and written to the per-account localStorag
   assert.ok(html.includes('localStorage.setItem'), 'the toggle must persist the collapsed state to localStorage');
   assert.ok(html.includes('sessionStorage.setItem'), 'the toggle must persist the collapsed state to sessionStorage');
 });
+
+for (const [page, per, returned, shown, expected] of [
+  [1,20,20,20,'Showing 1–20'], [2,20,20,20,'Showing 21–40'], [3,20,3,3,'Showing 41–43'],
+  [2,5,5,5,'Showing 6–10'], [1,20,20,19,'Showing 19 jobs · results 1–20'], [1,20,0,0,'No jobs on this page'],
+]) {
+  test(`page range ${page}/${per}/${returned}/${shown} never claims a search total`, async () => {
+    const {context, el} = boot(); await settle();
+    context.fill({per:String(per)});
+    context.renderCount({jobs:Array.from({length:returned},(_,id)=>({id})),page,per}, shown);
+    assert.equal(el('count').innerHTML.replace(/<[^>]*>/g,''), expected);
+  });
+}

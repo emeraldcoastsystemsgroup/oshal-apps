@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The LinkedIn profile page in plain words (judge's report 2026-11-11, change 13). The shipped tools/career-profile-studio.html in Chromium over fixture answers: it is titled LinkedIn profile; its steps read 1. Write, 2. Check, 3. Update LinkedIn; Save, Approve and Update LinkedIn are its buttons; the help says where the changes are made and names no operator bot or desktop browser worker; the stored state reads in words at each step. When the server refuses to start the update (the 500 "dispatch failed" the native kernel answers) and the plan is still approved, a line that stays on the page says the update did not start. The requests are the ones the page always made.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Measure actual44px skill-removal targets with long-label wrapping, keyboard removal and unchanged plan-save payloads.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,6 +35,34 @@ function studio(state) {
 const draft = () => ({ id: 'plan-1', state: 'draft', headline: 'Office manager who keeps forty people on schedule', about: '', skills: ['Scheduling'], customUrl: '', updatedAt: '2026-11-10T12:00:00.000Z' });
 const stepNow = (page) => page.locator('#stepLine li[aria-current="step"]').innerText();
 const pill = (page) => page.locator('#state').textContent();
+
+for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
+  test(`${label}: skill-removal buttons are44px and a keyboard removal saves only the remaining skills`, async () => {
+    const longSkill='CrossFunctionalCoordination'.repeat(14);
+    const state={plan:{...draft(),skills:['Scheduling',longSkill]},dispatch:'refused'};
+    const {page,context,calls}=await openScreen(browser,'career-profile-studio.html',studio(state),size);
+    try{
+      const remove=page.getByRole('button',{name:'Remove Scheduling',exact:true});
+      await remove.waitFor();
+      const targets=await page.locator('#skills button').evaluateAll(es=>es.map(e=>({name:e.getAttribute('aria-label'),width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height})));
+      assert.equal(targets.length,2);
+      assert.ok(targets.every(t=>t.width>=44&&t.height>=44),JSON.stringify(targets));
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'long skills wrap within the screen');
+      await remove.focus();
+      assert.equal(await remove.evaluate(e=>document.activeElement===e),true);
+      const saved=page.waitForResponse(r=>r.url().endsWith('/profile-studio/plan')&&r.request().method()==='POST');
+      await remove.press('Enter');
+      await saved;
+      assert.equal(await remove.count(),0);
+      assert.deepEqual(state.plan.skills,[longSkill]);
+      const writes=calls.filter(c=>c.method==='POST');
+      assert.equal(writes.length,1);
+      assert.equal(writes[0].path,'/api/career-hunter/profile-studio/plan');
+      assert.deepEqual(writes[0].body.skills,[longSkill]);
+      assert.equal(writes[0].body.headline,draft().headline);
+    }finally{await context.close();}
+  });
+}
 
 for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
   test(`${label}: the page is titled LinkedIn profile and its steps, buttons and help are in plain words`, async () => {

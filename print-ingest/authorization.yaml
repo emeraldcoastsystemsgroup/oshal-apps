@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Explicit current named intake and scoped RAG grants; declaration assigns no roles.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): POST /api/print-ingest/printed/collect (taking the documents printed to the owner's computers into the inbox, awaiting approval) needs app.open and intake.write.
 version: 1
 resources:
   app:
@@ -181,6 +182,12 @@ bindings:
   - id: artifact
     method: POST
     path: /api/print-ingest/documents/import-artifact
+    allOf:
+    - app.open
+    - intake.write
+  - id: printed
+    method: POST
+    path: /api/print-ingest/printed/collect
     allOf:
     - app.open
     - intake.write

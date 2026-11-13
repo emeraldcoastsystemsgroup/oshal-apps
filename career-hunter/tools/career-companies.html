@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  10 | maintainer@emeraldcoastsystemsgroup.com | Answer the same owned native gate through current application authority rather than requiring broad platform administration.
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
@@ -11,6 +12,7 @@
   5 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back. "Add employer" opens a name and link form; each row has Remove, which asks once before it saves; a Removed chip lists removed employers with Put back. Each is saved for the next nightly pull and reported under Source changes. Removed employers are left out of every other chip and count. Needs attention no longer counts a board an administrator set by hand, or a read that has jobs but could not prove the end of its list. The reader's new causes (refused, sign-in, browser unavailable) are said in words. Guard: tests/browser/career-companies-add-remove-proof.mjs.
   6 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   7 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance in the Source health view, above the nightly review. "Needs you" lists each source Career could not connect, with what was tried, and Archive (the existing Remove) or Keep trying; a press is saved for the next nightly pull and the line says so. "For a developer" lists each open repair brief with Copy brief and Download. "New sources found" lists the employers connected to a job site last night and the suggestions, which take the existing Accept. Employer and board text is escaped. Guard: tests/browser/career-source-maintenance-page-proof.mjs.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Answer the same original-owner native decision ticket through explicit human confirmation and show queued/applied outcomes only after authoritative reconciliation.
   8 | maintainer@emeraldcoastsystemsgroup.com | "Suggested, not connected" lists every open suggestion the engine keeps, with the date it was found, in place of last night's only: a suggestion left the page after one night while the runbook does not return to an employer for weeks. A search that was stopped says it did not finish, and the count of employers reads right for one.
 -->
 
@@ -321,6 +323,7 @@ function changeWhat(change) {
   if (target === 'remove:employer') return 'Remove';
   if (target === 'restore:employer') return 'Put back';
   if (target === 'keep:employer') return 'Keep trying';
+  if (/^decision:[1-9][0-9]*:[^:]+:(archive|keep)$/.test(target)) return target.endsWith(':keep') ? 'Keep trying' : 'Archive';
   const added = addedParts(change);
   return added ? 'Add with ' + added.link : target;
 }
@@ -418,6 +421,7 @@ function day(value) {
 const REVIEW_WORDS = { nothing: 'nothing was found', blocked: 'the site refused the check', timeout: 'the check ran out of time', error: 'the check failed' };
 let BRIEFS = new Map();
 let BRIEF_LINKS = [];
+let DECISIONS = [], CURRENT_ACTIONS = [], DECISION_ERROR = null;
 
 /** What was tried for one source, in two short sentences. Employer and board text is escaped by whoever shows this. */
 function triedText(e) {
@@ -434,14 +438,24 @@ function triedText(e) {
   return [first, second];
 }
 
-/** Archive and Keep trying for one source, or what was already saved for it. */
+/** This exact current action's original-owner native binding; no company-name matching. */
+function boundDecision(action) {
+  return DECISIONS.find(item => item.actionId === action.id && item.companyId === action.companyId && item.openedAt === action.openedAt);
+}
+
 function decisionButtons(action) {
-  const saved = CHANGES.find(change => change && change.companyId === action.companyId && change.state === 'waiting'
-    && (change.target === 'remove:employer' || change.target === 'keep:employer'));
-  if (saved) return '<div class="sub saved">' + (saved.target === 'keep:employer' ? 'Keep trying' : 'Archive') + ' is saved for the next nightly pull.</div>';
   if (sourceChangeMode !== 'next-pull') return '';
-  return '<div class="rowactions"><button type="button" class="danger archive" data-company="' + esc(action.companyId) + '">Archive</button>'
-    + '<button type="button" class="quiet keep" data-company="' + esc(action.companyId) + '">Keep trying</button></div>';
+  const item = boundDecision(action), status = item?.state;
+  if (status === 'queued_next_pull') return '<div class="sub saved">Queued for the next nightly pull. '
+    + (item.outcome === 'keep' ? 'Keep trying' : 'Archive') + ' has not been applied yet.</div>';
+  if (status === 'applied') return '<div class="sub saved">The nightly pull applied '
+    + (item.outcome === 'keep' ? 'Keep trying.' : 'Archive.') + '</div>';
+  const ref = ' data-company="' + esc(action.companyId) + '" data-action="' + esc(action.id) + '" data-opened="' + esc(action.openedAt) + '"';
+  if (status && status !== 'awaiting_approval') return '<p class="sub">' + esc(item.error || 'The decision needs a status check. No source change is assumed.')
+    + '</p><div class="rowactions"><button type="button" class="quiet check-decision"' + ref + '>Check decision</button></div>';
+  return (item?.ticketId ? '<p class="sub">Your native decision ticket is waiting for your choice.</p>' : '')
+    + '<div class="rowactions"><button type="button" class="danger archive"' + ref + '>Archive</button>'
+    + '<button type="button" class="quiet keep"' + ref + '>Keep trying</button></div>';
 }
 
 function needsYouHtml(m) {
@@ -449,31 +463,71 @@ function needsYouHtml(m) {
   const head = '<h2 id="needsYouTitle">Needs you</h2>';
   if (!m.actions.length) return head + '<p class="sub">No source needs a decision.' + (day(m.report?.finishedAt) ? ' Maintenance last ran on ' + esc(day(m.report.finishedAt)) + '.' : '') + '</p>';
   const count = Number(m.actionCount || m.actions.length);
-  return head + '<p class="sub">Career could not connect ' + n(count) + (count === 1 ? ' source' : ' sources') + '. Archive closes the employer\'s open jobs and stops reading it, '
+  return head + (DECISION_ERROR ? '<p class="sub">' + esc(DECISION_ERROR) + '</p>' : '') + '<p class="sub">Career could not connect ' + n(count) + (count === 1 ? ' source' : ' sources') + '. Archive closes the employer\'s open jobs and stops reading it, '
     + 'the same as Remove, and Put back undoes it. Keep trying leaves it listed and does not ask again for ' + n(m.keepTryingDays) + ' days.'
     + (count > m.actions.length ? ' The ' + n(m.actions.length) + ' that have waited longest are shown.' : '') + '</p><ul>'
     + m.actions.map(action => { const [first, second] = triedText(action.evidence || {}); return '<li><strong>' + esc(action.company) + '</strong>'
       + '<div class="sub">' + esc(first) + '</div><div class="sub">' + esc(second) + '</div>' + decisionButtons(action) + '<div class="msg" hidden></div></li>'; }).join('') + '</ul>';
 }
 
-/** Save Archive (the existing Remove) or Keep trying for the next pull, and say so on the line. */
+async function decisionJson(url, options) {
+  const response = await fetch(url, options), body = await response.json();
+  return {response,body};
+}
+
+function decisionInput(action, ticketId) {
+  return {actionId:action.id,companyId:action.companyId,openedAt:action.openedAt,...(ticketId ? {ticketId} : {})};
+}
+
+async function checkSourceDecision(action, ticketId) {
+  const answer = await decisionJson('/api/career-hunter/companies-admin/decision-sync', {
+    method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(decisionInput(action,ticketId))});
+  if (answer.body.decision) {
+    DECISIONS = DECISIONS.filter(item => !(item.actionId === action.id && item.companyId === action.companyId && item.openedAt === action.openedAt));
+    DECISIONS.push(answer.body.decision);
+  }
+  return answer;
+}
+
+async function confirmSourceChoice(ticketId, choice) {
+  if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(ticketId)) throw new Error('The original decision ticket is unavailable.');
+  const path = '/tickets/' + ticketId + '/application/';
+  const issued = await decisionJson(path + 'confirmation',{method:'POST'});
+  if (!issued.response.ok || typeof issued.body.confirmation !== 'string') throw new Error('Human confirmation could not be obtained.');
+  return decisionJson(path + 'decision', {method:'POST',headers:{'content-type':'application/json','x-oshal-confirm':issued.body.confirmation},
+    body:JSON.stringify({outcome:choice === 'archive' ? 'approve' : 'cancel'})});
+}
+
+/** A choice confirms the exact native ticket once; sync reads its actual outcome before any source handoff. */
 async function decideSource(button) {
   const line = button.closest('li'), msg = line.querySelector('.msg');
-  const kind = button.classList.contains('keep') ? 'keep' : 'remove';
-  line.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  const action = CURRENT_ACTIONS.find(item => item.id === Number(button.dataset.action) && item.companyId === Number(button.dataset.company)
+    && item.openedAt === button.dataset.opened);
+  if (!action) { show(msg,'This source decision changed. Refresh Source health.','err'); return; }
+  const choice = button.classList.contains('archive') ? 'archive' : button.classList.contains('keep') ? 'keep' : 'check';
+  line.querySelectorAll('button').forEach(control => { control.disabled = true; });
+  let ticketId = boundDecision(action)?.ticketId, attempted = false;
   try {
-    const r = await fetch('/api/career-hunter/companies-admin/' + kind + '?companyId=' + encodeURIComponent(button.dataset.company), { method: 'POST' });
-    const d = await r.json();
-    if (d.ok && d.queued && d.request) {
-      CHANGES.unshift(d.request);
-      renderSourceChanges();
-      line.querySelector('.rowactions').outerHTML = '<div class="sub saved">' + esc(d.message || 'Saved for the next nightly pull.') + '</div>';
-      msg.hidden = true;
-      return;
+    let answer = await checkSourceDecision(action,ticketId);
+    ticketId = answer.body.decision?.ticketId;
+    if (!answer.response.ok) throw new Error(answer.body.error || 'The decision could not be checked.');
+    if (choice !== 'check' && answer.body.decision?.state === 'awaiting_approval') {
+      attempted = true;
+      await confirmSourceChoice(ticketId,choice);
+      answer = await checkSourceDecision(action,ticketId);
     }
-    show(msg, d.error || 'Could not be saved.', 'err');
-  } catch (e) { show(msg, 'Request failed: ' + e, 'err'); }
-  line.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    if (answer.body.queued === true || answer.body.applied === true || choice === 'check') { await load(); return; }
+    throw new Error(answer.body.error || 'Your choice was not confirmed. Check the decision before trying again.');
+  } catch (error) {
+    if (attempted && ticketId) {
+      try {
+        const checked = await checkSourceDecision(action,ticketId);
+        if (checked.body.queued === true || checked.body.applied === true) { await load(); return; }
+      } catch { /* The person can explicitly check again; no native choice is retried. */ }
+    }
+    show(msg,error.message || 'The decision outcome is unknown. Check its status.','err');
+  }
+  line.querySelectorAll('button').forEach(control => { control.disabled = false; });
 }
 
 function developerHtml(briefs) {
@@ -756,15 +810,22 @@ function toggleAddForm(open) {
 function show(el, t, cls) { el.textContent = t; el.className = 'msg ' + cls; el.hidden = false; }
 function esc(s) { return String(s).replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
 
+function readCompanyState(d) {
+  ALL = d.companies || [];
+  sourceChangeMode = d.sourceChangeMode === 'next-pull' ? 'next-pull' : 'now';
+  CHANGES = Array.isArray(d.sourceChanges) ? d.sourceChanges : [];
+  DECISIONS = Array.isArray(d.sourceDecisions) ? d.sourceDecisions : [];
+  CURRENT_ACTIONS = Array.isArray(d.sourceMaintenance?.actions) ? d.sourceMaintenance.actions : [];
+  DECISION_ERROR = d.sourceDecisionError || null;
+}
+
 async function load() {
   try {
     const r = await fetch('/api/career-hunter/companies-admin/list');
     if (r.status === 403) { document.body.innerHTML = '<div class="empty">Admin only.</div>'; return; }
     if (!r.ok) throw new Error('Source configuration could not be read (HTTP ' + r.status + ').');
     const d = await r.json();
-    ALL = d.companies || [];
-    sourceChangeMode = d.sourceChangeMode === 'next-pull' ? 'next-pull' : 'now';
-    CHANGES = Array.isArray(d.sourceChanges) ? d.sourceChanges : [];
+    readCompanyState(d);
     $('#addEmployer').hidden = sourceChangeMode !== 'next-pull';
     if (sourceChangeMode === 'next-pull') {
       $('#companiesIntro').textContent = 'Every company and its detected job board. Paste the real careers or jobs link and press Resolve. '
@@ -786,7 +847,7 @@ async function load() {
     try { renderSourceReview(d.sourceReview); }
     catch { renderSourceReview({ unreadable: true }); } // A bad report must not hide the company list.
     $('#needsYou').onclick = (event) => {
-      const button = event.target.closest('button.archive, button.keep');
+      const button = event.target.closest('button.archive, button.keep, button.check-decision');
       if (button) decideSource(button);
     };
     $('#forDeveloper').onclick = (event) => {

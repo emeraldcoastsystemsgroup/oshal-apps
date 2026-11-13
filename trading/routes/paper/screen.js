@@ -9,6 +9,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | statusFields reports the paper book's own limits as guardrails (max shares, max dollars per order) and its price source; Settings said "No guardrail config returned by /status" and "Paper data not configured", and the ticket showed "max —".
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | /performance keeps the portfolio series in time order: the current equity updates today's close-stamped snapshot instead of being appended with an earlier timestamp, which made the Reports chart throw "Value is null" on every period.
  *
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Include posted entry costs in realized net while trade, win and loss metrics count closing fills only.
+ *
  * @module paper/screen
  */
 'use strict';
@@ -204,7 +206,7 @@ async function journalOf(ctx, sub) {
 }
 
 /**
- * @description The /realized tally from the paper book's own closing fills.
+ * @description The /realized net from every posted fill; trade statistics count closing fills only.
  * @param {Array<object>} orders - Stored fills.
  * @param {Date} now - Instant.
  * @returns {object} {basis, today, last30d}.
@@ -212,17 +214,18 @@ async function journalOf(ctx, sub) {
 function realizedOf(orders, now) {
   const today = etParts(now).date;
   const since = now.getTime() - 30 * 86400000;
-  const closes = orders.filter((o) => o.side === 'sell' && o.realized_pl != null);
+  const posted = orders.filter((o) => o.realized_pl != null);
   const tally = (rows) => {
-    const wins = rows.filter((o) => o.realized_pl > 0); const losses = rows.filter((o) => o.realized_pl < 0);
+    const closes = rows.filter((o) => o.side === 'sell');
+    const wins = closes.filter((o) => o.realized_pl > 0); const losses = closes.filter((o) => o.realized_pl < 0);
     const mean = (xs) => (xs.length ? round2(xs.reduce((s, o) => s + o.realized_pl, 0) / xs.length) : 0);
-    return { trades: rows.length, wins: wins.length, losses: losses.length, net: round2(rows.reduce((s, o) => s + o.realized_pl, 0)),
+    return { trades: closes.length, wins: wins.length, losses: losses.length, net: round2(rows.reduce((s, o) => s + o.realized_pl, 0)),
       avg_win: mean(wins), avg_loss: mean(losses), biggest_win: wins.length ? Math.max(...wins.map((o) => o.realized_pl)) : 0,
       biggest_loss: losses.length ? Math.min(...losses.map((o) => o.realized_pl)) : 0, unpriced: 0,
       winRatePct: wins.length + losses.length ? Math.round((wins.length / (wins.length + losses.length)) * 100) : null };
   };
-  return { basis: 'engine', today: tally(closes.filter((o) => etParts(new Date(o.created_at)).date === today)),
-    last30d: tally(closes.filter((o) => Date.parse(o.created_at) >= since)) };
+  return { basis: 'engine', today: tally(posted.filter((o) => etParts(new Date(o.created_at)).date === today)),
+    last30d: tally(posted.filter((o) => Date.parse(o.created_at) >= since)) };
 }
 
 /** Epoch seconds of a New York session date's close; both lines are drawn on these instants. */

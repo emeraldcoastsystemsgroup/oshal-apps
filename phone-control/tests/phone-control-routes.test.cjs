@@ -23,6 +23,14 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): POST /devices/:id/play plans lan-control play_title (a show by its name in Prime Video) from the TV's computer with a minute to finish; a missing or overlong name, another app, control characters folded to spaces and a phone instead of a TV are said in words; the version pin follows the release.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): POST /devices/:id/apps plans lan-control tv_apps (which streaming apps the TV has) from the TV's computer, its command carrying exactly those arguments, for the TV by id or by name, and records the read against the TV; a phone is said in words, an unknown TV and another person's TV are 404; the bridge manifest names oshal_phone_apps.py and the version pin follows the release.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1: the bridge manifest is version 1.12.1.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0: the bridge manifest is version 1.13.0, and the What a TV can play plan names the TV's own computer and says to record the computer's answer with phone-control-tv-apps-record (the record route has phone-control-inventory.test.cjs).
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0: the bridge manifest is version 1.14.0 (who may use these routes is phone-control-own-devices.test.cjs).
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Expect the unchanged bridge protocol at package version1.15.0.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Single-command TV link/show plans pin the saved host for the kernel closed-plan runner; caller host overrides cannot redirect them.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Plan creation does not execute commands or write successful history; explicit computer outcomes remain owner-scoped.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata to follow package1.16.0 while retaining manifest bytes, compression, history and owner-isolation checks.
+ * 27 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata1.17.0 while preserving byte, compression, history and owner-isolation guards.
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.18.0, the release that adds the Fire TV phone-app guide; every byte, compression, history and owner-isolation guard is unchanged.
  */
 'use strict';
 
@@ -158,6 +166,69 @@ test('history records what was sent and what the computer answered, for its owne
   assert.equal(read.json.history[0].action, 'key home');
 });
 
+const PLANNERS = [
+  { route: 'execute', body: { prompt: 'move down one and select', mode: 'background' }, timeout: 45000, limit: 50000 },
+  { route: 'open-link', body: { url: 'https://www.netflix.com/title/80057281', app: 'netflix' }, timeout: 45000, limit: 50000 },
+  { route: 'play', body: { title: 'The Rings of Power', app: 'prime' }, timeout: 55000, limit: 60000 },
+  { route: 'apps', timeout: 45000, limit: 50000 }
+];
+
+/** Create a synthetic owned TV with no existing history. */
+async function receiptTv(name, address) {
+  const saved = await call('POST', '/devices', { body: { name, address, platform: 'android', form: 'tv', computerNodeId: NODE } });
+  assert.equal(saved.status, 201);
+  return saved.json.device;
+}
+
+for (const [index, planner] of PLANNERS.entries()) {
+  test(`${planner.route}: a prepared command explicitly says it has not executed`, async () => {
+    const tv = await receiptTv(`Receipt ${planner.route}`, `192.168.1.${71 + index}`);
+    const planned = await call('POST', `/devices/${tv.id}/${planner.route}`, { body: planner.body });
+    assert.equal(planned.status, 200);
+    assert.deepEqual([planned.json.ok, planned.json.planned, planned.json.executed, planned.json.status], [true, true, false, 'planned']);
+    assert.equal(planned.json.device.id, tv.id);
+    assert.equal(planned.json.computerNodeId, NODE);
+    assert.deepEqual(planned.json.computerRunRequest, {
+      endpoint: `/api/computers/${NODE}/run`, method: 'POST',
+      body: { tool: 'shell.exec', arguments: { command: planned.json.command, timeout_ms: planner.timeout }, limit_ms: planner.limit }
+    }, 'the caller must still send the unchanged command to the selected computer');
+    if (planner.route === 'execute') {
+      assert.equal(planned.json.mode, 'background', 'the requested mode is kept without claiming a scheduled run');
+      assert.deepEqual(planned.json.steps.map((step) => step.args.key), ['DOWN', 'OK']);
+      assert.equal(planned.json.command, planned.json.steps.map((step) => step.command).join(' && '));
+    } else {
+      const encoded = planned.json.command.split(' --b64 ')[1];
+      assert.deepEqual(JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')), planned.json.args);
+    }
+  });
+
+  test(`${planner.route}: planning creates no successful execution history`, async () => {
+    const tv = await receiptTv(`History ${planner.route}`, `192.168.1.${81 + index}`);
+    const earlier = { computerNodeId: NODE, phoneId: tv.id, action: 'key', summary: 'Earlier attempt', ok: false, exitCode: 3, error: 'The computer did not answer' };
+    assert.equal((await call('POST', '/history', { body: earlier })).status, 201);
+    const before = (await call('GET', `/devices/${tv.id}`)).json.history;
+    assert.equal((await call('POST', `/devices/${tv.id}/${planner.route}`, { body: planner.body })).status, 200);
+    assert.deepEqual((await call('GET', `/devices/${tv.id}`)).json.history, before, 'preparing commands cannot become Worked in the execution history');
+    assert.equal((await call('POST', `/devices/${tv.id}/${planner.route}`, { person: 'bob', body: planner.body })).status, 404);
+    assert.deepEqual((await call('GET', '/history', { person: 'bob', query: `?deviceId=${tv.id}` })).json.history, []);
+    assert.deepEqual((await call('GET', `/devices/${tv.id}`)).json.history, before, 'a refused foreign plan changes no history');
+  });
+}
+
+test('actual success and failure records survive planning and remain isolated', async () => {
+  const tv = await receiptTv('Recorded outcomes', '192.168.1.91');
+  for (const [ok, exitCode, error] of [[false, 7, 'The TV refused the action'], [true, 0, null]]) {
+    const recorded = await call('POST', '/history', { body: { computerNodeId: NODE, phoneId: tv.id, action: 'key', summary: 'OK', ok, exitCode, error } });
+    assert.equal(recorded.status, 201);
+    assert.deepEqual([recorded.json.event.ok, recorded.json.event.exitCode, recorded.json.event.error], [ok, exitCode, error]);
+  }
+  const before = (await call('GET', `/devices/${tv.id}`)).json.history;
+  assert.equal(before.length, 2);
+  await call('POST', `/devices/${tv.id}/execute`, { body: { action: 'key', key: 'OK' } });
+  assert.deepEqual((await call('GET', `/devices/${tv.id}`)).json.history, before, 'planning preserves both actual outcomes');
+  assert.equal((await call('POST', '/history', { person: 'bob', body: { computerNodeId: NODE, phoneId: tv.id, action: 'key', summary: 'OK', ok: true } })).status, 404);
+});
+
 test('a computer report keeps what the bridge said with the time it was read', async () => {
   const saved = await call('POST', `/computers/${NODE}/report`, { body: { report: { version: '1.1.0', adb: { ready: true } } } });
   assert.equal(saved.status, 200);
@@ -176,7 +247,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.12.1');
+  assert.equal(manifest.version, '1.18.0');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);
@@ -277,8 +348,10 @@ test('command-plan translates move, click, drag, type, key and screen into owner
   assert.deepEqual(JSON.parse(Buffer.from(tvApps.json.command.split(' --b64 ')[1], 'base64').toString('utf8')), tvApps.json.args, 'the command carries exactly the planned arguments');
   assert.equal(tvApps.json.computerRunRequest.endpoint, `/api/computers/${encodeURIComponent(NODE)}/run`);
   assert.equal(tvApps.json.computerRunRequest.body.arguments.command, tvApps.json.command);
+  assert.deepEqual(tvApps.json.computer, { id: NODE }, '1.13.0: the plan names the TV\'s own computer for computer.run_plan');
+  assert.match(tvApps.json.next, /phone-control-tv-apps-record/);
   assert.equal((await call('POST', '/devices/living-room-fire-tv/apps')).json.device.id, autoTv.json.device.id, 'the TV by its name');
-  assert.ok((await call('GET', `/devices/${autoTv.json.device.id}`)).json.history.some((event) => event.action === 'tv_apps'), 'the read is recorded against the TV');
+  assert.deepEqual((await call('GET', `/devices/${autoTv.json.device.id}`)).json.history, [], 'plans do not record a TV read or a successful action');
   const phoneApps = await call('POST', `/devices/${ios.id}/apps`);
   assert.deepEqual([phoneApps.status, phoneApps.json.error], [400, 'not_android_tv'], 'a phone is said in words');
   assert.match(phoneApps.json.message, /Android or Fire TV/);
@@ -400,4 +473,22 @@ test('an existing 1.0.0 store loses every row 1.0.0 made up, with its drawn fram
   const third = store.getDatabase(file);
   assert.equal(third.prepare("SELECT COUNT(*) AS c FROM schema_migrations WHERE migration_id LIKE 'phone-control-1.1.0-%'").get().c, 2);
   third.close();
+});
+
+test('TV link and show plans name exactly the saved host for the closed plan runner', async () => {
+  const tv = await receiptTv('Pinned plan TV', '192.168.1.96');
+  for (const [route, body] of [['open-link', {url:'https://www.netflix.com/watch/80000000',app:'netflix'}],
+    ['play', {title:'Example show',app:'prime'}]]) {
+    const response = await call('POST', `/devices/${tv.id}/${route}`, {body:{...body,computer:{id:'other-host'},computerNodeId:'other-host'}});
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.json.computer, {id:NODE});
+    assert.match(response.json.next, /computer.run_plan/);
+    assert.match(response.json.next, /planId/);
+    assert.match(response.json.command, /^python3 -I "\$HOME\/\.local\/share\/oshal-phone-bridge\/oshal_phone_bridge\.py" lan-control --b64 [A-Za-z0-9+/]+={0,2}$/);
+    assert.equal(response.json.executed, false);
+    assert.equal((await call('POST', `/devices/${tv.id}/${route}`, {person:'bob',body})).status, 404);
+  }
+  await call('POST', `/devices/${tv.id}`, {body:{controlEnabled:false}});
+  assert.equal((await call('POST', `/devices/${tv.id}/play`, {body:{title:'Example show'}})).status, 409);
+  assert.equal((await call('POST', `/devices/${tv.id}/open-link`, {body:{url:'https://www.netflix.com/watch/80000000'}})).status, 409);
 });

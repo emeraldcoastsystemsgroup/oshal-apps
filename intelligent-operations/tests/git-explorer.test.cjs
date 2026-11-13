@@ -1,3 +1,4 @@
+/* CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Opened on Git explorer, the screen loads once (experience.js waits for the boot refresh), so Load my repositories pressed as soon as it is offered is answered; the case counts the screen's connection reads. Before 1.9.1 a second load during start-up dropped such a press, and "a token GitHub rejects" and "the shipped explorer browses" waited 30 s for the answer (store gate, five times on 2026-11-10 and 2026-11-11). */
 /* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Prove Link by URL (RP-OPS-03): HTTPS GitHub URL parsing and SSRF/credential rejection, readable repository check via confirmed GitHub connection, honest 403/404/disconnected refusals, and promotion hand-off. */
 /* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): the not-connected Git explorer is one empty state with Open Connections & access, and the cluster links come first and open. */
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Hold the provider switch's last read while the person pastes a GitHub token for GitLab: the refusal must survive the load finishing late. */
@@ -99,6 +100,23 @@ test('a token GitHub rejects is named plainly and can be replaced in place',asyn
   await page.getByRole('button',{name:'Load my repositories',exact:true}).click();await page.getByText('GitHub rejected your saved token',{exact:false}).waitFor();assert.equal(await page.locator('#git-connect').isHidden(),false);
   await page.locator('#git-token').fill('github_pat_'+'z'.repeat(40));await page.getByRole('button',{name:'Replace my GitHub token',exact:true}).click();await page.getByText('Connected to GitHub as',{exact:false}).waitFor();assert.equal(connects.length,1);
   await page.getByRole('button',{name:'Load my repositories',exact:true}).click();await page.getByText('1 repositories you can reach',{exact:false}).waitFor();assert.deepEqual(errors,[]);
+ }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
+});
+test('opened on Git explorer, the screen loads once, so Load my repositories pressed as soon as it is offered is answered',async()=>{
+ // Before 1.9.1 the page loaded this screen twice while it started (once after its own topology read, again after the records refresh); the
+ // second load renumbered the screen's reads, so a press between the two was dropped and its answer never came (gate, five times).
+ const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
+ try{const pool=f.caller('alice'),app=express(),reads=[];app.use(express.json({limit:'1mb'}));
+  app.get('/connectors',(_req,res)=>{reads.push('connectors');res.json({connections:[{connector:'github',account:'primary',shared:false,status:'connected'}],httpServices:[{connector:'github',configured:true}]});});
+  app.post('/confirmations',(_req,res)=>res.json({confirmation:randomUUID()}));
+  app.post('/connectors/github/actions/:op',(_req,res)=>res.json({status:200,data:[{full_name:'acme/gitops',private:true,default_branch:'main'}],transport:'native_connector_http'}));
+  app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});app.use('/api/intelligent-operations',(req,res,next)=>{if(req.path==='/topology')return res.json({assets:[],relationships:[],asOf:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}});next();},loadExperience().createOperationsExperienceRoutes({pool,appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
+  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#git');await page.getByText('Load your repositories to browse them',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Load my repositories',exact:true}).click();await page.getByText('1 repositories you can reach',{exact:false}).waitFor();
+  await page.waitForLoadState('networkidle');
+  assert.equal(reads.length,1,'the screen read the connections once while the page started');
+  assert.match(await page.locator('#git-status').innerText(),/1 repositories you can reach/,'no later load put the prompt back over the answer');assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });
 test('a GitLab connection browses projects the same way: merge requests, pipelines and files through GitLab reads only',async()=>{

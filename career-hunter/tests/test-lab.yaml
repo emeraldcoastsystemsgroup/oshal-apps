@@ -1,3 +1,18 @@
+# 76 | maintainer@emeraldcoastsystemsgroup.com | Register owner résumé presence/heading tool replay and shared concierge at 412/1280 on native/cockpit fixtures.
+# 75 | maintainer@emeraldcoastsystemsgroup.com | Register synthetic owner-writer review/automatic preparation, background CLI, exact review and ready-only UI coverage.
+# 74 | maintainer@emeraldcoastsystemsgroup.com | Register nested Prepare/Open recovery over the recovered shell and shipped owner writer with synthetic isolated stores.
+# 72 | maintainer@emeraldcoastsystemsgroup.com | Register acknowledged Save-only behavior and explicit fit/preparation controls on actual pages.
+# 71 | maintainer@emeraldcoastsystemsgroup.com | Register exact busy-write feedback, draft retention and phone-card retry controls.
+# 70 | maintainer@emeraldcoastsystemsgroup.com | Register actual held-read loading, fresh-role, late resume and disposed-frame browser regressions.
+# 69 | maintainer@emeraldcoastsystemsgroup.com | Register same-ticket source decisions, durable uncertainty and conditional writer coverage.
+# 68 | maintainer@emeraldcoastsystemsgroup.com | Existing stage and story suites verify Getting ready, Interviewing and main résumé presentation while preserving stored keys.
+# 67 | maintainer@emeraldcoastsystemsgroup.com | Existing recruiter and résumé studio browser suites cover remaining44px phone targets and unchanged native interactions.
+# 66 | maintainer@emeraldcoastsystemsgroup.com | Register Career-owned account authorization, dated mailbox evidence and admitted optional Social navigation.
+# 65 | maintainer@emeraldcoastsystemsgroup.com | Register literal title-first keyword relevance, stable pagination, bounded fallback sampling and retained search choices.
+# 64 | maintainer@emeraldcoastsystemsgroup.com | Existing search suites verify phone20/desktop50 defaults, exact returned ranges, retained choices and44px More actions.
+# 63 | maintainer@emeraldcoastsystemsgroup.com | Register full original-owner seven-day progress, optional goals and their actual Home controls.
+# 62 | maintainer@emeraldcoastsystemsgroup.com | Register personal-match-consistency for the recovered experience and its actual data contracts.
+# 61 | maintainer@emeraldcoastsystemsgroup.com | Register recovered tracking and dated account evidence; refresh device overview expectations.
 # CHANGE LOG
 # 58 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6: local-search also runs career-search-memory-routes (Find jobs' searches kept on the account: two browsers of one person through the compiled route, another person isolated, refusals change nothing).
 # 59 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: register create-concierge (career-concierge is the front desk, career-hunter the worker).
@@ -68,8 +83,55 @@
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: run status expects Find & score jobs as one bounded background run; native read expects a saved resume with nothing matched to read as saved.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | Make career-published-db-portable's purpose a block scalar with its own text: the plain scalar made the whole catalog invalid YAML. catalog-parses guards the file.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | native-manual-score covers the Job Board's Find & score button.
+# 73 | maintainer@emeraldcoastsystemsgroup.com | Guard persistent owner-only pick dismissal and truthful retained application history through the actual existing board browser suite.
 version: 1
 cases:
+  - id: keyword-search-relevance
+    name: Most relevant orders keyword title matches first without implying résumé fit
+    purpose: Verify actual SQLite full-text and bounded fallback search, all filters before pagination, stable title tiers and retained explicit or saved sort choices in the shipped search page.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-search-relevance.test.mjs
+        - tests/career-native-search.test.mjs
+        - tests/career-search-screen.test.mjs
+    expected:
+      - Every primary keyword must occur in the title for the first tier, with first-seen date and id as stable ties; explicit recent, posted, salary and title orders remain available.
+      - Empty keyword searches use newest order, eligibility filters precede pages, and bounded fallback description sampling is disclosed without claiming a complete corpus search.
+      - A chosen saved or session sort is retained; only an absent choice defaults to Most relevant, and keyword relevance never claims an AI fit assessment.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+    sideEffects: synthetic SQLite and browser fixtures only
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+    installation: never
+  - id: career-accounts
+    name: Career Settings shows its actual authorization separately from successful mailbox evidence
+    purpose: Exercise the shipped Accounts section with admitted native connection metadata and synthetic dated monitor evidence, without external account actions.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-settings-accounts.test.mjs
+    expected:
+      - Gmail saved authorization never implies a mailbox read succeeded or selects an address; unavailable metadata stays explicit and text labels are safely rendered.
+      - Connect opens only the existing native authorization flow after a click; callback signals trigger a fresh persisted read, and no mail check, send or schedule runs automatically.
+      - LinkedIn profile sign-in stays distinct from OAuth and optional Social navigation requires an actual role-admitted frame entry; account controls remain44px at phone and desktop sizes.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+    sideEffects: synthetic browser fixtures only; no live OAuth, mailbox or credential actions
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+    installation: never
   - id: native-source-browser
     name: Anonymous native source browser
     purpose: Exercise the shipped browser reader against a disposable loopback employer and validate its Python adapter and database publication semantics.
@@ -2087,17 +2149,23 @@ cases:
       scope: package
       files:
         - tests/career-source-maintenance.test.mjs
+        - tests/career-source-decisions.test.mjs
+        - tests/career-source-requests.test.mjs
         - tests/career-source-maintenance-routes.test.mjs
         - tests/browser/career-source-maintenance-page-proof.mjs
     expected:
       - A source the review could not connect on three runs, with no successful pull for 14 days, becomes one open decision carrying what was tried; a person's choice, a multi source and a removed employer never do.
-      - Keep trying closes the decision and the source is not raised again for 60 days; Archive is the existing Remove and marks it archived; a source that reads again is withdrawn.
+      - Only a matching native application-decision receipt from the original owner queues Archive or Keep trying; a plain terminal status, stale proof or foreign administrator's global decision stays on hold. The writer rechecks exact action, employer and opening time under its lock, applies each UUID once and refuses changed or recovered decisions.
+      - Keep trying closes the decision for 60 days; Archive marks it archived after the next pull; queued and applied remain distinct, and a source that reads again is withdrawn.
       - Three employers partial on one reader for three pulls, or one with 500 stored jobs, become one repair brief that names the reader, its file, the employers and what done means, and a group that no longer qualifies is closed.
       - The runbook connects a job site reached from the employer's saved link or homepage only when it returns three jobs, is on the same site as the saved homepage or under the employer's name, and is held by no other employer; a careers link on someone else's site is never connected, and anything weaker is a suggestion kept until the employer has a board or is removed.
       - A refusal ends the work on that employer for 30 days, a private address is never read and a redirect into one is refused by the real connection guard against a real local server, a slow site costs one employer, the pass stops at its own limit, and neither a failure nor a part that asks to end the process stops the pull from finishing.
       - The list carries the report, the decisions and the briefs read without writes; Keep trying and the daily briefing admit only an administrator, and the briefing tells a decision or a brief once; the page saves each press for the next pull, copies and downloads a brief whole, keeps employer text inert and fits a phone.
+      - The same ticket survives lost creation, start or outcome acknowledgements; absent or ambiguous correlation holds without a duplicate. The page uses actual native confirmations, refuses generic decision bypasses and keeps phone targets reachable.
     prerequisites:
       - runner:node-test
+      - browser:chromium
+      - fixture:store-toolchain
       - runner:python
       - harness:career-python-contracts
     sideEffects: fixture-write
@@ -2138,12 +2206,14 @@ cases:
       scope: package
       files:
         - tests/career-job-lists-truth.test.mjs
+        - tests/career-unscored-fit.test.mjs
+        - tests/career-phone-match-actions.test.mjs
         - tests/career-approvals-stage.test.mjs
         - tests/career-mobile-screen.test.mjs
         - tests/career-matches-save-and-order.test.mjs
     expected:
       - With no résumé New matches asks for it with one button, lists no saved job and asks for no jobs.
-      - A saved job with no fit carries the link Add your résumé to see your fit, 44px tall on a phone.
+      - A saved job with no fit says Not scored yet and offers the existing single-job Check my fit action when a résumé is available, with visible progress, failure and retry.
       - While a first résumé is being read the stage says so, and with a résumé or no answer the page is as it was.
       - A job's newest reply from the inbox is one 44px line such as Interview reply and the day, shows no text from the message, and opens that job's application.
       - The saved list offers Unsave, New matches offers Save, and no star or shortlist is left.
@@ -2307,7 +2377,7 @@ cases:
         - tests/career-submission-activity.test.mjs
     expected:
       - To approve is not a stage. A job Career picked leads Saved, marked Career picked this for you, with the Prepare application button a saved job has, and a pick the person already prepared is not shown.
-      - Prepare application on a pick promotes the job and opens the one application page, and the route that wrote documents without guidance is never called. Remove declines a pick and says so.
+      - Prepare application on a pick promotes the job and opens the one application page, and the route that wrote documents without guidance is never called. Remove moves a pick to Removed, clears Saved, retains its application history, and keeps it removed after reload. A refused write keeps the pick and offers manual retry.
       - The view=approve address opens Saved on those jobs and says so when there are none, and the approvals address forwards there.
       - With the documents ready, Send is Open the employer's form as the one filled button, then Download résumé and cover letter, then I applied.
       - I applied records the application as the person's own word, through the application record's own route when the job has one, and the page reads Sent with You marked this as applied yourself.
@@ -2365,3 +2435,214 @@ cases:
       timeoutMs: 30000
     installation: never
 
+
+  - id: manual-application-tracking
+    name: Record interview, offer and closed outcomes by hand
+    purpose: Exercise the compiled owner-bound handler with disposable SQLite and actual shipped controls at phone and desktop sizes.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-manual-tracking.test.mjs, tests/career-manual-tracking-browser.test.mjs] }
+    expected:
+      - Interview instants require an explicit timezone, persist in UTC and render in the person's timezone.
+      - Offer and closed receipts preserve application evidence and another owner remains isolated.
+      - Refused saves retain input and never claim success; controls fit phone and desktop screens.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close fixture databases and browsers and remove temporary records. }
+    limits: { timeoutMs: 120000 }
+    installation: never
+  - id: personal-match-consistency
+    name: Personal match count and page consistency
+    purpose: Use actual disposable SQLite, compiled route handlers and shipped screens to distinguish actionable matches, Saved, applications and
+      dated score activity.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/career-new-matches.test.mjs
+      - tests/career-matches-route.test.mjs
+      - tests/career-consistent-counts.test.mjs
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Synthetic browser contexts close after every case; no real person, provider or device is contacted.
+    limits:
+      timeoutMs: 90000
+      maxMemoryMb: 1024
+    installation: never
+    expected:
+    - Count and pages use the same personal eligibility, saved exclusions, active matching lane, area and feedback filters; zero is a real score.
+    - Seven saved unscored jobs remain Saved and application history remains available; neither becomes a new match.
+    - Home, New matches and Review use the same actual counts, preserving unreadable states as unknown.
+
+  - id: application-progress-goal
+    name: Recorded applications and an optional personal goal
+    purpose: Exercise full original-owner past-seven-day counts, bounded owner goal storage and shipped Home controls without changing applications or contacting a provider.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-progress-route.test.mjs, tests/career-progress-browser.test.mjs] }
+    expected:
+      - The full application-date count remains independent of corpus, page, status and later stage; invalid or future dates do not count.
+      - Anonymous requests cannot create files; goals accept only an explicit integer from 1 to 100 or null for off and never cross owners.
+      - Corrupt, oversized, symbolic-link and FIFO goal files refuse safely; missing stores stay absent on reads.
+      - Home preserves unknown progress and refused input, supports an optional editable goal at phone and computer sizes, and only encourages recorded goal attainment.
+      - Progress and goal routes match exactly one career.read or career.change binding respectively; no action praise or application-sent claim is inferred.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close browsers and SQLite databases and remove only temporary fixture owner stores. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: career-loading
+    name: Career remains usable while independent reads are slow
+    purpose: Exercise actual shipped Home, frame and job-list pages with held synthetic GET responses and actual cockpit iframe lifecycle; no account or job action.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-loading-browser.test.mjs] }
+    expected:
+      - Fresh admitted navigation and core Home facts paint while optional name, counts or Portrait reads are held.
+      - Unknown resume status waits at most two seconds before the existing feed fallback; known or late no-resume and indexing states retain their actual gate and invalidate obsolete replies.
+      - Fresh profile admission controls role and optional applications; remembered identity never supplies authority.
+      - Independent enrichment preserves goal drafts and saved progress sequences; disposed frames never redraw, remember identity or restore an old parent inset.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close synthetic browser contexts and release held fixture replies after every case. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: career-native-busy-feedback
+    name: Running work preserves drafts and manual save retry
+    purpose: Distinguish the exact native writer-busy refusal from a revision conflict on actual Career pages without retrying writes automatically.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-running-feedback-browser.test.mjs
+    expected:
+      - A busy draft retains typed changes and offers manual Retry; ordinary revision conflicts keep their explicit Reload path.
+      - A refused phone-card Save restores only that job and its history entry; an acknowledged favorite remains saved when only scoring is refused.
+      - Exact status and error classification preserve unknown failures, current view epochs and deliberate retry.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/career-running-feedback-browser.test.mjs }
+
+  - id: career-save-only
+    name: Save keeps a job without starting scoring
+    purpose: Keep Find jobs and phone Cards/List responsive by making Save one acknowledged favorite write while retaining explicit fit and document work.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-save-only-browser.test.mjs
+        - tests/career-job-workflow.test.mjs
+    expected:
+      - Saving two jobs issues only favorite writes and starts no scoring request or score poll.
+      - Fresh Saved reads preserve known scores and mark absent scores Not scored yet.
+      - Check my fit starts the existing progress flow; Prepare requires a separate Generate press, and failed acknowledgements never claim Saved.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/career-save-only-browser.test.mjs }
+      - { level: integration, file: tests/career-job-workflow.test.mjs }
+
+  - id: career-prepare-open
+    name: Prepare and open one application
+    purpose: Exercise nested admitted-shell navigation, durable owner-only preparation and explicit recovery without generating documents or submitting.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-prepare-navigation.test.mjs
+    expected:
+      - Prepare writes once through the shipped owner status writer and opens the real tailoring workspace; another synthetic owner is unchanged.
+      - Open application names prepared work and performs no preparation write. A refused parent keeps an acknowledged preparation available to open again.
+      - Pending preparation stays busy across redraws. Unknown writes require a read-only Check preparation before a separate manual retry; refused checks cannot write or navigate.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/career-prepare-navigation.test.mjs }
+
+  - id: career-saved-preparation-choice
+    name: Review applications or prepare saved jobs automatically
+    purpose: Prove explicit owner consent and real saved-job preparation ending at ready to submit, with exact-document review and retained failures.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-application-workflow.test.mjs
+        - tests/career-workflow-engine.test.mjs
+        - tests/career-workflow-background.test.mjs
+    expected:
+      - Default OFF starts nothing. Only explicit boolean consent in the original owner's records prepares existing favorites and future saves.
+      - Review waits for the person's exact-current-packet acknowledgement. Automatic preparation stops at Ready to submit and links to the employer page without a submission intent.
+      - Actual phone and desktop Settings and the application review page cross the real writer. Getting ready shows retained failure reasons.
+      - Refused, interrupted, removed, closed and already applied work never triggers a duplicate automatic attempt or a submission.
+      - The real dispatcher and packaged CLI retain a missing-fictional-resume failure; real SQLite and packet templates finish a synthetic batch with model/render/network leaves replaced.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/career-application-workflow.test.mjs }
+      - { level: integration, file: tests/career-workflow-engine.test.mjs }
+      - { level: integration, file: tests/career-workflow-background.test.mjs }
+
+  - id: concierge-saved-resume
+    name: Concierge knows the asking person's saved résumé
+    purpose: Cross the declared real tool endpoint, compiled route and shared owner reader with made-up people, using scripted completions only at the model boundary.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-concierge-resume.test.mjs] }
+    expected:
+      - A saved owner receives presence and section headings without full résumé text, even with no corpus or matches.
+      - An empty owner receives truthful absence and the My résumé link; query selectors never choose another owner.
+      - Corrupt, oversized or linked records refuse as unavailable; missing identity refuses before reading.
+      - Five fixture turns record tool calls, scripted model completions, profile reads, engine launches and observation bytes.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: concierge-shared-panel
+    name: Career and the résumé editor use the same concierge panel
+    purpose: Serve real package and read-only shared assets over a local fixture server, blocking external requests.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-concierge-panel.test.mjs] }
+    expected:
+      - Native and cockpit hosts at 412 and 1280 widths show one shared assistant and hide their retired rail and application bar.
+      - Send crosses the native ask contract; close and reopen retain a single pane with the composer inside the viewport.
+      - My résumé keeps AI Office's own assistant; the package imports the shared component without copying it.
+    prerequisites: [runtime:chromium, 'source:shared-ui']
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 60000 }
+    installation: never

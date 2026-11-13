@@ -7,6 +7,7 @@
  *   POST /tick        one autopilot tick for the caller (the `paper-autopilot` schedule fires this as the activating person)
  *   GET  /orders      simulated fills, newest first
  *   GET  /decisions   the decision behind each fill, newest first
+ *   GET  /today       what the caller's saved records say about every account, for the first screen (reads only)
  *
  * Paper only: the engine prices every fill from the kernel's prices intents and writes it to the
  * caller's own scope. Nothing in this module or routes/paper/ can reach a broker; there is no order
@@ -22,6 +23,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | POST /books/:ref/strategy runs a saved portfolio strategy on a paper account (or clears it with no strategyId) and arms it; GET /books names each account's strategy.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The OSHAL report videos: GET /reports/videos lists the owner's rendered per-account videos, POST /reports/videos/tick drives the report studio engine (the report-video schedule fires it), POST /reports/videos/presenter keeps the silent presenter clip, and GET /reports/videos/:session/:file streams one video from the lasting directory by the caller's own index row.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep film rendering out of the paper execution dependency path; load media only when a film route is requested.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | 1.57.0: GET /today, the one read behind the first screen (routes/today/read.js). It is handed the pool and this module's logger and nothing else, so it sends SELECT statements only and cannot reach a broker, a price read or an order service. Mounted here because this router is hand-written JavaScript outside the order-authority set: no compiled file, manifest route, tool or schedule changes.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: the film routes render inside Trading (paper/report-film.js through the kernel's voice.speak and the package's lasting storage); the routes and their shapes are unchanged.
  *
  * @module trading-paper-routes
@@ -33,6 +35,7 @@ const store = require('./paper/store');
 const books = require('./paper/books');
 const paperStrategy = require('./paper/strategy');
 const reports = require('./paper/report');
+const today = require('./today/read');
 // Load media dependencies only for a requested film operation; paper execution stays process-free.
 const reportVideo = () => require('./reports/report-video');
 const { nativeHost } = require('./paper/screen');
@@ -145,6 +148,8 @@ function paperHandlers(ctx, clock = () => new Date()) {
     async videosTick(req){return reportVideo().tickVideos(deps,callerOf(req),req.body||{},clock());},
     async videos(req){return reportVideo().listVideos(deps,callerOf(req));},
     async videoPresenter(req){return reportVideo().savePresenterClip(deps,callerOf(req),req.body||{});},
+    // The first screen's read: the pool and the logger only, so no intent (broker, prices, orders) is within its reach.
+    async today(req) { return { status: 200, body: await today.todayRead({ pool: deps.pool, log: logger }, callerOf(req), clock()) }; },
     async orders(req) { return { status: 200, body: { ok: true, orders: await store.listOrders(deps.pool, callerOf(req)) } }; },
     async decisions(req) { return { status: 200, body: { ok: true, decisions: await store.listDecisions(deps.pool, callerOf(req)) } }; },
   };
@@ -189,6 +194,7 @@ function createTradingPaperRoutes(ctx, makeRouter) {
   router.post('/tick', route('tick', h.tick));
   router.get('/orders', route('orders', h.orders));
   router.get('/decisions', route('decisions', h.decisions));
+  router.get('/today', route('today', h.today));
   router.get('/books',route('books',h.books));
   router.post('/books',route('create-book',h.createBook));
   router.post('/reset',route('reset',h.reset));

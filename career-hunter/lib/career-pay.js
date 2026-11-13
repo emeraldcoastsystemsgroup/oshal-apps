@@ -1,7 +1,11 @@
 /**
  * CHANGE LOG
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Require explicit comparable currency and pay units instead of treating unknown employer rates as annual USD.
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share unit-aware pay-range predicates and sourced occupation estimates across search and the owner's board.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Require explicit comparable currency and pay units instead of treating unknown employer rates as annual USD.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Match CTO/CIO only as whole words in displayed estimates and real SQLite feed filters, preserving specific occupation rules.
  */
 'use strict';
 const fs = require('fs');
@@ -12,7 +16,11 @@ const UNSUITABLE = ['%adjunct%', '%per course%', '%per-course%', 'intern %', '% 
 const sqlString = value => "'" + value.replace(/'/g, "''") + "'";
 const likeSql = patterns => '(' + patterns.map(p => `p.title LIKE ${sqlString(p)}`).join(' OR ') + ')';
 const patternRegex = p => new RegExp('^' + p.split('%').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$', 'i');
-const rules = model.rules.map(rule => ({...rule, matches: rule.patterns.map(patternRegex), excludedMatches: (rule.excludes || []).map(patternRegex)}));
+// SQLite GLOB and JavaScript use identical ASCII letter/digit/underscore boundaries.
+const wordRegex = word => new RegExp('(^|[^a-z0-9_])' + word + '([^a-z0-9_]|$)', 'i');
+const rules = model.rules.map(rule => ({...rule,
+  matches: [...rule.patterns.map(patternRegex), ...(rule.words || []).map(wordRegex)],
+  excludedMatches: (rule.excludes || []).map(patternRegex)}));
 const unsuitable = UNSUITABLE.map(patternRegex);
 const HAS_PAY = "(COALESCE(p.salary_source,'listed') <> 'heuristic' AND (p.salary_min > 0 OR p.salary_max > 0))";
 // No national USD guess for a foreign or unspecified location. Remote alone is not a country.
@@ -51,6 +59,13 @@ function overlaps(values, selected) {
   return (!selected.min || values[1] >= selected.min) && (!selected.max || values[0] <= selected.max);
 }
 
+/** Keep acronym boundaries inside the SQL predicate so filtering still precedes paging. */
+function ruleSql(rule) {
+  const words = (rule.words || []).map(word =>
+    `(' ' || lower(COALESCE(p.title,'')) || ' ') GLOB ${sqlString('*[^a-z0-9_]' + word + '[^a-z0-9_]*')}`);
+  return '(' + [likeSql(rule.patterns), ...words].join(' OR ') + ')';
+}
+
 /** Apply the same estimate and range rules IN SQL, before pools, LIMIT, and OFFSET. */
 function payFilter(query = {}) {
   const selected = range(query);
@@ -62,7 +77,7 @@ function payFilter(query = {}) {
   const eligible = ELIGIBLE + (selected.period === 'hour' ? '' : " AND COALESCE(p.job_type,'') NOT IN ('parttime','part-time','part_time')");
   const cases = rules.map(rule => {
     const values = band(rule.soc, selected.period);
-    return `WHEN ${likeSql(rule.patterns)}${rule.excludes ? ' AND NOT '+likeSql(rule.excludes) : ''} THEN ${values ? Number(overlaps(values, selected)) : unknown}`;
+    return `WHEN ${ruleSql(rule)}${rule.excludes ? ' AND NOT '+likeSql(rule.excludes) : ''} THEN ${values ? Number(overlaps(values, selected)) : unknown}`;
   }).join('\n');
   return {sql: `(CASE WHEN ${HAS_PAY} THEN CASE WHEN
     UPPER(p.salary_currency) = 'USD' AND p.salary_period = ${sqlString(selected.period)}

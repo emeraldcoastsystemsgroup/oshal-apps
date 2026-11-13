@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Review regression guards: a disarm or a tighter re-arm that lands while a tick is reading prices makes that tick roll back (book_changed) instead of trading; re-arming an open book with a different startingCash is refused; /performance compares SPY over the book's own days, and says the benchmark is unavailable when the archive has no SPY (the real World universe has none).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | An unavailable SPY benchmark carries its baseDate, and withSpyCloses fills it from supplied day closes (Schwab on the native kernel): SPY measured from the last close on or before the base date, vs-market from the portfolio's own end, and nothing changes when the closes start after the base date or the benchmark is already available.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | /performance series are strictly ascending (today's snapshot is one point carrying the current equity).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.57.0: the paper router's pinned surface lists GET /today, the first screen's read of saved records (tests/native-today-read.test.js proves it sends SELECT statements only and calls no kernel intent). Every other route is unchanged.
  */
 'use strict';
 
@@ -210,7 +211,7 @@ test('the router mounts the paper surface and refuses a caller with no admitted 
   const routes = [];
   const router = { get: (p, fn) => routes.push(['GET', p, fn]), post: (p, fn) => routes.push(['POST', p, fn]) };
   createTradingPaperRoutes(t.ctx, () => router);
-  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /', 'POST /arm', 'POST /disarm', 'POST /tick', 'GET /orders', 'GET /decisions', 'GET /books','POST /books','POST /reset','GET /books/:ref','POST /books/:ref/arm','POST /books/:ref/disarm','POST /books/:ref/strategy','POST /books/:ref/archive','POST /books/:ref/restore','GET /reports','POST /reports','POST /presenter','GET /reports/videos','POST /reports/videos/tick','POST /reports/videos/presenter','GET /reports/videos/:session/:file']);
+  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /', 'POST /arm', 'POST /disarm', 'POST /tick', 'GET /orders', 'GET /decisions', 'GET /today', 'GET /books','POST /books','POST /reset','GET /books/:ref','POST /books/:ref/arm','POST /books/:ref/disarm','POST /books/:ref/strategy','POST /books/:ref/archive','POST /books/:ref/restore','GET /reports','POST /reports','POST /presenter','GET /reports/videos','POST /reports/videos/tick','POST /reports/videos/presenter','GET /reports/videos/:session/:file']);
   const res = () => { const r = { code: 0, body: null, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } }; return r; };
   const tick = routes.find(([, p]) => p === '/tick')[2];
   const anon = res();

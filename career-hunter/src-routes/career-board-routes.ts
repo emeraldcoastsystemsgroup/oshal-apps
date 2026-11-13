@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 33 | maintainer@emeraldcoastsystemsgroup.com | Persist removal as one relationship tombstone and derive saved membership from that status without rewriting board receipts.
+ * 32 | maintainer@emeraldcoastsystemsgroup.com | Apply default-off owner preparation choices in the real save writer and accept exact-document review without marking submission.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | Forward optional 7d/30d/90d period window query (?days=) to readAnalytics on GET /analytics.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | Correct only an explicit mistaken manual submission mark through the original-owner write lease, retaining audit history and refusing actual submission evidence.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Read and revise owner-private additional experience, validate exact per-application selections, and pass explicit saved priorities to board pagination.
@@ -24,6 +26,9 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Read the caller's saved matching area for the board without changing independent job browsing.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | Add original-owner saved stars, selected-job preparation and explicit queue/status views, with conservative submission-email receipts.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | Return the same derived score metrics on job polling as the board feed so a regenerated packet refreshes its visible fit without reloading the board.
+ * 29 | maintainer@emeraldcoastsystemsgroup.com | Persist original-owner manual interview times, offers and closed outcomes through the status route, with validated explicit time zones and a retained manual receipt.
+ * 30 | maintainer@emeraldcoastsystemsgroup.com | Report exact actionable match counts with the same owner scope as the match page, separately from saved and application history; unreadable scope remains unknown.
+ * 31 | maintainer@emeraldcoastsystemsgroup.com | Register full original-owner application progress before dynamic posting routes and extract existing update handlers to keep the registrar bounded without changing their behavior.
  */
 
 /**
@@ -35,7 +40,7 @@ import { createChildLogger } from '@/shared/logger';
 import { readRemoteOnly } from './career-match-prefs';
 import type { AppContext } from '@/app/composition/app-context';
 import { recordManualApplyRun } from '@/app/apply-run-ledger';
-import { fetchBoardPage, LAND_PROB, HIGH_WIN } from './career-board-feed';
+import { countNewMatches, fetchBoardPage, LAND_PROB, HIGH_WIN } from './career-board-feed';
 import { fullyRemoteSql, readJobSearchScope } from './career-search-scope';
 import {
   buildPreviewHtml,
@@ -51,10 +56,13 @@ import { randomUUID } from 'crypto';
 import { nativeRunInProgress } from './career-engine-runner';
 const boardState = require('../lib/career-board-state');
 const applicationDraft = require('../lib/career-application-draft');
+const workflowRoutes = require('../lib/career-workflow-routes');
+const applicationWorkflow = require('../lib/career-application-workflow');
 const manualSubmission = require('../lib/career-manual-submission');
 const feedback = require('../lib/career-job-feedback');
 const experienceBank = require('../lib/career-experience-bank');
 import {createCareerToolFileHandler} from './career-surface-routes';
+import {registerCareerProgressRoutes} from './career-progress';
 const pay = require('../lib/career-pay');
 const fit = require('../lib/career-fit');
 const emailUpdates = require('../lib/career-email-updates');
@@ -64,6 +72,13 @@ const ALLOWED_STATUS = new Set([
   'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred', 'rejected',
 ]);
 
+/** @description Apply the standing remote default only when the caller did not choose a workplace filter; explicit matches refuse unreadable preferences. @param ctx Package context. @param userSub Original owner. @param input Query fields. @returns Caller query with its effective workplace preference. */
+async function matchedBoardQuery(ctx: AppContext, userSub: string, input: Record<string,unknown>): Promise<Record<string,unknown>> {
+  const query={...input};
+  if(!query.status&&query.remote===undefined&&await readRemoteOnly(ctx.pool,userSub,{strict:query.matches==='1'}))query.remote='1';
+  return query;
+}
+
 async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -71,18 +86,13 @@ async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<vo
   if (!db) { res.json({ jobs: [], empty: true }); return; }
   const started = Date.now();
   try {
-    // The standing remote-only preference (migration 104) is the DEFAULT for this board, not an
-    // override: an explicit Any/Remote/On-site pill always wins. Applying it here rather than in
-    // the feed keeps the query builder pure and leaves the Job Search screen — which is a browse
-    // surface with its own pills, not a match surface — deliberately untouched.
-    const query = { ...(req.query as Record<string, unknown>) };
-    if (!query.status && query.remote === undefined && await readRemoteOnly(ctx.pool, userSub)) query.remote = '1';
+    const query=await matchedBoardQuery(ctx,userSub,req.query as Record<string,unknown>);
     const state = boardState.readBoardState(userPaths(userSub).userDir);
     const currentQueue=Object.entries(state.jobs).filter(([,value])=>(value as {favorite?:boolean,workflowEnteredAt?:string,applicationDraft?:unknown}).favorite||(value as {workflowEnteredAt?:string}).workflowEnteredAt||(value as {applicationDraft?:unknown}).applicationDraft).map(([id])=>Number(id));
     const result = fetchBoardPage(db, query, readJobSearchScope(userPaths(userSub).userDir),
-      query.status === 'saved' ? boardState.favoriteIds(state) : query.status==='queue'&&query.current==='1'?currentQueue:undefined, feedback.read(userPaths(userSub).userDir), boardState.favoriteIds(state));
+      query.status === 'saved' ? boardState.favoriteIds(state,db) : query.status==='queue'&&query.current==='1'?currentQueue:undefined, feedback.read(userPaths(userSub).userDir), boardState.favoriteIds(state,db));
     const emails = emailUpdates.read(userPaths(userSub).userDir);
-    result.jobs = result.jobs.map(job => emailUpdates.decorate(emails, boardState.decorateJob(state, job)));
+    result.jobs = result.jobs.map(job => workflowRoutes.decorate(db,userPaths(userSub).userDir,emailUpdates.decorate(emails, boardState.decorateJob(state, job))));
     logger.info({
       userSub,
       sort: req.query.sort || 'ai',
@@ -94,41 +104,44 @@ async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<vo
     }, 'career board feed served');
     res.json({...result, exclusions:feedback.read(userPaths(userSub).userDir)});
   } catch (err) {
-    if (err instanceof pay.PayRangeError) { res.status(400).json({error: err.code, message: err.message}); return; }
+    if (err instanceof pay.PayRangeError) { const failure=err as {code:string,message:string}; res.status(400).json({error: failure.code, message: failure.message}); return; }
     logger.error({ err, userSub, ms: Date.now() - started }, 'career jobs read failed');
     res.status(500).json({ error: 'read failed' });
   } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'career jobs database close failed'); } }
 }
 
-function getJobStats(req: Request, res: Response): void {
-  const userSub = callerSub(req);
-  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const db = openUserDb(userSub);
-  if (!db) { res.json({ byStatus: [], total: 0, applied: 0, interviewing: 0, empty: true }); return; }
-  try {
-    const raw = db.prepare('SELECT status, COUNT(*) AS n FROM user_signals GROUP BY status')
-      .all() as { status: string | null; n: number }[];
-    const buckets = new Map<string, number>();
-    let total = 0;
-    for (const row of raw) {
-      const key = row.status || '(scored)';
-      buckets.set(key, (buckets.get(key) || 0) + row.n);
-      total += row.n;
-    }
-    const byStatus = [...buckets]
-      .map(([status, n]) => ({ status, n }))
-      .sort((left, right) => right.n - left.n);
-    const applied = buckets.get('applied') || 0;
-    const interviewing = buckets.get('interview') || 0;
+/** @description Read the owner's existing status buckets without confusing pipeline records with new matches. @param db Owner database. @returns Bucket totals and labels. */
+function statusBuckets(db: NonNullable<ReturnType<typeof openUserDb>>) {
+  const raw=db.prepare('SELECT status, COUNT(*) AS n FROM user_signals GROUP BY status').all() as {status:string|null,n:number}[];
+  const buckets=new Map<string,number>();let total=0;
+  for(const row of raw){const key=row.status||'(scored)';buckets.set(key,(buckets.get(key)||0)+row.n);total+=row.n;}
+  const byStatus=[...buckets].map(([status,n])=>({status,n})).sort((a,b)=>b.n-a.n);
+  return {buckets,total,byStatus};
+}
+
+/** @description Keep known pipeline counts when matching preferences or area cannot be read, without inventing a zero. @param ctx Package context. @param userSub Original owner. @param db Owner database. @param state Owner saved state. @returns Exact count or unknown. */
+async function matchCount(ctx: AppContext, userSub: string, db: NonNullable<ReturnType<typeof openUserDb>>, state: {jobs:Record<string,unknown>}): Promise<number|null> {
+  try{
+    const remote=await readRemoteOnly(ctx.pool,userSub,{strict:true})?'1':'';
+    return countNewMatches(db,{remote},readJobSearchScope(userPaths(userSub).userDir),boardState.favoriteIds(state,db),feedback.read(userPaths(userSub).userDir));
+  }catch(error){logger.warn({error,userSub},'career match count unavailable');return null;}
+}
+
+/** @description Read actual saved/pipeline activity and the separate actionable-match set for this owner. @param ctx Package context. @param req Caller request. @param res Response. @returns Completion. */
+async function getJobStats(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const userSub=callerSub(req);
+  if(!userSub){res.status(401).json({error:'unauthorized'});return;}
+  const db=openUserDb(userSub);
+  if(!db){res.json({byStatus:[],total:0,applied:0,interviewing:0,saved:0,queued:0,tracked:0,matches:0,empty:true});return;}
+  try{
+    const {buckets,total,byStatus}=statusBuckets(db),applied=buckets.get('applied')||0,interviewing=buckets.get('interview')||0;
     const state=boardState.readBoardState(userPaths(userSub).userDir),ids=Object.entries(state.jobs).filter(([,value])=>(value as {favorite?:boolean,workflowEnteredAt?:string,applicationDraft?:unknown}).favorite||(value as {workflowEnteredAt?:string}).workflowEnteredAt||(value as {applicationDraft?:unknown}).applicationDraft).map(([id])=>Number(id));
     const queued=ids.length?Number((db.prepare(`SELECT COUNT(*) AS n FROM user_signals WHERE status IN ('promoted','generated','deferred') AND posting_id IN (${ids.map(()=>'?').join(',')})`).get(...ids) as {n:number}).n):0;
-    res.json({ byStatus, total, applied, interviewing,queued,tracked:applied+interviewing+(buckets.get('offer')||0)+(buckets.get('rejected')||0),
-      earlierPreparation:Math.max(0,(buckets.get('promoted')||0)+(buckets.get('generated')||0)+(buckets.get('deferred')||0)-queued),
-      saved: boardState.favoriteIds(state).length });
-  } catch (err) {
-    logger.error({ err, userSub }, 'career jobs stats failed');
-    res.status(500).json({ error: 'stats failed' });
-  } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'career stats database close failed'); } }
+    const matches=await matchCount(ctx,userSub,db,state);
+    res.json({byStatus,total,applied,interviewing,queued,matches,tracked:applied+interviewing+(buckets.get('offer')||0)+(buckets.get('rejected')||0),
+      earlierPreparation:Math.max(0,(buckets.get('promoted')||0)+(buckets.get('generated')||0)+(buckets.get('deferred')||0)-queued),saved:boardState.favoriteIds(state,db).length});
+  }catch(err){logger.error({err,userSub},'career jobs stats failed');res.status(500).json({error:'stats failed'});}
+  finally{try{db.close();}catch(err){logger.warn({err},'career stats database close failed');}}
 }
 
 function getAnalytics(req: Request, res: Response): void {
@@ -210,78 +223,112 @@ function serveResumeFile(req: Request, res: Response, postingId: number): void {
   });
 }
 
+/** Validate a supplied interview instant without guessing the browser's time zone. */
+function interviewInstant(value: unknown, status: string): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (status !== 'interview' || typeof value !== 'string'
+      || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return null;
+  const [year, month, day] = value.slice(0,10).split('-').map(Number), at = Date.parse(value);
+  if (!Number.isFinite(at) || Number(value.slice(11,13)) > 23
+      || new Date(Date.UTC(year,month-1,day)).toISOString().slice(0,10) !== value.slice(0,10)) return null;
+  return new Date(at).toISOString();
+}
+
+/** Keep the existing durable manual submission admission ahead of the SQLite projection. */
+async function recordApplied(ctx: AppContext, db: NonNullable<ReturnType<typeof openUserDb>>, userSub: string, postingId: number): Promise<boolean> {
+  if (!db.prepare('SELECT 1 AS found FROM user_signals WHERE posting_id=?').get(postingId)) return false;
+  await recordManualApplyRun(ctx.pool, {ownerSub:userSub,postingId,ticketId:`career-board-manual:${postingId}`,sourceRoute:'career-board-status'});
+  return true;
+}
+
+/** Publish the SQL status and original-owner board receipt together in the request's generation. */
+function persistStatus(db: NonNullable<ReturnType<typeof openUserDb>>, userDir: string, postingId: number, status: string, favorite: unknown, interviewAt: string | undefined) {
+  db.prepare('BEGIN IMMEDIATE').run();
+  db.prepare('INSERT OR IGNORE INTO user_signals(posting_id) VALUES(?)').run(postingId);
+  const appliedAt = status === 'applied' ? "COALESCE(applied_at, datetime('now'))" : 'applied_at';
+  const provenance = status === 'applied'
+    ? `, application_source=CASE WHEN application_source IN ('verified-submission','worker-reported','manual-mark') THEN application_source ELSE 'manual-mark' END` : '';
+  if (status) db.prepare(`UPDATE user_signals SET status=@status, applied_at=${appliedAt},
+    promoted_at=${status === 'promoted' ? "COALESCE(promoted_at,datetime('now'))" : 'promoted_at'}${provenance}
+    ${interviewAt !== undefined ? ', interview_at=@interviewAt' : ''} WHERE posting_id=@id`)
+    .run({status,id:postingId,...(interviewAt !== undefined ? {interviewAt} : {})});
+  const patch: Record<string,unknown> = {}, current = boardState.readBoardState(userDir).jobs[postingId] || {};
+  if (typeof favorite === 'boolean') patch.favorite = favorite;
+  if (status === 'promoted') {
+    patch.favorite = true;
+    if(!current.workflow){patch.phase = 'queued'; patch.error = null; patch.completedAt = null;}
+    patch.workflowEnteredAt = current.workflowEnteredAt || new Date().toISOString();
+  }
+  if (patch.favorite === true) patch.savedAt = current.savedAt || new Date().toISOString();
+  if (status === 'dismissed') patch.favorite = false;
+  if (['interview','offer','rejected'].includes(status)) patch.manualTracking = {status,recordedAt:new Date().toISOString(),
+    ...(status === 'interview' ? {interviewAt:interviewAt ?? current.manualTracking?.interviewAt ?? null} : {})};
+  const saved = boardState.updateBoardState(userDir,postingId,patch);
+  db.prepare('COMMIT').run();
+  return {ok:true,status,favorite:saved.favorite === true};
+}
+
+/** Parse one existing status mutation before opening a writable owner store. */
+function statusInput(req: Request) {
+  const postingId = Number(req.params.id), status = typeof req.body?.status === 'string' ? req.body.status : '';
+  const favorite = req.body?.favorite, draftInput = req.body?.draft, draftMutation = draftInput !== undefined;
+  const reviewInput=req.body?.applicationReview, reviewMutation=reviewInput!==undefined;
+  const correction = req.body?.correction, undoManual = correction === 'undo-manual-submission';
+  const interviewAt = interviewInstant(req.body?.interview_at,status);
+  if (interviewAt === null) throw Error('Choose a valid interview date and time with its time zone.');
+  if (!Number.isSafeInteger(postingId) || postingId <= 0 || (status && !ALLOWED_STATUS.has(status))
+      || (favorite !== undefined && typeof favorite !== 'boolean') || (correction !== undefined && !undoManual)
+      || (undoManual && (status || favorite !== undefined || req.body?.feedback || draftMutation))
+      || (reviewMutation && (status || favorite!==undefined || req.body?.feedback || correction!==undefined || draftMutation))
+      || (draftMutation && (status || favorite !== undefined || req.body?.feedback || correction !== undefined))
+      || (!status && typeof favorite !== 'boolean' && !req.body?.feedback && !undoManual && !draftMutation && !reviewMutation)) throw Error('bad request');
+  return {postingId,status,favorite,interviewAt,draftInput,draftMutation,undoManual,reviewInput,reviewMutation};
+}
+
+/** Apply the same draft, correction, feedback and application admission rules to the admitted owner. */
+async function applyStatus(ctx: AppContext, req: Request, res: Response, db: NonNullable<ReturnType<typeof openUserDb>>, userSub: string, input: ReturnType<typeof statusInput>): Promise<void> {
+  const {postingId,favorite,interviewAt,draftInput,draftMutation,undoManual} = input;
+  let {status} = input;
+  const posting = db.prepare('SELECT p.id,p.title,p.location,c.name AS company FROM corpus.postings_corpus p JOIN corpus.companies c ON c.id=p.company_id WHERE p.id=?').get(postingId);
+  if(posting&&req.body?.feedback){
+    const exclusions=feedback.update(userPaths(userSub).userDir,req.body.feedback,posting);
+    res.json({ok:true,exclusions});return;
+  }
+  if (!posting) { res.status(404).json({error:'posting not found'}); return; }
+  if(undoManual){res.json(manualSubmission.undoManualSubmission(db,userPaths(userSub).userDir,postingId,req.body.reason));return;}
+  const signal = db.prepare('SELECT s.status,s.resume_path,s.cover_path,p.url,p.active FROM corpus.postings_corpus p LEFT JOIN user_signals s ON s.posting_id=p.id WHERE p.id=?').get(postingId) as {status?: string,resume_path?:string,cover_path?:string} | undefined;
+  if(input.reviewMutation){res.json(applicationWorkflow.review(userPaths(userSub).userDir,postingId,{...signal,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path},input.reviewInput));return;}
+  if(draftMutation){const record={...signal,status:signal?.status,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path};res.json({ok:true,application:applicationDraft[draftInput?.restore===true?'restore':'save'](userPaths(userSub).userDir,postingId,record,draftInput)});return;}
+  if (!status && favorite === true && signal?.status === 'dismissed') status = 'new';
+  if (status && ['applied','interview','offer','rejected'].includes(signal?.status || '') && ['new','promoted','generated','deferred'].includes(status)) {
+    res.status(409).json({error:'A submitted application cannot return to document preparation.'}); return;
+  }
+  if (status === 'applied' && !await recordApplied(ctx,db,userSub,postingId)) { res.status(404).json({error:'job signal not found'}); return; }
+  if(status==='dismissed'){
+    const changed=db.prepare("UPDATE user_signals SET status='dismissed' WHERE posting_id=?").run(postingId);
+    if(!changed.changes)db.prepare("INSERT INTO user_signals(posting_id,status)VALUES(?,'dismissed')").run(postingId);
+    res.json({ok:true,status:'dismissed',favorite:false});return;
+  }
+  const result=persistStatus(db,userPaths(userSub).userDir,postingId,status,favorite,interviewAt);
+  const preparation=(favorite===true||status==='promoted')?await workflowRoutes.prepareSaved(ctx,userSub,[postingId],runCareerCliAsync):null;
+  res.json({...result,...(preparation?{preparation}:{})});
+}
+
 async function updateJobStatus(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
-  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const postingId = Number(req.params.id);
-  let status = typeof req.body?.status === 'string' ? req.body.status : '';
-  const favorite = req.body?.favorite;
-  const draftInput=req.body?.draft,draftMutation=draftInput!==undefined;
-  const correction=req.body?.correction,undoManual=correction==='undo-manual-submission';
-  if (!Number.isSafeInteger(postingId) || postingId <= 0 || (status && !ALLOWED_STATUS.has(status))
-      || (favorite !== undefined && typeof favorite !== 'boolean') || (correction!==undefined&&!undoManual)
-      || (undoManual&&(status||favorite!==undefined||req.body?.feedback||draftMutation))
-      || (draftMutation&&(status||favorite!==undefined||req.body?.feedback||correction!==undefined))
-      || (!status && typeof favorite !== 'boolean' && !req.body?.feedback&&!undoManual&&!draftMutation)) {
-    res.status(400).json({ error: 'bad request' });
-    return;
-  }
-  const db = openUserDb(userSub, false);
-  if (!db) { res.status(404).json({ error: 'no data' }); return; }
-  try {
-    const posting = db.prepare('SELECT p.id,p.title,p.location,c.name AS company FROM corpus.postings_corpus p JOIN corpus.companies c ON c.id=p.company_id WHERE p.id=?').get(postingId);
-    if(posting&&req.body?.feedback){
-      const exclusions=feedback.update(userPaths(userSub).userDir,req.body.feedback,posting);
-      res.json({ok:true,exclusions});return;
-    }
-    if (!posting) { res.status(404).json({error:'posting not found'}); return; }
-    if(undoManual){res.json(manualSubmission.undoManualSubmission(db,userPaths(userSub).userDir,postingId,req.body.reason));return;}
-    const signal = db.prepare('SELECT status,resume_path,cover_path FROM user_signals WHERE posting_id=?').get(postingId) as {status?: string,resume_path?:string,cover_path?:string} | undefined;
-    if(draftMutation){const record={...signal,status:signal?.status,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path};res.json({ok:true,application:applicationDraft[draftInput?.restore===true?'restore':'save'](userPaths(userSub).userDir,postingId,record,draftInput)});return;}
-    if (!status && favorite === true && signal?.status === 'dismissed') status = 'new';
-    if (status && ['applied','interview','offer','rejected'].includes(signal?.status || '') && ['new','promoted','generated','deferred'].includes(status)) {
-      res.status(409).json({error:'A submitted application cannot return to document preparation.'}); return;
-    }
-    if (status === 'applied') {
-      const exists = db.prepare('SELECT 1 AS found FROM user_signals WHERE posting_id=?')
-        .get(postingId);
-      if (!exists) { res.status(404).json({ error: 'job signal not found' }); return; }
-      await recordManualApplyRun(ctx.pool, {
-        ownerSub: userSub,
-        postingId,
-        ticketId: `career-board-manual:${postingId}`,
-        sourceRoute: 'career-board-status',
-      });
-    }
-    // The native request publishes SQL and metadata together as one owner generation.
-    db.prepare('BEGIN IMMEDIATE').run();
-    db.prepare('INSERT OR IGNORE INTO user_signals(posting_id) VALUES(?)').run(postingId);
-    const appliedAt = status === 'applied' ? "COALESCE(applied_at, datetime('now'))" : 'applied_at';
-    const provenance = status === 'applied'
-      ? `, application_source=CASE
-          WHEN application_source IN ('verified-submission','worker-reported','manual-mark')
-            THEN application_source ELSE 'manual-mark' END` : '';
-    if (status) db.prepare(
-      `UPDATE user_signals SET status=@status, applied_at=${appliedAt},
-        promoted_at=${status === 'promoted' ? "COALESCE(promoted_at,datetime('now'))" : 'promoted_at'}${provenance} WHERE posting_id=@id`,
-    ).run({ status, id: postingId });
-    const patch: Record<string,unknown> = {};
-    if (typeof favorite === 'boolean') patch.favorite = favorite;
-    if (status === 'promoted') {
-      patch.favorite = true; patch.phase = 'queued'; patch.error = null; patch.completedAt = null;
-      patch.workflowEnteredAt=boardState.readBoardState(userPaths(userSub).userDir).jobs[postingId]?.workflowEnteredAt||new Date().toISOString();
-    }
-    if (patch.favorite === true) patch.savedAt = boardState.readBoardState(userPaths(userSub).userDir).jobs[postingId]?.savedAt || new Date().toISOString();
-    if (status === 'dismissed') patch.favorite = false;
-    const saved = boardState.updateBoardState(userPaths(userSub).userDir, postingId, patch);
-    db.prepare('COMMIT').run();
-    res.json({ ok: true, status, favorite: saved.favorite === true });
-  } catch (err) {
+  if (!userSub) { res.status(401).json({error:'unauthorized'}); return; }
+  let input: ReturnType<typeof statusInput>;
+  try { input = statusInput(req); }
+  catch (err) { res.status(400).json({error:(err as Error).message}); return; }
+  const db = openUserDb(userSub,false), postingId = input.postingId;
+  if (!db) { res.status(404).json({error:'no data'}); return; }
+  try { await applyStatus(ctx,req,res,db,userSub,input); }
+  catch (err) {
     try { db.prepare('ROLLBACK').run(); } catch (_) { /* No transaction remains after commit. */ }
-    if([400,409,503].includes((err as {status?:number}).status||0)){res.status((err as {status:number}).status).json({error:(err as Error).message});return;}
-    logger.error({ err, userSub, postingId }, 'career status update failed');
-    res.status(500).json({ error: 'update failed' });
-  } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'status database close failed'); } }
+    if ([400,409,503].includes((err as {status?:number}).status || 0)) { res.status((err as {status:number}).status).json({error:(err as Error).message}); return; }
+    logger.error({err,userSub,postingId},'career status update failed');
+    res.status(500).json({error:'update failed'});
+  } finally { try { db.close(); } catch (err) { logger.warn({err},'status database close failed'); } }
 }
 
 function parseJsonList(value: unknown): unknown[] {
@@ -302,7 +349,7 @@ async function getJob(req: Request, res: Response): Promise<void> {
               c.name AS company, c.industry, c.homepage, c.careers_url,
               COALESCE(c.referral,0) AS referral, s.fit_score, s.ai_fit_score,
               s.ai_fit_rationale, s.ai_fit_matched, s.ai_fit_gaps, s.ai_scored_at, s.ai_model, s.ai_input_fingerprint, s.status,
-              s.applied_at, s.promoted_at, s.generated_at, s.notes,
+              s.applied_at, s.promoted_at, s.generated_at, s.interview_at, s.notes, s.resume_path, s.cover_path,
               s.confirmation_path, s.application_source, s.application_task_id,
               ${LAND_PROB} AS land_prob, ${HIGH_WIN} AS high_win,
               CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
@@ -315,7 +362,9 @@ async function getJob(req: Request, res: Response): Promise<void> {
     row.matched = parseJsonList(row.ai_fit_matched);
     row.gaps = parseJsonList(row.ai_fit_gaps);
     res.setHeader('Cache-Control','private, no-store');
-    res.json({ job: {...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))),application:applicationDraft.view(userPaths(userSub).userDir,postingId,row)},
+    const application=applicationDraft.view(userPaths(userSub).userDir,postingId,row);
+    delete row.resume_path;delete row.cover_path;
+    res.json({ job: {...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))),application},
       processing: !!(await nativeRunInProgress()) });
   } catch (err) {
     logger.error({ err, userSub, postingId }, 'career job detail failed');
@@ -477,6 +526,27 @@ function setReferral(req: Request, res: Response): void {
   } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'referral database close failed'); } }
 }
 
+/** Read the existing original-owner email update projection without starting a check. */
+function getJobUpdates(req:Request,res:Response):void{
+  const sub=callerSub(req);
+  if(!sub){res.status(401).json({error:'unauthorized'});return;}
+  try{res.json(emailUpdates.publicState(emailUpdates.read(userPaths(sub).userDir)));}
+  catch(_){res.status(500).json({error:'Application email state unavailable'});}
+}
+
+/** Preserve the explicit email check and reconciliation under the existing admitted owner's store. */
+async function checkJobUpdates(ctx:AppContext,req:Request,res:Response):Promise<void>{
+  const sub=callerSub(req);
+  if(!sub){res.status(401).json({error:'unauthorized'});return;}
+  const db=openUserDb(sub,false);
+  if(!db){res.status(404).json({error:'Upload a resume before monitoring application email.'});return;}
+  try{
+    const submissionReconciliation=await require('../lib/career-submission-routes').reconcileCareerSubmissions(ctx,sub);
+    res.json({...await emailUpdates.check(userPaths(sub).userDir,db),submissionReconciliation});
+  }catch(_){res.status(500).json({error:'Application email check failed'});}
+  finally{db.close();}
+}
+
 /**
  * @description Registers native job-board reads and caller-owned board mutations.
  * @param router - Authenticated Career Hunter router.
@@ -484,34 +554,20 @@ function setReferral(req: Request, res: Response): void {
  * @returns Nothing.
  */
 export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void {
+  registerCareerProgressRoutes(router);
+  workflowRoutes.register(router,ctx,runCareerCliAsync);
   router.get('/experience-library',createCareerToolFileHandler('career-experience-bank.html'));
   router.get('/experience-bank',(req,res)=>{const sub=callerSub(req);if(!sub){res.status(401).json({error:'unauthorized'});return;}try{const bank=experienceBank.read(userPaths(sub).userDir);res.json(req.query.summary==='1'?{...bank,entries:bank.entries.map(({facts,...entry}: Record<string,unknown>)=>entry)}:bank);}catch(error){res.status((error as {status?:number}).status||503).json({error:(error as Error).message});}});
   router.post('/experience-bank',(req,res)=>{const sub=callerSub(req);if(!sub){res.status(401).json({error:'unauthorized'});return;}try{res.json({ok:true,...experienceBank.update(userPaths(sub).userDir,req.body)});}catch(error){res.status((error as {status?:number}).status||503).json({error:(error as Error).message});}});
   router.get('/jobs', (req, res) => { void getJobs(ctx, req, res); });
-  router.get('/jobs/stats', getJobStats);
+  router.get('/jobs/stats', (req,res)=>{void getJobStats(ctx,req,res);});
   router.get('/jobs/purge-generated', (req, res) => { void previewGeneratedPurge(ctx, req, res); });
   router.delete('/jobs/purge-generated', (req, res) => { void purgeGenerated(ctx, req, res); });
   router.get('/analytics', getAnalytics);
   router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));
   router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
-  router.get('/jobs/updates', (req, res) => {
-    const sub = callerSub(req);
-    if (!sub) { res.status(401).json({error:'unauthorized'}); return; }
-    try { res.json(emailUpdates.publicState(emailUpdates.read(userPaths(sub).userDir))); }
-    catch (_) { res.status(500).json({error:'Application email state unavailable'}); }
-  });
-  router.post('/jobs/updates/check', async (req, res) => {
-    const sub = callerSub(req);
-    if (!sub) { res.status(401).json({error:'unauthorized'}); return; }
-    const db = openUserDb(sub, false);
-    if (!db) { res.status(404).json({error:'Upload a resume before monitoring application email.'}); return; }
-    try {
-      const submissionReconciliation = await require('../lib/career-submission-routes').reconcileCareerSubmissions(ctx, sub);
-      res.json({ ...await emailUpdates.check(userPaths(sub).userDir, db), submissionReconciliation });
-    }
-    catch (_) { res.status(500).json({error:'Application email check failed'}); }
-    finally { db.close(); }
-  });
+  router.get('/jobs/updates',getJobUpdates);
+  router.post('/jobs/updates/check',(req,res)=>checkJobUpdates(ctx,req,res));
   router.get('/jobs/:id', getJob);
   router.post('/jobs/:id/generate', (req, res) => generatePacket(ctx, req, res));
   router.delete('/jobs/:id/packet', (req, res) => { void removePacket(ctx, req, res); });

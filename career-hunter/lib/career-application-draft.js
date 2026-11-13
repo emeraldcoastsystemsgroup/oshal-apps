@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose preparation review/readiness against exact packet bytes and current tailoring, independently of submission.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Persist owner/job tailoring with revision checks and bind document readiness to the actual generation inputs and receipt.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. One refusal says other experience (was additional experience). Words only.
  */
@@ -43,10 +44,11 @@ function view(dir,id,job){
  const failed=!acknowledged&&(['refused','failed'].includes(saved.generationDraft?.state)||saved.phase==='failed'&&saved.generationDraft?.requestId===saved.requestId);
  const baseline=generated?.inputsHash||stored?.legacyInputsHash;
  const outdated=!!unavailable||!!baseline&&baseline!==input?.inputsHash;
- return {draft:{...draft,experienceIds:[...(draft.experienceIds||[])]},intent:held?queue.publicItem(held):null,
+ const result={draft:{...draft,experienceIds:[...(draft.experienceIds||[])]},intent:held?queue.publicItem(held):null,
   legacy:!generated,needsGeneration:!hasDocuments||busy||failed||outdated,documentsOutdated:outdated,
   busy,failed,unavailable,canRestoreDocuments:!!(saved.documentGeneration?.inputs||stored?.legacyInputs)&&hasDocuments&&!busy,inputsHash:input?.inputsHash||null,documentRequestId:generated?.requestId||null,
   locked:DONE.has(job.status)||!!held&&HELD.has(held.status)};
+ return {...result,workflow:require('./career-application-workflow').view(dir,id,job,result)};
 }
 function save(dir,id,job,input){
  mutable(dir,id,job);
@@ -77,4 +79,4 @@ function begin(dir,id,job,input,requestId,documents){
 function assertReady(dir,id,job){const state=view(dir,id,job);if(state.needsGeneration)fail('documents_outdated',state.unavailable||'Generate and review documents for the current tailoring and experience before submitting.');return state;}
 function refused(dir,id,requestId){const saved=board.readBoardState(dir).jobs[id]||{};if(saved.generationDraft?.requestId===requestId)board.updateBoardState(dir,id,{generationDraft:{...saved.generationDraft,state:'refused'}});}
 function restore(dir,id,job,input){mutable(dir,id,job);if(Object.keys(input||{}).some(key=>!['revision','restore'].includes(key))||input.restore!==true)fail('draft_invalid','Select the previous version explicitly.',400);const saved=board.readBoardState(dir).jobs[id]||{},current=view(dir,id,job);if(current.busy)fail('generation_active','Wait for the current generation to finish.');if(input.revision!==current.draft.revision)fail('draft_conflict','Read the current saved draft before restoring.');const previous=saved.documentGeneration,inputs=previous?.inputs||current.draft.legacyInputs,expected=previous?.inputsHash||current.draft.legacyInputsHash;if(!inputs||!expected)fail('previous_unavailable','The earlier document inputs are unavailable. Generate a fresh packet.');const bankNow=bank.read(dir),clean=source(dir,{...inputs,experienceRevision:bankNow.revision},true);if(clean.inputsHash!==expected)fail('previous_outdated','Your résumé or other experience changed. Generate a current packet.');const proof=saved.generationDraft?.previousDocumentHashes;if(saved.generationDraft&&(!proof||JSON.stringify(proof)!==JSON.stringify(packetHashes(dir,job))))fail('previous_changed','The previous document bytes could not be verified. Generate a fresh packet.');save(dir,id,job,{revision:current.draft.revision,guidance:clean.guidance,experienceIds:clean.experienceIds,experienceRevision:clean.experienceRevision});board.updateBoardState(dir,id,{reviewedPrevious:{inputsHash:expected,afterAttempt:saved.generationDraft?.requestId||null,at:new Date().toISOString()}});return view(dir,id,job);}
-module.exports={DraftError,view,save,begin,refused,restore,assertReady,latestIntent,effectiveGeneration,mutable};
+module.exports={DraftError,view,save,begin,refused,restore,assertReady,latestIntent,effectiveGeneration,mutable,packetHashes};

@@ -5,20 +5,19 @@
   brokerage, or demo-connect in Sandbox) and dashboard (net worth, accounts, holdings,
   spending, + the AI brief). All work is auth-gated server-side; this page calls the JSON API.
   Read-only: nothing is traded or moved. Theme syncs to the cockpit.
-  Linked institutions: the dashboard lists each bank with Disconnect (Plaid /item/remove, then
+  Bank connections: ?view=banks lists each bank with Disconnect (Plaid /item/remove, then
   re-sync) and an Add account button. OAuth banks that return through PLAID_REDIRECT_URI land
   here with ?oauth_state_id=…; the page resumes Link with the token saved before it opened.
   Brief: the page reads the saved brief (GET /brief?cached=1; none saved is a plain notice, not an
-  error) and Re-analyze asks for a new one with POST /brief/refresh, which saves it. A missing payment
+  error) and Request analysis asks for a new one with POST /brief/refresh, which saves it. Sync and
+  a completed bank link do not request analysis. A missing payment
   rail is said in words with where to go (Connections, Payments), never an environment variable.
   First screen: the money view whenever there is money to show (startScreen: linked items OR a saved
   aggregate - a demo installation's sample household, or banks disconnected after a sync); the connect
   card only greets a person with nothing saved (1.3.0).
-  1.4.0 (UX audit 2026-11-05, finance-home, C): the brief sits directly under the four tiles, so Re-analyze's spinner
-  and answer appear where the button is (the audit's "no request" did not reproduce: the button posts /brief/refresh,
-  but the answer landed 2,400 px down). The overview is read only: Accounts in two groups, Assets and Liabilities
-  (owed amounts shown negative), sortable; Holdings and Spending beside them from 1040 px. Sync is an icon beside the
-  synced date. Linked banks, Add account and the transfer history are the Linked banks screen (?view=banks). The
+  The saved snapshot names its source and date. Unknown balances stay unknown. Accounts are grouped into Assets
+  and Liabilities (owed amounts shown negative) with the independently dated saved analysis beside them on desktop.
+  Holdings, spending and transfer history are secondary details. Linked banks and Add account remain at ?view=banks. The
   money-sending form is withheld: POST /pay takes only a typed payment-method id and no route lists the person's own
   payment methods, so it cannot offer a funding-source select (and no installation has a payment rail today).
 -->
@@ -34,6 +33,8 @@
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 dashboard contract, solid button states, and tabular figures.
   2   | maintainer@emeraldcoastsystemsgroup.com | Pass individual sortable table elements to KernelTable.enhance instead of container elements (<main> / <div>) and default missing aggregate arrays so the overview never throws on .length.
+  3   | maintainer@emeraldcoastsystemsgroup.com | Make the saved bank snapshot readable with source and dates, preserve unknown amounts, separate account sync from explicit analysis, and retain saved context when a refresh fails.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Explain partial or unknown transaction windows and withhold full-window spending in bank, household and company views while retaining balances and available activity.
 -->
 
 <script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
@@ -49,8 +50,29 @@
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
 <script src="/shared/ui/js/app-view.js"></script>
 <script>
-(function () {
-  var A = window.AppView; if (!A) return;
+'use strict';
+/** Saved coverage is positive evidence; missing legacy metadata never means an empty window. */
+function financeTransactionCoverage(a) {
+  const c = a && a.transactionCoverage;
+  const count = n => Number.isSafeInteger(n) && n >= 0;
+  const rows = c && Array.isArray(c.institutions) ? c.institutions : [];
+  const valid = r => r && typeof r.institution === 'string' && r.institution.trim() && r.institution.length <= 200
+    && count(r.returned) && r.returned <= 2000 && count(r.total) && r.total >= r.returned
+    && (r.state === 'complete' && r.total === r.returned && r.reason === null && r.pages === Math.max(1, Math.ceil(r.returned / 500))
+      || r.state === 'partial' && r.total > r.returned && r.returned === 2000 && r.pages === 4 && r.reason === 'page_limit');
+  let state = 'unknown';
+  if (c && count(c.returned) && count(c.total) && rows.length > 0 && rows.length <= 100 && rows.every(valid)) {
+    const partial = rows.some(r => r.state === 'partial');
+    const total = rows.reduce((sum, r) => sum + r.total, 0);
+    if (Number.isSafeInteger(total) && total === c.total && rows.reduce((sum, r) => sum + r.returned, 0) === c.returned
+      && c.state === (partial ? 'partial' : 'complete') && a.transactionsComplete === !partial) state = c.state;
+  }
+  const counts = state === 'partial' ? ': ' + c.returned.toLocaleString('en-US') + ' of ' + c.total.toLocaleString('en-US') + ' reported transactions were read' : '';
+  return { complete: state === 'complete', notice: state === 'complete' ? '' : 'Transaction coverage is ' + state + counts + '. Full-window spending and income totals are unavailable.' };
+}
+{
+  const A = window.AppView;
+  if (A) {
   function call(path, body) {
     var opt = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'same-origin' } : { credentials: 'same-origin' };
     return fetch('/api/finance' + path, opt).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.message || j.error || ('HTTP ' + r.status)); e.code = j.error; e.status = r.status; throw e; } return j; }); });
@@ -73,7 +95,7 @@
   function family(ctx) {
     return picture(ctx, 'family').then(function (r) {
       if (!r.sum) return r;
-      var a = r.sum.aggregate, cur = a.currency || 'USD', nw = a.netWorth || {}, months = a.spendByMonth || [], last = months[months.length - 1] || {}, top = a.topSpending || [], max = top.reduce(function (m, t) { return Math.max(m, Number(t.total) || 0); }, 0);
+      var a = r.sum.aggregate, coverage = financeTransactionCoverage(a), cur = a.currency || 'USD', nw = a.netWorth || {}, months = coverage.complete ? a.spendByMonth || [] : [], last = months[months.length - 1] || {}, top = coverage.complete ? a.topSpending || [] : [], max = top.reduce(function (m, t) { return Math.max(m, Number(t.total) || 0); }, 0);
       return {
         kicker: 'Money at home', title: A.money(nw.net, cur), lede: (a.accounts || []).length + ' accounts at ' + (r.st.institutions || []).length + ' institution(s) · synced ' + A.when(r.sum.syncedAt),
         actions: [syncAction(ctx)],
@@ -81,12 +103,12 @@
           { id: 'net', label: 'Net worth', value: A.money(nw.net, cur), tone: Number(nw.net) < 0 ? 'bad' : 'ok' },
           { id: 'assets', label: 'What we have', value: A.money(nw.assets, cur) },
           { id: 'debts', label: 'What we owe', value: A.money(nw.liabilities, cur), tone: Number(nw.liabilities) > 0 ? 'warn' : null },
-          { id: 'spend', label: last.month ? 'Spent in ' + monthLabel(last.month) : 'Spent this month', value: A.money(last.spend, cur) }
+          { id: 'spend', label: last.month ? 'Spent in ' + monthLabel(last.month) : 'Spent this month', value: coverage.complete ? A.money(last.spend, cur) : 'Unknown' }
         ],
         sections: [
-          { kind: 'progress', id: 'spending', title: 'Where the money goes', note: 'Top categories in the last ' + (a.transactionWindowDays || 30) + ' days.', empty: 'No spending categories yet.', items: top.slice(0, 6).map(function (t) { return { label: t.category, value: max ? (Number(t.total) || 0) / max : 0, text: A.money(t.total, cur) }; }) },
+          { kind: 'progress', id: 'spending', title: 'Where the money goes', note: coverage.complete ? 'Top categories in the last ' + (a.transactionWindowDays || 30) + ' days.' : coverage.notice, empty: coverage.notice || 'No spending categories in the complete reported window.', items: top.slice(0, 6).map(function (t) { return { label: t.category, value: max ? (Number(t.total) || 0) / max : 0, text: A.money(t.total, cur) }; }) },
           { kind: 'list', id: 'accounts', title: 'Accounts', empty: 'No accounts yet.', items: (a.accounts || []).map(function (x) { return { title: x.name + (x.mask ? ' ····' + x.mask : ''), text: [x.institution, x.subtype || x.type].filter(Boolean).join(' · '), meta: A.money(x.balance, cur) }; }) },
-          { kind: 'table', id: 'recent', title: 'Recent activity', wide: true, empty: 'No transactions in the window.', columns: ['When', 'Who', 'Category', { label: 'Amount', align: 'right' }], rows: (a.recentTransactions || []).slice(0, 10).map(function (t) { return [A.date(t.date), t.name, t.category || '', { text: A.money(t.amount, cur), tone: Number(t.amount) < 0 ? 'ok' : null }]; }) }
+          { kind: 'table', id: 'recent', title: 'Recent activity', wide: true, empty: coverage.complete ? 'No transactions in the reported window.' : 'No available transactions were read; coverage is unconfirmed.', columns: ['When', 'Who', 'Category', { label: 'Amount', align: 'right' }], rows: (a.recentTransactions || []).slice(0, 10).map(function (t) { return [A.date(t.date), t.name, t.category || '', { text: A.money(t.amount, cur), tone: Number(t.amount) < 0 ? 'ok' : null }]; }) }
         ]
       };
     });
@@ -95,7 +117,7 @@
     return Promise.all([picture(ctx, 'company'), call('/payments').catch(function () { return { payments: [] }; })]).then(function (res) {
       var r = res[0], payments = res[1].payments || [];
       if (!r.sum) return r;
-      var a = r.sum.aggregate, cur = a.currency || 'USD', nw = a.netWorth || {}, months = (a.spendByMonth || []).slice(-6), last = months[months.length - 1] || {}, holdings = a.holdings || [], hv = holdings.reduce(function (m, h) { return m + (Number(h.value) || 0); }, 0);
+      var a = r.sum.aggregate, coverage = financeTransactionCoverage(a), cur = a.currency || 'USD', nw = a.netWorth || {}, months = coverage.complete ? (a.spendByMonth || []).slice(-6) : [], last = months[months.length - 1] || {}, holdings = a.holdings || [], hv = holdings.reduce(function (m, h) { return m + (Number(h.value) || 0); }, 0);
       return {
         kicker: 'Finance', title: 'Cash position', lede: (a.accounts || []).length + ' accounts · ' + (r.st.institutions || []).length + ' institution(s) · synced ' + A.when(r.sum.syncedAt) + (a.sourceEnvironment ? ' · ' + a.sourceEnvironment : ''),
         actions: [syncAction(ctx)],
@@ -103,13 +125,13 @@
           { id: 'net', label: 'Net', value: A.money(nw.net, cur), tone: Number(nw.net) < 0 ? 'bad' : null },
           { id: 'assets', label: 'Assets', value: A.money(nw.assets, cur) },
           { id: 'liabilities', label: 'Liabilities', value: A.money(nw.liabilities, cur) },
-          { id: 'income', label: last.month ? 'Income ' + monthLabel(last.month) : 'Income', value: A.money(last.income, cur) },
-          { id: 'spend', label: last.month ? 'Spend ' + monthLabel(last.month) : 'Spend', value: A.money(last.spend, cur) },
+          { id: 'income', label: last.month ? 'Income ' + monthLabel(last.month) : 'Income', value: coverage.complete ? A.money(last.income, cur) : 'Unknown' },
+          { id: 'spend', label: last.month ? 'Spend ' + monthLabel(last.month) : 'Spend', value: coverage.complete ? A.money(last.spend, cur) : 'Unknown' },
           { id: 'holdings', label: 'Holdings', value: A.money(hv, cur), hint: holdings.length + ' positions' }
         ],
         sections: [
           { kind: 'table', id: 'accounts', title: 'Accounts', empty: 'No accounts yet.', columns: ['Account', 'Institution', 'Type', { label: 'Balance', align: 'right' }], rows: (a.accounts || []).map(function (x) { return [x.name + (x.mask ? ' ····' + x.mask : ''), x.institution || '', x.subtype || x.type || '', { text: A.money(x.balance, cur) }]; }) },
-          { kind: 'table', id: 'months', title: 'Month by month', empty: 'No monthly history yet.', columns: ['Month', { label: 'Income', align: 'right' }, { label: 'Spend', align: 'right' }, { label: 'Net', align: 'right' }], rows: months.map(function (m) { var n = (Number(m.income) || 0) - (Number(m.spend) || 0); return [monthLabel(m.month), { text: A.money(m.income, cur) }, { text: A.money(m.spend, cur) }, { text: A.money(n, cur), tone: n < 0 ? 'bad' : 'ok' }]; }) },
+          { kind: 'table', id: 'months', title: 'Month by month', empty: coverage.notice || 'No monthly history in the complete reported window.', columns: ['Month', { label: 'Income', align: 'right' }, { label: 'Spend', align: 'right' }, { label: 'Net', align: 'right' }], rows: months.map(function (m) { var n = (Number(m.income) || 0) - (Number(m.spend) || 0); return [monthLabel(m.month), { text: A.money(m.income, cur) }, { text: A.money(m.spend, cur) }, { text: A.money(n, cur), tone: n < 0 ? 'bad' : 'ok' }]; }) },
           { kind: 'table', id: 'holdings', title: 'Holdings', empty: 'No holdings.', columns: ['Position', 'Ticker', { label: 'Qty', align: 'right' }, { label: 'Value', align: 'right' }], rows: holdings.slice(0, 10).map(function (h) { return [h.name, h.ticker || '—', { text: A.num(h.quantity) }, { text: A.money(h.value, cur) }]; }) },
           { kind: 'table', id: 'transfers', title: 'Recent transfers', empty: 'No transfers sent.', columns: ['When', 'Payee', { label: 'Amount', align: 'right' }, 'Status'], rows: payments.slice(0, 8).map(function (p) { return [A.date(p.created_at), p.payee || p.description || '', { text: A.money((Number(p.amount_cents) || 0) / 100, p.currency || cur) }, { text: (p.status || '') + (p.test_mode ? ' (test)' : ''), tone: /fail|return|cancel/i.test(p.status || '') ? 'bad' : /paid|complete|succeed/i.test(p.status || '') ? 'ok' : null }]; }) }
         ]
@@ -117,7 +139,8 @@
     });
   }
   A.boot({ app: 'finance', escapeLabel: 'Open Finance in the cockpit', audiences: { family: family, company: company } });
-})();
+  }
+}
 </script>
 <style>
   /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
@@ -139,15 +162,29 @@
   * { box-sizing:border-box; }
   html, body { overscroll-behavior:contain; min-height:100dvh; }
   body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; font-size:15px; line-height:22px; background:var(--bg); color:var(--text); }
-  .page { max-width:880px; margin:0 auto; padding:16px 24px 70px; }
-  .head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-  html.in-shell .head .badge, html.in-shell .head h1 { display:none; }
+  .page { max-width:880px; margin:0 auto; padding:24px 24px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+  html.in-shell .head .badge { display:none; }
   html.in-shell .head:has(#actions[style*="none"]) { display:none; }
   .connected-app-actions:empty { display:none !important; }
   h1 { font-size:24px; line-height:32px; margin:0; }
   .badge { font-size:18px; line-height:24px; }
   .sub { color:var(--muted); font-size:14px; margin-bottom:16px; line-height:20px; }
   .actions { margin-left:auto; display:flex; gap:8px; }
+  .snapshot-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .snapshot-source { border:1px solid var(--line); background:var(--panel2); border-radius:24px; padding:6px 12px; font-size:13px; font-weight:600; }
+  .snapshot-date,.analysis-date { color:var(--muted); font-size:13px; }
+  .snapshot-note { color:var(--muted); margin:0 0 18px; }
+  .snapshot-links { display:flex; gap:16px; flex-wrap:wrap; margin:8px 0 18px; }
+  .snapshot-links a { min-height:44px; display:inline-flex; align-items:center; color:var(--text); }
+  .bank-details { border:1px solid var(--line); border-radius:14px; margin-top:16px; background:var(--panel); }
+  .bank-details>summary { min-height:48px; padding:12px 16px; cursor:pointer; font-weight:600; }
+  .bank-details>.detail-content { padding:0 16px 4px; }
+  #syncStatus:empty { display:none; }
+  #syncStatus { padding:12px 0; overflow-wrap:anywhere; }
+  .analysis-head { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .analysis-head h2 { margin:0; }
+  .analysis-stale { color:var(--muted); font-size:13px; margin:8px 0 16px; }
   .btn { border:1px solid transparent; border-radius:10px; padding:0 16px; min-height:44px; cursor:pointer; font-size:15px; line-height:22px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; }
   .btn.primary { background:var(--ds-accent, var(--accent)); border-color:var(--ds-accent, var(--accent)); color:var(--ds-on-accent, var(--text-on-accent, #ffffff)); }
   .btn.ghost { background:var(--ds-surface-2, var(--panel2)); border:1px solid var(--ds-line-control, var(--line)); color:var(--text); }
@@ -159,6 +196,7 @@
   .stat { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 16px; min-width:120px; }
   .stat .n { font-size:24px; line-height:32px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
   .stat .n.neg { color:var(--danger); }
+  .stat .n.unknown { color:var(--muted); }
   .stat .l { font-size:12px; line-height:16px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
   table { width:100%; border-collapse:collapse; font-size:14px; line-height:20px; }
   th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; line-height:16px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
@@ -184,6 +222,7 @@
   .accounts-group { font-size:14px; line-height:20px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:14px 0 4px; display:flex; justify-content:space-between; }
   .accounts-group:first-of-type { margin-top:4px; }
   td.num.owed { color:var(--danger); }
+  td.num.unknown { color:var(--muted); }
   th .ks-sort { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; min-height:44px; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; }
   th[aria-sort] .ks-sort { color:var(--accent); }
   .cols { display:block; }
@@ -218,9 +257,10 @@
 <div class="page">
   <div class="head">
     <span class="badge">💵</span>
-    <h1>Finance</h1>
+    <h1>Bank accounts</h1>
     <div class="actions" id="actions" style="display:none">
-      <button class="btn primary" id="briefBtn">Re-analyze</button>
+      <button class="btn ghost" id="syncIcon" type="button">Sync accounts</button>
+      <button class="btn primary" id="briefBtn" type="button" disabled>Request analysis</button>
     </div>
   </div>
   <section class="panel" id="reviewPanel" hidden aria-label="Financial review draft">
@@ -240,9 +280,16 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const main = $('main');
-const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n||0)).toLocaleString(undefined, { maximumFractionDigits: 0 });
-const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(); } catch { return iso || '—'; } };
+const money = (n, cur = 'USD') => Number.isFinite(n) ? new Intl.NumberFormat(undefined, { style: 'currency', currency: /^[A-Z]{3}$/.test(cur) ? cur : 'USD', maximumFractionDigits: 0 }).format(n) : 'Unknown';
+const fmtDate = (iso) => { const d = iso ? new Date(iso) : null; return d && Number.isFinite(d.getTime()) ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Date unknown'; };
 const escapeHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let snapshotAt = null;
+let hasSnapshot = false;
+let briefBusy = false;
+let syncBusy = false;
+function sourceLabel(source) { return source === 'sample' ? 'Sample data' : source === 'sandbox' ? 'Test bank data' : source === 'production' ? 'Bank data' : 'Source unknown'; }
+function setBusy() { $('briefBtn').disabled = !hasSnapshot || briefBusy || syncBusy; $('syncIcon').disabled = briefBusy || syncBusy; }
+function syncMessage(text, failed = false) { const node = $('syncStatus') || linkMsg(); node.className = failed ? 'err' : 'sub'; node.textContent = text; }
 /** Where Link reports progress: the connect screen's line, else the linked-institutions panel's. */
 const linkMsg = () => $('cmsg') || $('lmsg') || document.createElement('div');
 /** The link token is kept briefly so an OAuth bank that returns by redirect resumes the same Link session. */
@@ -346,10 +393,10 @@ async function loadLinks() {
   if (!host) return;
   let st;
   try { st = await api('/status'); } catch (e) { host.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>'; return; }
-  const items = st.items || [];
-  host.innerHTML = `<div class="panel"><h2>Linked banks and brokerages</h2><table><tbody>` +
-    items.map((it) => `<tr><td>${escapeHtml(it.institution)}</td><td class="sub">linked ${escapeHtml(fmtDate(it.linkedAt))}</td><td class="num"><button class="btn ghost" data-item="${escapeHtml(it.itemId)}" data-name="${escapeHtml(it.institution)}">Disconnect</button></td></tr>`).join('') +
-    `</tbody></table><div id="lmsg" style="margin-top:10px;font-size:13px"></div><div class="foot">Environment: ${escapeHtml(st.env)}. Add account links another bank or brokerage through Plaid.</div></div>`;
+  const items = Array.isArray(st.items) ? st.items.filter(Boolean) : [];
+  host.innerHTML = `<div class="panel"><div class="snapshot-head"><h2>Bank connections</h2><span class="snapshot-source">${sourceLabel(st.env)}</span></div><p class="sub">${items.length} saved institution link${items.length === 1 ? '' : 's'}. Sync accounts checks for newer data.</p><table><tbody>` +
+    items.map((it) => `<tr><td>${escapeHtml(it.institution)}</td><td class="sub">Linked ${escapeHtml(fmtDate(it.linkedAt))}</td><td class="num"><button class="btn ghost" data-item="${escapeHtml(it.itemId)}" data-name="${escapeHtml(it.institution)}">Disconnect</button></td></tr>`).join('') +
+    `</tbody></table><div id="lmsg" role="status" style="margin-top:10px;font-size:13px"></div><div class="foot">Add account links another bank or brokerage through Plaid.</div></div>`;
   host.querySelectorAll('button[data-item]').forEach((b) => { b.onclick = () => disconnect(b.dataset.item, b.dataset.name); });
 }
 
@@ -391,10 +438,12 @@ function ensurePlaidScript() {
   });
 }
 
-/** After a successful link: sync, then show the dashboard. */
+/** A completed link and the first sync are separate results; analysis needs its own request. */
 async function afterConnect() {
-  try { await api('/sync', { method: 'POST' }); } catch (e) { /* surface still renders; sync errors show as notes */ }
-  await renderDashboard(true);
+  let failure = null;
+  try { await api('/sync', { method: 'POST' }); } catch (e) { failure = e; }
+  await renderDashboard();
+  syncMessage(failure ? 'Bank linked. Sync failed: ' + failure.message : 'Bank linked and account snapshot refreshed.', Boolean(failure));
 }
 
 /** Enhance every sortable table inside a container without passing a non-table node to KernelTable.enhance. */
@@ -403,47 +452,59 @@ function enhanceTables(scope) {
   scope.querySelectorAll('table[data-sortable], .table-scroll table, .scroll table').forEach((t) => window.KernelTable.enhance(t));
 }
 
-/** Dashboard — net worth, accounts, holdings, spending, + brief. */
-async function renderDashboard(freshBrief) {
+/** Saved bank snapshot. Opening this view never requests a fresh analysis. */
+async function renderDashboard() {
   $('actions').style.display = 'flex';
-  main.innerHTML = '<div class="spin"><span class="dot"></span> Loading your finances…</div>';
+  const retaining = hasSnapshot && Boolean($('syncStatus'));
+  if (!retaining) main.innerHTML = '<div class="spin"><span class="dot"></span> Loading your finances…</div>';
   let summary;
   try { summary = await api('/summary'); }
   catch (e) {
-    if (e.code === 'no_data') { main.innerHTML = '<div class="notice">Linked, but not synced yet.</div><div style="text-align:center"><button class="btn primary" id="s2">Sync now</button></div><div id="linksPanel"></div>'; $('s2').onclick = () => doSync(); loadLinks(); return; }
-    main.innerHTML = '<div class="notice err">' + e.message + '</div>'; return;
+    if (retaining) throw e;
+    hasSnapshot = false; setBusy();
+    if (e.code === 'no_data' || e.status === 404) { main.innerHTML = '<div class="panel"><h2>Linked, but not synced yet</h2><p>Sync accounts to save balances and activity here.</p><div id="syncStatus" role="status"></div></div><div id="linksPanel"></div>'; loadLinks(); return; }
+    main.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>'; return;
   }
   const a = summary.aggregate || {}; const cur = a.currency || 'USD';
-  a.netWorth = a.netWorth && typeof a.netWorth === 'object' ? a.netWorth : { assets: 0, liabilities: 0, net: 0 };
+  a.netWorth = a.netWorth && typeof a.netWorth === 'object' ? a.netWorth : {};
   a.accounts = Array.isArray(a.accounts) ? a.accounts : [];
   a.holdings = Array.isArray(a.holdings) ? a.holdings : [];
-  a.topSpending = Array.isArray(a.topSpending) ? a.topSpending : [];
+  const coverage = financeTransactionCoverage(a);
+  a.topSpending = coverage.complete && Array.isArray(a.topSpending) ? a.topSpending : [];
   a.notes = Array.isArray(a.notes) ? a.notes : [];
-  const nwClass = a.netWorth.net < 0 ? 'neg' : '';
+  const nwClass = a.netWorth.net < 0 ? 'neg' : ''; snapshotAt = summary.syncedAt; hasSnapshot = true;
   main.innerHTML = `
+    <div class="snapshot-head"><span class="snapshot-source">${sourceLabel(a.sourceEnvironment)}</span><span class="snapshot-date">${fmtDate(summary.syncedAt) === 'Date unknown' ? 'Snapshot date unknown' : 'Snapshot saved ' + escapeHtml(fmtDate(summary.syncedAt))}</span></div>
+    <p class="snapshot-note">A saved view of balances and activity. Your bank may have newer information.</p>
+    ${coverage.notice ? `<div class="notice transaction-coverage" role="status">${escapeHtml(coverage.notice)}</div>` : ''}
     <div class="stats">
-      <div class="stat"><div class="n ${nwClass}">${money(a.netWorth.net, cur)}</div><div class="l">net worth</div></div>
-      <div class="stat"><div class="n">${money(a.netWorth.assets, cur)}</div><div class="l">assets</div></div>
-      <div class="stat"><div class="n">${money(a.netWorth.liabilities, cur)}</div><div class="l">liabilities</div></div>
-      <div class="stat"><div class="n">${a.holdings.length}</div><div class="l">holdings</div></div>
+      <div class="stat"><div class="n ${Number.isFinite(a.netWorth.net) ? nwClass : 'unknown'}">${money(a.netWorth.net, cur)}</div><div class="l">net worth</div></div>
+      <div class="stat"><div class="n${Number.isFinite(a.netWorth.assets) ? '' : ' unknown'}">${money(a.netWorth.assets, cur)}</div><div class="l">assets</div></div>
+      <div class="stat"><div class="n${Number.isFinite(a.netWorth.liabilities) ? '' : ' unknown'}">${money(a.netWorth.liabilities, cur)}</div><div class="l">amount owed</div></div>
+      <div class="stat"><div class="n">${a.accounts.length}</div><div class="l">saved accounts</div></div>
     </div>
-    <div class="foot synced" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} <button class="icon-btn" id="syncIcon" type="button" aria-label="Sync accounts" title="Sync accounts">⟳</button>${(a.notes||[]).length ? ' · ' + (a.notes||[]).join(' · ') : ''}</div>
-    <div class="panel brief" id="briefPanel"><div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div></div>
+    <div id="syncStatus" role="status" aria-live="polite"></div>
+    <div class="snapshot-links"><a href="?view=banks">Manage bank connections</a></div>
+    ${a.notes.length ? '<div class="panel sub">' + a.notes.map(escapeHtml).join('<br>') + '</div>' : ''}
     <div class="cols">
       <div>${renderAccounts(a, cur)}</div>
-      <div>${a.holdings.length ? renderHoldings(a, cur) : ''}${a.topSpending.length ? renderSpending(a, cur) : ''}</div>
-    </div>`;
-  $('syncIcon').onclick = doSync;
+      <div class="panel brief" id="briefPanel"><div class="spin">Reading saved analysis…</div></div>
+    </div>
+    ${a.holdings.length || a.topSpending.length ? '<details class="bank-details"><summary>Holdings and spending</summary><div class="detail-content">' + (a.holdings.length ? renderHoldings(a, cur) : '') + (a.topSpending.length ? renderSpending(a, cur) : '') + '</div></details>' : ''}`;
+  setBusy();
   enhanceTables(main);
-  loadBrief(freshBrief);
+  await loadBrief(false);
 }
 
 /** Linked banks (?view=banks): each linked institution with Disconnect, Add account, and the transfer history. */
 async function renderBanks() {
   $('actions').style.display = 'none';
+  const status = await api('/status');
   main.innerHTML = `<div id="linksPanel"><div class="spin"><span class="dot"></span> Loading your linked banks…</div></div>
-    <div><button class="btn primary" id="addAccount" type="button">Add account</button></div>
-    <div id="payPanel" style="margin-top:16px"></div>`;
+    <div class="snapshot-links"><a href="/api/finance/">Back to bank accounts</a></div>
+    <div><button class="btn primary" id="addAccount" type="button" ${status.configured ? '' : 'disabled'}>Add account</button></div>
+    ${status.configured ? '' : '<p class="sub">Bank linking is not set up on this installation yet.</p>'}
+    <details class="bank-details"><summary>Transfer history</summary><div class="detail-content" id="payPanel"></div></details>`;
   $('addAccount').onclick = startLink;
   await loadLinks();
   loadPayHistory();
@@ -472,53 +533,59 @@ function renderPayHistory(payments) {
 // the card instead of being cut at its edge (sweep 8: 'BALANC', '$11' for $110 at 412 px).
 // Plaid reports credit and loan balances as amounts owed: they are the Liabilities group and read negative (UX audit).
 function renderAccounts(a, cur) {
-  const accounts = Array.isArray(a && a.accounts) ? a.accounts : [];
+  const accounts = Array.isArray(a && a.accounts) ? a.accounts.filter((x) => x && typeof x === 'object') : [];
   const owed = (x) => x.type === 'credit' || x.type === 'loan';
-  const row = (x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}${x.institution ? `<span class="acct-inst-line">${x.institution}</span>` : ''}</td><td class="acct-inst">${x.institution}</td><td>${x.subtype || x.type}</td><td class="num${owed(x) ? ' owed' : ''}">${owed(x) ? '−' + money(Math.abs(x.balance), cur) : money(x.balance, cur)}</td></tr>`;
+  const balance = (x) => owed(x) && Number.isFinite(x.balance) && x.balance !== 0 ? '−' + money(Math.abs(x.balance), x.currency || cur) : money(x.balance, x.currency || cur);
+  const row = (x) => `<tr><td>${escapeHtml(x.name || 'Unnamed account')}${x.mask ? ' ····' + escapeHtml(x.mask) : ''}${x.institution ? `<span class="acct-inst-line">${escapeHtml(x.institution)}</span>` : ''}</td><td class="acct-inst">${escapeHtml(x.institution)}</td><td>${escapeHtml(x.subtype || x.type)}</td><td class="num${owed(x) ? ' owed' : ''}${Number.isFinite(x.balance) ? '' : ' unknown'}">${balance(x)}</td></tr>`;
   const group = (label, list) => list.length ? `<div class="accounts-group"><span>${label}</span></div><table class="accounts" data-sortable><thead><tr><th>Account</th><th class="acct-inst">Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>` : '';
-  return `<div class="panel"><h2>Accounts</h2>${group('Assets', accounts.filter((x) => !owed(x)))}${group('Liabilities', accounts.filter(owed))}</div>`;
+  return `<div class="panel"><h2>Accounts</h2>${accounts.length ? group('Assets', accounts.filter((x) => !owed(x))) + group('Liabilities', accounts.filter(owed)) : '<p class="sub">No accounts in this saved snapshot.</p>'}</div>`;
 }
 function renderHoldings(a, cur) {
   const holdings = Array.isArray(a && a.holdings) ? a.holdings : [];
   return `<div class="panel"><h2>Holdings</h2><table data-sortable><thead><tr><th>Holding</th><th>Ticker</th><th class="num">Qty</th><th class="num">Value</th></tr></thead><tbody>` +
-    holdings.slice(0, 25).map((h) => `<tr><td>${h.name}</td><td>${h.ticker || '—'}</td><td class="num">${(h.quantity||0).toLocaleString()}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
+    holdings.filter(Boolean).slice(0, 25).map((h) => `<tr><td>${escapeHtml(h.name)}</td><td>${escapeHtml(h.ticker || '—')}</td><td class="num">${Number.isFinite(h.quantity) ? h.quantity.toLocaleString() : 'Unknown'}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 function renderSpending(a, cur) {
   const topSpending = Array.isArray(a && a.topSpending) ? a.topSpending : [];
   return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays || 90} days)</h2><table data-sortable><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
-    topSpending.map((s) => `<tr><td>${s.category}</td><td class="num">${money(s.total, cur)}</td><td class="num">${s.count}</td></tr>`).join('') +
+    topSpending.filter(Boolean).map((s) => `<tr><td>${escapeHtml(s.category)}</td><td class="num">${money(s.total, cur)}</td><td class="num">${Number.isFinite(s.count) ? s.count : 'Unknown'}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 
 /** Said when no payment rail is set up: where to go, never an environment variable. */
 const PAYMENTS_UNAVAILABLE = 'Sending money from Finance is not set up on this installation. To take payments, connect Stripe on the Connections page and use the Payments app.';
 /** Said when no brief has been saved yet. */
-const NO_SAVED_BRIEF = 'No saved analysis yet. Choose Re-analyze to request one.';
+const NO_SAVED_BRIEF = 'No saved analysis yet. Choose Request analysis to ask for one.';
 
 /** Load the AI brief into its panel: the saved one, or (Re-analyze) a new one the server saves. */
 async function loadBrief(forceRefresh) {
   const panel = $('briefPanel');
   if (!panel) return;
-  if (forceRefresh) panel.innerHTML = '<div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div>';
+  const previous = panel.innerHTML;
+  if (forceRefresh) { briefBusy = true; setBusy(); panel.innerHTML = '<div class="spin" role="status"><span class="dot"></span> Requesting analysis of the saved accounts…</div>' + previous; }
   try {
     const j = forceRefresh
       ? await api('/brief/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       : await api('/brief?cached=1');
-    panel.innerHTML = renderMarkdown(j.brief);
+    const stale = new Date(j.briefAt).getTime() < new Date(snapshotAt).getTime();
+    panel.innerHTML = '<div class="analysis-head"><h2>Saved analysis</h2><span class="analysis-date">' + (fmtDate(j.briefAt) === 'Date unknown' ? 'Analysis date unknown' : 'Saved ' + escapeHtml(fmtDate(j.briefAt))) + '</span></div>' + (stale ? '<p class="analysis-stale">This analysis was saved before the account snapshot. Request analysis to review the refreshed data.</p>' : '') + renderMarkdown(j.brief);
   } catch (e) {
     if (!forceRefresh && (e.code === 'no_saved_brief' || e.status === 404)) { panel.innerHTML = '<div class="notice">' + NO_SAVED_BRIEF + '</div>'; return; }
-    panel.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>';
-  }
+    panel.innerHTML = '<div class="notice err" role="status">' + escapeHtml(e.message) + '</div>' + (forceRefresh ? previous : '');
+  } finally { if (forceRefresh) { briefBusy = false; setBusy(); } }
 }
 
 async function doSync() {
-  main.innerHTML = '<div class="spin"><span class="dot"></span> Syncing your accounts…</div>';
-  try { await api('/sync', { method: 'POST' }); await renderDashboard(true); }
-  catch (e) { main.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
+  if (syncBusy || briefBusy) return;
+  syncBusy = true; setBusy(); syncMessage('Syncing accounts…');
+  try { await api('/sync', { method: 'POST' }); await renderDashboard(); syncMessage('Account snapshot refreshed. Saved analysis has not been changed.'); }
+  catch (e) { syncMessage(e.message, true); }
+  finally { syncBusy = false; setBusy(); }
 }
 
 $('briefBtn').onclick = () => loadBrief(true);
+$('syncIcon').onclick = doSync;
 
 /** The first screen: the money view whenever there is money to show (linked items, or a saved aggregate such as a
  *  demo installation's sample household or a person whose banks were disconnected after a sync); connect otherwise. */
@@ -530,7 +597,7 @@ if (!window.AppView || !AppView.active()) (async function init() {
     if (await resumeOAuth()) return;
     if (new URLSearchParams(location.search).get('view') === 'banks') { await renderBanks(); return; }
     const st = await api('/status');
-    if (startScreen(st) === 'dashboard') await renderDashboard(false);
+    if (startScreen(st) === 'dashboard') await renderDashboard();
     else renderConnect(st);
   } catch (e) {
     main.innerHTML = '<div class="notice err">Could not load: ' + e.message + '</div>';

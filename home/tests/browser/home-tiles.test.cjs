@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | home 1.6.0, Home as tiles in headless Chromium at 412 x 915 (Roger, 2026-11-10: "Smart home needs a redesign ... connected devices are smart home items, fire sticks are as well"). The first screen shows the refrigerator, the TVs, the switch cards, the person's phones and their computers in groups that fit the phone; no label on it names a provider key or a device capability; the refrigerator tile opens its page and Back returns; a phone or computer tile opens Phone & Device Control; a device known to both lists shows once; with Phone & Device Control waiting for re-approval it is asked for nothing and the tiles open the Devices page; opening the screen writes nothing.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The overview names its hub inventory count home devices so it does not imply the separately listed phones, computers and remotes are included.
  */
 'use strict';
 const test = require('node:test');
@@ -79,7 +80,7 @@ test('Home shows the refrigerator, TVs, switches, phones and computers as groups
     assert.deepEqual(await tiles(page, 'tiles-computers'), ['Den PC | Connected · 2 programs', 'Attic laptop | Not connected']);
     assert.deepEqual(await page.locator('#grid .card .nm').allTextContents(), ['Reading lamp', 'Coffee plug On this network'],
       'the switch cards are the devices with no tile of their own');
-    assert.equal(await page.textContent('#count'), '3 devices');
+    assert.equal(await page.textContent('#count'), '3 home devices');
     assert.equal(await page.locator('#scenes .scene').count(), 1);
     for (const hidden of ['#fridgeCameraSection', '#tvSection', '#runbookSection', '#hubsPanel']) assert.equal(await page.isVisible(hidden), false, `${hidden} is not on the first screen`);
 

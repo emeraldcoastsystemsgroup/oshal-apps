@@ -1,3 +1,7 @@
+# 33 | maintainer@emeraldcoastsystemsgroup.com | Declare the nonexecuting Fire TV phone-app operating guide under existing Own read authority.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: start native Orbit setup with current downloads and exact registered device links; Linux bridge setup is optional.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | 1.15.0: admit single-command TV link/show plans to the existing owner-bound closed one-use runner.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | 1.15.0: Searchable device overview with reported connection/control state, contextual actions and progressive details at phone and desktop sizes.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — phone-control ("Phone & Device Control")
 # Control your Android phone (adb over Wi-Fi: its screen, taps, keys, typing and
@@ -29,6 +33,12 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Release 1.11.0 (T80; Roger, 2026-11-12: "hey jarvis in the game room open rings of power season 3 where i left off .. make it do that"): Play a Show on a TV (phone-control-play-show, POST /devices/:id/play) plays a show or film by its name on a saved Android or Fire TV, the way a person does with the remote: Prime Video's search, the matching result, then Resume (where the person left off) or Play, answered with what the TV says is playing. The bridge (1.11.0) carries oshal_phone_play.py. Proven on the office Fire TV: Season 3, Episode 3 resumed where Roger was.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.12.0 (T79, the device inventory, first slice): What a TV can play (phone-control-tv-apps, POST /devices/:id/apps) says which streaming apps a saved Android or Fire TV has, so Jarvis can answer "what can my TV play" and pick the app: the bridge (1.12.0) carries oshal_phone_apps.py, whose lan-control tv_apps reads the TV's package list once and maps it through a closed list (Netflix, Prime Video, Disney+, Max, Hulu, YouTube and the oshal TV app), answering each app's key, name and package and only a count of the other packages; nothing on the TV is pressed, woken or opened. Bound as Open a Link on a TV; no permission or egress changed. Tested against a scripted TV; not yet run on a real TV.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | Release 1.12.1 (T79): the tool Jarvis lists saved devices with is "List My Phones and TVs", and its description says it lists TVs too, with whether each is a phone or a TV. It already listed both; its name said phones only, so a request for a TV could pass it by. No route, permission or data changed.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Release 1.13.0 (T79, the device inventory; Roger, 2026-11-12: "when you add a device and that device gives the swarm control it runs discovery on the device ... so then there is a device inventory"): What a TV can play is kept in the person's own device inventory, where Jarvis's device.inventory and the Devices page read it. phone-control-tv-apps declares computerPlan {program: phone-bridge, verbs: [lan-control]} and its plan names the TV's own computer, so the kernel offers device-concierge computer.run_plan, which runs exactly that read once in the person's own conversation; the new phone-control-tv-apps-record (POST /devices/:id/apps/record) takes the one JSON line the computer printed, records it against the TV and hands the kernel's device.inventory.record, as the person, the TV (its saved id, name, and Fire TV or Android TV), its ADB route through that computer and that it worked, that its applications can be listed, the applications found with the services they reach, the seven it looked for and how many others it saw; a failed read records the route as down or refused with the bridge's words. The bridge (1.13.0) also answers the TV's model and maker from two more reads, so the inventory can say a TV saved here may be the one signed in with the oshal app; nothing on the TV is pressed, woken or opened. Bound as What a TV can play; no permission, grant or egress changed. Tested against a scripted TV and a stand-in kernel intent; not yet run on a real TV.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Release 1.14.0 (T83; Roger, 2026-11-12: "we also have a sas model that needs to be accommodated"): every person pairs, manages and operates their own phones, TVs and computers. Since 1.2.0 only the administrator's role could; a customer who is not an administrator opened the page and read "Not available on your account". The operator and editor roles grant the device permissions again (authorization.yaml, change 11), the roleTemplates say what each gives, and the page's card for an account that may only open the page no longer names the administrator. Every record is still the person's own and every command still runs on a computer of theirs; nothing in this application reaches another person or the installation. No route, tool or bridge verb changed; the bridge says 1.14.0.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Release 1.14.0, the same release (T83): no fixed installation address. phone-provision (POST /api/phone-control/provision) wrote one installation's public address into its plan whenever the caller sent no serverUrl, which is how Jarvis calls it; on another installation a customer's TV would have been told to sign in to a server that is not theirs. The route now uses the server the caller names, else this installation's own public address as the kernel gives it, and when that is not known it answers server_required in words and plans nothing. The page's four pushes of the oshal app send the page's own origin. The tool's description and instructions say so.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Device and TV tools prepare commands without claiming execution; instructions require an authorized computer result before success.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 1.17.0: declare closed native saved-relay tools for original-person Jarvis requests, with explicit target and connection selection and no bridge fallback.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | Release 1.18.0: the version follows change 33, the Fire TV phone-app guide (phone-control-fire-tv-guide, GET /remote-apps/fire-tv/guide), a read-only guide that inspects, connects, selects, presses and plays nothing. The bridge says 1.18.0 with no verb changed. No permission, grant or egress changed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -54,8 +64,8 @@ description: >-
   On a saved Android or Fire TV it plays a show or film by its name in Prime Video, resuming where the
   person left off, opens a title's link in its streaming app, and says what the TV is playing.
   It also says which streaming apps a saved Android or Fire TV has, among Netflix, Prime Video,
-  Disney+, Max, Hulu, YouTube and the oshal TV app.
-version: 1.12.1
+  Disney+, Max, Hulu, YouTube and the oshal TV app, and keeps them in the person's device inventory.
+version: 1.18.0
 status: active
 scope: person
 chatBot: device-concierge
@@ -84,6 +94,7 @@ uses:
   - test-catalog
   - application-authorization
   - experience-roles
+  - intent.run
 
 authorization:
   version: 1
@@ -96,12 +107,12 @@ authorization:
         - { app: phone-control, role: admin }
     - id: operator
       version: 1
-      label: Device page only (device features are for the administrator)
+      label: Your own phones, TVs and computers (add, manage and control)
       members:
         - { app: phone-control, role: operator }
     - id: viewer
       version: 1
-      label: Device page only, read (device features are for the administrator)
+      label: Device page only (cannot add or control devices)
       members:
         - { app: phone-control, role: reader }
 
@@ -203,6 +214,36 @@ summary:
   itemsPointer: /items
 
 tools:
+  - name: phone-control-fire-tv-guide
+    displayName: Read Fire TV Phone App Guide
+    type: api
+    category: operations
+    description: Read the operating guide for an already paired Fire TV phone app. It does not inspect, connect, select, control or play anything. Follow it only with the original owner's offered native phone tools and fresh exact-target evidence.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/phone-control/remote-apps/fire-tv/guide
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {}, additionalProperties: false }
+    usageInstructions: This is guidance, not a saved connection or execution result. Check current phone readiness and exact selected Fire Stick. Use expected_app for every native phone input; if unavailable or refused, stop. Never infer TV playback or choose another TV.
+    routingTags: [operations, phone-control, fire-tv, remote-app]
+    skills: [phone-device-control]
+    tags: [route-backed]
+
+  - {"name":"phone-control-relay-bindings", "displayName":"Read My Saved Phone-to-TV Connections", "type":"api", "category":"operations",
+     "description":"Read this person's native saved phone-to-TV connections and their current states. This requires an original Jarvis conversation. It does not discover, set up, wake or control a device. These canonical target and binding IDs are separate from the saved Linux-bridge phone records.",
+     "executor":{"executorType":"api","apiEndpoint":"GET /api/phone-control/relay-bindings"}, "defaultAuthMode":"auto", "requiresApproval":false,
+     "inputSchema":{"type":"object","properties":{},"additionalProperties":false},
+     "usageInstructions":"Read the names, state and check time. Ask the person to select the exact TV and phone connection; never choose the first or only connection automatically. Only an already active connection can be used. Do not convert legacy phone IDs or infer control from installed programs or an old device report.",
+     "routingTags":["operations","phone-control","native-relay"], "skills":["phone-device-control"], "tags":["route-backed"]}
+
+  - {"name":"phone-control-relay-open-orbit", "displayName":"Open Orbit Through My Selected Phone Connection", "type":"api", "category":"operations",
+     "description":"Ask the native relay to open Orbit on the explicitly selected TV through its explicitly selected, already active saved phone connection, in an original Jarvis conversation. Only Open Orbit is supported; this does not install an app, wake a device, sign in, open arbitrary links or start playback.",
+     "executor":{"executorType":"api","apiEndpoint":"POST /api/phone-control/relay-bindings/{input.binding_id}/open-orbit"}, "defaultAuthMode":"auto", "requiresApproval":false,
+     "inputSchema":{"type":"object","properties":{"target_device_id":{"type":"string","pattern":"^node-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},"binding_id":{"type":"string","pattern":"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}},"required":["target_device_id","binding_id"],"additionalProperties":false},
+     "usageInstructions":"Use both exact IDs from Read My Saved Phone-to-TV Connections after the person selects that TV and phone connection, even if only one is listed. Call once. Report transport acknowledgement, the TV's matching receipt and fresh foreground observation separately; none proves sign-in or playback. An unknown or lost result is not success: do not retry, choose another connection or use a Linux bridge as a fallback. Outside an original Jarvis conversation the native request is refused.",
+     "routingTags":["operations","phone-control","native-relay"], "skills":["phone-device-control"], "tags":["route-backed"]}
+
   - name: phone-control-list-devices
     displayName: List My Phones and TVs
     type: api
@@ -802,7 +843,7 @@ tools:
     displayName: Provision or Update Open Swarm APK over ADB
     type: api
     category: operations
-    description: Build and validate a zero-touch ADB provisioning command plan (connects to the Fire TV or Android phone IP/serial over the enrolled Linux computer, installs/updates the signed Open Swarm APK, and launches SignInActivity with prefilled serverUrl and optional joinCode).
+    description: Build and validate a zero-touch ADB provisioning command plan (connects to the Fire TV or Android phone IP/serial over the enrolled Linux computer, installs/updates the signed Open Swarm APK, and launches SignInActivity with prefilled serverUrl and optional joinCode). When serverUrl is left out, the server is this installation's own public address; when that is not known the answer is server_required and nothing is planned.
     executor:
       executorType: api
       apiEndpoint: POST /api/phone-control/provision
@@ -829,7 +870,7 @@ tools:
       required:
         - serialOrIp
       additionalProperties: false
-    usageInstructions: Pass serialOrIp (for example "192.168.1.42" or "192.168.1.42:5555") to generate the zero-touch ADB APK installation and auto-sign-in command for the enrolled Linux computer.
+    usageInstructions: Pass serialOrIp (for example "192.168.1.42" or "192.168.1.42:5555") to generate the zero-touch ADB APK installation and auto-sign-in command for the enrolled Linux computer. Leave serverUrl out so the device signs in to this installation. If the answer is server_required, ask the person which address they open oshal at and call again with it as serverUrl; never make one up.
     routingTags:
       - phone
       - tv
@@ -898,10 +939,11 @@ tools:
     displayName: Open a Link on a TV
     type: api
     category: operations
-    description: Open a film's or show's link on a saved Android or Fire TV, inside its streaming app (netflix, prime, disney, max, hulu, youtube) when named, or a Marquee page in the oshal TV app (oshal); the TV is woken first. Answers the plan the person's computer runs.
+    description: Prepare a command to open a film's or show's link on a saved Android or Fire TV, inside its streaming app (netflix, prime, disney, max, hulu, youtube) when named, or a Marquee page in the oshal TV app (oshal). The person's computer must run the returned plan before the TV is woken or the link opened.
     executor:
       executorType: api
       apiEndpoint: POST /api/phone-control/devices/{input.id}/open-link
+    computerPlan: { program: phone-bridge, verbs: [lan-control], revalidate: true }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -912,7 +954,14 @@ tools:
         app: { type: string, enum: [netflix, prime, disney, max, hulu, youtube, oshal] }
       required: [id, url]
       additionalProperties: false
-    usageInstructions: Pass the TV's id or name, the https link to the title on the service's own site, and the app; the link opens that title in the app.
+    usageInstructions: >-
+      Pass the saved TV's id or name, the https title link and the service app.
+      This prepares a plan only. When computer.run_plan is offered, call it once with {"plan":"<the planId
+      this answer carries>"}. The plan pins the saved TV's computer; do not substitute another host.
+      Report the actual command reply and distinguish request acceptance from observed opening or playback.
+      Without a planId or authorized runner, say it is planned. An uncertain result must not trigger an
+      automatic retry.
+
     routingTags: [operations, phone-control, devices, tv, streaming]
     skills: [phone-device-control]
     tags: [route-backed]
@@ -920,10 +969,11 @@ tools:
     displayName: Play a Show on a TV
     type: api
     category: operations
-    description: Play a show or film by its name on a saved Android or Fire TV in Prime Video, the way a person does with the remote - the app's search, the matching show, then Resume (where the person left off) or Play - and say what the TV is playing afterwards.
+    description: Prepare a command to play a show or film by its name on a saved Android or Fire TV in Prime Video, using the app's search, the matching show, then Resume or Play. The person's computer must run the returned plan before any playback result can be reported.
     executor:
       executorType: api
       apiEndpoint: POST /api/phone-control/devices/{input.id}/play
+    computerPlan: { program: phone-bridge, verbs: [lan-control], revalidate: true }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -934,7 +984,14 @@ tools:
         app: { type: string, enum: [prime] }
       required: [id, title]
       additionalProperties: false
-    usageInstructions: Pass the TV's id or name and the show's or film's name as the person said it (without the season or episode); Prime Video resumes the episode the person was watching. Run the plan it answers on the TV's computer, then say what it reports is playing.
+    usageInstructions: >-
+      Pass the saved TV's id or name and the show or film name, without a season or episode.
+      This prepares a plan only. When computer.run_plan is offered, call it once with {"plan":"<the planId
+      this answer carries>"}. The plan pins the saved TV's computer; do not substitute another host.
+      Report the actual command reply and distinguish request acceptance from observed opening or playback.
+      Without a planId or authorized runner, say it is planned. An uncertain result must not trigger an
+      automatic retry.
+
     routingTags: [operations, phone-control, devices, tv, streaming, play]
     skills: [phone-device-control]
     tags: [route-backed]
@@ -942,10 +999,11 @@ tools:
     displayName: What a TV can play
     type: api
     category: operations
-    description: Say which streaming apps a saved Android or Fire TV has installed, among Netflix, Prime Video, Disney+, Max, Hulu, YouTube and the oshal TV app, read from the TV's app list without pressing anything on it.
+    description: Say which streaming apps a saved Android or Fire TV has installed, among Netflix, Prime Video, Disney+, Max, Hulu, YouTube and the oshal TV app, read from the TV's app list without pressing anything on it. Its answer is a plan for the TV's own computer; record what the computer answers with phone-control-tv-apps-record.
     executor:
       executorType: api
       apiEndpoint: POST /api/phone-control/devices/{input.id}/apps
+    computerPlan: { program: phone-bridge, verbs: [lan-control] }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -954,15 +1012,42 @@ tools:
         id: { type: string, minLength: 2, maxLength: 64 }
       required: [id]
       additionalProperties: false
-    usageInstructions: Pass the TV's id or name. Run the plan it answers on the TV's computer; it lists each app it found by key (netflix, prime, disney, max, hulu, youtube, oshal), name and package, and unknownCount, how many other packages the TV lists (system ones included), which it never names. Use an app's key as the app for Open a Link on a TV, or Play a Show on a TV for prime.
+    usageInstructions: >-
+      Pass the TV's id or name. This only plans the read; say it is planned, never that it ran, until
+      phone-control-tv-apps-record answers. When computer.run_plan is among your tools, call it with {"plan": "<the
+      planId this answer carries>"}, then call phone-control-tv-apps-record with {"id": "<the TV's id>", "reply": "<the
+      one JSON line the computer printed>"} and report what it answers: each app found by key (netflix, prime, disney,
+      max, hulu, youtube, oshal), name and package, the ones not found, and unknownCount, how many other packages the TV
+      lists (never named). Use an app's key as the app for Open a Link on a TV, or Play a Show on a TV for prime.
+    routingTags: [operations, phone-control, devices, tv, streaming]
+    skills: [phone-device-control]
+    tags: [route-backed]
+  - name: phone-control-tv-apps-record
+    displayName: Keep what a TV can play
+    type: api
+    category: operations
+    description: Record what a saved Android or Fire TV's computer answered for What a TV can play, against the TV and in the person's device inventory, where Jarvis and the Devices page read what the TV can do.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}/apps/record
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+        reply: { type: string, minLength: 2, maxLength: 16384 }
+      required: [id, reply]
+      additionalProperties: false
+    usageInstructions: Pass the TV's id and, as reply, the one JSON line its computer printed for What a TV can play (computer.run_plan's result stdout). It answers the apps found, notFound (looked for and not there), unknownCount, the TV's model and maker when read, and inventory (recorded, or the reason it was not). Say what it answers; if inventory was not recorded, say why in its words.
     routingTags: [operations, phone-control, devices, tv, streaming]
     skills: [phone-device-control]
     tags: [route-backed]
   - name: phone-control-execute-device
-    displayName: Execute Device Control Sequence
+    displayName: Plan Device Control Sequence
     type: api
     category: operations
-    description: Execute a single action, multi-step sequence, or natural-language D-Pad/remote prompt (such as "move down one and select") on a saved phone or TV in the background or foreground.
+    description: Prepare a single action, multi-step sequence, or natural-language D-Pad/remote prompt (such as "move down one and select") for a saved phone or TV. The returned command must still be run on the selected computer; the requested mode does not schedule execution.
     executor:
       executorType: api
       apiEndpoint: POST /api/phone-control/devices/{input.id}/execute
@@ -997,7 +1082,14 @@ tools:
             additionalProperties: false
       required: [id]
       additionalProperties: false
-    usageInstructions: Pass id (device id, name, or IP) plus either prompt (e.g. "move down one and select"), steps array, or a single action/key; supports DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT, DPAD_CENTER, OK, Home, Back, PlayPause.
+    usageInstructions: >-
+      Pass id (device id, name, or IP) plus either prompt (e.g. "move down one and select"), steps array, or
+      a single action/key; supports DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT, DPAD_CENTER, OK, Home, Back,
+      PlayPause. The response only prepares a command (planned true, executed false, status planned);
+      ok true and mode background do not mean it ran or was scheduled. Run the unchanged computerRunRequest
+      only through an available authorized computer tool, then report its actual answer. Without an
+      authorized runner, say it is planned.
+
     routingTags: [operations, phone-control, devices, execute, dpad, tv]
     skills: [phone-device-control]
     tags: [route-backed]

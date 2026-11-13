@@ -88,6 +88,8 @@
 # 78 | maintainer@emeraldcoastsystemsgroup.com | Job `finance` also runs finance-experience/tests/*.test.cjs (1.0.0): the entry of Finance in the experiences list. The manifest carries what the kernel requires of an experience, the member role maps only applications without a catalog (and Finance itself must stay without one while other experience packages map it with "@app-admin"), and the compiled route answers 302 to the Finance application page on a local listener with the gate's Express.
 # 79 | maintainer@emeraldcoastsystemsgroup.com | Run scripts/group-concierge.test.mjs: a group's chatBot must be a required member's concierge, as the kernel requires to activate it (Intelligent Career named career-hunter after Career's concierge moved to career-concierge and every gate passed).
 # 80   | maintainer@emeraldcoastsystemsgroup.com     | The cloud job runs the Cloud app's suites (its persona and, since 1.3.0, Google Cloud projects and billing); before it no step ran them.
+# 81 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` also runs tests/native-relay.test.cjs (the saved phone-to-TV relay routes, 1.17.0) and tests/remote-guides.test.cjs (the Fire TV phone-app guide, 1.18.0). Neither name matches tests/phone-control-*.test.cjs, so both were registered in the package's Test Lab catalog and ran in no step here.
+# 82 | maintainer@emeraldcoastsystemsgroup.com | The career-hunter step names OSHAL_KERNEL_PLATFORM, the kernel's platform folder, so Career's concierge panel suites render the real shared assistant instead of skipping.
 
 name: store-ci
 
@@ -929,6 +931,7 @@ jobs:
           CAREER_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:career-contract-ci@127.0.0.1:${{ job.services.career_postgres.ports[5432] }}/postgres
           CAREER_LOADER_NODE_PATH: ${{ runner.temp }}/career-loader/node_modules
           OSHAL_ROOT: ${{ runner.temp }}/tsroot
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.mjs"
 
   purchasing:
@@ -1481,6 +1484,12 @@ jobs:
       - name: Run the phone-control computer link and bridge suites
         working-directory: phone-control
         run: node --test "tests/phone-control-*.test.mjs"
+      - name: Run the phone-control saved relay suite
+        working-directory: phone-control
+        run: node --test "tests/native-relay.test.cjs"
+      - name: Run the phone-control Fire TV guide suite
+        working-directory: phone-control
+        run: node --test "tests/remote-guides.test.cjs"
 
   home:
     name: Smart Home routes, TVs and streaming sticks, and its phone-width pages

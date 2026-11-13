@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Insights is honest about whose numbers are whose (judge's report 2026-11-11, change 15: one funnel began with a count shared by everyone and ran into the person's own steps). The shipped tools/career-insights.html in Chromium, at 1440x900 and 412x915. The market answer is the served readAnalytics over real SQLite built from the engine's own schema, so the page is held to the shape the route really gives; the person's counts are a fixture in the shape GET /jobs/stats gives. Your search shows only Saved, Prepared, Applied, Interview and Offer, with no shared total in it; with none of those it says what will appear and offers Find jobs; the shared numbers sit under "The job market Career can see", say they are the same for everyone, and own the period control; the numbers that come from the person's own scores have their own heading; "In-lane roles", "Sourced", "Qualified" and "Promoted" are gone; each part reports its own failed read.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Match canonical Getting ready to the actual owner workflow queued count, including known zero versus unavailable, with canonical Interviewing wording.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the fixture's not-ready answer is the reason the route now gives.
  */
 import { test, before, after } from 'node:test';
@@ -63,7 +64,7 @@ function insights(state) {
 }
 /** A person part-way through a search, in the shape GET /jobs/stats gives; 300 scored jobs and 4 queued ones are not steps of theirs. */
 const SEARCHING = { byStatus: [{ status: 'new', n: 300 }, { status: 'promoted', n: 4 }, { status: 'dismissed', n: 3 }, { status: 'applied', n: 2 }, { status: 'generated', n: 1 }], total: 310, applied: 2, interviewing: 0, queued: 5, tracked: 2, earlierPreparation: 0, saved: 7 };
-const rows = (page) => page.locator('#own .frow').evaluateAll((list) => list.map((row) => [row.querySelector('.lbl').textContent, row.querySelector('.bar').textContent]));
+const rows = (page) => page.locator('#own .frow').evaluateAll((list) => list.map((row) => [row.querySelector('.lbl').textContent, row.querySelector('.bar,.unknown').textContent]));
 /** The label and value of each card in the nth group of cards under the market heading. */
 const cards = (page, group) => page.locator('#market .stats').nth(group).locator('.stat').evaluateAll((list) => list.map((card) => [card.querySelector('.l').textContent, card.querySelector('.v').textContent]));
 
@@ -73,7 +74,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
     try {
       await page.locator('#own .frow').first().waitFor();
       await page.locator('#market .stat').first().waitFor();
-      assert.deepEqual(await rows(page), [['Saved', '7'], ['Prepared', '1'], ['Applied', '2'], ['Interview', '0'], ['Offer', '0']]);
+      assert.deepEqual(await rows(page), [['Saved', '7'], ['Getting ready', '5'], ['Applied', '2'], ['Interviewing', '0'], ['Offer', '0']]);
       assert.deepEqual(await page.locator('#body h2').allTextContents(), ['Your search', 'The job market Career can see', 'Companies with the most open jobs', 'Open jobs by state', 'How these jobs fit your résumé', 'Pay of jobs with fit 70 or better']);
       assert.deepEqual(await cards(page, 0), [['Open technology and professional jobs', '40'], ['Posted in the last 7 days', '12'], ['Companies hiring', '3']]);
       assert.deepEqual(await cards(page, 1), [['Fit 70 or better', '9'], ['Fit 80 or better', '5'], ['Average pay, fit 70 or better', '$105k']]);
@@ -86,7 +87,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
       const week = page.getByRole('tab', { name: '7 days', exact: true });
       if (size === PHONE) await week.tap(); else await week.click();
       await page.waitForFunction(() => document.querySelector('#market .stat .v').textContent === '12');
-      assert.deepEqual(await rows(page), [['Saved', '7'], ['Prepared', '1'], ['Applied', '2'], ['Interview', '0'], ['Offer', '0']], 'a period never changes the person\'s own counts');
+      assert.deepEqual(await rows(page), [['Saved', '7'], ['Getting ready', '5'], ['Applied', '2'], ['Interviewing', '0'], ['Offer', '0']], 'a period never changes the person\'s own counts');
       assert.equal(ownReads(), before, 'and the page does not read them again (the frame reads the same route once for its own chip)');
       assert.ok(calls.some((c) => c.path === '/api/career-hunter/analytics?days=7'));
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'nothing is wider than the screen');
@@ -96,7 +97,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
 
 for (const [name, stats] of [
   ['only scored jobs, none saved or applied to', { byStatus: [{ status: 'new', n: 120 }, { status: 'dismissed', n: 2 }], total: 122, applied: 0, interviewing: 0, queued: 0, tracked: 0, earlierPreparation: 0, saved: 0 }],
-  ['no store yet', { byStatus: [], total: 0, applied: 0, interviewing: 0, empty: true }],
+  ['no store yet', { byStatus: [], total: 0, applied: 0, interviewing: 0, queued: 0, saved: 0, empty: true }],
 ]) {
   test(`with ${name}, Your search says what will appear and offers Find jobs`, async () => {
     const { page, context } = await openScreen(browser, 'career-insights.html', insights({ stats }), PHONE);
@@ -127,4 +128,14 @@ test('each part reports its own failed read and the other part still shows', asy
     assert.match(await own.page.locator('#own [role=alert]').innerText(), /Your own numbers could not be loaded: stats failed/);
     assert.equal(await own.page.locator('#own .ck-empty').count(), 0, 'a failed read is not "nothing yet"');
   } finally { await own.context.close(); }
+});
+
+for(const queued of [2,0,null,undefined])test('G14: Getting ready reads the owner workflow count '+String(queued)+' rather than historical generated rows',async()=>{
+  const stats={...SEARCHING,queued,earlierPreparation:12,byStatus:[{status:'generated',n:9},{status:'promoted',n:4},{status:'deferred',n:1},{status:'applied',n:2},{status:'interview',n:3}]};
+  const {page,context}=await openScreen(browser,'career-insights.html',insights({stats}),PHONE);
+  try{
+    await page.locator('#own .frow').first().waitFor();
+    assert.deepEqual(await rows(page),[['Saved','7'],['Getting ready',queued===null||queued===undefined?'Unavailable':String(queued)],['Applied','2'],['Interviewing','3'],['Offer','0']]);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  }finally{await context.close();}
 });

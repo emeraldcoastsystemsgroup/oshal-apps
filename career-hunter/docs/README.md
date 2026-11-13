@@ -1,11 +1,25 @@
-# Career Hunter — package documentation
+# Career documentation
+
+For Career 1.58, start with the current guides:
+
+| Guide | Audience and purpose |
+|---|---|
+| [User guide](user-guide.md) | A job seeker's day: replies, matches, saved jobs, preparation, sending, manual interviews and outcomes, and the optional past-seven-days goal |
+| [Deployment guide](deployment.md) | Prospective outplacement, workforce and coaching buyers: current individual roles, connections, installation checks and the unbuilt coach/consent model |
+
+These are repository guides. This change does not add them to the kernel's
+in-app Help menu. Share the relevant guide through your installation's normal
+documentation or support channel.
+
+## Engineering and operations references
 
 **Career Hunter** is the job-hunting application carved out of the oshal kernel under ADR-085. Its
 routes, Node CLI wrapper, Python `jobhunter` engine, persona, migrations, and browser surfaces all
 ship inside this package.
 
-Start with the package [README](../README.md) for the shape of the package and how it is built.
-This folder holds the longer-form notes that do not belong in the README.
+The package [README](../README.md) links the current guides and retains versioned
+engineering and release history. Older UI names and deployment descriptions in
+that history are not current user instructions.
 
 | Note | What it covers |
 |---|---|

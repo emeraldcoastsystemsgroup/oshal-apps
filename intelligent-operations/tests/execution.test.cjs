@@ -1,3 +1,4 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Both browser cases wait for the response panel's own refresh to finish (aria-busy false, as command-helper's history refresh does) before they read or type. The panel's first read had already put up "Plans bind exact generated files", so the wait for it passed at once while the refresh pressed was still reading the work; that read then emptied the preview and turned Prepare response plan off under the typed container (isEnabled false, store gate 2026-11-10). */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard a dispatch the kernel refuses before it runs (expired connection): recorded refused, nothing to verify, approval withdrawn with the reason and grantable again; the shipped panel keeps its plans and offers Approve again; a refusal without a kernel code stays uncertain. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the response stage: byte-exact generated-file extraction, plans bound to observed targets, approvals invalidated by a changed canonical revision or expiry, one dispatch per approval across concurrent callers and lost acknowledgements, operator reports that never change canonical state, recovery outcomes that need a resolved admitted signal, server-read ticket updates, owner isolation, and the actual shipped panel driving confirmed native exec fixtures. */
 'use strict';
@@ -109,7 +110,7 @@ test('a dispatch the kernel refuses before it runs is refused, not uncertain: no
 });
 test('the shipped panel keeps its plans when the kernel refuses the connection at dispatch, says nothing ran, and runs once after approving again',async()=>{
  const f=await browserFixture();try{const {page}=f;
-  await page.getByRole('button',{name:'Refresh response plans',exact:true}).click();await page.getByText('Plans bind exact generated files',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Refresh response plans',exact:true}).click();await page.waitForFunction(()=>document.getElementById('response-panel').getAttribute('aria-busy')==='false');await page.getByText('Plans bind exact generated files',{exact:false}).waitFor();
   await page.getByText('Prepare a response plan from accepted work',{exact:true}).click();await page.locator('#response-preview').getByText('Generated response files: remediate.sh',{exact:false}).waitFor();
   await page.locator('#response-container').fill('pressure');await page.getByRole('button',{name:'Prepare response plan',exact:true}).click();await page.locator('#response-plans .card').first().waitFor();
   await page.getByRole('button',{name:'Approve this exact action',exact:true}).click();await page.getByText('Approved by you until',{exact:false}).waitFor();
@@ -141,7 +142,7 @@ async function browserFixture(){
 }
 test('the shipped panel plans from accepted work, approves exact files, dispatches once through confirmed native exec, verifies against a resolved signal and updates the canonical ticket',async()=>{
  const f=await browserFixture();try{const {page}=f;
-  await page.getByRole('button',{name:'Refresh response plans',exact:true}).click();await page.getByText('Plans bind exact generated files',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Refresh response plans',exact:true}).click();await page.waitForFunction(()=>document.getElementById('response-panel').getAttribute('aria-busy')==='false');await page.getByText('Plans bind exact generated files',{exact:false}).waitFor();
   await page.getByText('Prepare a response plan from accepted work',{exact:true}).click();await page.locator('#response-preview').getByText('Generated response files: remediate.sh',{exact:false}).waitFor();
   await page.locator('#response-container').fill('pressure');assert.equal(await page.getByRole('button',{name:'Prepare response plan',exact:true}).isEnabled(),true);
   await page.getByRole('button',{name:'Prepare response plan',exact:true}).click();await page.locator('#response-plans .card').first().waitFor();assert.equal(f.effects.length,0,'planning makes no native action');

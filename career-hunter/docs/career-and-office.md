@@ -56,7 +56,7 @@ dated history of what was added, read-only, with Download and Print (see the pac
   carries `fields.officeDocument`), because that would rewrite the profile behind the person's document.
 - **Reading the current text:** the standard Concierge saves the document before every message. When
   Jarvis or the Career concierge asks from Resume Studio, the screen first saves the document into the
-  master (the 1.29.3 "save before a read" handoff), so `career_resume_read` shows what the person has.
+  master (the 1.29.3 "save before a read" handoff), so `career_resume_read` checks its presence and headings and `career_resume_section` reads the saved text.
 - If a Career or Jarvis turn does change the saved master, Resume Studio writes it into the document as a
   new revision; the earlier text stays in AI Office's Revision history.
 - **Jarvis** hands a resume request to Career by the routing words on the Career bot (my resume, master
@@ -85,3 +85,5 @@ preview and editor.
 - `tests/career-resume-office-browser.spec.mjs` (lane-run; needs the disposable PostgreSQL at 35689 and a
   kernel platform export): edit the headline, ask the Concierge to tighten a bullet, approve, save,
   re-open and see both; another person cannot read the document; the phone layout.
+
+<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | 1.60.8 status is bounded; saved text remains available through the section reader. -->

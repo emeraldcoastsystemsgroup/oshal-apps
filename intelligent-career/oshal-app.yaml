@@ -9,8 +9,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home (career-hunter 1.53.0), which leads the toolbar ungrouped. Home carries the job search box, the person's pipeline and their next step; Career's page frame draws this toolbar as one bar across the top of every Career page.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.12: the group's concierge is career-concierge, Career's own since career-hunter 1.57.0 (T9). Naming career-hunter, the group could not be activated again: the test slot's restart at 20:44 UTC 2026-11-11 left it loaded but inactive ("group concierge is not owned by an active required member"), and production would have done the same at its next restart. Guard: scripts/group-concierge.test.mjs in the store gate.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.1.13: Put Career's Gmail authorization in its Settings Accounts section and remove the broad Social Accounts tile and Facebook setup requirement together; optional Social remains in its admitted workspace.
 #
-# A group carries NO code. It binds four installed applications into one front
+# A group carries NO code. It binds its installed applications into one front
 # door with one toolbar and a setup dashboard:
 #   career-hunter    the job board, search, resume + strengthen, profile studio
 #   portrait-studio  the profile picture
@@ -40,9 +41,9 @@ rating:
 displayName: Intelligent Career
 description: >-
   One front door for your job search: the board, search, resume and strengthen
-  tools, your profile picture, and your LinkedIn and Facebook presence — with a
-  setup page that shows what is connected and what still needs you.
-version: 1.1.12
+  tools and your profile picture, with account setup inside Career Settings
+  and optional Social workspace access when your role allows it.
+version: 1.1.13
 status: active
 scope: public
 theme: daylight
@@ -56,7 +57,7 @@ source:
   path: intelligent-career
   ref: main
 
-# The members. Installing this group resolves all four (npm-style, fail-closed);
+# The members. Installing this group resolves them together (npm-style, fail-closed);
 # the reverse-dependency guard blocks a member's uninstall while the group is active.
 dependencies:
   required:
@@ -69,8 +70,8 @@ dependencies:
     apps: []
     # The runtime connector allow-list. A group carries no code, so it reads no credential
     # itself — but its toolbar borrows the MEMBERS' surfaces, and inside this front door those
-    # surfaces are where a person connects an account (social-accounts sits in the bottom tray;
-    # career-settings holds the engine keys). So the allow-list is the union of the members' own
+    # surfaces retain their own account flows; Career Settings exposes Gmail and engine keys,
+    # while optional Social authorization stays in its workspace. The allow-list remains the union of the members' own
     # declared lists, in member order, and nothing beyond them:
     #   career-hunter    anthropic, firecrawl, google, twilio
     #   portrait-studio  google, microsoft
@@ -103,17 +104,15 @@ toolbar:
   - { app: social,          surface: linkedin-assistant,    group: Presence }
   - { app: social,          surface: social-workspace,      group: Presence }
   - { app: career-hunter,   surface: career-submission-activity, group: Activity }
-  - { app: social,          surface: social-accounts,       section: bottom }
   - { app: career-hunter,   surface: career-settings,       group: Configuration }
   - { app: career-hunter,   surface: career-companies,      group: Configuration }
 
-# ── Setup — the seven steps of ADR-141 D1 ─────────────────────────────────────
+# ── Setup — member readiness under ADR-141 D1 ─────────────────────────────────
 # `readiness` names a probe the member declares; `fix` is the toolbar surface the
 # dashboard opens for the step. Order is the order a new user should take them.
 setup:
   - { label: Upload your resume,                          app: career-hunter,   readiness: resume,       fix: career-resume-studio }
   - { label: Take or upload a profile picture,            app: portrait-studio, readiness: portrait,     fix: portrait-studio }
-  - { label: Connect Facebook,                            app: social,          readiness: facebook,     fix: social-accounts }
   - { label: Pick the articles you want to comment on,    app: social,          readiness: signals,      fix: social-workspace }
   - { label: Review your resume story by story,           app: career-hunter,   readiness: stories,      fix: career-strengthen }
   - { label: Add performance reports and other documents, app: career-hunter,   readiness: materials,    fix: career-settings }

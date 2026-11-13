@@ -1,3 +1,10 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify occupation pay estimates and both real feed filters use whole-word CTO/CIO matches instead of unrelated title substrings.
+ */
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -93,3 +100,86 @@ test('occupation mapping distinguishes software roles from road drivers and inte
   assert.equal(pay.decoratePay({title:'Delivery Driver',state:'FL'}).salary_estimate.soc,'53-3033');
   assert.equal(pay.decoratePay({title:'Software Engineer',location:'Jerusalem'}).salary_min,null);
 });
+
+const TITLE_CASES = [
+  ['Supply Chain Director', null], ['Independent Contractor', null], ['Building Inspector', null],
+  ['Instructor', null], ['Order Selector', null], ['Tractor Trailer Driver', '53-3054'],
+  ['Postdoctoral Researcher', null], ['Sociologist', null],
+  ['Director of Engineering', '11-9041'], ['Technical Instructor', '25-1194'],
+  ['Contractor - Delivery Driver', '53-3033'],
+  ['CTO', '11-3021'], ['cio', '11-3021'], ['Fractional CTO', '11-3021'],
+  ['CIO Advisor', '11-3021'], ['Deputy (cTo)', '11-3021'], ['CTO/CIO', '11-3021'],
+  ['CIO: Technology', '11-3021'], ['CTO\tAdvisor', '11-3021'], ['Deputy\nCIO', '11-3021'],
+  ['CTO’s Office', '11-3021'], ['Chief Technology Officer', '11-3021'],
+  ['Chief Information Officer', '11-3021'],
+  ['xCTO', null], ['CTOx', null], ['2CTO', null], ['CTO2', null],
+  ['_CTO', null], ['CTO_', null], ['xCIO', null], ['CIOx', null],
+  ['2CIO', null], ['CIO2', null], ['_CIO', null], ['CIO_', null],
+];
+
+test('CTO/CIO estimate words keep boundaries and let specific occupation rules win', () => {
+  for (const [title, soc] of TITLE_CASES) {
+    const job = pay.decoratePay({title, state:'FL'});
+    assert.equal(job.salary_estimate?.soc ?? null, soc, title);
+    if (soc === null) assert.match(job.salary_estimate_unavailable, /No reliable occupation benchmark/);
+  }
+});
+
+test('CTO/CIO boundaries agree in SQL and estimates for punctuation, spaces and word characters', () => {
+  const fixture = new DatabaseSync(':memory:');
+  const filter = pay.payFilter({min_pay:'150000'});
+  const statement = fixture.prepare(`SELECT ${filter.sql} AS accepted FROM
+    (SELECT ? AS title, 'FL' AS state, '' AS location, 'fte' AS job_type,
+      NULL AS salary_source, NULL AS salary_min, NULL AS salary_max,
+      NULL AS salary_currency, NULL AS salary_period) p`);
+  const wordCharacters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_';
+  const separators = Array.from({length:95},(_,index) => String.fromCharCode(index + 32))
+    .concat(['\t','\n','\r','\f','\v','é','—']);
+  try {
+    for (const word of ['CTO','cio']) for (const character of separators)
+      for (const title of [character + word, word + character]) {
+        const expected = !wordCharacters.includes(character);
+        assert.equal(pay.decoratePay({title,state:'FL'}).salary_estimate?.soc === '11-3021', expected, title);
+        assert.equal(Boolean(statement.get(...filter.args,title).accepted), expected, title);
+      }
+  } finally { fixture.close(); }
+});
+
+/** Populate isolated real feed tables without changing the earlier pay fixtures. */
+function titleDatabase() {
+  const fixture = new DatabaseSync(':memory:');
+  fixture.exec("ATTACH DATABASE ':memory:' AS corpus");
+  const engine = readFileSync(new URL('../engine/jobhunter/db.py', import.meta.url), 'utf8');
+  for (const schema of ['CORPUS_SCHEMA','USER_SCHEMA'])
+    fixture.exec(engine.match(new RegExp(schema+'\\s*=\\s*"""([\\s\\S]*?)"""'))[1]);
+  fixture.exec("INSERT INTO corpus.companies(id,name) VALUES(1,'Title fixture')");
+  const posting = fixture.prepare(`INSERT INTO corpus.postings_corpus
+    (id,company_id,ats_job_id,title,location,state,active,target_role,job_type,first_seen_at)
+    VALUES(?,1,?,?,'Destin, FL','FL',1,1,'fte',datetime('now'))`);
+  const signal = fixture.prepare("INSERT INTO user_signals(posting_id,fit_score,ai_fit_score,status) VALUES(?,80,80,'new')");
+  TITLE_CASES.forEach(([title], index) => {
+    posting.run(index + 1, 'title-' + index, title);
+    signal.run(index + 1);
+  });
+  fixture.exec('PRAGMA query_only=1');
+  return fixture;
+}
+
+for (const [name,fetch] of [['search',fetchBrowsePage],['board',fetchBoardPage]]) {
+  test(`${name}: pay filters and shown CTO/CIO estimates agree before paging`, () => {
+    const fixture = titleDatabase();
+    try {
+      const page = fetch(fixture,{min_pay:'150000',per:'200'});
+      const expected = TITLE_CASES.flatMap(([,soc],index) =>
+        ['11-3021','11-9041'].includes(soc) ? [index + 1] : []);
+      assert.deepEqual(ids(page), expected);
+      for (const job of page.jobs) assert.equal(job.salary_estimate.soc, TITLE_CASES[job.id - 1][1], job.title);
+      const withUnknown = fetch(fixture,{min_pay:'150000',include_unknown_pay:'1',per:'200'});
+      assert.deepEqual(ids(withUnknown), TITLE_CASES.flatMap(([,soc],index) =>
+        !['25-1194','53-3033','53-3054'].includes(soc) ? [index + 1] : []));
+      const first = fetch(fixture,{min_pay:'150000',per:'2'});
+      assert.equal(first.jobs.length, 2);
+      assert.ok(first.jobs.every(job => expected.includes(job.id)));
+    } finally { fixture.close(); }
+  });
+}

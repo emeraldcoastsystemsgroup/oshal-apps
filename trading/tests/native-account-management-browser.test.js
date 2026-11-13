@@ -1,9 +1,13 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Open the explicit settings disclosure before existing operational-control acceptance; preserve approval, cancellation, saved terms and exact-owner behavior.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Approval labels explicitly name approval rather than suggesting a verified trading outcome; load the actual status reader and keep synthetic screenshots in an isolated temporary directory.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify visible control contrast and account/schedule hierarchy in both themes and phone layouts, retaining financial confirmation guards.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Actual account renderer and owner routes on desktop/phone: exact deep links, model-versus-broker stop status, research, pending funding and zero brokerage writes.
  */
 'use strict';
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
+const PROOF_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'trading-account-status-'));
+test.after(()=>fs.rmSync(PROOF_DIR,{recursive:true,force:true}));
 const {binding}=require('./support/native-management-host');
 const {protectionFixture}=require('./support/native-protection-host');
 const {allocationFixture}=require('./support/native-allocation-host');
@@ -17,7 +21,7 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
   return name==='trading.bars'?{source:'schwab',symbol:input.symbol,bars:dates.map((d,i)=>({t:Date.parse(d+'T05:00:00Z')/1000,o:100+i/10,h:101+i/10,l:99+i/10,c:100+i/10}))}:original(name,input);
  };
  const styles=fs.readFileSync(path.join(__dirname,'../tools/trading.html'),'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
- for(const file of ['native-account-controls','view-accounts','native-account-management','native-protection-controls'])h.app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/'+file+'.js'),'utf8')));
+ for(const file of ['native-account-status','native-account-controls','view-accounts','native-account-management','native-protection-controls'])h.app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/'+file+'.js'),'utf8')));
  h.app.get('/boot.js',(_req,res)=>res.type('js').send(`const main=document.getElementById('main'),$=id=>document.getElementById(id);let RENDER_TOKEN=1;const stale=t=>t!==RENDER_TOKEN;
  const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v);
  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -27,13 +31,17 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
  const navigate=()=>{clearNativeAccountAddress();main.innerHTML='<p>All accounts</p>';};
  const models=[{...${JSON.stringify(h.accounts[0])},nativeReadOnly:true,state:'ok',label:'Synthetic account'}];
  if(!showFocusedNativeAccount(models))nativeAccountView(models[0]);`));
- h.app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/view-accounts.js"></script><script src="/native-protection-controls.js"></script><script src="/native-account-controls.js"></script><script src="/native-account-management.js"></script><script src="/boot.js"></script>');});
+ h.app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="main"></div><script src="/view-accounts.js"></script><script src="/native-protection-controls.js"></script><script src="/native-account-status.js"></script><script src="/native-account-controls.js"></script><script src="/native-account-management.js"></script><script src="/boot.js"></script>');});
  const browser=await chromium.launch();t.after(()=>browser.close());
  for(const width of [1280,390]){
   const context=await browser.newContext({viewport:{width,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(h.base+'/?view=accounts&account=a&connection=owned-login');await page.getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
-  assert.match(await page.locator('#nativeAccountManagement').innerText(),/Monthly model/);assert.match(await page.locator('#nativeAccountManagement').innerText(),/Live trading: Inactive/);
+  assert.match(await page.locator('#nativeAccountManagement').innerText(),/Monthly model/);assert.match(await page.locator('#nativeAccountManagement').innerText(),/Live approval: Inactive/);
   assert.match(await page.locator('#nativeAccountManagement').innerText(),/Watcher schedule is active/);
+  const beforeLocal=[];page.on('request',req=>beforeLocal.push(req.method()+' '+req.url()));
+  await page.locator('[data-native-status-next]').click();
+  assert.deepEqual(beforeLocal,[],'the actual delegated contextual action performs no request');
+  await expand(page,'Strategy settings and approval');
   const boundary=await page.locator('[data-native-account-strategy]').evaluate(el=>({background:getComputedStyle(el).backgroundColor,border:getComputedStyle(el).borderColor,height:el.getBoundingClientRect().height}));assert.notEqual(boundary.background,'rgba(0, 0, 0, 0)','missing theme assets still leave a visible field');assert.notEqual(boundary.border,boundary.background);assert.ok(boundary.height>=42);
   const summaryBox=await page.locator('.native-account-summary').boundingBox(),scheduleBox=await page.locator('.native-schedule-bar').boundingBox(),cardBox=await page.locator('.native-management-panel').first().boundingBox();assert.ok(summaryBox.y+summaryBox.height<=scheduleBox.y+1);assert.ok(scheduleBox.y+scheduleBox.height<=cardBox.y+1,'shared schedule is visible before both control cards');
   const watched=[...h.records.values()].find(r=>r.kind==='watch'),savedWatch=watched.payload;
@@ -41,11 +49,11 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
   for(const effective of ['expired','source-changed','active']){
    allocationEffective=effective;
    await page.getByRole('button',{name:'Refresh this account',exact:true}).click();
-   await page.getByText('Live trading: '+(effective==='active'?'Active':'Needs review · '+effective),{exact:true}).waitFor();
+   await page.getByText('Live approval: '+(effective==='active'?'Active':'Needs review · '+effective),{exact:true}).waitFor();
   }
   watched.payload=savedWatch;
   await page.getByRole('button',{name:'Refresh this account',exact:true}).click();
-  await page.getByText('Live trading: Inactive',{exact:true}).waitFor();
+  await page.getByText('Live approval: Inactive',{exact:true}).waitFor();
   await expand(page,'Position floors & stop research');
   if(await page.getByRole('button',{name:'Enable backstop tracking',exact:true}).count()){await page.getByRole('button',{name:'Enable backstop tracking',exact:true}).click();await page.getByRole('button',{name:'Enable backstop tracking',exact:true}).waitFor({state:'detached'});}
   await page.locator('details').filter({has:page.getByText('Position floors & stop research',{exact:true})}).evaluate(el=>{el.open=true;});
@@ -64,7 +72,7 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
   assert.match(combinedText,/does not reconstruct the current legacy holdings or margin loan/);assert.match(combinedText,/no untouched holdout/);assert.match(combinedText,/Requested study end 2026-10-22/);assert.match(combinedText,/latest completed session at read 2026-10-23/);
   assert.equal(h.effects.length,0);
   await page.getByRole('heading',{name:'Strategy + moving backstops',exact:true}).scrollIntoViewIfNeeded();
-  await page.screenshot({path:'/tmp/oshal-combined-study-'+width+'.png'});
+  await page.screenshot({path:path.join(PROOF_DIR,'combined-study-'+width+'.png')});
   await page.getByRole('button',{name:'Review broker stops',exact:true}).click();
   await page.getByRole('button',{name:'Activate broker stops',exact:true}).waitFor();
   await page.reload();await page.getByRole('button',{name:'Activate broker stops',exact:true}).waitFor();
@@ -73,7 +81,7 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
   assert.match(reviewText,/Exact trail research · ABC/);assert.match(reviewText,/training/);assert.match(reviewText,/later/);
   assert.match(reviewText,/Modeled costs on \$10,000/i);assert.match(reviewText,/does not test a combined allocation/);
   await page.getByRole('heading',{name:'Review protection · Synthetic account',exact:true}).scrollIntoViewIfNeeded();
-  await page.screenshot({path:'/tmp/oshal-native-protection-review-'+width+'.png'});
+  await page.screenshot({path:path.join(PROOF_DIR,'protection-review-'+width+'.png')});
   assert.equal(h.policy().status,'draft');assert.equal(h.effects.length,0);
   page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Activate broker stops',exact:true}).click();
   assert.equal(h.policy().status,'draft');assert.equal(h.effects.length,0,'cancelled personal approval has no broker effect');
@@ -89,7 +97,7 @@ test('per-account pages preserve owner binding, research, backstop honesty and e
 test('whole-account strategy is reviewed and personally activated on the account page on desktop and phone',async t=>{
  const h=await allocationFixture(t,{whole:true,positions:[{symbol:'ABC',qty:10.25,marketValue:1025,unmanaged:true}],cash:0,equity:625,capitalCents:60000,balanceFacts:{marginBalance:-400,debitBalance:null,maintenanceRequirement:250}});
  const styles=fs.readFileSync(path.join(__dirname,'../tools/trading.html'),'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
- for(const file of ['native-account-controls','view-accounts','native-management','native-account-management','native-protection-controls'])h.app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/'+file+'.js'),'utf8')));
+ for(const file of ['native-account-status','native-account-controls','view-accounts','native-management','native-account-management','native-protection-controls'])h.app.get('/'+file+'.js',(_req,res)=>res.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/'+file+'.js'),'utf8')));
  h.app.get('/boot.js',(_req,res)=>res.type('js').send(`const main=document.getElementById('main'),$=id=>document.getElementById(id);let RENDER_TOKEN=1;const stale=t=>t!==RENDER_TOKEN;
  const money=v=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(v);
  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -97,7 +105,7 @@ test('whole-account strategy is reviewed and personally activated on the account
  const api=async(p,init)=>{const r=await fetch('/api/trading'+p,init),j=await r.json();if(!r.ok)throw Error(j.message||j.error);return j;};
  const paperScheduleRow=async()=>({status:'active',nextRunAt:'2026-10-27T13:00:00Z'}),navigate=()=>{};
  nativeAccountView({...${JSON.stringify(h.accounts[0])},nativeReadOnly:true,state:'ok',label:'Synthetic account'});`));
- h.app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><html data-theme="'+( _req.query.theme==='midnight'?'midnight':'daylight')+'"><meta name="viewport" content="width=device-width"><style>[data-theme=daylight]{--bg-primary:#f0f2f8;--bg-secondary:#ffffff;--bg-tertiary:#f4f5fa;--border-color:#dce0eb;--text-primary:#1a1a2e;--text-secondary:#5b6475;--accent-primary:#5b54d6}[data-theme=midnight]{--bg-primary:#101420;--bg-secondary:#1a2030;--bg-tertiary:#232c40;--border-color:#374059;--text-primary:#f0f3fa;--text-secondary:#a7b3c9;--accent-primary:#ad9aff}'+styles+'</style><main id="main"></main><script src="/view-accounts.js"></script><script src="/native-account-controls.js"></script><script src="/native-management.js"></script><script src="/native-protection-controls.js"></script><script src="/native-account-management.js"></script><script src="/boot.js"></script>');});
+ h.app.get('/',(_req,res)=>{res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'");res.send('<!doctype html><html data-theme="'+( _req.query.theme==='midnight'?'midnight':'daylight')+'"><meta name="viewport" content="width=device-width"><style>[data-theme=daylight]{--bg-primary:#f0f2f8;--bg-secondary:#ffffff;--bg-tertiary:#f4f5fa;--border-color:#dce0eb;--text-primary:#1a1a2e;--text-secondary:#5b6475;--accent-primary:#5b54d6}[data-theme=midnight]{--bg-primary:#101420;--bg-secondary:#1a2030;--bg-tertiary:#232c40;--border-color:#374059;--text-primary:#f0f3fa;--text-secondary:#a7b3c9;--accent-primary:#ad9aff}'+styles+'</style><main id="main"></main><script src="/view-accounts.js"></script><script src="/native-account-status.js"></script><script src="/native-account-controls.js"></script><script src="/native-management.js"></script><script src="/native-protection-controls.js"></script><script src="/native-account-management.js"></script><script src="/boot.js"></script>');});
  h.app.get('/cockpit/',(req,res)=>res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><body style="margin:0"><iframe title="Trading account" src="/?theme='+(req.query.theme==='midnight'?'midnight':'daylight')+'" style="width:100%;height:100vh;border:0"></iframe>'));
  const browser=await chromium.launch();t.after(()=>browser.close());
  for(const {width,embedded,theme} of [{width:1280,embedded:false,theme:'daylight'},{width:1280,embedded:true,theme:'midnight'},{width:390,embedded:true,theme:'daylight'}]){
@@ -105,17 +113,20 @@ test('whole-account strategy is reviewed and personally activated on the account
   const url=h.base+(embedded?'/cockpit/?theme=':'/?theme=')+theme;await shell.goto(url);
   if(embedded)await shell.frameLocator('iframe').getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
   let page=embedded?shell.frames().find(f=>f!==shell.mainFrame()):shell;
+ await expand(page,'Strategy settings and approval');
  await page.getByRole('button',{name:/^(Review & activate|Refresh activation review)$/}).waitFor();
   assert.equal(await page.locator('[data-native-strategy-scope]').inputValue(),'whole-account');await page.locator('[data-native-strategy-cap]').fill('600');
   await page.getByRole('button',{name:/^(Review & activate|Refresh activation review)$/}).click();await page.getByRole('heading',{name:'REAL MONEY strategy mandate',exact:true}).waitFor();
   await shell.reload();
   if(embedded)await shell.frameLocator('iframe').getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
   page=embedded?shell.frames().find(f=>f!==shell.mainFrame()):shell;
+  await expand(page,'Strategy settings and approval');
   await page.getByRole('button',{name:'Activate live trading',exact:true}).waitFor();
   assert.equal(await page.locator('[data-native-strategy-cap]').inputValue(),'600','reload preserves the reviewed cap, not an equity-derived replacement');
   assert.equal(await page.getByRole('button',{name:'Activate live trading',exact:true}).isEnabled(),true);
   const reopened=await context.newPage();await reopened.goto(url);
   const freshView=embedded?reopened.frameLocator('iframe'):reopened;
+  await expand(freshView,'Strategy settings and approval');
   await freshView.getByRole('button',{name:'Activate live trading',exact:true}).waitFor();
   assert.equal(await freshView.locator('[data-native-strategy-cap]').inputValue(),'600');await reopened.close();assert.equal(h.count(),0);
   const appearance=await page.locator('.native-review-card').evaluate(el=>({background:getComputedStyle(el).backgroundColor,padding:getComputedStyle(el).padding,theme:document.documentElement.dataset.theme}));
@@ -129,28 +140,30 @@ test('whole-account strategy is reviewed and personally activated on the account
   const review=page.locator('[data-native-allocation-review]');await review.locator('summary').click();const text=await review.innerText();
   assert.match(text,/Whole account: includes existing\/manual and future/);assert.match(text,/signed margin balance -\$400\.00/);assert.match(text,/explicit debit Unknown/);
   assert.match(text,/ELIGIBILITY/);assert.match(text,/Eligible after live recheck/);assert.match(text,/independently eligible actions/);assert.match(text,/10\.25/);assert.match(text,/Initial account transition/);assert.match(text,/Saved strategy research/);assert.match(text,/ABC\s+sell\s+10/);assert.match(text,/fractional residuals/);assert.doesNotMatch(text.split('Saved strategy research')[1].split('Initial account transition')[0],/Unknown/);
-  await page.getByRole('heading',{name:'Existing holdings being adopted',exact:true}).scrollIntoViewIfNeeded();await shell.screenshot({path:'/tmp/oshal-account-strategy-review-'+width+'.png'});
+  await page.getByRole('heading',{name:'Existing holdings being adopted',exact:true}).scrollIntoViewIfNeeded();await shell.screenshot({path:path.join(PROOF_DIR,'strategy-review-'+width+'.png')});
   assert.equal(h.mandate().status,'draft');assert.equal(h.count(),0);
   h.mandate().reviewExpiresAtMs=0;await shell.reload();
   if(embedded)await shell.frameLocator('iframe').getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
   page=embedded?shell.frames().find(f=>f!==shell.mainFrame()):shell;
+  await expand(page,'Strategy settings and approval');
   await page.getByText('Review expired',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Activate live trading',exact:true}).isEnabled(),false);assert.equal(await page.locator('[data-native-strategy-cap]').inputValue(),'600');
   await page.getByRole('button',{name:'Refresh activation review',exact:true}).click();await page.getByText('Review saved. No strategy authority activated and no broker orders placed.',{exact:true}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Activate live trading',exact:true}).isEnabled(),true);assert.equal(h.count(),0);
 
   shell.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();assert.equal(h.mandate().status,'draft');
-  shell.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();await page.getByText('Live trading: Active',{exact:true}).waitFor();assert.equal(h.count(),0,'approval alone submits no order');
+  shell.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();await page.getByText('Live approval: Active',{exact:true}).waitFor();assert.equal(h.count(),0,'approval alone submits no order');
   const cleared=await h.req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'Synthetic account',registration:'taxable',strategyId:null});assert.equal(cleared.error,'active_strategy_assignment_locked');
   // Keep the warning for legacy/out-of-band inconsistent data; the public profile route now prevents it.
   const profile=[...h.records.values()].find(r=>r.kind==='profile'&&r.user_sub==='owner-a');const prior=JSON.parse(profile.payload);profile.payload=JSON.stringify({...prior,strategyId:null});
-  await page.getByRole('button',{name:'Refresh this account',exact:true}).click();await page.getByText('Live trading: Active · different strategy',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Refresh this account',exact:true}).click();await page.getByText('Live approval: Active · different strategy',{exact:true}).waitFor();
   assert.match(await page.locator('[data-native-account-strategy]').locator('..').innerText(),/Strategy for Synthetic account/);assert.match(await page.locator('.native-strategy-picker').innerText(),/Authorized strategy: Monthly model.*differs from the assigned strategy/);
   await h.req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'Synthetic account',registration:'taxable',strategyId:h.strategyId});
-  await page.getByRole('button',{name:'Refresh this account',exact:true}).click();await page.getByText('Live trading: Active',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'Deactivate strategy',exact:true}).click();await page.getByText('Live trading: Inactive',{exact:true}).waitFor();assert.equal(h.count(),0);
+  await page.getByRole('button',{name:'Refresh this account',exact:true}).click();await page.getByText('Live approval: Active',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Deactivate strategy',exact:true}).click();await page.getByText('Live approval: Inactive',{exact:true}).waitFor();assert.equal(h.count(),0);
   await shell.route(/\/portfolio\/live\/reviews\?/,route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Synthetic saved-review outage'})}));await shell.reload();
   if(embedded)await shell.frameLocator('iframe').getByRole('heading',{name:'Trading strategy',exact:true}).waitFor();
   page=embedded?shell.frames().find(f=>f!==shell.mainFrame()):shell;
+  await expand(page,'Strategy settings and approval');
   await page.getByText('Saved account reviews could not be read. Refresh this account before changing reviewed terms or preparing activation.',{exact:true}).waitFor();assert.equal(await page.locator('[data-native-strategy-cap]').count(),0,'an unreadable review cannot silently replace the cap');
   assert.deepEqual(errors,[]);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await context.close();
  }

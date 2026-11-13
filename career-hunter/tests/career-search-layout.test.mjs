@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Search Jobs, grade C). The real tools/career-search.html in Chromium over a synthetic browse feed: on a phone the first job card starts right under the search row (it sat about 1,700px down), the rail and the Advanced fields open in a Filters sheet with Done and Clear all, and the page opens on the list; on desktop the list (480px) sits beside the map; the title and the repeated "Search jobs" are gone, the button reads Search, and the view links, pills and Clear all are 44px targets.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 7: the page now opens under Career's own frame, which hides the strip of view links (the frame's bar goes to those places), so the 44px view-link check runs with the frame off, where the strip still shows; the phone's first job is held to 320px under the frame by tests/career-search-words.test.mjs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | G17 empty-result layout never invents a numeric range or a whole-search count.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,5 +58,17 @@ test('desktop: the list sits beside the map and the view links are 44px', async 
     for (const item of await page.locator('.career-view-nav > :is(a, span)').all()) assert.ok((await item.boundingBox()).height >= 44);
     assert.ok((await page.locator('#clear').boundingBox()).height >= 44);
     assert.equal(await page.getByRole('button', { name: 'About pay estimates' }).count(), 1);
+  } finally { await context.close(); }
+});
+
+test('phone: an empty result page says so without a fabricated range or total', async () => {
+  const empty = request => request.url.pathname === '/api/career-hunter/browse'
+    ? { json: { jobs: [], page: 1, per: Number(request.url.searchParams.get('per')), exhausted: true } } : feed(request);
+  const { page, context } = await openScreen(browser, 'career-search.html', empty, PHONE);
+  try {
+    await page.locator('#list .empty').waitFor();
+    assert.equal(await page.locator('#count').innerText(), 'No jobs on this page');
+    assert.equal(await page.locator('#list .job').count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Next →', exact: true }).count(), 0);
   } finally { await context.close(); }
 });

@@ -2,12 +2,14 @@
 <!--
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience ... the api and endpoints create processes and the detached ux gives the flexibility to make it look smooth and styled"). This page is the application: its own top bar and phone bar, the sections of Finance's own menu (each shown inside this page), and a Home built from the work that runs for the person: every finance job with what it does, when it last ran, how that went and when it runs next, and each finance application's saved summary. It hides the cockpit's frame when it is opened inside the cockpit, as Little Monsters does. It reads only; nothing is traded, moved or switched on here.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Lead with dated bank snapshots and a clear trading-account entry, put secondary activity under disclosure, prioritize the admitted Bank accounts and Trades sections, keep More visible and scope cockpit styling to Finance's own iframe.
 
   What it reads (all the caller's own, all GET):
     /api/ui/profile?name=finance        the sections the person may open (the server filters them)
     /api/v1/agent/schedules             the person's jobs; the finance ones are shown
     /api/<app>/home-summary             each finance application's saved summary (finance, trading, kalshi, daily-trade-recap)
     /api/swarm/roles/me                 the person's name for the chip
+    /api/finance/status, /summary       saved institution links and dated bank snapshot
 -->
 <html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
@@ -34,7 +36,7 @@
   .fx-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: .01em; white-space: nowrap; }
   .fx-mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-primary, #2dd4bf); color: var(--text-on-accent, #06221d); }
   .fx-mark svg { width: 18px; height: 18px; }
-  .fx-nav { flex: 1 1 auto; display: flex; align-items: stretch; gap: 2px; height: 100%; min-width: 0; overflow: hidden; }
+  .fx-nav { flex: 1 1 auto; display: flex; align-items: stretch; gap: 2px; height: 100%; min-width: 0; overflow: visible; }
   .fx-tab {
     appearance: none; border: 0; background: none; color: var(--text-secondary, #a9b6cc); font: inherit; font-weight: 600;
     padding: 0 14px; height: 100%; cursor: pointer; position: relative; white-space: nowrap; transition: color .15s ease;
@@ -72,6 +74,16 @@
     background: var(--bg-tertiary, #1b2740); color: var(--text-primary, #e8eef9); border: 1px solid var(--border-color, #22304a);
   }
   .fx-btn:hover { border-color: var(--accent-primary, #2dd4bf); }
+  .fx-journey { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .fx-card { padding:22px; border:1px solid var(--border-color,#22304a); border-radius:18px; background:var(--bg-card,var(--bg-secondary,#111a2c)); min-width:0; }
+  .fx-card h2 { font-size:20px; margin:10px 0 8px; }
+  .fx-card p { color:var(--text-secondary,#a9b6cc); }
+  .fx-card .fx-balance { display:block; font-size:32px; font-weight:700; margin:14px 0 4px; font-variant-numeric:tabular-nums; }
+  .fx-card small { display:block; color:var(--text-secondary,#a9b6cc); overflow-wrap:anywhere; }
+  .fx-kicker { color:var(--accent-primary,#2dd4bf); font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+  .fx-details { border:1px solid var(--border-color,#22304a); border-radius:14px; padding:0 16px; }
+  .fx-details>summary { min-height:48px; display:flex; align-items:center; cursor:pointer; font-weight:600; }
+  .fx-details section { margin:16px 0 22px; }
   h2.fx-h { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted, #7c8aa3); }
 
   .fx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
@@ -122,6 +134,7 @@
     .fx-row .fx-cell { grid-column: 2; }
     .fx-home { padding: 16px 12px calc(20px); }
     .fx-head h1 { font-size: 21px; }
+    .fx-journey { grid-template-columns:minmax(0,1fr); }
   }
 </style>
 </head>
@@ -140,19 +153,23 @@
   <section class="fx-home" id="fxHome" aria-label="Finance home">
     <div class="fx-wrap">
       <div class="fx-head">
-        <div><h1>Your money, and the work running on it</h1><p class="fx-sub" id="fxAsOf">Reading your jobs and summaries…</p></div>
-        <button class="fx-btn" id="fxRefresh" type="button">Refresh</button>
+        <div><h1>Bank accounts and trading</h1><p class="fx-sub" id="fxAsOf">Reading saved information…</p></div>
+        <button class="fx-btn" id="fxRefresh" type="button">Refresh view</button>
       </div>
-      <section aria-labelledby="fxTilesH"><h2 class="fx-h" id="fxTilesH">At a glance</h2><div class="fx-tiles" id="fxTiles"><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div></div></section>
-      <section aria-labelledby="fxJobsH"><h2 class="fx-h" id="fxJobsH">Working for you</h2><div class="fx-list" id="fxJobs"><div class="fx-skel"></div><div class="fx-skel"></div></div></section>
+      <section class="fx-journey" id="fxJourney" aria-label="Bank accounts and trading"><div class="fx-card fx-skel"></div></section>
+      <details class="fx-details" id="fxMoreActivity"><summary>More activity</summary>
+      <section aria-labelledby="fxTilesH"><h2 class="fx-h" id="fxTilesH">Saved activity</h2><div class="fx-tiles" id="fxTiles"><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div></div></section>
+      <section aria-labelledby="fxJobsH"><h2 class="fx-h" id="fxJobsH">Scheduled work</h2><p class="fx-sub">Job schedules and run records do not establish what an account currently holds or whether it is trading.</p><div class="fx-list" id="fxJobs"><div class="fx-skel"></div><div class="fx-skel"></div></div></section>
       <section aria-labelledby="fxNotesH"><h2 class="fx-h" id="fxNotesH">Worth a look</h2><div class="fx-list" id="fxNotes"><div class="fx-skel"></div></div></section>
+      </details>
     </div>
   </section>
   <iframe class="fx-frame" id="fxFrame" title="Finance section" hidden></iframe>
 </main>
 <nav class="fx-bottom" id="fxBottom" aria-label="Finance sections"></nav>
 <script>
-(function () {
+{
+  'use strict';
   'use strict';
   /** The finance family: the application each summary and job belongs to, and the section that opens it. */
   var APPS = [
@@ -162,7 +179,7 @@
     { app: 'daily-trade-recap', name: 'Recap', summary: '/api/daily-trade-recap/home-summary', section: 'finance-recap' }
   ];
   /** Short names for the bar; a section this page does not know keeps the name its application gave it. */
-  var SHORT = { 'finance-home': 'Money', 'finance-trading': 'Trades', 'finance-kalshi': 'Markets', 'finance-world': 'World', 'finance-recap': 'Recap', 'finance-banks': 'Banks' };
+  var SHORT = { 'finance-home': 'Bank accounts', 'finance-trading': 'Trades', 'finance-kalshi': 'Markets', 'finance-world': 'World', 'finance-recap': 'Recap', 'finance-banks': 'Connections' };
   var SELF = 'finance-app';
   var JOBS_PAGE = '/swarm-admin/jobs';
   var state = { sections: [], current: 'home', loaded: false };
@@ -190,12 +207,12 @@
     if (!embedded) return;
     try {
       var host = window.parent && window.parent.document;
-      if (!host || !host.head || host.getElementById('fx-own-window')) return;
-      if (host.body) host.body.classList.add('zen-mode');
+      if (!host || !host.head || !host.querySelector('.tool-view-container>iframe[src^="/api/finance/app"]') || host.getElementById('fx-own-window')) return;
       var style = host.createElement('style'); style.id = 'fx-own-window';
-      style.textContent = '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, .chat-panel, .panel-resize-handle, .tool-view-header, .zen-exit-btn, #workspaceNavigation, #workspaceNavigationMore { display: none !important; } '
-        + '.cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; } '
-        + '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }';
+      var scope = 'body:has(.tool-view-container>iframe[src^="/api/finance/app"]) ';
+      style.textContent = scope + ':is(.header-bar,.status-bar,#ribbonContainer,.ribbon-backdrop,.chat-panel,.panel-resize-handle,.tool-view-header,.zen-exit-btn,#workspaceNavigation,#workspaceNavigationMore){display:none!important}'
+        + scope + '.cockpit-body{padding:0!important;gap:0!important;height:100vh!important}'
+        + scope + ':is(.main-content,.tool-view-container){border:none!important;border-radius:0!important;margin:0!important;padding:0!important;height:100%!important;width:100%!important}';
       host.head.appendChild(style);
     } catch (_) { /* a host on another origin keeps its own frame */ }
   }
@@ -206,8 +223,8 @@
     return items.map(function (item) {
       var name = String(item.id || '').replace(/^tool-/, '');
       var url = item.toolUi && typeof item.toolUi.iframeUrl === 'string' ? item.toolUi.iframeUrl : '';
-      return { name: name, label: SHORT[name] || String(item.label || name), full: String(item.label || name), url: url, more: item.section === 'bottom' };
-    }).filter(function (s) { return s.url && s.name !== SELF && /^\/[^/]/.test(s.url); });
+      return { name: name, label: SHORT[name] || String(item.label || name), full: String(item.label || name), url: name === 'finance-trading' && url === '/api/trading/' ? url + '?view=accounts' : url, more: name !== 'finance-home' && name !== 'finance-trading' };
+    }).filter(function (s) { return s.url && s.name !== SELF && /^\/[^/]/.test(s.url) && !/[\\\u0000-\u0020]/.test(s.url); });
   }
 
   function tab(section, where) {
@@ -239,19 +256,45 @@
     state.current = section ? section.name : 'home';
     var frame = byId('fxFrame');
     if (section) {
-      if (frame.getAttribute('data-section') !== section.name) { frame.src = section.url; frame.setAttribute('data-section', section.name); frame.title = section.full; }
+      if (frame.getAttribute('data-section') !== section.name) {
+        var nextFrame = frame.cloneNode(false); nextFrame.src = section.url;
+        nextFrame.setAttribute('data-section', section.name); nextFrame.title = section.full;
+        frame.replaceWith(nextFrame); frame = nextFrame;
+      }
       frame.hidden = false; byId('fxHome').hidden = true;
     } else {
       frame.hidden = true; byId('fxHome').hidden = false;
       if (!state.loaded) loadHome();
     }
     document.title = section ? section.full + ' · Finance' : 'Finance';
-    if (!quiet) { try { history.replaceState(null, '', section ? '#/' + section.name : '#/home'); } catch (_) { /* a sandboxed frame keeps its address */ } }
+    if (!quiet) { try { var next = section ? '#/' + section.name : '#/home'; if (location.hash !== next) history.pushState(null, '', next); } catch (_) { /* a sandboxed frame keeps its address */ } }
     paintNav();
   }
 
   // ── Home: the work running for the person, and what each application has saved ──────────────────────────────
-  function money(n) { return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+  function money(n, currency = 'USD') { return Number.isFinite(n) ? new Intl.NumberFormat(undefined, { style: 'currency', currency: /^[A-Z]{3}$/.test(currency) ? currency : 'USD', maximumFractionDigits: 0 }).format(n).replace(/^-/, '−') : 'Unknown'; }
+  function savedWhen(value) { var d = value ? new Date(value) : null; return d && Number.isFinite(d.getTime()) ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Date unknown'; }
+  function sourceName(value) { return value === 'sandbox' ? 'Test bank data' : value === 'sample' ? 'Sample data' : value === 'production' ? 'Bank data' : 'Source unknown'; }
+  function paintJourney(status, summary) {
+    var snapshot = summary && summary.aggregate, cards = [], known = state.sections.map(function (s) { return s.name; });
+    if (known.indexOf('finance-home') !== -1) {
+      var worth = snapshot && snapshot.netWorth || {}, saved = savedWhen(summary && summary.syncedAt);
+      cards.push(el('article', { class: 'fx-card', 'data-journey': 'banks' }, [
+        el('span', { class: 'fx-kicker', text: sourceName(snapshot && snapshot.sourceEnvironment) }), el('h2', { text: 'Bank accounts' }),
+        el('strong', { class: 'fx-balance', text: money(worth.net, snapshot && snapshot.currency) }), el('small', { text: 'Saved net worth' }),
+        el('p', { text: saved === 'Date unknown' ? 'Snapshot date unknown' : 'Snapshot saved ' + saved }),
+        el('small', { text: status && Number.isInteger(status.connected) ? status.connected + ' saved institution link' + (status.connected === 1 ? '' : 's') + '. Your bank may have newer information.' : 'Bank connections could not be read. Your bank may have newer information.' }),
+        el('p', {}, [el('button', { type: 'button', class: 'fx-btn', text: 'Open bank accounts', on: { click: function () { open('finance-home'); } } })])
+      ]));
+    }
+    if (known.indexOf('finance-trading') !== -1) cards.push(el('article', { class: 'fx-card', 'data-journey': 'trades' }, [
+      el('span', { class: 'fx-kicker', text: 'Intelligent Trades' }), el('h2', { text: 'Understand your trading accounts' }),
+      el('p', { text: 'Review what is held, the strategy target, and the last account check before choosing your next step.' }),
+      el('small', { text: 'Account approval, schedules and recorded decisions are shown separately.' }),
+      el('p', {}, [el('button', { type: 'button', class: 'fx-btn', text: 'Review trading accounts', on: { click: function () { open('finance-trading'); } } })])
+    ]));
+    byId('fxJourney').replaceChildren.apply(byId('fxJourney'), cards.length ? cards : [el('div', { class: 'fx-empty', text: 'No Finance sections are available for this role.' })]);
+  }
   /** A tile's value as a person reads it: a net-worth record as money, anything else as its own words. */
   function tileValue(raw) {
     var text = String(raw === null || raw === undefined ? '' : raw);
@@ -346,14 +389,14 @@
   }
   function loadHome() {
     state.loaded = true;
-    byId('fxAsOf').textContent = 'Reading your jobs and summaries…';
+    byId('fxAsOf').textContent = 'Reading saved information…';
     var known = state.sections.map(function (s) { return s.name; });
     var families = APPS.filter(function (f) { return f.app === 'finance' || known.indexOf(f.section) !== -1; });
-    return Promise.all([getJson('/api/v1/agent/schedules')].concat(families.map(function (f) { return getJson(f.summary).then(function (data) { return { family: f, data: data }; }); })))
+    return Promise.all([getJson('/api/v1/agent/schedules'), getJson('/api/finance/status'), getJson('/api/finance/summary')].concat(families.map(function (f) { return getJson(f.summary).then(function (data) { return { family: f, data: data }; }); })))
       .then(function (all) {
-        var count = paintJobs(all[0]);
-        paintSummaries(all.slice(1));
-        byId('fxAsOf').textContent = 'As of ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · ' + count + (count === 1 ? ' job' : ' jobs');
+        paintJobs(all[0]);
+        paintJourney(all[1], all[2]); paintSummaries(all.slice(3));
+        byId('fxAsOf').textContent = 'View refreshed ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · saved information is dated below';
       });
   }
 
@@ -361,6 +404,7 @@
     ownTheWindow();
     byId('fxRefresh').addEventListener('click', function () { loadHome(); });
     document.addEventListener('click', function (event) { if (!event.target.closest || !event.target.closest('details.fx-more')) closeMenus(); });
+    window.addEventListener('hashchange', function () { var wanted = (location.hash.match(/^#\/([a-z0-9-]+)$/) || [])[1] || 'home'; open(wanted, true); });
     getJson('/api/swarm/roles/me').then(function (me) {
       var name = me && (me.displayName || me.email || '');
       if (!name) return;
@@ -374,7 +418,7 @@
   }
   window.FinanceApp = { rhythm: rhythm, tileValue: tileValue, jobName: jobName, sectionsOf: sectionsOf };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
-})();
+}
 </script>
 </body>
 </html>

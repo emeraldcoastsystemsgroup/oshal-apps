@@ -1,6 +1,7 @@
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual percolation and transactional reduction under concurrency, replay, late states and backend failure.
 // CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The engine fixture now deletes every rule index it published when it closes (tests/fixtures/detection.cjs): the browser case checks its published index exists while the engine is open and is gone once the fixture has closed, instead of deleting it a second time.
 // CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | T71: an activation retires the person's rule generations no source binding keeps (not the bound one, not another person's, not one under an hour old); the engine's retire refuses an empty or malformed keep list and a bad age.
+// CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Guard the engine's seal (1.9.1): a generation is sealed with the add-block API (PUT /<index>/_block/write), never an index settings update, which leaves one query cache of about 125 KB on OpenSearch 3.3.2's heap per new generation for good (the shared test search refused requests with HTTP 429 once its heap filled, 2026-11-12); a sealed generation published again writes nothing.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience}=require('./fixtures/intake.cjs'),{engineFixture}=require('./fixtures/detection.cjs');
@@ -167,6 +168,34 @@ for mutation in ['timeout','shard','inexact','empty','repeated']:
  except Failure:pass
 print('incomplete results refused')`;
  const result=spawnSync('python3',['-c',code],{cwd:require('./fixtures/intake.cjs').root+'/engine',encoding:'utf8'});assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/incomplete results refused/);
+});
+test('a generation is sealed with the add-block API, never an index settings update, which OpenSearch 3.3.2 never frees',()=>{
+ // Each PUT /<index>/_settings left one query cache (about 125 KB) on the search heap for good; the shared test search reached 89 % of its
+ // heap live and refused requests with HTTP 429 (2026-11-12). The add-block API sets the same index.blocks.write; the cases above prove
+ // on the real search that publish and match accept it.
+ const {spawnSync}=require('node:child_process');const code=String.raw`import json
+from percolation import Percolator
+scope='a'*64; revision='b'*64; index='ops-rules-'+scope+'-'+revision; rules=[{'id':'c'*64,'query':{'term':{'status':'firing'}},'enabled':True}]
+calls=[]; state={'meta':None,'sealed':False}
+def call(method,path,body=None,ndjson=False,allowed=(200,201)):
+ calls.append((method,path,body))
+ shards={'_shards':{'total':1,'successful':1,'failed':0}}
+ if method=='PUT' and path=='/'+index: state['meta']=body['mappings']['_meta'];return 200,{'acknowledged':True}
+ if path=='/'+index+'/_mapping': return 200,{index:{'mappings':{'_meta':state['meta']}}}
+ if path=='/'+index+'/_settings' and method=='GET': return 200,{index:{'settings':{'index':{'blocks':{'write':'true'}} if state['sealed'] else {'index':{}}}}}
+ if path.startswith('/'+index+'/_bulk'): return 200,{'errors':False,'items':[{}]*len(rules)}
+ if path=='/'+index+'/_refresh': return 200,shards
+ if method=='PUT' and path=='/'+index+'/_block/write': state['sealed']=True;return 200,{'acknowledged':True,'shards_acknowledged':True,'indices':[{'name':index,'blocked':True}]}
+ if path=='/'+index+'/_count': return 200,{**shards,'count':len(rules)}
+ raise AssertionError('unexpected '+method+' '+path)
+engine=Percolator('http://127.0.0.1:1');engine.call=call
+assert engine.publish(scope,revision,rules)['sealed'] is True
+assert ('PUT','/'+index+'/_block/write',None) in calls, calls
+assert not [c for c in calls if c[0]=='PUT' and c[1].endswith('/_settings')], calls
+calls.clear();engine.publish(scope,revision,rules)
+assert not [c for c in calls if c[0]=='PUT' and c[1]!='/'+index], 'a sealed generation published again writes nothing: '+json.dumps(calls)
+print('sealed with the add-block API')`;
+ const result=spawnSync('python3',['-c',code],{cwd:require('./fixtures/intake.cjs').root+'/engine',encoding:'utf8'});assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/sealed with the add-block API/);
 });
 test('detection deployment keeps search private, denies cluster credentials and pins the package build',()=>{
  const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process'),{root}=require('./fixtures/intake.cjs');

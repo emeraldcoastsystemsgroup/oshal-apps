@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Open the explicit strategy settings disclosure before the unchanged exact-account selection and personal activation acceptance.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: verify browser backtest, failed-validation refusal, 252-session Monday research window, account-class checks, daily strategy assignment, mandate activation and deactivation.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-scoped strategy changes over the shipped routes. All identities, prices and authorities are synthetic.
  */
@@ -6,6 +7,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {allocationFixture}=require('./support/native-allocation-host');
 const {chromium}=require(path.resolve(__dirname,'../../scripts/toolchain/node_modules/playwright'));
+async function openSettings(page){const summary=page.getByText('Strategy settings and approval',{exact:true});await summary.waitFor();if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();}
 test('account selection cannot borrow another account study or activate an unsaved selection',async t=>{
  const h=await allocationFixture(t),baseAccount=h.accounts[0];
  h.accounts.push({...structuredClone(baseAccount),accountId:'b',accountMasked:'…5678'});
@@ -33,7 +35,7 @@ test('account selection cannot borrow another account study or activate an unsav
  const browser=await chromium.launch();t.after(()=>browser.close());
  const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage();t.after(()=>context.close());const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(h.base+'/?view=accounts&account=a&connection=owned-login');
- const select=page.locator('[data-native-account-strategy]');await select.waitFor();
+ const select=page.locator('[data-native-account-strategy]');await openSettings(page);await select.waitFor();
  assert.equal(await page.getByRole('button',{name:'Watcher schedule is active',exact:true}).isDisabled(),true);
  await Promise.all([page.waitForEvent('dialog').then(dialog=>dialog.dismiss()),page.getByRole('button',{name:'Deactivate shared schedule',exact:true}).click()]);await page.getByRole('button',{name:'Deactivate shared schedule',exact:true}).isEnabled();assert.deepEqual(scheduleCalls,[]);
  await Promise.all([page.waitForEvent('dialog').then(dialog=>dialog.accept()),page.getByRole('button',{name:'Deactivate shared schedule',exact:true}).click()]);await page.getByRole('button',{name:'Activate watcher schedule',exact:true}).waitFor();
@@ -48,7 +50,7 @@ assert.equal(await select.inputValue(),h.strategyId);assert.equal(await select.i
  await page.getByRole('button',{name:'Change strategy',exact:true}).click();await select.selectOption(next.id);await page.getByRole('button',{name:'Save strategy',exact:true}).click();await page.getByRole('button',{name:'Review & activate',exact:true}).waitFor();
  current=await h.req('');assert.equal(current.accounts.find(a=>a.accountId==='a'&&a.connectionKey==='owned-login').strategyId,next.id);
  const managed=await h.req('/management'),watch=managed.watches.find(w=>w.accountId==='a'&&w.connectionKey==='owned-login');assert.equal(watch.strategyId,next.id);assert.equal(watch.automatedTrading,false);assert.equal(h.count(),0);
- await page.goto(h.base+'/?view=accounts&account=b&connection=owned-login');await page.locator('[data-native-account-strategy]').waitFor();assert.match(await page.locator('#nativeAccountManagement').innerText(),/5678/);assert.equal(await page.locator('[data-native-account-strategy]').inputValue(),next.id);
+ await page.goto(h.base+'/?view=accounts&account=b&connection=owned-login');await openSettings(page);await page.locator('[data-native-account-strategy]').waitFor();assert.match(await page.locator('#nativeAccountManagement').innerText(),/5678/);assert.equal(await page.locator('[data-native-account-strategy]').inputValue(),next.id);
  assert.equal(await page.getByRole('button',{name:'Activate live trading',exact:true}).count(),0,'another account cannot inherit the old draft');
  await page.goto(h.base+'/?view=accounts&account=a&connection=unowned');await page.getByRole('heading',{name:'Account page unavailable',exact:true}).waitFor();assert.equal(h.count(),0);assert.deepEqual(errors,[]);
  await page.goto(h.base+'/cockpit/');const frame=page.frameLocator('iframe');
@@ -98,7 +100,7 @@ test('daily account strategies validate, save, activate and deactivate in the br
  const browser=await chromium.launch();t.after(()=>browser.close());
  const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage();t.after(()=>context.close());const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(h.base+'/?view=accounts&account=a&connection=owned-login');
- const select=page.locator('[data-native-account-strategy]');await select.waitFor();
+ const select=page.locator('[data-native-account-strategy]');await openSettings(page);await select.waitFor();
  await page.getByRole('button',{name:'Change strategy',exact:true}).click();
  await select.selectOption(retStrat.id);await page.getByRole('button',{name:'Save strategy',exact:true}).click();
  await page.getByText('This strategy requires an explicitly classified retirement account.',{exact:true}).waitFor();

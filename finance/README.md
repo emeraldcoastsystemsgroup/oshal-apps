@@ -80,10 +80,13 @@ Finance opens on `tools/finance-app.html`, served at `GET /api/finance/app` (`fi
 
 Tests: `tests/finance-app.test.cjs` (manifest, route, and the page's own wording functions) and `tests/browser/finance-app.browser.test.cjs` (Chromium with stand-in answers, desktop, phone and inside a cockpit-like page). Not yet proven against a signed-in session on a running kernel by these tests; that check is done on the test slot before delivery.
 
-## Overview Aggregate Normalization & Sortable Table Enhancement (1.4.2)
+## Saved account figures and analysis (1.6.2)
 
-- **Backend Aggregate Normalization (`routes/finance-routes.js`):** `normalizeAggregate()` guarantees that `GET /api/finance/summary` always returns well-formed arrays (`accounts: []`, `holdings: []`, `recentTransactions: []`, `spendingByCategory: []`) and numeric totals (`netWorthCents: 0`, `assetsCents: 0`, `liabilitiesCents: 0`) even when a stored aggregate row omits an array field or no accounts are linked yet.
-- **Container-Safe Table Enhancement (`tools/finance.html`):** `enhanceTables(root)` resolves every `<table class="data-table">` inside the rendered tab container before invoking `window.KernelTable.enhance(table)` and guards all array length accesses (`Array.isArray(...)`) across the Overview, Accounts, Holdings, Transactions, Payments, and Subscriptions views.
+Bank Sync uses the native Plaid adapter on the native runtime. A missing amount stays Unknown; a reported zero remains zero. An unreadable institution leaves complete totals unknown. Account figures retain their reported currency, and different currencies are not added without conversion. Saved summaries and analysis apply the same limits without rewriting historical stored snapshots. Jarvis's Finance facts also keep the holdings count and value unknown when the inventory is incomplete, missing or malformed; an explicitly complete empty inventory remains zero.
+
+Request analysis uses one saved snapshot. If Sync replaces that snapshot while analysis is running, the request refuses with an explanation and preserves the previous analysis and its saved date. Request analysis again to use the newer snapshot.
+
+Focused tests exercise the actual native adapter, compiled handlers, actual pages with synthetic replies, and a separate native-adapter-to-page contract. Native SQL comparison is checked against memory and disposable PostgreSQL. These tests do not establish live bank freshness or investment performance.
 
 <!-- oshal-rating:start -->
 ## Models and requirements
@@ -99,3 +102,9 @@ Container memory, MiB low / high: **64 / 256 (declared)**.
 | context-review | draft review against your finances | T3 | none | disable | not yet measured | none recorded |
 | finance-brief-ticket | finance brief ticket | T3 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Transaction coverage (1.6.3)
+
+After Sync, the bank view shows whether the requested transaction window is complete, partial or unknown, with available and expected row counts when known. Available transactions and independently known balances stay visible. Full-window spending, income and category totals remain unknown when the window is incomplete. An explicitly complete empty window retains known zero.
+
+New analysis and specialist answers use the same coverage boundary, including older saved snapshots with numeric rollups but missing or contradictory completeness evidence. Sync preserves an independently dated saved analysis. Coverage describes the provider's requested window; it does not establish investment returns or explain account losses.

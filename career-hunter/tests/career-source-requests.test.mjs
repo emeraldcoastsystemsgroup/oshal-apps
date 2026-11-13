@@ -1,4 +1,5 @@
 // CHANGE LOG
+// 2 | maintainer@emeraldcoastsystemsgroup.com | Run the actual single-writer conditional decision controls alongside all existing source-change contracts.
 // 1 | maintainer@emeraldcoastsystemsgroup.com | Run the saved source change contract: a pull applies it on real temporary SQLite, with a real process really killed inside a write.
 import test from 'node:test';
 import assert from 'node:assert/strict';

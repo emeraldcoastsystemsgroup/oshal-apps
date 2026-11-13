@@ -40,6 +40,10 @@
  *
  * @module finance-routes
  * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: GET /app serves the application page (tools/finance-app.html): Finance as its own application, with its own bar, the family's screens inside it and a Home built from the person's finance jobs and summaries. The page only reads.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Sync retains the last saved analysis with its original date so the snapshot can show it as older; explicit analysis returns the persisted database brief_at rather than leaving its date unknown.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Missing saved balances and required total components remain unknown; incomplete institution reads cannot turn a partial account inventory into a complete total, while known cached zero stays zero.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Withhold incomplete or cross-currency monetary totals, normalize saved snapshots before analysis, and atomically refuse an analysis saved after its input changed.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit transaction coverage and mask incomplete historical spending rollups on reads, sync and new analysis without rewriting cached snapshots.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -57,7 +61,8 @@ import {
   plaidConfigured, plaidEnv, removeItem, type FinanceAccount, type FinanceAggregate, type FinanceHolding, type PlaidError,
 } from './finance-plaid';
 import { decryptSessionValue, encryptSessionValue } from './session-crypto';
-import { FINANCE_FACTS_TOOL, FINANCE_FACT_KEYS, readFinanceFacts } from './finance-facts';
+import { finiteAmount, sumAmounts } from './finance-values';
+import { FINANCE_FACTS_TOOL, FINANCE_FACT_KEYS, readFinanceFacts, transactionCoverageComplete, transactionCoverageNotice, transactionCoverageState } from './finance-facts';
 import {
   briefFigures, buildCommentaryPrompt, buildRewritePrompt, checkCommentary, composeBrief, quotableAmounts,
 } from './finance-brief';
@@ -210,20 +215,26 @@ const ACCOUNT_GROUPS: Record<string, 'cashAndDeposits' | 'investmentAccounts' | 
   credit: 'creditOwed', loan: 'loansOwed',
 };
 
+/** A reported unit, or the explicitly saved aggregate unit for a legacy omitted field. */
+function accountUnit(account: { currency?: unknown }, fallback: unknown): string | null {
+  const value = Object.prototype.hasOwnProperty.call(account, 'currency') ? account.currency : fallback;
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value) ? value : null;
+}
+
 /** Exact figures computed from the aggregate's accounts, so the analyst never adds balances itself. */
 export interface FinanceTotals {
   currency: string;
   mixedCurrencies: boolean;
   accountCount: number;
-  cashAndDeposits: number;
-  investmentAccounts: number;
-  otherAssets: number;
-  creditOwed: number;
-  loansOwed: number;
-  totalAssets: number;
-  totalLiabilities: number;
-  netWorth: number;
-  holdingsValue: number;
+  cashAndDeposits: number | null;
+  investmentAccounts: number | null;
+  otherAssets: number | null;
+  creditOwed: number | null;
+  loansOwed: number | null;
+  totalAssets: number | null;
+  totalLiabilities: number | null;
+  netWorth: number | null;
+  holdingsValue: number | null;
 }
 
 /**
@@ -234,24 +245,33 @@ export interface FinanceTotals {
  * @returns The exact totals, in the aggregate's currency (mixedCurrencies says when that is unsafe).
  */
 export function computeFinanceTotals(agg: FinanceAggregate): FinanceTotals {
-  const cents = { cashAndDeposits: 0, investmentAccounts: 0, otherAssets: 0, creditOwed: 0, loansOwed: 0, holdings: 0 };
+  const cents: Record<string, number | null> = { cashAndDeposits: 0, investmentAccounts: 0, otherAssets: 0, creditOwed: 0, loansOwed: 0, holdings: 0 };
+  if (agg.balancesComplete === false || !Array.isArray(agg.accounts)) for (const key of Object.keys(cents).filter((key) => key !== 'holdings')) cents[key] = null;
   const accounts = Array.isArray(agg.accounts) ? agg.accounts : [];
+  const units = new Set(accounts.map((a) => accountUnit(a, agg.currency)));
+  const unsafeUnits = units.has(null) || units.size > 1 || [...units].some((unit) => unit !== agg.currency);
+  if (unsafeUnits) for (const key of Object.keys(cents)) cents[key] = null;
   for (const account of accounts) {
-    const value = Math.round(Number(account.balance || 0) * 100);
+    const amount = finiteAmount(account.balance);
+    const value = amount === null ? null : Math.round(amount * 100);
     const group = ACCOUNT_GROUPS[String(account.type || '').toLowerCase()] || 'otherAssets';
-    cents[group] += group === 'creditOwed' || group === 'loansOwed' ? Math.abs(value) : value;
+    cents[group] = sumAmounts([cents[group], value !== null && (group === 'creditOwed' || group === 'loansOwed') ? Math.abs(value) : value]);
   }
-  for (const holding of Array.isArray(agg.holdings) ? agg.holdings : []) cents.holdings += Math.round(Number(holding.value || 0) * 100);
-  const assets = cents.cashAndDeposits + cents.investmentAccounts + cents.otherAssets;
-  const liabilities = cents.creditOwed + cents.loansOwed;
-  const dollars = (value: number) => value / 100;
+  for (const holding of Array.isArray(agg.holdings) ? agg.holdings : []) {
+    const amount = accountUnit(holding as FinanceHolding & { currency?: unknown }, agg.currency) === agg.currency ? finiteAmount(holding.value) : null;
+    cents.holdings = sumAmounts([cents.holdings, amount === null ? null : Math.round(amount * 100)]);
+  }
+  if ((agg as FinanceAggregate & { holdingsComplete?: boolean }).holdingsComplete === false) cents.holdings = null;
+  const assets = sumAmounts([cents.cashAndDeposits, cents.investmentAccounts, cents.otherAssets]);
+  const liabilities = sumAmounts([cents.creditOwed, cents.loansOwed]);
+  const dollars = (value: number | null) => value === null ? null : value / 100;
   return {
     currency: agg.currency || 'USD',
-    mixedCurrencies: new Set(accounts.map((a) => a.currency || agg.currency || 'USD')).size > 1,
+    mixedCurrencies: new Set(accounts.map((a) => accountUnit(a, agg.currency)).filter(Boolean)).size > 1,
     accountCount: accounts.length,
     cashAndDeposits: dollars(cents.cashAndDeposits), investmentAccounts: dollars(cents.investmentAccounts),
     otherAssets: dollars(cents.otherAssets), creditOwed: dollars(cents.creditOwed), loansOwed: dollars(cents.loansOwed),
-    totalAssets: dollars(assets), totalLiabilities: dollars(liabilities), netWorth: dollars(assets - liabilities),
+    totalAssets: dollars(assets), totalLiabilities: dollars(liabilities), netWorth: assets === null || liabilities === null ? null : dollars(assets - liabilities),
     holdingsValue: dollars(cents.holdings),
   };
 }
@@ -343,7 +363,7 @@ async function writeBrief(ctx: AppContext, sub: string, agg: FinanceAggregate): 
 function sampleAggregate(): FinanceAggregate {
   const day = (back: number) => new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
   const month = (back: number) => new Date(Date.now() - back * 30 * 86400000).toISOString().slice(0, 7);
-  const accounts: FinanceAccount[] = [
+  const accounts: Array<FinanceAccount & { balance: number }> = [
     { name: 'Everyday Checking', type: 'depository', subtype: 'checking', mask: '4821', balance: 4820.44, currency: 'USD', institution: 'Harbor Bank' },
     { name: 'Rainy-day Savings', type: 'depository', subtype: 'savings', mask: '7730', balance: 18400.00, currency: 'USD', institution: 'Harbor Bank' },
     { name: 'Money Market', type: 'depository', subtype: 'money market', mask: '2214', balance: 12500.00, currency: 'USD', institution: 'Coastal Credit Union' },
@@ -391,43 +411,68 @@ function sampleAggregate(): FinanceAggregate {
 /** The aggregate of no readable connection: nothing invented, the notes say why. */
 function emptyAggregate(windowDays: number): FinanceAggregate {
   return { generatedAt: new Date().toISOString(), sourceEnvironment: plaidEnv(), currency: 'USD',
-    netWorth: { assets: 0, liabilities: 0, net: 0 }, accounts: [], holdings: [], topSpending: [], spendByMonth: [],
+    balancesComplete: false, netWorth: { assets: null, liabilities: null, net: null }, accounts: [], holdings: [], topSpending: [], spendByMonth: [],
     recentTransactions: [], transactionWindowDays: windowDays, notes: [] } as FinanceAggregate;
 }
 
-/** Ensure every array and netWorth field on a stored aggregate is well-formed before returning or analyzing it. */
+/** Normalize a saved account without fabricating a missing unit or coercing its amount. */
+function normalizedAccount(raw: Record<string, any>, fallback: unknown): FinanceAccount {
+  const unit = accountUnit(raw, fallback);
+  return { ...raw, currency: unit || '', balance: unit ? finiteAmount(raw.balance) : null } as FinanceAccount;
+}
+
+/** Normalize stored evidence without rewriting it or guessing whether an old numeric zero was missing. */
 function normalizeAggregate(raw: unknown): FinanceAggregate | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, any>;
   const nw = r.netWorth && typeof r.netWorth === 'object' ? r.netWorth : {};
+  const inventory = Array.isArray(r.accounts);
+  const accounts = inventory ? r.accounts.filter((a: any) => a && typeof a === 'object').map((a: any) => normalizedAccount(a, r.currency)) : [];
+  const units = new Set(accounts.map((a: FinanceAccount) => a.currency));
+  const complete = inventory && accounts.length === r.accounts.length && r.balancesComplete !== false;
+  const monetaryUnsafe = units.has('') || units.size > 1 || !accountUnit({}, r.currency) || [...units].some((unit) => unit !== r.currency);
+  const unsafe = !complete || monetaryUnsafe;
+  const notes = Array.isArray(r.notes) ? [...r.notes] : [];
+  const transactionsComplete = transactionCoverageComplete(r);
+  const coverageNotice = transactionCoverageNotice(r);
+  if (coverageNotice && !notes.includes(coverageNotice)) notes.push(coverageNotice);
+  const totals = computeFinanceTotals({ ...r, accounts, balancesComplete: complete } as FinanceAggregate);
+  const holdings = (Array.isArray(r.holdings) ? r.holdings : []).filter((h: any) => h && typeof h === 'object').map((h: any) => accountUnit(h, r.currency) === r.currency ? h : { ...h, value: null, costBasis: null });
+  if (units.has('')) notes.push('An account did not report a currency. Its monetary balance is unknown.');
+  if (units.size === 1 && !units.has(r.currency)) notes.push('Account currency does not match the saved snapshot currency. Combined totals are unknown.');
+  if (units.size > 1) notes.push('Accounts use different or unknown currencies. Combined totals are unknown; no currency conversion was performed.');
   return {
-    ...r,
-    generatedAt: typeof r.generatedAt === 'string' ? r.generatedAt : new Date().toISOString(),
-    currency: typeof r.currency === 'string' && r.currency ? r.currency : 'USD',
-    netWorth: {
-      assets: Number(nw.assets ?? r.assets ?? 0) || 0,
-      liabilities: Number(nw.liabilities ?? r.debts ?? 0) || 0,
-      net: Number(nw.net ?? r.net_worth ?? 0) || 0,
-    },
-    accounts: Array.isArray(r.accounts) ? r.accounts : [],
-    holdings: Array.isArray(r.holdings) ? r.holdings : [],
-    topSpending: Array.isArray(r.topSpending) ? r.topSpending : [],
-    spendByMonth: Array.isArray(r.spendByMonth) ? r.spendByMonth : [],
+    ...r, generatedAt: typeof r.generatedAt === 'string' ? r.generatedAt : new Date().toISOString(),
+    currency: accountUnit({}, r.currency) || '',
+    netWorth: { assets: unsafe || totals.totalAssets === null ? null : finiteAmount(nw.assets !== undefined ? nw.assets : r.assets),
+      liabilities: unsafe || totals.totalLiabilities === null ? null : finiteAmount(nw.liabilities !== undefined ? nw.liabilities : r.debts),
+      net: unsafe || totals.netWorth === null ? null : finiteAmount(nw.net !== undefined ? nw.net : r.net_worth) },
+    balancesComplete: complete, accounts, holdings, transactionsComplete,
+    transactionCoverage: r.transactionCoverage && typeof r.transactionCoverage === 'object' && !Array.isArray(r.transactionCoverage)
+      ? { ...r.transactionCoverage, state: transactionCoverageState(r) } : undefined,
+    topSpending: (transactionsComplete && Array.isArray(r.topSpending) ? r.topSpending : []).map((row: any) => monetaryUnsafe ? { ...row, total: null, amount: null } : row),
+    spendByMonth: (transactionsComplete && Array.isArray(r.spendByMonth) ? r.spendByMonth : []).map((row: any) => monetaryUnsafe ? { ...row, spend: null, income: null } : row),
     recentTransactions: Array.isArray(r.recentTransactions) ? r.recentTransactions : [],
-    transactionWindowDays: Number(r.transactionWindowDays) || TXN_WINDOW_DAYS,
-    notes: Array.isArray(r.notes) ? r.notes : [],
+    transactionWindowDays: Number(r.transactionWindowDays) || TXN_WINDOW_DAYS, notes,
   } as FinanceAggregate;
 }
 
-/** Fetch fresh data for the caller and persist the aggregate; clears the stale brief. */
+/** Persist a fresh account snapshot while retaining the independently dated saved analysis. */
 async function syncAggregate(pool: AppContext['pool'], sub: string): Promise<FinanceAggregate> {
   const { items, notes } = await loadItems(pool, sub);
-  const agg = items.length ? await fetchFinanceAggregate(items, TXN_WINDOW_DAYS) : emptyAggregate(TXN_WINDOW_DAYS);
+  const agg = normalizeAggregate(items.length ? await fetchFinanceAggregate(items, TXN_WINDOW_DAYS) : emptyAggregate(TXN_WINDOW_DAYS))!;
+  if (notes.length) {
+    agg.balancesComplete = false; agg.netWorth = { assets: null, liabilities: null, net: null };
+    agg.transactionsComplete = false; agg.topSpending = []; agg.spendByMonth = [];
+    if (agg.transactionCoverage) agg.transactionCoverage = { ...agg.transactionCoverage, state: 'unknown', total: null };
+    const notice = transactionCoverageNotice(agg);
+    if (!agg.notes.includes(notice)) agg.notes.push(notice);
+  }
   agg.notes = [...notes, ...(agg.notes || [])];
   await pool.query(
     `INSERT INTO oshal_finance_data (user_sub, aggregate, brief, synced_at, brief_at)
        VALUES ($1, $2, NULL, now(), NULL)
-     ON CONFLICT (user_sub) DO UPDATE SET aggregate = EXCLUDED.aggregate, brief = NULL, synced_at = now(), brief_at = NULL`,
+     ON CONFLICT (user_sub) DO UPDATE SET aggregate = EXCLUDED.aggregate, synced_at = now()`,
     [sub, JSON.stringify(agg)]);
   return agg;
 }
@@ -629,10 +674,14 @@ export function createFinanceRoutes(ctx: AppContext): Router {
       await ensureFinanceSchema(ctx.pool);
       const row = (await ctx.pool.query('SELECT aggregate FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
       if (!row || !row.aggregate) { res.status(409).json({ error: 'no_data', message: 'Link accounts and sync first.' }); return; }
-      const brief = await writeBrief(ctx, sub, row.aggregate as FinanceAggregate);
+      const original = typeof row.aggregate === 'string' ? row.aggregate : JSON.stringify(row.aggregate);
+      const aggregate = normalizeAggregate(typeof row.aggregate === 'string' ? JSON.parse(row.aggregate) : row.aggregate);
+      if (!aggregate) { res.status(409).json({ error: 'no_data', message: 'Link accounts and sync first.' }); return; }
+      const brief = await writeBrief(ctx, sub, aggregate);
       if (!brief) { res.status(502).json({ error: 'empty_brief', message: 'The analyst returned nothing — try again.' }); return; }
-      await ctx.pool.query('UPDATE oshal_finance_data SET brief = $2, brief_at = now() WHERE user_sub = $1', [sub, brief]);
-      res.json({ brief, cached: false });
+      const saved = await ctx.pool.query('UPDATE oshal_finance_data SET brief = $2, brief_at = now() WHERE user_sub = $1 AND aggregate = $3::jsonb RETURNING brief_at', [sub, brief, original]);
+      if (!saved.rows[0]) { res.status(409).json({ error: 'snapshot_changed', message: 'The account snapshot changed while analysis was running. The previous saved analysis is unchanged. Request analysis again.' }); return; }
+      res.json({ brief, briefAt: saved.rows[0].brief_at || null, cached: false });
     } catch (err) {
       logger.error({ err }, 'finance brief refresh failed');
       res.status(502).json({ error: (err as Error).message });
@@ -656,7 +705,7 @@ export function createFinanceRoutes(ctx: AppContext): Router {
     try {
       const row = (await ctx.pool.query('SELECT aggregate, synced_at FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
       if (!row?.aggregate) { res.status(409).json({ error: 'no_saved_accounts', message: 'Link and sync your accounts before asking for a financial review.' }); return; }
-      const brief = await runAnalyst(ctx, sub, row.aggregate as FinanceAggregate, { title: body.title.trim(), notes: body.notes.trim(), ...(body.sourceUrl ? { sourceUrl: body.sourceUrl } : {}) });
+      const brief = await runAnalyst(ctx, sub, normalizeAggregate(row.aggregate)!, { title: body.title.trim(), notes: body.notes.trim(), ...(body.sourceUrl ? { sourceUrl: body.sourceUrl } : {}) });
       if (!brief) { res.status(502).json({ error: 'empty_review' }); return; }
       res.json({ brief, snapshotAt: row.synced_at, advisory: true });
     } catch (err) { logger.error({ err }, 'finance context review failed'); res.status(503).json({ error: 'review_unavailable' }); }

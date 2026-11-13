@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | "How much did I spend on restaurants last month?" from Jarvis: the finance-analyst had only finance_facts and said it could not query transactions. finance-summary is a read route tool onto GET /api/finance/summary that the persona authorizes and is told to call for spending; through the compiled route it answers the caller's own saved aggregate (categorized transactions included), 404 with nothing synced, and 401 for no caller, never another person's row.
  *
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Give the positive owner-isolation fixture explicit coherent transaction coverage; preserve anonymous, missing-owner and tool admission checks.
+ *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
 'use strict';
@@ -49,9 +51,11 @@ async function get(routes, sub) {
   return res;
 }
 
+const COMPLETE = { transactionsComplete: true, transactionCoverage: { state: 'complete', returned: 1, total: 1,
+  institutions: [{ institution: 'Synthetic bank', state: 'complete', returned: 1, total: 1, pages: 1, reason: null }] } };
 const ROWS = [
-  { user_sub: 'person-a', synced_at: '2026-10-15T00:00:00Z', aggregate: { topSpending: [{ category: 'FOOD_AND_DRINK', amount: 212.5 }], recentTransactions: [{ name: 'Taco Bar', category: 'FOOD_AND_DRINK', amount: 18 }] } },
-  { user_sub: 'person-b', synced_at: '2026-10-15T00:00:00Z', aggregate: { topSpending: [{ category: 'TRAVEL', amount: 900 }] } },
+  { user_sub: 'person-a', synced_at: '2026-10-15T00:00:00Z', aggregate: { ...COMPLETE, topSpending: [{ category: 'FOOD_AND_DRINK', amount: 212.5 }], recentTransactions: [{ name: 'Taco Bar', category: 'FOOD_AND_DRINK', amount: 18 }] } },
+  { user_sub: 'person-b', synced_at: '2026-10-15T00:00:00Z', aggregate: { ...COMPLETE, topSpending: [{ category: 'TRAVEL', amount: 900 }] } },
 ];
 
 test('finance-summary is an automatic read tool onto GET /api/finance/summary, authorized and called for spending', () => {

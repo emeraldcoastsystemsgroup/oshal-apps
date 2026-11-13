@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-myday). My Day stacked eight sections that repeated the dashboard and pushed Due today below the fold, a student could not add a task although POST /calendar exists, and the week strip's days were <span role=button>. Drives the shipped page in Chromium against stubbed routes: Due today is the first section, '+ Add to my day' POSTs the lm-add-reminder body, only the person's own item offers ⋯ Remove (DELETE /calendar/:eventId), the calendar's days are real buttons with aria-pressed in both Week and Month, and My classes / Quick actions are gone.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The week's day buttons are measured once the calendar has redrawn after the save: under the store gate's load the measurement caught the rebuild (0px) and failed once.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Select and measure current calendar buttons atomically so an asynchronous refresh cannot turn detached buttons into a false 0px result; retain every 44px and semantic assertion.
  * -----------------------------------------------------------------------------
  *
  * Needs the store toolchain (express, playwright, chromium).
@@ -88,13 +89,15 @@ test('My Day: Due today first, Add to my day saves, own items remove, days are r
 
     // One calendar: Week shows 7 real day buttons, Month every day of the month; no span role=button anywhere.
     const cells = () => page.locator('#calGrid .cal-cell:not(.is-empty)');
-    // The calendar redraws after the save; measure the drawn week, not the moment it is rebuilt (the gate saw 0px under load).
-    await page.waitForFunction(() => {
-      const els = [...document.querySelectorAll('#calGrid .cal-cell:not(.is-empty)')];
-      return els.length === 7 && els.every((e) => e.getBoundingClientRect().height > 0);
+    // Return primitive measurements in the same browser turn as selection: a pending refresh can replace these buttons.
+    const drawn = await page.waitForFunction(() => {
+      const shapes = [...document.querySelectorAll('#calGrid .cal-cell:not(.is-empty)')]
+        .map((e) => ({ tag: e.tagName, pressed: e.getAttribute('aria-pressed'), h: e.getBoundingClientRect().height }));
+      return shapes.length === 7 && shapes.every((cell) => cell.h > 0) ? shapes : false;
     }, null, { timeout: 10000 });
-    assert.equal(await cells().count(), 7);
-    const shapes = await cells().evaluateAll((els) => els.map((e) => ({ tag: e.tagName, pressed: e.getAttribute('aria-pressed'), h: e.getBoundingClientRect().height })));
+    const shapes = await drawn.jsonValue();
+    await drawn.dispose();
+    assert.equal(shapes.length, 7);
     for (const c of shapes) { assert.equal(c.tag, 'BUTTON'); assert.ok(c.pressed === 'true' || c.pressed === 'false'); assert.ok(c.h >= 44, `day cell ${c.h}px tall`); }
     await page.click('.cal-mode [data-mode="month"]');
     const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

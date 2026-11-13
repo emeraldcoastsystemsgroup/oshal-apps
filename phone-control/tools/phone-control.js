@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: attach surface-bridge-client.js cleanly without console 404 when embedded in the cockpit, keep the shell concierge orb visible at all times, open the Connect sheet on #connect-tv, pass full device/computer context snapshot to the concierge rail, and sync modal background inert state.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: gate rdp.list() on hasStoredRdp() to eliminate 404 console noise when no RDP session is active, and exit fullscreen stage on Escape before closing modal sheets.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the line under the heading counts what the tree lists (a phone or TV that signed in with the Open Swarm app is a phone or TV, not a computer).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the line a page-only account reads says what it cannot do ("Your account cannot add or control devices here.") instead of naming the administrator; the 403 handling is unchanged.
  */
 
 import { createComputerClient, createPackageClient, createRdpClient, hasStoredRdp } from '/api/phone-control/ui/computer-link.js';
@@ -50,7 +51,7 @@ function showNotAllowed(app) {
   byId('sessionSheetScrim').hidden = true;
   byId('pageActions').hidden = true;
   app.syncModalLayers?.();
-  app.say('Device features are for this installation’s administrator only.');
+  app.say('Your account cannot add or control devices here.');
 }
 
 const app = {
@@ -160,7 +161,7 @@ function contextState() {
 }
 
 function lede() {
-  if (app.state.notAllowed) return 'Device features are for this installation’s administrator only.';
+  if (app.state.notAllowed) return 'Your account cannot add or control devices here.';
   if (app.state.computersRefused) return app.state.computersRefused;
   const phones = app.state.phones.length;
   const computers = app.state.computerList.length;

@@ -1,0 +1,22 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | A quiet one-pixel divider and shared composer, with a pinned phone pane and desktop dock. The assistant itself uses the shared editor styles.
+ */
+@import url('/shared/ui/css/editor-foundation.css');
+.cf-concierge-toggle{min-height:44px;padding:8px 12px;border:1px solid var(--cf-line);border-radius:10px;background:var(--bg-secondary);color:var(--cf-ink);font:600 14px/1.2 system-ui;cursor:pointer}
+.cf-concierge-toggle:focus-visible{outline:2px solid var(--cf-accent);outline-offset:2px}
+.cf-concierge{position:fixed;inset:0 0 0 auto;width:340px;z-index:110;border-left:1px solid var(--cf-line);box-sizing:border-box;background:var(--bg-secondary);color:var(--text-primary)}
+.cf-concierge[hidden]{display:none!important}
+html[data-career-concierge=open] body{padding-right:340px}
+.cf-concierge .ef-assistant-header{min-height:56px;padding:8px 16px}
+.cf-concierge .ef-assistant-header h2{font:600 18px/24px system-ui}
+.cf-concierge .ef-assistant-help{font:400 14px/20px system-ui;color:var(--text-secondary)}
+.cf-concierge .ef-assistant-composer{border-radius:14px;background:var(--bg-secondary)}
+.cf-concierge .ef-assistant-form textarea{font-size:16px}
+.cf-concierge .ef-assistant-notice,.cf-concierge .ef-assistant-speaker{font-size:12px}
+@media(max-width:800px){
+ .cf-concierge{width:100%;inset:var(--cf-top) 0 var(--cf-bottom);border-left:0;border-top:1px solid var(--cf-line)}
+ html[data-career-concierge=open] body{padding-right:0}
+ html[data-career-concierge=open] body>main{visibility:hidden}
+ .cf-concierge-toggle{padding:8px;font-size:13px}
+ .cf-side .cf-chip{display:none}
+}

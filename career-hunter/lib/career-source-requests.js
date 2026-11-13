@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Save an administrator's source change for the kernel to hand to the next pull, and say what became of it. A request mounts the corpus read-only, so this is how Resolve reaches it on the native kernel.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back travel the same way: an added employer is `add:<name>|<link>` under a placeholder id, a removal `remove:employer` and a put-back `restore:employer` under the employer's own id.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Publish human-confirmed decision outcomes with deterministic request IDs and exact conditional source identity for the single writer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep trying travels the same way: `keep:employer` under the employer's own id answers a source maintenance decision.
  */
 'use strict';
@@ -50,6 +51,7 @@ function addTarget(name, link) {
 function validTarget(value) {
   const target = String(value ?? '').trim();
   // eslint-disable-next-line no-control-regex
+  if (/^decision:/i.test(target)) return null;
   if (!target || target.length > MAX_TARGET || /[\u0000-\u001f\u007f]/.test(target)) return null;
   try {
     const url = new URL(target);
@@ -109,4 +111,73 @@ function sourceChanges(db, userDir) {
   return [...waiting, ...applied];
 }
 
-module.exports = { validTarget, saveChange, sourceChanges, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING };
+/** A stable UUID for the same original owner's exact native decision outcome. */
+function decisionId(owner, action, ticketId, outcome) {
+  const bytes = crypto.createHash('sha256').update(JSON.stringify([1,owner,action.companyId,action.id,action.openedAt,ticketId,outcome])).digest().subarray(0,16);
+  bytes[6] = (bytes[6] & 15) | 80; bytes[8] = (bytes[8] & 63) | 128;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
+function decisionFolder(userDir, name) {
+  const folder = path.join(userDir,name);
+  fs.mkdirSync(folder,{recursive:true,mode:0o700});
+  const stat = fs.lstatSync(folder);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('Source decision handoff folder is unavailable.');
+  return folder;
+}
+
+function existingDecision(file) {
+  let fd;
+  try { fd = fs.openSync(file,fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK); }
+  catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > 4096) throw new Error('Source decision handoff is unavailable.');
+    return JSON.parse(fs.readFileSync(fd,'utf8'));
+  } finally { fs.closeSync(fd); }
+}
+
+function decisionFile(folder, record, savedAt) {
+  const file = path.join(folder,record.id+'.json'), previous = existingDecision(file);
+  if (previous && ['id','companyId','target'].some(key => previous[key] !== record[key]))
+    throw new Error('Source decision handoff identity changed.');
+  if (previous) return previous;
+  const value = savedAt ? {...record,requestedAt:savedAt} : record;
+  const temp = file+'.'+crypto.randomUUID()+'.tmp';
+  try {
+    fs.writeFileSync(temp,JSON.stringify(value),{mode:0o600,flag:'wx'});
+    const fd = fs.openSync(temp,'r'); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+    fs.renameSync(temp,file);
+  } finally { try { fs.unlinkSync(temp); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
+  return value;
+}
+
+/** @description Queue the same confirmed ticket outcome once, for an exact current source action.
+ * @param {string} userDir Original owner's locked request directory. @param {string} owner Original subject.
+ * @param {object} action Server-read exact source identity. @param {string} ticketId Verified native ticket.
+ * @param {string} outcome Archive or keep, derived from native Done or Cancelled. @returns {object} Durable queued request. */
+function saveDecisionChange(userDir, owner, action, ticketId, outcome) {
+  if (typeof owner !== 'string' || !owner || !Number.isSafeInteger(action?.id) || action.id < 1
+    || !Number.isSafeInteger(action.companyId) || action.companyId < 1 || typeof action.openedAt !== 'string'
+    || !Number.isFinite(Date.parse(action.openedAt)) || action.openedAt.length > 80
+    || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(ticketId) || !['archive','keep'].includes(outcome))
+    throw new Error('The confirmed source decision is invalid.');
+  const record = {id:decisionId(owner,action,ticketId,outcome),companyId:action.companyId,
+    target:`decision:${action.id}:${strictEncode(action.openedAt)}:${outcome}`};
+  const outbox = decisionFolder(userDir,OUTBOX), sent = decisionFolder(userDir,SENT);
+  decisionFile(outbox,record);
+  return decisionFile(sent,record,Date.now());
+}
+
+/** @description Read one exact queued decision's actual next-pull outcome without fabricating application.
+ * @param {object} db Attached corpus reader. @param {string} id Owner-journal request ID. @returns {object|null} Recorded result. */
+function decisionChangeState(db,id) {
+  if (!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id)) return null;
+  const table = db.prepare("SELECT 1 FROM corpus.sqlite_master WHERE type='table' AND name='source_requests'").get();
+  if (!table) return null;
+  const row = db.prepare('SELECT outcome AS state FROM corpus.source_requests WHERE id=?').get(id);
+  return row && row.state !== 'started' ? row : null;
+}
+
+module.exports = { saveDecisionChange, decisionChangeState, validTarget, saveChange, sourceChanges, addTarget, NEW_EMPLOYER, REMOVE, RESTORE, KEEP_TRYING };

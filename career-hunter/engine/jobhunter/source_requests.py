@@ -9,14 +9,16 @@ CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Resolve works on the native kernel: a saved change is applied by the next pull, on public addresses only and inside a hard time limit, and its outcome is kept for the page.
 2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: `add:<name>|<link>` creates an employer and reads its link, `remove:employer` closes its jobs and takes it out of every pull, and `restore:employer` lists it again.
 3 | maintainer@emeraldcoastsystemsgroup.com | A person's answer to a source maintenance decision travels the same way: `keep:employer` marks the open decision kept and stops it being raised again for a while, and an applied `remove:employer` marks it archived.
+4 | maintainer@emeraldcoastsystemsgroup.com | Apply only the exact confirmed source decision in one writer transaction; stale or recovered decisions do nothing, and generic remove or keep cannot answer an open decision.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 from . import ats, config, db, http, resolve, source_review as review
 from . import source_memory as memory
@@ -27,6 +29,7 @@ KEEP = 200
 # An added employer has no row yet; the page sends this in place of its id, and the outcome names the row made.
 NEW_EMPLOYER = 2147483647
 REMOVE, RESTORE, ADD, KEEP_TRYING = "remove:employer", "restore:employer", "add:", "keep:employer"
+DECISION = "decision:"
 
 
 def _now():
@@ -190,19 +193,45 @@ def _company(company_id):
     return dict(row) if row else None
 
 
-def _remove(company):
-    """Out of every pull and search from now on. The row stays, so saved jobs keep their employer and no list makes it again."""
+def _writer_company(conn, company_id):
+    """Read current source state only after reserving this decision's writer transaction."""
+    if not config.POSTGRES:
+        conn.execute("BEGIN IMMEDIATE")
+    _maintenance().ensure(conn)
+    lock = " FOR UPDATE" if config.POSTGRES else ""
+    row = conn.execute(f"SELECT id,name,discover_status FROM {db.companies_table()} WHERE id=?{lock}",
+                       (company_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def _open_decision(conn, company_id):
+    lock = " FOR UPDATE" if config.POSTGRES else ""
+    return conn.execute(f"SELECT id FROM {memory.table('source_actions')} WHERE company_id=? AND state='open'{lock}",
+                        (company_id,)).fetchone()
+
+
+def _remove_on(conn, company):
+    """Keep the employer row for saved jobs while removing its active jobs inside the caller's transaction."""
     if company["discover_status"] == "removed":
         return {"outcome": "removed", "closed": 0, "name": company["name"]}
     on, off = ("TRUE", "FALSE") if config.POSTGRES else ("1", "0")
-    with db.connect() as conn:
-        closed = conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active={on}",
-                              (company["id"],)).fetchone()["n"]
-        conn.execute(f"UPDATE {db.corpus_table()} SET active={off} WHERE company_id=? AND active={on}", (company["id"],))
-        conn.execute(f"UPDATE {db.companies_table()} SET discover_status='removed' WHERE id=?", (company["id"],))
-        conn.execute(f"DELETE FROM {memory.table('source_pull_state')} WHERE company_id=?", (company["id"],))
-        _maintenance().decide(conn, company["id"], "archived")  # Removing it is the answer to "archive this source?".
+    closed = conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active={on}",
+                          (company["id"],)).fetchone()["n"]
+    conn.execute(f"UPDATE {db.corpus_table()} SET active={off} WHERE company_id=? AND active={on}", (company["id"],))
+    conn.execute(f"UPDATE {db.companies_table()} SET discover_status='removed' WHERE id=?", (company["id"],))
+    conn.execute(f"DELETE FROM {memory.table('source_pull_state')} WHERE company_id=?", (company["id"],))
     return {"outcome": "removed", "closed": closed, "name": company["name"]}
+
+
+def _remove(company):
+    """A generic removal cannot stand in for confirming a particular open source decision."""
+    with db.connect() as conn:
+        current = _writer_company(conn, company["id"])
+        if current is None:
+            return {"outcome": "unknown_company"}
+        if _open_decision(conn, current["id"]):
+            return {"outcome": "decision_required", "name": current["name"]}
+        return _remove_on(conn, current)
 
 
 def _maintenance():
@@ -212,12 +241,72 @@ def _maintenance():
 
 
 def _keep(company):
-    """Keep trying a source maintenance asked about: the decision is closed and not raised again for a while."""
+    """Only a target identifying the confirmed decision may keep an open source decision."""
     with db.connect() as conn:
-        decided = _maintenance().decide(conn, company["id"], "kept")
-    if decided is None:
-        return {"outcome": "no_decision", "name": company["name"]}
-    return {"outcome": "kept", "name": company["name"], "until": decided["until"]}
+        current = _writer_company(conn, company["id"])
+        if current is None:
+            return {"outcome": "unknown_company"}
+        if _open_decision(conn, current["id"]):
+            return {"outcome": "decision_required", "name": current["name"]}
+        outcome = "removed_employer" if current["discover_status"] == "removed" else "no_decision"
+        return {"outcome": outcome, "name": current["name"]}
+
+
+def _parse_decision(target):
+    """A closed, canonical target binds the answer to one immutable source-action identity."""
+    fields = target.split(":")
+    if len(target) > 2048 or len(fields) != 4 or fields[0] != "decision" or fields[3] not in ("archive", "keep"):
+        return None
+    if re.fullmatch(r"[1-9][0-9]{0,15}", fields[1]) is None or int(fields[1]) > 9007199254740991:
+        return None
+    try:
+        opened = unquote(fields[2], encoding="utf-8", errors="strict")
+        if not 1 <= len(opened) <= 128 or any(ord(ch) < 32 or ord(ch) == 127 for ch in opened):
+            return None
+        if quote(opened, safe="-_.~") != fields[2]:
+            return None
+    except (UnicodeError, ValueError):
+        return None
+    return int(fields[1]), opened, fields[3]
+
+
+def _aware_instant(value):
+    try:
+        parsed = value if isinstance(value, datetime) else datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _recovered_since(conn, company_id, opened):
+    lock = " FOR UPDATE" if config.POSTGRES else ""
+    row = conn.execute(f"SELECT last_success_at FROM {memory.table('source_pull_state')} WHERE company_id=?{lock}",
+                       (company_id,)).fetchone()
+    success, original = _aware_instant(row["last_success_at"] if row else None), _aware_instant(opened)
+    return success is not None and original is not None and success > original
+
+
+def _apply_decision(change):
+    parsed = _parse_decision(change["target"])
+    if parsed is None:
+        return {"outcome": "bad_target"}
+    action_id, opened, answer = parsed
+    with db.connect() as conn:
+        company = _writer_company(conn, change["company_id"])
+        lock = " FOR UPDATE" if config.POSTGRES else ""
+        action = conn.execute(f"""SELECT id FROM {memory.table('source_actions')}
+            WHERE id=? AND company_id=? AND opened_at=? AND kind='archive' AND state='open'{lock}""",
+            (action_id, change["company_id"], opened)).fetchone()
+        if company is None or action is None or company["discover_status"] in ("manual", "removed"):
+            return {"outcome": "stale_decision"}
+        if _recovered_since(conn, company["id"], opened):
+            return {"outcome": "stale_decision"}
+        decided = _maintenance().decide(conn, company["id"], "archived" if answer == "archive" else "kept")
+        if decided is None:
+            return {"outcome": "stale_decision"}
+        if answer == "archive":
+            return _remove_on(conn, company)
+        return {"outcome": "kept", "name": company["name"], "until": decided["until"]}
 
 
 def _restore(company):
@@ -231,6 +320,8 @@ def _restore(company):
 
 
 def _apply(change, pull):
+    if change["target"].startswith(DECISION):
+        return _apply_decision(change)
     if change["target"].startswith(ADD):
         return _add(change, pull)
     company = _company(change["company_id"])
@@ -240,10 +331,10 @@ def _apply(change, pull):
         return _remove(company)
     if change["target"] == RESTORE:
         return _restore(company)
-    if company["discover_status"] == "removed":
-        return {"outcome": "removed_employer", "name": company["name"]}
     if change["target"] == KEEP_TRYING:
         return _keep(company)
+    if company["discover_status"] == "removed":
+        return {"outcome": "removed_employer", "name": company["name"]}
     ats_type, token, url = _parse_target(change["target"])
     if not ats_type and not url:
         return {"outcome": "bad_target"}

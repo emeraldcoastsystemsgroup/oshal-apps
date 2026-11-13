@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Actual compiled balance folding preserves null/absent values, known zero and known amounts; affected aggregate totals remain unknown rather than showing a partial sum.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -8,6 +9,9 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | T8: Link retries without the return address on INVALID_FIELD; removeItem answers providerDisconnected (ITEM_NOT_FOUND counts, INVALID_ACCESS_TOKEN refuses with the reconnect-or-dashboard message); Disconnect reports an orphaned link honestly and keeps the row on INVALID_ACCESS_TOKEN (409); Sync skips an unreadable link with a note and still syncs the others.
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Real Plaid Link on Finance. Pins: Link asks for transactions with investments optional and sends PLAID_REDIRECT_URI when set; balances read /accounts/get; transactions page past one page; removeItem treats an already-gone item as removed and surfaces any other refusal. The compiled routes list each linked institution in /status, disconnect at Plaid before deleting the row, keep the row on a Plaid refusal (502), remove an unreadable legacy link locally, clear the saved snapshot, and never touch another person's link. The page offers Add account, Disconnect per institution and resumes an OAuth redirect with the saved link token. Provider responses are recorded doubles shaped like Plaid's documented fields; no credential or network is used. Run: node --test tests/plaid-link.test.cjs
  * -----------------------------------------------------------------------------
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Give the unreadable-institution contract fixture explicit reported account units while preserving complete-total and refusal assertions.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Pin bounded fallback transaction coverage, malformed-window refusals and complete-only rollups against actual compiled Plaid code.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Refuse duplicate or invalid provider transaction identities without deduplicating available rows or extending the fixed page budget.
  */
 'use strict';
 const test = require('node:test');
@@ -69,6 +73,34 @@ test('sync reads item accounts and pages transactions through the window', async
     assert.equal(agg.topSpending[0].count, 640);
     assert.deepEqual(calls.filter((c) => c.path === '/transactions/get').map((c) => c.body.options.offset), [0, 500]);
     assert.equal(calls.some((c) => c.path === '/accounts/balance/get'), false);
+  } finally { restore(); }
+});
+
+test('compiled Plaid folding distinguishes missing balances, zero and known amounts', async () => {
+  for (const [balances, expected] of [[{ current: null }, null], [{}, null], [{ current: 0, available: 900 }, 0], [{ current: 125.25 }, 125.25], [{ current: null, available: 20 }, 20], [{ current: null, available: null }, null]]) {
+    const { plaid, restore } = loadPlaid((p) => p === '/accounts/get' ? [200, { accounts: [
+      { name: 'Known', type: 'depository', balances: { current: 100 } },
+      { name: 'Variable', type: 'depository', balances },
+      { name: 'Debt', type: 'credit', balances: { current: 20 } },
+    ] }] : p === '/investments/holdings/get' ? [400, { error_code: 'PRODUCTS_NOT_SUPPORTED' }] : [200, { transactions: [] }]);
+    try {
+      const agg = await plaid.fetchFinanceAggregate([{ accessToken: 'synthetic-token', institution: 'Example Bank' }]);
+      assert.equal(agg.accounts[1].balance, expected);
+      assert.equal(agg.netWorth.assets, expected === null ? null : 100 + expected);
+      assert.equal(agg.netWorth.net, expected === null ? null : 80 + expected);
+      assert.equal(agg.netWorth.liabilities, 20);
+    } finally { restore(); }
+  }
+});
+
+test('a failed balances read never reports the readable institutions as a complete total', async () => {
+  const { plaid, restore } = loadPlaid((p, body) => p === '/accounts/get'
+    ? body.access_token === 'unreadable' ? [502, { error_code: 'INTERNAL_SERVER_ERROR' }] : [200, { accounts: [{ type: 'depository', balances: { current: 100 } }] }]
+    : p === '/investments/holdings/get' ? [400, { error_code: 'PRODUCTS_NOT_SUPPORTED' }] : [200, { transactions: [] }]);
+  try {
+    const agg = await plaid.fetchFinanceAggregate([{ accessToken: 'readable', institution: 'Example Bank' }, { accessToken: 'unreadable', institution: 'Other Bank' }]);
+    assert.deepEqual(agg.netWorth, { assets: null, liabilities: null, net: null });
+    assert.equal(agg.accounts[0].balance, 100);
   } finally { restore(); }
 });
 
@@ -231,12 +263,17 @@ test('Disconnect says when Plaid was not told, keeps the link when Plaid no long
 
 test('Sync skips a link whose stored credential cannot be read and still syncs the others', async () => {
   const pool = financePool(linked()); const seen = [];
-  const routes = loadRoutes(pool, async () => ({ providerDisconnected: true }), async (items) => { seen.push(items); return { notes: ['holdings unavailable for First Platypus Bank (PRODUCTS_NOT_SUPPORTED)'], netWorth: { assets: 1, liabilities: 0, net: 1 }, accounts: [{}], holdings: [] }; });
+  const routes = loadRoutes(pool, async () => ({ providerDisconnected: true }), async (items) => { seen.push(items); return { currency: 'USD', notes: ['holdings unavailable for First Platypus Bank (PRODUCTS_NOT_SUPPORTED)'], netWorth: { assets: 1, liabilities: 0, net: 1 }, accounts: [{ currency: 'USD', type: 'depository', balance: 1 }], holdings: [] }; });
   const res = await call(routes['POST /sync'], 'alice');
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.deepEqual(seen, [[{ institution: 'First Platypus Bank', accessToken: 'vault:a' }]], 'only the readable link is read');
   assert.deepEqual(res.body.notes, ['Legacy Bank skipped: its stored credential cannot be read. Disconnect it and link the bank again.',
-    'holdings unavailable for First Platypus Bank (PRODUCTS_NOT_SUPPORTED)']);
+    'holdings unavailable for First Platypus Bank (PRODUCTS_NOT_SUPPORTED)',
+    'Transaction coverage is unknown. Full-window spending and income totals are unavailable.']);
+  const persisted = pool.statements.find((s) => /^INSERT INTO oshal_finance_data/.test(s.text));
+  const snapshot = JSON.parse(persisted.values[1]);
+  assert.equal(snapshot.transactionsComplete, false); assert.deepEqual(snapshot.topSpending, []); assert.deepEqual(snapshot.spendByMonth, []);
+  assert.deepEqual(res.body.netWorth, { assets: null, liabilities: null, net: null }, 'a skipped institution leaves complete totals unknown');
   assert.ok(pool.statements.some((s) => /^INSERT INTO oshal_finance_data/.test(s.text)), 'the aggregate is saved');
 });
 
@@ -269,4 +306,224 @@ test('with no Plaid keys the connect screen and Link routes speak to a person, n
   assert.match(main.innerHTML, /uses Plaid Sandbox/);
   const routes = fs.readFileSync(ROUTES, 'utf8');
   assert.doesNotMatch(routes, /message: '[^']*PLAID_/);
+});
+
+
+/** Recorded provider pages outside the real fallback pagination/aggregation boundary. */
+function transactionFixture(pages) {
+  return loadPlaid((pathname, body) => {
+    if (pathname === '/accounts/get') return [200, { accounts: [{ name: 'Fixture checking', type: 'depository', balances: { current: 100, iso_currency_code: 'USD' } }] }];
+    if (pathname === '/investments/holdings/get') return [400, { error_code: 'PRODUCTS_NOT_SUPPORTED' }];
+    assert.equal(pathname, '/transactions/get');
+    assert.equal(body.options.count, 500);
+    return pages(body.options.offset, body.access_token);
+  });
+}
+const fixtureTransaction = (index) => ({ transaction_id: `coverage-${index}`, amount: 10, date: '2026-10-01', name: 'Fixture purchase', personal_finance_category: { primary: 'FOOD_AND_DRINK' } });
+const transactionPage = (offset, total) => ({ transactions: Array.from({ length: Math.max(0, Math.min(500, total - offset)) }, (_, index) => fixtureTransaction(offset + index)), total_transactions: total });
+const fixtureItems = [{ accessToken: 'coverage-fixture', institution: 'Fixture Bank' }];
+function noWindowTotals(aggregate) {
+  assert.equal(aggregate.transactionsComplete, false);
+  assert.deepEqual(aggregate.topSpending, []);
+  assert.deepEqual(aggregate.spendByMonth, []);
+}
+
+test('fallback four-page ceiling reports partial coverage without full-window spending', async () => {
+  const current = transactionFixture((offset) => [200, transactionPage(offset, 2501)]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage, { state: 'partial', returned: 2000, total: 2501, institutions: [
+      { institution: 'Fixture Bank', state: 'partial', returned: 2000, total: 2501, pages: 4, reason: 'page_limit' },
+    ] });
+    assert.deepEqual(current.calls.filter((c) => c.path === '/transactions/get').map((c) => c.body.options.offset), [0, 500, 1000, 1500]);
+    assert.equal(aggregate.recentTransactions.length, 25);
+    assert.equal(aggregate.recentTransactions[0].amount, 10);
+    assert.equal(aggregate.netWorth.net, 100, 'independent readable bank balances remain available');
+    assert.match(aggregate.notes.join(' '), /partial.*2000.*2501/);
+  } finally { current.restore(); }
+});
+
+test('fallback complete multi-page, exact-cap and explicit empty windows retain their known totals', async () => {
+  for (const total of [620, 2000, 0]) {
+    const current = transactionFixture((offset) => [200, transactionPage(offset, total)]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+      assert.equal(aggregate.transactionsComplete, true, `reported ${total}`);
+      assert.deepEqual(aggregate.transactionCoverage, { state: 'complete', returned: total, total, institutions: [
+        { institution: 'Fixture Bank', state: 'complete', returned: total, total, pages: Math.max(1, Math.ceil(total / 500)), reason: null },
+      ] });
+      assert.equal(aggregate.topSpending[0]?.total ?? 0, total * 10);
+      assert.equal(aggregate.recentTransactions.length, Math.min(total, 25));
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback missing, negative, fractional, string and unsafe totals remain unknown', async () => {
+  for (const total of [undefined, -1, 1.5, '500', Number.MAX_SAFE_INTEGER + 1]) {
+    const current = transactionFixture(() => [200, { transactions: [fixtureTransaction(1)], ...(total === undefined ? {} : { total_transactions: total }) }]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+      noWindowTotals(aggregate);
+      assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 1, total: null, pages: 1, reason: 'unknown_total' });
+      assert.equal(aggregate.transactionCoverage.total, null);
+      assert.equal(aggregate.recentTransactions.length, 1);
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback malformed pages never turn an absent or invalid array into complete empty history', async () => {
+  for (const transactions of [undefined, null, {}, 'rows', [null], [[]], [7], Array.from({ length: 501 }, (_, i) => fixtureTransaction(i))]) {
+    const current = transactionFixture(() => [200, { ...(transactions === undefined ? {} : { transactions }), total_transactions: 0 }]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+      noWindowTotals(aggregate);
+      assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 0, total: null, pages: 1, reason: 'invalid_page' });
+      assert.deepEqual(aggregate.recentTransactions, []);
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback a later malformed page retains readable rows without complete rollups', async () => {
+  const current = transactionFixture((offset) => [200, offset === 0 ? transactionPage(0, 1000) : { transactions: {}, total_transactions: 1000 }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 500, total: 1000, pages: 2, reason: 'invalid_page' });
+    assert.equal(aggregate.recentTransactions.length, 25);
+  } finally { current.restore(); }
+});
+
+test('fallback changing or smaller-than-returned totals and early short pages cannot establish completeness', async () => {
+  for (const [reply, expected] of [
+    [(offset) => transactionPage(offset, offset === 0 ? 1000 : 1001), { returned: 1000, total: null, pages: 2, reason: 'total_changed' }],
+    [() => ({ transactions: [fixtureTransaction(0)], total_transactions: 0 }), { returned: 1, total: null, pages: 1, reason: 'invalid_total' }],
+    [() => ({ transactions: [fixtureTransaction(0)], total_transactions: 10 }), { returned: 1, total: 10, pages: 1, reason: 'short_page' }],
+  ]) {
+    const current = transactionFixture((offset) => [200, reply(offset)]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+      noWindowTotals(aggregate);
+      assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', ...expected });
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback one complete institution never promotes a partial or unknown combined window', async () => {
+  for (const unknown of [false, true]) {
+    const current = transactionFixture((offset, token) => [200, token === 'complete' ? transactionPage(0, 2)
+      : unknown ? { transactions: [fixtureTransaction(0)] } : transactionPage(offset, 2501)]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate([{ accessToken: 'complete', institution: 'Complete Bank' }, { accessToken: 'other', institution: 'Other Bank' }]);
+      noWindowTotals(aggregate);
+      assert.equal(aggregate.transactionCoverage.state, unknown ? 'unknown' : 'partial');
+      assert.equal(aggregate.transactionCoverage.returned, unknown ? 3 : 2002);
+      assert.equal(aggregate.transactionCoverage.total, unknown ? null : 2503);
+      assert.equal(aggregate.transactionCoverage.institutions[0].state, 'complete');
+      assert.equal(aggregate.accounts.length, 2);
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback later provider failure retains the existing typed note and unknown coverage without a partial sum', async () => {
+  const current = transactionFixture((offset) => offset === 0 ? [200, transactionPage(0, 1000)] : [400, { error_code: 'PRODUCT_NOT_READY' }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 0, total: null, pages: 0, reason: 'unavailable' });
+    assert.deepEqual(aggregate.recentTransactions, [], 'provider failures retain the earlier no-partial-product-result behavior');
+    assert.match(aggregate.notes.join(' '), /PRODUCT_NOT_READY/);
+    assert.equal(current.calls.filter((c) => c.path === '/transactions/get').length, 2);
+  } finally { current.restore(); }
+});
+
+test('fallback with no linked institution has unknown transaction coverage rather than verified empty history', async () => {
+  const current = transactionFixture(() => { throw Error('no provider call expected'); });
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate([]);
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage, { state: 'unknown', returned: 0, total: null, institutions: [] });
+    assert.equal(current.calls.length, 0);
+  } finally { current.restore(); }
+});
+
+
+test('fallback complete coverage preserves reported zero, spending and income rows', async () => {
+  const current = transactionFixture(() => [200, { transactions: [0, 10, -20].map((amount, i) => ({ ...fixtureTransaction(i), amount })), total_transactions: 3 }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    assert.equal(aggregate.transactionsComplete, true);
+    assert.equal(aggregate.transactionCoverage.returned, 3);
+    assert.deepEqual(aggregate.recentTransactions.map((t) => t.amount).sort((a, b) => a - b), [-20, 0, 10]);
+    assert.deepEqual(aggregate.spendByMonth, [{ month: '2026-10', spend: 10, income: 20 }]);
+    assert.equal(aggregate.topSpending[0].total, 10);
+  } finally { current.restore(); }
+});
+
+test('fallback unknown coverage dominates a separately partial and complete institution', async () => {
+  const current = transactionFixture((offset, token) => [200, token === 'complete' ? transactionPage(0, 2)
+    : token === 'partial' ? transactionPage(offset, 2501) : { transactions: [fixtureTransaction(0)] }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate([
+      { accessToken: 'complete', institution: 'Complete Bank' },
+      { accessToken: 'partial', institution: 'Partial Bank' },
+      { accessToken: 'unknown', institution: 'Unknown Bank' },
+    ]);
+    noWindowTotals(aggregate);
+    assert.equal(aggregate.transactionCoverage.state, 'unknown');
+    assert.equal(aggregate.transactionCoverage.returned, 2003);
+    assert.equal(aggregate.transactionCoverage.total, null);
+    assert.deepEqual(aggregate.transactionCoverage.institutions.map((c) => c.state), ['complete', 'partial', 'unknown']);
+  } finally { current.restore(); }
+});
+
+
+test('fallback repeated full page with a reported matching total cannot fabricate complete spending', async () => {
+  const current = transactionFixture(() => [200, { transactions: transactionPage(0, 1000).transactions, total_transactions: 1000 }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    assert.deepEqual(aggregate.topSpending, [], 'a duplicate provider page cannot attest a full spending sum');
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 1000, total: 1000, pages: 2, reason: 'duplicate_transaction' });
+    assert.equal(aggregate.recentTransactions.length, 25, 'available rows remain, without silent deduplication');
+    assert.deepEqual(current.calls.filter((c) => c.path === '/transactions/get').map((c) => c.body.options.offset), [0, 500]);
+  } finally { current.restore(); }
+});
+
+test('fallback duplicate identities within one page remain unknown and preserve both available rows', async () => {
+  const current = transactionFixture(() => [200, { transactions: [fixtureTransaction(0), fixtureTransaction(0)], total_transactions: 2 }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    assert.deepEqual(aggregate.topSpending, [], 'repeated identities cannot attest a full spending sum');
+    noWindowTotals(aggregate);
+    assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 2, total: 2, pages: 1, reason: 'duplicate_transaction' });
+    assert.equal(aggregate.recentTransactions.length, 2);
+  } finally { current.restore(); }
+});
+
+test('fallback missing, blank, wrong-type and over512-byte transaction identities never attest completeness', async () => {
+  for (const transaction_id of [undefined, null, '', ' \t\n', 7, {}, 'x'.repeat(513), 'é'.repeat(257)]) {
+    const transaction = fixtureTransaction(0);
+    if (transaction_id === undefined) delete transaction.transaction_id;
+    else transaction.transaction_id = transaction_id;
+    const current = transactionFixture(() => [200, { transactions: [transaction], total_transactions: 1 }]);
+    try {
+      const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+      assert.deepEqual(aggregate.topSpending, [], 'an invalid transaction identity cannot attest a full spending sum');
+      noWindowTotals(aggregate);
+      assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'unknown', returned: 1, total: 1, pages: 1, reason: 'invalid_transaction_id' });
+      assert.equal(aggregate.recentTransactions.length, 1);
+    } finally { current.restore(); }
+  }
+});
+
+test('fallback transaction identities are case-sensitive and permit exactly512 UTF8 bytes', async () => {
+  const transactions = ['Aa', 'aa', 'x'.repeat(512), 'é'.repeat(256)].map((transaction_id, i) => ({ ...fixtureTransaction(i), transaction_id }));
+  const current = transactionFixture(() => [200, { transactions, total_transactions: 4 }]);
+  try {
+    const aggregate = await current.plaid.fetchFinanceAggregate(fixtureItems);
+    assert.equal(aggregate.topSpending[0].total, 40);
+    assert.equal(aggregate.transactionsComplete, true);
+    assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'complete', returned: 4, total: 4, pages: 1, reason: null });
+  } finally { current.restore(); }
 });

@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove JavaScript module import closure is inspected and the declared native tool-only reader has genuine registration source, without relaxing any HTTP authorization census.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-scoped generated-queue purge once to career.change and keep the DELETE-binding census exact.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Pin the read-only Master record (1.51.0): GET /master-record-ui to app.open and GET /master-record to career.read, each bound once and served by career-master-record-routes.ts, so the page and its data stay on the permissions every Career assignment already grants.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Pin original-owner progress reads and explicit optional-goal changes to exactly one existing read/change authority.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Pin the 1.52.0 local round-trip master resume routes: GET /resume/local-export (matched once by resume-item -> career.read) and POST /resume/local-import (matched once by resume-local-import -> career.change) in career-local-roundtrip-routes.ts.
  */
 
@@ -165,4 +166,17 @@ test('the 1.52.0 local round-trip master resume routes are bound once to career.
   assert.equal(imp.length, 1, 'POST /resume/local-import is registered once and mounted once');
   assert.ok(imp[0].file.endsWith('career-local-roundtrip-routes.ts'));
   assert.deepEqual(imp[0].matches.map((m) => ({ id: m.id, allOf: m.allOf })), [{ id: 'resume-local-import', allOf: ['career.change'] }]);
+});
+
+ test('application progress and optional goals each require exactly one original-owner permission', () => {
+  const rows = bindings.resolvedRoutes();
+  for (const [method, pattern, id, permission] of [
+    ['GET', '/jobs/progress', 'job', 'career.read'],
+    ['POST', '/jobs/goal', 'job-goal', 'career.change'],
+  ]) {
+    const served = rows.filter(row => row.method === method && row.pattern === pattern);
+    assert.equal(served.length, 1);
+    assert.ok(served[0].file.endsWith('career-progress.ts'));
+    assert.deepEqual(served[0].matches.map(m => ({id:m.id, allOf:m.allOf})), [{id,allOf:[permission]}]);
+  }
 });

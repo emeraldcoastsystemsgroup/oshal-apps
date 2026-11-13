@@ -5,7 +5,9 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The finance-analyst's specialist-context facts and its Jarvis routing words. Live, "How is my finance doing?" was answered by the assistant alone (Finance declared no "finance" word), and once routed the analyst answered "No data provided ... please provide the aggregate data" because it had no data channel. Pins: the compiled reader returns exactly the declared scalar keys for no link, linked-but-unsynced, a synced snapshot, a mixed-currency snapshot and a failed read; the manifest declares uses: specialist-context, the finance_facts tool and the bot the reader registers for; the route factory registers it; the persona authorizes finance_facts, answers a conversation from the facts without asking for data, and declares the money phrases. Run: node --test tests/finance-facts.test.cjs
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The money phrases no longer include "my accounts", "linked accounts", "i spend", "i spent", "my financial situation" or "my financial health", and no routing entry declares linked/health/situation/spent/spend: the kernel splits phrases into keywords, and those took Identity's account questions and unrelated "I spent ..." questions. The real scoring over every shipped vocabulary is the kernel's jarvis_routing_store_tests.rs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep incomplete holdings inventory and value unknown while preserving complete empty/zero and owner-scoped read contracts.
  * -----------------------------------------------------------------------------
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard incomplete and unknown transaction coverage through actual saved readers, analysis or rendered views without changing independent balances.
  */
 'use strict';
 const test = require('node:test');
@@ -39,6 +41,7 @@ function admissible(result) {
 
 const SNAPSHOT = {
   currency: 'USD', sourceEnvironment: 'sandbox',
+  transactionsComplete: true, transactionCoverage: { state: 'complete', returned: 30, total: 30, institutions: [{ institution: 'Example Bank', state: 'complete', returned: 30, total: 30, pages: 1, reason: null }] },
   netWorth: { assets: 52000.456, liabilities: 1800, net: 50200.456 },
   accounts: [{ currency: 'USD' }, { currency: 'USD' }, { currency: 'USD' }],
   holdings: [{ value: 12000 }, { value: 3500.5 }],
@@ -152,4 +155,72 @@ test('a question about the person\'s own money carries a declared word or phrase
   for (const trading of ['stock', 'trade', 'my stocks', 'my portfolio', 'ticker']) {
     assert.doesNotMatch(keywords, new RegExp(`^- ${trading}$`, 'm'), `${trading} belongs to Intelligent Trades`);
   }
+});
+
+
+for (const [name, inventory, complete, count, total] of [
+  ['explicitly incomplete empty', [], false, null, null],
+  ['explicitly incomplete readable subset', [{ value: 50 }], false, null, null],
+  ['absent inventory', undefined, undefined, null, null],
+  ['non-array inventory', 'unreadable', true, null, null],
+  ['malformed row', [null], true, null, null],
+  ['malformed subset', [{ value: 50 }, false], true, null, null],
+  ['complete empty', [], true, 0, 0],
+  ['legacy explicit empty', [], undefined, 0, 0],
+  ['reported zero', [{ value: 0 }], true, 1, 0],
+  ['known positive', [{ value: 50 }], true, 1, 50],
+  ['known negative', [{ value: -10 }], true, 1, -10],
+  ['missing value with known inventory', [{}], true, 1, null],
+]) test(`compiled holdings inventory: ${name}`, async () => {
+  const aggregate = { ...SNAPSHOT, holdings: inventory, holdingsComplete: complete };
+  const calls = [], result = await facts.readFinanceFacts(pool(1, { aggregate, synced_at: NOW.toISOString() }, calls), { sub: 'person-1' }, undefined, () => NOW);
+  admissible(result); assert.equal(result['facts.complete'], true);
+  assert.equal(result.holdings, count); assert.equal(result.holdings_value, total);
+  assert.equal(result.net_worth, 50200.46, 'the independent complete balance facts remain available');
+  assert.ok(calls.every(c => c.values.length === 1 && c.values[0] === 'person-1' && /^SELECT /.test(c.text)));
+});
+
+test('missing and invalid monetary scalars never coerce to known zero', () => {
+  for (const value of [null, undefined, '0', '', false, NaN, Infinity]) {
+    const aggregate = { ...SNAPSHOT, netWorth: { assets: value, liabilities: value, net: value }, holdings: [{ value }], spendByMonth: [{ month: '2026-11', spend: value, income: value }] };
+    const result = facts.financeFacts(1, { aggregate }, NOW); admissible(result);
+    for (const key of ['net_worth', 'assets', 'liabilities', 'holdings_value', 'latest_month_spend', 'latest_month_income']) assert.equal(result[key], null, key);
+  }
+});
+
+test('an aborted facts read retains all-unknown refusal and the original owner query boundary', async () => {
+  const controller = new AbortController(); controller.abort(); const calls = [];
+  const result = await facts.readFinanceFacts(pool(1, { aggregate: SNAPSHOT }, calls), { sub: 'person-1', signal: controller.signal });
+  admissible(result); assert.equal(result['facts.complete'], false); assert.equal(result.holdings, null); assert.equal(result.holdings_value, null);
+  assert.ok(calls.every(c => c.values.length === 1 && c.values[0] === 'person-1'));
+});
+
+
+for (const [name, flag, coverage] of [
+  ['legacy missing', undefined, undefined],
+  ['partial', false, { state: 'partial', returned: 2000, total: 2501, institutions: [{ institution: 'Example', state: 'partial', returned: 2000, total: 2501, pages: 4, reason: 'page_limit' }] }],
+  ['unknown', false, { state: 'unknown', returned: 30, total: null, institutions: [] }],
+  ['partial contradicting unknown child', false, { state: 'partial', returned: 1, total: 10, institutions: [{ institution: 'Example', state: 'unknown', returned: 1, total: null, pages: 1, reason: 'unknown_total' }] }],
+  ['false flag', false, SNAPSHOT.transactionCoverage],
+  ['invalid complete totals', true, { ...SNAPSHOT.transactionCoverage, total: 31 }],
+  ['missing institution label', true, { ...SNAPSHOT.transactionCoverage, institutions: [{ state: 'complete', returned: 30, total: 30, pages: 1, reason: null }] }],
+  ['impossible page count', true, { ...SNAPSHOT.transactionCoverage, institutions: [{ ...SNAPSHOT.transactionCoverage.institutions[0], pages: 4 }] }],
+  ['invalid complete institution', true, { ...SNAPSHOT.transactionCoverage, institutions: [{ ...SNAPSHOT.transactionCoverage.institutions[0], pages: 0 }] }],
+]) test(`specialist withholds full-window money for ${name} coverage without erasing balances`, async () => {
+  const aggregate = { ...SNAPSHOT, transactionsComplete: flag, transactionCoverage: coverage };
+  const db = pool(1, { aggregate, synced_at: NOW.toISOString() });
+  const result = await facts.readFinanceFacts(db, { sub: 'person-1' }, undefined, () => NOW);
+  admissible(result);
+  assert.equal(result.latest_month_spend, null);
+  assert.equal(result.latest_month_income, null);
+  assert.equal(result.net_worth, 50200.46);
+  assert.equal(result.holdings_value, 15500.5);
+  assert.ok(db.calls.every(c => /^SELECT /.test(c.text) && c.values[0] === 'person-1'));
+});
+
+test('positively complete empty transaction window preserves reported monthly zero', () => {
+  const aggregate = { ...SNAPSHOT, spendByMonth: [{ month: '2026-10', spend: 0, income: 0 }],
+    transactionCoverage: { state: 'complete', returned: 0, total: 0, institutions: [{ institution: 'Example', state: 'complete', returned: 0, total: 0, pages: 1, reason: null }] } };
+  const result = facts.financeFacts(1, { aggregate }, NOW);
+  assert.equal(result.latest_month_spend, 0); assert.equal(result.latest_month_income, 0);
 });

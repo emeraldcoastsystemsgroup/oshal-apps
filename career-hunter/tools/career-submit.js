@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Connect a computer dialog had unstyled 21px browser buttons, no close and no scrim. It is the kit's sheet (opaque, a scrim behind, a full sheet on a phone) with an X close, a primary "Create and connect worker" and a tertiary Cancel, both 44px.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted approval/bind/start requests with the same frozen packet and ticket, synchronizing first and refusing expired approvals or uncertain outcomes.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Review exact job documents and applicant facts in place, then publish approval, bind and start one recoverable native submission intent.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals while retaining explicit submission recovery and every other error.
  */
 (()=>{
   'use strict';const BASE='/api/career-hunter',BOT='cb000000-0000-0000-0000-000000000004';
@@ -14,7 +15,11 @@
       body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});}
     catch{throw Error('Submission connection interrupted. Check application status before trying again.');}
     let result;try{result=await response.json();}catch{throw Error('Could not read the submission response (HTTP '+response.status+'). Check application status before trying again.');}
-    if(!response.ok){const error=Error(result.error||'Submission request failed.');error.code=result.code;throw error;}return result;
+    if(!response.ok){
+      const busy=response.status===409&&result.error==='career_run_in_progress';
+      const error=Error(busy?'Career is working on your account. Try again when it finishes.':result.error||'Submission request failed.');
+      error.status=response.status;error.code=busy?result.error:result.code;throw error;
+    }return result;
   }
   function text(tag,value,parent){const el=document.createElement(tag);el.textContent=value;parent.append(el);return el;}
   function wireModalBack(dialog,key,onBack){

@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.0: Searchable device overview, selected controls and truthful reported capabilities; existing device actions remain.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the canonical Home concierge and retain its dedicated node so member groups resolve the same bot in both runtimes.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the SmartThings API host for the native kernel's egress, with the caller's smartthings connection applied as a Bearer token by the kernel.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | home-bot runs inline (posture: inline, same enrolled UUID d0000000-0000-0000-0000-000000000001) with route-backed tools over /api/home: home-devices, home-scenes, home-refresh, and home-control / home-scene-run held for the person's approval. The in-app assistant (POST /api/home/assistant) and Home Workspace's borrowed concierge were refused "this bot requires an enrolled node", and the concierge answered `node /app/scripts/oshal-smartthings.js` because the persona still taught the retired CLI. Guarded by scripts/check-store-bots.test.mjs.
@@ -77,7 +78,7 @@ description: >-
   streaming sticks on your home network through your own computer (Samsung,
   Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off,
   volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.
-version: 1.7.0
+version: 1.8.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Read the exact actionable personal-match count separately from saved and application stages.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | ?view=approve, the address the To approve stage had, is in the map of old addresses: it opens Saved, where Career's picks lead. The live Job Board already did this by itself; the unserved board page reads this map and used to bounce to the approvals address, which now forwards back.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9. (a) To approve is no longer a stage. A job Career picks for a person is shown at the top of Saved and is prepared on the one application page, so the control and Home's pipeline lose that entry and counts() no longer reads the application records; picks() reads them and returns the picked jobs the person has done nothing with yet. (b) The stages follow the bar: My jobs is New matches, Saved, Getting ready and Removed; Applications is Applied, Interviewing, Offer and Closed. The control draws the row of the section its current stage is in, so a page has one row and it never disagrees with the bar. The More menu is gone: Offer, Closed and Removed are tabs, and Document records, Queued for documents and Needs your answer are not offered (the live Job Board never read ?status=, so each opened Saved; those jobs are all in Getting ready). (c) counts() carries the Getting ready and Applied totals GET /jobs/stats answers as queued and tracked, which Home's cards looked up under those names and never found. PIPELINE is the order Home draws.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5 (one word for each thing): the stages read Getting ready (was Preparing), Closed (was Not selected), Removed (was Dismissed) and Needs your answer (was Needs you). Only the words changed: ids, statuses, counts and addresses are as they were.
@@ -10,7 +11,7 @@
   const BOARD = '/api/career-hunter/board-native';
   /** Each stage: id, label, the board status it filters, the address it answers, its count key and the bar section it is in. */
   const STAGES = [
-    { id: 'matches', label: 'New matches', status: '', href: BOARD + '?view=matches', side: 'jobs' },
+    { id: 'matches', label: 'New matches', status: '', href: BOARD + '?view=matches', count: 'matches', side: 'jobs' },
     { id: 'saved', label: 'Saved', status: 'saved', href: BOARD + '?view=saved', count: 'saved', side: 'jobs' },
     { id: 'preparing', label: 'Getting ready', status: 'queue', href: BOARD + '?view=queue', count: 'queue', side: 'jobs' },
     { id: 'dismissed', label: 'Removed', status: 'dismissed', href: BOARD + '?view=dismissed', side: 'jobs' },
@@ -67,6 +68,7 @@
       if (response.ok) {
         const data = await response.json();
         out.saved = Number(data.saved) || 0;
+        if(Number.isSafeInteger(data.matches)&&data.matches>=0)out.matches=data.matches;
         for (const row of data.byStatus || []) out[row.status] = Number(row.n) || 0;
         if (typeof data.queued === 'number') out.queue = data.queued;
         if (typeof data.tracked === 'number') out.tracked = data.tracked;

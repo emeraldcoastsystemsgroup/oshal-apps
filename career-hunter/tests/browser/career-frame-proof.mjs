@@ -6,6 +6,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: Home's pipeline takes its names from career-stages.js, where Preparing now reads Getting ready; the expected card names follow.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.54.0: the bar is a job search in a job seeker's words, and Home is the day: three numbered steps with one filled button for a person with no résumé, and for a person with one the day's steps in order (a reply from the inbox against its job, new matches, a recruiter follow-up, the portrait, the next résumé improvement) with this week's counts.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career as its own application, in Chromium over the shipped pages, frame and stylesheet: the top bar a person's profile gives, the section row, More, the phone's bottom bar, Career's skin; a stand-in cockpit that the frame gives its whole window while a Career page shows and that gets its own chrome back for another application's page; the cockpit asked to change screens; another application's screen shown under Career's bar; a page hosted by anything else left alone; the home page's greeting, pipeline, jobs, résumé state and search. Employer and profile text stays inert. No network beyond the fixture.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep actionable match counts and links distinct from dated scoring activity while preserving saved and pipeline records.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,7 +57,7 @@ fetch('/api/ui/profile?name='+app).then(r=>r.json()).then(d=>{const items=d.prof
 </script></body></html>`;
 
 let browser;
-const state = { group: true, resume: false, stats: { saved: 7, interviewing: 0, byStatus: [{ status: 'new', n: 7 }, { status: 'tracked', n: 2 }] } };
+const state = { group: true, resume: false, stats: { matches:0, saved: 7, interviewing: 0, byStatus: [{ status: 'new', n: 7 }, { status: 'tracked', n: 2 }] } };
 
 function answer(url) {
   const path = url.pathname;
@@ -72,7 +73,7 @@ function answer(url) {
     return name === 'intelligent-career' && !state.group ? { status: 403, json: { refused: 'deny' } } : { json: profileFor(name) };
   }
   if (path === '/api/auth/user') return { json: { displayName: 'Ada Lovelace', user_sub: 'ada' } };
-  if (path === '/api/career-hunter/jobs/stats') return { json: state.stats };
+  if (path === '/api/career-hunter/jobs/stats') return { json: {...state.stats,matches:state.resume&&!state.quiet?5:0} };
   if (path === '/api/career-hunter/applications') return { json: { applications: [] } };
   if (path === '/api/career-hunter/jobs') return { json: { jobs: [{ id: 1, title: hostile, company: 'Acme Robotics', location: 'Austin, TX', salary_min: 91000, salary_max: 158000, salary_currency: 'USD' },
     { id: 2, title: 'Program Manager', company: 'Globex', location: 'Remote', fit_score: 87, applied_at: new Date(Date.now() - 2 * 86400000).toISOString(),
@@ -314,7 +315,7 @@ test('Home for a person with a résumé is their day, in order, with one button 
       assert.equal(await page.locator('#purpose').isVisible(), false);
       assert.deepEqual(await page.locator('#today .step').evaluateAll((nodes) => nodes.map((n) => n.dataset.step + ' | ' + n.querySelector('strong').textContent + ' | ' + n.querySelector('a').textContent)), [
         'replies | 1 reply from employers this week | Open the newest',
-        'matches | 5 jobs were scored for you since yesterday | Review them',
+        'matches | 5 new matches are ready to review | Review them',
         'recruiters | 1 recruiter follow-up is due | Open Recruiters',
         'portrait | Add a professional portrait | Add a photo',
         'stories | Tell the story of each role | Start',

@@ -2,6 +2,7 @@
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1 (Monitoring Trust M2 rework): update monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: verify package code never touches oshal.current_sub or set_config, enrollment prepare with headless/Windows/macOS/config-pack and optional device trust metadata, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
 # 37 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3, T71: percolation-reduction also expects rule generations to rotate (an activation retires the unbound ones once older than an hour).
 # 38 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, concierge audit batch 2b: register create-concierge (the front desk is ops-concierge; ops-rca-specialist and ops-incident-reviewer stay the RCA workers).
+# 39 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1, the store-gate step made deterministic (T89): percolation-reduction also expects the add-block seal, and git-explorer expects one load of the screen while the page starts.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (Monitoring Trust M2): register monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: shared monitoring scope across operators and monitoring service principals, automatic idempotent migration of legacy personal-scope records, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
 # 34 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (oshal-kernel ADR-216, lane S2): register monitor-enroll-otlp (tests/otlp-ingest.test.cjs: an OpenTelemetry Collector's OTLP/JSON metrics as one heartbeat, the six alerts evaluated with the rules' windows, logs and traces ignored, 410, Disconnect with the history kept) and monitor-enroll-token-controls (tests/installations-screen.test.cjs: the card's last delivery, Rotate token and Disconnect in Chromium); monitored-installations also expects an OTLP-only installation to go silent and recover; monitor-enroll-prepare now expects an OpenTelemetry agent answered with /ingest/otlp/<id> and both prefixes declared; monitor-enroll-screen expects the OpenTelemetry install line.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (oshal-kernel ADR-216, lane S1): register monitor-enroll-prepare (tests/enroll-prepare.test.cjs: the prepare route the kernel runs as the approving person, on real SQL and the real percolator) and monitor-enroll-screen (tests/installations-screen.test.cjs: Monitor an installation in Chromium); remove-source now expects 410 {gone} for a removed source's alerts, the producer tokens naming it revoked from its card, and a source saved again taking reports.
@@ -243,6 +244,7 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/git-explorer.test.cjs] }
     expected:
       - A provider switch's load that finishes late leaves a newer refusal on screen.
+      - Opened on Git explorer, the screen loads once while the page starts, so Load my repositories pressed as soon as it is offered is answered (1.9.1).
       - The explorer only reads from GitHub.
       - A cluster's linked repository becomes the promotion target.
     prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
@@ -466,6 +468,7 @@ cases:
       - Owner isolation, explicit window boundaries, late state, rollback and publication conflicts remain visible.
       - The browser can publish a source policy and inspect durable filtering and reduction results.
       - An activation retires the person's rule generations no source binding keeps, never a bound one, another person's or one under an hour old (T71).
+      - A generation is sealed with the add-block API, never an index settings update, which OpenSearch 3.3.2 never frees; a sealed generation published again writes nothing (1.9.1).
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
     sideEffects: disposable databases, rule indexes, local engine process and loopback HTTP server
     isolation: { mode: disposable, cleanup: Delete only test-owned rule indexes and databases; close browser, engine and server in finally. }

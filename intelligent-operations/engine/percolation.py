@@ -1,6 +1,7 @@
 """Immutable stored-query generations on an actual OpenSearch percolator.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Publish, seal and exhaustively match scoped rule generations; incomplete searches never become no-match.
 CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | T71 (Roger, 2026-11-11: "Open search needs to be on a rotation"): retire removes a scope's generations the package no longer keeps (no source binding names them), once older than an hour, so a dry run or an evaluation in flight keeps its own. Every rules change used to leave its index forever; each costs the search heap. A removed generation is rebuilt from its kept policy if it is published again.
+CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A generation is sealed with the add-block API (PUT /<index>/_block/write), which sets the same index.blocks.write the publish and match checks read. Sealing with an index settings update (PUT /<index>/_settings) left one IndicesQueryCache of about 125 KB on OpenSearch 3.3.2's heap per new generation, never freed by deleting the index (measured on the shared test search with jcmd GC.class_histogram: 7,545 of them, 89 % of a 1 GB heap live after a full GC, the parent circuit breaker tripped 83 times, 2026-11-12); a search that has published enough generations answers HTTP 429.
 """
 import hashlib
 import json
@@ -105,7 +106,9 @@ class Percolator:
         _,bulk=self.call('POST','/'+index+'/_bulk?refresh=wait_for','\n'.join(lines)+'\n',ndjson=True)
         if bulk.get('errors') is not False or len(bulk.get('items',[]))!=len(rules):raise Failure('Not every stored query was published.')
         _,refresh=self.call('POST','/'+index+'/_refresh');checked_shards(refresh)
-        _,seal=self.call('PUT','/'+index+'/_settings',{'index.blocks.write':True})
+        # The add-block API sets the same index.blocks.write: an index settings update on OpenSearch 3.3.2 leaves one query
+        # cache on the heap for good, about 125 KB each, until the search runs out of heap and refuses requests with HTTP 429.
+        _,seal=self.call('PUT','/'+index+'/_block/write')
         if seal.get('acknowledged') is not True:raise Failure('Rule generation was not sealed.')
 
     def retire(self,scope,keep,older_than=None):

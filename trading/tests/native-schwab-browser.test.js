@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the first screen is drawn from saved records, so this host also serves the shipped paper routes (GET /paper/today), the connected account first shows as a card that says nothing is set to run on it, and the balances, holdings and tile links this test has always checked are reached by opening the screen's closed section "Balances and holdings, read from your broker now". Every earlier check stays.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.43.0: Manage strategy is a link beside Account details, and broker day amounts are withheld (after sales they omitted closed positions and showed a false daily return), so the tile shows open-position gain/loss and the headline says day change is unavailable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Assert dashboard tiles survive unavailable strategy reads and strategy controls use the correct navigation section.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the exact native daily amount while asserting its open-position scope on desktop and phone.
@@ -43,6 +44,7 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     load('trading-research-routes').registerTradingResearchRoutes(api,ctx);
     charts = load('trading-charts-routes').createTradingChartsRoutes(ctx);
   });
+  api.use('/paper',require('../routes/trading-paper-routes').createTradingPaperRoutes(ctx,() => express.Router()));
   app.use('/api/trading-charts',charts); app.use('/api/trading',api);
   app.get('/api/v1/agent/schedules',(_req,res) => res.json({schedules:[]}));
   app.get(/^\/shared\/.*\.js$/,(_req,res) => res.type('js').send(''));
@@ -54,6 +56,11 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     const context = await browser.newContext({viewport:{width,height:900},locale:'en-US'});
     const page = await context.newPage();const errors=[];page.on('pageerror',e => errors.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/api/trading/`);
+    const card = page.locator('#homeCards [data-story-kind="connected"]');
+    await card.waitFor();
+    assert.match(await card.innerText(),/Account …1234[\s\S]*NOT SET UP[\s\S]*No strategy is set to run on this account\.[\s\S]*\$12,500\.00 at [^\n]+, read from your broker by this page\./);
+    assert.equal(await page.locator('#tiles').count(),0,'balances and holdings are read from the broker only when their section is opened');
+    await page.locator('#homeBroker > summary').click();
     const tile = page.locator('#tiles .tile',{hasText:'Account …1234'});
     await tile.getByRole('link',{name:'Manage strategy →'}).waitFor();
     assert.match(await tile.innerText(),/CONNECTED[\s\S]*\$12,500/);
@@ -98,6 +105,7 @@ test('Schwab balances and holdings are usable on desktop and phone with no live-
     assert.equal(await page.getByRole('button',{name:'Record verified closes'}).count(),0);
     await page.getByRole('button',{name:'Holdings',exact:false}).click();
     await page.locator('#nav').getByRole('button',{name:'Accounts',exact:true}).click();
+    await page.locator('#homeBroker > summary').click();
     await page.locator('#tiles .tile',{hasText:'Account …1234'}).waitFor();
     assert.deepEqual(errors,[]);await context.close();
   }

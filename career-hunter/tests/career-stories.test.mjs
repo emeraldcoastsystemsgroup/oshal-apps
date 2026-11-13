@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Run the ADR-141 D7 story-review contract against the production engine module, and pin the route registrar + its bounds against the COMPILED routes.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the visible main résumé question accented without changing its role/bullet evidence, and retain native/Python parity.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | GET /stories reads the profile in JavaScript (lib/career-stories-state.js) because the native kernel's package sandbox carries no Python source. Guard that the JavaScript projection answers exactly what the engine's stories.state() answers for the same real profile file (missing, partial with malformed roles, and complete), that an unreadable profile is refused rather than read as empty, and that the compiled GET /stories no longer starts the engine.
  */
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const contractPath = join(packageRoot, 'tests', 'career-stories-contract.py');
 const engineRoot = join(packageRoot, 'engine');
 const require = createRequire(import.meta.url);
-const { readStoriesState, PROFILE_MAX_BYTES } = require('../lib/career-stories-state.js');
+const { readStoriesState, questionFor, PROFILE_MAX_BYTES } = require('../lib/career-stories-state.js');
 
 /** The engine's own state() for one profile file: what `jobhunter stories list` prints. */
 function engineState(profilePath) {
@@ -114,4 +115,10 @@ test('the compiled routes register the review and bound one answer', () => {
 test('the engine verb is reachable through the launcher', () => {
   const launcher = readFileSync(join(packageRoot, 'bin', 'oshal-jobhunter.js'), 'utf8');
   assert.match(launcher, /case 'stories':/, 'the launcher must map the stories verb');
+});
+
+test('G14: role questions name the main résumé and preserve the original role and bullet',()=>{
+  const question=questionFor({label:'Engineer at Fixture Co',bullets:['  Rebuilt the release pipeline...  ','Other evidence']});
+  assert.match(question,/At Engineer at Fixture Co your main résumé says: "Rebuilt the release pipeline"/);
+  assert.doesNotMatch(question,/your resume|Other evidence/);
 });

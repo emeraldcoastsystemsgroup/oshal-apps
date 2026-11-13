@@ -1,4 +1,7 @@
 # CHANGE LOG
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Bind owner preparation preferences to existing read/change permissions.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Bind the optional original-owner application goal change to career.change; progress reads use the existing job parameter binding on career.read.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner source decision preparation/reconciliation to existing Execute plus Administer, keeping human confirmations on the native ticket routes.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: bind the front-desk concierge (career-concierge) like career-hunter: app.open and career.execute (its turns spend the caller's provider money). No new permission and no role change.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0, T6: bind Find jobs' remembered searches kept on the account, GET /search-memory to career.read and POST /search-memory (remember, save, remove, clear the last, hand over a browser's older searches; the caller's own file only) to career.change. No new permission and no role change, so every assignment grants what it granted.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Bind the two source maintenance routes to career.administer, the permission the Companies list and every source change already need: POST /companies-admin/keep (keep trying a source maintenance asked about) and POST /companies-admin/maintenance-report (the daily briefing job reads last night's maintenance). No new permission and no role change, so every assignment grants what it granted before.
@@ -120,6 +123,7 @@ bindings:
     # Board, search and job detail (career-board-routes, career-browse-routes, career-job-guide).
     - { id: jobs, method: GET, path: /jobs, allOf: [career.read] }
     - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
+    - { id: job-goal, method: POST, path: /jobs/goal, allOf: [career.change] }
     - { id: job-status, method: POST, path: /jobs/:id/status, allOf: [career.change] }
     - { id: job-generated-purge, method: DELETE, path: /jobs/purge-generated, allOf: [career.change] }
     - { id: job-generate, method: POST, path: /jobs/:id/generate, allOf: [career.execute] }
@@ -179,6 +183,8 @@ bindings:
     - { id: recruiter-create, method: POST, path: /recruiters, allOf: [career.change] }
     - { id: recruiter-update, method: POST, path: /recruiters/:id, allOf: [career.change] }
     - { id: recruiter-delete, method: DELETE, path: /recruiters/:id, allOf: [career.change] }
+    - { id: application-workflow-read, method: GET, path: /application-workflow, allOf: [career.read] }
+    - { id: application-workflow-save, method: POST, path: /application-workflow, allOf: [career.change] }
     # Settings, targets, automation, digest and the title profile.
     - { id: settings-state, method: GET, path: /settings/state, allOf: [career.read] }
     - { id: settings-anthropic, method: POST, path: /settings/anthropic, allOf: [career.change] }
@@ -222,7 +228,8 @@ bindings:
     - { id: companies-admin-remove, method: POST, path: /companies-admin/remove, allOf: [career.administer] }
     - { id: companies-admin-restore, method: POST, path: /companies-admin/restore, allOf: [career.administer] }
     - { id: companies-admin-keep, method: POST, path: /companies-admin/keep, allOf: [career.administer] }
-    - { id: companies-admin-maintenance-report, method: POST, path: /companies-admin/maintenance-report, allOf: [career.administer] }
+    - { id: companies-admin-decision-sync, method: POST, path: /companies-admin/decision-sync, allOf: [career.administer, career.execute] }
+    - { id: companies-admin-maintenance-report, method: POST, path: /companies-admin/maintenance-report, allOf: [career.administer, career.execute] }
     - { id: cutover-status, method: GET, path: /status, allOf: [career.administer] }
   tools:
     - { id: career_job, allOf: [career.read] }

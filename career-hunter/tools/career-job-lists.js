@@ -1,4 +1,6 @@
 /* CHANGE LOG:
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Remove saved rows immediately through durable dismissal, retaining exact refusal recovery.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Show ready, review and stopped-preparation reasons in Getting ready without claiming submission.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render stable per-stage lists, remembered account-scoped filters and scroll, and direct application handoffs without nested document panels.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: this page is the live Job Board (board-native), so the pipeline lives here: the stage control (career-stages.js) over New matches (?view=matches), Saved, To approve (?view=approve opens the approvals view), Preparing (?view=queue), Applied (?view=status) and Interviewing (?view=interviewing, status=interview); an empty stage is one empty state whose primary is Find jobs (no "0 shown" or "No results · End of this view"); Clear filters; pay and fit filters only while finding jobs. Guard: tests/career-job-lists-stages.test.mjs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: phone Filters sheet (#boardFilterSheet) with history Back dismissal, posting modal sheet Back dismissal, and merged New matches phone swipe deck (Pass, Save, Undo, More + Cards/List switch).
@@ -9,7 +11,15 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9. (a) One route to an application: To approve is no longer a stage. The jobs Career picked (CareerStages.picks) lead the first page of Saved, each marked "Career picked this for you" with the same Prepare application button a saved job has and Remove (the route Deny called); ?view=approve opens Saved instead of the retired approvals page, and says so when Career has nothing waiting. (b) Applications is its own bar section, so the page answers ?view=offer, ?view=closed and ?view=dismissed (each used to open Saved) and draws the row of its own section. (c) Each job a person has applied to carries one line, Sent, with its day and how Career knows (career-status-line.js); what Career is sending from the person's computer leads Applied as Waiting, Sending, Needs your answer or Did not go through, and one quiet link opens the activity page only while there is such a record or the records could not be read. (d) A move is said in one line (Saved, Unsaved, Removed, Getting ready) and the stage row and the bar re-count. Guards: tests/career-apply-one-route.test.mjs, tests/career-applications-section.test.mjs.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | One filled button for the next thing to do: View application on a job already applied to is outlined, because nothing is left to do there; Prepare application and Continue application stay filled.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: Career's picks lead the first page of Saved whatever the filters are. They were dropped whenever a filter was set, and the page puts a signed-in person's last filters back on a plain visit, so a search left from an earlier day hid the picks Home had just counted. A pick is not a filtered result; later pages still show none. When the filters match no saved job the page says so under the picks ("No saved jobs match these filters.", with Clear filters), and Clear filters in the list is handled where the list's other buttons are. Guard: tests/career-apply-one-route.test.mjs.
- * 11 | maintainer@emeraldcoastsystemsgroup.com | Recommended for you (New matches), reported from a phone 2026-11-11. (a) A match the person has not saved said "Saved" under its facts beside a filled Save button, because "Saved" was the row's fallback line; in New matches the fallback is no line, and a saved match's button reads Saved, is pressed no more and is not filled. (b) New matches is ordered by date posted, newest first (it was Best AI fit). A sort the person chose is still remembered for the visit; a remembered sort they never chose is not put back, so the old default does not outlive the change. Guard: tests/career-matches-save-and-order.test.mjs. */
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Recommended for you (New matches), reported from a phone 2026-11-11. (a) A match the person has not saved said "Saved" under its facts beside a filled Save button, because "Saved" was the row's fallback line; in New matches the fallback is no line, and a saved match's button reads Saved, is pressed no more and is not filled. (b) New matches is ordered by date posted, newest first (it was Best AI fit). A sort the person chose is still remembered for the visit; a remembered sort they never chose is not put back, so the old default does not outlive the change. Guard: tests/career-matches-save-and-order.test.mjs.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Interviewing shows the saved manual interview date and local time alongside its application.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Show truthful unscored fit states and explicitly check one saved job through its scoring-only receipt, with honest progress, failure and retry in rows and posting sheets.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Put phone match controls in Filters and dock actions with unobscured status; retain failed fit evidence and reconcile delayed posting reads with newer completed checks.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Request the explicit actionable match feed so saved and application records stay in their own views.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Bound the first résumé-status wait at two seconds, preserve unknown status, and reconcile late no-résumé/indexing truth before a stale feed can paint.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Restore only the optimistically removed phone card and its history entry after an exact native busy refusal, preserving explicit retry and acknowledged saves.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | Name Open application, explain preparation immediately and retain per-job busy, acknowledged and unknown states across redraws; reconcile unknown writes read-only before any separate manual retry.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | Remove a Career pick through its existing owner board dismissal, clearing Saved while retaining application and native ticket history. */
 (()=>{'use strict';const $=id=>document.getElementById(id),query=new URLSearchParams(location.search),view=query.get('view'),recommended=view==='matches',stage={matches:'matches',queue:'queue',status:'status',interviewing:'interview',offer:'offer',closed:'closed',dismissed:'dismissed'}[view]||'saved';
  /* ?view=approve is the address the To approve stage had. It opens Saved, where the jobs Career picked lead the list. */
  const fromApprove=view==='approve';
@@ -21,13 +31,14 @@
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const fields=['q','sort','per','min_score','pay_period','min_pay','max_pay','days','remote'];let page=1,firstPage=1,rows=[],exhausted=false,epoch=0,controller=null,memoryKey=null,earlier=query.get('earlier')==='1',busy=false,returnY=0,firstLoad=true,savingJobs=new Set();
  const phoneMedia=typeof window.matchMedia==='function'?window.matchMedia('(max-width: 640px)'):{matches:false,addEventListener:()=>{}};
- let matchLayout='deck',deckHistory=[];
+ let matchLayout='deck',deckHistory=[];const removing=new Set();const preparationStates=new Map();const fitChecks=new Map(),fitResults=new Map();let fitRevision=0;
  /* What GET /resume/state says: unknown until it answers, and unknown again if it does not, in which case the page behaves as it did. */
  let resume={known:false,has:false,reading:false};
  const noResume=()=>resume.known&&!resume.has&&!resume.reading,readingResume=()=>resume.known&&!resume.has&&resume.reading;
- const resumeAnswer=fetch('/api/career-hunter/resume/state',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(state=>{if(state&&typeof state.hasResume==='boolean')resume={known:true,has:state.hasResume,reading:state.indexing===true};}).catch(()=>{});
+ const resumeAnswer=fetch('/api/career-hunter/resume/state',{cache:'no-store',signal:AbortSignal.timeout(8000)}).then(r=>r.ok?r.json():null).then(state=>{if(state&&typeof state.hasResume==='boolean')resume={known:true,has:state.hasResume,reading:state.indexing===true};}).catch(()=>{});
+ const resumeReady=new Promise(resolve=>{const timer=setTimeout(resolve,2000);void resumeAnswer.then(()=>{clearTimeout(timer);resolve();});});
  const REPLY={acknowledged:'Application received',interview:'Interview reply',offer:'Offer',rejected:'Not selected'};
- $('pageTitle').textContent=labels[stage];document.title=labels[stage];$('pageDescription').textContent=stage==='saved'?'Your saved jobs. Open a job to compare its fit, or prepare an application.':stage==='queue'?'Continue an application. Tailoring, documents and submission stay with the selected job.':stage==='status'?'Every job you have applied to, and anything being sent now.':stage==='interview'?'Applications with a recorded interview.':'Jobs that match your résumé. Save the ones you want to go after.';
+ $('pageTitle').textContent=labels[stage];document.title=labels[stage];$('pageDescription').textContent=stage==='saved'?'Your saved jobs. Open a job to compare its fit, or prepare an application.':stage==='queue'?'Open an application to tailor it, generate documents and review how to send it.':stage==='status'?'Every job you have applied to, and anything being sent now.':stage==='interview'?'Applications with a recorded interview.':'Jobs that match your résumé. Save the ones you want to go after.';
  if(ADDED[stage])$('pageDescription').textContent=ADDED[stage][1];
  $('searchModes').hidden=!recommended;if($('matchesLayoutSwitch'))$('matchesLayoutSwitch').hidden=!recommended;
  document.querySelector(`[data-career-tool="${recommended?'career-search':stage==='saved'?'career-board':stage==='queue'?'career-submissions':'career-application-status'}"]`)?.setAttribute('aria-current','page');
@@ -51,6 +62,14 @@
   const sheet=$('boardFilterSheet'),body=$('boardFilterSheetBody'),box=$('boardFilterFields'),openBtn=$('openBoardFilters');
   if(!sheet||!body||!box||!openBtn||typeof sheet.showModal!=='function')return;
   const home=box.parentNode,next=box.nextSibling,openSheet=wireSheetBack(sheet,'boardFilters');
+  const modes=$('searchModes'),search=$('keywordSearch'),phoneHome=$('boardPhoneControls');
+  const homes=[modes,search,openBtn].map(node=>({node,parent:node.parentNode,next:node.nextSibling}));
+  const placeControls=()=>{
+   const compact=recommended&&phoneMedia.matches;phoneHome.hidden=!compact||noResume()||readingResume();
+   if(compact){phoneHome.append(openBtn);body.prepend(modes,search);}
+   else for(const slot of homes)slot.parent.insertBefore(slot.node,slot.next?.parentNode===slot.parent?slot.next:null);
+  };
+  placeControls();phoneMedia.addEventListener?.('change',placeControls);
   openBtn.addEventListener('click',()=>{body.append(box);openSheet();});
   sheet.addEventListener('close',()=>{home.insertBefore(box,next&&next.parentNode===home?next:null);});
   sheet.addEventListener('click',e=>{if(e.target===sheet)sheet.close();});
@@ -71,7 +90,7 @@
  function remember(){if(!memoryKey)return;try{sessionStorage.setItem(memoryKey,JSON.stringify({filters:filters(),page:firstPage,scrollY:window.scrollY,earlier,sortChosen}));}catch{}}
  function address(){const params=new URLSearchParams(filters());if(VIEW[stage])params.set('view',VIEW[stage]);if(earlier)params.set('earlier','1');params.set('page',String(firstPage));history.replaceState(null,'',location.pathname+'?'+params);}
  function pay(job){const a=job.salary_min,b=job.salary_max;if(!a&&!b)return 'Pay estimate unavailable';const symbol=job.salary_currency==='USD'?'$':(job.salary_currency||'')+' ',amount=n=>symbol+Number(n).toLocaleString('en-US',{maximumFractionDigits:2}),unit={year:' / year',hour:' / hour',month:' / month',course:' / course'}[job.salary_period]||' · period unknown';return (a&&b&&a!==b?amount(a)+'–'+amount(b):amount(b||a))+unit+(['heuristic','ai_estimated','bls_estimated'].includes(job.salary_source)?' · estimate':'');}
- function state(job){return DONE.has(job.status)?'Application recorded':job.board?.applicationDraft?'Application draft saved':job.board?.phase==='generating'?'Generating documents':job.has_resume?'Documents available':job.status==='promoted'?'Ready for preparation':recommended?'':'Saved';}
+ function state(job){return job.preparation?job.preparation.reason:DONE.has(job.status)?'Application recorded':job.board?.applicationDraft?'Application draft saved':job.board?.phase==='generating'?'Generating documents':job.has_resume?'Documents available':job.status==='promoted'?'Ready for preparation':recommended?'':'Saved';}
  /* Career's picks (CareerStages.picks) lead Saved, and what Career is sending from the person's computer (the open records of GET /submission-queue) leads Applied. Neither read holds the list back: each is drawn when it answers. */
  let picked=[],picksRead=stage!=='saved',sending=[],sendingKnown=true,landed=false,countWords=['',''];
  const OPEN_SUBMISSION=new Set(['queued','claimed','reviewing','submitting','needs_you','unknown','failed']);
@@ -124,22 +143,59 @@
   * @returns {string} For example "Interview reply · Nov 8", or '' when the job has no reply of a known kind.
   */
  function replyLine(job){
+  const interviewAt=job.interview_at||job.board?.manualTracking?.interviewAt;
+  if(job.status==='interview'&&interviewAt&&Number.isFinite(Date.parse(interviewAt)))return 'Interview · '+new Date(interviewAt).toLocaleString();
   const newest=(Array.isArray(job.emailUpdates)?job.emailUpdates:[]).filter(update=>update&&Object.hasOwn(REPLY,update.kind)).reduce((last,update)=>!last||String(update.date||'')>=String(last.date||'')?update:last,null);
   if(!newest)return '';
   // The server writes the message's time as an ISO instant; anything else is not shown as a date (the browser would guess one).
   const at=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(String(newest.date))?new Date(newest.date):null,day=at&&!Number.isNaN(at.getTime())?at.toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
   return REPLY[newest.kind]+(day?' · '+day:'');
  }
- /** @description What a row says about fit: the score, or with no résumé the one step that would produce it. @param {object} job @returns {string} Markup. */
+ /** @description The actual fit, or an explicit next step without claiming that an ended check is pending. @param {object} job @returns {string} Markup. */
  function fitMarkup(job){
-  if(job.ai_fit_score!=null)return `<span>AI fit ${esc(job.ai_fit_score)}${job.fit_assessment?.assessedAt?' · '+esc(new Date(job.fit_assessment.assessedAt).toLocaleDateString()):''}</span>`;
-  return noResume()?'<a class="fit-link" href="/api/career-hunter/resume-studio" data-career-tool="career-resume-studio">Add your résumé to see your fit</a>':'<span>AI assessment pending</span>';
+  const check=fitChecks.get(job.id),label=job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}${job.fit_assessment?.assessedAt?' · '+esc(new Date(job.fit_assessment.assessedAt).toLocaleDateString()):''}</span>`:'<span>Not scored yet</span>';
+  if(job.ai_fit_score!=null&&!check?.error&&!check?.busy)return label;
+  if(noResume())return label+'<a class="fit-link" href="/api/career-hunter/resume-studio" data-career-tool="career-resume-studio">Add your résumé to see your fit</a>';
+  if(readingResume())return label+'<span>Reading your résumé…</span>';
+  if(!job.favorite)return label+'<span>Save this job to check your fit.</span>';
+  return label+`<button class="btn" type="button" data-check-fit="${job.id}"${check?.busy?' disabled aria-busy="true"':''}>${check?.busy?'Checking my fit…':'Check my fit'}</button>${check?.error?'<span role="status">'+esc(check.error)+'</span>':''}`;
  }
- function row(job){const done=DONE.has(job.status),prepared=['promoted','generated','deferred'].includes(job.status)||job.board?.applicationDraft,action=done?'View application':prepared?'Continue application':'Prepare application',reply=replyLine(job);
+ /** @description Fit controls and evidence inside the selected posting. @param {object} job @returns {string} Markup. */
+ function postingFitMarkup(job){
+  return `<div class="meta" data-fit-state>${fitMarkup(job)}</div><p>${esc(job.ai_fit_rationale||'Check this job against your résumé to see its fit and requirements to work on.')}</p><ul>${(job.matched||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${job.gaps?.length?'<h3>Requirements to check</h3><ul>'+job.gaps.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':''}`;
+ }
+ /** @description Refresh only existing rows and matching open posting sheets after a selected-job check changes. @param {number} id @param {object|null} job @returns {void} */
+ function renderFitChange(id,job){
+  if(job){rows=rows.map(current=>current.id===id?{...current,...job}:current);picked=picked.map(current=>current.id===id?{...current,...job}:current);}
+  render();
+  for(const area of document.querySelectorAll('[data-posting-fit="'+id+'"]')){
+   if(job)area.innerHTML=postingFitMarkup(job);
+   else area.querySelector('[data-fit-state]').innerHTML=fitMarkup({id,favorite:true});
+  }
+ }
+ /** @description Complete a fit check without inventing a score, retaining a retry and a visible error when it did not finish. @param {number} id @param {object|null} job @param {string} [reason] @returns {void} */
+ function finishFit(id,job,reason){
+  const error=reason||(job?.board?.phase==='failed'||job?.board?.error||job?.ai_fit_score==null?'Its fit could not be checked. '+(job?.board?.error?CareerJobActions.message(job.board.error):'Please try again.'):'');
+  if(job)fitResults.set(id,{revision:++fitRevision,job});
+  if(error)fitChecks.set(id,{busy:false,error});else fitChecks.delete(id);
+  renderFitChange(id,job);say(error||'Fit checked: '+(job?.title||'this job')+'.');
+ }
+ /** @description Explicitly score one saved job, without generating documents, then wait for its matching receipt. @param {number} id @returns {Promise<void>} */
+ async function checkFit(id){
+  if(!Number.isSafeInteger(id)||id<=0||fitChecks.get(id)?.busy)return;
+  const pending={busy:true};fitChecks.set(id,pending);renderFitChange(id,null);say('Checking this job against your résumé…');
+  try{
+   const result=await CareerJobActions.prepare(id,false);
+   if(fitChecks.get(id)!==pending)return;
+   if(!result.requestId)throw Error('The fit check did not return a receipt. Please try again.');
+   pending.stop=CareerJobActions.poll(id,result.requestId,job=>{if(fitChecks.get(id)===pending)finishFit(id,job);});
+  }catch(error){if(fitChecks.get(id)===pending)finishFit(id,null,error.message);}
+ }
+ function row(job){const pending=preparationStates.get(job.id);if(pending?.job&&!DONE.has(job.status))job={...job,...pending.job};const done=DONE.has(job.status),prepared=isPrepared(job),action=pending?.unknown?'Check preparation':done?'View application':prepared?'Open application':'Prepare application',reply=replyLine(job);
   /* An applied job says in one line that it was sent and how Career knows; a pick is marked as Career's and is not called saved; a removed job is not called saved either. */
   const said=stage==='dismissed'?'Removed':state(job),status=job.picked?'':done&&window.CareerStatusLine?lineMarkup(CareerStatusLine.forJob(job)):said?`<p class="status">${esc(said)}</p>`:'';
-  const second=job.picked?`<button class="btn quiet" data-remove-pick="${job.id}">Remove</button>`:stage==='saved'?`<button class="btn quiet" data-unstar="${job.id}">Unsave</button>`:'';
-  return `<article class="job-row" data-job-id="${job.id}"${job.picked?' data-picked':''}><div class="summary">${job.picked?'<p class="pick-mark">Career picked this for you</p>':''}<button class="job-title" data-posting="${job.id}">${esc(job.title)}</button><p class="job-company muted">${esc(job.company)}</p><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${fitMarkup(job)}${job.posted_date?`<span>Posted ${esc(job.posted_date.slice(0,10))}</span>`:''}${job.active===0?'<span>Posting no longer active</span>':''}</div>${reply?`<button type="button" class="reply-line" data-reply="${job.id}">${esc(reply)}</button>`:''}${status}</div><div class="row-actions">${recommended?`<button class="btn${job.favorite?'':' primary'}" data-save="${job.id}" ${job.favorite?'disabled':''}>${job.favorite?'Saved':'Save'}</button><button class="btn" data-job-feedback="${job.id}">Not interested</button>`:`<button class="btn${done?'':' primary'}" data-open="${job.id}" data-done="${done}">${action}</button>${second}`}</div></article>`;
+  const second=job.picked||(stage==='saved'&&!done)?`<button class="btn quiet" data-remove-pick="${job.id}">Remove</button>`:stage==='saved'?`<button class="btn quiet" data-unstar="${job.id}">Unsave</button>`:'';
+  return `<article class="job-row" data-job-id="${job.id}"${job.picked?' data-picked':''}><div class="summary">${job.picked?'<p class="pick-mark">Career picked this for you</p>':''}<button class="job-title" data-posting="${job.id}">${esc(job.title)}</button><p class="job-company muted">${esc(job.company)}</p><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${fitMarkup(job)}${job.posted_date?`<span>Posted ${esc(job.posted_date.slice(0,10))}</span>`:''}${job.active===0?'<span>Posting no longer active</span>':''}</div>${reply?`<button type="button" class="reply-line" data-reply="${job.id}">${esc(reply)}</button>`:''}${status}</div><div class="row-actions">${recommended?`<button class="btn${job.favorite?'':' primary'}" data-save="${job.id}" ${job.favorite?'disabled':''}>${job.favorite?'Saved':'Save'}</button><button class="btn" data-job-feedback="${job.id}">Not interested</button>`:`<button class="btn${done?'':' primary'}" data-open="${job.id}" data-done="${done}"${pending?.busy?' disabled aria-busy="true"':''}>${action}</button>${second}`}</div></article>`;
  }
 
  function deckCardMarkup(job,lead){
@@ -158,11 +214,18 @@
    return;
   }
   const lead=rows[0];if(!lead)return;
-  rows=rows.slice(1);deckHistory.push({job:lead,action:kind});render();
+  const pending={job:lead,action:kind},actionEpoch=epoch;
+  rows=rows.slice(1);deckHistory.push(pending);render();
   try{
    if(kind==='save'){const res=await CareerJobActions.save(lead.id);moved(CareerStatusLine.move('saved',lead)+(res.error?' Its fit could not be checked: '+res.error:''));}
-   else{await fetch('/api/career-hunter/jobs/'+lead.id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'dismissed'})});say(CareerStatusLine.move('removed',lead));}
-  }catch(err){$('actionState').textContent=err.message;}
+   else{const response=await fetch('/api/career-hunter/jobs/'+lead.id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'dismissed'})}),result=await response.json().catch(()=>({}));if(!response.ok||result.ok===false)throw Error(result.error||'Could not remove this job.');say(CareerStatusLine.move('removed',lead));}
+  }catch(err){
+   if(kind!=='save'||err.careerRunInProgress===true){
+    const index=deckHistory.indexOf(pending);if(index!==-1)deckHistory.splice(index,1);
+    if(epoch===actionEpoch&&!rows.some(job=>job.id===lead.id)){rows=[lead,...rows];render();}
+   }
+   $('actionState').textContent=err.message;
+  }
   if(rows.length<2&&!exhausted&&!busy){page+=1;void load(true,false);}
  }
 
@@ -213,17 +276,24 @@
  /** @description New matches with no résumé (or while a first one is read): what will appear, and the one step. @returns {void} */
  function renderWithoutResume(){
   const reading=readingResume();
+  setDeckActions(false);$('boardPhoneControls').hidden=true;
   for(const id of ['keywordSearch','filters','searchModes'])if($(id))$(id).hidden=true;
   $('careerExclusions')?.remove();$('pager').innerHTML='';$('requestState').textContent='';
   $('list').innerHTML=reading
    ?'<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📄</div><h2>Reading your résumé</h2><p>Your matches appear here when Career has finished reading it.</p></div>'
    :'<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📄</div><h2>Add your résumé to get matches</h2><p>Career compares each job with your résumé. Add it and the jobs that fit you appear here.</p><a class="ck-primary" href="/api/career-hunter/resume-studio" data-career-tool="career-resume-studio">Add your résumé</a></div>';
  }
+ /** @description Keep the phone deck's status and action row in one dock above the frame bar. @param {boolean} enabled @returns {void} */
+ function setDeckActions(enabled){
+  $('matchActionDock').toggleAttribute('data-deck-active',enabled);
+  $('deckActionButtons').innerHTML=enabled?'<button type="button" class="ck-btn" data-deck-act="undo">Undo</button><button type="button" class="ck-btn" data-deck-act="pass">Pass</button><button type="button" class="ck-primary" data-deck-act="save">Save</button><button type="button" class="ck-btn" data-deck-act="more">More</button>':'';
+ }
  function render(){
-  const useDeck=recommended&&phoneMedia.matches&&matchLayout==='deck'&&rows.length>0;
+  rows=rows.filter(job=>!removing.has(job.id));picked=picked.filter(job=>!removing.has(job.id));
+  const useDeck=recommended&&phoneMedia.matches&&matchLayout==='deck'&&rows.length>0;setDeckActions(useDeck);
   if(useDeck){
    const lead=rows[0],peek=rows[1];
-   $('list').innerHTML=`<div class="match-deck"><div class="match-deck-stage">${peek?deckCardMarkup(peek,false):''}${deckCardMarkup(lead,true)}</div><div class="match-deck-actions"><button type="button" class="ck-btn" data-deck-act="undo">Undo</button><button type="button" class="ck-btn" data-deck-act="pass">Pass</button><button type="button" class="ck-primary" data-deck-act="save">Save</button><button type="button" class="ck-btn" data-deck-act="more">More</button></div></div>`;
+   $('list').innerHTML=`<div class="match-deck"><p class="hint">Swipe right to save or left to pass, or use the buttons.</p><div class="match-deck-stage">${peek?deckCardMarkup(peek,false):''}${deckCardMarkup(lead,true)}</div></div>`;
    bindDeckSwipe($('list').querySelector('.match-card.lead'));
    $('pager').innerHTML='';return;
   }
@@ -236,9 +306,9 @@
   $('pager').innerHTML=`<span class="hint">${rows.length?`Showing ${((firstPage-1)*Number($('per').value))+1}–${((firstPage-1)*Number($('per').value))+rows.length}`:'No results'}${exhausted?' · End of this view':''}</span><div class="actions">${firstPage>1?'<button class="btn" data-page="previous">← Previous</button>':''}${!exhausted?'<button class="btn" data-page="more">Load more</button><button class="btn" data-page="next">Next →</button>':''}</div>`;
  }
  async function load(append=false,top=false){
-  if(recommended){await resumeAnswer;if(noResume()||readingResume()){rows=[];renderWithoutResume();return;}}
+  if(recommended){await resumeReady;if(noResume()||readingResume()){rows=[];renderWithoutResume();return;}}
   controller?.abort();controller=new AbortController();const current=++epoch;busy=true;$('list').setAttribute('aria-busy','true');$('requestState').textContent=rows.length?'Updating results…':'Loading jobs…';
-  const params=new URLSearchParams(filters());if(stage!=='matches')params.set('status',FEED[stage]||stage);if(stage==='queue'&&!earlier)params.set('current','1');params.set('page',String(page));
+  const params=new URLSearchParams(filters());if(stage==='matches')params.set('matches','1');else params.set('status',FEED[stage]||stage);if(stage==='queue'&&!earlier)params.set('current','1');params.set('page',String(page));
   try{const response=await fetch('/api/career-hunter/jobs?'+params,{signal:controller.signal,cache:'no-store'}),data=await response.json();if(current!==epoch)return;if(!response.ok)throw Error(data.error||'HTTP '+response.status);
    firstPage=append?firstPage:page;const incoming=data.jobs||[];rows=CareerFeedback.unique([...new Map((append?[...rows,...incoming]:incoming).map(job=>[job.id,job])).values()]);exhausted=data.exhausted===true||incoming.length<Number($('per').value);
    if(recommended){rows=CareerFeedback.visible(rows,data.exclusions||[]);CareerFeedback.configure(rows,data.exclusions,(rules)=>{rows=CareerFeedback.visible(rows,rules);render();void load();});}
@@ -246,8 +316,44 @@
   }catch(error){if(current!==epoch||error.name==='AbortError')return;$('requestState').replaceChildren(document.createTextNode('Could not update jobs: '+error.message+'. '));const retry=document.createElement('button');retry.className='btn';retry.textContent='Retry';retry.onclick=()=>load(append,top);$('requestState').append(retry);}
   finally{if(current===epoch){busy=false;$('list').setAttribute('aria-busy','false');}}
  }
- async function posting(id){const dialog=document.createElement('dialog');dialog.className='ck-sheet edit-dialog';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.innerHTML='<header><b>Job posting and fit</b><button class="btn" type="button" data-close>Close posting</button></header><section class="ck-sheet-body" style="padding:20px" role="status">Loading posting…</section>';document.body.append(dialog);const openPosting=wireSheetBack(dialog,'boardPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>dialog.remove());openPosting();
-  try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not load this posting.');const {job}=await response.json();dialog.querySelector('section').innerHTML=`<h1>${esc(job.title)}</h1><p class="muted">${esc(job.company)} · ${esc(job.location)}</p><p>${esc(pay(job))}</p><h2>Fit assessment</h2><p>${esc(job.ai_fit_rationale||'This job has not yet been AI assessed.')}</p><ul>${(job.matched||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${job.gaps?.length?'<h3>Requirements to check</h3><ul>'+job.gaps.map(x=>`<li>${esc(x)}</li>`).join('')+'</ul>':''}<h2>Employer description</h2><div class="posting-text">${esc(job.description||'No description was provided.')}</div>${job.url?`<p><a class="btn" href="${esc(job.url)}" target="_blank" rel="noopener">Employer posting ↗</a></p>`:''}`;}catch(error){dialog.querySelector('section').textContent=error.message;}
+ /** @description Whether the saved job already has a tailoring workspace. */
+ function isPrepared(job){return ['promoted','generated','deferred'].includes(job?.status)||Boolean(job?.board?.applicationDraft);}
+ /** @description Keep an acknowledged preparation on this row even if the parent refuses to open it. */
+ function preparedJob(id,job){
+  const latest={...job,id};const pending=preparationStates.get(id);if(pending)pending.job=latest;rows=rows.map(current=>current.id===id?{...current,...latest}:current);
+  picked=picked.map(current=>current.id===id?{...current,...latest}:current);return latest;
+ }
+ /** @description Check one uncertain preparation without retrying the write. */
+ async function reconcilePreparation(id,pending){
+  try{
+   const job=await CareerJobActions.preparation(id);preparedJob(id,job);pending.unknown=false;
+   if(isPrepared(job)||DONE.has(job.status))return job;
+   say('Preparation was not recorded. Press Prepare application to try again.');return null;
+  }catch{say('Could not check preparation. Press Check preparation to read its saved state again.');return null;}
+ }
+ /** @description One explicit Prepare or Open; never automatically repeat a mutation or bypass the shell. */
+ async function openJob(id){
+  if(preparationStates.get(id)?.busy)return;
+  const pending=preparationStates.get(id)||{};pending.busy=true;preparationStates.set(id,pending);remember();render();
+  const current=find(id);let job=DONE.has(current?.status)?current:pending.job||current;
+  try{
+   if(pending.unknown){say('Checking saved preparation…');job=await reconcilePreparation(id,pending);if(!job)return;}
+   if(!DONE.has(job?.status)&&!isPrepared(job)){
+    say('Opening preparation… Choose tailoring and generate your résumé and cover letter in the application workspace.');
+    try{await CareerJobActions.promote(id);}
+    catch(error){
+     pending.unknown=!error.status||error.status>=500;
+     say(pending.unknown?'Could not confirm preparation. Press Check preparation before trying again.':error.message);return;
+    }
+    job=preparedJob(id,{...job,status:'promoted',favorite:true});CareerJobActions.announce(CareerStatusLine.move('preparing',job));
+   }
+   say('Opening application…');
+   try{await CareerJobActions.openApplication(id,DONE.has(job?.status),undefined,{wait:true});}
+   catch(error){say(error.message);}
+  }finally{pending.busy=false;render();}
+ }
+ async function posting(id){const startedFit=fitRevision,dialog=document.createElement('dialog');dialog.className='ck-sheet edit-dialog';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.innerHTML='<header><b>Job posting and fit</b><button class="btn" type="button" data-close>Close posting</button></header><section class="ck-sheet-body" style="padding:20px" role="status">Loading posting…</section>';document.body.append(dialog);const openPosting=wireSheetBack(dialog,'boardPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>dialog.remove());openPosting();
+  try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not load this posting.');const {job:readJob}=await response.json(),finished=fitResults.get(id),job=finished&&finished.revision>startedFit?{...readJob,...finished.job}:readJob;dialog.querySelector('section').innerHTML=`<h1>${esc(job.title)}</h1><p class="muted">${esc(job.company)} · ${esc(job.location)}</p><p>${esc(pay(job))}</p><h2>Fit assessment</h2><div data-posting-fit="${id}">${postingFitMarkup(job)}</div><h2>Employer description</h2><div class="posting-text">${esc(job.description||'No description was provided.')}</div>${job.url?`<p><a class="btn" href="${esc(job.url)}" target="_blank" rel="noopener">Employer posting ↗</a></p>`:''}`;}catch(error){dialog.querySelector('section').textContent=error.message;}
  }
  document.addEventListener('click',async event=>{const el=event.target.closest('button');if(!el)return;
   if(el.hasAttribute('data-clear-filters')){$('clearFilters')?.click();return;}
@@ -255,34 +361,47 @@
   if(el.dataset.reply){remember();CareerJobActions.openApplication(Number(el.dataset.reply),DONE.has(rows.find(j=>j.id===Number(el.dataset.reply))?.status));return;}
   if(el.dataset.application){remember();CareerJobActions.openApplication(Number(el.dataset.application),false);return;}
   if(el.dataset.removePick){void removePick(el,Number(el.dataset.removePick));return;}
+  if(el.dataset.checkFit){void checkFit(Number(el.dataset.checkFit));return;}
   const id=Number(el.dataset.open||el.dataset.save||el.dataset.unstar||el.dataset.posting);
   if(el.dataset.posting){void posting(id);return;}
   if(el.dataset.page){if(busy)return;remember();if(el.dataset.page==='previous')page=Math.max(1,firstPage-1);else page+=1;void load(el.dataset.page==='more',el.dataset.page!=='more');return;}
-  if(!el.dataset.open&&!el.dataset.save&&!el.dataset.unstar)return;if(el.dataset.save&&savingJobs.has(id))return;if(el.dataset.save)savingJobs.add(id);el.disabled=true;el.setAttribute('aria-busy','true');$('actionState').textContent='';
-  try{remember();if(el.dataset.open){const job=find(id),done=DONE.has(job?.status);if(!done&&!['promoted','generated','deferred'].includes(job?.status)){await CareerJobActions.promote(id);CareerJobActions.announce(CareerStatusLine.move('preparing',job));}CareerJobActions.openApplication(id,done);return;}
+  if(el.dataset.open){void openJob(id);return;}
+  if(!el.dataset.save&&!el.dataset.unstar)return;if(el.dataset.save&&savingJobs.has(id))return;if(el.dataset.save)savingJobs.add(id);el.disabled=true;el.setAttribute('aria-busy','true');$('actionState').textContent='';
+  try{remember();
    if(el.dataset.save){const result=await CareerJobActions.save(id);savingJobs.delete(id);el.removeAttribute('aria-busy');const job=find(id);rows=rows.map(j=>j.id===id?{...j,favorite:true}:j);render();moved(CareerStatusLine.move('saved',job)+(result.error?' Its fit could not be checked: '+result.error:''));}
    else{const job=find(id);await CareerJobActions.favorite(id,false);savingJobs.delete(id);el.removeAttribute('aria-busy');rows=rows.filter(j=>j.id!==id);render();moved(CareerStatusLine.move('unsaved',job)+' Its drafts and application records are kept.');}
   }catch(error){savingJobs.delete(id);$('actionState').textContent=error.message;el.disabled=false;el.removeAttribute('aria-busy');}
  });
  /**
-  * @description Remove one of Career's picks: its record is closed and the job goes to Removed, the same route the To approve stage's Deny used.
+  * @description Move one of Career's picks to Removed through the owner board writer; its application and native ticket history remain intact.
   * @param {HTMLButtonElement} button - The pressed button.
   * @param {number} id - The job.
   * @returns {Promise<void>}
   */
  async function removePick(button,id){
-  const job=find(id);button.disabled=true;button.setAttribute('aria-busy','true');say('');
+  if(removing.has(id))return;
+  const job=find(id),rowIndex=rows.findIndex(j=>j.id===id),pickIndex=picked.findIndex(j=>j.id===id),actionEpoch=epoch;
+  removing.add(id);rows=rows.filter(j=>j.id!==id);picked=picked.filter(j=>j.id!==id);render();say('Removing '+job.title+'…');
   try{
-   const response=await fetch('/api/career-hunter/applications/'+id+'/deny',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}),result=await response.json().catch(()=>({}));
+   const response=await fetch('/api/career-hunter/jobs/'+id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'dismissed',favorite:false})}),result=await response.json().catch(()=>({}));
    if(!response.ok||result.ok===false)throw Error(result.error||'HTTP '+response.status);
-   picked=picked.filter(j=>j.id!==id);rows=rows.filter(j=>j.id!==id);render();moved(CareerStatusLine.move('removed',job));
-  }catch(error){say('Could not remove this job: '+error.message+'. Try again.');button.disabled=false;button.removeAttribute('aria-busy');}
+   moved(CareerStatusLine.move('removed',job));
+  }catch(error){
+   removing.delete(id);
+   if(epoch===actionEpoch){if(rowIndex>=0&&!rows.some(j=>j.id===id))rows.splice(Math.min(rowIndex,rows.length),0,job);if(pickIndex>=0&&!picked.some(j=>j.id===id))picked.splice(Math.min(pickIndex,picked.length),0,job);render();}
+   else void load();
+   say('Could not remove this job: '+error.message+'. Try again.');
+  }
  }
- void resumeAnswer.then(()=>{if(!recommended&&rows.length&&noResume())render();});
+ void resumeAnswer.then(()=>{
+  if(recommended&&(noResume()||readingResume())){
+   controller?.abort();epoch+=1;busy=false;rows=[];renderWithoutResume();$('list').setAttribute('aria-busy','false');
+  }else if(rows.length&&!busy)render();
+ });
  if(stage==='saved'&&window.CareerStages?.picks)void CareerStages.picks().then(jobs=>{picked=jobs;picksRead=true;if(!firstLoad&&!busy){render();showCount();}landOnPicks();});
  if(APPLICATIONS.has(stage))void readSending();
  function refilter(){page=1;void load();}let typing;$('q').oninput=()=>{clearTimeout(typing);typing=setTimeout(refilter,250);};$('keywordSearch').onsubmit=event=>{event.preventDefault();clearTimeout(typing);refilter();};fields.filter(key=>key!=='q').forEach(key=>$(key).onchange=refilter);
- $('showEarlier').onclick=()=>{earlier=true;page=1;refilter();};window.addEventListener('pagehide',remember);
+ $('showEarlier').onclick=()=>{earlier=true;page=1;refilter();};window.addEventListener('pagehide',()=>{remember();for(const check of fitChecks.values())check.stop?.();fitChecks.clear();render();});
  void CareerNavigation.refreshCounts().then(data=>{if(stage==='queue'&&data?.earlierPreparation){$('earlier').hidden=false;$('earlierCount').textContent='('+data.earlierPreparation+')';}});
  (async()=>{try{const response=await fetch('/api/auth/user',{signal:AbortSignal.timeout(2000)}),identity=await response.json();if(response.ok&&identity.authenticated&&identity.tenant&&identity.principal_id){memoryKey='career-journey:'+identity.tenant+':'+identity.principal_id+':'+stage;const stored=JSON.parse(sessionStorage.getItem(memoryKey)||'null');const explicit=fromApprove||fields.some(key=>query.has(key))||query.has('page');if(stored&&!explicit){for(const key of fields)if(stored.filters?.[key]!=null&&(key!=='sort'||stored.sortChosen===true))$(key).value=stored.filters[key];sortChosen=stored.sortChosen===true;page=stored.page||1;returnY=stored.scrollY||0;earlier=stored.earlier===true;}}}catch{/* URL and current session still work without persistent preferences. */}
   for(const key of fields)if(query.has(key))$(key).value=query.get(key);if(query.has('page'))page=Math.max(1,Number(query.get('page'))||1);if(![25,50,100,200].includes(Number($('per').value)))$('per').value='50';firstPage=page;void load();})();

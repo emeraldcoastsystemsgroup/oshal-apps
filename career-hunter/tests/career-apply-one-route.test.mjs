@@ -1,10 +1,12 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Saved Remove writes a durable dismissal and keeps drafts and application history.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | One route from a saved job to a sent application (judge's report 2026-11-11, change 6). The shipped tools/career-job-lists.html and tools/career-approvals.html in Chromium over fixture answers, at 1440x900 and at 412x915 with touch. To approve is not a stage. A job Career picked leads Saved, marked "Career picked this for you", with the same Prepare application button a saved job has; pressing it promotes the job and opens the one application page, and never calls the approve route that wrote documents with no guidance. A pick the person has already prepared is not shown, and a pick that is also saved is listed once. Remove declines a pick through the deny route and says so. ?view=approve opens Saved on those jobs, and says so when there are none; the old approvals address forwards there. Picks step aside while a search is typed.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: Career's picks lead the first page of Saved whatever the filters are. A typed search narrows the saved jobs and leaves the picks in the lead (it used to hide them, and the case that said so is rewritten); a filter the page remembered for a signed-in person and put back on a later visit does not hide them either (seen failing on the code as it was: the page showed "No jobs match these filters" and no pick); and page 2 of Saved shows no pick.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Remove picks through the existing owner board dismissal, retain application and native ticket history, and verify reload and refusal behavior.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,14 +33,23 @@ function board(state) {
     if (p === '/api/career-hunter/jobs/stats') return { json: { saved: state.saved.length, queued: 0, tracked: 0, byStatus: [] } };
     if (p === '/api/career-hunter/applications') return { json: { applications: state.records } };
     if (one) return state.jobs[one[1]] ? { json: { job: state.jobs[one[1]] } } : { status: 404, json: { error: 'not found' } };
-    if (status && method === 'POST') { state.writes.push({ path: p, body }); return { json: { ok: true } }; }
+    if (status && method === 'POST') {
+      state.writes.push({ path: p, body });
+      if (state.denyFails && body?.status === 'dismissed') return { status: 409, json: { ok: false, error: 'career_run_in_progress' } };
+      if (body?.status === 'dismissed') {
+        const id = Number(status[1]);
+        state.jobs[id] = { ...state.jobs[id], status: 'dismissed', favorite: false };
+        state.saved = state.saved.filter(item => item.id !== id);
+      }
+      return { json: { ok: true } };
+    }
     if (deny && method === 'POST') {
       state.writes.push({ path: p, body });
       if (state.denyFails) return { status: 500, json: { ok: false, error: 'career application ticket is missing' } };
       state.records = state.records.filter((record) => String(record.posting_id) !== deny[1]);
       return { json: { ok: true } };
     }
-    if (p === '/api/career-hunter/jobs') return { json: { jobs: url.searchParams.get('q') ? [] : state.saved, exhausted: true, exclusions: [] } };
+    if (p === '/api/career-hunter/jobs') return { json: { jobs: url.searchParams.get('status') === 'dismissed' ? Object.values(state.jobs).filter(item => item.status === 'dismissed') : url.searchParams.get('q') ? [] : state.saved, exhausted: true, exclusions: [] } };
     if (p === '/api/career-hunter/board-native') return { text: 'the board or one application' };
     if (p === '/api/auth/user') return { json: state.identity || { authenticated: false } };
     return { json: {} };
@@ -66,7 +77,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
       assert.deepEqual(await rowsOf(page), [
         [21, 'Career picked this for you', ['Prepare application', 'Remove']],
         [1, 'Career picked this for you', ['Prepare application', 'Remove']],
-        [2, null, ['Prepare application', 'Unsave']],
+        [2, null, ['Prepare application', 'Remove']],
       ], 'picks lead, a pick that is also saved is listed once, and a prepared or drafted pick is not a pick any more');
       assert.equal(await page.evaluate(() => window.__injected), undefined, 'a job title is text');
       assert.equal(await page.locator('#requestState').innerText(), '3 shown', 'the count is what the list shows');
@@ -93,7 +104,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
     } finally { await context.close(); }
   });
 
-  test(`${label}: Remove declines a pick, says so, and its row leaves`, async () => {
+  test(`${label}: Remove dismisses a pick, clears its saved flag, and retains the application history`, async () => {
     const state = account();
     const { page, context } = await openScreen(browser, 'career-job-lists.html', board(state), size);
     try {
@@ -101,10 +112,20 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
       await remove.waitFor();
       await press(size, remove);
       await page.waitForFunction(() => !document.querySelector('.job-row[data-job-id="1"]'));
-      assert.deepEqual(state.writes, [{ path: '/api/career-hunter/applications/1/deny', body: {} }]);
+      await page.getByText('Removed: Office Manager 1 at Example Co.',{exact:true}).waitFor();
+      assert.deepEqual(state.writes, [{ path: '/api/career-hunter/jobs/1/status', body: { status: 'dismissed', favorite: false } }]);
       assert.equal(await page.locator('#actionState').innerText(), 'Removed: Office Manager 1 at Example Co.');
       assert.equal(await page.locator('#actionState').isVisible(), true, 'the line is on screen');
       assert.deepEqual((await rowsOf(page)).map((row) => row[0]), [21, 2]);
+      assert.equal(state.records.some(item => item.posting_id === 1), true, 'application history is retained');
+      assert.equal(state.jobs[1].status, 'dismissed');
+      assert.equal(state.jobs[1].favorite, false);
+      await page.reload();
+      await page.locator('.job-row[data-job-id="21"]').waitFor();
+      assert.equal(await page.locator('.job-row[data-job-id="1"]').count(), 0, 'the retained pick cannot resurface on reload');
+      await page.goto(ORIGIN + '/screen?view=dismissed');
+      await page.locator('.job-row[data-job-id="1"]').waitFor();
+      assert.equal(await page.locator('.pick-mark').count(), 0, 'Removed holds an ordinary dismissed record');
     } finally { await context.close(); }
   });
 }
@@ -115,7 +136,7 @@ test('a Remove the route refuses leaves the pick where it was and says why', asy
   try {
     const remove = page.locator('.job-row[data-job-id="21"]').getByRole('button', { name: 'Remove', exact: true });
     await remove.click();
-    await page.getByText('Could not remove this job: career application ticket is missing. Try again.').waitFor();
+    await page.getByText('Could not remove this job: career_run_in_progress. Try again.').waitFor();
     assert.equal(await page.locator('.job-row[data-job-id="21"]').count(), 1);
     assert.equal(await remove.isEnabled(), true, 'the button can be pressed again');
   } finally { await context.close(); }
@@ -191,6 +212,29 @@ test('the second page of Saved does not repeat Career\'s picks', async () => {
     // The page read its picks when it opened. A second read answers after the first has, so the picks are in hand by then.
     assert.deepEqual(await page.evaluate(async () => (await CareerStages.picks()).map((job) => job.id)), [21, 1], 'there are picks to repeat');
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-    assert.deepEqual(await rowsOf(page), [[1, null, ['Prepare application', 'Unsave']], [2, null, ['Prepare application', 'Unsave']]], 'page 2 is the saved jobs only, each once and none marked as a pick');
+    assert.deepEqual(await rowsOf(page), [[1, null, ['Prepare application', 'Remove']], [2, null, ['Prepare application', 'Remove']]], 'page 2 is the saved jobs only, each once and none marked as a pick');
   } finally { await context.close(); }
+});
+
+for(const [label,size]of [['desktop',DESKTOP],['phone',PHONE]])test(label+': Remove hides a row within 500ms while its one command waits, and a refusal restores it',async()=>{
+ const state=account();const {page,context,calls}=await openScreen(browser,'career-job-lists.html',board(state),size);
+ let release,arrived,writes=0;const received=new Promise(r=>arrived=r),held=new Promise(r=>release=r);
+ try{
+  await page.locator('.job-row[data-job-id="21"]').waitFor();
+  await context.route('**/api/career-hunter/jobs/21/status',async route=>{writes++;arrived();await held;await route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'career_run_in_progress'})});});
+  await page.locator('.job-row[data-job-id="21"]').getByRole('button',{name:'Remove',exact:true}).click();await received;
+  await page.waitForFunction(()=>!document.querySelector('.job-row[data-job-id="21"]'),{},{timeout:500});
+  assert.equal(writes,1);release();await page.getByText('Could not remove this job: career_run_in_progress. Try again.').waitFor();
+  assert.equal(await page.locator('.job-row[data-job-id="21"]').count(),1);
+  assert.equal(await page.locator('.job-row[data-job-id="21"]').getByRole('button',{name:'Remove',exact:true}).isEnabled(),true);
+ }finally{release?.();await context.close();}
+});
+
+
+test('phone Pass restores the removed card when the relationship command is refused',async()=>{
+ const state=account({denyFails:true});const {page,context}=await openScreen(browser,'career-job-lists.html',board(state),PHONE,'?view=matches');
+ try{await page.locator('.match-card.lead').waitFor();const id=await page.locator('.match-card.lead').getAttribute('data-job-id');
+  await page.getByRole('button',{name:'Pass',exact:true}).click();await page.getByText('career_run_in_progress',{exact:true}).waitFor();
+  assert.equal(await page.locator('.match-card.lead').getAttribute('data-job-id'),id);
+ }finally{await context.close();}
 });

@@ -12,6 +12,7 @@ exports.nightlyMatchFailure = nightlyMatchFailure;
 exports.startNightlyMatching = startNightlyMatching;
 /**
  * CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Upgrade nightly receipts to the new-entry-only matching contract.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Run private recent resume matching and bounded title scoring once per published corpus, with a durable owner receipt and daily cooldown.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bound successful passes to the corpus's 18:00 Chicago refresh cycle, so midday catch-up never consumes the coming evening's publication.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A failed pass logs the engine's error type: six days of failures had said only "code 1".
@@ -27,14 +28,14 @@ const logger = (0, logger_1.createChildLogger)({ module: 'career-nightly-match' 
 exports.NIGHTLY_MATCH_LIMIT = 50;
 exports.NIGHTLY_MATCH_FILE = 'nightly-match-success.json';
 /** Raise this when people should not wait for the next publication: a receipt from an older match runs once more. */
-exports.NIGHTLY_MATCH_CONTRACT = 2;
+exports.NIGHTLY_MATCH_CONTRACT = 3;
 /** The evening refresh cycle a published corpus belongs to, independent of when its owner catches up. */
 function nightlyPublicationCycle(millis) {
     const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago',
         year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(millis));
     const get = (key) => Number(parts.find(p => p.type === key)?.value);
     const day = Date.UTC(get('year'), get('month') - 1, get('day'));
-    return new Date(day - (get('hour') < 18 ? 86400_000 : 0)).toISOString().slice(0, 10);
+    return new Date(day - (get('hour') < 18 ? 86400000 : 0)).toISOString().slice(0, 10);
 }
 /** Read only the exact caller's bounded regular receipt; corruption never starts more scoring. */
 function readNightlyMatchReceipt(userDir) {
@@ -45,7 +46,7 @@ function readNightlyMatchReceipt(userDir) {
         const r = JSON.parse(fs_1.default.readFileSync(file, 'utf8'));
         const at = Date.parse(r?.completedAt);
         if (r?.version !== 1 || !/^\d+:\d+$/.test(r.corpusVersion) || !Number.isFinite(at)
-            || new Date(at).toISOString() !== r.completedAt || at > Date.now() + 60_000
+            || new Date(at).toISOString() !== r.completedAt || at > Date.now() + 60000
             || ![r.keywordMatched, r.scored, r.skipped, r.limit].every(n => Number.isSafeInteger(n) && n >= 0)
             || r.limit !== exports.NIGHTLY_MATCH_LIMIT || r.scored + r.skipped > r.limit)
             throw new Error('Nightly matching receipt is unavailable.');
@@ -117,7 +118,7 @@ async function startNightlyMatching(pool, userSub, profile, onSuccess) {
         CH_TITLES: profile.titleTerms.join('\n'), CH_LIMIT: String(exports.NIGHTLY_MATCH_LIMIT), CH_FRESH_DAYS: '7',
         CH_REMOTE_ONLY: profile.remoteOnly ? '1' : '0', CH_NIGHTLY_MATCH: '1',
     }, {
-        slot: 'score', captureStdout: true, timeoutMs: 30 * 60_000,
+        slot: 'score', captureStdout: true, timeoutMs: 30 * 60000,
         onRunStarted: id => { runId = id; },
         onComplete: async (completion) => {
             const verdict = completion.ok ? nightlyMatchVerdict(completion.stdout) : null;

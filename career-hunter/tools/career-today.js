@@ -7,6 +7,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 6: To approve is no longer a stage, so the step that sent a person there follows. The jobs Career picked lead Saved, and the step says so in those words ("2 jobs Career picked are waiting for you", See Career's picks) and opens Saved. Its id and its place in the day are unchanged. It reads counts.approve only: the home summary's approval-review also counts picks the person has since prepared, and a step that opened a list with none of them in it would be a dead end.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the photo step's button reads Add a photo (was Open Portrait Studio). Career's bar calls that page Photo, and the button says what the person does there; the page it opens is unchanged.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: the step about Career's picks opens ?view=approve (was ?view=saved). The Job Board puts a person's remembered filters back on a plain visit to Saved, and a remembered search could hide the very picks this step had counted; ?view=approve is the picks address, which the page treats as explicit and restores nothing over. Guard: tests/career-today.test.mjs, tests/career-applications-section.test.mjs.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Show saved interview dates in Today and stop no-reply reminders after a manually recorded outcome or a move beyond Applied.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Review the exact actionable match set instead of treating dated score updates as available new matches.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Read the complete past-seven-day application count from original-owner progress; missing progress is unknown rather than the first tracked page.
  */
 (function (root) {
   'use strict';
@@ -17,11 +20,6 @@
 
   function count(value) { var n = Number(value); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0; }
   function plural(n, one, many) { return n.toLocaleString() + ' ' + (n === 1 ? one : many); }
-  function metric(summary, id) {
-    var list = summary && Array.isArray(summary.metrics) ? summary.metrics : [];
-    for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return count(list[i].value);
-    return 0;
-  }
   function time(value) { var t = Date.parse(value); return Number.isFinite(t) ? t : NaN; }
 
   /**
@@ -46,7 +44,8 @@
   function silentApplications(applied, now) {
     return (Array.isArray(applied) ? applied : []).filter(function (job) {
       var at = time(job && job.applied_at);
-      return Number.isFinite(at) && now - at > 7 * DAY && !(Array.isArray(job.emailUpdates) && job.emailUpdates.length);
+      return (!job.status || job.status === 'applied') && !job.board?.manualTracking
+        && Number.isFinite(at) && now - at > 7 * DAY && !(Array.isArray(job.emailUpdates) && job.emailUpdates.length);
     });
   }
 
@@ -118,13 +117,16 @@
     // counts.approve is the number of Career's picks the person can still act on (CareerStages.picks). The home summary's
     // approval-review also counts picks they have since prepared, so it is not a fallback: the step would open a list with none.
     // The step opens ?view=approve, the picks address: the Job Board puts back no remembered filter over an address that names what to show.
-    var steps = [], fresh = metric(data.summary, 'scored-24h'), approve = count(data.counts && data.counts.approve);
+    var steps = [], fresh = count(data.counts && data.counts.matches), approve = count(data.counts && data.counts.approve);
     var interviews = count(data.stats && data.stats.interviewing) || count(data.counts && data.counts.interview);
     steps.push(replyStep(data, now));
-    if (fresh) steps.push({ id: 'matches', kind: 'star', title: plural(fresh, 'job was', 'jobs were') + ' scored for you since yesterday', detail: 'Save the ones worth a closer look and pass on the rest.', action: { label: 'Review them', view: 'board', query: 'view=matches' } });
+    if (fresh) steps.push({ id: 'matches', kind: 'star', title: plural(fresh, 'new match is', 'new matches are') + ' ready to review', detail: 'Save the ones worth a closer look and pass on the rest.', action: { label: 'Review them', view: 'board', query: 'view=matches&page=1' } });
     if (approve) steps.push({ id: 'approve', kind: 'send', title: plural(approve, 'job Career picked is', 'jobs Career picked are') + ' waiting for you', detail: 'Prepare the ones you want to apply to and remove the rest. Nothing is sent until you say so.', action: { label: 'See Career\'s picks', view: 'board', query: 'view=approve' } });
     steps = steps.concat(followSteps(data, now));
-    if (interviews) steps.push({ id: 'interviews', kind: 'talk', title: plural(interviews, 'interview is', 'interviews are') + ' in progress', detail: 'Go over the role, the company and your stories before you talk.', action: { label: 'Prepare', view: 'board', query: 'view=interviewing' } });
+    if (interviews) steps.push({ id: 'interviews', kind: 'talk', title: plural(interviews, 'interview is', 'interviews are') + ' in progress', detail: 'Go over the role, the company and your stories before you talk.',
+      lines: (data.applied || []).filter(function (job) { return job.status === 'interview' && Number.isFinite(time(job.interview_at || job.board?.manualTracking?.interviewAt)); })
+        .slice(0,3).map(function (job) { return {text:String(job.company || job.title || 'Interview') + ' · ' + new Date(job.interview_at || job.board.manualTracking.interviewAt).toLocaleString(),posting:job.id}; }),
+      action: { label: 'Prepare', view: 'board', query: 'view=interviewing' } });
     steps.push(presenceStep(data), strongerStep(data));
     steps = steps.filter(allowed).slice(0, 6);
     if (steps.length) steps[0].first = true;
@@ -132,16 +134,16 @@
   }
 
   /**
-   * @description This week in three numbers a job seeker counts by: sent, answered, interviews.
+   * @description The past seven days: full recorded application count and recent reply/interview events.
    * @param {object} input The same input as plan().
    * @param {number} now Milliseconds.
-   * @returns {{applied:number, replies:number, interviews:number}} The week.
+   * @returns {{applied:number|null, replies:number, interviews:number}} The rolling period; unavailable applications stay unknown.
    */
   function week(input, now) {
     var data = input || {}, events = data.updates && Array.isArray(data.updates.events) ? data.updates.events : [];
     var inWeek = function (value) { var at = time(value); return Number.isFinite(at) && at <= now && now - at <= 7 * DAY; };
     return {
-      applied: (Array.isArray(data.applied) ? data.applied : []).filter(function (job) { return inWeek(job && job.applied_at); }).length,
+      applied: data.progress?.period==='past7days'&&Number.isSafeInteger(data.progress.applied)&&data.progress.applied>=0?data.progress.applied:null,
       replies: events.filter(function (event) { return event && inWeek(event.date); }).length,
       interviews: events.filter(function (event) { return event && event.kind === 'interview' && inWeek(event.date); }).length,
     };

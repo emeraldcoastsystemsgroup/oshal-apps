@@ -19,9 +19,14 @@
  * 2026-06-17 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com | Initial — Plaid request helper (env-selectable sandbox/production), link-token + public_token exchange + sandbox-item helpers, and fetchFinanceAggregate (balances + investment holdings + transactions → compact net-worth/holdings/spend aggregate). Read-only; per-product try/catch so one unready product never fails the whole sync.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | T8: createLinkToken retries without PLAID_REDIRECT_URI when Plaid answers INVALID_FIELD (the return address is not registered yet), the same fallback the kernel adapter has, so Link still opens with Plaid's pop-up OAuth. removeItem answers whether Plaid was told ({providerDisconnected}); ITEM_NOT_FOUND counts as disconnected (nothing left at Plaid), INVALID_ACCESS_TOKEN no longer does: after a PLAID_ENV change the item stays live and billable, so it throws with the reconnect-or-dashboard message and the caller keeps the row.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Same Plaid contract as the native kernel adapter: Link asks for transactions with investments optional (banks without brokerage products are listed), sends PLAID_REDIRECT_URI for OAuth banks when set, balances come from /accounts/get, transactions page up to 2000 in the window, and removeItem disconnects an item at Plaid (an already-gone item counts as removed).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve unreported balances as null and mark unreadable balance inventory incomplete so unknown or partial totals never become zero.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Preserve bounded provider-window transaction coverage and withhold complete-window rollups when pages or reported counts are partial or unknown.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Require bounded case-sensitive provider transaction identities before declaring a reported window complete; retain available duplicate or invalid rows without aggregation.
  *
  * @module finance-plaid
  */
+
+import { finiteAmount, roundAmount, sumAmounts } from './finance-values';
 
 const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
 const PLAID_BASE = `https://${PLAID_ENV}.plaid.com`;
@@ -40,7 +45,7 @@ export interface FinanceAccount {
   type: string;
   subtype: string | null;
   mask: string | null;
-  balance: number;
+  balance: number | null;
   currency: string;
   institution: string;
 }
@@ -57,12 +62,49 @@ export interface FinanceHolding {
   accountName: string;
 }
 
+/** Provider-reported transaction-window coverage, independently of bank-history completeness. */
+export interface FinanceTransactionInstitutionCoverage {
+  institution: string;
+  state: 'complete' | 'partial' | 'unknown';
+  returned: number;
+  total: number | null;
+  pages: number;
+  reason: TransactionCoverageReason;
+}
+
+/** Combined evidence across every institution included in this aggregate. */
+export interface FinanceTransactionCoverage {
+  state: 'complete' | 'partial' | 'unknown';
+  returned: number;
+  total: number | null;
+  institutions: FinanceTransactionInstitutionCoverage[];
+}
+
+type TransactionCoverageReason = 'page_limit' | 'unknown_total' | 'total_changed' | 'invalid_total'
+  | 'invalid_page' | 'short_page' | 'unavailable' | 'invalid_metadata'
+  | 'invalid_transaction_id' | 'duplicate_transaction' | null;
+type FinanceTransaction = { date: string; name: string; amount: number; category: string };
+interface TransactionAccumulator {
+  txns: FinanceTransaction[];
+  notes: string[];
+  transactionCoverage: FinanceTransactionInstitutionCoverage[];
+}
+interface AggregateAccumulator extends TransactionAccumulator {
+  accounts: FinanceAccount[];
+  holdings: FinanceHolding[];
+  balancesComplete: boolean;
+}
+interface TransactionWindow { rows: PlaidApiTxn[]; total: number | null; pages: number; reason: TransactionCoverageReason; }
+
 /** The compact, bot-ready view of a user's finances (read-only aggregation). */
 export interface FinanceAggregate {
   generatedAt: string;
   sourceEnvironment?: string;
   currency: string;
-  netWorth: { assets: number; liabilities: number; net: number };
+  netWorth: { assets: number | null; liabilities: number | null; net: number | null };
+  balancesComplete?: boolean;
+  transactionsComplete?: boolean;
+  transactionCoverage?: FinanceTransactionCoverage;
   accounts: FinanceAccount[];
   holdings: FinanceHolding[];
   topSpending: Array<{ category: string; total: number; count: number }>;
@@ -230,7 +272,7 @@ async function foldItem(
   accessToken: string,
   institution: string,
   windowDays: number,
-  acc: { accounts: FinanceAccount[]; holdings: FinanceHolding[]; txns: Array<{ date: string; name: string; amount: number; category: string }>; notes: string[] },
+  acc: AggregateAccumulator,
 ): Promise<void> {
   await foldBalances(accessToken, institution, acc);
   await foldHoldings(accessToken, institution, acc);
@@ -238,18 +280,20 @@ async function foldItem(
 }
 
 /** Add an item's account balances to the aggregate. */
-async function foldBalances(accessToken: string, institution: string, acc: { accounts: FinanceAccount[]; notes: string[] }): Promise<void> {
+async function foldBalances(accessToken: string, institution: string, acc: { accounts: FinanceAccount[]; notes: string[]; balancesComplete: boolean }): Promise<void> {
   try {
     const bal = await plaidRequest<{ accounts: PlaidApiAccount[] }>('/accounts/get', { access_token: accessToken });
+    if (!Array.isArray(bal.accounts)) throw new Error('Account balances were not reported');
     for (const a of bal.accounts || []) {
       acc.accounts.push({
         name: a.name || a.official_name || 'Account',
         type: a.type || 'other', subtype: a.subtype || null, mask: a.mask || null,
-        balance: Number(a.balances?.current ?? a.balances?.available ?? 0),
+        balance: finiteAmount(a.balances?.current ?? a.balances?.available),
         currency: a.balances?.iso_currency_code || 'USD', institution,
       });
     }
   } catch (err) {
+    acc.balancesComplete = false;
     acc.notes.push(`balances unavailable for ${institution} (${(err as PlaidError).plaidCode || 'error'})`);
   }
 }
@@ -281,25 +325,17 @@ async function foldHoldings(accessToken: string, institution: string, acc: { hol
   }
 }
 
-/** Add an item's recent transactions to the aggregate. */
+/** Add available rows and independently reported coverage without inventing full-window totals. */
 async function foldTransactions(
-  accessToken: string, institution: string, windowDays: number,
-  acc: { txns: Array<{ date: string; name: string; amount: number; category: string }>; notes: string[] },
+  accessToken: string, institution: string, windowDays: number, acc: TransactionAccumulator,
 ): Promise<void> {
   const end = new Date();
   const start = new Date(end.getTime() - windowDays * 86_400_000);
   const fmt = (d: Date): string => d.toISOString().slice(0, 10);
   try {
-    const rows: PlaidApiTxn[] = [];
-    for (let page = 0; page < 4; page++) {
-      const tx = await plaidRequest<{ transactions: PlaidApiTxn[]; total_transactions?: number }>('/transactions/get', {
-        access_token: accessToken, start_date: fmt(start), end_date: fmt(end), options: { count: 500, offset: rows.length },
-      });
-      const batch = tx.transactions || [];
-      rows.push(...batch);
-      if (batch.length < 500 || rows.length >= Number(tx.total_transactions || 0)) break;
-    }
-    for (const t of rows) {
+    const window = await readTransactionWindow(accessToken, fmt(start), fmt(end));
+    recordTransactionCoverage(acc, institution, window);
+    for (const t of window.rows) {
       acc.txns.push({
         date: t.date || '', name: t.merchant_name || t.name || 'Transaction',
         amount: Number(t.amount || 0),
@@ -307,8 +343,93 @@ async function foldTransactions(
       });
     }
   } catch (err) {
+    acc.transactionCoverage.push({ institution: institution.slice(0, 200), state: 'unknown', returned: 0,
+      total: null, pages: 0, reason: 'unavailable' });
     acc.notes.push(`transactions not ready for ${institution} (${(err as PlaidError).plaidCode || 'error'}) — try syncing again shortly`);
   }
+}
+
+/** Keep the existing four-page read budget and require consistent reported counts. */
+async function readTransactionWindow(accessToken: string, start: string, end: string): Promise<TransactionWindow> {
+  const window: TransactionWindow = { rows: [], total: null, pages: 0, reason: 'page_limit' };
+  const identities = new Set<string>();
+  for (let page = 0; page < 4; page++) {
+    const response = await plaidRequest<{ transactions?: unknown; total_transactions?: unknown }>('/transactions/get', {
+      access_token: accessToken, start_date: start, end_date: end, options: { count: 500, offset: window.rows.length },
+    });
+    window.pages++;
+    const batch = response.transactions;
+    if (!Array.isArray(batch) || batch.length > 500
+      || !batch.every(row => row && typeof row === 'object' && !Array.isArray(row))) {
+      window.reason = 'invalid_page';
+      break;
+    }
+    window.rows.push(...batch as PlaidApiTxn[]);
+    const reported = transactionTotal(response.total_transactions, window.total, window.rows.length);
+    window.total = reported.total;
+    if (reported.reason !== null) {
+      window.reason = reported.reason;
+      break;
+    }
+    const identityFailure = transactionIdentity(batch as PlaidApiTxn[], identities);
+    if (identityFailure !== null) {
+      window.reason = identityFailure;
+      break;
+    }
+    if (window.total === window.rows.length) {
+      window.reason = null;
+      break;
+    }
+    if (batch.length < 500) {
+      window.reason = 'short_page';
+      break;
+    }
+  }
+  return window;
+}
+
+/** Missing, inconsistent or impossible provider totals cannot attest complete coverage. */
+function transactionTotal(value: unknown, previous: number | null, returned: number): { total: number | null; reason: TransactionCoverageReason } {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) return { total: null, reason: 'unknown_total' };
+  const total = value as number;
+  if (previous !== null && previous !== total) return { total: null, reason: 'total_changed' };
+  if (total < returned) return { total: null, reason: 'invalid_total' };
+  return { total, reason: null };
+}
+
+/** An opaque provider identity is case-sensitive and never normalized or silently deduplicated. */
+function transactionIdentity(rows: PlaidApiTxn[], seen: Set<string>): TransactionCoverageReason {
+  for (const row of rows) {
+    const id = row.transaction_id;
+    if (typeof id !== 'string' || !id.trim() || Buffer.byteLength(id, 'utf8') > 512) return 'invalid_transaction_id';
+    if (seen.has(id)) return 'duplicate_transaction';
+    seen.add(id);
+  }
+  return null;
+}
+
+/** Keep the bounded reason and available row count with the institution that reported it. */
+function recordTransactionCoverage(acc: TransactionAccumulator, institution: string, window: TransactionWindow): void {
+  const state = window.reason === null ? 'complete'
+    : window.reason === 'page_limit' && window.total !== null ? 'partial' : 'unknown';
+  acc.transactionCoverage.push({ institution: institution.slice(0, 200), state, returned: window.rows.length,
+    total: window.total, pages: window.pages, reason: window.reason });
+  if (state !== 'complete') {
+    const count = window.total === null ? `${window.rows.length} available` : `${window.rows.length} of ${window.total} reported`;
+    acc.notes.push(`Transaction coverage is ${state} for ${institution}: ${count} transactions. Full-window spending and income totals are unavailable.`);
+  }
+}
+
+/** Unknown evidence dominates partial evidence; no institution means no verified provider window. */
+function combinedTransactionCoverage(institutions: FinanceTransactionInstitutionCoverage[]): FinanceTransactionCoverage {
+  let state: FinanceTransactionCoverage['state'] = !institutions.length || institutions.some(c => c.state === 'unknown') ? 'unknown'
+    : institutions.some(c => c.state === 'partial') ? 'partial' : 'complete';
+  const returned = institutions.reduce((sum, c) => sum + c.returned, 0);
+  const sum = institutions.length && institutions.every(c => c.total !== null)
+    ? institutions.reduce((total, c) => total + (c.total as number), 0) : null;
+  const total = sum !== null && Number.isSafeInteger(sum) ? sum : null;
+  if (!Number.isSafeInteger(returned) || sum !== null && total === null) state = 'unknown';
+  return { state, returned, total, institutions };
 }
 
 /**
@@ -322,25 +443,24 @@ export async function fetchFinanceAggregate(
   items: Array<{ accessToken: string; institution: string }>,
   windowDays = 90,
 ): Promise<FinanceAggregate> {
-  const acc = { accounts: [] as FinanceAccount[], holdings: [] as FinanceHolding[], txns: [] as Array<{ date: string; name: string; amount: number; category: string }>, notes: [] as string[] };
+  const acc = { accounts: [] as FinanceAccount[], holdings: [] as FinanceHolding[], txns: [] as Array<{ date: string; name: string; amount: number; category: string }>, notes: [] as string[], balancesComplete: true, transactionCoverage: [] as FinanceTransactionInstitutionCoverage[] };
   for (const it of items) await foldItem(it.accessToken, it.institution, windowDays, acc);
   return assembleAggregate(acc, windowDays);
 }
 
 /** Roll the raw accumulators into the final aggregate (net worth + spend analytics). */
 function assembleAggregate(
-  acc: { accounts: FinanceAccount[]; holdings: FinanceHolding[]; txns: Array<{ date: string; name: string; amount: number; category: string }>; notes: string[] },
+  acc: AggregateAccumulator,
   windowDays: number,
 ): FinanceAggregate {
-  let assets = 0, liabilities = 0;
-  for (const a of acc.accounts) {
-    if (LIABILITY_TYPES.has(a.type)) liabilities += Math.abs(a.balance);
-    else assets += a.balance;
-  }
+  const assets = acc.balancesComplete ? sumAmounts(acc.accounts.filter((a) => !LIABILITY_TYPES.has(a.type)).map((a) => a.balance)) : null;
+  const liabilities = acc.balancesComplete ? sumAmounts(acc.accounts.filter((a) => LIABILITY_TYPES.has(a.type)).map((a) => a.balance === null ? null : Math.abs(a.balance))) : null;
   const currency = acc.accounts.find((a) => a.currency)?.currency || 'USD';
+  const transactionCoverage = combinedTransactionCoverage(acc.transactionCoverage);
+  const transactionsComplete = transactionCoverage.state === 'complete';
   const spendByCat = new Map<string, { total: number; count: number }>();
   const byMonth = new Map<string, { spend: number; income: number }>();
-  for (const t of acc.txns) {
+  for (const t of transactionsComplete ? acc.txns : []) {
     const month = (t.date || '').slice(0, 7);
     const m = byMonth.get(month) || { spend: 0, income: 0 };
     if (t.amount > 0) { // Plaid: positive = money out
@@ -352,8 +472,9 @@ function assembleAggregate(
   }
   return {
     generatedAt: new Date().toISOString(), sourceEnvironment: PLAID_ENV, currency,
-    netWorth: { assets: round(assets), liabilities: round(liabilities), net: round(assets - liabilities) },
-    accounts: acc.accounts.map((a) => ({ ...a, balance: round(a.balance) })),
+    balancesComplete: acc.balancesComplete, transactionsComplete, transactionCoverage,
+    netWorth: { assets: roundAmount(assets), liabilities: roundAmount(liabilities), net: assets === null || liabilities === null ? null : round(assets - liabilities) },
+    accounts: acc.accounts.map((a) => ({ ...a, balance: roundAmount(a.balance) })),
     holdings: acc.holdings.sort((a, b) => b.value - a.value).map((h) => ({ ...h, value: round(h.value) })),
     topSpending: [...spendByCat.entries()].map(([category, v]) => ({ category, total: round(v.total), count: v.count }))
       .sort((a, b) => b.total - a.total).slice(0, 10),
@@ -368,7 +489,7 @@ function assembleAggregate(
 function round(n: number): number { return Math.round(n * 100) / 100; }
 
 /* ─── minimal Plaid response shapes (only the fields we read) ─────────────────── */
-interface PlaidApiAccount { account_id: string; name?: string; official_name?: string; type?: string; subtype?: string; mask?: string; balances?: { current?: number; available?: number; iso_currency_code?: string }; }
+interface PlaidApiAccount { account_id: string; name?: string; official_name?: string; type?: string; subtype?: string; mask?: string; balances?: { current?: number | null; available?: number | null; iso_currency_code?: string }; }
 interface PlaidApiSecurity { security_id: string; name?: string; ticker_symbol?: string; type?: string; close_price?: number; }
 interface PlaidApiHolding { account_id: string; security_id: string; quantity?: number; institution_value?: number; cost_basis?: number; }
-interface PlaidApiTxn { date?: string; name?: string; merchant_name?: string; amount?: number; category?: string[]; personal_finance_category?: { primary?: string }; }
+interface PlaidApiTxn { transaction_id?: unknown; date?: string; name?: string; merchant_name?: string; amount?: number; category?: string[]; personal_finance_category?: { primary?: string }; }

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Recruiters, grade F). The real tools/career-recruiters.html in Chromium over a synthetic fixture: a list answering 500 shows "Couldn't load your recruiters" with Retry (role=alert) and never "No recruiters in this view", and Retry recovers all 18 firms; the add form labels its fields with the required mark and on a phone opens as an "Add recruiter" sheet with one Add; status selects are at least 44px; Delete lives in the row menu and confirms in the page (no browser dialog); a search field appears past 10 firms and filters the rows.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 1. A person with no recruiter (no store, or a store with no firm in it) sees "No recruiters yet", what the list is for, and one filled button, Add a recruiter; on a computer that button reveals the form in the page and the form's Add becomes the one filled button; on a phone the form is not on the first screen and the button opens the sheet. The label reads Type, not Bucket, and the request still sends the stored field name. The cases that already added a firm follow the new button name and reveal the form first.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Measure actual44px firm/contact links and long-label wrapping without changing their native destinations or tracker state; await the asynchronous sheet close before checking its replacement action.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,6 +34,27 @@ function tracker(state) {
     return null;
   };
 }
+
+for(const [label,size] of [['computer',DESKTOP],['phone',PHONE]])test(`${label}: firm and contact links have44px targets and wrap long labels`,async()=>{
+  const rows=firms().slice(0,2).map((r,i)=>({...r,firm:i?'ExecutiveSearch'.repeat(24):'A',
+    website:'https://firm.example.invalid/'+i,contact_name:i?'RecruiterContact'.repeat(24):'Jo',
+    contact_link:'https://contact.example.invalid/'+i,contact_role:'Recruiter'}));
+  const {page,context,calls}=await openScreen(browser,'career-recruiters.html',tracker({rows,fail:0}),size);
+  try{
+    await page.locator('.row').nth(1).waitFor();
+    const links=page.locator('.row .firm a,.row .contact a');
+    const targets=await links.evaluateAll(es=>es.map(e=>({text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height})));
+    assert.equal(targets.length,4);
+    assert.ok(targets.every(t=>t.width>=44&&t.height>=44),JSON.stringify(targets));
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth),'long recruiter names wrap within the screen');
+    assert.deepEqual(await links.evaluateAll(es=>es.map(e=>[e.getAttribute('href'),e.target,e.rel])),[
+      [rows[0].website,'_blank','noopener'],[rows[0].contact_link,'_blank','noopener'],
+      [rows[1].website,'_blank','noopener'],[rows[1].contact_link,'_blank','noopener']]);
+    await links.first().focus();
+    assert.equal(await links.first().evaluate(e=>document.activeElement===e),true);
+    assert.equal(calls.some(c=>['POST','DELETE','PATCH'].includes(c.method)),false,'measuring and focusing links cannot update recruiter records');
+  }finally{await context.close();}
+});
 
 test('a failed list is an alert with Retry, never the empty state, and Retry shows every firm', async () => {
   const state = { rows: firms(), fail: 1 };
@@ -125,6 +147,7 @@ for (const [name, answer] of Object.entries(NO_RECRUITERS)) {
         const add = page.getByRole('button', { name: 'Add', exact: true });
         if (size === PHONE) await add.tap(); else await add.click();
         await page.locator('.row').first().waitFor();
+        await page.locator('#openAdd').waitFor({state:'visible'});
         assert.equal(calls.filter((c) => c.method === 'POST' && c.path === '/api/career-hunter/recruiters').length, 1);
         assert.equal(await page.getByRole('heading', { name: 'No recruiters yet' }).count(), 0);
         assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Add a recruiter'], 'the form is put away after the add');

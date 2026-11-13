@@ -1,3 +1,7 @@
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register native Orbit setup, exact device links and Linux-only bridge host boundaries.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Route and honesty cases pin TV link/show plans to their saved computer and closed one-use runner.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Plans do not become successful history until an actual result is recorded.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register recovered tracking and dated account evidence; refresh device overview expectations.
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Phone & Device Control (phone-control).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: every case crosses its real boundary. The 1.0.0 cases asserted the made-up key handshake with Bluetooth switched off and are deleted. Locally tested and live-proven are kept apart: routes, honesty, computer link and bridge run in store-ci; the kernel runner, real adb and the whole chain run on a computer that has them; the Bluetooth takeover and the Android phone are live and need the operator's own computer and phones.
@@ -18,6 +22,11 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: readiness 1.10.0; phone-control-home-tree also renames a computer through the kernel's given name.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): phone-control-play registers the play-a-show suite (a scripted Fire TV: search, the matching show, Resume, playing).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): readiness 1.12.0 (it still said 1.10.0); phone-control-apps registers the TV apps suite (a scripted TV: which streaming apps it has from one read of its app list, nothing pressed, other packages only counted).
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79): readiness 1.13.0; phone-control-apps also expects the TV's model and maker from two reads (still nothing pressed); phone-control-inventory registers the record route (what the TV's computer printed, checked and handed to the kernel's device inventory as the person, against a stand-in intent).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): readiness 1.14.0; phone-control-own-devices registers who may use the application (a person who is not an administrator adds and presses their own device, another person's stays out of reach, a page-only account is refused, nothing in the catalog reaches beyond the person's own); phone-control-isolation now proves the same on a disposable kernel: an administrator, a person who is not one with their own computer and TV, a page-only account, and role administration refused to the person who is not an installation administrator; phone-control-delivery-carry proves what a delivery of this release does to access already held (the admin template and role, viewer and reader stay active; editor and operator, which gain permissions, wait for re-approval).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83), the same release: phone-control-installation-address registers where a provisioned device is told to sign in (the kernel's own public origin, else the public host the request arrived on as https, else a refusal in words; never a fixed installation) and the guard that no file the package runs names an installation; phone-control-isolation proves the same through a real kernel.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register the closed native relay mounted-HTTP contract and follow package1.17.0 readiness.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | 1.18.0: readiness 1.18.0; phone-control-fire-tv-guide registers the Fire TV phone-app guide suite (tests/remote-guides.test.cjs): the mounted read-only route over real HTTP and SQLite, with a native-intent fixture that fails the case if the guide ever calls an action.
 version: 1
 cases:
   - id: package-readiness
@@ -28,7 +37,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.12.0 with its store open.
+      - The installed phone-control package answers its identity and version 1.18.0 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -49,6 +58,7 @@ cases:
     expected:
       - Fourteen removed 1.0.0 routes answer 404; no kernel caller is 401; a chosen tenant or owner is 400.
       - Another person reads a phone, its history and the reports as missing or empty.
+      - Link, title, app-list and sequence plans return planned true and executed false, preserve the exact computer command and write no execution history; actual recorded success and failure remain owner-scoped.
       - The Connection Concierge never offers Connect in console; an RDP question gets Check RDP port only, and a model reply naming connect_rdp is dropped.
       - Every 1.0.0 device row (each carries the invented handshake), its frames and its blob files are deleted once; other rows stay.
     prerequisites:
@@ -121,6 +131,7 @@ cases:
       files:
         - tests/phone-control-home-tree.test.mjs
     expected:
+      - Search selects the matching child before its parent and connection help/control options preserve existing actions at 412px and desktop.
       - Computers are listed connected first, each with its phones and TVs under it; devices attached to no listed computer are grouped apart.
       - Details show How it connects, Through, State, Control and Address for a saved device, and What it can do for a computer.
       - Rename posts the new name to the device route and the tree shows it.
@@ -157,6 +168,60 @@ cases:
     installation: never
     regressionTests:
       - { level: unit, file: tests/phone-control-ux-batch7.test.cjs }
+
+  - id: phone-control-native-relay
+    name: Saved native phone-to-TV connections and Open Orbit
+    purpose: Exercise the real mounted HTTP routes and SQLite with explicit native-intent and admission fixtures; actual original-Jarvis and native-device authority are verified separately by the core integration suite.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/native-relay.test.cjs
+    expected:
+      - Listing forwards an empty closed request and returns the native saved connection response unchanged.
+      - Open Orbit requires an exact canonical target and binding, and any echoed binding must match its path.
+      - Unknown fields, changed selectors and insufficient own permission are refused without a native action.
+      - Missing or refused native execution stays unavailable or refused with no retry, alternate bridge or local success record.
+      - Tool schemas, route bindings, the existing own-scope authorization and intent.run capability agree.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/native-relay.test.cjs }
+
+  - id: phone-control-fire-tv-guide
+    name: Fire TV phone-app guide (read only)
+    purpose: Exercise the real mounted guide route over HTTP and SQLite with a native-intent fixture that throws if called; a phone following the guide and what a TV then plays are outside this case.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/remote-guides.test.cjs
+    expected:
+      - The guide answers a fixed packet marked not executed, with connection and playback unverified, and writes no history.
+      - It names no phone, TV, address or saved connection, and both owners read the same text.
+      - The existing remote and its centre or select step come before any content search, which is only for different content.
+      - Any query field, an absent or inactive kernel caller and a chosen owner or scope are refused.
+      - The tool takes no input and is bound, like its route, to the existing own-scope read permissions only.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/remote-guides.test.cjs }
 
   - id: phone-control-rp-features
     name: Session preferences, captures, transfers, chat, whiteboard, and concierge turn planner
@@ -311,7 +376,7 @@ cases:
         - tests/phone-control-apps.test.mjs
     expected:
       - A Fire TV answers Netflix, Prime Video (its own Fire TV package), YouTube and the oshal TV app with their keys and packages, and counts its four other packages without naming them.
-      - The only command the TV receives is pm list packages; no key, wake or app is sent.
+      - The TV receives only reads (pm list packages, then its model and maker with getprop); no key, wake or app is sent. A property it cannot read, or one that is not a plain name, is left out and the apps are still answered.
       - A Google TV answers its own packages, and one service installed twice is one app.
       - An empty list and an adb failure are refused in words (no_app_list, not_connected); a Roku and a Samsung TV are refused in words (android_only), also by the installed bridge verb.
     prerequisites:
@@ -321,6 +386,74 @@ cases:
     isolation: { mode: disposable, cleanup: "A scripted TV in memory; no adb, network or device is contacted." }
     limits: { timeoutMs: 120000, maxMemoryMb: 256 }
     installation: never
+  - id: phone-control-inventory
+    name: What a TV can play, kept in the person's device inventory
+    purpose: Prove POST /devices/:id/apps/record (routes/phone-control-inventory.js) checks the one JSON line the TV's computer printed for What a TV can play, records it against the TV, and hands the kernel's device.inventory.record, as the person, the TV, its ADB route through its own computer, its applications with the services they reach, what was looked for and the others counted (T79, the device inventory).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-inventory.test.cjs
+    expected:
+      - The apps go through the closed list, each once, with a package only when it is a package name; a package outside the list never reaches the kernel; the read is recorded against the TV.
+      - The kernel is told the TV by its saved id and name, a Fire TV from its model (only a TV when nothing says which), its ADB route through the TV's own computer that worked, that its applications can be listed, the apps and their services, the seven looked for and the others.
+      - A read the TV refused records the route as down in the bridge's words and claims nothing else; a kernel that refuses, or has no inventory, is said in words while the apps are still answered.
+      - A phone, an unknown TV, another person's TV and a missing or foreign reply are refused in words, and nothing refused reaches the kernel.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "The package's own store in a throwaway folder and a stand-in kernel intent in memory; no device is contacted." }
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: phone-control-own-devices
+    name: Every person uses their own devices; nothing reaches beyond them
+    purpose: Prove, with the permission catalog deciding each request in front of the package's real routes and store, that a person who is not an administrator (the operator or the editor role) adds a TV on their own computer, renames it, presses it, writes history, reads the bridge files and removes it; that another person's device, history and computer stay out of reach; that a page-only account (viewer, reader) reads the page and is refused every device feature; and that the catalog keeps both resources at the own scope.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-own-devices.test.cjs
+    expected:
+      - An operator and an editor each add a TV that their own computer connects (no computer named), rename it, press it (the command names their own computer), keep history, read the bridge manifest at the package version and remove it.
+      - The other person's TV answers 404 to read, rename, press, plan, open a link and remove; their history and computer reports are not listed; a person with no computer of their own is refused in words, never given someone else's.
+      - A viewer and a reader read the page with the Not available on your account card, which no longer names the administrator, and get 403 on every device feature.
+      - The eight working permissions sit at the tier their effect needs, the operator, editor and admin roles grant all ten at the own scope, every route, tool and bot is open to a person who is not an administrator, and a resource with a wider scope would have to keep its permissions at the admin tier.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "The package's own store in a throwaway folder; the catalog is read from the package; no device or kernel is contacted." }
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-own-devices.test.cjs }
+      - { level: integration, file: tests/live/isolation-proof.cjs }
+  - id: phone-control-installation-address
+    name: A device is told the installation it is on, never a fixed one
+    purpose: Prove over the real routes and real HTTP, with the headers the kernel hands a package, that POST /provision without a serverUrl plans the public origin the kernel declares for this installation, else the public host name the request arrived on as https whatever the request's protocol says, and otherwise answers server_required in words and plans nothing; that the page's four pushes of the oshal app send the page's own origin; and that no file the package runs names an installation.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-installation-address.test.cjs
+    expected:
+      - A tool call (x-oshal-public-origin, no Host) plans that origin, and the command the computer runs carries it; a declared http origin with a port is kept as declared.
+      - With no declared origin, a public host name is planned as https with protocol http on the request; the caller's serverUrl wins over both.
+      - A loopback or home-network address, a bare name, no Host, and a public-origin header that is not an origin answer 400 server_required ("Say which server this TV should connect to.") with no plan.
+      - The four pushes on the page send installationOrigin(), the page's own origin; outside a page there is none.
+      - The guard catches a fixed installation address with and without a scheme, an unknown outside host and a house network address, lets reserved names through, and finds none in the package's runtime files.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "The package's own store in a throwaway folder and a loopback server; no device or kernel is contacted." }
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-installation-address.test.cjs }
+      - { level: integration, file: tests/live/isolation-proof.cjs }
   - id: phone-control-lan
     name: TVs and streaming sticks on the home network, against protocol fakes
     purpose: Prove the bridge's lan-discover and lan-control verbs (bridge/oshal_phone_lan.py) refuse any address that is not a private home-network address and any action outside the closed list, send the exact Wake-on-LAN bytes only to the MACs named, read a Samsung, Roku or Cast device read-only, press keys on a fake Roku ECP server and a fake Samsung TLS WebSocket TV, keep the Samsung pairing token 0600 on the computer, and find two fake TVs without running adb or installing anything.
@@ -431,8 +564,8 @@ cases:
       - { level: browser, file: tests/phone-control-connect-ui.test.cjs }
 
   - id: phone-control-isolation
-    name: Two-administrator and non-admin isolation on a disposable kernel
-    purpose: Boot a disposable Postgres and oshald with two phone-control administrators and one non-admin, proving zero cross-person visibility or command delivery and 403 non-admin refusal.
+    name: Every person's own devices, and nobody else's, on a disposable kernel
+    purpose: Boot a disposable Postgres and oshald with a Device Control administrator, a person who is not an administrator (the operator template) and a page-only account (the viewer template), proving the person who is not an administrator adds a TV on their own computer and presses it there, sees and reaches nothing of the administrator's, cannot give anyone a role, and that the page-only account is refused every device feature.
     level: integration
     runner:
       kind: external
@@ -441,8 +574,11 @@ cases:
         - tests/live/isolation-proof.sh
         - tests/live/isolation-proof.cjs
     expected:
-      - Person B gets empty lists and 404 on Person A's TV and mirrored iPhone, history, reports, computer run, mirror-frame and screen, with zero commands delivered to Person A's computer.
-      - Person C gets 200 on /api/phone-control/ui and 403 on /api/phone-control/devices.
+      - Person B (not an administrator) gets empty lists and 404 on Person A's TV and mirrored iPhone, history, reports, computer run, mirror-frame and screen, with zero commands delivered to Person A's computer.
+      - Person B then adds a TV on their own computer without naming one, presses it, and the kernel delivers that one command to Person B's computer and none to Person A's; Person A reads 404 on Person B's TV.
+      - Person B is refused (403) when previewing or applying a role for themselves: giving access stays with the installation's administrators.
+      - Person C (page only) gets 200 on /api/phone-control/ui with the Not available on your account card, and 403 on listing, adding and the bridge files.
+      - POST /api/phone-control/provision without serverUrl answers server_required on the kernel's loopback address, also when the caller sends a public-origin header of its own; arriving on a public host name it plans https at that host; a named serverUrl is used as given.
     prerequisites:
       - service:docker
       - fixture:oshald-binary
@@ -454,6 +590,33 @@ cases:
     installation: never
     regressionTests:
       - { level: integration, file: tests/live/isolation-proof.cjs }
+
+  - id: phone-control-delivery-carry
+    name: A delivery of 1.14.0 keeps the access people hold, and new permissions wait
+    purpose: Start a disposable Postgres and oshald on the version before this one, give an administrator the Device Control Administrator template and a second person each role, replace the installed folder with this package's and reload it as a delivery does, and prove which assignments stay active with nothing pressed and which wait for re-approval.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/isolation-proof.sh
+        - tests/live/delivery-carry-proof.cjs
+    expected:
+      - The kernel lists the delivered version after POST /packages/phone-control/reload.
+      - The admin template and the admin role (their permissions only moved to a lower minimum tier) and the viewer and reader roles (unchanged) stay active, stamped with the delivered plan.
+      - The editor and operator roles, which gain the device permissions, read contract_changed and their re-approval preview says what is new.
+      - The second person still lists their devices (200) through the role that carried over.
+    prerequisites:
+      - service:docker
+      - fixture:oshald-binary
+    sideEffects: disposable
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/live/delivery-carry-proof.cjs }
 
   - id: phone-control-adb-host
     name: Real adb on a Linux computer, no root and no phone
@@ -570,3 +733,31 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+
+  - id: phone-control-native-orbit-setup
+    name: Native Orbit setup and optional Linux bridge
+    purpose: Show current Orbit downloads and exact registered-device links before optional Linux bridge setup while preserving direct device sessions.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-home-tree.test.mjs
+        - tests/phone-control-connect-ui.test.cjs
+        - tests/phone-control-ux-batch7.test.cjs
+    expected:
+      - Windows and Android devices remain directly selectable by exact identifiers with separately reported connection and control states.
+      - Native setup links to this installation's current downloads page without sending a device command.
+      - Only an explicitly reported Linux host can offer bridge setup; fresh platform changes invalidate an old selection.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/phone-control-home-tree.test.mjs }
+      - { level: browser, file: tests/phone-control-connect-ui.test.cjs }
+      - { level: unit, file: tests/phone-control-ux-batch7.test.cjs }

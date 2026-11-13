@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep paper arming separate from execution and show the recorded strategy failure/current outcome with the last pass date.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: admit validated daily account strategies (modelVersion 3) alongside whole-share monthly models when saving an account strategy, surface failed daily backtest validation immediately, and restore the previous profile assignment if monitor binding fails.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make shared schedule state and its next action visible above the account control cards.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-bound strategy selection, explicit current authority, shared schedule status and compact account roster. Selection never activates execution.
@@ -20,24 +21,26 @@ async function renderNativeStrategyAccounts(token){
  wireNativeStrategyNavigation();
  await loadNativeAccountOverview(token);
 }
-function nativeAuthorityLabel(w,a){return !w?'Inactive':w.authority?.active?(a&&w.strategyId!==a.strategyId?'Active · different strategy':'Active'):w.automatedTrading?'Needs review · '+(w.authority?.status||'unverified'):'Inactive';}
+function nativeAuthorityLabel(w,a){return !w?'Inactive':w.authority?.active===true?(a&&w.strategyId!==a.strategyId?'Active · different strategy':'Active'):w.automatedTrading?'Needs review · '+(w.authority?.status||'unverified'):'Inactive';}
 function nativeProtectionLabel(p,available=true){return !available?'Unavailable':p?.nativeStatus?.effectiveStatus==='active'&&(p.automatedWatcherExits||p.automatedBrokerProtection)?'Active':p?.automatedWatcherExits||p?.automatedBrokerProtection?'Needs review':'Inactive';}
-function nativeAccountRoster(p,r,management,backstops){
- return '<section class="panel native-control-roster"><div class="native-section-head"><div><p class="native-eyebrow">Strategies by account</p><h2>Account strategies</h2></div><span class="sub">Strategy and watcher controls for each account</span></div><div class="native-roster-scroll"><table><thead><tr><th>Account</th><th>Value</th><th>Assigned strategy</th><th>Live trading</th><th>Watcher exits</th><th></th></tr></thead><tbody>'+p.accounts.filter(a=>a.kind==='live').map(a=>{
+function nativeAccountRoster(p,r,management,backstops,schedule){
+ return '<section class="panel native-control-roster"><div class="native-section-head"><div><p class="native-eyebrow">Strategies by account</p><h2>Account strategies</h2></div><span class="sub">Approval and scheduling do not establish that trading happened</span></div><div class="native-roster-scroll"><table><thead><tr><th>Account</th><th>Value</th><th>Assigned strategy</th><th>Live approval</th><th>Latest account check</th><th>Watcher exits</th><th></th></tr></thead><tbody>'+p.accounts.filter(a=>a.kind==='live').map(a=>{
   const w=management?.watches?.find(w=>nativeAccountsMatch(w,a)),policy=backstops?.policies?.find(b=>nativeAccountsMatch(b,a)),s=r?.strategies?.find(s=>s.id===a.strategyId);
-  return '<tr><td><a class="native-account-link" href="'+esc(nativeAccountHref(a))+'">'+esc(a.label)+'</a><span class="native-cell-note">'+esc(a.constraints?.group||a.accountType||'')+'</span></td><td class="native-value">'+accountValue(a.equity)+'</td><td class="native-roster-strategy">'+esc(s?.name||(r?'Choose a strategy':'Unavailable'))+'</td><td><span class="native-state '+(w?.authority?.active?'is-active':'')+'">'+esc(management?nativeAuthorityLabel(w,a):'Unavailable')+'</span></td><td><span class="native-state '+(nativeProtectionLabel(policy)==='Active'?'is-active':'')+'">'+esc(nativeProtectionLabel(policy,!!backstops))+'</span></td><td><a class="btn primary" href="'+esc(nativeAccountHref(a))+'">Manage strategy</a></td></tr>';
+  const status=typeof NativeAccountStatus==='undefined'?'<p>Status unknown · Account-status reader unavailable.</p>':NativeAccountStatus.html(NativeAccountStatus.live({account:a,watch:w,schedule,latestSession:p.researchWindow?.latestCompletedSession}),{compact:true});
+  return '<tr><td><a class="native-account-link" href="'+esc(nativeAccountHref(a))+'">'+esc(a.label)+'</a><span class="native-cell-note">'+esc(a.constraints?.group||a.accountType||'')+'</span></td><td class="native-value">'+accountValue(a.equity)+'</td><td class="native-roster-strategy">'+esc(s?.name||(r?'Choose a strategy':'Unavailable'))+'</td><td><span class="native-state '+(w?.authority?.active===true?'is-active':'')+'">'+esc(management?nativeAuthorityLabel(w,a):'Unavailable')+'</span></td><td>'+status+'</td><td><span class="native-state '+(nativeProtectionLabel(policy)==='Active'?'is-active':'')+'">'+esc(nativeProtectionLabel(policy,!!backstops))+'</span></td><td><a class="btn primary" href="'+esc(nativeAccountHref(a))+'">Manage strategy</a></td></tr>';
  }).join('')+'</tbody></table></div></section>';
 }
 async function loadNativeAccountOverview(token){
  const host=$('nativeAccountOverview');if(!host)return;
- const results=await Promise.allSettled(['/portfolio','/portfolio/research','/portfolio/management','/portfolio/backstops','/paper/books'].map(p=>api(p)));
+ const scheduleRead=typeof paperScheduleRow==='function'?paperScheduleRow({app:'intelligent-trades',name:'portfolio-watcher'}):Promise.reject(Error('Schedule reader unavailable'));
+ const results=await Promise.allSettled([...['/portfolio','/portfolio/research','/portfolio/management','/portfolio/backstops','/paper/books'].map(p=>api(p)),scheduleRead]);
  if(stale(token)||!host.isConnected)return;
- const [p,r,m,b,paper]=results.map(r=>r.status==='fulfilled'?r.value:null);
+ const [p,r,m,b,paper,schedule]=results.map(r=>r.status==='fulfilled'?r.value:null);
  if(!Array.isArray(p?.accounts)){host.innerHTML='<section class="panel"><h2>Strategy controls unavailable</h2><p>Refresh to verify account strategies and watcher status. The Accounts dashboard remains available.</p></section>';return;}
  NATIVE_STRATEGY_ACCOUNTS=p.accounts.filter(a=>a.kind==='live').map(a=>({...a,nativeReadOnly:true,state:Number.isFinite(a.equity)?'ok':'unavailable',positions:a.holdings||[]}));
  if(showFocusedNativeAccount(NATIVE_STRATEGY_ACCOUNTS))return;
  if(!NATIVE_STRATEGY_ACCOUNTS.length){renderNativePaperStrategyHome(host,paper);return;}
- host.innerHTML=nativeAccountRoster(p,r,m,b);
+ host.innerHTML=nativeAccountRoster(p,r,m,b,schedule);
  host.onclick=event=>{
   const link=event.target.closest('a[href]');
   if(!link||!host.contains(link)||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
@@ -46,11 +49,24 @@ async function loadNativeAccountOverview(token){
   if(model){event.preventDefault();nativeAccountView(model);}
  };
 }
+/** @description Keep the recorded paper strategy result instead of promising an unverified future pass.
+ * @param {object} strategy The saved assignment's name, last result and decision date.
+ * @returns {string} The actual result in words.
+ */
+function nativePaperOutcome(strategy){
+ const result=String(strategy.lastResult||'');
+ if(result.startsWith('failed:'))return 'Last strategy check failed: '+result.slice(7).trim();
+ if(result==='rebalanced')return 'Rebalanced to its targets of '+String(strategy.lastDecisionAsOf||'date unavailable').slice(0,10);
+ if(result==='current')return 'Targets already current'+(strategy.lastDecisionAsOf?' · decision '+String(strategy.lastDecisionAsOf).slice(0,10):'');
+ return result?'Last strategy result: '+result:'No strategy check recorded';
+}
 /** One roster row for a paper account: label, value, what it runs, armed state and the last pass. */
 function nativePaperStrategyRow(label,account,config,strategy,lastTick){
- const runs=strategy?esc(strategy.strategyName)+(strategy.lastResult==='rebalanced'?'<span class="native-cell-note">Rebalanced to its targets of '+esc(String(strategy.lastDecisionAsOf||'').slice(0,10))+'</span>':'<span class="native-cell-note">Rebalances at the next regular session</span>'):'Paper autopilot rules';
- const pass=lastTick?esc(lastTick.outcome)+' · '+esc(String(lastTick.orders))+' order'+(Number(lastTick.orders)===1?'':'s'):'Trades during the regular US session';
- return '<tr><td>'+esc(label)+'<span class="native-cell-note">Simulated money</span></td><td class="native-value">'+accountValue(account?.equity)+'</td><td>'+runs+'</td><td><span class="native-state '+(config?.armed?'is-active':'')+'">'+(config?.armed?'Active':'Stopped')+'</span></td><td>'+pass+'</td></tr>';
+ const runs=strategy?esc(strategy.strategyName)+'<span class="native-cell-note">'+esc(nativePaperOutcome(strategy))+'</span>':'Paper autopilot rules';
+ const at=lastTick?.at&&Number.isFinite(Date.parse(lastTick.at))?'<span class="native-cell-note"><time datetime="'+esc(lastTick.at)+'">'+esc(new Date(lastTick.at).toLocaleString())+'</time></span>':'';
+ const pass=lastTick?esc(lastTick.outcome||'Outcome unavailable')+' · '+esc(lastTick.orders==null?'Unknown':String(lastTick.orders))+' order'+(Number(lastTick.orders)===1?'':'s')+at:'No pass recorded';
+ const setting=config?.armed===true?'Armed':config?.armed===false?'Stopped':'Unknown';
+ return '<tr><td>'+esc(label)+'<span class="native-cell-note">Simulated money</span></td><td class="native-value">'+accountValue(account?.equity)+'</td><td>'+runs+'</td><td><span class="native-state">'+setting+'</span></td><td>'+pass+'</td></tr>';
 }
 /** The Strategies landing when no brokerage is connected: the person's paper accounts and where to act on them,
  * never a bare dead end — the paper rail is the product until a broker account exists. */
@@ -58,10 +74,10 @@ function renderNativePaperStrategyHome(host,paper){
  const named=(paper?.accounts||[]).filter(a=>!a.archived);
  if(!paper||(!paper.reference&&!named.length)){host.innerHTML='<section class="panel"><h2>No connected trading accounts</h2><p>Connect a brokerage account to manage its strategy. Paper accounts remain on the Accounts dashboard.</p></section>';return;}
  const rows=named.map(a=>nativePaperStrategyRow(a.label||a.book_ref,a.account,a.config,a.strategy,a.lastTick))
-  .concat(paper.reference?[nativePaperStrategyRow('Paper (reference book)',paper.reference.account,paper.reference.config,null,null)]:[]);
+  .concat(paper.reference?[nativePaperStrategyRow('Paper (reference book)',paper.reference.account,paper.reference.config,null,paper.reference.lastTick)]:[]);
  host.innerHTML='<section class="panel native-control-roster"><div class="native-section-head"><div><p class="native-eyebrow">Strategies on paper</p><h2>Your paper accounts</h2></div><span class="sub">Simulated money, real strategies</span></div>'+
-  '<p>No brokerage account is connected, so strategies run on paper: a saved strategy assigned to a paper account rebalances it to the strategy’s targets each market day, and the paper autopilot trades the rest by its own rules.</p>'+
-  '<div class="native-roster-scroll"><table><thead><tr><th>Account</th><th>Value</th><th>Runs</th><th>State</th><th>Last pass</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'+
+  '<p>No brokerage account is connected. These accounts use simulated money. Armed is a saved setting; the schedule, recorded checks and simulated fills establish what actually ran.</p>'+
+  '<div class="native-roster-scroll"><table><thead><tr><th>Account</th><th>Value</th><th>Strategy</th><th>Setting</th><th>Last recorded pass</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'+
   '<div class="native-form-actions"><button class="btn primary" data-native-paper-go="reports">Manage paper accounts</button><button class="btn ghost" data-native-paper-go="library">Strategy research</button></div>'+
   '<p class="sub">Live account strategies appear on this page when a brokerage account is connected.</p></section>';
  host.onclick=event=>{
@@ -72,7 +88,7 @@ function renderNativePaperStrategyHome(host,paper){
 }
 function nativeStrategyChoices(a,r,w,window){
  const strategies=r?.strategies||[],locked=!!w?.automatedTrading;
- const actual=locked?'<p class="native-attention">'+(w.authority?.active?'Authorized strategy: ':'Previous authorization: ')+esc(strategies.find(s=>s.id===w.strategyId)?.name||'Unavailable')+(w.strategyId!==a.strategyId?'. This differs from the assigned strategy below. Deactivate before reviewing the replacement.':'')+'</p>':'';
+ const actual=locked?'<p class="native-attention">'+(w.authority?.active===true?'Authorized strategy: ':'Previous authorization: ')+esc(strategies.find(s=>s.id===w.strategyId)?.name||'Unavailable')+(w.strategyId!==a.strategyId?'. This differs from the assigned strategy below. Deactivate before reviewing the replacement.':'')+'</p>':'';
  return '<div class="native-strategy-picker">'+actual+'<div class="native-form-grid"><label>Strategy for '+esc(a.label)+'<select data-native-account-strategy disabled>'+(!a.strategyId?'<option value="">Choose a strategy</option>':'')+strategies.map(s=>'<option value="'+esc(s.id)+'"'+(s.id===a.strategyId?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select></label><div class="native-picker-action"><button class="btn" data-native-management="account-change"'+(!r?' disabled':'')+'>Change strategy</button></div></div>'+
  '<div data-native-account-edit hidden><p class="sub">Changes apply only to <strong>'+esc(a.label)+'</strong>. Saving a selection leaves live trading inactive.</p>'+(locked?'<p class="native-attention">Deactivate this account’s live strategy before saving a replacement.</p>':'')+'<div class="native-form-actions"><button class="btn primary" data-native-management="account-save"'+(locked?' disabled':'')+'>Save strategy</button><button class="btn ghost" data-native-management="account-cancel">Cancel change</button></div><details class="native-evidence"><summary>Backtest selected strategy for this account</summary><p class="sub">A completed study for this exact account is required. This creates research only.</p><div class="native-form-grid"><label>Start date<input type="date" data-native-account-start value="'+esc(window?.suggestedStart||'')+'"></label><label>End date<input type="date" data-native-account-end value="'+esc(window?.latestCompletedSession||'')+'" max="'+esc(window?.latestCompletedSession||'')+'"></label></div><button class="btn" data-native-management="account-study">Run account backtest</button></details></div><p data-native-account-notice role="status" aria-live="polite"></p></div>';
 }

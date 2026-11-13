@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The Applied stage holds its filled buttons to the next thing to do on a job: Search and View application were filled beside every Open application.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 1: Home's step about Career's picks opens the picks address (?view=approve), not ?view=saved.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 5: a job the person marked themselves, and one with no record of how it was sent, leads with Applied; Sent stays for what a computer reported or a confirmation page Career holds. The status-line cases pin the whole line for each source, and the Applied rows in the browser read "Applied · November 10 · You marked this as applied yourself…" and "Applied · Career has no record of how this was sent." beside the two that still read Sent.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Open the phone List view from its Filters sheet while preserving save and stage-count checks.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep actionable match counts and links distinct from dated scoring activity while preserving saved and pipeline records.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -265,7 +267,11 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
     try {
       await ready(page);
       assert.equal((await page.textContent('.cf-chip')).trim(), '1 saved');
-      if (size === PHONE) await page.getByRole('tab', { name: 'List' }).tap();
+      if (size === PHONE) {
+        await page.getByRole('button', { name: 'Filters', exact: true }).tap();
+        await page.getByRole('tab', { name: 'List' }).tap();
+        await page.getByRole('button', { name: 'Done', exact: true }).tap();
+      }
       const save = page.locator('.job-row[data-job-id="8"]').getByRole('button', { name: 'Save', exact: true });
       await save.waitFor();
       await press(size, save);
@@ -291,8 +297,8 @@ test('once a person has applied, the bar counts their applications, the same num
 
 for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
   test(`${label}: Home's New matches card shows a number, its pipeline has no To approve, and no card opens the activity page`, async () => {
-    const state = { stats: { saved: 7, applied: 2, interviewing: 1, queued: 3, tracked: 4, byStatus: [{ status: 'interview', n: 1 }, { status: 'offer', n: 1 }] },
-      summary: { metrics: [{ id: 'scored-24h', value: '5' }, { id: 'approval-review', value: '9' }] } };
+    const state = { stats: { matches:5, saved: 7, applied: 2, interviewing: 1, queued: 3, tracked: 4, byStatus: [{ status: 'interview', n: 1 }, { status: 'offer', n: 1 }] },
+      summary: { metrics: [{ id: 'scored-24h', value: '99' }, { id: 'approval-review', value: '9' }] } };
     const { page, context } = await openScreen(browser, 'career-home.html', career(state), at(size), '', '/api/career-hunter/home');
     try {
       await ready(page);
@@ -300,7 +306,7 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
       assert.deepEqual(await page.locator('.stage').evaluateAll((nodes) => nodes.map((n) => n.querySelector('span').textContent + ' ' + n.querySelector('b').textContent)),
         ['New matches 5', 'Saved 7', 'Getting ready 3', 'Applied 4', 'Interviewing 1', 'Offer 1']);
       assert.doesNotMatch(await page.locator('#stages').innerText(), /→|To approve/);
-      assert.equal(await page.locator('.stage[data-stage="matches"]').getAttribute('data-query'), 'view=matches');
+      assert.equal(await page.locator('.stage[data-stage="matches"]').getAttribute('data-query'), 'view=matches&page=1');
       assert.deepEqual(await page.locator('#explore .tile strong').allTextContents(), ['Search Jobs', 'Job Board', 'Resume Studio', 'Insights', 'Career Settings']);
       assert.equal(await page.locator('a[href="/api/career-hunter/submissions"]').count(), 0);
       assert.equal(await page.locator('#today .step[data-step="approve"]').count(), 0, 'nine waiting records with no pick a person can act on are not a step');

@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve launcher failure/order controls with the explicit new-only nightly selectors.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise durable nightly idempotency, failure/retry, owner isolation and the real launcher matching-before-scoring contract without model calls.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify distinct owner-only matching and mailbox activations, update-review wording and failed-control recovery.
  */
@@ -146,8 +147,8 @@ test('the real launcher runs matching before scoring and cannot emit success aft
   const fixture = join(root, 'python'); const module = join(fixture, 'jobhunter'); mkdirSync(module, { recursive: true });
   writeFileSync(join(module, '__init__.py'), '');
   writeFileSync(join(module, 'db.py'), 'def init_db(): pass\n');
-  writeFileSync(join(module, 'match.py'), 'import os\ndef rescore_recent(days):\n assert days==14\n if os.environ.get("FIXTURE_FAIL"): raise RuntimeError("fixture failure")\n print("matched-before-score",flush=True)\n return 8\n');
-  writeFileSync(join(module, 'score.py'), 'def score_batch(**kw):\n assert kw["limit"]==50 and kw["fresh_days"]==7 and kw["recent_first"] is True\n assert kw["title_any"]==["Developer","Adjunct"]\n print("scored-after-match",flush=True)\n return 2,0\n');
+  writeFileSync(join(module, 'match.py'), 'import os\ndef rescore_new():\n if os.environ.get("FIXTURE_FAIL"): raise RuntimeError("fixture failure")\n print("matched-before-score",flush=True)\n return 8\n');
+  writeFileSync(join(module, 'score.py'), 'def score_batch(**kw):\n assert kw["limit"]==50 and kw["fresh_days"]==7 and kw["recent_first"] is True and kw["new_only"] is True\n assert kw["title_any"]==["Developer","Adjunct"]\n print("scored-after-match",flush=True)\n return 2,0\n');
   const env = { ...process.env, PYTHONPATH: fixture, CH_NIGHTLY_MATCH: '1', CH_TITLES: 'Developer\nAdjunct', CH_LIMIT: '50', CH_FRESH_DAYS: '7' };
   const run = extra => spawnSync('python3', ['-c', code], { encoding: 'utf8', env: { ...env, ...extra } });
   const ok = run({}); assert.equal(ok.status, 0, ok.stderr);

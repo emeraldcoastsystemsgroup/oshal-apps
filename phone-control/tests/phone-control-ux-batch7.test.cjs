@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Regression guard for phone-control--phone-control-config (MERGE), phone-control--phone-control-execution (FIX-LAYOUT), real UxPlay AirPlay mirroring (replacing RP-PHC-14), and explicit Bluetooth peripheral pairing direction.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: verify zero data-ds-not-yet / data-ds-backlog placeholders remain and all 13 Reference-Product session controls (RP-PHC-01..13) are wired inside #sessionSheet ahead of #endSessionBtn.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: verify AI Office-aligned 340px Controls | Concierge right rail and SVG-icon studio #sessionMirrorBtn label contract.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Setup copy identifies direct native Orbit first and the Linux bridge as optional, while retaining existing setup progression, polling and session guards.
  */
 'use strict';
 
@@ -70,15 +71,17 @@ test('first screen has one Add a device primary, no in-page tabs, and row overfl
   }
 });
 
-test('Connect sheet orders Set up this computer before Pair an Android phone, hides empty computer headers, and auto-polls 5s/2m', () => {
+test('direct native setup precedes the optional Linux bridge, preserving bridge progression, empty headers and 5s/2m polling', () => {
   const html = read('tools/phone-control.html');
   assert.match(html, /id="connectSheet"[^>]*data-ds-sheet/);
   const setupIdx = html.indexOf('id="setupCard"');
   const androidIdx = html.indexOf('id="androidCard"');
   assert.ok(setupIdx > 0 && androidIdx > setupIdx, 'Set up this computer precedes Pair an Android phone');
 
-  assert.match(html, /<ol id="installSteps" class="pc-steps">\s*<li>Install<\/li>\s*<li>Sign in<\/li>\s*<li>Press Allow<\/li>\s*<\/ol>/);
-  assert.match(html, /id="waitingForComputer"[^>]*>Waiting for your computer…<\/p>/);
+  assert.ok(html.indexOf('id="nativeOrbitSetup"') < html.indexOf('id="computersHeading"'), 'native Orbit setup comes first');
+  assert.match(html, /id="downloadNode"[^>]*href="\/cockpit\/tools\/downloads.html"/);
+  assert.match(html, /id="computersHeading">Optional Linux bridge/);
+  assert.match(html, /id="waitingForComputer"[^>]*>Waiting for a Linux bridge computer…<\/p>/);
   assert.match(html, /<thead id="computersHead" hidden>/);
   const connectSlice = html.slice(html.indexOf('id="connectSheet"'));
   assert.doesNotMatch(connectSlice, />Refresh</i);

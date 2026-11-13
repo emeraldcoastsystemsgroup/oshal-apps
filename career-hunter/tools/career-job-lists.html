@@ -9,7 +9,8 @@
   7 | maintainer@emeraldcoastsystemsgroup.com | On a phone "Add your résumé to see your fit" takes its own line under a job's facts; as an inline 44px box it sat beside the place and pushed the posted date out of line.
   8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed My jobs (was Job Board), and its own link says the same. Words only. Guard: tests/career-page-names.test.mjs.
   9 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9 (see career-job-lists.js 7): a job Career picked carries its mark above its title; a job a person has applied to carries one status line; one quiet link under the stage row opens the activity page while something is being sent or did not go through; the line that says a job moved stays in view above the phone's bottom bar instead of sitting under the last row. The page loads career-status-line.js for those words and career-submit.js to read what is being sent.
-  10 | maintainer@emeraldcoastsystemsgroup.com | The list's Search button is outlined: on My jobs and Applications the filled button is the next thing to do on a job, and Search sat filled above every one of them. -->
+  10 | maintainer@emeraldcoastsystemsgroup.com | The list's Search button is outlined: on My jobs and Applications the filled button is the next thing to do on a job, and Search sat filled above every one of them.
+  11 | maintainer@emeraldcoastsystemsgroup.com | Keep phone match actions above the bottom bar with status above the buttons, put match search/views in Filters, and wrap every stage into reachable 44 px targets. -->
 <html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script><link rel="stylesheet" href="/api/career-hunter/static/career-journey.css"><link rel="stylesheet" href="/api/career-hunter/static/career-kit.css"><style>
 html,body{overscroll-behavior:contain}
@@ -20,7 +21,7 @@ html.in-shell #pageTitle{display:none}
 .filter-fields :is(select,input){width:100%;min-height:44px}
 [data-stage-filter][hidden]{display:none!important}
 #careerStages{margin:0 0 12px}
-:is(#keywordSearch,#filters,#searchModes)[hidden]{display:none!important}
+:is(#keywordSearch,#filters,#searchModes,#boardPhoneControls)[hidden]{display:none!important}
 .reply-line{display:inline-flex;align-items:center;min-height:44px;margin:4px 0 0;padding:0 12px;border:1px solid var(--ds-line-control,var(--line));border-radius:var(--ds-radius-m,10px);background:var(--ds-surface-2,var(--panel));color:var(--ds-ink,var(--text));font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
 .reply-line:hover{border-color:var(--accent)}
 .fit-link{color:var(--ds-accent-ink,var(--accent));font-weight:600}
@@ -48,9 +49,15 @@ html.in-shell #pageTitle{display:none}
 .match-card h2{font-size:18px;line-height:24px;margin:0}
 .match-card .co{font-size:14px;color:var(--ds-ink-2,var(--muted));margin:0;font-weight:600}
 .match-card .why{font-size:14px;line-height:20px;color:var(--ds-ink-2,var(--muted));margin:0;max-height:140px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:7;line-clamp:7}
+#matchActionDock{display:contents}
+#deckActionButtons:empty{display:none}
 .match-deck-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 @media(max-width:640px){
   #pageDescription,#filters{display:none}
+  #careerStages{flex-wrap:wrap;overflow:visible}
+  #boardPhoneControls{display:flex;justify-content:flex-end;margin:0 0 8px}
+  #matchActionDock[data-deck-active]{display:flex;flex-direction:column;gap:8px;position:sticky;bottom:calc(var(--cf-bottom,0px) + 8px);z-index:6;padding:8px;border:1px solid var(--ds-edge,var(--line));border-radius:var(--ds-radius-m,10px);background:var(--ds-surface,var(--panel));box-shadow:var(--ds-elev-float,0 2px 6px rgb(0 0 0 / .16))}
+  #matchActionDock[data-deck-active] #actionState{position:static;width:100%;margin:0;box-shadow:none}
   #openBoardFilters{display:inline-flex}
   #matchesLayoutSwitch:not([hidden]){display:inline-flex;margin:0 0 10px}
   .search-row{flex-wrap:wrap}
@@ -68,6 +75,7 @@ html.in-shell #pageTitle{display:none}
 <nav class="journey-nav" aria-label="Career workspace" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">Search jobs</a><a class="btn" data-career-tool="career-board" href="/api/career-hunter/board-native">My jobs <span data-stage-count="saved"></span></a><a class="btn" data-career-tool="career-submissions" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit <span data-stage-count="queued"></span></a><a class="btn" data-career-tool="career-application-status" href="/api/career-hunter/board-native?view=status">Application status <span data-stage-count="tracked"></span></a></nav>
 <header><h1 id="pageTitle">My jobs</h1><p class="muted" id="pageDescription"></p></header>
 <a id="activityLink" href="/api/career-hunter/submissions" data-career-tool="career-submission-activity" hidden>Follow what is being sent</a>
+<div class="actions" id="boardPhoneControls" hidden></div>
 <div class="actions" id="searchModes" hidden><a class="btn" data-career-tool="career-search" href="/api/career-hunter/search-ui">All openings</a><span class="btn" aria-current="page">Recommended for you</span><div class="ck-seg" id="matchesLayoutSwitch" role="tablist" aria-label="Matches view" hidden><button type="button" role="tab" data-layout="deck" aria-selected="true">Cards</button><button type="button" role="tab" data-layout="list" aria-selected="false">List</button></div></div>
 <form class="search-row" id="keywordSearch" role="search"><input type="search" id="q" aria-label="Search job titles, companies and descriptions" placeholder="Search title, company or description…"><button class="btn" type="submit">Search</button><button type="button" class="ck-btn" id="openBoardFilters" aria-haspopup="dialog">Filters</button></form>
 <details class="filters" id="filters"><summary>Sort and filter</summary><div class="filter-fields" id="boardFilterFields">
@@ -79,9 +87,9 @@ html.in-shell #pageTitle{display:none}
 <label>Posted / indexed<select id="days"><option value="">Any time</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label><label>Work arrangement<select id="remote"><option value="">Any</option><option value="1">Fully remote</option><option value="0">On-site / hybrid</option></select></label>
 <button type="button" class="ck-tertiary" id="clearFilters">Clear filters</button>
 </div></details>
-<div class="list-state" id="requestState" role="status" aria-live="polite"></div><div id="list" aria-label="Jobs" data-ds-work></div><nav class="pager" id="pager" aria-label="Job result pages"></nav>
+<div class="list-state" id="requestState" role="status" aria-live="polite"></div><div id="list" aria-label="Jobs" data-ds-work></div><div id="matchActionDock"><p id="actionState" role="status" aria-live="polite"></p><div class="match-deck-actions" id="deckActionButtons"></div></div><nav class="pager" id="pager" aria-label="Job result pages"></nav>
 <details id="earlier" hidden><summary>Earlier preparation records <span id="earlierCount"></span></summary><p class="hint">Previous unsubmitted records are retained separately. Opening one lets you choose whether to continue it.</p><button class="btn" id="showEarlier">Show earlier preparation</button></details>
-<p id="actionState" role="status" aria-live="polite"></p></main>
+</main>
 <dialog class="ck-sheet" id="boardFilterSheet" data-ds-sheet data-no-glass aria-labelledby="boardFilterSheetTitle">
   <header><h2 id="boardFilterSheetTitle">Filters</h2><span><button type="button" class="ck-tertiary" id="boardSheetClear">Clear filters</button><button type="button" class="ck-tertiary" id="boardSheetDone">Done</button></span></header>
   <div class="ck-sheet-body" id="boardFilterSheetBody"></div>

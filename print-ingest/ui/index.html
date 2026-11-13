@@ -12,6 +12,7 @@
   1   | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 P1 inbox surface. A view over the package's store (ADR-036): it renders the recommendation and posts a decision, and holds no domain logic of its own. Two things are deliberate. Every destination is shown, including the ones NOT recommended and their reason, because hiding a low-confidence option is a decision made for someone without telling them. And each destination states who can read it at the point of choice, since a bot corpus is routing, not privacy.
   2   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.2: the company audience view for the Business shells (ADR-164 D6). Studio, Orbit and Commons open this first surface with ?audience=company; the page now loads the theme bootstrap and the shared kit right after it, and the kit paints the signed-in account's own inbox from GET /documents and GET /home-summary (four stats, the newest ten documents with where each was proposed or filed, the failed or partly filed ones with their reasons, the route's notes) with every refusal and failure named. The view never approves, rejects, imports or files. The full page's start (the inbox read, the approve / reject and tab listeners) runs only when no audience view renders, and its native controls keep the browser's default colour scheme so the bootstrap leaves the full page as it was.
   3   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.9 (UX audit 2026-11-06): the selected tab is inverted ink with its count, never the accent, so Approve is the one primary; the editable Document title is the heading and the printed text a 3-line excerpt that opens on a tap; Match: medium in sentence case with a tooltip; Readable by once under a group that shares it; Approve and Reject sticky at the bottom on a phone; the in-page title is for screen readers only. Guard: tests/ux-inbox.test.cjs.
+  4   | maintainer@emeraldcoastsystemsgroup.com   | 0.4.0 (T11): opening the full inbox (and each tab) first takes the documents printed to your own computers out of the swarm (POST /printed/collect, in your own session), then lists; each arrives awaiting approval. A document that came from a printer says so: "Came from a printer", the computer it was printed to, the sending address, its pages, its size and when, all set as text. A collect that fails says the documents still wait. The company view names the computer a printed document came through and never its sending address. Guard: tests/printed-row.test.cjs.
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -71,6 +72,7 @@
   // Every sidecar field is what the printing machine declared (untrusted, shown as text only); a Send to import has no machine.
   function origin(doc) {
     var s = doc.sidecar && typeof doc.sidecar === 'object' ? doc.sidecar : {};
+    if (s.source === 'printer') return 'Printed to ' + (s.printerName || 'your computer');
     return [s.originatingComputer || (s.source === 'send-to' ? 'Send to…' : 'unknown machine'), s.printerName].filter(Boolean).join(' · ');
   }
   // A pending document shows the machine's proposal, named as a proposal; a decided one shows where each copy went.
@@ -205,12 +207,15 @@
   .fanout { font-size: 13px; color: var(--ink-2); }
   .fanout li { margin-bottom: 3px; }
   .bad { color: var(--danger); }
+  .printed { color: var(--ink-2); font-size: 12.5px; margin: -6px 0 12px; font-variant-numeric: tabular-nums; }
+  .printed .badge { display: inline-block; border: 1px solid var(--rule); border-radius: 999px; padding: 0 8px; margin-right: 6px; color: var(--ink); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1 class="sr-only">Print Inbox</h1><!-- the shell names the screen once (DS-03) -->
   <p class="sub">Documents printed to the swarm. Nothing is filed until you approve it.</p>
+  <p class="sub" id="printedNote" hidden></p>
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-state="awaiting_approval" aria-selected="true">Awaiting approval<span class="count"></span></button>
     <button class="tab" role="tab" data-state="" aria-selected="false">All<span class="count"></span></button>
@@ -232,9 +237,29 @@ function esc(value) {
 
 function metaLine(doc) {
   const s = doc.sidecar || {};
-  return [s.originatingComputer || 'unknown machine', s.printerName, doc.textChars + ' characters',
-    doc.createdAt ? new Date(doc.createdAt).toLocaleString() : null]
+  const from = s.source === 'printer' ? [] : [s.originatingComputer || 'unknown machine', s.printerName];
+  return [...from, doc.textChars + ' characters', doc.createdAt ? new Date(doc.createdAt).toLocaleString() : null]
     .filter(Boolean).map(esc).join(' · ');
+}
+
+/** A size in words: KB under a megabyte, else MB with one decimal. */
+function sizeWords(bytes) {
+  return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+}
+
+/** A document that came from a printer says so (T11): the computer it was printed to, the sending address, its pages,
+ *  its size and when it was printed. Every value is what a computer on that network said, so all of it is text. */
+function printedLine(doc) {
+  const s = doc.sidecar || {};
+  if (s.source !== 'printer') return '';
+  const pages = Number(s.textPages) || 0;
+  const bytes = Number(s.bytes) || 0;
+  const parts = ['Printed to ' + (s.printerName || 'your computer') + (s.clientIp ? ' from ' + s.clientIp : ''),
+    pages ? pages + (pages === 1 ? ' page' : ' pages') : null, bytes ? sizeWords(bytes) : null,
+    s.receivedAt ? new Date(s.receivedAt).toLocaleString() : null,
+    s.truncated ? 'only its first 200,000 characters were kept' : null];
+  return '<div class="printed"><span class="badge">Came from a printer</span>'
+    + parts.filter(Boolean).map(esc).join(' · ') + '</div>';
 }
 
 /** 'MEDIUM' reads as sentence-case meta, 'Match: medium', with what it means on hover (§2.5). */
@@ -284,6 +309,7 @@ function render(documents) {
         ? '<input class="title-edit heading" value="' + esc(doc.title) + '" aria-label="Document title">'
         : '<h2>' + esc(doc.title) + '</h2>')
       + '<div class="meta">' + metaLine(doc) + ' · ' + esc(doc.state.replace(/_/g, ' ')) + '</div>'
+      + printedLine(doc)
       + (pending ? '<p class="excerpt" tabindex="0" title="Show the whole text">' + esc(doc.title) + '</p>' : '')
       + (pending ? ruleNote : '')
       + (pending
@@ -301,6 +327,26 @@ async function load() {
   const documents = (await res.json()).documents || [];
   showCount(state, documents.length);
   render(documents);
+}
+
+/** Documents printed to your own computers wait in the swarm until this inbox, opened by you, takes them; each is filed
+ *  here awaiting approval (T11). Nothing is approved by taking it. A failure leaves them waiting and says so. */
+async function collectPrinted() {
+  const note = document.getElementById('printedNote');
+  const res = await fetch(API + '/printed/collect', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+  }).catch(() => null);
+  const out = res ? await res.json().catch(() => ({})) : {};
+  const words = !res || (!res.ok && res.status !== 503)
+    ? (out.detail || 'Printed documents could not be taken in right now. They wait in the swarm and are taken next time.')
+    : out.waiting ? out.waiting + ' more printed documents wait in the swarm; open the inbox again to take them.' : '';
+  note.textContent = words;
+  note.hidden = !words;
+}
+
+/** Take what was printed, then list. */
+function refresh() {
+  return collectPrinted().catch(() => {}).finally(load);
 }
 
 /** The selected tab carries its count ('Awaiting approval 1'); a tab not read yet shows none rather than a guess. */
@@ -349,11 +395,11 @@ if (!window.AppView || !AppView.active()) {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
       state = tab.dataset.state;
-      load();
+      refresh();
     });
   });
 
-  load();
+  refresh();
 }
 </script>
 </body>

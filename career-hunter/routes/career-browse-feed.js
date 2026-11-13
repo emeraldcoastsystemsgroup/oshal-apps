@@ -1,18 +1,4 @@
 "use strict";
-/**
- * CHANGE LOG
- * 24 | maintainer@emeraldcoastsystemsgroup.com | An employer name is looked up in the small company table first (employerIds): no employer of that name answers an empty page at once, and matching employers filter postings by company_id, which idx_corpus_company_active serves. Before, `c.name LIKE ?` applied after the join scanned the postings for a name that never came, so a search for an employer that is not in the corpus stalled about ten seconds on production and then failed (T22).
- * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
- * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
- * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
- * -----------------------------------------------------------------------------
- * SEQ                 | AUTHOR                      | DESCRIPTION
- * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Plan a corpus-only board feed so a signed-in user with no indexed resume can still search the openings.
- * 3 | maintainer@emeraldcoastsystemsgroup.com | Permit bounded 200-result pages selected by the user.
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply offline location/radius constraints inside every search arm before pools and pages, with exact distance and required geo-index readiness; expose real posting coordinates and salary provenance.
- * 4 | maintainer@emeraldcoastsystemsgroup.com | Search titles and descriptions from the primary keyword box through FTS, retain employer matches and independent advanced-field constraints, and keep legacy fallback semantics consistent.
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = exports.EMPLOYER_ID_LIMIT = void 0;
 exports.employerIds = employerIds;
@@ -23,6 +9,21 @@ exports.fetchBrowsePage = fetchBrowsePage;
 exports.hasFullText = hasFullText;
 exports.ftsMatchExpression = ftsMatchExpression;
 exports.ftsExpressionFor = ftsExpressionFor;
+/**
+ * CHANGE LOG
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | An employer name is looked up in the small company table first (employerIds): no employer of that name answers an empty page at once, and matching employers filter postings by company_id, which idx_corpus_company_active serves. Before, `c.name LIKE ?` applied after the join scanned the postings for a name that never came, so a search for an employer that is not in the corpus stalled about ten seconds on production and then failed (T22).
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Default to literal keyword title tiers with stable newest ties; bound fallback description reads before text matching and final paging.
+ * -----------------------------------------------------------------------------
+ * SEQ                 | AUTHOR                      | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Plan a corpus-only board feed so a signed-in user with no indexed resume can still search the openings.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Permit bounded 200-result pages selected by the user.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply offline location/radius constraints inside every search arm before pools and pages, with exact distance and required geo-index readiness; expose real posting coordinates and salary provenance.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Search titles and descriptions from the primary keyword box through FTS, retain employer matches and independent advanced-field constraints, and keep legacy fallback semantics consistent.
+ */
 /**
  * Career Hunter — corpus-only browse feed.
  *
@@ -75,6 +76,7 @@ exports.BROWSE_SORT_MAP = {
     // no index can serve it, and ordering 1.6M postings by employer name to show twenty rows
     // measured 29.9s -- for an answer ("twenty jobs at companies starting with a digit") that
     // nobody asked for. Filter by company instead; that is indexed and instant.
+    relevant: 'p.first_seen_at DESC, p.id DESC',
     recent: 'p.first_seen_at DESC, p.id DESC',
     posted: 'p.posted_date DESC NULLS LAST, p.id DESC',
     salary: 'COALESCE(p.salary_max,p.salary_min,0) DESC, p.id DESC',
@@ -272,12 +274,14 @@ function searchCandidateSql(deep, postingWhere = 'active = 1', geographic = fals
     arms.push(arm(`SELECT p.id AS cid FROM corpus.companies c
             CROSS JOIN corpus.postings_corpus p ON p.company_id = c.id
            WHERE c.name LIKE ? AND ${postingWhere}`));
-    // Arm 3 — the full posting text, and the ONLY arm that is not index-served. `description`
-    // is ~1.1GB of the ~2.0GB corpus and is stored inline, so this is a real table scan
-    // (measured 8-21s on the live store when few rows match). It is therefore opt-in per
-    // request and labelled as slow on the surface, never the default.
+    // Only a bounded recent eligible ID pool may read unindexed descriptions. A rare text
+    // must never force a scan of every description-heavy row before the arm finds its LIMIT.
     if (deep) {
-        arms.push(arm(`SELECT id AS cid FROM corpus.postings_corpus p${indexHint} WHERE ${postingWhere} AND p.description LIKE ?`));
+        arms.push(arm(`SELECT p.id AS cid FROM (
+         SELECT p.id FROM corpus.postings_corpus p${indexHint}
+          WHERE ${postingWhere} ORDER BY p.id DESC LIMIT ${exports.ARM_POOL}
+       ) AS text_pool JOIN corpus.postings_corpus p ON p.id = text_pool.id
+       WHERE p.description LIKE ?`));
     }
     return { sql: arms.join('\n         UNION\n        '), arms: arms.length, parts: arms };
 }
@@ -334,7 +338,7 @@ function runSearch(db, query, filters, plan) {
         else
             bindings.push(...filters.postingArgs, like);
     });
-    return db.prepare(sql).all(...bindings, ...filters.args, ...extraArgs, plan.per, plan.offset);
+    return db.prepare(sql).all(...bindings, ...filters.args, ...extraArgs, ...plan.orderArgs, plan.per, plan.offset);
 }
 /**
  * @description Runs a browse page with no keyword term, driven straight off the sort index.
@@ -421,7 +425,17 @@ function runFullText(db, expression, employer, filters, plan, advanced) {
         args.push(`%${employer}%`, ...filters.postingArgs);
     if (employer && advanced)
         args.push(advanced);
-    return db.prepare(sql).all(...args, ...filters.args, plan.per, plan.offset);
+    return db.prepare(sql).all(...args, ...filters.args, ...plan.orderArgs, plan.per, plan.offset);
+}
+/** Literal title containment only; no résumé score or inferred job quality participates. */
+function searchOrder(query) {
+    const sort = String(query.sort || 'relevant');
+    const order = exports.BROWSE_SORT_MAP[sort] || exports.BROWSE_SORT_MAP.recent;
+    const words = sort === 'relevant' ? keywordTokens(param(query, 'q')) : [];
+    if (!words.length)
+        return { order, orderArgs: [] };
+    const title = words.map(() => "instr(lower(COALESCE(p.title, '')), lower(?)) > 0").join(' AND ');
+    return { order: `CASE WHEN ${title} THEN 0 ELSE 1 END ASC, ${order}`, orderArgs: words };
 }
 /**
  * @description Plans and runs one page of the corpus-only browse feed.
@@ -431,8 +445,8 @@ function runFullText(db, expression, employer, filters, plan, advanced) {
  * @returns The page of score-free job cards plus the plan that produced it.
  */
 function fetchBrowsePage(db, query, exclusions) {
-    const sort = String(query.sort || 'recent');
-    const order = exports.BROWSE_SORT_MAP[sort] || exports.BROWSE_SORT_MAP.recent;
+    const sort = String(query.sort || 'relevant');
+    const ranking = searchOrder(query);
     const { page, per, offset } = browsePageGeometry(query);
     const employerName = param(query, 'company');
     const employers = employerName ? employerIds(db, employerName) : null;
@@ -453,12 +467,12 @@ function fetchBrowsePage(db, query, exclusions) {
     const capped = wantsText && !fullText && offset > exports.MAX_OFFSET;
     if (capped)
         return { jobs: [], page, per, browse: true, pooled: true, poolSize: exports.BROWSE_POOL, location: filters.location, fullText: false, deep: true, exhausted: true, capped };
-    const plan = { order, per, offset };
+    const plan = { ...ranking, per, offset };
     let jobs;
     if (fullText && expression) {
         // Ranking by rowid is ranking by ingest order, which IS "newest first" here and
         // costs nothing; the date column would re-sort the match set for the same answer.
-        const ftsPlan = plan.order === exports.BROWSE_SORT_MAP.recent
+        const ftsPlan = sort === 'recent'
             ? { ...plan, order: 'p.id DESC' } : plan;
         jobs = runFullText(db, expression, term, filters, ftsPlan, ftsExpressionFor({ ...query, q: '' }));
     }
@@ -511,6 +525,10 @@ function hasFullText(db) {
         return false;
     }
 }
+/** One literal tokenizer serves both indexed matching and deterministic title tiers. */
+function keywordTokens(text) {
+    return String(text || '').split(/[^\p{L}\p{N}+#]+/u).map(word => word.trim()).filter(Boolean).slice(0, 8);
+}
 /**
  * @description Escapes a user's words into an FTS5 MATCH expression scoped to one column.
  *
@@ -523,11 +541,7 @@ function hasFullText(db) {
  * @returns A MATCH expression, or '' when the input carries no usable token.
  */
 function ftsMatchExpression(column, text) {
-    const tokens = String(text || '')
-        .split(/[^\p{L}\p{N}+#]+/u)
-        .map((word) => word.trim())
-        .filter(Boolean)
-        .slice(0, 8);
+    const tokens = keywordTokens(text);
     if (!tokens.length)
         return '';
     return tokens.map((word) => `${column}:"${word.replace(/"/g, '""')}"`).join(' AND ');
@@ -546,3 +560,4 @@ function ftsExpressionFor(query) {
     ].filter(Boolean);
     return parts.join(' AND ');
 }
+//# sourceMappingURL=career-browse-feed.js.map

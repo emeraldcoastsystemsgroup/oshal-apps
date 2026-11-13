@@ -7,6 +7,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | home 1.6.0: the TVs are a page behind Home's Find TVs tile, so each case opens it the way a person does; Home shows a tile for every saved TV and for the person's computer, and asks Phone & Device Control for nothing when its access waits for re-approval.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A person whose app list says Phone & Device Control changed and waits for re-approval (bare-metal blue's admin persona on 2026-11-08) reads exactly that, the page requests nothing from Phone & Device Control (no console error), Scan is off, and the saved TVs are still listed, without buttons.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | home 1.7.0 (T45 part 4): an Android TV's card has Previous, Pause, Play, Next and What's playing, each at least 44 x 44 at 412 x 915; Pause sends one closed lan-control pause and the card says what is playing behind another app, then shows it on the Now playing line; What's playing reads it again; a Samsung TV and a Roku have no media row.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | A connected computer prevents the whole-home empty state; its catalogue waits for device selection before offering a contextual primary action, while all TV scan and control checks stay intact.
  */
 'use strict';
 const test = require('node:test');
@@ -114,7 +115,8 @@ test('the section shows on the Smart Home screen with one Scan button that says 
     assert.equal(await page.textContent('#tvEmpty'), 'No TVs saved yet. Press Scan for TVs.');
     assert.equal(await page.textContent('#tvComputer option'), 'Den PC · Connected');
     for (const sel of ['#tvDevicesLink', '#tvComputerHelp']) assert.equal(await visible(page, sel), false, `${sel} is hidden with a usable computer`);
-    assert.deepEqual(await page.locator('button.solid:visible, a.solid:visible').allTextContents(), ['Connect a hub'], 'the screen keeps one primary');
+    assert.equal(await page.locator('#emptyState').isVisible(), false, 'a listed computer is a device even when no hub reported');
+    assert.deepEqual(await page.locator('button.solid:visible, a.solid:visible').allTextContents(), [], 'the catalogue waits for an explicit device selection before offering its contextual action');
     const box = await page.locator('#tvScan').boundingBox();
     assert.ok(box.height >= 44, `Scan is ${box.height}px tall`);
     const fit = await overflow(page);

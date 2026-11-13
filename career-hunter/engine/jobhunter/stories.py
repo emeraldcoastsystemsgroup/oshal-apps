@@ -1,3 +1,6 @@
+# CHANGE LOG
+# SEQ | AUTHOR | DESCRIPTION
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Use main résumé in the role question while preserving the native read projection and evidence rules.
 """Role-anchored story review — one defensible story per job title (ADR-141 D7).
 
 A resume bullet asserts; a story proves. This walks the candidate's OWN roles, asks about the
@@ -135,7 +138,7 @@ def question_for(role_state: dict) -> str:
     bullets = role_state.get("bullets") or []
     if bullets:
         lead = bullets[0].strip().rstrip('.')
-        return (f"At {label} your resume says: \"{lead}\". Walk me through one time you actually did "
+        return (f"At {label} your main résumé says: \"{lead}\". Walk me through one time you actually did "
                 f"that — what the situation was, what you personally decided or built, and how it "
                 f"turned out. Numbers if you have them.")
     return (f"Tell me about one thing you did at {label} that you would want an interviewer to hear — "

@@ -94,6 +94,8 @@
     "home|node --test \"tests/browser/*.test.cjs\"",
     "phone-control|node --test \"tests/phone-control-*.test.cjs\"",
     "phone-control|node --test \"tests/phone-control-*.test.mjs\"",
+    "phone-control|node --test \"tests/native-relay.test.cjs\"",
+    "phone-control|node --test \"tests/remote-guides.test.cjs\"",
     "social|node --test \"tests/*.test.cjs\"",
     "movies|node --test \"tests/*.test.cjs\"",
     "spotify|node --test \"tests/*.test.cjs\"",

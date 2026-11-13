@@ -2,19 +2,22 @@
 1 | maintainer@emeraldcoastsystemsgroup.com | Prove a saved source change is applied by a pull on real temporary SQLite, with the real page guard, real time limit and a real process really killed, over recorded employer replies.
 2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back: an added employer is made once and read the same night, a removed one closes its jobs and is left out of the pull, the source review, the no-feed count and every seed list until it is put back.
 3 | maintainer@emeraldcoastsystemsgroup.com | The helper's full pull leaves out source maintenance as it leaves out the source review: maintenance looks up employers with no board, and the employer one case adds with an unreadable link would be read over the real network. Maintenance has its own contract in career-source-maintenance.py.
+4 | maintainer@emeraldcoastsystemsgroup.com | Conditional source decisions bind exact action identity under a real SQLite writer transaction; stale, recovered, bypassed and duplicate requests cannot archive a source.
 """
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "engine"))
@@ -436,6 +439,165 @@ class AddingAndRemoving(Base):
         self.assertEqual((row["outcome"], json.loads(row["detail"])["companyId"]), ("added", self.moving))
         self.assertEqual((self.company()["discover_status"], self.company()["ats_token"]), ("manual", "newboard"))
         self.assertEqual(len(self.named("Moving Co")), 1)
+
+
+class ConditionalDecisions(Base):
+    def setUp(self):
+        super().setUp()
+        self.opened = "2026-11-01T12:34:56+00:00"
+        with db.connect() as conn:
+            memory.ingest(conn, self.moving, jobs("kept1", "kept2"))
+            maintenance.ensure(conn)
+            conn.execute(f"UPDATE {db.companies_table()} SET discover_status='found' WHERE id=?", (self.moving,))
+            conn.execute(f"UPDATE {memory.table('source_pull_state')} SET status='failed',last_success_at=NULL WHERE company_id=?", (self.moving,))
+            self.action_id = conn.execute(f"""INSERT INTO {memory.table('source_actions')}
+                (company_id,kind,state,opened_at,evidence) VALUES (?,'archive','open',?,'{{}}')""",
+                (self.moving, self.opened)).lastrowid
+
+    def target(self, outcome="archive", action_id=None, opened=None):
+        return f"decision:{self.action_id if action_id is None else action_id}:{quote(self.opened if opened is None else opened, safe='')}:{outcome}"
+
+    def apply(self, target=None, company=None, change_id=FIRST):
+        self.hand(change_id, company=company, target=target or self.target())
+        with patch.object(ats, "fetch", side_effect=AssertionError("a decision cannot read a board")), redirect_stdout(StringIO()):
+            requests.apply_waiting(None)
+        return self.outcome(change_id)
+
+    def action(self):
+        with db.connect() as conn:
+            row = conn.execute(f"SELECT * FROM {memory.table('source_actions')} WHERE id=?", (self.action_id,)).fetchone()
+        return dict(row) if row else None
+
+    def active(self):
+        with db.connect() as conn:
+            return conn.execute(f"SELECT COUNT(*) AS n FROM {db.corpus_table()} WHERE company_id=? AND active=1", (self.moving,)).fetchone()["n"]
+
+    def test_exact_archive_decides_and_removes_in_the_real_next_pull(self):
+        result = self.apply()
+        self.assertEqual(result["outcome"], "removed", result)
+        self.assertEqual(json.loads(result["detail"])["closed"], 2)
+        self.assertEqual((self.action()["state"], self.company()["discover_status"], self.active()), ("archived", "removed", 0))
+
+    def test_exact_keep_retains_jobs_and_records_the_existing_snooze(self):
+        result = self.apply(self.target("keep"))
+        self.assertEqual(result["outcome"], "kept", result)
+        action = self.action()
+        self.assertEqual(json.loads(result["detail"])["until"], action["snooze_until"])
+        self.assertEqual((action["state"], self.company()["discover_status"], self.active()), ("kept", "found", 2))
+
+    def test_generic_remove_and_keep_cannot_bypass_an_open_decision(self):
+        for target in ("remove:employer", "keep:employer"):
+            result = requests._apply({"company_id": self.moving, "target": target}, None)
+            self.assertEqual(result["outcome"], "decision_required", target)
+            self.assertEqual((self.action()["state"], self.company()["discover_status"], self.active()), ("open", "found", 2))
+
+    def test_missing_wrong_owner_company_timestamp_kind_or_state_is_stale(self):
+        for target, company in ((self.target(action_id=self.action_id + 20), self.moving),
+                                (self.target(), self.holder), (self.target(opened=self.opened + "0"), self.moving)):
+            self.assertEqual(requests._apply({"company_id": company, "target": target}, None)["outcome"], "stale_decision")
+        for column, values in (("state", ("kept", "archived", "recovered", "closed")), ("kind", ("different",))):
+            for value in values:
+                with db.connect() as conn:
+                    conn.execute(f"UPDATE {memory.table('source_actions')} SET {column}=? WHERE id=?", (value, self.action_id))
+                for outcome in ("archive", "keep"):
+                    self.assertEqual(requests._apply({"company_id": self.moving, "target": self.target(outcome)}, None)["outcome"], "stale_decision")
+            with db.connect() as conn:
+                conn.execute(f"UPDATE {memory.table('source_actions')} SET {column}=? WHERE id=?", ("open" if column == "state" else "archive", self.action_id))
+        self.assertEqual((self.company()["discover_status"], self.active()), ("found", 2))
+
+    def test_reopened_timestamp_or_replacement_action_refuses_the_old_target(self):
+        original = self.target()
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {memory.table('source_actions')} SET opened_at=? WHERE id=?", ("2026-11-02T00:00:00Z", self.action_id))
+        self.assertEqual(requests._apply({"company_id": self.moving, "target": original}, None)["outcome"], "stale_decision")
+        with db.connect() as conn:
+            conn.execute(f"DELETE FROM {memory.table('source_actions')} WHERE id=?", (self.action_id,))
+            conn.execute(f"INSERT INTO {memory.table('source_actions')} (company_id,kind,state,opened_at,evidence) VALUES (?,'archive','open',?,'{{}}')", (self.moving, self.opened))
+        self.assertEqual(requests._apply({"company_id": self.moving, "target": original}, None)["outcome"], "stale_decision")
+        self.assertEqual(self.active(), 2)
+
+    def test_manual_or_removed_company_cannot_be_decided_by_an_old_action(self):
+        for status in ("manual", "removed"):
+            with db.connect() as conn:
+                conn.execute(f"UPDATE {db.companies_table()} SET discover_status=? WHERE id=?", (status, self.moving))
+            self.assertEqual(requests._apply({"company_id": self.moving, "target": self.target()}, None)["outcome"], "stale_decision")
+            self.assertEqual((self.action()["state"], self.active()), ("open", 2))
+
+    def test_later_success_is_recovery_even_when_the_latest_status_failed(self):
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {memory.table('source_pull_state')} SET status='failed',last_success_at=? WHERE company_id=?", ("2026-11-01T13:34:57+01:00", self.moving))
+        self.assertEqual(self.apply()["outcome"], "stale_decision")
+        self.assertEqual((self.action()["state"], self.company()["discover_status"], self.active()), ("open", "found", 2))
+
+    def test_unknown_naive_older_and_equal_success_do_not_infer_recovery(self):
+        for at in (None, "invalid", "2026-11-02 12:34:56", "2026-11-01T12:34:55Z", "2026-11-01T13:34:56+01:00"):
+            with db.connect() as conn:
+                conn.execute(f"UPDATE {memory.table('source_pull_state')} SET last_success_at=? WHERE company_id=?", (at, self.moving))
+                conn.execute(f"UPDATE {memory.table('source_actions')} SET state='open',decided_at=NULL,snooze_until=NULL WHERE id=?", (self.action_id,))
+            self.assertEqual(requests._apply({"company_id": self.moving, "target": self.target("keep")}, None)["outcome"], "kept", at)
+            self.assertEqual(self.active(), 2)
+
+    def test_malformed_conditional_targets_never_reach_a_decision(self):
+        encoded = quote(self.opened, safe="")
+        targets = [f"decision:{value}:{encoded}:archive" for value in ("0", "-1", "+1", "01", "1.0", "１", "9007199254740992")]
+        targets += [f"decision:{self.action_id}:{value}:archive" for value in ("", "%ZZ", "%FF", "%00", "x" * 129)]
+        targets += [f"decision:{self.action_id}:{encoded}{value}:archive" for value in "!'()*"]
+        targets += [self.target() + ":extra", self.target("ARCHIVE"), self.target("remove"), f"decision:{self.action_id}:{self.opened}:archive"]
+        for target in targets:
+            self.assertEqual(requests._apply({"company_id": self.moving, "target": target}, None)["outcome"], "bad_target", target)
+        self.assertEqual((self.action()["state"], self.active()), ("open", 2))
+
+    def test_duplicate_uuid_never_reapplies_a_successful_decision(self):
+        first = self.apply()
+        self.assertEqual(first["outcome"], "removed")
+        with db.connect() as conn:
+            conn.execute(f"UPDATE {db.corpus_table()} SET active=1 WHERE company_id=?", (self.moving,))
+        repeated = self.apply()
+        self.assertEqual((repeated["attempts"], repeated["finished_at"]), (1, first["finished_at"]))
+        self.assertEqual(self.active(), 2, "the same source-request UUID cannot remove later fixture rows")
+
+    def test_a_new_request_cannot_answer_the_same_closed_action_twice(self):
+        self.assertEqual(self.apply(self.target("keep"))["outcome"], "kept")
+        decided = self.action()["decided_at"]
+        self.assertEqual(self.apply(change_id=SECOND)["outcome"], "stale_decision")
+        self.assertEqual((self.action()["decided_at"], self.company()["discover_status"], self.active()), (decided, "found", 2))
+
+    def test_archive_failure_rolls_back_the_decision_and_job_changes(self):
+        with db.connect() as conn:
+            conn.execute("""CREATE TRIGGER corpus.fixture_refuse_archive BEFORE UPDATE OF discover_status ON companies
+                WHEN NEW.discover_status='removed' BEGIN SELECT RAISE(ABORT,'fixture archive refusal'); END""")
+        result = self.apply()
+        self.assertEqual(result["outcome"], "error", result)
+        self.assertEqual((self.action()["state"], self.action()["decided_at"], self.company()["discover_status"], self.active()), ("open", None, "found", 2))
+
+    def test_a_competing_writer_cannot_change_the_action_after_the_read_begins(self):
+        connect = db.connect
+        attempts = []
+
+        def competing(sql):
+            if attempts or not sql.lstrip().upper().startswith("SELECT") or "source_actions" not in sql:
+                return
+            other = sqlite3.connect(":memory:", timeout=0)
+            try:
+                other.execute("ATTACH DATABASE ? AS corpus", (str(config.CORPUS_DB),))
+                other.execute("UPDATE corpus.source_actions SET opened_at='reopened' WHERE id=?", (self.action_id,))
+                other.commit()
+                attempts.append("changed")
+            except sqlite3.DatabaseError as error:
+                attempts.append("locked" if "locked" in str(error) else str(error))
+            finally:
+                other.close()
+
+        @contextmanager
+        def observed():
+            with connect() as conn:
+                conn.set_trace_callback(competing)
+                yield conn
+
+        with patch.object(db, "connect", observed):
+            self.assertEqual(self.apply()["outcome"], "removed")
+        self.assertEqual(attempts, ["locked"])
+        self.assertEqual(self.action()["state"], "archived")
 
 
 # A real process, killed for real inside a change's write, with nothing flushed or closed.

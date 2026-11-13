@@ -12,13 +12,20 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Explain when employer details are unavailable before document preparation.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share explicit owner-only save, star, score and document-queue actions between open search and the job board; never submit an application from these preparation actions.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. Two messages name a page as it is now called: other experience (was Additional experience) and Settings (was Career Settings). Words only. Guard: tests/career-page-names.test.mjs.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals without hiding saved acknowledgements, changing scoring or retrying a mutation.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Bound preparation writes and admitted-parent opens; uncertain writes require an explicit read before retry, without a navigation fallback.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | Save acknowledges only its favorite write; fit checks and document preparation stay explicit existing actions.
  */
 (function(root){
   'use strict';
-  async function post(url,body){
-    const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  async function post(url,body,options){
+    const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),...(options||{})});
     const result=await response.json();
-    if(!response.ok||result.ok===false) throw new Error(result.error||('HTTP '+response.status));
+    if(!response.ok||result.ok===false){
+      const busy=response.status===409&&result.error==='career_run_in_progress';
+      const error=Error(busy?'Career is working on your account. Try saving again when it finishes.':result.error||('HTTP '+response.status));
+      error.status=response.status;error.code=busy?result.error:result.code;error.careerRunInProgress=busy;throw error;
+    }
     return result;
   }
   function requestId(){return typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2);}
@@ -27,15 +34,27 @@
     {documents,requestId:requestId(),...(options||{})});}
   async function save(id){
     await favorite(id,true);
-    try{return {...await prepare(id,false),saved:true};}
-    catch(error){return {saved:true,error:error.message};}
+    return {saved:true};
   }
-  async function promote(id,options){
-    return post('/api/career-hunter/jobs/'+id+'/status',{status:'promoted',favorite:true});
+  async function promote(id){
+    const controller=typeof AbortController==='function'?new AbortController():null;let timer;
+    const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{
+      reject(Error('Could not confirm preparation. Check its saved state before trying again.'));controller?.abort();
+    },15000);});
+    try{return await Promise.race([post('/api/career-hunter/jobs/'+id+'/status',{status:'promoted',favorite:true},controller?{signal:controller.signal}:{}),deadline]);}
+    finally{clearTimeout(timer);}
+  }
+  /** One explicit reconciliation read; a missing or refused record never permits another write. */
+  async function preparation(id){
+    const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw Error('Could not check preparation (HTTP '+response.status+').');
+    const {job}=await response.json();
+    if(!job||Number(job.id)!==id||typeof job.status!=='string')throw Error('Could not check preparation: no saved job was returned.');
+    return job;
   }
   /* UX audit 2026-11-06: these screens became stages of the Job Board; their links open the board on that stage. */
   const MERGED_INTO_BOARD={'career-submissions':'career-board','career-application-status':'career-board','career-approvals':'career-board','career-mobile':'career-board'};
-  function navigate(tool,href){
+  function navigate(tool,href,options){
     if(root.parent===root){root.location.href=href;return;}
     if(tool==='career-approvals')href='/api/career-hunter/board-native?view=approve';
     let target=MERGED_INTO_BOARD[tool]||tool;
@@ -46,7 +65,14 @@
       if([...root.parent.document.querySelectorAll('[data-view]')].some(node=>node.getAttribute('data-view')==='tool-'+member))target=member;
     }catch(_){/* A different-origin host can still support the short-name contract. */}
     const query=new URL(href,root.location.href).searchParams;query.delete('v');
-    root.parent.postMessage({type:'app-navigate',tool:target,...(query.size?{query:query.toString()}:{})},root.location.origin);
+    const send=()=>root.parent.postMessage({type:'app-navigate',tool:target,...(query.size?{query:query.toString()}:{})},root.location.origin);
+    if(!options?.wait){send();return;}
+    // The shell admits the request itself. Only leaving this document proves that it opened.
+    return new Promise((resolve,reject)=>{
+      const leave=()=>{clearTimeout(timer);resolve();};
+      const timer=setTimeout(()=>{root.removeEventListener('pagehide',leave);reject(Error('The application did not open. Use Open application to try again.'));},10000);
+      root.addEventListener('pagehide',leave,{once:true});send();
+    });
   }
   function poll(id,idempotency,update){
     let attempts=0,stopped=false,timer;
@@ -84,7 +110,7 @@
     if(reason==='model_identity_unavailable')return 'The scoring configuration could not be verified. Retry when the Career service is available.';
     if(reason==='model_identity_mismatch')return 'The scoring model changed during this request. Please retry to use the current configuration.';
     return ({profile_too_large_for_scoring:'The saved career profile is too large for one scoring request. Preparation stopped without changing your profile.',job_details_unavailable:'Employer details could not be loaded. Open the posting and retry when it is available.',job_context_too_large:'The employer description is too large to prepare in one request. Open the original posting to review it.',job_context_unavailable:'Saved employer details could not be verified. Open the original posting and retry.',job_context_limit_reached:'Saved job detail storage is full. Older details expire automatically; please try again later.',resume_required:'Upload your résumé to prepare this application.',posting_not_found:'This posting is no longer available.',score_unavailable:'Scoring is unavailable. Please retry.',already_submitted:'This application is already submitted.',renderer_unavailable:'The PDF renderer is unavailable. Please check Settings.'})[reason]||'Could not prepare the documents. Please retry.';}
-  function openApplication(id,tracked=false,step){const query=new URLSearchParams({view:tracked?'status':'queue',application:String(id)});if(step)query.set('step',step);navigate(tracked?'career-application-status':'career-submissions','/api/career-hunter/board-native?'+query);}
+  function openApplication(id,tracked=false,step,options){const query=new URLSearchParams({view:tracked?'status':'queue',application:String(id)});if(step)query.set('step',step);return navigate(tracked?'career-application-status':'career-submissions','/api/career-hunter/board-native?'+query,options);}
   const ANNOUNCE_KEY='career-move-line',ANNOUNCE_MS=20000;
   /** Keep one line about a job that just moved for the page this press is about to open. */
   function announce(text){try{if(text)root.sessionStorage.setItem(ANNOUNCE_KEY,JSON.stringify({text:String(text),at:Date.now()}));}catch(_){/* the move happened; only its line is lost */}}
@@ -106,5 +132,5 @@
     try{const url=new URL(value.trim());return url.protocol==='http:'||url.protocol==='https:'?url.href:'';}
     catch(_){return '';/* not an address at all */}
   }
-  root.CareerJobActions={favorite,prepare,save,promote,navigate,openApplication,poll,monitor,message,announce,announced,employerUrl};
+  root.CareerJobActions={favorite,prepare,save,promote,preparation,navigate,openApplication,poll,monitor,message,announce,announced,employerUrl};
 })(typeof window==='undefined'?globalThis:window);

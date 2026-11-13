@@ -1,5 +1,58 @@
 # Career Hunter — oshal app package
 
+## Current guides and intended buyers (1.60.9)
+
+With saved-job preparation off, Prepare application records the selected job once and opens its tailoring workspace.
+Open application returns to prepared work. An uncertain write offers a read-only
+Check preparation; another preparation attempt requires a separate press.
+
+Removing a Career pick moves it to Removed and clears Saved. Its application and
+native ticket history are kept; removal does not cancel a running native workflow.
+
+Home and navigation paint independently of optional background reads. New matches waits at most two seconds for an unknown résumé-status read; a known or late no-résumé/indexing reply retains the actual gate. Late replies cannot restore a page after it closes.
+
+Career gives a job seeker an individual workspace for finding jobs, preparing
+applications and recording what happened. Prospective buyers include
+**outplacement firms, workforce boards and independent career coaches** deploying
+those individual workspaces.
+
+- [User guide](docs/user-guide.md): a day from replies and new matches through
+  preparation, sending, interviews and an optional past-seven-days goal.
+- [Deployment guide](docs/deployment.md): current roles, connections, native
+  services and acceptance checks.
+- [Documentation index](docs/README.md): the current guides and engineering
+  references.
+
+The current roles are **Job seeker** and **Job source administrator**. A coach
+role, seeker-approved sharing and a shared client pipeline are unbuilt; the
+administrator role does not grant access to another seeker's private search.
+Optional applications and automatic submission require their own available,
+authorized setup. The guides describe the current package, not a claim that it has
+been installed or verified on every device.
+
+The versioned sections below retain engineering and release history, including
+older page names and workflows. Use the current guides for user and deployment
+instructions.
+
+## Source decisions (1.59)
+
+A Job source administrator can review an unresolved employer source in
+**Companies → Needs you**. Career keeps one native ticket for that administrator
+and exact source decision. **Archive** approves that ticket; **Keep trying**
+cancels it. The application's native confirmation requires that original
+person's current source-administrator authority. No worker or model is
+dispatched by this decision workflow.
+
+A confirmed choice is queued for the next source pull. It is shown as applied
+only after the writer reports the matching result. A changed, recovered or
+already answered source refuses an old decision. An uncertain acknowledgement
+keeps the original ticket and reports the uncertainty. A Done or Cancelled
+status without the matching native owner-decision receipt stays on hold.
+
+The existing maintenance job can prepare the same decisions for its original
+administrator after normal activation review. This update does not activate a
+job. See [source maintenance](SOURCE-MAINTENANCE.md).
+
 ## Page names and roles (1.55.0)
 
 Each page has one name, in a job seeker's words. The manifest's label, the page's title and heading, every link and every
@@ -35,18 +88,13 @@ per score pass, the AI model, the Firecrawl key) only to a person the Companies 
 under Check for new jobs now (`tests/career-settings-administrator.test.mjs`). That is presentation: no route or binding
 changed.
 
-## Job search workflow (1.30.0)
+## Job search workflow (1.60.3)
 
-Search Jobs exposes keywords, title, description and company above the results.
-**Add to Job Board** saves and stars a selected opening, then scores that exact job against your
-saved resume. **Promote to submission queue** prepares the tailored resume and cover letter.
-The queue offers document previews, PDFs and customization before an explicit submission action.
-Stars are independent of application status; saved jobs and queue/history views keep explicitly
-chosen postings visible even outside the current match area or after a posting closes.
+**Find jobs** searches public openings. **Save** keeps a selected opening in **My jobs → Saved** after its favorite write is acknowledged; with saved-job preparation off, it starts no scoring request or score poll. Existing scores remain visible and missing scores read **Not scored yet**. Choose **Check my fit** for an assessment, or **Prepare application** to open the job's draft and request documents with **Generate**.
 
-A desktop submission ticket does not mean an application has been submitted. The worker's
-recorded outcome moves it to Application status. For applications completed outside OSHAL,
-**Mark submitted manually** retains the manual-assertion provenance.
+The queue offers document previews, PDFs and customization before an explicit submission action. Stars stay independent of application status; Saved and application views retain explicitly chosen jobs outside the current matching area or after a posting closes.
+
+A desktop submission ticket does not mean an application was submitted. The recorded worker outcome supplies that evidence. For applications completed elsewhere, **I applied** retains the manual-assertion provenance.
 
 Application status activates the original person's `career-application-updates` schedule, every
 15 minutes. It reads the connected Gmail mailbox through native credential custody and requires
@@ -55,7 +103,11 @@ of submitted applications, retains those applications for later updates, and nev
 owners' stores, sends mail or submits jobs. Exact employer/title matches can record acknowledgements,
 interviews, offers or rejections. Ambiguous matches remain for review. Email receipts do not upgrade
 manual submission provenance to verified employer acceptance. Connection failures remain visible;
-connect the correct Gmail account with mail-read access in Connections when needed.
+open **Settings → Accounts** to connect or reconnect Gmail through native authorization.
+Saved authorization metadata does not prove mail-read access: the same section shows the dated
+last successful mailbox check separately. Connecting never starts a mailbox check or sends mail.
+Use **Email updates** for the existing monitor controls. LinkedIn profile updates use your
+signed-in browser; optional Social account flows remain in the admitted Social Workspace.
 
 Private `job-board-state.json` holds stars/preparation receipts; `application-email-state.json`
 holds bounded message identifiers, subjects, dates, mailbox and update classifications, pagination
@@ -1042,3 +1094,51 @@ rather than pasting the record. The page (`GET /master-record-ui`) is bound to `
 the tool to `career.read`: no permission or role changed. Guards: `tests/career-master-record.test.mjs`,
 `tests/career-master-record-routes.test.mjs`, `tests/browser/career-master-record-proof.mjs`,
 `tests/career-persona-wording.test.mjs`, `tests/career-catalog-route-bindings.test.mjs`.
+
+<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Document 1.60.5 preparation, Open application and explicit recovery. -->
+
+Saved-job preparation in 1.60.6 is OFF by default. Settings offers per-application
+review or automatic preparation to Ready to submit; both use the person's own
+records and stop before sending. Failures stay in Getting ready with a reason.
+See [the user guide](docs/user-guide.md#choose-saved-job-preparation) for the working
+controls and [deployment](docs/deployment.md#saved-job-preparation-1606) for the
+owner writer, background batch and authorization bindings.
+
+<!-- CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Document 1.60.6 saved preparation and its ready-only automatic boundary. -->
+
+
+Career 1.60.7 serves existing private match rows. Nightly matching scores only
+previously unmatched jobs, including entries missed by a failed night; existing AI
+fits are retained. Explicit fit checks still refresh selected evidence. Saved now
+offers **Remove**: it hides the row immediately and retains a relationship tombstone
+so the next nightly pass cannot bring that posting identity back. A refused command
+restores the row for an explicit retry. Preparation records remain available.
+Owner-only pipeline ordering indexes migrate on a writable owner open or nightly
+pass; read-only older generations retain their existing query plans.
+
+<!-- CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Document 1.60.7 incremental matching, durable removal and writable index migrations. -->
+
+## Concierge résumé check (1.60.8)
+
+Career uses the shared `/shared/ui/js/editor-assistant.js` panel used beside AI Office's
+Word document. The native shell and cockpit yield their old rail and application strip
+while Career owns the frame. The document's own Concierge remains the editor on My résumé.
+
+`career_resume_read` now returns presence, revision, populated section headings and the
+My résumé destination from the original caller's `career_db.json`, without an engine
+launch or résumé text. `career_resume_section` still returns requested text. The ordinary
+`GET /resume/doc?id=master` editor read is unchanged; the tool uses `&view=status`.
+Automatic facts preserve a saved profile even before a corpus or owner SQLite exists.
+AI Office's separately saved document does not automatically replace the Career master.
+
+Synthetic replay counts: one tool call and two scripted model completions before/after;
+status removes one engine launch and the full-content observation. No live model timing
+or installed identity acceptance is claimed. See the Test Lab concierge cases.
+
+<!-- CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Document 1.60.8 owner status, read semantics and shared panel. -->
+
+## Concierge module served (1.60.9)
+
+The shared concierge that 1.60.8 introduced is a module script (`career-concierge.mjs`). Career's `/static` route now serves `.mjs` files as it serves `.js`, so the concierge opens on a deployed kernel; in 1.60.8 the route refused it and the concierge did not load. Every module script a shipped page imports from `/static` is checked by `tests/career-native-surface-contract.test.mjs`.
+
+<!-- CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Document the 1.60.9 module-script fix. -->

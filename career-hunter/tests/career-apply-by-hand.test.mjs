@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 2: an employer address is a link only when it parses as http: or https:. With javascript:alert(1), data:text/html,x and a script address broken by a tab, the page has no Open the employer's form, no Employer posting link and no Check employer application history link, reads as it does for a job with no address, and holds no link to any other scheme; with a web address all three links carry it. Seen failing on the code as it was: Open the employer's form was a link to javascript:alert(1).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 4: I applied reads the job again before it writes. On a page that stood open while the job moved to Applied, Interviewing, Offer or Closed, the press writes nothing on either route, says "This job is already in Interviewing." (the stage's own name) and shows the application. Seen failing on the code as it was: the press wrote the applied route and the job went from Interviewing back to Applied.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 5: after I applied the application page's line leads with Applied (it led with Sent, which Career could not know). It reads Sent only when the person's computer reported it, Career holds the confirmation page, or the submission record says submitted; a job the person marked and one with no record of how it was sent read Applied. The sentences under the word are unchanged.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Use the same main résumé name in actual Tailor/no-résumé flows and Other experience, preserving source links and view-only behavior.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 7: after I applied, a computer attempt that did not go through is closed through the submission queue's own cancel route, so the activity page stops showing it as waiting on the person. (An attempt that needs answers or whose outcome is not known shows its own screen and offers no I applied.)
  */
 import { test, before, after } from 'node:test';
@@ -40,7 +41,7 @@ function application(state) {
     const cancel = p.match(/^\/api\/career-hunter\/submission-queue\/([\w-]+)\/cancel$/);
     if (cancel && method === 'POST') { state.writes.push({ path: p, body }); const held = state.job.application?.intent; if (held && held.id === cancel[1]) held.status = 'cancelled'; return { json: { ok: true, item: { id: cancel[1], status: 'cancelled' } } }; }
     if (p === '/api/career-hunter/experience-bank') return { json: { version: 1, revision: 'r1', entries: [] } };
-    if (p === '/api/career-hunter/resume/state') return { json: { hasResume: true } };
+    if (p === '/api/career-hunter/resume/state') return { json: { hasResume: state.hasResume !== false } };
     if (p === '/api/career-hunter/resume') return { text: url.searchParams.get('as') === 'html' ? '<p>document</p>' : `%PDF ${url.searchParams.get('kind')}` };
     if (p === '/api/career-hunter/submission-review/7') return { json: { postingId: 7, title: 'Office Manager', company: 'Example Co', url: state.job.url, packetDigest: 'a'.repeat(64), profile: { fullName: 'Ada Lovelace' }, documents: [{ kind: 'resume', sha256: 'b'.repeat(64) }, { kind: 'cover', sha256: 'c'.repeat(64) }] } };
     if (p === '/api/apply-operator/workers') return state.computer === null ? { status: 503, json: { error: 'unavailable' } } : { json: { workers: state.computer ? [{ clientId: 'n1', available: true, boundBots: [BOT] }] : [], available: Boolean(state.computer) } };
@@ -334,4 +335,27 @@ test('the line a press on another page left is read once on the application page
     await opened.page.getByRole('heading', { name: 'Review the documents for this job' }).waitFor();
     assert.equal((await opened.page.locator('#message').innerText()).trim(), '', 'and only once');
   } finally { await opened.context.close(); }
+});
+
+for(const [label,size] of [['computer',DESKTOP],['phone',PHONE]])for(const hasResume of [true,false])test('G14: '+label+' application '+(hasResume?'Tailor':'empty state')+' uses main résumé and keeps its stored identity',async()=>{
+  const state={job:{...ready(),has_resume:false,has_cover:false,application:{needsGeneration:true,draft:{revision:1,guidance:'',experienceIds:[]}}},hasResume,writes:[]};
+  const {page,context,calls}=await open(state,size);
+  try{
+    await page.locator('#application[aria-busy="false"]').waitFor();
+    const text=await page.locator('main').innerText();assert.match(text,/your main résumé/);assert.doesNotMatch(text,/core résumé/i);
+    if(!hasResume)assert.match(text,/The selected job stays in My jobs\./);
+    const link=page.getByRole('link',{name:hasResume?'Open main résumé':'Add main résumé',exact:true});assert.equal(await link.count(),1);
+    assert.equal(await link.getAttribute('href'),'/api/career-hunter/resume-studio?id=master');
+    assert.equal(calls.some(c=>['POST','PATCH','DELETE'].includes(c.method)),false);
+  }finally{await context.close();}
+});
+test('G14: Other experience uses the same main résumé wording in its actual intro and menu',async()=>{
+  const {page,context,calls}=await openScreen(browser,'career-experience-bank.html',application({job:ready(),writes:[]}),PHONE);
+  try{
+    await page.waitForFunction(()=>document.querySelector('#notice').textContent==='');
+    assert.match(await page.locator('.intro').innerText(),/outside your main résumé/);
+    await page.getByRole('button',{name:'More',exact:true}).click();
+    assert.equal(await page.getByRole('menuitem',{name:'Main résumé & résumé bank',exact:true}).isVisible(),true);
+    assert.equal(calls.some(c=>['POST','PATCH','DELETE'].includes(c.method)),false);
+  }finally{await context.close();}
 });

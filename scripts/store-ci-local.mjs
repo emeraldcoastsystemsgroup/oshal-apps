@@ -25,6 +25,7 @@
  * 19 | maintainer@emeraldcoastsystemsgroup.com | A hung suite can no longer hold a push. The checks themselves take about four minutes, but with OSHAL_TEST_SEARCH unset four Operations suites open their database pool, fail to start the engine and never close the pool, so `node --test` waited without limit: 15,214 s and 8,377 s on two pushes, ended only when the fixture database went away, and a plain spawn timeout would have left the per-file runners behind as orphans holding fixture connections. A step whose workflow env names a service address (OSHAL_TEST_POSTGRES, OSHAL_TEST_SEARCH) now FAILS in seconds, before its suite starts, when that variable is unset here or nothing answers at the address, naming the value store-ci uses. Every check runs as the leader of its own process group with a deadline (STORE_CI_CHECK_DEADLINE_SECONDS, default 900): past it, or after the command exits, the whole group is stopped, and an interrupted gate passes the stop on.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | A check that can never run here again stops blocking a push (Roger, 2026-11-03, "1 yes"): LEGACY steps test the retired TypeScript platform this gate no longer resolves and the Embodied live suites need a running engine, so every push had to pass --allow-skips, and that flag also accepted a real missing prerequisite. They are still printed on every run and still say they did not run. Any other skip, such as Career's Python, still exits non-zero.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Show failed TAP diagnostics from the middle of long suites and optionally retain complete failed-check output privately without changing any verdict.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | OSHAL_KERNEL_PLATFORM: a suite that renders the kernel's shared UI (Career's concierge panel uses the shared assistant) gets the kernel's `platform` folder from STORE_CI_KERNEL_PLATFORM, an explicit read-only path the operator sets (an export of the commit production runs). It is never found by looking around, and without it such a step stays a named skip, which fails the gate.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -339,6 +340,12 @@ function resolveCapabilities() {
       value: findModuleRoot('multer'),
       reason: `no Multer — ${INSTALL}`,
     },
+    // The kernel's platform source (its shared UI), for suites that render a shared kernel surface. Only from the
+    // operator's explicit STORE_CI_KERNEL_PLATFORM, an export of the commit production runs; never searched for.
+    OSHAL_KERNEL_PLATFORM: {
+      value: kernelPlatform(),
+      reason: 'no kernel platform source - set STORE_CI_KERNEL_PLATFORM to a read-only export of the kernel\'s platform folder (it must hold src/shared/ui)',
+    },
     // store-ci checks the old TypeScript platform out for these jobs and its suites read that
     // checkout's SOURCE, not only its node_modules. This gate never resolves it: such a step is a
     // SKIP naming the legacy dependency (legacyReason), which is non-zero without --allow-skips.
@@ -558,6 +565,15 @@ async function runCheck(check) {
  * @param {Record<string,{value:string,reason:string}>} capabilities Locally resolved capabilities.
  * @returns {{env:Record<string,string>,skipReason:string}} The child environment and skip reason ('' when runnable).
  */
+/**
+ * @description The kernel's platform folder the operator named, if it holds the shared UI.
+ * @returns {string} The folder, or '' when it is not set or holds no src/shared/ui.
+ */
+function kernelPlatform() {
+  const named = process.env.STORE_CI_KERNEL_PLATFORM || '';
+  return named && existsSync(join(named, 'src', 'shared', 'ui')) ? resolve(named) : '';
+}
+
 function resolveStep(step, required, capabilities) {
   const envNeeds = step.env.filter((key) => key in capabilities || key === 'CAREER_TEST_POSTGRES_ADMIN_URL');
   const needed = new Set([...required, ...envNeeds]);

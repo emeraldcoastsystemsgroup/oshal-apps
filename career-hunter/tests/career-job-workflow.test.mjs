@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise private stars, exact workflow feeds, shared UI actions and conservative read-only application-email matching with real SQLite.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Run actual card refresh helpers to retain typed text, update fit evidence and avoid duplicate document links after preparation.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Save only persists the favorite; explicit fit and document actions keep their existing separate payloads.
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,9 +37,12 @@ test('monitor never sends mail; retries and page cursors retain unseen messages 
  const bad=async()=>({ok:true,json:async()=>({emailAddress:'wrong@example.test'})});const result=await mail.check(dir,db,bad);assert.equal(result.status,'unavailable');assert.match(result.error,/match the submission email/);assert.equal(db.prepare('SELECT status FROM user_signals').get().status,'offer');
  }finally{db.close();rmSync(dir,{recursive:true});}
 });
-test('search save scores; queue promotion waits for explicit document generation and never submits',async()=>{
+test('Save only persists favorite; fit and document preparation each require an explicit action',async()=>{
  const calls=[];const context={window:{},crypto:{randomUUID:()=> 'fixture-request-123'},fetch:async(url,options)=>{calls.push([url,JSON.parse(options.body)]);return {ok:true,json:async()=>({ok:true,requestId:'fixture-request-123'})};},setTimeout,clearTimeout};vm.runInNewContext(readFileSync(new URL('../tools/career-job-actions.js',import.meta.url),'utf8'),context);
- await context.window.CareerJobActions.save(1);assert.equal(calls[0][1].favorite,true);assert.equal(calls[1][1].documents,false);await context.window.CareerJobActions.promote(1);assert.equal(calls[2][1].status,'promoted');assert.equal(calls.length,3,'promotion does not generate documents');await context.window.CareerJobActions.prepare(1,true,{guidance:'Emphasize teaching'});assert.equal(calls[3][1].documents,true);assert.equal(calls[3][1].guidance,'Emphasize teaching');assert.ok(calls.every(([url])=>url.startsWith('/api/career-hunter/')));
+ const saved=await context.window.CareerJobActions.save(1);assert.equal(saved.saved,true);assert.equal(calls[0][1].favorite,true);assert.equal(calls.length,1,'Save starts no scoring work');
+ await context.window.CareerJobActions.promote(1);assert.equal(calls[1][1].status,'promoted');assert.equal(calls.length,2,'promotion does not generate documents');
+ await context.window.CareerJobActions.prepare(1,false);assert.equal(calls[2][1].documents,false);assert.equal(calls.length,3,'only the explicit fit action starts scoring');
+ await context.window.CareerJobActions.prepare(1,true,{guidance:'Emphasize teaching'});assert.equal(calls[3][1].documents,true);assert.equal(calls[3][1].guidance,'Emphasize teaching');assert.ok(calls.every(([url])=>url.startsWith('/api/career-hunter/')));
 });
 
 test('employer-detail refusals explain the next action rather than suggesting an unchanged retry',()=>{

@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: adapt for merged Connect sheet and full-frame session view, verify TV session remote and tap guidance, and verify iPhone Start mirroring / mirror-frame / Stop mirroring in Chromium.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: report 1.4.0 bridge status in mock runner.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: report 1.4.1 bridge status and verify compact TV remote visibility on Fire TV sessions.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Check the named TV's explicit connection and control states in the redesigned device overview; retain the real session checks.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Bridge setup offers Linux hosts only while Windows stays directly reachable by its exact enrolled ID; existing refusal, busy-step, denied-account and session controls remain covered.
  */
 'use strict';
 
@@ -157,14 +159,14 @@ after(async () => {
   fs.rmSync(work, { recursive: true, force: true });
 });
 
-test('Use this computer explains disconnected, control-off and Windows rows, and busy Connect answers in its own card', async () => {
+test('Linux bridge choices explain offline and control-off state, Windows stays direct, and busy Connect answers in its own card', async () => {
   mode = { denyDevices: false, holdRun: null, mirrorRunning: false };
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(`${base}/api/phone-control/config/ui`, { waitUntil: 'networkidle' });
   assert.equal(await page.locator('#connectSheet').isHidden(), false);
   const buttons = page.locator('#computersBody button', { hasText: 'Use this computer' });
   await assert.doesNotReject(() => buttons.nth(0).waitFor());
-  assert.equal(await buttons.count(), 4);
+  assert.equal(await buttons.count(), 3);
 
   await buttons.nth(0).click();
   assert.match(await page.locator('#computersStatus').textContent(), /Offline Box is not connected.*open oshal Node/i);
@@ -174,13 +176,13 @@ test('Use this computer explains disconnected, control-off and Windows rows, and
   assert.match(await page.locator('#computersStatus').textContent(), /Let Jarvis control this computer/);
   assert.equal(await page.locator('#setupCard').isHidden(), true);
 
-  await buttons.nth(2).click();
-  assert.match(await page.locator('#computersStatus').textContent(), /Desk PC runs Windows.*Linux computer only/);
-  assert.equal(await page.locator('#setupCard').isHidden(), true);
+  const desktop = page.locator('#nativeDevicesList > li').filter({ hasText: 'Desk PC' });
+  assert.match(await desktop.innerText(), /Connected.*Control on/s);
+  assert.equal(await desktop.getByRole('link', { name: 'View device', exact: true }).getAttribute('href'), '/cockpit/tools/devices.html?device=device%3A33333333-3333-4333-8333-333333333333');
 
   let releaseRun;
   mode.holdRun = new Promise((resolve) => { releaseRun = resolve; });
-  await buttons.nth(3).click();
+  await buttons.nth(2).click();
   assert.equal(await page.locator('#setupCard').isHidden(), false);
   assert.equal(await page.locator('#tvCard').isHidden(), false);
 
@@ -206,7 +208,7 @@ test('non-admin 403 shows the not-available card, and an Android Fire TV session
   mode = { denyDevices: false, holdRun: null, mirrorRunning: false };
   const admin = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await admin.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
-  assert.match(await admin.locator('.pc-rail').textContent(), /TV · last seen offline/);
+  assert.match(await admin.locator('.pc-rail-item', { hasText: 'Living Room Fire TV' }).textContent(), /Not connected · Control on/);
   await admin.locator('.pc-rail .pc-rail-item', { hasText: 'Living Room Fire TV' }).click();
   await admin.waitForFunction(() => {
     const img = document.getElementById('screenImage');

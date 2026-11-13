@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve the actual failed/current/never-checked paper outcome and its dates; an armed setting is not proof of trading.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | With no brokerage connected the shipped Strategies landing lists the person's paper accounts (label, value, assigned strategy, armed state, last pass) with working paths to Reports and Strategy research, and keeps the honest dead-end copy only when the paper read itself failed. Guard for the trial-demo regression (Roger, 2026-11-03): the landing said only "No connected trading accounts" although the person's paper rail and saved strategies existed.
  */
 'use strict';
@@ -73,4 +74,30 @@ test('a connected live account keeps the live roster path: the paper panel never
   await t.run();
   assert.match(t.host.innerHTML, /Account strategies/);
   assert.doesNotMatch(t.host.innerHTML, /Your paper accounts/);
+});
+
+test('paper strategy outcomes keep failures and dates instead of promising an unverified rebalance', async () => {
+  const cases = [
+    ['failed: daily prices are unavailable', /Last strategy check failed: daily prices are unavailable/],
+    ['current', /Targets already current/],
+    [null, /No strategy check recorded/],
+  ];
+  for (const [lastResult, expected] of cases) {
+    const paper = { accounts: [{ label: 'Synthetic paper', config: { armed: true }, account: { equity: 1000 },
+      strategy: { strategyName: 'Synthetic saved strategy', lastResult, lastDecisionAsOf: '2026-11-10' },
+      lastTick: { at: '2026-11-11T19:00:00Z', outcome: 'skipped', orders: 0 } }] };
+    const t = landing({ portfolio: { accounts: [] }, paper });
+    await t.run();
+    assert.match(t.host.innerHTML, expected);
+    assert.match(t.host.innerHTML, /2026-11-11T19:00:00Z/);
+    assert.match(t.host.innerHTML, /Armed/);
+    assert.doesNotMatch(t.host.innerHTML, />Active<|Rebalances at the next regular session/);
+  }
+});
+
+test('the paper reference account keeps its actual last pass instead of saying none is recorded',async()=>{
+  const t=landing({portfolio:{accounts:[]},paper:{reference:{account:{equity:1000},config:{armed:true},
+    lastTick:{at:'2026-11-11T18:00:00Z',outcome:'failed',orders:null}},accounts:[]}});
+  await t.run();assert.match(t.host.innerHTML,/2026-11-11T18:00:00Z/);
+  assert.match(t.host.innerHTML,/failed · Unknown orders/);assert.doesNotMatch(t.host.innerHTML,/No pass recorded/);
 });

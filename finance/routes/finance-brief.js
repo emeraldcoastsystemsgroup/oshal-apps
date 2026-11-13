@@ -28,6 +28,9 @@
  *     |                                             | ($0.01).": the sentence splitter broke after "Inc." before "(", the head was left
  *     |                                             | out for its amount and its tail kept. lineSentences() does not end a sentence
  *     |                                             | after an abbreviation or an initial. Guard: tests/brief-figures.test.cjs.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Unknown balances and dependent totals stay Unknown in the figures and are excluded from quotable money amounts; reported zero remains a known amount.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com | Keep mixed or unknown currency amounts out of commentary quotes; retain each known account's own unit in written figures.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Exclude incomplete-window spending, income and trends from new analysis context and quotable amounts while retaining dated available transactions and independent balances.
  * -----------------------------------------------------------------------------
  *
  * @module finance-brief
@@ -42,6 +45,8 @@ exports.withoutUnverified = withoutUnverified;
 exports.buildCommentaryPrompt = buildCommentaryPrompt;
 exports.buildRewritePrompt = buildRewritePrompt;
 exports.composeBrief = composeBrief;
+const finance_values_1 = require("./finance-values");
+const finance_facts_1 = require("./finance-facts");
 /** Sentences that narrate the model's own working rather than the person's money. */
 const WORKING = /\b(?:verified totals?|discrepanc\w*|hidden or aggregated|unlisted|aggregated liabilit\w*|correction(?: on\b|:)|recalculat\w*|re-?computed?|my (?:calculation|math|working))/i;
 /** A commentary heading that carried the request's guidance after its name ("## The story - one or two sentences ..."). */
@@ -55,6 +60,8 @@ const AMOUNT = /(?:[$€£]|\b(?:USD|EUR|GBP|CAD|AUD)\s?)\s?(-?\d[\d,]*(?:\.\d+)
  * @returns For example "$65,262.00" or "-$40,452.32".
  */
 function money(value, currency) {
+    if (value === null || !Number.isFinite(value))
+        return 'Unknown';
     try {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
     }
@@ -64,7 +71,8 @@ function money(value, currency) {
 }
 /** The account's balance as the person owes or holds it, in cents. */
 function accountCents(balance) {
-    return Math.round(Math.abs(Number(balance || 0)) * 100);
+    const amount = (0, finance_values_1.finiteAmount)(balance);
+    return amount === null ? null : Math.round(amount * 100);
 }
 /** True for an account the person owes on (credit and loans). */
 function owed(type) {
@@ -87,19 +95,26 @@ function briefFigures(agg, totals) {
     }
     lines.push('', '## Accounts');
     const accounts = Array.isArray(agg.accounts) ? agg.accounts : [];
-    if (!accounts.length)
+    if (agg.balancesComplete === false || !Array.isArray(agg.accounts))
+        lines.push('Account balances could not all be read. Complete totals are unknown.');
+    else if (!accounts.length)
         lines.push('No linked accounts in the saved snapshot.');
     for (const account of accounts) {
         const where = account.institution ? ` (${account.institution})` : '';
-        const value = money(accountCents(account.balance) / 100, account.currency || currency);
+        const cents = accountCents(account.balance);
+        const unit = Object.prototype.hasOwnProperty.call(account, 'currency') ? account.currency : currency;
+        const value = money(!/^[A-Z]{3}$/.test(unit) || cents === null ? null : (owed(account.type) ? Math.abs(cents) : cents) / 100, unit);
         lines.push(`- ${account.name || 'Account'}${where}: ${value}${owed(account.type) ? ' owed' : ''}`);
     }
+    const coverage = (0, finance_facts_1.transactionCoverageNotice)(agg);
+    if (coverage)
+        lines.push('', '## Transaction coverage', coverage);
     return lines.join('\n');
 }
 /** Push one labelled amount when it is a finite number. */
 function addAmount(list, label, value) {
-    const number = Number(value);
-    if (Number.isFinite(number))
+    const number = (0, finance_values_1.finiteAmount)(value);
+    if (number !== null)
         list.push({ label, cents: Math.round(Math.abs(number) * 100) });
 }
 /**
@@ -111,26 +126,35 @@ function addAmount(list, label, value) {
  */
 function quotableAmounts(agg, totals) {
     const list = [];
+    if (!/^[A-Z]{3}$/.test(agg.currency) || totals.mixedCurrencies || (agg.accounts || []).some((a) => (Object.prototype.hasOwnProperty.call(a, 'currency') ? a.currency : agg.currency) !== agg.currency))
+        return list;
     for (const key of ['netWorth', 'totalAssets', 'totalLiabilities', 'cashAndDeposits', 'investmentAccounts', 'otherAssets', 'creditOwed', 'loansOwed', 'holdingsValue']) {
         addAmount(list, key, totals[key]);
     }
     for (const a of agg.accounts || [])
         addAmount(list, `${a.name} balance`, a.balance);
     for (const h of agg.holdings || []) {
+        if (Object.prototype.hasOwnProperty.call(h, 'currency') && h.currency !== agg.currency)
+            continue;
         addAmount(list, `${h.name} value`, h.value);
         addAmount(list, `${h.name} cost basis`, h.costBasis);
     }
-    for (const s of agg.topSpending || [])
+    const complete = (0, finance_facts_1.transactionCoverageComplete)(agg);
+    for (const s of complete ? agg.topSpending || [] : [])
         addAmount(list, `${s.category} spending`, s.total);
-    const months = agg.spendByMonth || [];
+    const months = complete ? agg.spendByMonth || [] : [];
     months.forEach((m, i) => {
         addAmount(list, `${m.month} spend`, m.spend);
         addAmount(list, `${m.month} income`, m.income);
-        if (i > 0)
-            addAmount(list, `${m.month} spend change`, Number(m.spend) - Number(months[i - 1].spend));
+        if (i > 0) {
+            const current = (0, finance_values_1.finiteAmount)(m.spend), previous = (0, finance_values_1.finiteAmount)(months[i - 1].spend);
+            if (current !== null && previous !== null)
+                addAmount(list, `${m.month} spend change`, current - previous);
+        }
     });
     for (const t of agg.recentTransactions || [])
-        addAmount(list, `${t.name} on ${t.date}`, t.amount);
+        if (!Object.prototype.hasOwnProperty.call(t, 'currency') || t.currency === agg.currency)
+            addAmount(list, `${t.name} on ${t.date}`, t.amount);
     return list;
 }
 /**
@@ -241,12 +265,15 @@ function bufferRules(allowed, currency) {
  * @returns The prompt.
  */
 function buildCommentaryPrompt(agg, figures, allowed) {
-    const { netWorth: _ignored, ...facts } = agg;
+    const { netWorth: _ignored, ...savedFacts } = agg;
+    const complete = (0, finance_facts_1.transactionCoverageComplete)(agg);
+    const facts = complete ? savedFacts : { ...savedFacts, topSpending: [], spendByMonth: [], transactionsComplete: false };
     const currency = agg.currency || 'USD';
     return [
         'You are a personal finance analyst writing the commentary of one person\'s money brief. The app has ALREADY',
         'written the figures section below from their linked accounts, and it is shown above your commentary exactly as',
-        'given. It is complete and exact. Do not repeat it, recompute it, correct it or describe how it was computed.',
+        'given. Known figures are exact; Unknown means the saved data did not report that amount. Do not repeat,',
+        'recompute or correct the figures, or describe how they were computed.',
         'You do NOT give regulated investment advice and you do NOT place trades; you observe and explain.',
         '',
         'Write only these Markdown sections, each under its heading written exactly as "## The story", "## Portfolio",',
@@ -254,11 +281,13 @@ function buildCommentaryPrompt(agg, figures, allowed) {
         'preamble, no sign-off. The story: one or two sentences on where they stand. Portfolio: holdings by value,',
         'concentration or drift; leave it out when there are no holdings. Spending: top categories and the',
         'month-over-month trend. Watch-outs: bills, debts, low buffers, anything worth a glance; non-alarmist, specific.',
+        ...(complete ? [] : ['Full-window spending, income and trends are unavailable. Explain the coverage limitation; do not infer complete totals or trends from available transactions.']),
         ...bufferRules(allowed, currency),
         '',
+        'When AMOUNTS YOU MAY QUOTE is empty, do not write any money amounts or combine currencies. Describe the data limitations in words.',
         'Every money amount you write must be copied exactly from AMOUNTS YOU MAY QUOTE. Never add, subtract, round or',
         'estimate an amount, and never write a total, sum, difference or "about" figure that is not listed: say it in words',
-        'instead. Never say figures are missing, hidden, unlisted or inconsistent, never write a note or correction to',
+        'instead. Acknowledge an Unknown amount plainly without estimating it. Never claim hidden or inconsistent figures, and never write a note or correction to',
         'yourself, and never name a field name, JSON or "verified totals". Speak to the person as "you".',
         '',
         'FIGURES SECTION (already shown above your commentary):',

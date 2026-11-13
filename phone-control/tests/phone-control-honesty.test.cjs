@@ -9,6 +9,12 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the bridge budget counts oshal_phone_lan.py and allows 200 KiB of sources; the binding limit stays the install command under 100 KiB (~75 KB now that its payload is encoded once). The server still reaches no network: the TV verbs run on the person's computer.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the picture fallback labels the device's stored picture as not live and keeps the reason, an old picture takes no taps, and one place sends commands to a phone or TV, through the reconnect.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.12.1 (T79): the tool Jarvis lists saved devices with says it lists TVs as well as phones, and each device's form; its name once said phones only, so a request for a TV passed it by.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79): the record route's file (routes/phone-control-inventory.js) is scanned with the others, so its route needs its one binding too.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | TV link/show tools declare only the existing closed lan-control runner and require its actual one-use result.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Follow loaded browser-module imports and DOM aliases for the button guard, including the overview's real Clear click handler; prove disconnected modules and removed handlers fail the guard.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Pin the restored native downloads entry and actual Install or update Orbit label, preserving all button, version, source and ownership guards.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Include the mounted native relay module in the existing exact route/catalog guard without relaxing its assertions.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.18.0: scan the mounted Fire TV guide module (routes/phone-control-remote-guides.js) with the others. Its catalog binding without its route in this list made the guard count 45 bindings for 44 routes; the assertions are unchanged.
  */
 'use strict';
 
@@ -16,6 +22,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const ts = require(path.join(__dirname, '../../scripts/toolchain/node_modules/typescript'));
 
 const PKG = path.resolve(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(PKG, relative), 'utf8');
@@ -31,6 +38,81 @@ const yaml = (() => {
   }
   return null;
 })();
+
+/** The page's own reachable browser modules; unimported files cannot satisfy its handler contract. */
+function loadedScripts(overlay = new Map()) {
+  const html = read('tools/phone-control.html').replace(/<!--[\s\S]*?-->/g, '');
+  const sources = new Map(), pending = [...html.matchAll(/<script[^>]*src="\/api\/phone-control\/ui\/([^"]+)"/g)].map(m => `tools/${m[1]}`);
+  while (pending.length) {
+    const file = pending.pop();
+    if (sources.has(file)) continue;
+    const source = overlay.has(file) ? overlay.get(file) : read(file); sources.set(file, source);
+    for (const url of moduleUrls(source)) {
+      const dependency = url.startsWith('/api/phone-control/ui/') ? `tools/${url.slice('/api/phone-control/ui/'.length)}`
+        : url.startsWith('.') ? path.posix.normalize(path.posix.join(path.posix.dirname(file), url)) : '';
+      if (dependency && /^tools\/[\w.-]+\.(?:js|mjs)$/.test(dependency)) pending.push(dependency);
+    }
+  }
+  return sources;
+}
+
+function moduleUrls(source) {
+  const urls = [];
+  const visit = node => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) urls.push(node.moduleSpecifier.text);
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) urls.push(node.arguments[0].text);
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile('browser.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS));
+  return urls;
+}
+
+function domId(expr, scope, seen = new Set()) {
+  if (ts.isCallExpression(expr)) {
+    const name = ts.isPropertyAccessExpression(expr.expression) ? expr.expression.name.text : expr.expression.text;
+    const arg = expr.arguments[0];
+    if (arg && ts.isStringLiteral(arg) && ['$', 'byId', 'getElementById'].includes(name)) return arg.text;
+  }
+  if (!ts.isIdentifier(expr) || seen.has(expr.text)) return '';
+  seen.add(expr.text);
+  for (let current = scope; current; current = current.parent) {
+    const declaration = current.bindings.get(expr.text);
+    if (declaration) return domId(declaration.value, declaration.scope, seen);
+  }
+  return '';
+}
+
+/** Resolve direct and aliased DOM receivers in actual executable syntax, not comments or a button exception list. */
+function handlerEvents(source) {
+  const events = new Map();
+  const add = (id, event) => { if (id) events.set(id, new Set([...(events.get(id) || []), event])); };
+  const callable = value => value && (ts.isArrowFunction(value) || ts.isFunctionExpression(value) || ts.isIdentifier(value) && value.text !== 'undefined');
+  const walk = (node, parent) => {
+    const scoped = ts.isSourceFile(node) || ts.isBlock(node) || ts.isFunctionLike(node);
+    const scope = scoped ? { parent, bindings: new Map() } : parent;
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      scope.bindings.set(node.name.text, { value: node.initializer, scope });
+    }
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'addEventListener') {
+      if (node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && callable(node.arguments[1])) add(domId(node.expression.expression, scope), node.arguments[0].text);
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(node.left)) {
+      const event = /^on(click|submit)$/.exec(node.left.name.text)?.[1];
+      if (event && callable(node.right)) add(domId(node.left.expression, scope), event);
+    }
+    ts.forEachChild(node, child => walk(child, scope));
+  };
+  walk(ts.createSourceFile('browser.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS), null);
+  return events;
+}
+
+function pageHandlers(overlay) {
+  const events = new Map();
+  for (const source of loadedScripts(overlay).values()) {
+    for (const [id, found] of handlerEvents(source)) events.set(id, new Set([...(events.get(id) || []), ...found]));
+  }
+  return events;
+}
 
 test('the package server reaches no network, process or radio', () => {
   for (const file of [...files('lib', /\.js$/), ...files('routes', /\.js$/)]) {
@@ -62,18 +144,15 @@ test('there is no public default secret and no bearer fallback', () => {
   for (const gone of ['lib/mirror_engine.js', 'lib/blob_store.js', 'lib/ble_hid_daemon.py']) assert.equal(fs.existsSync(path.join(PKG, gone)), false, gone);
 });
 
-test('every button on the page is wired to a handler that sends something real', () => {
+test('every page button has a click handler in its loaded browser modules', () => {
   const html = read('tools/phone-control.html');
-  const scripts = [
-    'tools/phone-control.js', 'tools/phone-stage.js', 'tools/phone-setup.js', 'tools/phone-rdp.js',
-    'tools/phone-concierge.js', 'tools/session-computer.js', 'tools/session-media.js', 'tools/session-collab.js'
-  ].map(read).join('\n');
+  const scripts = [...loadedScripts().values()].join('\n'), handlers = pageHandlers();
   // A submit button is wired through its form's submit handler, checked below.
   const ids = [...html.matchAll(/<button(?![^>]*type="submit")[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.ok(ids.length >= 9, `buttons found: ${ids.join(', ')}`);
-  for (const id of ids) assert.match(scripts, new RegExp(`\\$\\('${id}'\\)\\.addEventListener|byId\\('${id}'\\)\\.addEventListener`), `button #${id} has no handler`);
+  for (const id of ids) assert.ok(handlers.get(id)?.has('click'), `button #${id} has no click handler`);
   for (const form of [...html.matchAll(/<form[^>]*\bid="([^"]+)"/g)].map((match) => match[1])) {
-    assert.match(scripts, new RegExp(`\\$\\('${form}'\\)\\.addEventListener\\('submit'`), `form #${form} has no submit handler`);
+    assert.ok(handlers.get(form)?.has('submit'), `form #${form} has no submit handler`);
   }
   const bridge = read('bridge/oshal_phone_bridge.py');
   const androidKeys = new Set([...bridge.matchAll(/'([A-Z_]+)': \d+/g)].map((match) => match[1]));
@@ -90,7 +169,20 @@ test('every button on the page is wired to a handler that sends something real',
     assert.match(scripts, new RegExp(`\\$\\('${link}'\\)\\.href = `), `${link} opens the kernel's computer page`);
   }
   assert.match(scripts, /\$\('rdpWorkLink'\)\.href = `\$\{workHref\(/);
-  assert.match(html, /href="\/cockpit\/tools\/devices\.html"[^>]*>Download oshal Node/);
+  assert.match(html, /href="\/cockpit\/tools\/downloads\.html"[^>]*>Install or update Orbit/);
+});
+
+test('the button guard rejects a removed Clear handler and an unimported home renderer', () => {
+  const home = read('tools/phone-home.js');
+  assert.ok(pageHandlers().get('deviceSearchClear')?.has('click'));
+  const removed = home.replace(/clear\.onclick\s*=\s*\(\)\s*=>\s*\{[^\n]+\};/, '');
+  assert.notEqual(removed, home, 'the mutation removed the real Clear handler');
+  assert.equal(pageHandlers(new Map([['tools/phone-home.js', removed]])).get('deviceSearchClear')?.has('click') || false, false);
+  const stage = read('tools/phone-stage.js'), detached = stage.replace(/^import[^\n]*\/phone-home\.js';\n/m, '');
+  assert.notEqual(detached, stage, 'the mutation disconnected the actual home import');
+  assert.equal(pageHandlers(new Map([['tools/phone-stage.js', detached + "\n// import { renderHome } from '/api/phone-control/ui/phone-home.js';"]])).get('deviceSearchClear')?.has('click') || false, false);
+  assert.equal(handlerEvents("// byId('fake').addEventListener('click', press);\nconst words=\"byId('fake').addEventListener('click', press)\";").has('fake'), false);
+  assert.equal(handlerEvents("byId('fake').onclick=undefined; byId('fake').addEventListener('click',null);").has('fake'), false);
 });
 
 test('every verb the page sends is one the bridge has, and the lists agree', async () => {
@@ -117,7 +209,9 @@ test('every route has exactly one catalog binding and every tool is bound', () =
   const routes = [];
   for (const file of [
     'routes/phone-control-routes.js', 'routes/phone-control-session-routes.js',
-    'routes/phone-control-concierge-routes.js', 'routes/home-summary.js', 'routes/phone-control-config-routes.js'
+    'routes/phone-control-concierge-routes.js', 'routes/home-summary.js', 'routes/phone-control-config-routes.js',
+    'routes/phone-control-inventory.js', 'routes/phone-control-relay-routes.js',
+    'routes/phone-control-remote-guides.js'
   ]) {
     const prefix = file.includes('home-summary') ? '/home-summary'
       : file.includes('config-routes') ? '/config'
@@ -186,4 +280,17 @@ test('1.12.1: the device list tool says it lists TVs as well as phones', () => {
   assert.match(tool, /description: List this person's phones and TVs\b[^\n]*whether it is a phone or a TV/);
   assert.match(tool, /usageInstructions: Choose a phone or TV returned here/);
   assert.doesNotMatch(source, /List My Phones(?! and TVs)/, 'no other text still calls it List My Phones');
+});
+
+test('TV link and show tools declare the closed one-command runner', () => {
+  const manifest = yaml.load(read('oshal-app.yaml'));
+  for (const name of ['phone-control-open-link','phone-control-play-show']) {
+    const tool = manifest.tools.find(tool => tool.name === name);
+    assert.deepEqual(tool.computerPlan, {program:'phone-bridge',verbs:['lan-control'],revalidate:true});
+    assert.match(tool.usageInstructions, /computer.run_plan/);
+    assert.match(tool.usageInstructions, /planId/);
+    assert.match(tool.usageInstructions, /once/);
+  }
+  const sequence = manifest.tools.find(tool => tool.name === 'phone-control-execute-device');
+  assert.equal(sequence.computerPlan, undefined, 'shell conjunction is not admitted as one closed command');
 });

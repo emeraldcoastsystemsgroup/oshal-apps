@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Pin the already shipped 1.1.13 group version while preserving all toolbar and member assertions.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -12,6 +13,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.10: Print Ingest is no longer a member of the Intelligent Career group; it is a platform tool and is opened from Platform.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.1.12: the group's concierge is Career's own (career-concierge).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home, a real member surface that carries the job search box; Search Jobs follows it.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Keep Career accounts in member Settings, remove mandatory Facebook setup and verify every retained setup fix names a retained member surface.
  */
 'use strict';
 const { test } = require('node:test');
@@ -57,7 +59,7 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.12');
+  assert.equal(group.version, '1.1.13');
   assert.equal(group.chatBot, members.get('career-hunter').chatBot, 'the group\'s concierge is Career\'s own (1.1.12)');
   assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social']);
   for (const surface of ['career-settings', 'career-companies']) {
@@ -65,7 +67,12 @@ test('Career configuration and sources are a visible borrowed navigation band', 
     assert.equal(item?.group, 'Configuration', surface);
     assert.equal(item.section, undefined, 'configuration is not confined to the bottom tray');
   }
-  assert.equal(group.setup.length, 6);
+  assert.equal(group.toolbar.some(item=>item.surface==='social-accounts'),false);
+  assert.equal(group.setup.some(item=>item.app==='social'&&item.readiness==='facebook'),false);
+  assert.ok(group.setup.length>0);
+  for(const step of group.setup){
+    if(step.fix)assert.ok(group.toolbar.some(item=>item.app===step.app&&item.surface===step.fix),step.fix);
+  }
   assert.equal(group.experience, undefined, 'the group keeps its no-code contract; Career Hunter owns the authenticated experience');
 });
 

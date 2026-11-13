@@ -5,6 +5,7 @@
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries (0.3.2): the static kit contract of the page, and the company view's behaviour over the package's real routes (two owner-scoped reads, the stats, the documents table, the failures list, the route's notes, every named failure) plus the gate on the Print Inbox body script. Dependency-free node-test, no framework checkout.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register description (sweep 11): the manifest, catalog and README describe an inbound virtual printer that cannot print to a printer.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): register printed-collect (POST /printed/collect over the real compiled router and a stand-in kernel queue) and printed-row (the page's printed row and its collect-then-list start).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -70,6 +71,57 @@ cases:
     expected:
       - MEDIUM reads Match medium and a shared readers line appears once.
       - The selected tab shows its count and is not accent-filled.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: printed-collect
+    name: Documents printed to the owner's computers are taken into the inbox awaiting approval
+    purpose: >-
+      T11: POST /api/print-ingest/printed/collect over the package's real compiled router, with the kernel's
+      print_jobs.list and print_jobs.take as a stand-in queue: each printed job is filed as the caller's own intake row
+      awaiting approval with the computer it was printed to, the sending address, pages, size and time, and taken from
+      the kernel only after its row exists.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/printed-collect.test.cjs
+    expected:
+      - Two waiting jobs become two rows owned by the caller, at their default state (awaiting approval), with a printer sidecar; print_jobs.take names both after the inserts; nothing is updated, approved or written to a corpus.
+      - The same text filed before is a duplicate and is still taken; a failed insert takes nothing, so the jobs wait in the kernel for the next try (502 in words).
+      - Seven waiting jobs are taken in two rounds of at most five; signed out is 401 and a kernel without intents 503, neither touching the queue.
+      - authorization.yaml binds POST /api/print-ingest/printed/collect to app.open and intake.write.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: printed-row
+    name: A printed document says it came from a printer, and the inbox takes printed documents before it lists
+    purpose: >-
+      T11: the page's own functions in a sandbox: the printed row (Came from a printer, printed to which computer from
+      which address, pages, size, time, all as text), the collect-then-list start of the full page and each tab, and the
+      company view naming the computer but never the sending address.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/printed-row.test.cjs
+    expected:
+      - A printed document reads "Came from a printer", "Printed to Office PC from 192.168.1.20", its pages, size and time; a hostile name is escaped; its meta line does not say unknown machine.
+      - A document from anywhere else is unchanged.
+      - The full inbox and each tab call POST /printed/collect, then list; a failed take says the documents still wait.
+      - The company view's origin for a printed document is the computer's name only.
     prerequisites:
       - runner:node-test
     sideEffects: none

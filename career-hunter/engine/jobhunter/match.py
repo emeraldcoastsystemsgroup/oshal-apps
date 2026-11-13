@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Nightly work scores only never-matched nonremoved relationships, including jobs missed by failed nights.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -229,6 +230,41 @@ def rescore_recent(days: int = 10) -> int:
         for r in _iter_postings(conn, sql, params):
             s = score_text(r["title"], r["description"], terms)
             db.user_set(conn, r["id"], fit_score=s)   # keyword fit is per-user
+            n += 1
+        conn.commit()
+    return n
+
+
+def rescore_new() -> int:
+    """Persist keyword fit once per owner/job. Existing fit is the durable progress receipt.
+
+    A failed transaction leaves jobs eligible; no timestamp watermark can lose an old
+    unmatched job. Removed identities are tombstones even when they have no fit yet.
+    Explicit rescore_all/rescore_recent remain available for changed profile/evidence.
+    """
+    terms, n = _career_terms(), 0
+    with db.connect() as conn:
+        if config.POSTGRES:
+            pending = ("NOT EXISTS (SELECT 1 FROM career_user_job_scores s WHERE s.posting_id=p.id "
+                       "AND s.user_sub=? AND s.fit_score IS NOT NULL) AND NOT EXISTS "
+                       "(SELECT 1 FROM career_user_applications a WHERE a.posting_id=p.id "
+                       "AND a.user_sub=? AND a.status='dismissed')")
+            params = (db.require_sub(), db.require_sub())
+        else:
+            if config.MULTIUSER:
+                from .signal_migrations import migrate
+                migrate(conn)
+                pending = ("NOT EXISTS (SELECT 1 FROM user_signals s WHERE s.posting_id=p.id "
+                           "AND (s.fit_score IS NOT NULL OR s.status='dismissed'))")
+            else:
+                pending = "p.fit_score IS NULL AND COALESCE(p.status,'new') <> 'dismissed'"
+            params = ()
+        # Materialize identities before touching description-heavy corpus rows.
+        sql = (f"WITH pending AS MATERIALIZED (SELECT p.id FROM {db.corpus_table()} p "
+               f"WHERE p.{_active_true()} AND {pending}) "
+               f"SELECT p.id,p.title,p.description FROM pending ids CROSS JOIN {db.corpus_table()} p ON p.id=ids.id")
+        for row in _iter_postings(conn, sql, params):
+            db.user_set(conn, row['id'], fit_score=score_text(row['title'], row['description'], terms))
             n += 1
         conn.commit()
     return n

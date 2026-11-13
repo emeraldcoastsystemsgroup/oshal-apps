@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Upgrade nightly receipts to the new-entry-only matching contract.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Run private recent resume matching and bounded title scoring once per published corpus, with a durable owner receipt and daily cooldown.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bound successful passes to the corpus's 18:00 Chicago refresh cycle, so midday catch-up never consumes the coming evening's publication.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A failed pass logs the engine's error type: six days of failures had said only "code 1".
@@ -17,7 +18,7 @@ const logger = createChildLogger({ module: 'career-nightly-match' });
 export const NIGHTLY_MATCH_LIMIT = 50;
 export const NIGHTLY_MATCH_FILE = 'nightly-match-success.json';
 /** Raise this when people should not wait for the next publication: a receipt from an older match runs once more. */
-export const NIGHTLY_MATCH_CONTRACT = 2;
+export const NIGHTLY_MATCH_CONTRACT = 3;
 
 /** The evening refresh cycle a published corpus belongs to, independent of when its owner catches up. */
 export function nightlyPublicationCycle(millis: number): string {

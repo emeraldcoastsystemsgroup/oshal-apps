@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Require native current owner decision provenance through the actual compiled handler, holding plain terminal statuses.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise exact native ticket correlation, reserved generic-ingress refusals, persistent uncertainty and closed-action outcome readback through the compiled handler.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The two fixture suggestions are compared by employer: they are found a moment apart, the library lists the newest first, and when a second ticked between them the expected order was wrong (one failure in six runs).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The list carries the open suggestions the engine keeps, not last night's: two found two nights before the newest report are listed, one whose employer has since been given a board is not, and the route returns at most 50 with the full count.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance through the shipped routes and library over the corpus the engine really writes: the list carries the report, the decisions with their evidence and the open briefs, read without writes; Keep trying is saved for the next pull exactly as the kernel takes it and refused where no decision waits; the daily briefing answers short items inside the kernel's report limits and nothing on a quiet or stale night; only an administrator reaches either route.
@@ -7,9 +9,12 @@
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {copyFileSync, mkdtempSync, readFileSync, rmSync} from 'node:fs';
+import {copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {createRequire} from 'node:module';
+const require = createRequire(import.meta.url);
 import {buildCorpus, loadRoutes, sourceHealth, sourceRequests, HOSTILE} from './helpers/career-maintenance-corpus.mjs';
 
 let corpus;
@@ -27,10 +32,10 @@ function olderCorpus() {
 }
 
 function onNativeKernel(fn) {
-  return async () => {
+  return async (t) => {
     const egress = process.env.OSHAL_EGRESS;
     process.env.OSHAL_EGRESS = 'kernel';
-    try { await fn(); }
+    try { await fn(t); }
     finally { if (egress === undefined) delete process.env.OSHAL_EGRESS; else process.env.OSHAL_EGRESS = egress; }
   };
 }
@@ -94,27 +99,19 @@ test('a corpus maintenance has not reached has none of it, and one it cannot rea
   } finally { db.close(); }
 });
 
-test('Keep trying is saved for the next pull exactly as the kernel takes it, and refused where no decision waits', onNativeKernel(async () => {
-  const {call, engine} = loadRoutes(corpus);
-  const quiet = corpus.id('Quiet Board Co');
-  const saved = await call('/companies-admin/keep', {companyId: String(quiet)});
-  assert.equal(saved.status, 202);
-  assert.equal(saved.body.message, 'Saved. From the next nightly pull, Career keeps trying Quiet Board Co and does not ask about it again for 60 days.');
-  assert.deepEqual(corpus.outbox(), [{id: saved.body.request.id, companyId: quiet, target: 'keep:employer'}]);
-  assert.equal(sourceRequests.validTarget(sourceRequests.KEEP_TRYING), 'keep:employer');
-  const waiting = (await call('/companies-admin/list')).body.sourceChanges;
-  assert.deepEqual([waiting[0].state, waiting[0].target], ['waiting', 'keep:employer']);
-  const refusals = [[corpus.id('Fresh Co'), 409, 'Fresh Co has no decision waiting.'], [corpus.id('Gone Co'), 409, 'Gone Co is removed.'],
-    [999999, 404, 'That company is no longer listed.']];
-  for (const [companyId, status, error] of refusals) {
-    const refused = await call('/companies-admin/keep', {companyId: String(companyId)});
-    assert.deepEqual([refused.status, refused.body.error], [status, error]);
+test('generic Keep trying and Remove cannot bypass the waiting native decision',onNativeKernel(async()=>{
+  const {call,engine}=loadRoutes(corpus), quiet=corpus.id('Quiet Board Co');
+  for(const route of ['keep','remove']) {
+    const refused=await call('/companies-admin/'+route,{companyId:String(quiet)});
+    assert.equal(refused.status,409); assert.match(refused.body.error,/native decision ticket/);
   }
-  for (const bad of [{}, {companyId: 'x'}, {companyId: '0'}, {companyId: '-3'}]) {
-    assert.equal((await call('/companies-admin/keep', bad)).status, 400, JSON.stringify(bad));
+  for(const [companyId,status,error] of [[corpus.id('Fresh Co'),409,'Fresh Co has no decision waiting.'],
+    [corpus.id('Gone Co'),409,'Gone Co is removed.'],[999999,404,'That company is no longer listed.']]) {
+    const refused=await call('/companies-admin/keep',{companyId:String(companyId)});
+    assert.deepEqual([refused.status,refused.body.error],[status,error]);
   }
-  assert.equal(corpus.outbox().length, 1, 'a refusal leaves nothing behind');
-  assert.equal(engine.runs, 0);
+  for(const bad of [{},{companyId:'x'},{companyId:'0'},{companyId:'-3'}]) assert.equal((await call('/companies-admin/keep',bad)).status,400);
+  assert.equal(corpus.outbox().length,0); assert.equal(engine.runs,0);
 }));
 
 test('where no nightly pull applies changes, Keep trying says so and saves nothing', async () => {
@@ -194,7 +191,7 @@ test('a decision or a brief is told once: the next quiet night, a stale report a
     db.exec('CREATE TABLE corpus.source_maintenance_runs(run_id TEXT PRIMARY KEY, started_at TEXT, finished_at TEXT, report TEXT)');
     db.prepare('INSERT INTO corpus.source_maintenance_runs VALUES(?,?,?,?)').run('pull-a', 'a', new Date().toISOString(),
       JSON.stringify({version: 1, finishedAt: new Date().toISOString(), discovery: {connected: [], suggested: []}}));
-    assert.deepEqual((await loadRoutes({db, owner: '/nonexistent-owner'}).call('/companies-admin/maintenance-report')).body, {report: []}, 'nothing to tell');
+    assert.deepEqual((await loadRoutes({db, owner: '/nonexistent-owner'}).call('/companies-admin/maintenance-report')).body, {report: [],decisions:[]}, 'nothing to tell');
   } finally { db.close(); }
   assert.deepEqual((await loadRoutes({db: null, owner: '/nonexistent-owner'}).call('/companies-admin/maintenance-report')).body, {report: []});
 });
@@ -208,9 +205,10 @@ test('only an administrator reaches Keep trying or the briefing, and both are bo
   }
   assert.equal(corpus.outbox().length, before);
   const binding = readFileSync(new URL('../authorization.yaml', import.meta.url), 'utf8');
-  for (const path of ['/companies-admin/keep', '/companies-admin/maintenance-report']) {
-    assert.match(binding, new RegExp(`method: POST, path: ${path}, allOf: \\[career\\.administer\\] \\}`), path);
+  for (const path of ['/companies-admin/maintenance-report','/companies-admin/decision-sync']) {
+    assert.ok(binding.includes('path: '+path+', allOf: [career.administer, career.execute]'),path);
   }
+  assert.ok(binding.includes('path: /companies-admin/keep, allOf: [career.administer]'));
 }));
 
 test('the manifest offers the daily briefing job on that route, once a morning, with a report', () => {
@@ -221,3 +219,134 @@ test('the manifest offers the daily briefing job on that route, once a morning, 
     assert.ok(block.includes(`    ${line}\n`), line);
   }
 });
+
+/** Explicit native projection fixture; the installed kernel regression proves the actual history receipt. */
+function nativeDecision(row,status) {
+  row.status=status; row.revision++;
+  row.applicationDecision={version:1,app:'career-hunter',ticketId:row.ticketId,ticketType:row.ticketType,workflow:row.workflow,
+    revision:row.revision,status,outcome:status==='done'?'approve':'cancel',ownerVerified:true};
+}
+
+/** Native ticket port is an explicit fixture; shipped route, journal, corpus and outbox remain real. */
+function nativePort() {
+  const rows = new Map(), calls = {create:0,start:0};
+  return {rows,calls,
+    async listTickets(filter) { assert.equal(filter.ownerSub,'fixture-admin'); return [...rows.values()]; },
+    async getTicket(id) { return rows.get(id) || null; },
+    async createTicket(input) { calls.create++; const id = randomUUID();
+      rows.set(id,{ticketId:id,ticketType:input.ticketType,workflow:'career-hunter:career-source-decision',
+        title:input.title,description:input.description,status:'queued',revision:0}); return {ticketId:id}; },
+    async startTicket(id,input) { calls.start++; assert.ok(input.limits.wall_ms > 0 && input.limits.output_tokens > 0 && input.limits.artifact_bytes > 0);
+      rows.get(id).status='awaiting_approval'; rows.get(id).revision++; return {status:'awaiting_approval'}; }};
+}
+
+function decisionRoutes(t) {
+  const owner = mkdtempSync(join(tmpdir(),'career-decision-routes-')); t.after(()=>rmSync(owner,{recursive:true,force:true}));
+  const tickets = nativePort(); return {tickets,owner,...loadRoutes({db:corpus.db,owner},{ticketService:tickets})};
+}
+
+test('the original admitted morning receiver prepares one named decision per current action through its supplied native port and reuses them',onNativeKernel(async t=>{
+  const f=decisionRoutes(t);
+  const first=await f.call('/companies-admin/maintenance-report');
+  assert.equal(first.status,200); assert.equal(f.tickets.calls.create,2,'both current source actions get native owner tickets');
+  assert.equal(f.tickets.calls.start,2); assert.equal(first.body.decisions.length,2);
+  assert.ok(first.body.decisions.every(item=>item.state==='awaiting_approval' && item.ticketId));
+  await f.call('/companies-admin/maintenance-report'); assert.equal(f.tickets.calls.create,2);
+  const before={...f.tickets.calls}, listed=await f.call('/companies-admin/list');
+  assert.deepEqual(f.tickets.calls,before,'GET does not create/start/read native tickets');
+  assert.equal(listed.body.sourceDecisions.length,2);
+  assert.equal(readdirSyncOrEmpty(join(f.owner,'.source-request-outbox')).length,0,'preparation never approves or archives');
+}));
+
+function readdirSyncOrEmpty(folder) { try { return readdirSync(folder); } catch { return []; } }
+
+test('decision sync queues only the same human-completed ticket and refuses a foreign/stale reference',onNativeKernel(async t=>{
+  const f=decisionRoutes(t), action=sourceHealth.sourceMaintenance(corpus.db).actions[0];
+  const input={companyId:action.companyId,actionId:action.id,openedAt:action.openedAt};
+  const prepared=await f.call('/companies-admin/decision-sync',input);
+  assert.equal(prepared.status,200); assert.equal(prepared.body.decision.state,'awaiting_approval');
+  const ticketId=prepared.body.decision.ticketId;
+  assert.equal((await f.call('/companies-admin/decision-sync',{...input,ticketId:randomUUID()})).status,409);
+  assert.equal((await f.call('/companies-admin/decision-sync',{...input,openedAt:'2026-11-11T00:00:00Z',ticketId})).status,409);
+  nativeDecision(f.tickets.rows.get(ticketId),'done');
+  const queued=await f.call('/companies-admin/decision-sync',{...input,ticketId});
+  assert.equal(queued.status,202); assert.equal(queued.body.queued,true); assert.equal(queued.body.decision.state,'queued_next_pull');
+  assert.equal(readdirSyncOrEmpty(join(f.owner,'.source-request-outbox')).length,1);
+  const repeated=await f.call('/companies-admin/decision-sync',{...input,ticketId});
+  assert.equal(repeated.body.decision.requestId,queued.body.decision.requestId);
+}));
+
+test('generic source ingress cannot manufacture a reserved native decision outcome',onNativeKernel(async t=>{
+  const owner=mkdtempSync(join(tmpdir(),'career-decision-ingress-')); t.after(()=>rmSync(owner,{recursive:true,force:true}));
+  const library=process.env.CAREER_TEST_SOURCE_REQUESTS ? require(process.env.CAREER_TEST_SOURCE_REQUESTS) : sourceRequests;
+  const f=loadRoutes({db:corpus.db,owner},{ticketService:nativePort()},library), current=sourceHealth.sourceMaintenance(corpus.db).actions[0];
+  const target='decision:'+current.id+':'+encodeURIComponent(current.openedAt)+':archive';
+  for(const reserved of [target,'  '+target+'  ',target.replace('decision:','Decision:'),encodeURIComponent(target),encodeURIComponent(encodeURIComponent(target))]) {
+    for(const field of ['board','url']) {
+      const result=await f.call('/companies-admin/seturl',{companyId:String(current.companyId),[field]:reserved});
+      assert.equal(result.status,400,'reserved outcome never reaches generic Resolve: '+reserved);
+    }
+  }
+  assert.equal(readdirSyncOrEmpty(join(owner,'.source-request-outbox')).length,0);
+  assert.equal((await f.call('/companies-admin/add',{name:'Reserved target employer',url:target})).status,400);
+  for(const route of ['remove','keep']) assert.equal((await f.call('/companies-admin/'+route,{companyId:String(current.companyId),target})).status,409);
+  assert.equal(readdirSyncOrEmpty(join(owner,'.source-request-outbox')).length,0,'no generic ingress chose an outcome');
+}));
+
+test('a recorded successful read after opening, including microseconds, cannot prepare a stale decision',onNativeKernel(async t=>{
+  const folder=mkdtempSync(join(tmpdir(),'career-decision-recovered-')); t.after(()=>rmSync(folder,{recursive:true,force:true}));
+  const copy=join(folder,'corpus.db'); copyFileSync(corpus.file,copy);
+  const db=new DatabaseSync(':memory:'); db.exec(`ATTACH DATABASE '${copy.replace(/'/g,"''")}' AS corpus`); t.after(()=>db.close());
+  const action=sourceHealth.sourceMaintenance(db).actions[0], tickets=nativePort();
+  const success=action.openedAt.replace(/([+-]\d{2}:\d{2}|Z)$/,'.000001$1');
+  db.prepare('UPDATE corpus.source_pull_state SET last_success_at=? WHERE company_id=?').run(success,action.companyId);
+  const f=loadRoutes({db,owner:folder},{ticketService:tickets});
+  const answer=await f.call('/companies-admin/decision-sync',{actionId:action.id,companyId:action.companyId,openedAt:action.openedAt});
+  assert.equal(answer.status,409); assert.equal(tickets.calls.create,0,'no stale ticket prepared from a concretely recovered source');
+  assert.equal(readdirSyncOrEmpty(join(folder,'.source-request-outbox')).length,0);
+}));
+
+test('uncertain direct sync returns a durable nonsuccess envelope and preserves its hold across service loss',onNativeKernel(async t=>{
+  const f=decisionRoutes(t), action=sourceHealth.sourceMaintenance(corpus.db).actions[0];
+  const input={actionId:action.id,companyId:action.companyId,openedAt:action.openedAt};
+  f.tickets.createTicket=async()=>{f.tickets.calls.create++;throw new Error('fixture create acknowledgement lost');};
+  let result=await f.call('/companies-admin/decision-sync',input);
+  assert.equal(result.status,200,'native owner staging publishes a truthful uncertainty record');
+  assert.equal(result.body.ok,false); assert.equal(result.body.queued,false); assert.equal(result.body.decision.state,'create_uncertain');
+  const readback=(await f.call('/companies-admin/list')).body.sourceDecisions;
+  assert.equal(readback[0].state,'create_uncertain','actual owner journal survives the direct handler');
+  const unavailable=loadRoutes({db:corpus.db,owner:f.owner},{});
+  result=await unavailable.call('/companies-admin/decision-sync',input); assert.equal(result.body.decision.state,'create_uncertain');
+  result=await f.call('/companies-admin/decision-sync',input); assert.equal(result.body.ok,false);
+  assert.equal(f.tickets.calls.create,1); assert.equal(readdirSyncOrEmpty(join(f.owner,'.source-request-outbox')).length,0);
+}));
+
+test('an actual closed-action receipt is read from the owner journal and corpus result without another queue',onNativeKernel(async t=>{
+  const folder=mkdtempSync(join(tmpdir(),'career-decision-applied-')); t.after(()=>rmSync(folder,{recursive:true,force:true}));
+  const copy=join(folder,'corpus.db'); copyFileSync(corpus.file,copy);
+  const db=new DatabaseSync(':memory:'); db.exec(`ATTACH DATABASE '${copy.replace(/'/g,"''")}' AS corpus`); t.after(()=>db.close());
+  const action=sourceHealth.sourceMaintenance(db).actions[0], tickets=nativePort(), f=loadRoutes({db,owner:folder},{ticketService:tickets});
+  const input={actionId:action.id,companyId:action.companyId,openedAt:action.openedAt};
+  const ready=await f.call('/companies-admin/decision-sync',input), ticketId=ready.body.decision.ticketId;
+  nativeDecision(tickets.rows.get(ticketId),'cancelled');
+  const queued=await f.call('/companies-admin/decision-sync',{...input,ticketId}); assert.equal(queued.status,202);
+  const request=JSON.parse(readFileSync(join(folder,'.source-request-outbox',queued.body.decision.requestId+'.json'),'utf8'));
+  db.prepare('INSERT INTO corpus.source_requests(id,company_id,target,outcome,finished_at) VALUES(?,?,?,?,?)')
+    .run(request.id,request.companyId,request.target,'kept',new Date().toISOString());
+  db.prepare("UPDATE corpus.source_actions SET state='kept' WHERE id=?").run(action.id);
+  const applied=await f.call('/companies-admin/decision-sync',{...input,ticketId});
+  assert.equal(applied.status,200); assert.equal(applied.body.applied,true); assert.equal(applied.body.decision.state,'applied');
+  assert.equal(readdirSyncOrEmpty(join(folder,'.source-request-outbox')).length,1,'no second handoff is fabricated');
+  assert.equal((await f.call('/companies-admin/decision-sync',{...input,ticketId:randomUUID()})).status,409);
+}));
+
+
+test('compiled decision sync refuses a terminal native status without owner application provenance',onNativeKernel(async t=>{
+  const f=decisionRoutes(t), action=sourceHealth.sourceMaintenance(corpus.db).actions[0];
+  const input={companyId:action.companyId,actionId:action.id,openedAt:action.openedAt};
+  const ready=await f.call('/companies-admin/decision-sync',input), ticketId=ready.body.decision.ticketId;
+  f.tickets.rows.get(ticketId).status='done';
+  const held=await f.call('/companies-admin/decision-sync',{...input,ticketId});
+  assert.equal(held.status,200); assert.equal(held.body.queued,false); assert.equal(held.body.decision.state,'attention');
+  assert.equal(readdirSyncOrEmpty(join(f.owner,'.source-request-outbox')).length,0);
+}));

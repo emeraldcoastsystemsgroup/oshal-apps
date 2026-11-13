@@ -14,6 +14,12 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (T45 part 2; Roger, 2026-11-10: "plays it on any device in his connected devices"): open-link takes app oshal for a Marquee page (its own page or a #/ screen of letters, digits, / _ and -), which the TV's oshal app opens in the person's own session; any other address with app oshal is refused in words.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80; Roger, 2026-11-12: "make it do that"): POST /devices/:id/play plans lan-control play_title on a saved Android or Fire TV: a show or film by its name in Prime Video (the app\'s search, the matching result, Resume or Play), answered with what the TV says is playing.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79, the device inventory, first slice): POST /devices/:id/apps plans lan-control tv_apps on a saved Android or Fire TV: which streaming apps it has (netflix, prime, disney, max, hulu, youtube and the oshal TV app), read from its package list through the bridge's closed list without pressing anything, so Jarvis can say what the TV can play and pick the app.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79, the device inventory): the What a TV can play plan names the TV's own computer (`computer`), so the kernel's computer.run_plan runs it there, and its next step says to record the computer's answer with phone-control-tv-apps-record; POST /devices/:id/apps/record (phone-control-inventory.js) keeps that answer against the TV and in the person's device inventory.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): POST /provision never names a fixed installation. Until now a caller that sent no serverUrl (the phone-provision tool, as Jarvis calls it) got one installation's public address written into the plan, so on any other installation the person's TV would be sent to a server that is not theirs. The server is now what the caller sent, else what the kernel says this installation's public origin is (x-oshal-public-origin, which the kernel puts on a tool call and an approved action and never forwards from a browser), else the public host name the request arrived on as https (the kernel ends TLS and hands the package protocol http, so the request's protocol is never read); when none of these is known the route answers 400 server_required in words and plans nothing.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Device and TV plans explicitly remain unexecuted and leave execution history to actual computer outcomes.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | TV link/show plans name their saved computer for the existing closed one-use runner; planning alone remains unexecuted.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Mount closed native saved-relay routes behind the existing verified-owner middleware, separately from Linux bridge plans.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Mount the read-only remote-app operating packet behind the same verified-owner middleware.
  */
 
 'use strict';
@@ -218,17 +224,10 @@ function executeDeviceSteps(store, db, owner, device, body = {}) {
   const fromPrompt = typeof body.prompt === 'string' && body.prompt.trim() ? parsePromptSteps(body.prompt) : [];
   const rawSteps = Array.isArray(body.steps) && body.steps.length ? body.steps : (fromPrompt.length ? fromPrompt : [body]);
   const plans = rawSteps.slice(0, 10).map((step) => buildDeviceCommandPlan(store, device, step || {}));
-  for (const plan of plans) {
-    const detail = plan.args.key || plan.args.text || (plan.args.x !== undefined ? `${plan.args.x},${plan.args.y}` : '');
-    store.recordHistory(db, owner, {
-      computerNodeId: device.computerNodeId, phoneId: device.id,
-      action: plan.action, summary: `${plan.action}${detail ? ` ${detail}` : ''}`.slice(0, 160), ok: true, exitCode: 0
-    });
-  }
   const command = plans.map((p) => p.command).join(' && ');
   const mode = body.mode === 'background' ? 'background' : 'foreground';
   return {
-    ok: true, executed: true, mode, computerNodeId: device.computerNodeId,
+    ok: true, planned: true, executed: false, status: 'planned', mode, computerNodeId: device.computerNodeId,
     device: plans[0].device, steps: plans, command,
     computerRunRequest: {
       endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
@@ -249,6 +248,7 @@ const STREAMING_APPS = Object.freeze(['netflix', 'prime', 'disney', 'max', 'hulu
  */
 function openLinkPlan(store, db, owner, device, body = {}) {
   if (device.platform !== 'android' || device.form !== 'tv') throw store.refusal(400, 'not_android_tv', 'Links open on a saved Android or Fire TV.');
+  if (!device.controlEnabled) throw store.refusal(409, 'control_disabled', 'Control is turned off for this device.');
   const url = String(body.url || '').trim();
   if (url.length > 256 || !/^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/.test(url)) {
     throw store.refusal(400, 'url_invalid', 'Only an https address of at most 256 characters can be opened on a TV.');
@@ -261,9 +261,11 @@ function openLinkPlan(store, db, owner, device, body = {}) {
   const address = String(device.address || '').replace(/:\d+$/, '');
   const args = { kind: 'android-tv', address, action: 'launch_url', url, ...(app ? { app } : {}) };
   const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
-  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'open_link', summary: `open ${app || 'link'} ${url}`.slice(0, 160), ok: true, exitCode: 0 });
   return {
-    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    ok: true, planned: true, executed: false, status: 'planned', verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    computer: { id: device.computerNodeId },
+    next: 'Planned, not executed. When computer.run_plan is offered, call it once with the planId this answer carries. '
+      + 'It runs this exact command on the saved TV computer. Report only the actual reply; an unknown result is not success and must not be retried automatically.',
     device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
     computerRunRequest: {
       endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
@@ -282,6 +284,7 @@ function openLinkPlan(store, db, owner, device, body = {}) {
  */
 function playShowPlan(store, db, owner, device, body = {}) {
   if (device.platform !== 'android' || device.form !== 'tv') throw store.refusal(400, 'not_android_tv', 'A show plays by name on a saved Android or Fire TV.');
+  if (!device.controlEnabled) throw store.refusal(409, 'control_disabled', 'Control is turned off for this device.');
   const title = String(body.title || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
   if (title.length < 2 || title.length > 80) throw store.refusal(400, 'title_invalid', 'Name the show or film (2 to 80 characters).');
   const app = body.app === undefined || body.app === null || body.app === '' ? 'prime' : String(body.app).toLowerCase();
@@ -289,9 +292,11 @@ function playShowPlan(store, db, owner, device, body = {}) {
   const address = String(device.address || '').replace(/:\d+$/, '');
   const args = { kind: 'android-tv', address, action: 'play_title', title, app };
   const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
-  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'play_show', summary: `play ${app} ${title}`.slice(0, 160), ok: true, exitCode: 0 });
   return {
-    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    ok: true, planned: true, executed: false, status: 'planned', verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    computer: { id: device.computerNodeId },
+    next: 'Planned, not executed. When computer.run_plan is offered, call it once with the planId this answer carries. '
+      + 'It runs this exact command on the saved TV computer. Report only the actual reply; an unknown result is not success and must not be retried automatically.',
     device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
     computerRunRequest: {
       endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
@@ -316,9 +321,13 @@ function tvAppsPlan(store, db, owner, device) {
   const address = String(device.address || '').replace(/:\d+$/, '');
   const args = { kind: 'android-tv', address, action: 'tv_apps' };
   const command = `python3 -I ${BRIDGE_SCRIPT} lan-control --b64 ${Buffer.from(JSON.stringify(args), 'utf8').toString('base64')}`;
-  store.recordHistory(db, owner, { computerNodeId: device.computerNodeId, phoneId: device.id, action: 'tv_apps', summary: 'which streaming apps the TV has', ok: true, exitCode: 0 });
+  const next = 'Planned, not read yet. When computer.run_plan is offered, pass the planId this answer carries to computer.run_plan: '
+    + 'the read runs at once on the TV\'s own computer, which this plan names. Then call phone-control-tv-apps-record with '
+    + `${JSON.stringify({ id: device.id })} and "reply" set to the one JSON line the computer printed, and report what it answers. `
+    + 'Without computer.run_plan or a planId nothing ran: say the read is planned, never that it was done.';
   return {
-    ok: true, verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    ok: true, planned: true, executed: false, status: 'planned', verb: 'lan-control', args, command, computerNodeId: device.computerNodeId,
+    computer: { id: device.computerNodeId }, next,
     device: { id: device.id, name: device.name, platform: device.platform, form: device.form, address: device.address },
     computerRunRequest: {
       endpoint: `/api/computers/${encodeURIComponent(device.computerNodeId)}/run`,
@@ -327,7 +336,35 @@ function tvAppsPlan(store, db, owner, device) {
   };
 }
 
-function buildProvisionCommandPlan(store, db, owner, body = {}) {
+/** A web origin as the kernel declares its own: a scheme, a host and an optional port. */
+const DECLARED_ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?$/;
+/** A host name with an optional port, ending in a top-level name of letters: never an IP address or a bare name. */
+const NAMED_HOST = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.([A-Za-z]{2,})(?::\d{1,5})?$/;
+/** Endings a home network or a test gives a name: not a public address, so its scheme is not known. */
+const PRIVATE_ENDINGS = new Set(['local', 'localhost', 'localdomain', 'lan', 'home', 'internal', 'test', 'invalid', 'example']);
+
+/**
+ * @description The address of the installation this request arrived on, for a device that is told where to sign in
+ * and a caller that named no server. First what the kernel says its public origin is (x-oshal-public-origin: the
+ * kernel puts it on a tool call and an approved action, and does not forward it from a browser). Else the public
+ * host name the request arrived on, as https: the kernel ends TLS and hands the package protocol http, so the
+ * request's own protocol is never read. Never a fixed address.
+ * @param {object} req The request.
+ * @returns {string} The origin, or '' when this installation's public address cannot be known.
+ */
+function installationOrigin(req) {
+  const header = (name) => {
+    const found = Object.entries(req?.headers || {}).find(([key]) => key.toLowerCase() === name);
+    return String(found?.[1] ?? '').split(',')[0].trim();
+  };
+  const declared = header('x-oshal-public-origin').replace(/\/+$/, '');
+  if (DECLARED_ORIGIN.test(declared)) return declared;
+  const host = header('host').toLowerCase();
+  const ending = NAMED_HOST.exec(host)?.[1];
+  return ending && !PRIVATE_ENDINGS.has(ending) ? `https://${host}` : '';
+}
+
+function buildProvisionCommandPlan(store, db, owner, body = {}, installation = '') {
   const rawTarget = String(body.serialOrIp || body.serial || body.address || '').trim();
   if (!/^[A-Za-z0-9._:-]{3,96}$/.test(rawTarget)) {
     throw store.refusal(400, 'serial_invalid', 'Provide a valid TV/phone IP address or ADB serial (for example 192.168.1.42).');
@@ -341,7 +378,11 @@ function buildProvisionCommandPlan(store, db, owner, body = {}) {
     || reports[0]?.computerNodeId
     || ''
   ).trim();
-  const serverUrl = String(body.serverUrl || 'https://oshal.agenticfederal.us').trim();
+  const serverUrl = String(body.serverUrl || '').trim() || installation;
+  if (!serverUrl) {
+    throw store.refusal(400, 'server_required', `Say which server this ${body.preferAndroid ? 'phone' : 'TV'} should connect to. `
+      + 'This installation\'s public address is not known from here, so nothing was guessed: give serverUrl, the address you open oshal at.');
+  }
   const joinCode = String(body.joinCode || body.bearerToken || '').trim();
   const args = {
     serial,
@@ -449,7 +490,7 @@ function mountPhones(router, store, db) {
     try { return res.json(buildRdpCommandPlan(store, req.body || {})); } catch (error) { return refuse(res, error); }
   });
   router.post('/provision', (req, res) => {
-    try { return res.json(buildProvisionCommandPlan(store, db, req.owner, req.body || {})); } catch (error) { return refuse(res, error); }
+    try { return res.json(buildProvisionCommandPlan(store, db, req.owner, req.body || {}, installationOrigin(req))); } catch (error) { return refuse(res, error); }
   });
   router.post('/devices/:id', (req, res) => {
     const target = resolveDevice(store, db, req.owner, req.params.id);
@@ -535,8 +576,11 @@ function createPhoneControlRoutes(ctx) {
   router.use('/config', createPhoneControlConfigRoutes({ ...ctx, appPackageDir: pkgDir }));
   router.use('/sessions', createPhoneControlSessionRoutes({ ...ctx, appPackageDir: pkgDir, db }));
   router.use('/concierge', createPhoneControlConciergeRoutes({ ...ctx, appPackageDir: pkgDir, db }));
+  require(path.join(pkgDir, 'routes', 'phone-control-relay-routes.js')).mountNativeRelay(router, ctx);
+  require(path.join(pkgDir, 'routes', 'phone-control-remote-guides.js')).mountRemoteGuides(router);
   mountPages(router, toolsDir);
   mountPhones(router, store, db);
+  require(path.join(pkgDir, 'routes', 'phone-control-inventory.js')).mountInventory(router, { store, db, ctx, resolveDevice, refuse });
   mountRecords(router, store, db);
   mountBridge(router, files, pkgDir);
   return router;

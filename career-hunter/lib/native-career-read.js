@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Preserve saved résumé presence without a corpus and share the bounded owner-profile reader with the concierge status tool.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.57.2, T72: the facts' sample count starts from the person's own scored signals (CROSS JOIN, idx_user_scored) instead of walking every active posting of the 7.4 GB shared corpus. Measured on the test slot's corpus: 1,374 ms warm for a person with 7 signals and none scored, now under 1 ms; 179 ms for 5,000 signals with 2,000 scored, now 12 ms; 4 ms for 300,000 with 60,000 scored, now 18 ms. Cold, the old walk passed the kernel's 30 s deadline, so the first concierge question after each Career reload refused.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: the facts carry jobs.saved, the jobs the person saved (Home's Saved card, the board state's favourites). Asked on production "How many jobs have I saved", the concierge said none while Home showed 1 saved: no fact held that count. A saved-job file that cannot be read gives null (unknown), never 0, and never refuses the other facts.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: the same facts reader is registered for the front-desk concierge (career-concierge), the bot that now answers in the app, as well as for career-hunter.
@@ -22,6 +23,7 @@ const {createChildLogger} = require('@/shared/logger');
 const {findUserStoreLayout} = require('./user-store-path');
 const {fetchBoardPage, splitBoardFilters} = require('../routes/career-board-feed');
 const {readJobSearchScope, SEARCH_SCOPE_FILE} = require('../routes/career-search-scope');
+const {readResumeSource} = require('./career-resume-source');
 const {readRemoteOnly} = require('../routes/career-match-prefs');
 const {assessment} = require('./career-fit');
 const {readBoardState, favoriteIds} = require('./career-board-state');
@@ -86,8 +88,7 @@ function readProfile(profilePath, profileStat) {
   if (!profileStat) return {};
   if (profileStat.size > 4 * 1024 * 1024) throw fail('profile_invalid');
   let raw;
-  try { raw = JSON.parse(fs.readFileSync(profilePath, 'utf8')); } catch { throw fail('profile_invalid'); }
-  if (!raw || Array.isArray(raw) || typeof raw !== 'object') throw fail('profile_invalid');
+  try { raw = readResumeSource(path.dirname(profilePath)).raw; } catch { throw fail('profile_invalid'); }
   return raw;
 }
 
@@ -197,7 +198,10 @@ function readCareerSnapshot(principal, root = '/career', {factsOnly = false, rem
   // Absence is an answer (nothing saved yet); a source that exists but is unusable still refuses.
   const corpus = path.join(layout ? layout.tenantDir : path.join(root, 'default'), 'corpus.db');
   const corpusPresent = sourceFile(corpus, false);
-  if (!corpusPresent) return emptySnapshot('no_corpus', null);
+  if (!corpusPresent) {
+    const saved = layout ? savedProfileOnly(layout, null) : emptySnapshot('no_corpus', null);
+    return {...saved, source:{...saved.source, reason:'no_corpus'}, notice:NO_CORPUS};
+  }
   if (!layout) return emptySnapshot('no_owner_store', corpusPresent);
   if (!sourceFile(layout.userDb, false)) return savedProfileOnly(layout, corpusPresent);
   const corpusStat = sourceFile(corpus), ownerStat = sourceFile(layout.userDb);

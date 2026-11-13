@@ -1,3 +1,16 @@
+# 145 | maintainer@emeraldcoastsystemsgroup.com | 1.60.9: the /static route serves .mjs module scripts, so the shared concierge (career-concierge.mjs, new in 1.60.8) loads on a deployed kernel; it was refused with 404.
+# 144 | maintainer@emeraldcoastsystemsgroup.com | Release owner résumé status, corpus-independent presence and the shared Career concierge as 1.60.8.
+# 143 | maintainer@emeraldcoastsystemsgroup.com | Release new-entry-only nightly matching, ordered pipeline reads and immediate durable removal as 1.60.7.
+# 142 | maintainer@emeraldcoastsystemsgroup.com | Release default-off saved preparation, exact-document review and honest automatic readiness as 1.60.6; employer submission keeps its separate approval.
+# 140 | maintainer@emeraldcoastsystemsgroup.com | Clarify acknowledged Save and the explicit My jobs fit-check path in the merged-build user guide.
+# 139 | maintainer@emeraldcoastsystemsgroup.com | Save only acknowledges the favorite; fit checks and application preparation remain explicit separate work.
+# 138 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native busy writes, preserve unsaved draft and refused phone card, and keep retry explicit.
+# 137 | maintainer@emeraldcoastsystemsgroup.com | Paint admitted navigation and independent Home facts promptly; bound initial resume wait and fence late profile or feed replies.
+# 136 | maintainer@emeraldcoastsystemsgroup.com | Declare original-owner human-gated source decision tickets and reconcile confirmed conditional outcomes through the existing morning job.
+# 135 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0 candidate: title-first Most relevant keyword search and Career-owned native account setup; final round-two checks remain required.
+# 134 | maintainer@emeraldcoastsystemsgroup.com | 1.57.3: manageable phone search batches, honest returned ranges and accessible secondary actions while retaining chosen page sizes.
+# 133 | maintainer@emeraldcoastsystemsgroup.com | 1.57.3: original-owner past-seven-day recorded application progress and an optional personal goal, with truthful unavailable states and no sent-application claim.
+# 132 | maintainer@emeraldcoastsystemsgroup.com | 1.57.3: Manual interview, offer and closed tracking with dated owner receipts, plus whole-word role pay matching. Remaining round-two work continues toward1.58.
 # CHANGE LOG
 # 84 | maintainer@emeraldcoastsystemsgroup.com | Allow an audited correction of a mistaken manual submission mark without resetting actual submission evidence as version 1.46.6.
 # 83 | maintainer@emeraldcoastsystemsgroup.com | Keep the read-only submitted packet available from Application status as version 1.46.5.
@@ -173,6 +186,8 @@
 #   Surfaces   board (native package surface) · approvals · settings
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 141 | maintainer@emeraldcoastsystemsgroup.com | Remove a Career pick through its owner board dismissal while retaining application and native ticket history.
+# 142 | maintainer@emeraldcoastsystemsgroup.com | Prepare and Open use the owner status writer, bounded explicit recovery and the admitted shell, with truthful action names.
 name: career-hunter
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -234,7 +249,7 @@ description: >-
   Track recorded applications and matching email updates in your private workspace.
   Edit your main résumé as a Word document on the My résumé page, with AI Office's Concierge beside it.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.57.2
+version: 1.60.9
 
 localEditing:
   itemId: master
@@ -533,7 +548,7 @@ tools:
         radiusMiles: { type: number, minimum: 1, maximum: 250 }
         remote: { type: string, enum: [any, remote, on-site] }
         days: { type: integer, minimum: 1, maximum: 365 }
-        sort: { type: string, enum: [recent, posted, salary, title] }
+        sort: { type: string, enum: [relevant, recent, posted, salary, title] }
         per: { type: integer, minimum: 1, maximum: 200 }
         page: { type: integer, minimum: 1, maximum: 2001 }
     outputSchema: { type: object, additionalProperties: true }
@@ -542,7 +557,10 @@ tools:
       To FIND jobs near a location, call career_database with near (US city/state or ZIP)
       and radiusMiles. "Within 50 miles of my home" means useHome:true,radiusMiles:50.
       Home references only this user's saved Career matching area; ask for a city/ZIP if missing.
-      Search results are public openings, not resume fit scores. Return the searchUrl and use
+      Search results are public openings, not resume fit scores. Most relevant puts primary keyword
+      matches in the title first, then orders by first seen and stable id. A chosen sort is retained.
+      When search reports a limited sample, say older description-only matches may be omitted.
+      Return the searchUrl and use
       page+1 until exhausted/capped. Distances are approximate straight-line miles, not driving time.
       A temporary radius does not change saved preferences. No refresh or scoring is required.
       q combines its words; for alternative role categories, make separate searches rather
@@ -727,7 +745,7 @@ tools:
   - name: career_save
     displayName: Save and star a job
     type: api
-    description: Add one selected job to your private saved board and star it. Sends no application.
+    description: Add one selected job to your private saved board and star it. If the person enabled saved-job preparation, it queues that preparation. Sends no application.
     executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
     defaultAuthMode: auto
     inputSchema:
@@ -740,7 +758,7 @@ tools:
   - name: career_promote
     displayName: Promote a job to the document queue
     type: api
-    description: Move one selected job to your submission preparation queue and star it. Generates no documents. Select optional experience and request document generation as the next step.
+    description: Move one selected job to your submission preparation queue and star it. With saved-job preparation off, select optional experience and request document generation as the next step. If enabled by the person, preparation runs automatically to review or ready; nothing is submitted.
     executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
     defaultAuthMode: auto
     inputSchema:
@@ -929,25 +947,25 @@ tools:
       failures remain separate from successful overall publication. This read starts no pull.
 
   # ── resume editing tools: "a bot and a tool to edit the database and re-render the resume" ──
-  # The bot reads the master editor document with career_resume_read, proposes edits in
+  # The bot checks bounded status with career_resume_read and reads text with career_resume_section, proposing edits in
   # conversation, and applies them with career_resume_save — which rides the SAME audited route
   # rails Resume Studio uses (validation, backup snapshot, whitelist write-back; a numeric
   # postingId save also re-renders that packet's PDF). The save is approval-gated: nothing
   # changes the durable career profile without the user confirming the tool call.
   - name: career_resume_read
-    displayName: Read Resume (Master Document)
+    displayName: Check Saved Resume
     type: api
     description: >-
-      Read the signed-in user's editable resume document — the durable master career profile
-      (headline, summary, competencies, experience with bullets, skills, clearance) every
-      tailored resume is generated from.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id=master"}
+      Check the signed-in person's saved main résumé: presence, exact revision and section headings,
+      without its text. Reads Career's own master profile, independently of job matching or AI Office.
+      Returns My résumé as the upload/edit destination when absent; unreadable is unavailable, never absent.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id=master&view=status"}
     defaultAuthMode: auto
     inputSchema: {type: object, additionalProperties: false, properties: {}}
     usageInstructions: >-
-      Read recorded content before discussing edits. Large profiles should use career_resume_section
-      instead: it explicitly pages every section and returns the revision needed by career_resume_patch.
-      Quote real content and never infer credentials or experience from a missing section.
+      Call once for résumé presence questions. Use career_resume_section for requested text or edits;
+      do not read the whole résumé for a status question. A separate AI Office draft may differ until
+      Save to main résumé. Never infer credentials or experience from the headings.
   - name: career_resume_section
     displayName: Read Resume Section
     type: api
@@ -1024,7 +1042,7 @@ tools:
           description: "'master' for the durable profile, or the numeric posting id for a job packet"
         resume:
           type: object
-          description: The FULL edited resume document (start from career_resume_read's output)
+          description: The FULL edited resume document; prefer revision-checked career_resume_patch after reading bounded sections
         cover:
           type: object
           description: The full saved cover document, required when editing a job packet.
@@ -1275,8 +1293,8 @@ schedules:
     method: POST
     timeoutSeconds: 60
     report: true
-    # The route reads the shared corpus only. It needs a Career administrator, so it reports for one and answers 403 for anyone else.
-    description: For Career administrators. Each morning, tell you what last night's source maintenance newly left for a person. It says how many more job sources need your decision to archive or keep trying, how many repair briefs opened for a developer, and how many employers were connected to a job site. Reads only; it changes no source and says nothing on a quiet night.
+    # The original activated source administrator receives owner-bound decision tickets; no schedule is activated here.
+    description: For Career administrators. Each morning, tell you what last night's source maintenance newly left for a person. Prepare or reconcile your own human approval tickets for current source decisions, and tell you what last night left for a person or developer. A confirmed decision waits for the next pull; this job never writes the shared corpus or approves a ticket.
 
 surface:
   ops: [context, custom, notify]
@@ -1495,6 +1513,11 @@ workflow:
   workerBot: career-hunter
 
 workflows:
+  - id: career-hunter:career-source-decision
+    ticketType: career-source-decision
+    name: Source archive decision
+    phases:
+      - {name: archive-source-decision, action: complete, approval: {approver: admin}}
   - id: career-hunter:career-submission
     ticketType: career-submission
     name: Approved Career Submission

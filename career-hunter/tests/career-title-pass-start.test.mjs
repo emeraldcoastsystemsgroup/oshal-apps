@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Assert separate bounded explicit-refresh inspections and pending-only nightly selection.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -249,6 +250,7 @@ test('title scorer caps candidates in SQL and filters on posted date with a firs
   assert.match(scorer, /posted_date >= date\('now'/);
   assert.match(scorer, /posted_date IS NULL AND first_seen_at >= datetime\('now'/);
   assert.match(scorer, /where = "active = 1 AND target_role = 1"/);
-  assert.match(scorer, /inspection_limit = budget \* 10 if budget else None/);
+  assert.match(scorer, /inspection_limit = budget \* 10 if budget and not new_only else None/);
+  assert.match(scorer, /if new_only and budget:\n\s+sql \+= f" LIMIT \{budget\}"/);
   assert.match(scorer, /if inspection_limit:\n\s+sql \+= f" LIMIT \{inspection_limit \+ 1\} OFFSET \{offset\}"/);
 });

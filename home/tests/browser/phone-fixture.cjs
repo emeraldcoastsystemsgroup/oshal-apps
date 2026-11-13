@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width fixture for the package's own page in headless Chromium: the real page file from disk on a synthetic origin, synthetic read-only answers for the routes the test names, every write refused and recorded, nothing leaves the browser. Measures what a person sees at 412 x 915 (a phone) and 392 x 641 (the same phone's cockpit application frame).
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | home 1.4.0: spec.onPage(page) runs before the page loads, so a test can listen for console errors from the first request on.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Serve the page's exact extracted assets and optional real kernel theme imports; explicit empty inventory defaults keep missing test answers distinct from refused reads.
  */
 'use strict';
 const fs = require('node:fs');
@@ -34,15 +35,17 @@ function playwright() {
  */
 async function openPage(browser, viewport, spec) {
   const context = await browser.newContext({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const assets = pageAssets(spec.files);
+  const reads = { '/api/computers': { computers: [] }, '/api/swarm/apps': { apps: [] }, '/api/home/lan/devices': { ok: true, tvs: [] }, ...spec.reads };
   const writes = [];
   await context.route('**/*', (route) => {
     const req = route.request(), url = new URL(req.url());
     if (url.origin !== ORIGIN) return route.abort();
     if (req.method() !== 'GET') { writes.push(`${req.method()} ${url.pathname}`); return route.fulfill({ status: 405, contentType: 'application/json', body: '{"error":"read-only fixture"}' }); }
     if (url.pathname === '/__phone_frame__') return route.fulfill({ status: 200, contentType: 'text/html', body: FRAME_HTML(spec.url) });
-    const file = spec.files[url.pathname];
+    const file = assets[url.pathname];
     if (file) return route.fulfill({ status: 200, path: file, contentType: contentType(file) });
-    if (Object.prototype.hasOwnProperty.call(spec.reads, url.pathname)) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(spec.reads[url.pathname]) });
+    if (Object.prototype.hasOwnProperty.call(reads, url.pathname)) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(reads[url.pathname]) });
     if (/\.css$/.test(url.pathname)) return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
     if (/\.m?js$/.test(url.pathname)) return route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":"synthetic endpoint unavailable"}' });
@@ -58,6 +61,18 @@ async function openPage(browser, viewport, spec) {
   const frame = await (await page.waitForSelector('iframe')).contentFrame();
   await frame.waitForLoadState('load');
   return { page: frame, context, writes };
+}
+
+/** Exact app assets, plus actual shared styles when a kernel checkout is explicitly supplied. */
+function pageAssets(files) {
+  const assets = { ...files }, main = files['/api/home/ui'];
+  if (main) for (const name of ['home-overview.js', 'home-overview.css']) assets[`/api/home/ui/${name}`] = path.join(path.dirname(main), name);
+  const kernel = process.env.OSHAL_KERNEL_ROOT;
+  if (!kernel) return assets;
+  const themes = path.join(kernel, 'platform/src/shared/ui/css/surface-themes.css');
+  for (const url of ['/shared/ui/css/surface-themes.css', '/shared/ui/css/surface-glass.css', '/shared/ui/css/app-view.css']) assets[url] = path.join(kernel, 'platform/src', url);
+  for (const [, url] of fs.readFileSync(themes, 'utf8').matchAll(/@import url\('([^']+)'\)/g)) assets[url] = path.join(kernel, 'platform/src', url.startsWith('/cockpit/') ? 'pages' : '', url);
+  return assets;
 }
 
 /** A parent page that shows the application in a full-size iframe, like the cockpit's application frame. */

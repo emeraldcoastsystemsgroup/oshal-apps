@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Strengthen, grade C). The real tools/career-strengthen.html in Chromium over a synthetic fixture: with no gaps the page is one empty state whose one primary is the step that makes gaps (Upload your résumé without an indexed résumé, Score jobs on the Job Board with one), the mic line is hidden, and Rescan gaps is a 44px secondary; with open and answered gaps the mic line shows and Open · Answered switches the list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the empty state's button says Score jobs in My jobs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Direct the empty state to the real selected-job Check my fit action in My jobs.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,13 +25,14 @@ function gaps(state) {
   };
 }
 
-for (const [hasResume, label] of [[false, 'Upload your résumé'], [true, 'Score jobs in My jobs']]) {
+for (const [hasResume, label] of [[false, 'Upload your résumé'], [true, 'Check my fit in My jobs']]) {
   test(`no gaps (${hasResume ? 'résumé indexed' : 'no résumé'}): one empty state whose primary is ${label}`, async () => {
     const { page, context } = await openScreen(browser, 'career-strengthen.html', gaps({ themes: [], hasResume }), PHONE);
     try {
       await page.getByRole('heading', { name: 'No gaps to work on yet' }).waitFor();
       assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), [label]);
       assert.equal(await page.locator('#micHint').isVisible(), false, 'no mic instruction without boxes');
+      if(hasResume)assert.match(await page.locator('#list').innerText(), /Open a saved job and choose Check my fit/);
       const rescan = await page.locator('#rescanBtn').boundingBox();
       assert.ok(rescan.height >= 44, `Rescan is ${rescan.height}px`);
       assert.doesNotMatch(await page.locator('body').innerText(), /Try ↻ Rescan after scoring more jobs/);
