@@ -12,6 +12,7 @@
  *     |                                             | A summary that does not answer is said in words while the others still show. FX_SHOTS=<folder> keeps screenshots.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Bank/trading journey leads with dated saved bank data, filtered navigation and accessible More; secondary activity is disclosed; leaving Finance restores host chrome and opening Home issues reads only.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep declared withheld bank totals Unknown on Home while retaining a reported zero.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: in a page with the cockpit's own layout rules, the Concierge's chat panel is hidden only while closed and opens beside Finance on a computer and as a sheet on a phone (judge defect 3).
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -62,6 +63,14 @@ const BANK_SNAPSHOT = { syncedAt: '2026-11-10T18:15:00Z', aggregate: { sourceEnv
 const HOST = '<!doctype html><html><head><title>Cockpit</title><style>html,body{margin:0;height:100%}.header-bar{height:48px;background:#333}#ribbonContainer{height:40px;background:#555}.cockpit-body{padding:8px;height:calc(100vh - 88px)}.tool-view-container{height:100%}iframe{width:100%;height:100%;border:0}</style></head>'
   + '<body><div class="header-bar">cockpit header</div><div id="ribbonContainer">cockpit menu</div><div class="cockpit-body"><div class="tool-view-container"><iframe id="tool" src="/api/finance/app"></iframe></div></div></body></html>';
 
+/** The cockpit's own layout rules for the body, the main content and the chat panel (platform cockpit css/layout.css, css/chat.css). */
+const COCKPIT = '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Cockpit</title><style>html,body{margin:0;height:100%}body{display:flex;flex-direction:column}.header-bar{height:48px}'
+  + '.cockpit-body{flex:1;display:flex;overflow:hidden;min-height:0;padding:12px;gap:12px}.main-content{flex:1;min-width:0;overflow:hidden}.tool-view-container{height:100%}iframe{width:100%;height:100%;border:0}'
+  + '.chat-panel{width:320px;display:flex;height:100%;overflow:hidden}.chat-panel.collapsed{width:0!important;min-width:0!important;opacity:0;border:none;margin:0}'
+  + '@media (max-width:640px){.chat-panel{position:fixed;inset:0;width:100%!important;z-index:320}.chat-panel.collapsed{opacity:1;pointer-events:none;transform:translateY(100%)}}</style></head>'
+  + '<body><div class="header-bar">cockpit header</div><div class="cockpit-body"><section class="main-content"><div class="tool-view-container"><iframe id="tool" src="/api/finance/app"></iframe></div></section>'
+  + '<div class="panel-resize-handle"></div><aside class="chat-panel collapsed" id="chatPanel"><p>Finance analyst</p></aside></div></body></html>';
+
 /** Open the page at a viewport with only stand-in answers; every request is recorded. */
 async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, failing = '', profile = PROFILE, snapshot = BANK_SNAPSHOT) {
   const phone = viewport.width < 700;
@@ -74,6 +83,7 @@ async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, fai
     const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
     if (u.pathname === '/api/finance/app') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', path: PAGE });
     if (u.pathname === '/host') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: HOST });
+    if (u.pathname === '/cockpit') return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: COCKPIT });
     if (u.pathname === '/api/ui/profile') return json(profile);
     if (failing && u.pathname === failing) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"fixture: this summary does not answer"}' });
     if (u.pathname === '/api/finance/status') return json(BANK_STATUS);
@@ -196,6 +206,47 @@ test('opened inside the cockpit, Finance owns the window: the cockpit\'s header 
     await page.frameLocator('#tool').locator('body').waitFor();
     assert.equal(await page.locator('.header-bar').isVisible(), true, 'host chrome returns when another app replaces Finance');
     assert.equal(await page.locator('#ribbonContainer').isVisible(), true);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+/** The chat panel and the Finance page as the person sees them inside the cockpit. */
+const layout = (page) => page.evaluate(() => {
+  const box = (node) => { const r = node.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) }; };
+  const panel = document.getElementById('chatPanel');
+  return { display: getComputedStyle(panel).display, panel: box(panel), frame: box(document.getElementById('tool')), header: getComputedStyle(document.querySelector('.header-bar')).display };
+});
+/** What the cockpit does when the orb asks for the application's concierge (cockpit-view-controller.js, oshal:app-concierge). */
+const concierge = (page, open) => page.evaluate((on) => document.getElementById('chatPanel').classList.toggle('collapsed', !on), open);
+
+test('inside the cockpit the Concierge button opens Finance\'s concierge beside the page, and closing it gives the page back', async () => {
+  const { page, context, errors } = await openApp(browser, { width: 1280, height: 900 }, `${ORIGIN}/cockpit`);
+  try {
+    await page.frameLocator('#tool').locator('#fxJourney [data-journey="banks"]').waitFor({ timeout: 8000 });
+    const closed = await layout(page);
+    assert.equal(closed.header, 'none', 'Finance still owns the window');
+    assert.equal(closed.display, 'none', 'a closed concierge takes no room');
+    assert.equal(closed.frame.w, 1280);
+    await concierge(page, true);
+    const open = await layout(page);
+    assert.notEqual(open.display, 'none', 'judge defect 3: the panel stayed hidden and the button did nothing');
+    assert.ok(open.panel.w >= 300, `the concierge is readable: ${open.panel.w}px`);
+    assert.ok(open.frame.w + open.panel.w <= 1280 && open.frame.w >= 900, `the page sits beside it: ${JSON.stringify(open)}`);
+    await shot(page, 'finance-app-concierge-open');
+    await concierge(page, false);
+    assert.equal((await layout(page)).frame.w, 1280);
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('on a phone inside the cockpit the Concierge opens as a sheet over Finance', async () => {
+  const { page, context, errors } = await openApp(browser, { width: 412, height: 915 }, `${ORIGIN}/cockpit`);
+  try {
+    await page.frameLocator('#tool').locator('#fxJourney [data-journey="banks"]').waitFor({ timeout: 8000 });
+    await concierge(page, true);
+    const open = await layout(page);
+    assert.notEqual(open.display, 'none');
+    assert.deepEqual([open.panel.x, open.panel.y, open.panel.w], [0, 0, 412], 'the sheet covers the screen');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });

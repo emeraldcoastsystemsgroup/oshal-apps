@@ -16,6 +16,8 @@ package installed, `swarm-apps/` in the framework repo carries no Wave-1 applica
 | `oshal-app.yaml` | Manifest: one OIDC route, `finance-brief` workflow, ribbon tile, `forest` theme, `suite: ai-finance`, `uses: [payments]`. **No bots** (see below). |
 | `src-routes/finance-routes.ts` | The controller: Plaid link/exchange/sandbox, sync→aggregate, brief (bot reasoning), pay/pay-status/payments, unlink, lazy `ensureFinanceSchema`. |
 | `src-routes/finance-plaid.ts` | Self-contained Plaid client + aggregate builder (zero imports). |
+| `src-routes/finance-analysis.ts` | A requested analysis that runs after the press has answered (1.6.5): the kernel's background-run port, the caller's one request row and what it reads as. |
+| `migrations/` | The stores the routes also create lazily: 001 the three finance stores, 002 the caller's latest analysis request. |
 | `routes/*.js` | **Compiled JS** the loader mounts (`oshal-app build` output). |
 | `tools/finance.html` | The surface (link + dashboard + brief + send-money panel), served from this package dir. |
 | `tools/finance-app.html` | Finance as its own application (1.5.0): the page the menu opens first. See below. |
@@ -102,6 +104,28 @@ Container memory, MiB low / high: **64 / 256 (declared)**.
 | context-review | draft review against your finances | T3 | none | disable | not yet measured | none recorded |
 | finance-brief-ticket | finance brief ticket | T3 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Request analysis works after the press (1.6.5)
+
+One turn of a slow model takes longer than the 60 seconds the kernel gives one package request, so with 1.6.4 an analysis often could not finish. On a kernel that can run a turn in the background (`@/shared/package-runs` has `backgroundTurn`), Request analysis now answers at once:
+
+- `POST /api/finance/brief/refresh` records the request as working in `oshal_finance_analysis` (one row a person, migration 002) with the exact snapshot it reads, asks the kernel for one turn of the finance-analyst with a five minute limit, and answers 202. The analyst is not asked inside the request.
+- The kernel runs the turn and hands the answer to `POST /api/finance/brief/analysis-result` as the same person. That route takes only the kernel's hand-over (its `x-oshal-trigger` header is one the HTTP door never forwards from a browser) and only for the working request. It writes the figures in code as always, leaves out a sentence that states an unlisted amount with the visible note, and saves the analysis only over the snapshot it was asked about. It asks the analyst nothing: a turn inside that request would outlast it, so the one rewrite of the 45 second path is not asked here.
+- `GET /api/finance/brief/analysis` (and `analysis` on `GET /api/finance/brief` once a request exists) says working, done or failed. The page shows "Your finance analyst is working on a new analysis" above the earlier analysis, asks every five seconds, and shows the new analysis when it is saved. The earlier analysis stays until then.
+- A failure is said in words and nothing is saved: the analyst did not answer within 5 minutes, could not answer, or the account snapshot changed meanwhile. A request the kernel no longer holds (a restart ends its runs), or one past its time, reads as not finished.
+- One request runs at a time. A second press while one is working answers working and starts nothing.
+
+Without that kernel ability, on another platform, or when the kernel cannot start the turn, the 45 second path of 1.6.4 answers in the same press, unchanged.
+
+Tests: `tests/analysis-background.test.cjs` (the compiled routes with the store and the kernel's port doubled) and six cases in `tests/browser/finance-bank-snapshot.browser.test.cjs` (Chromium, stand-in answers, the browser's clock driven by the test). The kernel's side is proved in the kernel repository by `crates/oshald/tests/package_background_turn.rs` with a fixture application; Finance itself is not yet proven against a running kernel by these tests, and that check is done on the test slot before delivery.
+
+## Request analysis, the Concierge and category names (1.6.4)
+
+Request analysis answers within 45 seconds, inside the 60 seconds the kernel gives one package request. When the analyst has not answered by then, the page says that nothing was saved and the earlier analysis is unchanged; a refused analyst is said the same way, and a request the kernel ends with only a status code reads as a sentence, never "HTTP 503". The one rewrite of a commentary that states an unlisted amount is asked only while 15 seconds are left; otherwise the unmatched sentence is left out with the visible note. The wait says up to a minute and a second press cannot start meanwhile.
+
+Inside the cockpit Finance still owns the window, but its concierge (the chat panel the Concierge button opens) is hidden only while closed: open, it sits beside the page on a computer and covers it on a phone.
+
+Spending categories read as words ("Transfers out", "Loan payments", "Food and drink") on the bank page and in the household and company views.
 
 ## Transaction coverage (1.6.3)
 

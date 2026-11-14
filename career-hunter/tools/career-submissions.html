@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Show each bounded browser press with shared words and owner-scoped evidence. -->
 <!--
   Submissions — the print-queue view of the desktop worker.
 
@@ -21,6 +22,7 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   5 | maintainer@emeraldcoastsystemsgroup.com | Isolate activity cards from shared row styles, align the page with Career, and add responsive title/status/action layouts.
   4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: build the queue from the caller's application records and the native worker answer instead of the old platform's /api/apply-operator/queue, /story and /shot, which the native kernel does not serve (the screen showed "Could not reach the queue"). Narrated runs are not retained natively, so a run says so instead of fetching them.
+  10 | maintainer@emeraldcoastsystemsgroup.com | Move owner-resolved outcomes out of Needs your answer and label sent statements as manual.
   7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): the top said "no worker connected" three times ("last seen 722h 39m ago") and the lanes were not buttons. One status row now reads "No computer connected · last seen 30 days ago" with one secondary Connect a computer, and the separate computer picker row is gone; the lanes are one row of 44px filter chips (role=tab with counts) that scroll sideways on a phone; an empty queue is "Nothing sent yet" with one primary Open Job Board; the Submission queue / Application status pill pair is gone (both are Job Board stages). Job Apply's counters fold in here as one row computed from these same records (active, failed or unknown, manually marked, verified in 24 hours and 5 days), and each row names its portal. Guard: tests/career-submission-activity.test.mjs.
   8 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: withhold Connect a computer from guest visitors (/api/guest/session + /api/auth/user), contain overscroll, hide redundant framed headers, and align radii/typography to the design standard.
   9 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
@@ -174,6 +176,7 @@
 <div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbimg" alt="Submission screenshot"/></div>
 
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-status-line.js"></script>
 <script src="/api/career-hunter/static/career-submit.js"></script>
 <script>
 const $=id=>document.getElementById(id);
@@ -244,13 +247,14 @@ function queueFromNative(applications, workers, submissions=[]){
       :!a.nativeTicketId?'Approval saved; finish queueing this application.'
       :!a.nativeWorkId?'Ticket saved; finish starting the approved application.'
       :'Approved and waiting for your browser worker.';
-    const lane={queued:'queued',claimed:'submitting',reviewing:'submitting',submitting:'submitting',submitted:'applied',needs_you:'needs_you',failed:'failed',unknown:'needs_you',cancelled:'dismissed'}[a.status]||'needs_you';
+    const lane={queued:'queued',claimed:'submitting',reviewing:'submitting',submitting:'submitting',submitted:'applied',needs_you:'needs_you',failed:'failed',unknown:'needs_you',cancelled:'dismissed',resolved_sent:'applied',resolved_not_sent:'dismissed'}[a.status]||'needs_you';
     return {ticketId:a.id,submissionId:a.id,postingId:a.postingId,title:a.title,company:a.company,lane,status:a.status,
       executionState:['claimed','reviewing','submitting'].includes(a.status)?'working':'settled',
       executionDetail:a.reason||({queued:queuedDetail,claimed:'Worker claimed this application.',reviewing:'Filling and verifying your approved application.',submitting:'Final action authorized; awaiting employer confirmation.'}[a.status]||a.status),
       canResume:a.status==='queued'&&!a.nativeWorkId&&!expired,
       updatedAt:a.updatedAt,jobUrl:a.url,assignedClientId:a.nativeNodeId,questions:a.questions||[],milestones:a.milestones||[],
-      metrics:a.metrics,confirmationFile:a.confirmationFile,application_source:a.status==='submitted'?'worker-reported':null};
+      presses:a.presses||[],pressesAllowed:a.pressesAllowed,pressPictures:a.pressPictures||[],confirmationText:a.confirmationText,
+      metrics:a.metrics,confirmationFile:a.confirmationFile,application_source:a.status==='submitted'?'worker-reported':a.status==='resolved_sent'?'manual-mark':null};
   });
   const submittedIds=new Set(nativeItems.map(i=>i.postingId));
   // A job Career only picked (approval_required) is not activity: it leads Saved in My jobs until the person prepares or removes it.
@@ -330,7 +334,7 @@ function beatHtml(t,b){
 function storyHtml(it){
   if(it.submissionId){
     const evidence=it.confirmationFile?`<p><a target="_blank" rel="noopener" href="/api/career-hunter/submission-queue/${encodeURIComponent(it.submissionId)}/confirmation">View retained employer confirmation ↗</a></p>`:'';
-    return `<div class="story"><p>${esc(it.executionDetail||'')}</p>${(it.milestones||[]).map(m=>`<p>✓ ${esc(m.replace(/_/g,' '))}</p>`).join('')}${it.metrics?`<p>${esc(it.metrics.actions||0)} actions · ${esc(it.metrics.screenshots||0)} screenshots</p>`:''}${evidence}${it.status==='needs_you'&&it.questions?.length?`<button class="btn" onclick="answerSubmission('${it.submissionId}',${Number(it.postingId)})">Answer employer questions</button>`:''}</div>`;
+    return `<div class="story"><p>${esc(it.executionDetail||'')}</p>${CareerStatusLine.pressHistory(it)}${it.metrics?`<p>${esc(it.metrics.actions||0)} actions · ${esc(it.metrics.screenshots||0)} screenshots</p>`:''}${evidence}${it.status==='needs_you'&&it.questions?.length?`<button class="btn" onclick="answerSubmission('${it.submissionId}',${Number(it.postingId)})">Answer employer questions</button>`:''}</div>`;
   }
   const beats=stories[it.ticketId];
   if(beats===undefined) return `<div class="story"><div class="empty">Loading the run…</div></div>`;

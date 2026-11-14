@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped anonymous browser against disposable public-listing forms, delayed pagination and JSON feeds, with no applicant, model or external network.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The reader names itself to the site, presses a cookie notice's accept button and no other, and reports a human check, a refusal and a browser that cannot start each under its own cause.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove a delayed anonymous browser check reaches jobs, and Avature's mixed-case next link reads subsequent pages without importing its talent-community form.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,6 +26,18 @@ before(async()=>{
     {jobId:'json-2',title:'Adjunct Lecturer',jobUrl:'/jobs/json-2',location:'Local'}]}));return;
   }
   res.setHeader('content-type','text/html');
+  if(url.pathname==='/check-delayed'){
+   res.statusCode=202;res.setHeader('x-amzn-waf-action','challenge');
+   res.end('<script>setTimeout(()=>location.href="/after-check",12000)</script>');return;
+  }
+  if(url.pathname==='/after-check'){res.end('<a href="/jobs/delayed">Engineer after the check</a>');return;}
+  if(url.pathname==='/en_US/careers/SearchJobs/'){
+   const offset=Number(url.searchParams.get('jobOffset')||0);
+   res.end(`<article><a href="/careers/JobDetail/${offset+1}">Avature Engineer ${offset+1}</a><span class="location">Austin, Texas</span></article>
+    <a href="/careers/ApplicationMethods?jobId=129">Join Our Community</a>
+    <a href="/en_US/careers/SearchJobs/#main">Skip to content</a><a href="/de_DE/careers/SearchJobs/?jobRecordsPerPage=100">Deutsch</a>
+    ${offset===0?'<a class="paginationNextLink" href="?jobOffset=100">Next &gt;&gt;</a>':''}`);return;
+  }
   if(url.pathname==='/agent'){agents.push(req.headers['user-agent']);res.end('<a href="/jobs/one">Platform Engineer</a>');return;}
   if(url.pathname==='/pressed'){pressed.push(url.searchParams.get('what'));res.end('ok');return;}
   if(url.pathname==='/notice'||url.pathname==='/notice-known'){
@@ -138,6 +151,15 @@ test('a human check is reported as one and a page that answers past it keeps its
  }
  const value=await run('/check-passed');assert.deepEqual(value.dom.map(row=>row.title),['Platform Engineer']);
  assert.notEqual(value.reason,'challenge_detected');
+});
+test('a delayed automatic browser check can finish within the source deadline',async()=>{
+ const value=await run('/check-delayed',{deadlineMs:30000});
+ assert.deepEqual(value.dom.map(row=>row.title),['Engineer after the check']);
+ assert.notEqual(value.reason,'challenge_detected');
+});
+test('Avature next-page links and job locations are read without importing the community form',async()=>{
+ const value=await run('/en_US/careers/SearchJobs/?9577=17276&jobRecordsPerPage=6');
+ assert.deepEqual(value.dom.map(row=>[row.title,row.location]),[['Avature Engineer 1','Austin, Texas'],['Avature Engineer 101','Austin, Texas']]);
 });
 test('a refusal, a missing page and a browser that cannot start each fail under their own cause',async()=>{
  await assert.rejects(run('/refused'),{message:'browser_refused'});

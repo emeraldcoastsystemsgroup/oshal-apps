@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (shop-lists, D): the List never filled because no on-screen control wrote to it. The List screen's Add an item field posts the text as a free-text entry, and each row ticks off and steps its quantity through the new POST /lists/:listId/items/:itemId, run here against the COMPILED route under the native writer admission: a tick sets status 'done' (checkout already takes only pending lines), unticking puts it back, a quantity clamps to the line cap, another shopper's row is refused with nothing changed, and an empty change is a 400. The manifest exposes exactly one tile, List, as the default view.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Regression (trial delivery 2026-11-06): taking the Assistant, Browse and Deals tiles off made Home (home-experience) component_unavailable for its holders, because Home required those surfaces, and left purchasing's own plan-purchase accept naming a tile that no longer existed, which makes the kernel's Home plan refuse the manifest. Every surface any store package composes from purchasing, and every surface purchasing's accepts name, must be a declared purchasing tile.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.0: Order replaces the rail-only Checkout button on the List screen; it is enabled while an item is left to buy.
  */
 'use strict';
 const test = require('node:test');
@@ -65,7 +66,7 @@ test('List is the one tile and the default view, and its Add an item field write
   assert.match(page, /api\('\/lists\/' \+ listId \+ '\/items', \{ method: 'POST', body: JSON\.stringify\(\{ title, quantity: 1 \}\) \}\)/);
   assert.match(page, /updateRow\(i, \{ checked: box\.checked \}\)/);
   assert.match(page, /updateRow\(i, \{ quantity: qty \+ 1 \}\)/);
-  assert.match(page, /\$\('#checkout'\)\.classList\.toggle\('hidden', !RAIL\);\s*\$\('#checkout'\)\.disabled = !pending\.length;/);
+  assert.match(page, /\$\('#order'\)\.disabled = !pending\.length;/, 'Order is ready while something is left to buy (1.5.0: it needs no rail)');
   assert.match(page, /font-size: 16px/, 'the field does not zoom on a phone');
 });
 

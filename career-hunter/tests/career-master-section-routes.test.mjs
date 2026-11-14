@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify bounded master route ownership, input checks, conflict reporting and confirmed engine completion against the shipped route output.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: Undo (POST /resume/master-undo) runs as the signed-in owner with exactly the two revisions, refuses anything else before the engine, and reports a later change (master_changed) as a conflict, never a success.
  */
 import { after, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,4 +61,18 @@ test('conflicts and incomplete native runs never report a saved edit', async () 
   assert.equal((await call('POST /resume/master-edit', { body: patch() })).code, 502);
   result = { ok: false, limitReason: 'inflight', out: '' };
   assert.equal((await call('POST /resume/master-edit', { body: patch() })).code, 409);
+});
+
+test('Undo runs as the signed-in owner with exactly two revisions, and a later change is a conflict', async () => {
+  const body = { revision: 'b'.repeat(64), restore: 'a'.repeat(64) };
+  const res = await call('POST /resume/master-undo', { body: { ...body } });
+  assert.equal(res.code, 200); assert.equal(calls[0][1], 'owner-a'); assert.deepEqual(calls[0][2], ['resume', 'base-undo']);
+  assert.deepEqual(JSON.parse(calls[0][3].CH_RESUME_DOC), body);
+  for (const bad of [{ revision: body.revision }, { ...body, userSub: 'owner-b' }, { ...body, restore: 'old' }, { ...body, revision: 'B'.repeat(64) }, [], null])
+    assert.equal((await call('POST /resume/master-undo', { body: bad })).code, 400);
+  assert.equal((await call('POST /resume/master-undo', { userSub: undefined, body })).code, 401);
+  assert.equal(calls.length, 1);
+  result = { ok: false, out: JSON.stringify({ ok: false, error: 'master_changed', message: 'Your main résumé changed after that change, so Undo is no longer available.' }) };
+  const later = await call('POST /resume/master-undo', { body });
+  assert.deepEqual([later.code, later.body.ok], [409, false]);
 });

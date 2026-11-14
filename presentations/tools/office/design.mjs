@@ -4,9 +4,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.3, §4.3, §4.4, §4.10, §5.1; Google Docs, Word and ONLYOFFICE, REFP CONVENTIONS §5.1). One app row: Back to your documents, the document's name with its menu (New, Open, Rename, Duplicate, Export, Delete), Undo, Redo, Save while there is something to save and Export as the one primary once there is content; an existing document on a phone opens to read with one Edit. The phone's bottom bar is Format, Insert, Comment, Concierge and More (Slides or Sheets first for a deck or a workbook); each opens an opaque sheet with Done that the phone's Back closes. On a desktop Slides sit in a 240px left pane and Format and Concierge are tabs of one docked 320px right pane, so the canvas is never covered and Zoom Fit refits when a pane changes. With documents saved, the first screen is your documents, newest first, with one New at the bottom right. A selection raises a bar at the selection: Cut, Copy, Paste, Comment and More. Every confirm is in the page.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, any platform: the shared planned-control helper is optional (fallbackPlanned builds the same markup and inert press), so the editor still starts where /shared/ui/js/planned-control.js is not served, as on the store gate's pinned platform.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): replace all seven AI Office planned controls with working Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view, and Share controls while retaining RP-ALL-01 Summarize.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 2.20.4: hostedAssistant() reads ?assistant=host, which a host page that frames this editor and owns the screen's one assistant passes (Career's My résumé, career-hunter 1.61.0, where Career's concierge edits the résumé). Then the side pane has only Format, the phone's bottom bar has no Concierge, and Generate a draft is not offered, because there is no AI Office concierge on that screen to answer them. Without the option nothing changes.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): remove duplicate greyed Summarize planned control from the AI Office Concierge prompt strip because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  */
 import{clone,uid,plain}from'./model.mjs';
+/** @description Whether the page that frames this editor owns the screen's one assistant (?assistant=host). @returns {boolean} */
+export const hostedAssistant=()=>new URLSearchParams(location.search).get('assistant')==='host';
 import{state,notify,status,dirty,pristine,editable,currentPage,currentItem,edit,api}from'./state.mjs';
 import{guard,openDocument,newDocument,refreshDocuments,mayReplace}from'./files.mjs';
 import{fit,invalidate}from'./render.mjs';
@@ -116,14 +119,14 @@ function bindPanesAndFormat({root,foundation,layers,act,planned,sheet}){
   const open=root.dataset.editorConcierge==='open';pane=open?'concierge':'format';root.dataset.officePane=pane;
   const shellBtn=root.querySelector('.ef-panes [aria-controls$="-concierge"]');if(!open)lastShellOwns=Boolean(shellBtn?.hidden);
   for(const tab of tabs.querySelectorAll('[role=tab]')){const on=tab.dataset.pane===pane;tab.setAttribute('aria-selected',String(on));tab.tabIndex=on?0:-1;}
-  tabs.querySelector('[data-pane=concierge]').hidden=lastShellOwns&&!open;
+  const own=tabs.querySelector('[data-pane=concierge]');if(own)own.hidden=lastShellOwns&&!open;
  }
  function showPane(next){
   if(next==='concierge')foundation.showPanel('ai');
   else if(root.dataset.editorConcierge==='open')root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide'));
   pane=next;syncPane();requestAnimationFrame(fit);
  }
- for(const[key,label]of [['format','Format'],['concierge','Concierge']]){const tab=make('button','office-pane-tab',label);tab.type='button';tab.dataset.pane=key;tab.setAttribute('role','tab');tab.onclick=()=>showPane(key);tabs.append(tab);}
+ for(const[key,label]of hostedAssistant()?[['format','Format']]:[['format','Format'],['concierge','Concierge']]){const tab=make('button','office-pane-tab',label);tab.type='button';tab.dataset.pane=key;tab.setAttribute('role','tab');tab.onclick=()=>showPane(key);tabs.append(tab);}
  root.querySelector('.ef-body').append(tabs);
  const conciergeSheet=()=>sheet('Concierge',[$('office-ai')],[],{});
  async function generate(){
@@ -132,7 +135,7 @@ function bindPanesAndFormat({root,foundation,layers,act,planned,sheet}){
  }
  const prompts=make('div','office-prompts'),draft=make('button','office-chip','Generate a draft');draft.type='button';draft.onclick=act(()=>generate());
  prompts.append(draft);
- $('office-ai').querySelector('.ef-assistant-composer')?.before(prompts);
+ $('office-ai')?.querySelector('.ef-assistant-composer')?.before(prompts);
  new MutationObserver(()=>{syncPane();requestAnimationFrame(fit);}).observe(root,{attributes:true,attributeFilter:['data-editor-concierge']});
  const formatTabs=make('div','office-format-tabs');formatTabs.setAttribute('role','tablist');formatTabs.setAttribute('aria-label','Format');
  const properties=root.querySelector('.ef-properties');properties.prepend(formatTabs);
@@ -193,7 +196,7 @@ function bindToolbarsAndMenus({layers,act,planned,menu,sheet,click,inertNode,ins
  const insertItems=()=>{
   const kind=state.model.kind,item=(label,id)=>({label,id,run:click(id),disabled:inertNode(id)}),add=(label,type)=>({label,id:'insert-'+type,run:()=>insert(type),disabled:document.querySelector('[data-insert="'+type+'"]')?.disabled});
   const list=kind==='pptx'?[add('Text box','text'),add('Image','image'),add('Table','table'),add('Rectangle','rect'),add('Ellipse','ellipse'),'-',item('New slide','add-page')]:kind==='docx'?[item('Paragraph','add-paragraph'),add('Table','table'),add('Image','image'),'-',item('New page','add-page')]:[item('Row','add-row'),item('Column','add-column'),item('Sheet','add-page')];
-  return[...list,'-',{label:'Generate a draft…',id:'generate',run:()=>generate(),disabled:inertNode('generate-document')}];
+  return hostedAssistant()?list:[...list,'-',{label:'Generate a draft…',id:'generate',run:()=>generate(),disabled:inertNode('generate-document')}];
  };
  function moreItems(){
   const items=[{label:'Page setup…',id:'page-setup',run:()=>pageSetupSheet()},{label:'Print…',id:'print',run:()=>window.print()}];
@@ -211,7 +214,7 @@ function bindToolbarsAndMenus({layers,act,planned,menu,sheet,click,inertNode,ins
   const kind=state.model.kind;if(kind===barKind)return;barKind=kind;
   const first=kind==='pptx'?barItem('Slides','slides',()=>pagesSheet()):kind==='xlsx'?barItem('Sheets','sheets',()=>pagesSheet()):null;
   const comment=kind==='docx'?barItem('Comment','comment',()=>openCommentsSheet(layers,act)):null;
-  bar.replaceChildren(...[first,barItem('Format','format',()=>formatSheet()),barItem('Insert','insert',()=>sheet('Insert',[],[sheetMenu(insertItems())])),comment,barItem('Concierge','concierge',()=>conciergeSheet()),barItem('More','more',()=>sheet('More',[],[sheetMenu(moreItems())]))].filter(Boolean));
+  bar.replaceChildren(...[first,barItem('Format','format',()=>formatSheet()),barItem('Insert','insert',()=>sheet('Insert',[],[sheetMenu(insertItems())])),comment,hostedAssistant()?null:barItem('Concierge','concierge',()=>conciergeSheet()),barItem('More','more',()=>sheet('More',[],[sheetMenu(moreItems())]))].filter(Boolean));
  }
  const desk=$('office-desktop-tools'),deskInsert=make('button','office-tool','Insert ▾'),deskComment=make('button','office-tool','Comment'),deskMore=make('button','office-icon-action','⋯'),zoomLabel=make('label','office-zoom');
  deskInsert.type=deskComment.type=deskMore.type='button';deskInsert.setAttribute('aria-haspopup','dialog');deskComment.setAttribute('aria-haspopup','dialog');deskMore.setAttribute('aria-haspopup','dialog');deskMore.setAttribute('aria-label','More');deskMore.title='More';zoomLabel.append(make('span','office-sr-only','Zoom'),$('zoom'));

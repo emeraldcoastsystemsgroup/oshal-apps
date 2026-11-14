@@ -1,0 +1,94 @@
+{
+  "about": "What computer.app does through the godot bridge word, for the writer of program instructions (Lane GD1, Orbit's Godot sidecar). The bridge sheet's own shape (Lane G's bridge-facts.json), for the bridge word Orbit's Linux reader gives a bound Godot editor (desktop/oshal-node/src/main/linux-program-versions.ts GODOT_BRIDGE). Written from Orbit's code at the kernel commit named and the real Godot 4.7.2 suites (desktop/oshal-node/scripts/test-godot-editor.cjs and test-godot-dock.cjs); every verb id names the source line it is read from, and tests/sheet/godot-sources.test.cjs fails when Orbit's code declares other verbs. As built at that commit; no planned change is described.",
+  "generated_at": "2026-11-13T22:05:00Z",
+  "kernel_commit": "d67a8c2e",
+  "generator": "program-instructions/inputs/godot-bridge-facts.json, written from Orbit's code and the real Godot 4.7.2 suites",
+  "bridges": {
+    "godot": {
+      "programs": "A bound Godot 4 editor whose project has Orbit's add-on (res://addons/orbit_door) running, read and changed through the editor's own API by the add-on over Orbit's plugin door (desktop/oshal-node/src/main/bridges/godot.ts); a Godot editor without the add-on is refused in words.",
+      "actions": {
+        "snapshot": {
+          "source": "desktop/oshal-node/src/main/bridges/godot.ts:204"
+        },
+        "invoke": {
+          "source": "desktop/oshal-node/src/main/bridges/godot.ts:328"
+        },
+        "undo": {
+          "source": "desktop/oshal-node/src/main/bridges/godot.ts:347"
+        }
+      },
+      "declared": {
+        "project (a Godot editor with Orbit's add-on)": [
+          {
+            "id": "add-node",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:19"
+          },
+          {
+            "id": "set-property",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:24"
+          },
+          {
+            "id": "create-script",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:29"
+          },
+          {
+            "id": "edit-script",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:34"
+          },
+          {
+            "id": "run-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:39"
+          },
+          {
+            "id": "game-output",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:44"
+          },
+          {
+            "id": "stop-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:49"
+          },
+          {
+            "id": "open-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:54"
+          },
+          {
+            "id": "new-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:59"
+          },
+          {
+            "id": "save-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:64"
+          },
+          {
+            "id": "rename-node",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:69"
+          },
+          {
+            "id": "move-node",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:74"
+          },
+          {
+            "id": "delete-node",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:79"
+          },
+          {
+            "id": "add-input-action",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:84"
+          },
+          {
+            "id": "instance-scene",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:89"
+          },
+          {
+            "id": "import-asset",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:94"
+          },
+          {
+            "id": "show-view",
+            "source": "desktop/oshal-node/src/main/bridges/godot-actions.ts:99"
+          }
+        ]
+      }
+    }
+  }
+}

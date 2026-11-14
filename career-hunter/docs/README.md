@@ -4,6 +4,7 @@ For Career 1.58, start with the current guides:
 
 | Guide | Audience and purpose |
 |---|---|
+| [Source reader recovery](source-readers.md) | Counted Oracle feeds, Workday restart progress and anonymous browser checks; limits, source migration and focused verification. |
 | [User guide](user-guide.md) | A job seeker's day: replies, matches, saved jobs, preparation, sending, manual interviews and outcomes, and the optional past-seven-days goal |
 | [Deployment guide](deployment.md) | Prospective outplacement, workforce and coaching buyers: current individual roles, connections, installation checks and the unbuilt coach/consent model |
 

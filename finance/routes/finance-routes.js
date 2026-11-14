@@ -45,6 +45,9 @@
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Missing saved balances and required total components remain unknown; incomplete institution reads cannot turn a partial account inventory into a complete total, while known cached zero stays zero.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Withhold incomplete or cross-currency monetary totals, normalize saved snapshots before analysis, and atomically refuse an analysis saved after its input changed.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit transaction coverage and mask incomplete historical spending rollups on reads, sync and new analysis without rewriting cached snapshots.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis runs after the press has answered, on a kernel that can (Roger, 2026-11-14: "yes background analysis"). One turn of a slow model takes longer than the 60 s a package request may last, so the 45 s path often could not finish. POST /brief/refresh records the request as working with the exact snapshot it reads, asks the kernel for one background turn of the analyst and answers 202; the kernel hands the answer to POST /brief/analysis-result as the same person, which saves the analysis over that snapshot or records in words why nothing was saved; GET /brief/analysis and GET /brief say working, done or failed. The earlier analysis is untouched until the new one is saved, one request runs at a time, and nothing asks the analyst inside the hand-over (a turn there would outlast the request). Without the kernel's port, or when it cannot start the turn, the 45 s path below runs as before.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | The cached saved read (GET /brief) answers exactly as before whenever the request's state cannot be read, for any reason. The store gate's home-summary job (scripts/business-home.test.cjs) loads these routes with the request's module replaced by a stub, and the read answered 502 where it must answer a plain 404: the request's state was read inside the brief's own answer and only a rejected promise was caught. It is now read apart (analysisOnBrief), any failure is logged and leaves it out, and the read still initialises, executes and updates nothing.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis answers within a 45 s budget, inside the native kernel's 60 s package call (the judge read "HTTP 503" after 60 s on blue, twice). A silent analyst gives 504 analysis_timeout, a refused one 502 analyst_unavailable, both in words with nothing saved; the rewrite is asked only while 15 s of the budget is left, otherwise unmatched sentences are left out as before.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -85,6 +88,7 @@ exports.computeFinanceTotals = computeFinanceTotals;
 exports.createFinanceRoutes = createFinanceRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
+const crypto_1 = require("crypto");
 const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const agent_management_1 = require("@/features/agent-management");
@@ -97,6 +101,7 @@ const session_crypto_1 = require("./session-crypto");
 const finance_values_1 = require("./finance-values");
 const finance_facts_1 = require("./finance-facts");
 const finance_brief_1 = require("./finance-brief");
+const finance_analysis_1 = require("./finance-analysis");
 const logger = (0, logger_1.createChildLogger)({ module: 'finance-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -105,6 +110,14 @@ const FINANCE_AGENT_ID = 'a0000000-0000-0000-0000-000000000044';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
 /** What a person reads when no payment rail is set up: where to go, never an environment variable. */
 const PAYMENTS_UNAVAILABLE = 'Sending money from Finance is not set up on this installation. To take payments, connect Stripe on the Connections page and use the Payments app.';
+/** Request analysis must answer within this, well inside the native kernel's 60 s package call (host CALL_DEADLINE). */
+const ANALYSIS_BUDGET_MS = 45_000;
+/** The one rewrite is asked only while at least this much of the budget is left. */
+const REWRITE_MIN_MS = 15_000;
+const ANALYSIS_TIMEOUT_MESSAGE = 'Your finance analyst did not answer within 45 seconds, so nothing was saved. Your earlier analysis, if any, is unchanged. Try Request analysis again in a few minutes.';
+const ANALYST_UNAVAILABLE_MESSAGE = 'Your finance analyst could not answer just now, so nothing was saved. Your earlier analysis, if any, is unchanged. Try Request analysis again in a few minutes.';
+/** Save an analysis only over the exact snapshot it was asked about. */
+const SAVE_BRIEF = 'UPDATE oshal_finance_data SET brief = $2, brief_at = now() WHERE user_sub = $1 AND aggregate = $3::jsonb RETURNING brief_at';
 /** Transaction look-back used when (re)building the aggregate. */
 const TXN_WINDOW_DAYS = 90;
 /** Signed-in caller's OIDC sub. */
@@ -160,6 +173,15 @@ async function ensureFinanceSchema(pool) {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
             'CREATE INDEX IF NOT EXISTS oshal_finance_payments_user ON oshal_finance_payments (user_sub)',
+            `CREATE TABLE IF NOT EXISTS oshal_finance_analysis (
+        user_sub TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        snapshot TEXT NOT NULL,
+        requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        finished_at TIMESTAMPTZ,
+        failure TEXT
+      )`,
             /* ── owner-scoped RLS (A1.2): applied at the lazy-DDL chokepoint so a
                fresh database enforces isolation the moment these tables are created,
                instead of waiting for migration 060 to re-run (it skips absent tables).
@@ -167,10 +189,12 @@ async function ensureFinanceSchema(pool) {
             ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_items', 'user_sub'),
             ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_data', 'user_sub'),
             ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_payments', 'user_sub'),
+            ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_analysis', 'user_sub'),
         ],
         requirements: [
             { table: 'oshal_finance_items', columns: ['item_id', 'user_sub', 'institution', 'access_token', 'linked_at'] },
             { table: 'oshal_finance_data', columns: ['user_sub', 'aggregate', 'brief', 'synced_at', 'brief_at'] },
+            { table: 'oshal_finance_analysis', columns: ['user_sub', 'run_id', 'state', 'snapshot', 'requested_at', 'finished_at', 'failure'] },
             {
                 table: 'oshal_finance_payments',
                 columns: [
@@ -353,18 +377,163 @@ async function runAnalyst(ctx, sub, agg, review) {
  * @param agg - The caller's saved aggregate.
  * @returns The brief Markdown, or '' when the analyst returned nothing.
  */
-async function writeBrief(ctx, sub, agg) {
+async function writeBrief(ctx, sub, agg, deadline) {
     const totals = computeFinanceTotals(agg);
     const figures = (0, finance_brief_1.briefFigures)(agg, totals);
     const allowed = (0, finance_brief_1.quotableAmounts)(agg, totals);
     const prompt = (0, finance_brief_1.buildCommentaryPrompt)(agg, figures, allowed);
-    let commentary = await askAnalyst(ctx, sub, prompt);
+    let commentary = await withinDeadline(askAnalyst(ctx, sub, prompt), deadline);
     const check = (0, finance_brief_1.checkCommentary)(commentary, allowed);
     if (commentary && (check.unverified.length || check.working.length)) {
-        logger.warn({ unverified: check.unverified.length, working: check.working.length }, 'finance commentary stated unlisted amounts or its working - asking once for a rewrite');
-        commentary = (await askAnalyst(ctx, sub, (0, finance_brief_1.buildRewritePrompt)(prompt, commentary, check))) || commentary;
+        const left = deadline - Date.now();
+        if (left < REWRITE_MIN_MS) {
+            logger.warn({ unverified: check.unverified.length, working: check.working.length, leftMs: left }, 'finance commentary stated unlisted amounts but no time is left for a rewrite - unmatched sentences are left out');
+        }
+        else {
+            logger.warn({ unverified: check.unverified.length, working: check.working.length }, 'finance commentary stated unlisted amounts or its working - asking once for a rewrite');
+            commentary = (await rewriteWithin(ctx, sub, (0, finance_brief_1.buildRewritePrompt)(prompt, commentary, check), deadline)) || commentary;
+        }
     }
     return commentary ? (0, finance_brief_1.composeBrief)(figures, commentary, allowed) : '';
+}
+/** The one rewrite, when it answers in time; a late rewrite keeps the first answer (its unmatched sentences are left out). */
+async function rewriteWithin(ctx, sub, prompt, deadline) {
+    try {
+        return await withinDeadline(askAnalyst(ctx, sub, prompt), deadline);
+    }
+    catch (err) {
+        if (!(err instanceof AnalysisTimeout))
+            throw err;
+        logger.error({ err }, 'finance commentary rewrite did not answer within the analysis budget - keeping the first answer');
+        return '';
+    }
+}
+/**
+ * @description Resolve the analyst's answer, or reject with AnalysisTimeout at the deadline. The native kernel ends a
+ * package request at 60 s (host CALL_DEADLINE) and the page then reads only a status code; answering first lets the
+ * person read what happened. A turn that answers after the deadline is logged and discarded, never saved.
+ * @param work - The analyst's turn.
+ * @param deadline - Epoch milliseconds by which the analysis must have answered.
+ * @returns The turn's answer.
+ */
+function withinDeadline(work, deadline) {
+    let timer;
+    let late = false;
+    const cut = new Promise((_resolve, reject) => {
+        timer = setTimeout(() => { late = true; reject(new AnalysisTimeout()); }, Math.max(0, deadline - Date.now()));
+    });
+    work.catch((err) => { if (late)
+        logger.error({ err }, 'finance analyst failed after the analysis budget had passed'); });
+    return Promise.race([work, cut]).finally(() => clearTimeout(timer));
+}
+/** The analyst gave no answer within the analysis budget. */
+class AnalysisTimeout extends Error {
+    constructor() { super('analysis_timeout'); this.name = 'AnalysisTimeout'; }
+}
+/**
+ * @description Answer a failed Request analysis in words. Nothing was saved in either case: a timeout says so, and a
+ * refused or empty analyst turn is named without the engine's own text.
+ * @param res - The response.
+ * @param err - What the analysis threw.
+ * @returns Nothing.
+ */
+function analysisFailed(res, err) {
+    if (err instanceof AnalysisTimeout) {
+        res.status(504).json({ error: 'analysis_timeout', message: ANALYSIS_TIMEOUT_MESSAGE });
+        return;
+    }
+    res.status(502).json({ error: 'analyst_unavailable', message: ANALYST_UNAVAILABLE_MESSAGE });
+}
+/**
+ * @description The caller's analysis request, to ride along on the saved-brief read so the page needs no second read.
+ * It is optional there: with no request, or when its state cannot be read for any reason, nothing is added and the
+ * saved read answers exactly as it did before this existed. It only reads.
+ * @param pool - The caller's store.
+ * @param sub - The caller.
+ * @returns `{ analysis }` for a request that is working or closed, else an empty object.
+ */
+async function analysisOnBrief(pool, sub) {
+    try {
+        const view = await (0, finance_analysis_1.currentAnalysis)(pool, sub, logger);
+        return view.state === 'idle' ? {} : { analysis: view };
+    }
+    catch (err) {
+        logger.error({ err }, 'finance analysis state read failed - the saved analysis is answered without it');
+        return {};
+    }
+}
+/**
+ * @description Request analysis on a kernel that can run the analyst's turn after the press has answered. The request
+ * is recorded as working with the exact snapshot it reads, the kernel is asked for one turn, and the press is answered
+ * at once; the kernel hands the answer to POST /brief/analysis-result. A request already working is answered as
+ * working and starts nothing. Nothing is saved here, so the earlier analysis stays as it is.
+ * @param ctx - App context.
+ * @param turns - The kernel's background-run port.
+ * @param sub - The caller.
+ * @param aggregate - The caller's saved snapshot, normalized.
+ * @param original - That snapshot exactly as stored, which the saved analysis is fenced to.
+ * @param res - The response.
+ * @returns True when the press was answered; false when this kernel could not start the turn and the 45 s path runs.
+ */
+async function requestBackgroundAnalysis(ctx, turns, sub, aggregate, original, res) {
+    const current = await (0, finance_analysis_1.currentAnalysis)(ctx.pool, sub, logger);
+    if (current.state === 'working') {
+        res.status(202).json({ analysis: current });
+        return true;
+    }
+    const totals = computeFinanceTotals(aggregate);
+    const prompt = (0, finance_brief_1.buildCommentaryPrompt)(aggregate, (0, finance_brief_1.briefFigures)(aggregate, totals), (0, finance_brief_1.quotableAmounts)(aggregate, totals));
+    const runId = `analysis-${(0, crypto_1.randomUUID)()}`;
+    await (0, finance_analysis_1.openAnalysis)(ctx.pool, sub, runId, original);
+    try {
+        await turns.backgroundTurn({ runId, agentId: FINANCE_AGENT_ID, text: prompt, deliverTo: finance_analysis_1.ANALYSIS_RESULT_ROUTE, maxSeconds: finance_analysis_1.ANALYSIS_TURN_SECONDS });
+    }
+    catch (err) {
+        if (!/background_turn_in_progress/.test(String(err?.message || err))) {
+            logger.error({ err }, 'finance analysis could not start after the request - using the 45 second path');
+            await (0, finance_analysis_1.dropAnalysis)(ctx.pool, sub, runId);
+            return false;
+        }
+        logger.error({ err }, 'finance analysis not started: the kernel still holds an earlier turn of this person');
+        await (0, finance_analysis_1.closeAnalysis)(ctx.pool, sub, runId, finance_analysis_1.ANALYSIS_BUSY_MESSAGE);
+        res.status(409).json({ error: 'analysis_in_progress', message: finance_analysis_1.ANALYSIS_BUSY_MESSAGE });
+        return true;
+    }
+    res.status(202).json({ analysis: await (0, finance_analysis_1.currentAnalysis)(ctx.pool, sub, logger) });
+    return true;
+}
+/**
+ * @description Take the kernel's hand-over for the caller's working request: save the analysis over the exact snapshot
+ * it was asked about, or record in words why nothing was saved. The figures are written in code as always and a
+ * sentence stating an unlisted amount is left out with the visible note; the analyst is not asked again here, because
+ * a turn inside this request would outlast it.
+ * @param pool - The caller's store.
+ * @param sub - The caller.
+ * @param handed - The kernel's body: the run id and the answer, or the code and words of why there is none.
+ * @returns Whether the hand-over was for the working request, and whether an analysis was saved.
+ */
+async function takeAnalysis(pool, sub, handed) {
+    const runId = String(handed.runId || '');
+    const row = await (0, finance_analysis_1.readAnalysis)(pool, sub);
+    if (!row || row.run_id !== runId || row.state !== 'working')
+        return { taken: false, saved: false };
+    const unsaved = async (message) => { await (0, finance_analysis_1.closeAnalysis)(pool, sub, runId, message); return { taken: true, saved: false }; };
+    const commentary = handed.ok === true && typeof handed.response === 'string' ? handed.response.trim() : '';
+    if (!commentary) {
+        logger.error({ code: handed.error, detail: handed.message }, 'finance analysis gave no answer - nothing saved');
+        return unsaved(handed.error === 'background_turn_time_limit' ? finance_analysis_1.ANALYSIS_LATE_MESSAGE : ANALYST_UNAVAILABLE_MESSAGE);
+    }
+    const snapshot = typeof row.snapshot === 'string' ? row.snapshot : JSON.stringify(row.snapshot);
+    const aggregate = normalizeAggregate(JSON.parse(snapshot));
+    if (!aggregate)
+        return unsaved(finance_analysis_1.SNAPSHOT_CHANGED_MESSAGE);
+    const totals = computeFinanceTotals(aggregate);
+    const brief = (0, finance_brief_1.composeBrief)((0, finance_brief_1.briefFigures)(aggregate, totals), commentary, (0, finance_brief_1.quotableAmounts)(aggregate, totals));
+    const saved = await pool.query(SAVE_BRIEF, [sub, brief, snapshot]);
+    if (!saved.rows[0])
+        return unsaved(finance_analysis_1.SNAPSHOT_CHANGED_MESSAGE);
+    await (0, finance_analysis_1.closeAnalysis)(pool, sub, runId, null);
+    return { taken: true, saved: true };
 }
 /** A demo installation's sample household: named banks, healthy balances, dated relative to now. */
 function sampleAggregate() {
@@ -705,11 +874,13 @@ function createFinanceRoutes(ctx) {
                 res.status(404).json({ error: 'no_data', message: 'Link accounts and sync first.' });
                 return;
             }
+            // A request that is working or closed rides along; with none, or when it cannot be read, the answer is as before.
+            const request = await analysisOnBrief(ctx.pool, sub);
             if (!row.brief) {
-                res.status(404).json({ error: 'no_saved_brief', message: 'No saved analysis yet. Choose Re-analyze to request one.' });
+                res.status(404).json({ error: 'no_saved_brief', message: 'No saved analysis yet. Choose Re-analyze to request one.', ...request });
                 return;
             }
-            res.json({ brief: row.brief, briefAt: row.brief_at || null, cached: true });
+            res.json({ brief: row.brief, briefAt: row.brief_at || null, cached: true, ...request });
         }
         catch (err) {
             logger.error({ err }, 'finance brief read failed');
@@ -736,12 +907,23 @@ function createFinanceRoutes(ctx) {
                 res.status(409).json({ error: 'no_data', message: 'Link accounts and sync first.' });
                 return;
             }
-            const brief = await writeBrief(ctx, sub, aggregate);
+            const turns = (0, finance_analysis_1.backgroundTurns)();
+            if (turns && await requestBackgroundAnalysis(ctx, turns, sub, aggregate, original, res))
+                return;
+            let brief;
+            try {
+                brief = await writeBrief(ctx, sub, aggregate, Date.now() + ANALYSIS_BUDGET_MS);
+            }
+            catch (err) {
+                logger.error({ err }, 'finance analysis did not finish');
+                analysisFailed(res, err);
+                return;
+            }
             if (!brief) {
                 res.status(502).json({ error: 'empty_brief', message: 'The analyst returned nothing — try again.' });
                 return;
             }
-            const saved = await ctx.pool.query('UPDATE oshal_finance_data SET brief = $2, brief_at = now() WHERE user_sub = $1 AND aggregate = $3::jsonb RETURNING brief_at', [sub, brief, original]);
+            const saved = await ctx.pool.query(SAVE_BRIEF, [sub, brief, original]);
             if (!saved.rows[0]) {
                 res.status(409).json({ error: 'snapshot_changed', message: 'The account snapshot changed while analysis was running. The previous saved analysis is unchanged. Request analysis again.' });
                 return;
@@ -751,6 +933,42 @@ function createFinanceRoutes(ctx) {
         catch (err) {
             logger.error({ err }, 'finance brief refresh failed');
             res.status(502).json({ error: err.message });
+        }
+    });
+    /** GET /brief/analysis — what the caller's latest analysis request reads as now. A read: nothing is written. */
+    router.get('/brief/analysis', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            res.json({ analysis: await (0, finance_analysis_1.currentAnalysis)(ctx.pool, sub, logger) });
+        }
+        catch (err) {
+            logger.error({ err }, 'finance analysis state read failed');
+            res.status(500).json({ error: err.message });
+        }
+    });
+    /** POST /brief/analysis-result — the kernel hands a background analysis over as the person who asked for it. Its
+     *  x-oshal-trigger header is one the HTTP door never forwards, so a browser's request is refused. */
+    router.post('/brief/analysis-result', async (req, res) => {
+        if (req.get('x-oshal-trigger') !== finance_analysis_1.ANALYSIS_TRIGGER) {
+            res.status(403).json({ error: 'kernel_only', message: 'Only the kernel hands an analysis over.' });
+            return;
+        }
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            const result = await takeAnalysis(ctx.pool, sub, req.body && typeof req.body === 'object' ? req.body : {});
+            res.status(result.taken ? 200 : 409).json(result);
+        }
+        catch (err) {
+            logger.error({ err }, 'finance analysis hand-over failed');
+            res.status(500).json({ error: 'analysis_not_saved' });
         }
     });
     /** Explicit advisory review of a draft against the caller's saved aggregate. Never transfers money. */

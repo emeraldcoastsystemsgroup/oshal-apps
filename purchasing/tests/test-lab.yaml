@@ -15,6 +15,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The shopping-list-add case also expects the card named by its item, never by its place (sweep 13).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add-many: several free-text items behind one approval card through the compiled route.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-rows (UX audit 2026-11-05): the List screen's Add an item field, row tick-off and quantity, and List as the one tile.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.0: register shopping-order (the order made from the list, on the compiled routes, with the native kernel's Walmart answer and with a rail; the grocery chain through the tools' own endpoints) and shopping-order-browser (Order on the List screen in Chromium at 412x915).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -332,7 +333,7 @@ cases:
       - tests/shopping-list-rows.test.js
     expected:
     - A tick sets status done and unticking sets pending; a quantity clamps from 1 to the line cap; another shopper, a removed row and an empty change change nothing.
-    - The manifest's only tile is List (the default view); Checkout is hidden without a retail rail and disabled while nothing is pending.
+    - The manifest's only tile is List (the default view); Order is disabled while nothing is pending.
     prerequisites:
     - runner:node-test
     sideEffects: none
@@ -340,4 +341,54 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: shopping-order
+    name: The grocery order is made from the list
+    purpose: Drive POST /order on the compiled routes with the native kernel's Walmart answer (status not connected, every other operation refused) and with a rail, then the chain through the tools' own endpoints as the kernel renders them.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-order.test.js
+    expected:
+      - Three written items are answered each with its address at Walmart, the order is recorded once, no Walmart operation is asked and nothing is marked bought.
+      - With a rail, lines matched to a product go in one cart link and written lines keep their search address; the total is in integer cents.
+      - An empty list, only ticked or removed lines, or no list answers 409 nothing_to_order, records nothing and makes no list.
+      - An item's words are carried into the address as text; nobody signed in is refused; a list id in the body is not read.
+      - shopping-list-add-many then shopping-order, through their declared endpoints, order exactly the items added.
+      - POST /checkout answers 400 for a list with no matched line instead of asking Walmart for an empty cart.
+      - shopping-order is the one order tool, held for approval; prepare-checkout is gone; the description names the grocery list and the order; the persona never says anything was bought.
+    prerequisites:
+      - runner:node-test
+      - dependency:js-yaml
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+  - id: shopping-order-browser
+    name: Order on the List screen in Chromium
+    purpose: Open the List page as the compiled router serves it, at 412x915, over the route's own SQL on the package test pool and a Walmart rail that answers as the native kernel does.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shopping-order-browser.test.js
+    expected:
+      - An empty list cannot be ordered; with three items Order is enabled without a rail.
+      - Order shows Your order with every item and a Find at Walmart link that opens in a new tab; the note says nothing is bought or charged here.
+      - A ticked item is left out of the next order; with nothing left Order is off.
+      - Nothing scrolls sideways, every control is at least 44px, no page error, and no request leaves the installation.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - fixture:store-toolchain
+    sideEffects: synthetic browser fixtures only; no installation, account, store or provider is contacted
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
     installation: never

@@ -15,6 +15,7 @@
     python -m jobhunter source-review [--max-sources N]     (recheck sources the pull could not read, JSON)
 """
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | A full pull counts re-keyed jobs (kept as the same job) and the closed ones that may be re-keyed on its summary line, only when there are any, and ends with a closure receipt per source kept in the copy it publishes (closures.write_receipt).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | A full pull ends with source maintenance, straight after the source review: decisions for a person, repair briefs and the search for employers' job sites are recorded on the pull's own copy and publish with it.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | cmd_init's note follows db.py 19: init_db no longer seeds a person's recruiter tracker, so in the swarm database it only proves the store opens.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | An employer an administrator removed is not pulled and not searched for again.
@@ -25,7 +26,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
-from . import pull_checkpoint, source_maintenance, source_memory, source_requests, source_review
+from . import closures, pull_checkpoint, source_maintenance, source_memory, source_requests, source_review
 import argparse
 import csv
 import json
@@ -233,10 +234,12 @@ def _scrape_source(r, pull):
     with db.connect() as conn:
         counts = source_memory.ingest(conn, r["id"], postings)
         added = {"new": counts["new"], "seen": counts["changed"] + counts["unchanged"], "closed": counts["closed"],
-                 "skipped": counts["skipped"], "confirmed": int(counts["complete"]), "unconfirmed": int(not counts["complete"])}
+                 "skipped": counts["skipped"], "confirmed": int(counts["complete"]), "unconfirmed": int(not counts["complete"]),
+                 "rekeyed": counts["rekeyed"], "possible_rekey": counts["possible_rekey"]}
         if pull:
             pull.settle(conn, r["id"], **added)
     skip_note = f", {counts['skipped']} skipped" if counts["skipped"] else ""
+    skip_note += f", {counts['rekeyed']} re-keyed" if counts["rekeyed"] else ""
     outcome = "complete" if counts["complete"] else "partial; existing jobs kept"
     print(f"   {r['name']:<28} {len(postings):>4} received (+{counts['new']} new, {counts['changed']} changed, {counts['unchanged']} unchanged, {counts['closed']} closed{skip_note}; {outcome})", flush=True)
     return added
@@ -260,6 +263,8 @@ def cmd_scrape(a):
         if not pull or pull.claim(r):
             totals.update(_scrape_source(r, pull))
     tail = f" {totals['skipped']} skipped (no title)." if totals["skipped"] else ""
+    if totals["rekeyed"] or totals["possible_rekey"]:
+        tail = f" {totals['rekeyed']} re-keyed (kept as the same job); {totals['possible_rekey']} of the closed may be re-keyed.{tail}"
     continued = f" Continued after {pull.resumes} interruption{'s' if pull.resumes > 1 else ''}." if pull and pull.resumes else ""
     print(f"\nScrape done: {totals['new']} new, {totals['seen']} refreshed, {totals['closed']} closed.{tail} Sources: {totals['confirmed']} confirmed, {totals['unconfirmed']} unconfirmed.{continued}")
     _report_dropped(dropped0)
@@ -267,6 +272,7 @@ def cmd_scrape(a):
         source_review.after_pull(pull_started)
         source_maintenance.after_pull(pull_started)
     if pull:
+        closures.write_receipt(pull.started_at, pull.resumes)
         pull.finish()
 
 

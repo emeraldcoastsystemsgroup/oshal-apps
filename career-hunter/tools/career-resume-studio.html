@@ -18,6 +18,8 @@
   26 | maintainer@emeraldcoastsystemsgroup.com | More gains "Master record (everything saved)" (1.51.0): the read-only page with every role, bullet, skill and history record Career keeps, with Download and Print.
   27 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application: load the page frame (career-frame.js and its stylesheet), which draws Career's top bar and takes the whole window when the page is the top window or the cockpit frames it.
   28 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1, 5 and 12. With no résumé the page showed an editing panel, a Send button and a lone "⋯" beside "No résumé yet", with nothing to edit. The editor panel, the phone's Edit with AI bar and the More button now stay hidden until a résumé exists (a loaded document with content, or GET /resume/state saying so; when that read gives no answer the page shows them as before). The line "Editing your MASTER resume — changes here update the durable profile…" reads "This is your main résumé. Each application starts from it."; the editor's heading and the opening text are in plain words; the guidance example is an ordinary one; résumé carries its accents in every line a person reads (the AI Office document keeps its stored title). Guard: tests/career-resume-studio-screen.test.mjs.
+  30 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: on the phone "everything is too bunched up to use the concierge", and on the computer the concierge "said that it couldnt change my dates and i needed to go to career profile"). Career's concierge is this page's one assistant (the Concierge button in Career's bar; AI Office's editor opens with assistant=host, so its own is off). Before each turn the page saves the document into the main résumé as before; the concierge proposes a change as an approval card, and once approved the page puts it into the document at once and shows it with Undo (POST /resume/master-undo through career-change-bar.js). A document whose jobs are behind Work history is brought up to date when nothing typed would be lost, or says so with a Use my work history button. On a phone the page is one column: the résumé picker, Save and More on one row with the status one line under it, and the document edge to edge down to Career's bottom bar.
+  31 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"). The document follows the main résumé: opening it, the save before a concierge turn, an approved change and Undo all go through the document host's one settle (tools/career-resume-office.js), so a job or bullet added on Work history or by a card anywhere is in the document with no press, typed text is saved into the main résumé and never replaced, and a document that is only behind is never saved back. Only a document Career cannot place (it differs and names no version) shows the note with Use my work history; the save before a concierge turn leaves it alone.
   29 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled My résumé (was Resume Studio). The picker, the Save button and every status line say main résumé, the words the page already used when it opened it (was master résumé); the More menu says Download my data and Other experience, and the empty line says My jobs. The value the picker and the routes carry is still `master`. Guard: tests/career-page-names.test.mjs.
 -->
 
@@ -128,6 +130,21 @@
     .preview { padding: 14px; }
     .sheet { padding: 24px 20px; }
   }
+  #historyNote { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--ds-ink); }
+  #historyNote[hidden] { display: none; }
+  /* A phone (the frame's 720 px): one column, the picker, Save and More on one row, the status one line under it, the
+     document edge to edge. Word and Google Docs on a phone give the page the screen under one short app row. */
+  @media (max-width: 720px) {
+    body[data-view=office] .preview { padding: 6px 0 0; }
+    body[data-view=office] .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 8px; align-items: center; padding: 0 12px; margin-bottom: 6px; }
+    body[data-view=office] #pick { grid-area: 1 / 1; width: 100%; font-size: 15px; }
+    body[data-view=office] #save { grid-area: 1 / 2; padding: 0 16px; }
+    body[data-view=office] #moreBtn { grid-area: 1 / 3; }
+    body[data-view=office] #status { grid-column: 1 / -1; font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body[data-view=office] #status:empty { display: none; }
+    body[data-view=office] :is(#err, #historyNote) { grid-column: 1 / -1; }
+    body[data-view=office] .office-host { border-radius: 0; border-left: 0; border-right: 0; }
+  }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
@@ -140,9 +157,10 @@
       <button id="save" class="ck-btn" disabled hidden>Save &amp; re-render PDF</button>
       <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open résumé PDF</a>
       <a id="coverPdf" href="#" target="_blank" rel="noopener" style="display:none">Open cover PDF</a>
-      <span id="status" class="ck-saved"></span>
+      <span id="status" class="ck-saved" title=""></span>
       <button type="button" class="ck-icon" id="moreBtn" aria-haspopup="menu" aria-label="More" popovertarget="moreMenu">⋯</button>
       <p id="err" role="alert" hidden></p>
+      <p id="historyNote" hidden><span id="historyText"></span><button type="button" class="ck-btn" id="useHistory">Use my work history</button></p>
     </nav>
     <div class="ck-menu" id="moreMenu" popover role="menu">
       <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Download my data (everything saved)</a>
@@ -213,6 +231,7 @@
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script src="/api/career-hunter/static/career-navigation.js"></script>
 <script src="/api/career-hunter/static/career-resume-office.js"></script>
+<script src="/api/career-hunter/static/career-change-bar.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
@@ -226,7 +245,15 @@ let docRevision = null, edits = 0, dirty = false, opening = null, saving = null;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-function setStatus(t){ $('status').textContent = t || ''; }
+function setStatus(t){ $('status').textContent = t || ''; $('status').title = t || ''; }
+// The main résumé's exact revision (GET /resume/doc answers it): the change the concierge makes is undone back to it.
+let masterRevision = '';
+const PHONE = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
+/* The phone's row has room for "Save"; the button's name stays whole for a screen reader. */
+function saveLabel(text){ if (text) $('save').dataset.label = text; if (!officeOpen()) return;
+  const full = $('save').dataset.label || $('save').textContent;
+  $('save').textContent = PHONE.matches ? 'Save' : full; $('save').setAttribute('aria-label', full); }
+PHONE.addEventListener('change', () => saveLabel());
 
 // ── The master resume as a Word document (AI Office's editor and its standard Concierge) ───────
 // Career owns only the mapping and the save into the profile; the editing, undo, revision history
@@ -246,26 +273,39 @@ function officeView(on){
   if (!on && !(office && office.active())) return;
   document.body.dataset.view = on ? 'office' : '';
   $('replaceMaster').hidden = !on; $('save').className = on ? 'ck-primary' : 'ck-btn';
-  if (!on) office.close();
+  if (!on) { office.close(); $('historyNote').hidden = true; $('save').removeAttribute('aria-label'); }
+}
+/* A document Career cannot bring up to date by itself (its jobs do not line up, or it differs and names no version):
+   say so, and offer the one press that puts the main résumé in it. Every other document follows by itself. */
+function historyNote(){
+  const behind = Boolean(office && office.active() && ['jobs', 'unsure'].includes(office.state()));
+  $('historyNote').hidden = !behind;
+  if (behind) $('historyText').textContent = $('status').textContent;
+}
+/* The main résumé as the document host last read it: opening or saving may have saved typed text into it. */
+function takeMaster(fresh){
+  if (!fresh || !fresh.resume) return;
+  state.resume = fresh.resume; docRevision = revisionOf(fresh); dirty = false; masterRevision = fresh.revision || masterRevision;
 }
 async function openOffice(j){
-  try { await office.open(j); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; return true; }
+  try { masterRevision = j.revision || ''; await office.open(j); takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true; }
   catch (e) {
     officeView(false);
     add('sys', 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.');
     return false;
   }
 }
-/* Save to master resume: AI Office saves the document, Career reads it and saves it through the master whitelist. */
+/* Save to main résumé: AI Office saves the document, and Career brings it and the main résumé together (what was typed
+   is saved through the master whitelist; a document that is only behind is brought up to date and never saved back).
+   quiet is the save before a concierge turn: a document Career cannot place is then left for the person to decide. */
 async function saveOffice(quiet){
-  const j = await office.saveToMaster();
-  const fresh = await fetchDoc('master');
-  state.resume = fresh.resume || {}; docRevision = revisionOf(fresh); dirty = false;
+  const j = await office.saveToMaster(!quiet);
+  takeMaster(await fetchDoc('master'));
   if (!quiet) {
     showError('');
-    setStatus((j.changed ? 'Saved to your main résumé' : 'Matches your main résumé') + (j.notes.length ? '. ' + j.notes.join(' ') : ''));
+    if (j.state === 'saved') setStatus('Saved to your main résumé' + (j.notes.length ? '. ' + j.notes.join(' ') : ''));
   }
-  publishContext();
+  historyNote(); publishContext();
   return j;
 }
 /* DS-41: a failure is told beside the action, with its fix; '' clears it. */
@@ -524,7 +564,7 @@ async function loadDoc(id){
     if (isMaster && !hasContent(state.resume)) checkProfile(); else setResumeReady(true);
     $('save').textContent = isMaster ? 'Save main résumé' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
     if (isMaster && office && hasContent(state.resume)) {
-      if (await openOffice(j)) { if (epoch === documentEpoch) { $('save').textContent = 'Save to main résumé'; publishContext(); } return; }
+      if (await openOffice(j)) { if (epoch === documentEpoch) { saveLabel('Save to main résumé'); publishContext(); } return; }
     } else officeView(false);
     if (!isMaster) {
       $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
@@ -634,7 +674,9 @@ async function prepareDocumentHandoff(){
   return { app: 'career-hunter', screen: 'surface', surface: 'resume-studio', recordId: String(state.postingId),
     title: (isMaster ? 'Main résumé' : `Tailored résumé — ${meta.title || ''} at ${meta.company || ''}`).slice(0, 200),
     fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length,
-      ...(officeOpen() ? { officeDocument: office.documentId(), editIn: 'the Word document on this screen; its Concierge edits it' } : {}) } };
+      ...(officeOpen() ? { officeDocument: office.documentId(), mainRevision: masterRevision,
+        document: ['jobs', 'unsure'].includes(office.state()) ? 'differs from the main résumé; the person chooses Use my work history or Save to main résumé on this page' : 'shows the main résumé',
+        editWith: 'career_resume_patch; this screen saved what was typed in the document into the main résumé just now and puts the approved change into the document at once' } : {}) } };
 }
 
 async function refreshDocumentHandoff(expected){
@@ -646,9 +688,12 @@ async function refreshDocumentHandoff(expected){
   const revision = revisionOf(fresh);
   if (revision === docRevision) return;
   if (officeOpen()) {
-    state.resume = fresh.resume || {}; docRevision = revision;
-    await office.replaceFromMaster(); publishContext();
-    setStatus('Updated the document with the change the assistant saved (the earlier text is in Revision history).');
+    const before = masterRevision;
+    state.resume = fresh.resume || {}; docRevision = revision; masterRevision = fresh.revision || '';
+    // The document follows the main résumé; anything typed since the turn began is saved into it, never replaced.
+    const followed = await office.follow(); takeMaster(office.master()); publishContext(); historyNote();
+    if (followed.state === 'updated') setStatus('Updated with the change you approved.');
+    showChange('The change you approved is in your résumé.', before, fresh.revision || '');
     return;
   }
   if (dirty) throw new Error('The assistant saved a change to this résumé while you were editing. Your unsaved edits are still here: Save keeps yours, or pick the résumé again to load the saved version.');
@@ -657,6 +702,25 @@ async function refreshDocumentHandoff(expected){
   add('sys', 'Updated with the change the assistant saved.'); setStatus('updated from the assistant');
 }
 
+/* Undo of a change the concierge made: only while the document still says what that change left (nothing typed since). */
+function showChange(text, before, after){
+  if (!window.CareerChangeBar) return;
+  CareerChangeBar.show({ text, undo: before && after && before !== after ? async () => {
+    if (!officeOpen()) throw new Error('Open your main résumé to undo this change.');
+    if (!(await office.inSync())) throw new Error('You typed in the document after that change. Save to main résumé, then ask the concierge to change it back.');
+    await CareerChangeBar.undoRequest(before, after);
+    takeMaster(await fetchDoc('master'));
+    await office.follow(); publishContext(); setStatus('Put back.');
+    CareerChangeBar.show({ text: 'Put back. Your résumé is as it was.' });
+  } : null });
+}
+$('useHistory').addEventListener('click', async () => {
+  if (!officeOpen() || documentBusy) return;
+  setDocumentBusy('saving'); setStatus('bringing the document up to date with your work history…');
+  try { await office.replaceFromMaster(); $('historyNote').hidden = true; setStatus('Updated with your work history (the earlier text is in Revision history).'); }
+  catch (e) { setStatus(''); showError('Couldn\u2019t update the document. ' + e.message); }
+  finally { setDocumentBusy(''); }
+});
 import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) => registerDocumentSession({ app: 'career-hunter',
   prepare: async () => { try { return await prepareDocumentHandoff(); } catch (e) { setStatus(e.message); throw e; } },
   refresh: async (expected) => { try { await refreshDocumentHandoff(expected); } catch (e) { setStatus(e.message); throw e; } },

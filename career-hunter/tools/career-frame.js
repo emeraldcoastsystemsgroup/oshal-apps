@@ -12,6 +12,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 6: the bar this tab remembers paints first, as before, but says no role; the role beside the name comes only from the person's fresh profile, and none is said when that cannot be read. A tab that last drew an administrator's bar said Job source administrator to the next person until the fresh profile answered. Guard: tests/browser/career-role-proof.mjs.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: the Concierge button opens Career's concierge. The rule that gives Career the whole window hid the cockpit's chat panel outright, so pressing Concierge (it asks the cockpit for that panel) showed nothing on production and on the test slot; it now hides the panel only while it is closed.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Paint fresh admitted navigation independently of optional name and counts, and bound frame reads without inventing a role or count.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the Résumé section holds My résumé, then Work history (the new page where a person edits their jobs, months and bullets), then Other experience and Improve it. My résumé shows the Concierge button too: Career's concierge is that page's one assistant now (AI Office's editor opens there with its own concierge off), so the person can ask it to change a job or a bullet and see the change in the document.
  */
 (function (root) {
   'use strict';
@@ -53,7 +54,7 @@
     ['Find jobs', ['search']],
     ['My jobs', ['board'], 'view=saved', 'jobs'],
     ['Applications', ['board'], 'view=status', 'applications'],
-    ['Résumé', ['resume-studio', 'experience-library', 'strengthen']],
+    ['Résumé', ['resume-studio', 'work-history', 'experience-library', 'strengthen']],
     ['Profile & contacts', ['profile-studio', 'portrait-studio', 'social-workspace', 'recruiters']],
   ];
   /** The phone's bottom bar: view, the word under its icon, then the query, side and icon of a section that has them. */
@@ -387,7 +388,7 @@
       var name = firstName(state.user) || state.name || '', role = state.remembered ? '' : roleOf(state.entries);
       var inMore = Boolean(active && layout.more.some(function (entry) { return entry.view === active.view; }));
       var menu = menuHtml(layout, active);
-      var concierge = doc.documentElement.dataset.careerSurface !== 'resume-studio' && !w.location.pathname.endsWith('/resume-studio') ? '<button class="cf-concierge-toggle" type="button" aria-expanded="' + (doc.documentElement.dataset.careerConcierge === 'open' ? 'true' : 'false') + '">Concierge</button>' : '';
+      var concierge = '<button class="cf-concierge-toggle" type="button" aria-expanded="' + (doc.documentElement.dataset.careerConcierge === 'open' ? 'true' : 'false') + '">Concierge</button>';
       return concierge + '<details class="cf-more cf-more-desk"><summary' + (inMore ? ' aria-current="page"' : '') + '>More ▾</summary><div class="cf-menu">' + menu + '</div></details>' +
         (chip && board ? '<a class="cf-chip" href="' + esc(board.href + '?' + chip.query) + '" data-cf-view="board" data-cf-query="' + esc(chip.query) + '"><b>' + chip.count + '</b> ' + esc(chip.label) + '</a>' : '') +
         whoHtml(name, role) +

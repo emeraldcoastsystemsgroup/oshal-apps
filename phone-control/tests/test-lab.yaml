@@ -27,6 +27,7 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83), the same release: phone-control-installation-address registers where a provisioned device is told to sign in (the kernel's own public origin, else the public host the request arrived on as https, else a refusal in words; never a fixed installation) and the guard that no file the package runs names an installation; phone-control-isolation proves the same through a real kernel.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register the closed native relay mounted-HTTP contract and follow package1.17.0 readiness.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.18.0: readiness 1.18.0; phone-control-fire-tv-guide registers the Fire TV phone-app guide suite (tests/remote-guides.test.cjs): the mounted read-only route over real HTTP and SQLite, with a native-intent fixture that fails the case if the guide ever calls an action.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | 1.19.0: readiness 1.19.0; phone-control-device-path registers the check of the Fire TV guide's devicePath declaration (tests/phone-control-device-path.test.cjs, which the gate job's own glob runs).
 version: 1
 cases:
   - id: package-readiness
@@ -37,7 +38,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.18.0 with its store open.
+      - The installed phone-control package answers its identity and version 1.19.0 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -222,6 +223,32 @@ cases:
     installation: never
     regressionTests:
       - { level: integration, file: tests/remote-guides.test.cjs }
+
+  - id: phone-control-device-path
+    name: The Fire TV guide declares a way the kernel's path planner can offer
+    purpose: Check the guide tool's devicePath declaration against the closed lists the kernel accepts and against the guide's own package and steps; the kernel's reading of it and a real phone are outside this case.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-device-path.test.cjs
+    expected:
+      - Exactly one tool declares devicePath, and it is the read-only Fire TV guide.
+      - Every field and value is on the lists the kernel accepts; a field outside them fails the case.
+      - The declared application is the package the guide answers, and the declared jobs are the wake and resume the guide's steps describe.
+      - The declaration claims no read of the TV, as the guide says the phone's page is not the TV screen.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/phone-control-device-path.test.cjs }
 
   - id: phone-control-rp-features
     name: Session preferences, captures, transfers, chat, whiteboard, and concierge turn planner

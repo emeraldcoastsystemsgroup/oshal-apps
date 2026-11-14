@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Share each permitted press’s words and retained picture across job and activity pages.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Distinguish owner-resolved sent and not-sent outcomes from worker confirmation.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -18,7 +20,7 @@
   /** The sources (user_signals.application_source) for which Career can say Sent: a computer reported it, or Career holds the confirmation page. */
   var SENT_SOURCES = { 'worker-reported': true, 'verified-submission': true };
   /** A submission record's status (lib/career-submission-queue.js) as one of the five; a retired record has no line. */
-  var SUBMISSION = { queued: 'waiting', claimed: 'sending', reviewing: 'sending', submitting: 'sending', submitted: 'sent', needs_you: 'answer', unknown: 'answer', failed: 'failed' };
+  var SUBMISSION = { queued: 'waiting', claimed: 'sending', reviewing: 'sending', submitting: 'sending', submitted: 'sent', needs_you: 'answer', unknown: 'answer', failed: 'failed', resolved_sent: 'applied', resolved_not_sent: 'failed' };
   var SUBMISSION_DETAIL = {
     queued: 'You approved it. Your computer has not started it yet.',
     claimed: 'Your computer is filling in the employer\'s form.',
@@ -27,6 +29,8 @@
     submitted: 'Your computer reported it sent. The employer has not confirmed receipt.',
     needs_you: 'The employer\'s form asks something Career could not answer for you.',
     unknown: 'Career could not confirm that it arrived. Check with the employer before trying again.',
+    resolved_sent: 'You said it was sent. Career recorded your word.',
+    resolved_not_sent: 'You said it was not sent. A new attempt needs fresh review and approval.',
     failed: 'Your computer stopped before the form was sent.',
   };
   /** How Career knows a job was sent (user_signals.application_source), said plainly. */
@@ -109,7 +113,28 @@
     return MOVES[kind] + (name ? ': ' + name : '') + '.';
   }
 
-  var exported = { WORDS: WORDS, when: when, day: day, forSubmission: forSubmission, forJob: forJob, move: move };
+  function pressWords(item, press) {
+    var at = press.allowedAt == null ? null : new Date(press.allowedAt);
+    var time = at && !Number.isNaN(at.getTime()) ? at.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+    var start = 'Step ' + press.step + (press.step === 1 && item.pressesAllowed ? ' of up to ' + item.pressesAllowed : '');
+    if (!press.result) return start + ' · Career was allowed to press “' + press.label + '”' + (time ? ' at ' + time : '') + ' and did not report back. Whether it was pressed is not known.';
+    var site = ''; try { site = new URL(press.origin).hostname; } catch (_) {}
+    var line = start + (time ? ' · ' + time : '') + ' · Career pressed “' + press.label + '”' + (press.kind === 'open' && site ? ' on ' + site : '') + '. ';
+    if (press.result === 'advanced') return line + (press.kind === 'open' ? 'The application form opened.' : 'The form moved to its next page.');
+    if (press.result === 'confirmed') return line + (item.confirmationText ? 'The employer showed: “' + item.confirmationText + '”.' : 'The employer showed a confirmation page.');
+    if (press.result === 'left_site') return line + 'The page tried to go to another site, which Career blocked. Career stopped.';
+    return line + 'The page did not move on in 10 seconds. Career stopped and pressed nothing else.';
+  }
+  function pressHistory(item) {
+    var escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return (item && item.presses || []).map(press => {
+      var kept = (item.pressPictures || []).some(picture => picture.step === press.step);
+      var image = kept ? '<img style="max-width:100%" loading="lazy" src="/api/career-hunter/submission-queue/' + encodeURIComponent(item.id || item.submissionId) + '/press-picture/' + encodeURIComponent(press.step) + '" alt="Picture after step ' + escape(press.step) + '">' : '<p>No picture was kept for this step.</p>';
+      return '<figure class="press-step"><p>' + escape(pressWords(item, press)) + '</p>' + image + '</figure>';
+    }).join('');
+  }
+
+  var exported = { pressWords: pressWords, pressHistory: pressHistory, WORDS: WORDS, when: when, day: day, forSubmission: forSubmission, forJob: forJob, move: move };
   if (root) root.CareerStatusLine = exported;
   if (typeof module !== 'undefined' && module.exports) module.exports = exported;
 })(typeof window !== 'undefined' ? window : null);

@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 87 packages, 87 rated, 0 unrated.
+Coverage: 90 packages, 90 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -40,6 +40,7 @@ Coverage: 87 packages, 87 rated, 0 unrated.
 | camera | 32 / 128 (declared) | camera-nl-control | camera instruction | T1 | none | disable | not yet measured | none recorded |
 | capability-ideation | 32 / 64 (declared) | capability-ideation-run | capability ideation ticket | T3 | none | disable | not yet measured | none recorded |
 | capability-ideator | 32 / 128 (declared) | capability-discovery | capability discovery report | T3 | none | disable | not yet measured | none recorded |
+| career-coaching | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | career-hunter | 64 / 256 (declared) | career-assistant | career assistant task | T4 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | job-fit-scoring | job posting fit score | T2 | none | template | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | application-packet | tailored resume and cover letter | T3 | none | disable | not yet measured | none recorded |
@@ -98,6 +99,7 @@ Coverage: 87 packages, 87 rated, 0 unrated.
 | job-apply | 64 / 256 (declared) | job-application-ticket | job application submission | T4 | none | disable | not yet measured | none recorded |
 | kalshi | 32 / 128 (declared) | quant-walkthrough | question | T2 | hosted | template | not yet measured | none recorded |
 | life | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| lists | 32 / 128 (declared) | lists-concierge | concierge answer | T1 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | lecture-study-materials | lecture study pack | T2 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | lecture-recording-pipeline | lecture recording ticket | T4 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | study-set-generation | flashcard set or quiz | T2 | none | disable | not yet measured | none recorded |
@@ -123,6 +125,7 @@ Coverage: 87 packages, 87 rated, 0 unrated.
 | presentations | 128 / 512 (declared) | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |
 | print-ingest | 32 / 128 (declared) | print-queue-classify | printed document | T1 | none | template | not yet measured | none recorded |
+| program-instructions | 32 / 128 (declared) | instruction-writing | instruction text for one program version | T3 | none | disable | not yet measured | none recorded |
 | publishing-studio | 384 / 1536 (declared) | publishing-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | pumpkin | 32 / 128 (declared) | guest-reply | in-character reply | T2 | none | template | not yet measured | none recorded |
 | purchasing | 64 / 256 (declared) | shopping-chat | shopping chat turn | T2 | none | disable | not yet measured | none recorded |

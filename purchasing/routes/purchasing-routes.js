@@ -40,6 +40,7 @@
  * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (shop-lists): POST /lists/:listId/items/:itemId updates one of the shopper's own rows that is not removed: checked true ticks it off (status 'done', which checkout already leaves out like any non-pending line) and false puts it back; quantity steps it (lineQuantity clamps 1..MAX). The List screen's checkbox and -/+ stepper call it. Totals and checkout are unchanged.
  * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | GET /chat (the Assistant page, merged into List) serves the List page, so Life's Shopping tile and the framework rail's Shopping item land on List (the native bridge drops a redirect's Location header). POST /chat is unchanged.
  * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | POST /profile saves a part of the profile: an UPDATE that keeps what the body leaves out, else a first INSERT with dietary, brands, retailer and onboarded filled. The single INSERT ... ON CONFLICT passed NULL into those NOT NULL columns, so every partial save ('set my monthly budget to $250', the UX audit's 'Budget open') failed with 'SQL NOT NULL constraint failed'.
+ * 2026-11-14 | maintainer@emeraldcoastsystemsgroup.com | The grocery order is made from the list (Shopping 1.5.0). "Order the groceries" ended with nothing ordered: checkout takes only lines matched to a Walmart product, a written item ("eggs") has none, and the native kernel runs no Walmart operation, so POST /checkout answered 500 there and a link to an EMPTY Walmart cart where a rail exists. POST /order makes the order from every item still to buy on the shopper's own list: each with the address that finds it at Walmart, one cart link for the lines already matched to a product where the installation has that rail, and a row in the purchase history. A written item never reaches the rail; nothing is marked bought; an empty list answers 409 and records nothing. POST /checkout answers 400 for a list with no matched line instead of asking Walmart for an empty cart.
  *
  * @module purchasing-routes
  */
@@ -84,6 +85,8 @@ exports.enforceWalmartCatalogActionPolicy = enforceWalmartCatalogActionPolicy;
 exports.lookupCatalogProduct = lookupCatalogProduct;
 exports.ensurePurchasingSchema = ensurePurchasingSchema;
 exports.checkoutProposal = checkoutProposal;
+exports.walmartSearchUrl = walmartSearchUrl;
+exports.ORDER_NOTE = void 0;
 exports.createPurchasingRoutes = createPurchasingRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
@@ -490,11 +493,69 @@ async function buildCheckout(pool, sub, listId) {
     if (!items.length)
         return { checkoutUrl: null, total: 0, totalCents: 0, orderRef: null };
     const spec = items.filter((i) => i.product_id).map((i) => `${i.product_id}_${(0, cart_totals_1.lineQuantity)(i.quantity)}`).join(',');
+    // A list of written items has no product to put in a Walmart cart: never ask for an empty one.
+    if (!spec)
+        return { checkoutUrl: null, total: 0, totalCents: 0, orderRef: null, unmatched: true };
     const r = await walmartProviderOperation(pool, sub, ['cart', spec]);
     const { totalCents } = (0, cart_totals_1.cartTotalCents)(items);
     await pool.query(`INSERT INTO shop_purchase_history (user_sub, retailer, order_ref, items, total, handoff_url)
      VALUES ($1, 'walmart', $2, $3::jsonb, $4, $5)`, [sub, r.orderRef || null, JSON.stringify(items), (0, cart_totals_1.formatCents)(totalCents), r.checkoutUrl || null]);
     return { checkoutUrl: r.checkoutUrl || null, total: (0, cart_totals_1.centsToDollars)(totalCents), totalCents, orderRef: r.orderRef || null };
+}
+/** What a shopper is told about an order: it is a hand-off to the store, never a purchase. */
+exports.ORDER_NOTE = 'Each item opens at Walmart, where you add it to your cart and pay. Nothing is bought or charged here. Tick an item off your list once it is in your cart.';
+/**
+ * @description Where an item is found at Walmart: the store's own search page for the item's words. The
+ * words are carried as text in the query, never as address syntax.
+ * @param title - The item as the shopper wrote it.
+ * @returns The address.
+ */
+function walmartSearchUrl(title) {
+    return `https://www.walmart.com/search?q=${encodeURIComponent(String(title ?? '').replace(/\s+/g, ' ').trim())}`;
+}
+/** A matched line's own product page, only when it is an https address at walmart.com. */
+function walmartProductPage(value) {
+    try {
+        const url = new URL(String(value || ''));
+        return url.protocol === 'https:' && /(^|\.)walmart\.com$/.test(url.hostname) ? url.href : null;
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * @description Make the order from the items still to buy on one of the shopper's lists. Every item gets
+ * the address that finds it at Walmart. Lines already matched to a product go in one Walmart cart link,
+ * only where the installation has that rail; a written item never reaches the rail. The order is recorded
+ * in the purchase history. Nothing is marked bought: the shopper ticks an item off once it is in their cart.
+ * @param pool - The package pool.
+ * @param sub - The authenticated shopper.
+ * @param listId - One of the shopper's own lists.
+ * @returns The order, or null when nothing is left to buy.
+ */
+async function buildOrder(pool, sub, listId) {
+    const lines = await pendingLines(pool, sub, listId);
+    if (!lines.length)
+        return null;
+    const matched = lines.filter((line) => line.product_id);
+    let cartUrl = null;
+    if (matched.length && !(await walmartRailAbsent(pool, sub))) {
+        const spec = matched.map((line) => `${line.product_id}_${(0, cart_totals_1.lineQuantity)(line.quantity)}`).join(',');
+        const r = await walmartProviderOperation(pool, sub, ['cart', spec]);
+        cartUrl = r.checkoutUrl || null;
+    }
+    const { totalCents, unpricedLines } = (0, cart_totals_1.cartTotalCents)(lines);
+    const orderRef = `order-${(0, crypto_1.randomUUID)()}`;
+    const items = lines.map((line) => ({
+        itemId: line.item_id, title: line.title || '', quantity: (0, cart_totals_1.lineQuantity)(line.quantity),
+        inCartLink: Boolean(cartUrl && line.product_id), findUrl: walmartProductPage(line.product_url) || walmartSearchUrl(line.title),
+    }));
+    await pool.query(`INSERT INTO shop_purchase_history (user_sub, retailer, order_ref, items, total, handoff_url)
+     VALUES ($1, 'walmart', $2, $3::jsonb, $4, $5)`, [sub, orderRef, JSON.stringify(items.map((item) => ({ title: item.title, quantity: item.quantity }))), (0, cart_totals_1.formatCents)(totalCents), cartUrl]);
+    return {
+        ok: true, orderRef, retailer: 'Walmart', listId, items, cartUrl, total: (0, cart_totals_1.centsToDollars)(totalCents), totalCents, unpricedLines,
+        openUrl: '/cockpit/?app=purchasing', note: exports.ORDER_NOTE,
+    };
 }
 /**
  * @description Describe the checkout the shopper would be handing off, WITHOUT building the
@@ -692,11 +753,22 @@ function createPurchasingRoutes(ctx) {
         const listId = req.body?.listId || (await getOrCreateDefaultList(pool, sub));
         const r = await buildCheckout(pool, sub, listId);
         if (!r.checkoutUrl) {
-            res.status(400).json({ error: 'nothing to check out (or Walmart not connected)' });
+            res.status(400).json({ error: r.unmatched ? 'no line on the list is matched to a Walmart product, so there is no Walmart cart to open; Order finds each item at Walmart' : 'nothing to check out (or Walmart not connected)' });
             return;
         }
         res.json({ checkoutUrl: r.checkoutUrl, orderRef: r.orderRef, total: r.total, totalCents: r.totalCents,
             note: 'Opens at Walmart — sign in there and check out. This is a tracked handoff, not an in-app charge.' });
+    }));
+    // ── The order, made from the list ─────────────────────────────────────────
+    // Always the caller's own default list (the grocery and shopping list): a list id in the body is not read.
+    router.post('/order', shopper(async (_req, res, sub) => {
+        const listId = await findDefaultList(pool, sub);
+        const order = listId ? await buildOrder(pool, sub, listId) : null;
+        if (!order) {
+            res.status(409).json({ error: 'nothing_to_order', message: 'Your list has nothing left to buy, so no order was made.' });
+            return;
+        }
+        res.json(order);
     }));
     // ── Conversational concierge (brain runs on the bot via the orchestrator) ──
     router.post('/chat', shopper(async (req, res, sub) => {

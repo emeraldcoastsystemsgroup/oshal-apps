@@ -7,6 +7,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: when computer.run_plan is offered, home-bot passes a scan or press plan's planId to it, which runs the plan at once on the person's own computer, then records the computer's answer with home-lan-record; without it, the plan is said as planned and the Smart Home TV buttons run it. It no longer teaches computer.run, which home-bot never has. No routing word changed.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (J-3, J-6): Add home-view-inside tool for read-only SmartThings samsungce.viewInside refrigerator interior camera snapshots and preview images.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: the three refrigerator tools are described as what they do. Nothing inside the refrigerator is read yet, so the bot is told to say so in the answer's own words and to name no item the answer does not hold; until now the descriptions promised a shelf inventory, a comparison with last week, a recommended cart and a meal list, which were one fixed list.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: Smart Home keeps no grocery list. On the test installation the bot wrote "eggs, bread and bananas" to its own list and, asked to order them, logged all three as ordered. The grocery list and the order are Shopping's: the bot says so, keeps nothing, and notes a bought item only when the person says they already bought it. The four grocery routing words are withdrawn.
 # Home bot — Smart-home (home) bundle. ADR-036 (bot owns its domain) + ADR-038
 # (apps bundled by type). Native kernel: an inline application bot. It reads the
 # person's devices and scenes only through this package's route-backed tools
@@ -48,15 +49,20 @@ perspective: |
     fridge interior camera images, and include the returned markdownPreview image links
     in your answer.
   - home-fridge-assessment: read what is known about the refrigerator: the weekly
-    check's day and time, a temperature when the hub reported one, and the person's own
-    grocery list, logged orders and meals. What is inside is not read yet: when the
+    check's day and time, a temperature when the hub reported one, the meals the person
+    wrote and the items they said they bought. What is inside is not read yet: when the
     answer's reading.read is false, say so in its words and name no item it does not hold.
   - home-fridge-assessment-run: run the refrigerator's check now. It records the run and
     the temperatures the hub reports; it reads nothing inside and makes no list or meal.
-  - home-fridge-meal-cart: start or update the person's own grocery list
-    ({"action": "start-cart"}, {"action": "add-cart-item", "name": "..."}), log an item
-    they ordered, or add a meal they describe ({"action": "build-meal-list",
-    "customMeal": {"title": "..."}}). It suggests nothing from the refrigerator's contents.
+  - home-fridge-meal-cart: add a meal the person describes ({"action": "build-meal-list",
+    "customMeal": {"title": "..."}}), or note an item they say they ALREADY bought
+    ({"action": "log-order", "name": "..."}). It suggests nothing from the refrigerator's
+    contents, keeps no grocery list and orders nothing.
+  - The grocery list is kept by Shopping, not by Smart Home, and Shopping makes the grocery
+    order from it. When the person asks you to add something to a grocery or shopping list,
+    to start a cart or to order groceries, do not call a tool: say that their grocery list is
+    in Shopping and that they can ask Jarvis to add to it or to order the groceries. Never
+    note an item as bought because they asked to order it; nothing is ordered here.
   - home-operations-guide: read the persistent Smart Home Operations Guide & Runbook
     (playbooks, auto-discovered device capabilities, and saved operator notes).
   - home-operations-guide-update: save or update an operational note, device
@@ -175,14 +181,10 @@ routingKeywords:
   - runbook
   - meal list
   - meal plan
-  - grocery cart
-  - start a cart
   - what is in the fridge
   - what's in the fridge
   - weekly fridge
   - fridge assessment
-  - grocery list
-  - shopping cart
   - tv
   - tvs
   - the tv
@@ -201,8 +203,8 @@ selectorDescriptor: >
   Select this bot when the user wants to check, inspect, or control physical
   smart-home devices and SmartThings appliances — lights, locks, plugs, switches,
   thermostats, garage/doors, Samsung Family Hub refrigerators (including interior
-  ViewInside cameras, cooler/freezer status, the weekly check, and the person's own
-  grocery list, logged orders and meals) — read or update the Smart Home Operations Guide & Runbook, or
+  ViewInside cameras, cooler/freezer status, the weekly check, and the meals the person
+  wrote) — read or update the Smart Home Operations Guide & Runbook, or
   save and run a home scene on their connected SmartThings hub, or find the TVs
   and streaming sticks on their home network and press their buttons through their
   own computer; not for video "scenes", code/branch "switches", or cloud device

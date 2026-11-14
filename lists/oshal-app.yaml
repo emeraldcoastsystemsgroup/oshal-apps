@@ -1,0 +1,392 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: Lists, a general way to make any list and keep track of it (Roger, 2026-11-14: "we do need a way to make lists and track things generically"). A person's named lists and their items (words, done or not, a note, a quantity, a due date, an order), one screen in the shape the leading list products share, and a concierge whose thirteen tools are the screen's own routes: make, rename and delete a list; add one item or several; tick, untick, edit, move and remove an item; show a list; clear the done items. Adding, ticking, editing, renaming and moving run at once; deleting a list, removing an item and clearing the done items are held for the person's approval. The grocery list is not kept here: Shopping keeps it and makes the grocery order from it, so a person has one; a grocery or shopping name is refused with where it lives, and the screen shows Shopping's list beside the others through Shopping's own routes.
+# -----------------------------------------------------------------------------
+name: lists
+suite: ai-productivity   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170). After editing, run `node scripts/ai-usage-ledger.mjs --write`.
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: lists-concierge
+      unit: concierge answer
+      tier: T1
+      generation: none
+      degrade: disable
+displayName: Lists
+description: >-
+  Make any list and keep track of it: a to-do list, a packing list, gift ideas, home projects, books
+  to read, chores, anything you name. Add one item or many at once, tick items off and untick them,
+  edit, reorder and remove them, give an item a note, a quantity or a due date, and rename, clear or
+  delete a list. Ask what is on a list, what is still open on it, or which lists you have. Each
+  person's lists are their own. Your grocery and shopping list is not kept here: Shopping keeps it
+  and makes the grocery order from it, and the Lists screen shows it beside your other lists.
+version: 1.0.0
+runtime: process
+status: active
+scope: person
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: lists
+  ref: main
+
+uses:
+  - app-dependencies   # compatibility floor for the tiered dependencies block (BUILDING-EXTENSIONS.md, section 6)
+  - test-catalog
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# Shopping is optional: when a person can open it, the Lists screen shows its grocery list beside their own lists
+# (read and changed through Shopping's routes from the page, in the person's own session). Without it nothing is shown.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: [purchasing]
+    tools: []
+    connectors: []
+
+chatBot: lists-concierge
+
+bots:
+  - agentId: 1ae4b4a1-88d9-4c1b-b6c7-7eef96c447ff
+    name: lists-concierge
+    posture: inline   # an application bot with the route-backed tools below; no dedicated node
+    persona: personas/lists-concierge.yaml
+    role: ai-productivity/lists-concierge
+    capabilities:
+      - list-keeping
+      - checklist-tracking
+    routingKeywords:
+      - list
+      - lists
+      - to-do list
+      - to do list
+      - checklist
+      - packing list
+      - gift ideas
+      - wish list
+      - reading list
+      - chores
+
+# Route-backed tools for lists-concierge (executorType api, inside this package's mount). Each is a route the
+# screen itself calls. A list and an item are named in the request by id or by the words the person used.
+tools:
+  - name: lists-all
+    displayName: My Lists
+    type: api
+    category: productivity
+    description: The person's lists, each with its id, its name and how many items are open and done. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lists/lists" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks which lists they have. An empty "lists" means they have none yet.
+    tags: [lists, route-backed]
+
+  - name: lists-show
+    displayName: Show a List
+    type: api
+    category: productivity
+    description: One list with its items in order, the open ones first and the done ones after, each with its words, note, quantity and due date. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/lists/show?list={input.list}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name as the person said it (packing), or its id." }
+      required: [list]
+    usageInstructions: >-
+      Call with {"list"} whenever the person asks what is on a list or what is left on it. Name the items exactly as
+      their words read. A 404 answer lists the names of the lists they do have.
+    tags: [lists, route-backed]
+
+  - name: lists-create
+    displayName: Make a List
+    type: api
+    category: productivity
+    description: Make a new, empty list with the name the person gave. A list of that name that already exists is answered instead of made twice.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/lists" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80, description: "The list's name, such as Packing or Gift ideas." }
+      required: [name]
+    usageInstructions: >-
+      Call with {"name"} when the person asks to make, start or create a list. To make a list and put items on it in
+      the same request, call lists-add-items alone: it makes the list when it does not exist.
+    tags: [lists, route-backed]
+
+  - name: lists-rename
+    displayName: Rename a List
+    type: api
+    category: productivity
+    description: Give one of the person's lists a new name.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/rename" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's present name, or its id." }
+        name: { type: string, minLength: 1, maxLength: 80, description: "The new name." }
+      required: [list, name]
+    usageInstructions: Call with {"list", "name"} when the person asks to rename a list.
+    tags: [lists, route-backed]
+
+  - name: lists-delete
+    displayName: Delete a List
+    cardText: Deletes this list and every item on it. This cannot be undone.
+    type: api
+    category: productivity
+    description: Delete one of the person's lists with every item on it. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/delete" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+      required: [list]
+    usageInstructions: >-
+      Call with {"list"} only when the person asks to delete or get rid of a whole list. The person approves the card;
+      until the tool answers, the list is not deleted.
+    tags: [lists, route-backed, approval-required]
+
+  - name: lists-add-item
+    displayName: Add an Item
+    type: api
+    category: productivity
+    description: Put one item on a list, with a note, a quantity or a due date when the person gave one. A list that does not exist yet is made. An item already on the list is not added twice, and a done one is brought back.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/add" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name as the person said it (packing), or its id." }
+        title: { type: string, minLength: 1, maxLength: 300, description: "The item, in the person's words." }
+        note: { type: string, maxLength: 1000, description: "Only a note the person asked to keep with the item." }
+        quantity: { type: integer, minimum: 1, maximum: 9999, description: "How many, only when the person said a number." }
+        due: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "The day it is due, as 2026-11-20, only when the person gave one." }
+      required: [list, title]
+    usageInstructions: >-
+      Call once with {"list", "title"} when the person asks to add one thing to a list. It runs at once; say it was
+      added only after the tool answers. For two or more things in one request call lists-add-items instead.
+    tags: [lists, route-backed]
+
+  - name: lists-add-items
+    displayName: Add Items
+    type: api
+    category: productivity
+    description: Put several items on a list in one call, each as the person named it. A list that does not exist yet is made. Items already on the list are not added twice.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/add" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name as the person said it (packing), or its id." }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              title: { type: string, minLength: 1, maxLength: 300, description: "The item, in the person's words." }
+              note: { type: string, maxLength: 1000 }
+              quantity: { type: integer, minimum: 1, maximum: 9999 }
+              due: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+            required: [title]
+      required: [list, items]
+    usageInstructions: >-
+      Call once with {"list", "items": [{"title": ...}, ...]} holding every item the person named in this message.
+      The answer says which were added, which were already there ("already") and which done ones came back
+      ("reopened"); report exactly that.
+    tags: [lists, route-backed]
+
+  - name: lists-check-item
+    displayName: Tick an Item Off
+    type: api
+    category: productivity
+    description: Mark one item of a list done.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/check" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+        item: { type: string, minLength: 1, maxLength: 300, description: "The item's words as the person said them (socks), or its id." }
+      required: [list, item]
+    usageInstructions: >-
+      Call with {"list", "item"} when the person says something is done, bought, packed or finished. A 409 answer
+      with "matches" means several items fit: ask which one. A 404 answer lists the items that are on the list.
+    tags: [lists, route-backed]
+
+  - name: lists-uncheck-item
+    displayName: Untick an Item
+    type: api
+    category: productivity
+    description: Mark one done item of a list open again.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/uncheck" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+        item: { type: string, minLength: 1, maxLength: 300, description: "The item's words as the person said them, or its id." }
+      required: [list, item]
+    usageInstructions: Call with {"list", "item"} when the person says an item is not done after all or should come back.
+    tags: [lists, route-backed]
+
+  - name: lists-edit-item
+    displayName: Change an Item
+    type: api
+    category: productivity
+    description: Change one item's words, note, quantity or due date. Only what is sent changes.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/edit" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+        item: { type: string, minLength: 1, maxLength: 300, description: "The item's present words, or its id." }
+        title: { type: string, minLength: 1, maxLength: 300, description: "The item's new words." }
+        note: { type: string, maxLength: 1000, description: "The note to keep with it." }
+        quantity: { type: integer, minimum: 1, maximum: 9999 }
+        due: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "The day it is due, as 2026-11-20." }
+        clear:
+          type: array
+          maxItems: 3
+          items: { type: string, enum: [note, quantity, due] }
+          description: "What to empty: any of note, quantity, due."
+      required: [list, item]
+    usageInstructions: >-
+      Call with {"list", "item"} and only the fields that change. To take a note, a quantity or a due date away send
+      its name in "clear". A due date is a day; work it out from the Current time line of this turn.
+    tags: [lists, route-backed]
+
+  - name: lists-move-item
+    displayName: Move an Item
+    type: api
+    category: productivity
+    description: Put one open item at another place in its list's order.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/move" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+        item: { type: string, minLength: 1, maxLength: 300, description: "The item's words, or its id." }
+        to: { type: string, enum: [top, bottom, up, down], description: "Where it goes: the top, the bottom, one place up or one place down." }
+        position: { type: integer, minimum: 1, maximum: 300, description: "Its new place counted from 1, instead of \"to\"." }
+      required: [list, item]
+    usageInstructions: >-
+      Call with {"list", "item"} and either "to" or "position" when the person asks to move an item or put it first
+      or last. The answer's "order" is the list's open items in their new order.
+    tags: [lists, route-backed]
+
+  - name: lists-remove-item
+    displayName: Remove an Item
+    cardText: Removes this item from the list. This cannot be undone.
+    type: api
+    category: productivity
+    description: Take one item off a list for good. Held for the person's approval. To mark something done, use lists-check-item instead.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/items/remove" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+        item: { type: string, minLength: 1, maxLength: 300, description: "The item's words exactly as lists-show returns them, or its id." }
+      required: [list, item]
+    usageInstructions: >-
+      Call with {"list", "item"} only when the person asks to remove, delete or take an item off a list. The person
+      approves the card; until the tool answers, the item is still on the list.
+    tags: [lists, route-backed, approval-required]
+
+  - name: lists-clear-done
+    displayName: Clear Done Items
+    cardText: Removes every done item from this list. Open items stay. This cannot be undone.
+    type: api
+    category: productivity
+    description: Remove every done item from a list and keep the open ones. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/lists/clear-done" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        list: { type: string, minLength: 1, maxLength: 120, description: "The list's name, or its id." }
+      required: [list]
+    usageInstructions: Call with {"list"} when the person asks to clear, clean up or remove the done items of a list.
+    tags: [lists, route-backed, approval-required]
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/lists/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/lists/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/lists-routes.mjs
+    factory: createListsRoutes
+    mountPath: /api/lists
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The screen's two files are plain published files: the kernel answers them itself (docs/apps/package-static-files.md).
+# A kernel that does not know this key leaves them to the route above, which serves the same two names.
+staticFiles:
+  - route: /api/lists/static/:file
+    folder: tools
+    files:
+      - lists.css
+      - lists.js
+
+ui:
+  static:
+    - toolName: lists-home
+      label: Lists
+      icon: codicon codicon-checklist
+      iframeUrl: /api/lists/app
+      section: top
+
+ribbon:
+  defaultView: lists-home
+
+# Plain tables; each person's rows are their own (the kernel's person scope, and every statement names the caller).
+migrations:
+  - migrations/001-lists.sql

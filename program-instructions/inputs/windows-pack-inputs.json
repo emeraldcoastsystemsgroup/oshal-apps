@@ -1,0 +1,295 @@
+{
+  "about": "What the generated instructions for four Windows programs must say and must not say (T76 on Windows, Lane A4, 2026-11-13; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6), in the shape of Lane G's pack-inputs.json. Every fact is as built at the kernel commit named and names its evidence: a receipt of the Windows PC's own runs against the real program (oshal-collab windows/proofs/<file>) and, where a sentence or a rule is quoted, the Orbit or orbit-uia source it is read from. A fact with code alone as its evidence says so. Excel's create-pivot-table and add-chart (the Windows board's W9, kernel 06f12f46) have as their receipt the Windows PC's W9 RESULT entry on the board (oshal-collab windows/FROM-WINDOWS.md, entry of 2026-11-13T19:27:07Z) and the real-Excel test that entry reports, desktop/oshal-node/scripts/test-windows-excel-real.cjs; they reach people in Orbit 0.7.23. The verbs are in windows-bridge-facts.json beside this file. `acceptance` is the check a written text is held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-13T20:01:49Z",
+  "kernel_commit": "06f12f46",
+  "facts": "windows-bridge-facts.json",
+  "programs": [
+    {
+      "program": "microsoft.windowsnotepad",
+      "name": "Notepad (the Windows 11 Notepad with tabs)",
+      "platform": "windows",
+      "bridge": "windows-uia",
+      "must_say": [
+        {
+          "fact": "A snapshot holds the tab in front as one element with the role document text, labelled \"Text editor\", editable, whose value is that tab's text; each tab is a page tab whose name carries its document name and Modified or Unmodified.",
+          "evidence": "windows/proofs/w2-notepad-new-tab-2026-11-13.md (the snapshot's document text element labelled Text editor, editable; the patterns Notepad exposes); desktop/oshal-node/windows-helper/uia/src/roles.rs (a TabItem is a page tab)"
+        },
+        {
+          "fact": "A new tab is opened with \"action\": \"press\" on the push button \"Add New Tab\". Read a new snapshot after it: the new tab is in front, named Untitled, with an empty Text editor.",
+          "evidence": "windows/proofs/w2-notepad-new-tab-2026-11-13.md (press Add New Tab, then a third tab Untitled whose Text editor holds 0 characters); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (a Jarvis turn: read, press Add New Tab, read, type)"
+        },
+        {
+          "fact": "To write, \"action\": \"type\" into the Text editor element: mode replace sets the tab's whole text, append adds the text at the end, insert puts it at `at`.",
+          "evidence": "windows/proofs/w2-notepad-new-tab-2026-11-13.md (type, mode replace, read back exactly); desktop/oshal-node/windows-helper/uia/src/model.rs:238 (replace, append and insert); replace is the mode run on the real Notepad"
+        },
+        {
+          "fact": "Each tab has its own Text editor element, and a type goes into the element its snapshot's ref names, even when another tab is in front. To work in another tab, \"action\": \"select\" that tab, read a new snapshot and use the Text editor it shows.",
+          "evidence": "windows/proofs/w4-read-back-and-minimized-2026-11-13.md (a type aimed at a tab's document element after another tab came to the front wrote into the first tab); windows/proofs/w2-notepad-new-tab-2026-11-13.md (select each tab, then a snapshot)"
+        },
+        {
+          "fact": "The answer's `after` is what the element holds when read again, and `verified` says whether that is what was asked for. When Orbit could not read it back, the type is refused with \"Orbit sent the text but could not read it back, so what is there now is not verified. Read a new snapshot before anything else.\" The text was sent once: do not repeat the type.",
+          "evidence": "windows/proofs/w4-read-back-and-minimized-2026-11-13.md (verified, and the unverified refusal); windows/proofs/w4-chromium-read-back-2026-11-13.md (read again for at most a second, never written twice); desktop/oshal-node/windows-helper/uia/src/words.rs NOT_VERIFIED"
+        },
+        {
+          "fact": "A change is undone with \"action\": \"undo\", which writes the earlier text back only while the element still holds what was written. A tab never saved has no copy, so there is nothing for \"action\": \"restore\" to open for it.",
+          "evidence": "desktop/oshal-node/windows-helper/uia/src/win/client.rs:529 write_back (the earlier text is written only while the element holds what was written); desktop/oshal-node/src/main/app-acts.ts (a document never saved keeps no copy); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (\"no copy: the document was never saved\")"
+        },
+        {
+          "fact": "A minimized Notepad is shown again, without being brought to the front, before a snapshot or an act; the reading's `shown` then says \"the window was minimized and Orbit showed it again first\".",
+          "evidence": "windows/proofs/w4-read-back-and-minimized-2026-11-13.md (a minimized window is shown again first; the real-Notepad test, 2 of 2); desktop/oshal-node/src/main/bridges/windows-apps.ts:46 RESTORED"
+        },
+        {
+          "fact": "Notepad declares no verbs: opening, saving and searching files are not done through invoke, which answers \"I can't do <verb> in Notepad yet.\" The person saves the file in Notepad.",
+          "evidence": "desktop/oshal-node/src/main/bridges/windows-apps.ts:345 (verbs are declared for Word, Excel and PowerPoint only); desktop/oshal-node/src/main/app-control.ts:533"
+        },
+        {
+          "fact": "A window of a program that runs as administrator is never read or acted in: the answer says \"it runs as administrator, and Orbit reads only programs that run with its own rights\".",
+          "evidence": "desktop/oshal-node/src/main/bridges/windows-apps.ts:37 ELEVATED; desktop/oshal-node/windows-helper/uia/src/words.rs ELEVATED (code elevated); code and the stand-in suite only, not run against a real elevated window"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does (no Ctrl+S, no Ctrl+T, no File menu).",
+        "That Jarvis saves, opens or searches files in Notepad.",
+        "Any declared verb for Notepad (insert-paragraph, format-text, save-document and the rest belong to other programs).",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Text editor",
+          "Add New Tab",
+          "verified",
+          "\"action\": \"press\"",
+          "\"action\": \"type\"",
+          "\"action\": \"snapshot\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "save-document",
+          "insert-paragraph",
+          "format-text",
+          "screen.read"
+        ]
+      }
+    },
+    {
+      "program": "microsoft.office.winword.exe.15",
+      "name": "Microsoft Word",
+      "platform": "windows",
+      "bridge": "windows-uia",
+      "must_say": [
+        {
+          "fact": "A snapshot reads the whole document (`part` is \"whole\"): one element with the role document text, named after the document, whose value is the document's text.",
+          "evidence": "windows/proofs/w3-word-2026-11-13.md (snapshot: whole; the document's role document text, named after the document); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (\"Read Word · Document1: 129 elements, 198 characters (whole part)\")"
+        },
+        {
+          "fact": "Word declares the edit verbs insert-paragraph, add-section, replace-text, delete-paragraph, format-text and find-replace, each run with \"action\": \"invoke\" and the same inputs as in LibreOffice Writer. Orbit runs each through Word's own object model as one step on Word's own Undo; Word is not brought to the front and no key is sent.",
+          "evidence": "desktop/oshal-node/src/main/windows-word.ts:13 WORD_VERBS; windows/proofs/w3-word-live-edit-2026-11-13.md (one undo record for each edit, no key sent; the real Word, 5 of 5); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (format-text run by a Jarvis turn)"
+        },
+        {
+          "fact": "format-text sets bold, italic, underline or a font size on the text found or on a paragraph, and a heading level on a paragraph. insert-paragraph adds paragraphs at the end, at the start, or before or after a paragraph; add-section's title is a level 2 heading unless a level is given.",
+          "evidence": "windows/proofs/w3-word-live-edit-2026-11-13.md (what a request does; tests 2 and 3)"
+        },
+        {
+          "fact": "replace-text replaces the text found, or the whole paragraph named by `ref`, and the rest of the paragraph keeps its format. find-replace changes every occurrence, or only the first with \"all\": false, and leaves paragraphs inside tables alone. A text that is nowhere is refused: \"could not find '<text>' in the document\".",
+          "evidence": "windows/proofs/w3-word-live-edit-2026-11-13.md (what a request does; tests 3 and 4, code not-found)"
+        },
+        {
+          "fact": "Every edit's answer carries `after` as read back from the document, and `verified`; when verified is false, read a new snapshot before anything else.",
+          "evidence": "windows/proofs/w3-word-live-edit-2026-11-13.md (after is read back from the document, with verified); desktop/oshal-node/src/main/windows-word.ts wordEdit"
+        },
+        {
+          "fact": "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`. Word's own Undo takes it back only while the document's text is what that edit left; otherwise nothing is undone and the answer says so.",
+          "evidence": "windows/proofs/w3-word-live-edit-2026-11-13.md (test 5: word-undo, and not-on-top undoes nothing); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (\"undo that\": \"Undone in the application\")"
+        },
+        {
+          "fact": "\"action\": \"type\" on the document element can append, or insert at `at`. Replacing the whole text of a document that has text is refused: \"Replacing the whole text of a Word document would drop its formatting. Use replace-text, insert-paragraph, delete-paragraph, format-text or find-replace, or type with append or insert.\" A type is not on Word's Undo, so undoing one offers the copy instead.",
+          "evidence": "windows/proofs/w3-word-live-edit-2026-11-13.md (test 1; a type is undone by write-back, which Word's document cannot take); desktop/oshal-node/windows-helper/uia/src/words.rs WHOLE_REPLACE"
+        },
+        {
+          "fact": "Opening, saving and exporting files are not Word verbs: invoke answers \"I can't do <verb> in Word yet.\" and the person opens and saves files in Word. The copy kept before an edit is the file as last saved; a document never saved has none.",
+          "evidence": "desktop/oshal-node/src/main/windows-word.ts:12 (the file verbs are not among Word's); windows/proofs/w3-word-live-edit-2026-11-13.md (the file verbs and a live copy are not built); windows/proofs/e2e-jarvis-word-notepad-2026-11-13.md (\"no copy: the document was never saved\")"
+        },
+        {
+          "fact": "A paragraph inside a table and a protected document are refused in words and nothing changes. A window that runs as administrator is never read or acted in.",
+          "evidence": "desktop/oshal-node/windows-helper/uia/src/words.rs IN_TABLE, PROTECTED and ELEVATED; windows/proofs/w3-word-live-edit-2026-11-13.md (the code refuses both; neither was run against a real document)"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a ribbon button, a key or a key combination as something Jarvis does (no Ctrl+B, no Ctrl+Z).",
+        "That Jarvis opens, saves or exports a Word document, or any file verb for Word.",
+        "That \"action\": \"type\" with mode replace replaces the text of a document that already has text.",
+        "That a spreadsheet verb (set-cells, read-range and the rest) works in Word.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"invoke\"",
+          "format-text",
+          "insert-paragraph",
+          "replace-text",
+          "verified",
+          "\"action\": \"undo\"",
+          "append"
+        ],
+        "absent": [
+          "Ctrl+",
+          "save-document",
+          "open-document",
+          "set-cells",
+          "screen.read"
+        ]
+      }
+    },
+    {
+      "program": "microsoft.office.excel.exe.15",
+      "name": "Microsoft Excel",
+      "platform": "windows",
+      "bridge": "windows-uia",
+      "must_say": [
+        {
+          "fact": "Excel declares the spreadsheet verbs read-range, set-cells, format-cells, find-replace, sort-range, filter-range, manage-sheet, create-pivot-table and add-chart, each run with \"action\": \"invoke\" and the same inputs as in LibreOffice Calc. Orbit runs each through Excel's own object model; Excel is not brought to the front and no key is sent.",
+          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15 EXCEL_VERBS; windows/proofs/w9-excel-live-edit-2026-11-13.md (what a request does; sort-range, filter-range and manage-sheet added at 05:36Z, the real Excel 5 of 5); windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (create-pivot-table and add-chart in kernel 06f12f46 with Calc's ids and inputs; the real Excel 13 of 13 on two runs in a row); desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs (Excel is never brought to the front and no key is sent)"
+        },
+        {
+          "fact": "Read cells with read-range: each cell of a range on the sheet in front, or on one named, with what it shows and its formula, at most 2,000 cells at once (\"that range holds <n> cells; read at most 2000 at once\"). A sheet that is not there is refused (\"there is no sheet named <name>\").",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 1)"
+        },
+        {
+          "fact": "Write cells with set-cells, by address: a text that starts with = is a formula, one that reads as a number is a number, an empty one clears the cell, and anything else stays text (1/2 and TRUE stay texts). A formula Excel does not take is refused, and the cells written before it are put back.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 2)"
+        },
+        {
+          "fact": "format-cells sets bold, italic, underline, a font size, a number format (currency, percent or a pattern), fill and font colour, and a column width or auto-fit. find-replace changes every match on the sheet in any case and answers how many; a text that is nowhere is refused (\"could not find '<text>' in sheet <name>\").",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 3)"
+        },
+        {
+          "fact": "sort-range orders a range's rows by one column (a header, column letters or a number) and keeps the header row; filter-range shows or hides the rows below the first by one column's cell, and \"clear\": true shows every row; manage-sheet adds, renames, shows or deletes a sheet, and deletes only a sheet that holds nothing.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (added at 05:36Z: 38e4c7a8, the real Excel 5 of 5)"
+        },
+        {
+          "fact": "create-pivot-table makes a native PivotTable from `sourceRange` (default A1:D13; its first row names the fields) at `targetCell` (default F1) on `targetSheet` (else `sheet`): `rowFields` down the rows (default the first column), optional `columnFields` across, `dataFields` by header, and `function` SUM, AVERAGE, COUNT, MAX or MIN (any other is SUM). Its name is `name`, else JarvisPivot, then JarvisPivot2 and on.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (the add-on's defaults: F1, the first column for rows, SUM, JarvisPivot); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: at F1 as JarvisPivot, Region down the rows and Revenue summed, Excel's own sums 150, 225 and 375; one with no name became JarvisPivot2, Region down the rows by default, Product across, two data fields counted; after \"F1 [pivot-table JarvisPivot from A1:D7]\"); desktop/oshal-node/windows-helper/uia/src/sheet_objects.rs consolidation_of (any other function is a sum; code only)"
+        },
+        {
+          "fact": "A pivot table is never moved or written over anything: Orbit lays it out on a sheet it adds and deletes again, then builds it only where every cell it covered on the way is empty and off its own source (an empty table covers 18 rows by 3 columns, so F1 needs F1:H18 empty). Refused in words, leaving nothing behind: a place inside its source or over cells that hold something (the answer names the cells), a name the sheet already has, a source column without a header, a sheet that is not there.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (PivotTable.Location crashed the test's own Excel three times, so a table is built where it goes after being measured on a scratch sheet, and the checked block is the largest it covers while it is laid out); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: F1 inside A1:G7 refused; J40 refused for J40:L57 while K41 held x; a name the sheet holds, column E without a name and a sheet that is not there refused; no sheet and no pivot table left behind); desktop/oshal-node/windows-helper/uia/src/words.rs covers_source, place_not_empty, name_taken, needs_header"
+        },
+        {
+          "fact": "A pivot table is made only while the bound workbook is the one in front in Excel. Otherwise it is refused with `not-active` before anything changes, and the person clicks that workbook's window in Excel and asks again; Orbit does not switch Excel's workbooks.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (building with another workbook in front of the bound one crashed Excel, so that is refused in words, not-active); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: refused with another workbook in front, no sheet added and no pivot table in either workbook, the other still in front); desktop/oshal-node/windows-helper/uia/src/words.rs PIVOT_NOT_ACTIVE"
+        },
+        {
+          "fact": "add-chart inserts a native chart over `sourceRange` (or `range`; default A1:D13) on `sheet`: the first row names the series and the first column holds the categories. `chartType` is column (the default), bar, line, pie, area or scatter, and any other is drawn as column; it has a title only when `title` is given; its name is `name`, else JarvisChart or the next free name. A range of only a header row is refused, and so is a name the sheet already has.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (column, the add-on's box, JarvisChart; Excel adds a title to a pie chart by itself, so the no-title element is set and the chart read again for a second); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: a line chart titled Sales of exactly two series named by their headers over the quarters; column, bar, pie, area, scatter and xy each drawn with two series and no title; a one-row range and a name the sheet holds refused, nothing drawn); desktop/oshal-node/windows-helper/uia/src/sheet_objects.rs chart_type_of (an unknown type is drawn and said as column; code only)"
+        },
+        {
+          "fact": "Every written cell, pivot table and chart is read back from Excel, and the answer carries `verified`; when verified is false, read the range again before anything else.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (every written cell is read back, with verified); desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs (the pivot table's place, fields, data fields and functions, the chart's type, series and title, read back for verified); desktop/oshal-node/scripts/test-windows-excel-real.cjs (verified true on every pivot table and chart made); desktop/oshal-node/src/main/windows-excel.ts excelEdit"
+        },
+        {
+          "fact": "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`: Orbit puts back what its cells held only while every one still holds what the edit left, and deletes a pivot table or chart it made only while that still reads exactly as made (one changed in Excel is kept and the undo refused). Otherwise nothing is put back. Excel's own Undo does not take these edits back, and a format-cells is not undone in place.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 4: excel-undo, not-on-top puts nothing back; Excel's own Undo refused; an undo of format-cells answers not-on-top); windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (undo by name: deleted only while it reads exactly as it was made); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: a pivot table undone and its cells empty, a chart undone, a second undo refused not-on-top, a pivot table and a chart changed in Excel kept with their undo refused); desktop/oshal-node/windows-helper/uia/src/words.rs made_changed"
+        },
+        {
+          "fact": "Opening or saving workbooks are not Excel verbs: invoke answers \"I can't do <verb> in Excel yet.\" A protected sheet is refused, and so is a busy Excel (a cell being edited, or a dialog open). Typing into the grid with \"action\": \"type\" was not measured; cells are written with set-cells.",
+          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15 (no file verb among Excel's); desktop/oshal-node/src/main/app-control.ts:533; windows/proofs/w9-excel-live-edit-2026-11-13.md (the code refuses a protected sheet and a busy Excel, neither run against a real workbook; only the verbs were run); desktop/oshal-node/windows-helper/uia/src/words.rs PROTECTED_SHEET, EXCEL_BUSY"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a ribbon button, a key or a key combination as something Jarvis does (no Ctrl+Z).",
+        "That Jarvis opens, saves or exports a workbook, or any file verb for Excel.",
+        "That Excel's own Undo takes back an edit Jarvis made.",
+        "That a pivot table is moved or placed over cells that hold something, or that a pivot table or chart replaces one of the same name.",
+        "That Jarvis switches Excel's workbooks or brings Excel to the front to make a pivot table.",
+        "A chart type other than column, bar, line, pie, area or scatter.",
+        "That a text-document verb (insert-paragraph, format-text and the rest) works in Excel.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"invoke\"",
+          "read-range",
+          "set-cells",
+          "create-pivot-table",
+          "add-chart",
+          "verified",
+          "\"action\": \"undo\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "insert-paragraph",
+          "screen.read"
+        ]
+      }
+    },
+    {
+      "program": "microsoft.office.powerpnt.exe.15",
+      "name": "Microsoft PowerPoint",
+      "platform": "windows",
+      "bridge": "windows-uia",
+      "must_say": [
+        {
+          "fact": "PowerPoint declares the slide verbs add-slide, set-slide-text, replace-text, format-text, delete-slide and move-slide, each run with \"action\": \"invoke\" and its inputs. Orbit runs each through PowerPoint's own object model as one step on PowerPoint's own undo list; PowerPoint is not brought to the front and no key is sent. Slides are numbered from 1, as PowerPoint numbers them.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the door never brings PowerPoint to the front and never sends a key; each edit is one entry on PowerPoint's own undo list; the real PowerPoint 8 of 8 on two runs, every verb read back by the test's own shell); desktop/oshal-node/src/main/windows-powerpoint.ts:13 POWERPOINT_VERBS (slides numbered from 1). The real runs drove Orbit's helper; the Orbit bridge's requests are shown over the stand-in, and no Jarvis turn has run one yet"
+        },
+        {
+          "fact": "add-slide adds a slide at the end, or at the `start`, or `after` or `before` slide `slide` (`position`), with `title` and `body` (a paragraph per line) in the layout's placeholders. `layout` is title, title-and-content (the default), section-header, two-content, title-only or blank. A layout without the placeholder asked for is refused (\"the blank layout has no title placeholder\"), and so is a place past the last slide; neither leaves a slide.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the verbs table: add-slide; the real run: a slide added at the end and one at slide 1, a blank layout with a title refused, a place past the end refused, and the refusals added nothing); desktop/oshal-node/src/main/windows-powerpoint.ts POWERPOINT_ACTIONS; desktop/oshal-node/windows-helper/uia/src/words.rs layout_lacks"
+        },
+        {
+          "fact": "set-slide-text replaces the text of slide `slide`'s title placeholder with `title`, of its body placeholder with `body`, or both; a placeholder not asked for keeps its text. A slide without the placeholder asked for is refused (\"slide <n> has no title placeholder\") and nothing changes.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the verbs table: set-slide-text, refused when the slide has none; the real run: title and body set, the body not asked for kept, a slide without a title placeholder refused); desktop/oshal-node/windows-helper/uia/src/words.rs no_placeholder"
+        },
+        {
+          "fact": "replace-text replaces every occurrence of `find`, in exact case, with `replace` on every slide, or only on slide `slide`, and answers how many it replaced (`count`). A text that is nowhere is refused: \"could not find '<text>' in the presentation\". Text in tables, groups, charts and notes is not changed.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the verbs table: every exact-case occurrence, a count; the real run: two replaced across the slides, then only on slide 2, and the same word in another case refused; Not shown: text in tables, groups, charts and notes is skipped); desktop/oshal-node/windows-helper/uia/src/words.rs not_in_deck"
+        },
+        {
+          "fact": "format-text makes slide `slide`'s title or body placeholder (`target`), or every occurrence of `find` on that slide, `bold`, `italic` or `underline` (true or false) and/or `fontSize` points. A `find` that is not on the slide is refused: \"could not find '<text>' on slide <n>\".",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the verbs table: format-text; the real run: a whole title made bold at 40 points, only the words found made italic, a text not on slide 2 refused); desktop/oshal-node/windows-helper/uia/src/words.rs not_on_slide"
+        },
+        {
+          "fact": "delete-slide deletes slide `slide`; move-slide moves slide `slide` so that it becomes slide `to`. A move to the number the slide already has is refused and changes nothing.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (the verbs table: delete-slide and move-slide; the real run: a slide moved to 1 and one deleted, read back by slide ids, and a move to where the slide is refused); desktop/oshal-node/windows-helper/uia/src/words.rs already_there"
+        },
+        {
+          "fact": "Every edit's answer is read back from the presentation and carries `before`, `after` and `verified`; when verified is false, read a new snapshot before anything else.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (every answer is read back from the presentation, with verified; the real run asserts verified on every verb); desktop/oshal-node/src/main/windows-powerpoint.ts powerpointEdit"
+        },
+        {
+          "fact": "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`. Orbit runs PowerPoint's own Undo only while the presentation reads exactly as that edit left it and its window is the one PowerPoint has active; Orbit never switches PowerPoint's windows. An edit already undone, or one the presentation changed after, is refused and nothing is undone. When PowerPoint's Undo takes another change on top of the edit instead, Orbit puts that change back with Redo and refuses the undo.",
+          "evidence": "windows/proofs/w10-powerpoint-2026-11-13.md (Undo; the real run: an add-slide undone and read back identical, a second undo refused, an undo after another change refused with nothing undone, a shape move on top of the edit taken by Undo, put back with Redo, and refused); desktop/oshal-node/windows-helper/uia/src/words.rs NOT_ACTIVE and UNDID_OTHER (the not-active refusal is shown over the stand-in only)"
+        },
+        {
+          "fact": "Opening, saving and exporting presentations are not PowerPoint verbs: invoke answers \"I can't do <verb> in <program> yet.\", and the person opens and saves files in PowerPoint. A read-only or final presentation and a busy PowerPoint (a dialog open) are refused in words. Slide text is written with add-slide and set-slide-text; typing into a slide with \"action\": \"type\" was not measured.",
+          "evidence": "desktop/oshal-node/src/main/windows-powerpoint.ts:13 (no file verb among PowerPoint's); desktop/oshal-node/src/main/app-control.ts:533; desktop/oshal-node/windows-helper/uia/src/words.rs READ_ONLY_DECK and POWERPOINT_BUSY; windows/proofs/w10-powerpoint-2026-11-13.md (Not shown: the read-only and too-large refusals; reading stays the UI Automation snapshot, and no type into a slide was run)"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a ribbon button, a key or a key combination as something Jarvis does (no Ctrl+M, no Ctrl+Z).",
+        "That Jarvis opens, saves or exports a presentation, or any file verb for PowerPoint.",
+        "A slide verb other than the six declared ids: new-slide and insert-slide are not declared names.",
+        "That replace-text or format-text changes text in tables, groups, charts or speaker notes.",
+        "That a text-document or spreadsheet verb (insert-paragraph, set-cells and the rest) works in PowerPoint.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"invoke\"",
+          "add-slide",
+          "set-slide-text",
+          "replace-text",
+          "verified",
+          "\"action\": \"undo\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "save-document",
+          "insert-paragraph",
+          "set-cells",
+          "screen.read"
+        ]
+      }
+    }
+  ]
+}

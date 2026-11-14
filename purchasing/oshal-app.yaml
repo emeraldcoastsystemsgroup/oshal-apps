@@ -20,6 +20,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: POST /profile saves a part of the profile (an UPDATE that keeps what the body leaves out, else a first INSERT with the NOT NULL columns filled). The single INSERT ... ON CONFLICT passed NULL into dietary and brands, so every partial save failed with 'SQL NOT NULL constraint failed': that is why 'set monthly budget to $250' left the card at 'Budget open' (UX audit 2026-11-05, shop-concierge verify item).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit sweep, purchasing--shop-concierge, D1=glass, D2=c): collection contract, opaque row menus with popstate Back dismissal, scale radii/typography, on-accent primary ink across themes, and 100dvh natural scroll + theme-derived tokens on shopping-chat.html.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Release 1.4.8 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (Roger, 2026-11-14, asked for items added to the grocery list and then "order the groceries"): Shopping keeps a person's one grocery and shopping list and makes the order from it. On the test installation the chain ended with nothing ordered: the add went to Smart Home's own list, the order was sent to both applications, and Shopping could not order a written item (checkout takes only lines matched to a Walmart product, and the native kernel runs no Walmart operation). The description now says the grocery list and the order plainly, since Jarvis picks an application from its description. shopping-order (POST /api/purchasing/order, held for the shopper's approval) makes the order from every item still to buy: each with the address that finds it at Walmart, one cart link for lines already matched to a product where the installation has that rail, and a row in the purchase history; nothing is bought or charged here. prepare-checkout is retired: it could only answer an empty cart or a refusal for a written list. The List screen has Order in place of the rail-only Checkout. Guard: tests/shopping-order.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -60,10 +61,15 @@ rating:
       degrade: disable
 displayName: Shopping
 description: >-
-  AI shopping concierge — search Walmart/Amazon, build lists, learn your
-  preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
-  bots can ask it to make a purchase.
-version: 1.4.8
+  Keeps your grocery and shopping list and makes the grocery order from it. Add
+  items by name ("add eggs, bread and bananas to my grocery list"), see what is
+  on the list, tick items off, and say "order the groceries": the order is made
+  from every item still to buy, each with its place at Walmart, where you add it
+  to your Walmart cart and pay there. Nothing is bought or charged here. It also
+  keeps your household's shopping notes and monthly budget, and where the
+  installation runs Walmart's catalog it searches products, compares prices,
+  finds deals and remembers the products you usually buy.
+version: 1.5.0
 status: active  # active | inactive
 
 source:
@@ -230,7 +236,7 @@ tools:
     cardText: Puts this item on your shopping list, exactly as written. Nothing is bought.
     type: api
     category: commerce
-    description: Put one item on the shopper's shopping list exactly as written (a free-text entry such as "AA batteries", no product chosen), on the list Home shows. The cart IS this list's pending items, so use it for "add to my cart", "order groceries" and "buy" requests too (checkout later hands the cart to the retailer; nothing is bought here). Call it as soon as they ask to add an item; the approval card it makes is their confirmation, so never ask them to confirm in words first.
+    description: Put one item on the shopper's grocery and shopping list exactly as written (a free-text entry such as "AA batteries", no product chosen). It is the one list the order is made from, so use it for "add to my grocery list", "add to my cart" and "I need to buy" requests too (shopping-order makes the order later; nothing is bought here). Call it as soon as they ask to add an item; the approval card it makes is their confirmation, so never ask them to confirm in words first.
     executor: { executorType: api, apiEndpoint: "POST /api/purchasing/lists/default/items" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -253,7 +259,7 @@ tools:
     cardText: Puts these items on your shopping list, exactly as written. Nothing is bought.
     type: api
     category: commerce
-    description: Put several items on the shopper's shopping list at once, each exactly as written (free-text entries such as "milk", "eggs", no product chosen), on the list Home shows. The cart IS this list's pending items, so use it for "add milk, eggs and bread to my cart" and "order groceries" requests too. One approval card holds every item; nothing is bought here.
+    description: Put several items on the shopper's grocery and shopping list at once, each exactly as written (free-text entries such as "milk", "eggs", no product chosen). It is the one list the order is made from, so use it for "add eggs, bread and bananas to my grocery list" and "add milk and eggs to my cart" requests too. One approval card holds every item; nothing is bought here.
     executor: { executorType: api, apiEndpoint: "POST /api/purchasing/lists/default/items" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -314,21 +320,23 @@ tools:
     skills: [preference-learning, product-search]
     tags: [shopping, route-backed]
 
-  - name: prepare-checkout
-    displayName: Prepare Checkout Handoff
+  - name: shopping-order
+    displayName: Order the Groceries
+    cardText: Makes your order from the items still to buy on your list. Each item opens at Walmart, where you add it to your cart and pay. Nothing is bought here.
     type: api
     category: commerce
-    description: Build a retailer checkout handoff for the shopper's current cart. No payment is taken in OSHAL.
-    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/checkout" }
+    description: Make the order from the shopper's grocery and shopping list. It answers every item still to buy with the address that finds it at Walmart, and one Walmart cart link for the lines already matched to a product. Use it for "order the groceries", "place my grocery order", "check out" and "buy what is on my list". The shopper adds the items to their Walmart cart and pays at Walmart; nothing is bought or charged here. Held for the shopper's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/purchasing/order" }
     defaultAuthMode: ask
     requiresApproval: true
-    inputSchema:
-      type: object
-      properties:
-        listId: { type: string }
+    inputSchema: { type: object, properties: {} }
     usageInstructions: >-
-      Call only after the shopper asks to checkout or order. It returns a handoff URL; the shopper finishes payment on the retailer site.
-    routingTags: [shopping, checkout, handoff]
+      Call with {} as soon as the shopper asks to order, check out or buy what is on their list; the approval card is
+      their confirmation, so never ask for a typed yes first. It needs no product search and no Walmart connection.
+      After it answers, give the shopper each item as a link to its "findUrl" (and "cartUrl" first when it is not
+      null), and say they add the items to their Walmart cart and pay there. A 409 answer means nothing is left to
+      buy. Never say an order was placed or anything was bought.
+    routingTags: [shopping, order, groceries, handoff]
     skills: [checkout-handoff, shopping-list-management]
     tags: [shopping, route-backed, approval-required]
 

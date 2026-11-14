@@ -3,6 +3,7 @@
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience ... the api and endpoints create processes and the detached ux gives the flexibility to make it look smooth and styled"). This page is the application: its own top bar and phone bar, the sections of Finance's own menu (each shown inside this page), and a Home built from the work that runs for the person: every finance job with what it does, when it last ran, how that went and when it runs next, and each finance application's saved summary. It hides the cockpit's frame when it is opened inside the cockpit, as Little Monsters does. It reads only; nothing is traded, moved or switched on here.
   2 | maintainer@emeraldcoastsystemsgroup.com | Lead with dated bank snapshots and a clear trading-account entry, put secondary activity under disclosure, prioritize the admitted Bank accounts and Trades sections, keep More visible and scope cockpit styling to Finance's own iframe.
+  3 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: inside the cockpit the chat panel is hidden only while closed, so the Concierge button opens Finance's concierge beside the page (on a phone, over it); hiding it outright made the button do nothing (judge defect 3, as Career's 1.57.1).
 
   What it reads (all the caller's own, all GET):
     /api/ui/profile?name=finance        the sections the person may open (the server filters them)
@@ -201,7 +202,11 @@
       .catch(function () { return null; });
   }
 
-  /** Opened inside the cockpit, Finance owns the window: the cockpit's own header, menu and side panel are hidden. The assistant's orb stays. */
+  /**
+   * Opened inside the cockpit, Finance owns the window: the cockpit's own header and menu are hidden. The assistant's
+   * orb stays, and Finance's concierge (the chat panel the orb opens) is hidden only while it is closed; open, it sits
+   * beside the page (on a phone, over it). Hiding the panel outright made the Concierge button do nothing (judge defect 3).
+   */
   function ownTheWindow() {
     var embedded; try { embedded = window.top !== window.self; } catch (_) { embedded = true; }
     if (!embedded) return;
@@ -210,9 +215,10 @@
       if (!host || !host.head || !host.querySelector('.tool-view-container>iframe[src^="/api/finance/app"]') || host.getElementById('fx-own-window')) return;
       var style = host.createElement('style'); style.id = 'fx-own-window';
       var scope = 'body:has(.tool-view-container>iframe[src^="/api/finance/app"]) ';
-      style.textContent = scope + ':is(.header-bar,.status-bar,#ribbonContainer,.ribbon-backdrop,.chat-panel,.panel-resize-handle,.tool-view-header,.zen-exit-btn,#workspaceNavigation,#workspaceNavigationMore){display:none!important}'
+      style.textContent = scope + ':is(.header-bar,.status-bar,#ribbonContainer,.ribbon-backdrop,.chat-panel.collapsed,.panel-resize-handle,.tool-view-header,.zen-exit-btn,#workspaceNavigation,#workspaceNavigationMore){display:none!important}'
         + scope + '.cockpit-body{padding:0!important;gap:0!important;height:100vh!important}'
-        + scope + ':is(.main-content,.tool-view-container){border:none!important;border-radius:0!important;margin:0!important;padding:0!important;height:100%!important;width:100%!important}';
+        + scope + ':is(.main-content,.tool-view-container){border:none!important;border-radius:0!important;margin:0!important;padding:0!important;height:100%!important}'
+        + scope + '.main-content{flex:1 1 auto!important;min-width:0!important}' + scope + '.tool-view-container{width:100%!important}';
       host.head.appendChild(style);
     } catch (_) { /* a host on another origin keeps its own frame */ }
   }

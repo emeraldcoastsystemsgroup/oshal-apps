@@ -53,6 +53,7 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 2.19.1: the Concierge's persona edits a "Master resume (Career)" Word document (Career's Resume Studio embeds this editor on it) under resume rules, keeping the section and role headings Career reads back. No editor or route change.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 2.18.0: real saved slide/document/workbook editors with native exports, original-owned import attestations and shared AI approval cards.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Release 2.20.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 2.20.4: the editor takes ?assistant=host from a page that frames it and owns the screen's one assistant (Career's My résumé, career-hunter 1.61.0, where Career's concierge edits the résumé and its work history): then the editor makes no concierge of its own, the side pane has only Format, the phone's bar has no Concierge and Generate a draft is not offered. Without the option nothing changes. Guard: career-hunter/tests/career-resume-office-browser.spec.mjs (hosted) and presentations/tests/office/phone-browser.test.mjs (default).
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -72,7 +73,7 @@ rating:
       degrade: disable
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.3
+version: 2.20.4
 chatBot: deck-builder
 lastingStorage: true
 testing:

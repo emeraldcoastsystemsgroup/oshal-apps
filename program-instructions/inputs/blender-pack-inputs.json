@@ -1,0 +1,122 @@
+{
+  "about": "What the generated instructions for Blender on Linux must say and must not say (Lane BL1, Orbit's Blender sidecar, and Lane BL2, its game-asset families, 2026-11-13), in the shape of Lane G's pack-inputs.json. Every fact is as built at the kernel commit named and names its evidence: a case of the real-Blender suite desktop/oshal-node/scripts/test-blender-plugin-desktop.cjs (the Spark's Blender 5.1.0 through its launcher ~/.local/bin/blender, in a private display with scratch folders, Orbit's real plugin door and install; 12 of 12) or of the game-asset suite desktop/oshal-node/scripts/test-blender-game-asset.cjs (the same Blender with the Spark's Godot 4.7.2; 8 of 8) and, where a sentence or a rule is quoted, the Orbit or add-on source it is read from. Orbit reports a bound Blender on the blender bridge with its own --version (linux-program-versions.ts, `Blender 5.1.0`, version kind file). The verbs are in blender-bridge-facts.json beside this file. `acceptance` is the check a written text is held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-13T23:58:44Z",
+  "kernel_commit": "4692a724",
+  "facts": "blender-bridge-facts.json",
+  "programs": [
+    {
+      "program": "blender",
+      "name": "Blender (with Orbit's Blender add-on)",
+      "platform": "linux",
+      "bridge": "blender",
+      "must_say": [
+        {
+          "fact": "A snapshot (\"action\": \"snapshot\") reads the whole open .blend through Orbit's Blender add-on: a File line (its name, whether it has unsaved changes, Blender's version, the mode), a Scene line per scene, an Object line per object (type, location, rotation in degrees, scale, mesh vertex and face counts, parent, modifiers, materials), a Material line per material (base color as #RRGGBB, metallic, roughness, who uses it) and the Selection with the active object.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"a snapshot reads the whole file and declares the Blender actions\"; desktop/oshal-node/src/main/bridges/blender.ts composeScene; desktop/oshal-node/plugins/blender/orbit_scene.py read_file"
+        },
+        {
+          "fact": "Blender is never typed into, pressed or selected: every change is \"action\": \"invoke\" with a declared verb and its inputs, the object named by its name in object (the active object when none is named). Each object of a snapshot is an element with the role object and is read only.",
+          "evidence": "desktop/oshal-node/src/main/bridges/blender.ts (write and editor() refuse an object; typeRefusal: \"Blender's objects change through its declared actions\"); scripts/test-blender-plugin-desktop.cjs case \"a refused edit changes nothing and says what Blender has\" (press, select and type into an object are refused in those words and the file is unchanged)"
+        },
+        {
+          "fact": "Each edit is one named step on Blender's own undo list, \"Jarvis: <what> (#tag)\", so the person's Ctrl+Z in Blender takes it back. \"action\": \"undo\" with the change takes it back with Blender's own Undo only while it is Blender's latest step; when other changes came after it, the answer says so and nothing is undone.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs cases \"add-primitive is one named step that Ctrl+Z on the keyboard takes back\" (Ctrl+Z pressed through XTEST) and \"transform-object, set-material-color and delete-object, each taken back by Orbit's undo\" (a step that is not the latest is refused: \"other changes after that one\"); desktop/oshal-node/plugins/blender/orbit_snippet.py push and undo"
+        },
+        {
+          "fact": "Rotation is in degrees, location in Blender units, and scale is one number or [x, y, z]. transform-object with relative: true adds to the location and rotation and multiplies the scale. add-primitive makes a cube, plane, uv-sphere, ico-sphere, cylinder, cone, torus, monkey, circle or grid with UVs, at the 3D cursor unless location is given, and selects it.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"transform-object, set-material-color and delete-object\" (location [1, 2, 3], rotation [0, 0, 90], scale 2 read back as such); desktop/oshal-node/plugins/blender/orbit_verbs.py add_primitive and transform_object"
+        },
+        {
+          "fact": "set-material-color takes color as \"#RRGGBB\", as Blender's color picker shows it, or [r, g, b] from 0 to 1, with metallic and roughness from 0 to 1; an object with no material gets a new one. The snapshot's Material line then shows the color as #RRGGBB.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs (color \"#FF0000\", roughness 0.25 read back as \"Material Crate Material: base color #FF0000, metallic 0, roughness 0.25; used by Crate\"); desktop/oshal-node/plugins/blender/orbit_scene.py color"
+        },
+        {
+          "fact": "An edit Blender refuses changes nothing, and its words say why: an unknown object lists the objects there are, a modifier setting Blender does not have lists the settings it has, and a parent that would make a loop is refused.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"a refused edit changes nothing and says what Blender has\" (the snapshot is the same text before and after) and the set-parent loop refusal in \"modifiers, parenting, rename and a keyframe\""
+        },
+        {
+          "fact": "Modifiers are named by Blender's types (SUBSURF, BEVEL, MIRROR, ARRAY, SOLIDIFY, DECIMATE, TRIANGULATE, WELD, BOOLEAN and the rest) and set by Blender's own property names, such as {\"levels\": 2}; apply-modifier applies one to the mesh, as a game engine needs it.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"modifiers, parenting, rename and a keyframe for a game asset\" (a subdivision of levels 2, set to 1, applied: 26 vertices, 24 faces)"
+        },
+        {
+          "fact": "Blender is edited only in Object Mode: while the person is in Edit Mode or another mode, an edit is refused with words asking them to press Tab in Blender.",
+          "evidence": "desktop/oshal-node/plugins/blender/orbit_serve.py edit (\"Jarvis edits in Object Mode only, so press Tab in Blender and ask again\"); code only"
+        },
+        {
+          "fact": "export-glb writes a glTF binary .glb into folder (a path, or beside the .blend) of the whole scene, the listed objects or selectedOnly, modifiers applied, Y up. When the folder is inside a Godot project, the answer gives the res:// path Godot imports it as; that is the hand-off to Godot.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"save-file names the file, and export-glb hands Godot a res:// path\" (\"Godot imports it as res://assets/barrel.glb\"; the file starts with glTF)"
+        },
+        {
+          "fact": "save-file saves in place; a file never saved needs as (a file name, saved beside it or in Documents). Another file of that name is replaced only with overwrite: true.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"save-file names the file\" (refused \"this file was never saved: name it with as\", then saved as game asset.blend)"
+        },
+        {
+          "fact": "run-python follows the person's two Python switches in Blender, which the snapshot's Python snippets line states: off, it is refused; on and asking (the default), call it without confirmed, put the answer's question to the person, and call again with confirmed: true only after their yes; on without asking, it runs at once. A scheduled turn never runs Python, and a snippet stops after five seconds.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs cases \"run-python runs only what the person allowed\", \"a scheduled turn never runs Python\" and \"with Ask me before each snippet runs off\"; desktop/oshal-node/plugins/blender/orbit_snippet.py"
+        },
+        {
+          "fact": "viewport-screenshot saves a PNG of the 3D viewport in Orbit's folder and answers in words what it shows: the view, where it looks from, the shading and which objects are in sight. The picture itself does not come back in the answer.",
+          "evidence": "scripts/test-blender-plugin-desktop.cjs case \"a viewport picture is saved in Orbit's folder and said in words\"; crates/oshald/src/computer_apps.rs (an answer carries text, not a picture)"
+        },
+        {
+          "fact": "When Orbit's add-on is not connected in that Blender, Blender cannot be read and the answer says to install it in Orbit Settings, Bound Apps, Install the Blender add-on, then open Blender again.",
+          "evidence": "desktop/oshal-node/src/main/bridges/blender.ts NOT_CONNECTED; scripts/test-blender-addon.cjs case \"a Blender window without the add-on is refused in words that say where to install it\""
+        },
+        {
+          "fact": "edit-mesh takes operation (extrude, inset, bevel, loop-cut, subdivide, move, scale; never op) and faces: all, selected, a side such as \"+z\", the face numbers read-object lists, or {\"facing\": \"+x\", \"near\": [x, y, z]} for the one face on that side nearest a point. The new faces become selected, so the next edit can take \"selected\".",
+          "evidence": "scripts/test-blender-game-asset.cjs case \"Jarvis's verbs model, unwrap, texture, rig and animate a low-poly character\" (a cube box-modelled to 56 vertices, 54 faces, 108 triangles)"
+        },
+        {
+          "fact": "clean-mesh with operation decimate and budget brings a mesh to at most that many triangles; scene-stats counts triangles per object and says whether a budget holds.",
+          "evidence": "desktop/oshal-node/scripts/fixtures/blender-game-families.cjs case \"the mesh family on a block\" (decimated within a budget of 300); scripts/test-blender-game-asset.cjs (\"Budget 1000 triangles: within, 892 to spare\")"
+        },
+        {
+          "fact": "A game character is made in order: uv-unwrap, texture-material (picture files), add-armature with rig humanoid and fit (Godot's humanoid bone names), skin-to-armature (the answer says how many vertices got weights), then one make-action per animation.",
+          "evidence": "scripts/test-blender-game-asset.cjs case \"Jarvis's verbs model, unwrap, texture, rig and animate a low-poly character\" (21 bones, 56 of 56 vertices weighted, NLA tracks idle and walk)"
+        },
+        {
+          "fact": "export-glb writes each action make-action made as its own animation and says what the .glb holds; Godot's AnimationPlayer then lists them by name.",
+          "evidence": "scripts/test-blender-game-asset.cjs case \"export-glb puts it in a Godot project, and Godot imports it with idle and walk on its AnimationPlayer\" (Godot 4.7.2 --headless --import)"
+        },
+        {
+          "fact": "import-model reads a .glb, .gltf, .fbx or .obj and says what arrived; bake-texture needs UVs and a material and saves a PNG at file, with its res:// path inside a Godot project.",
+          "evidence": "desktop/oshal-node/scripts/fixtures/blender-game-families.cjs cases \"import-model reads glb, gltf, fbx and obj\" and \"a chain rig keyed on a pose bone, a shape key, and an ambient-occlusion bake\""
+        }
+      ],
+      "must_not_say": [
+        "A key, a menu path or a mouse step as something Jarvis does: the person's Ctrl+Z and Tab are theirs.",
+        "That Jarvis types into, presses or selects anything in Blender.",
+        "That run-python is called with confirmed: true before the person said yes in this conversation.",
+        "That the viewport picture comes back to Jarvis.",
+        "Any declared verb of another program (save-document, insert-paragraph, set-cells and the rest).",
+        "Any tool other than computer.app and computer.open.",
+        "That run-python runs in a scheduled turn, or without the person's yes while Blender asks before each snippet."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"snapshot\"",
+          "\"action\": \"invoke\"",
+          "\"action\": \"undo\"",
+          "transform-object",
+          "add-primitive",
+          "export-glb",
+          "res://",
+          "confirmed",
+          "Object Mode",
+          "degrees",
+          "edit-mesh",
+          "make-action"
+        ],
+        "absent": [
+          "\"action\": \"type\"",
+          "\"action\": \"press\"",
+          "save-document",
+          "insert-paragraph",
+          "screen.read",
+          "MCP",
+          "\"op\":"
+        ]
+      }
+    }
+  ]
+}

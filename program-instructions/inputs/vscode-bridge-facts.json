@@ -1,0 +1,83 @@
+{
+  "about": "What computer.app does through the vscode bridge word, for the writer of program instructions (Lane VS1, Orbit's VS Code extension). The bridge sheet's own shape (Lane G's bridge-facts.json), for the bridge word Orbit gives VS Code, Antigravity IDE and VSCodium on Linux (desktop/oshal-node/src/main/linux-program-versions.ts VSCODE_BRIDGE). Written from Orbit's code at the kernel commit named and the real-VS Code suite desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs; every verb id names the source line it is read from, and tests/sheet/vscode-sources.test.cjs fails when Orbit's code declares other verbs. press and select are not listed: the extension's elements are the file and the selection, which take type. As built at that commit; no planned change is described.",
+  "generated_at": "2026-11-13T22:05:00Z",
+  "kernel_commit": "7ed028e0",
+  "generator": "program-instructions/inputs/vscode-bridge-facts.json, written from Orbit's code and the real-VS Code suite",
+  "bridges": {
+    "vscode": {
+      "programs": "A bound VS Code (or Antigravity IDE, VSCodium) window whose Orbit extension is connected to Orbit's plugin door (desktop/oshal-node/src/main/bridges/vscode.ts, the extension in desktop/oshal-node/plugins/vscode). Without the extension the window reads as the accessibility bridge reads it and declares nothing.",
+      "actions": {
+        "snapshot": {
+          "source": "desktop/oshal-node/src/main/bridges/vscode.ts read"
+        },
+        "scroll": {
+          "source": "desktop/oshal-node/src/main/bridges/vscode.ts scroll"
+        },
+        "type": {
+          "source": "desktop/oshal-node/src/main/bridges/vscode.ts write"
+        },
+        "invoke": {
+          "source": "desktop/oshal-node/src/main/bridges/vscode.ts invoke"
+        },
+        "undo": {
+          "source": "desktop/oshal-node/src/main/bridges/vscode.ts undoGroup"
+        },
+        "restore": {
+          "source": "desktop/oshal-node/src/main/app-acts.ts restore"
+        }
+      },
+      "declared": {
+        "editor window (Visual Studio Code, Antigravity IDE, VSCodium with Orbit's extension)": [
+          {
+            "id": "workspace",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:17"
+          },
+          {
+            "id": "read-file",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:22"
+          },
+          {
+            "id": "problems",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:27"
+          },
+          {
+            "id": "find-in-files",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:32"
+          },
+          {
+            "id": "open-file",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:37"
+          },
+          {
+            "id": "edit-text",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:42"
+          },
+          {
+            "id": "save-file",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:47"
+          },
+          {
+            "id": "list-tasks",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:52"
+          },
+          {
+            "id": "run-task",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:57"
+          },
+          {
+            "id": "run-command",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:62"
+          },
+          {
+            "id": "terminals",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:67"
+          },
+          {
+            "id": "terminal-output",
+            "source": "desktop/oshal-node/src/main/bridges/vscode-actions.ts:72"
+          }
+        ]
+      }
+    }
+  }
+}

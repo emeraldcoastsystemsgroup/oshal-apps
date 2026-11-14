@@ -19,6 +19,8 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Read the saved candidate name from the packet snapshot so the editor preview identifies the actual resume without fetching a different current profile.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Add bounded original-owner master reads and revision-checked small edits without round-tripping the whole profile or weakening the existing save whitelist.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The answers a person reads say main résumé (was master resume). Words only: log lines, the instruction the classic editor's model is given, route paths and the item id `master` are unchanged.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): GET /resume/doc?id=master&earlier=<revision|recent> answers the main résumé document as it read at an earlier revision (the engine's base-earlier, from the backups Undo reads), so the My résumé page can tell a Word document that is only behind from one that holds typed text. The same read binding as GET /resume/doc; nothing is written.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: POST /resume/master-undo is Undo for a main-résumé change (the engine's base-undo puts back the earlier profile from its backup only while the profile is still exactly what that change left), the signed-in owner's own store only, bound to career.change.
  */
 
 /**
@@ -458,6 +460,18 @@ async function patchMaster(ctx: AppContext, req: Request, res: Response): Promis
   await masterRequest(ctx, sub, 'base-patch', { revision: body.revision, edits: body.edits }, res);
 }
 
+/** Undo names the revision the change left and the revision before it; nothing else reaches the engine. */
+async function undoMaster(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const sub = callerSub(req);
+  if (!sub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const body = req.body, digest = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['revision', 'restore'].includes(key))
+    || !digest(body.revision) || !digest(body.restore)) {
+    res.status(400).json({ ok: false, error: 'Name the change to undo and the version to put back.' }); return;
+  }
+  await masterRequest(ctx, sub, 'base-undo', { revision: body.revision, restore: body.restore }, res);
+}
+
 async function getResumeDocument(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -465,6 +479,17 @@ async function getResumeDocument(ctx: AppContext, req: Request, res: Response): 
     if (req.query.view === 'status') {
       try { res.json(require('../lib/career-resume-source').resumeStatus(findUserPaths(userSub)?.userDir)); }
       catch { res.status(503).json({ error: 'Your saved résumé could not be read. Open My résumé to check it.' }); }
+      return;
+    }
+    // The My résumé Word document names the main résumé revision it was made from. `earlier` answers the document as
+    // it read at that revision, or with `recent` the few most recent earlier ones, so the page can tell a document
+    // that is only behind from one that holds typed text. Read-only, from the backups Undo reads.
+    if (req.query.earlier !== undefined) {
+      const earlier = String(req.query.earlier);
+      if (earlier !== 'recent' && !/^[a-f0-9]{64}$/.test(earlier)) {
+        res.status(400).json({ ok: false, error: 'Name an earlier revision of your main résumé, or recent.' }); return;
+      }
+      await masterRequest(ctx, userSub, 'base-earlier', earlier === 'recent' ? {} : { revision: earlier }, res);
       return;
     }
     await getMasterDocument(ctx, userSub, res);
@@ -626,6 +651,7 @@ export function registerCareerResumeStudio(router: Router, ctx: AppContext): voi
   router.get('/resume/doc', (req, res) => getResumeDocument(ctx, req, res));
   router.get('/resume/master-section', (req, res) => getMasterSection(ctx, req, res));
   router.post('/resume/master-edit', (req, res) => patchMaster(ctx, req, res));
+  router.post('/resume/master-undo', (req, res) => undoMaster(ctx, req, res));
   router.post('/resume/guide', (req, res) => guideResume(ctx, req, res));
   router.post('/resume/save', (req, res) => saveResume(ctx, req, res));
 }

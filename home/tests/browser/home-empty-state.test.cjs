@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The split: schedules are the Automations screen (?view=automations), with one empty state when there is nothing to run; the Smart Home screen is devices then scenes.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Verify #fridgeCameraSection renders the Samsung Family Hub weekly schedule badge, week-over-week shelf comparison, grocery cart starter, and 5-day meal list builder, and updates state on POST /api/home/fridge-meal-plan.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.6.2: the refrigerator page of a person nothing was read for lists nothing and says so in each part; starting an empty list says so; an item the person adds is on the list; a focus invents no meal. Until 1.6.2 this case asserted one fixed set of groceries and meals.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | home 1.9.0: Smart Home keeps no grocery list. The refrigerator page's Grocery list card shows the person's list in Shopping and adds to it and ticks it off through Shopping's own routes (a stand-in that answers as Shopping's routes do); Smart Home's own state stays empty. Items a person had on the refrigerator's own list are moved to Shopping when the page opens and forgotten here; when Shopping refuses this account they stay and are shown. There is no Start a grocery list button.
  */
 'use strict';
 const test = require('node:test');
@@ -96,35 +97,65 @@ test('Automations is its own screen: the schedules with something to run, one em
   } finally { await context.close(); }
 });
 
-test('1.6.2: a refrigerator nothing was read from lists nothing and says so; the grocery list is the person\'s own', async () => {
-  const fs = require('node:fs');
-  const os = require('node:os');
-  const { formatFridgeAssessmentResponse, mutateFridgeMealAndCart } = require('../../routes/fridge-weekly-assessment.js');
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'home-fridge-ui-'));
-  const prevDir = process.env.OSHAL_PACKAGE_DATA_DIR;
-  process.env.OSHAL_PACKAGE_DATA_DIR = tmpDir;
-  const fridgeReads = {
-    '/api/home/devices': {
-      devices: [
-        { key: 'samsung-family-hub', name: 'Samsung Family Hub Refrigerator', switch: 'on', temperatureF: 37, capabilities: ['refrigeration', 'samsungce.viewInside'] },
-      ],
-      hubs: ['SmartThings'],
-      generatedAt: '2026-11-08T06:00:00Z',
+/** A stand-in for Shopping that answers as its own routes do (GET /cart, POST /lists/default/items, POST /lists/:id/items/:itemId); `open: false` refuses everyone. */
+function shoppingStandIn({ open = true } = {}) {
+  const items = [], asked = [];
+  return {
+    items, asked,
+    async route(route) {
+      const req = route.request(), url = new URL(req.url()), body = req.postData() ? JSON.parse(req.postData()) : {};
+      asked.push(`${req.method()} ${url.pathname}`);
+      const answer = (status, json) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(json) });
+      if (!open) return answer(403, { error: 'authorization_denied' });
+      if (req.method() === 'GET' && url.pathname === '/api/purchasing/cart') return answer(200, { listId: items.length ? 'list-1' : null, items: items.filter((i) => i.status === 'pending'), total: 0, totalCents: 0, unpricedLines: items.length });
+      if (req.method() === 'POST' && url.pathname === '/api/purchasing/lists/default/items') {
+        const added = (Array.isArray(body.items) ? body.items : [body]).map((entry) => ({ item_id: `item-${items.length + 1 + Math.random()}`, list_id: 'list-1', title: entry.title, quantity: entry.quantity || 1, status: 'pending' }));
+        items.push(...added);
+        return answer(200, Array.isArray(body.items) ? { items: added } : { item: added[0] });
+      }
+      const tick = /^\/api\/purchasing\/lists\/list-1\/items\/(.+)$/.exec(url.pathname);
+      if (req.method() === 'POST' && tick) { const row = items.find((i) => i.item_id === decodeURIComponent(tick[1])); row.status = body.checked ? 'done' : 'pending'; return answer(200, { item: row }); }
+      return answer(404, { error: 'not_found' });
     },
-    '/api/home/scenes': { scenes: [] },
-    '/api/home/schedules': { schedules: [] },
-    '/api/home/fridge-assessment': formatFridgeAssessmentResponse('owner-ui'),
   };
-  const { page, context } = await openPage(browser, { width: 1280, height: 900 }, { url: '/api/home/ui', files: { '/api/home/ui': PAGE }, reads: fridgeReads });
+}
+
+/** Open the refrigerator page for one person over the real refrigerator module, with a Shopping stand-in. */
+async function openRefrigerator(owner, shop) {
+  const { formatFridgeAssessmentResponse, mutateFridgeMealAndCart } = require('../../routes/fridge-weekly-assessment.js');
+  const reads = {
+    '/api/home/devices': { devices: [{ key: 'samsung-family-hub', name: 'Samsung Family Hub Refrigerator', switch: 'on', temperatureF: 37, capabilities: ['refrigeration', 'samsungce.viewInside'] }], hubs: ['SmartThings'], generatedAt: '2026-11-08T06:00:00Z' },
+    '/api/home/scenes': { scenes: [] }, '/api/home/schedules': { schedules: [] },
+    '/api/home/fridge-assessment': formatFridgeAssessmentResponse(owner),
+  };
+  const opened = await openPage(browser, { width: 1280, height: 900 }, { url: '/api/home/ui', files: { '/api/home/ui': PAGE }, reads,
+    onPage: async (page) => {
+      await page.route('**/api/purchasing/**', (route) => shop.route(route));
+      await page.route('**/api/home/fridge-meal-plan', async (route) => {
+        const out = mutateFridgeMealAndCart(owner, JSON.parse(route.request().postData() || '{}'));
+        await route.fulfill({ status: out.refusal ? 409 : 200, contentType: 'application/json', body: JSON.stringify(out.refusal || out) });
+      });
+    } });
+  const tile = opened.page.locator('#tiles-kitchen .tile');
+  await tile.waitFor();
+  return { ...opened, tile, state: () => formatFridgeAssessmentResponse(owner) };
+}
+
+/** A data folder for one test's refrigerator state, removed afterwards. */
+function dataFolder(t) {
+  const fs = require('node:fs'), os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'home-fridge-ui-')), before = process.env.OSHAL_PACKAGE_DATA_DIR;
+  process.env.OSHAL_PACKAGE_DATA_DIR = dir;
+  t.after(() => { if (before === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR; else process.env.OSHAL_PACKAGE_DATA_DIR = before; fs.rmSync(dir, { recursive: true, force: true }); });
+}
+const words = async (page, selector) => (await page.textContent(selector)).replace(/\s+/g, ' ').trim();
+
+test('1.9.0: the refrigerator lists nothing it has not read, and its grocery list is the person\'s list in Shopping', async (t) => {
+  dataFolder(t);
+  const shop = shoppingStandIn();
+  const { page, context, tile, state } = await openRefrigerator('owner-ui', shop);
   try {
-    await page.route('**/api/home/fridge-meal-plan', async (route) => {
-      const body = JSON.parse(route.request().postData() || '{}');
-      const updated = mutateFridgeMealAndCart('owner-ui', body);
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) });
-    });
     // Home shows the refrigerator as one tile; its page opens from it and Back returns to Home.
-    const tile = page.locator('#tiles-kitchen .tile');
-    await tile.waitFor();
     assert.match(await tile.textContent(), /Samsung Family Hub Refrigerator/);
     assert.equal(await page.isVisible('#fridgeCameraSection'), false, 'the refrigerator page is closed until its tile is pressed');
     assert.equal(await page.isVisible('#devicesSection'), false, 'the refrigerator is a tile, not a switch card');
@@ -133,34 +164,81 @@ test('1.6.2: a refrigerator nothing was read from lists nothing and says so; the
     assert.equal(await page.textContent('#page-fridge h2'), 'Refrigerator');
     assert.match(await page.textContent('#fridgeWeeklySchedBadge'), /Checked every Sunday 09:00/);
     assert.equal(await page.textContent('#readViewInsideBtn'), 'Look inside');
-    // Nothing was read from this refrigerator, so no shelf, comparison or meal is shown: until 1.6.2 the page listed one
-    // fixed set of groceries and meals here as this person's own.
-    const words = async (selector) => (await page.textContent(selector)).replace(/\s+/g, ' ').trim();
-    assert.equal(await words('#fridgeShelfInventory'), 'Nothing has been read from this refrigerator yet.');
-    assert.match(await words('#fridgeComparisonSummary'), /^Nothing has been read from this refrigerator yet, so there is no list of what is inside, no comparison with last week and no meal ideas\./);
-    assert.equal(await words('#fridgeComparisonLists'), '');
-    assert.equal(await words('#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
-    assert.equal(await words('#fridgeCartStatusBadge'), 'Nothing listed yet');
-    assert.equal(await words('#fridgeCartItems'), 'Nothing is on the list yet. Add an item below.');
-    // Starting an empty list says there is nothing on it; an item the person adds is on it, and then it starts.
-    await page.locator('#startFridgeCartBtn').click();
-    await page.waitForFunction(() => /Nothing is on the list yet: add an item first/.test(document.body.innerText));
-    await page.locator('#fridge-cart-add-input').fill('Oat milk');
-    await page.getByRole('button', { name: 'Add', exact: true }).click();
-    await page.waitForFunction(() => document.getElementById('fridgeCartItems')?.textContent?.includes('Oat milk'));
-    assert.equal(await words('#fridgeCartStatusBadge'), 'Started · 1 item');
-    assert.match(await words('#fridgeCartItems'), /^Oat milk \(1 item — Added for weekly meal plan\) In Cart$/);
+    // Nothing was read from this refrigerator, so no shelf, comparison or meal is shown (1.6.2).
+    assert.equal(await words(page, '#fridgeShelfInventory'), 'Nothing has been read from this refrigerator yet.');
+    assert.match(await words(page, '#fridgeComparisonSummary'), /^Nothing has been read from this refrigerator yet, so there is no list of what is inside, no comparison with last week and no meal ideas\./);
+    assert.equal(await words(page, '#fridgeComparisonLists'), '');
+    assert.equal(await words(page, '#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
+    // The grocery list is Shopping's: the card shows it, says so, and there is no list to start here.
+    await page.waitForFunction(() => /Nothing is on your grocery list/.test(document.getElementById('fridgeGroceryItems').textContent));
+    assert.equal(await words(page, '#fridgeGroceryBadge'), 'In Shopping');
+    assert.equal(await page.locator('#startFridgeCartBtn, #fridgeCartItems, #fridge-cart-add-input').count(), 0, 'no grocery list of Smart Home\'s own');
+    const open = page.locator('#fridgeGroceryOpen');
+    assert.deepEqual([await open.textContent(), await open.getAttribute('href'), await open.getAttribute('target')], ['Open Shopping', '/cockpit/?app=purchasing', '_top']);
+    // An item the person adds goes to Shopping's list through Shopping's own route, and Smart Home keeps nothing.
+    await page.locator('#fridge-grocery-add-input').fill('Oat milk');
+    await page.locator('#fridgeGroceryAddBtn').click();
+    await page.waitForFunction(() => document.getElementById('fridgeGroceryItems').textContent.includes('Oat milk'));
+    assert.equal(await words(page, '#fridgeGroceryBadge'), 'In Shopping · 1 to buy');
+    assert.deepEqual(shop.items.map((item) => [item.title, item.status]), [['Oat milk', 'pending']]);
+    assert.ok(shop.asked.includes('POST /api/purchasing/lists/default/items'));
+    assert.deepEqual(state().groceryList.earlier, [], 'nothing is written to Smart Home');
+    // Ticking it off is Shopping's change too; a ticked item is no longer to buy.
+    await page.locator('#fridgeGroceryItems input[type=checkbox]').check();
+    await page.waitForFunction(() => /Nothing is on your grocery list/.test(document.getElementById('fridgeGroceryItems').textContent));
+    assert.deepEqual(shop.items.map((item) => item.status), ['done']);
     // A focus changes no meal: ideas come from a reading.
     await page.locator('#fridge-meal-focus').selectOption('high-protein');
     await page.waitForFunction(() => /No meal ideas yet: they come from a reading of what is inside/.test(document.body.innerText));
-    assert.equal(await words('#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
+    assert.equal(await words(page, '#fridgeMealPlanList'), 'Meal ideas come from a reading of what is inside. None has been read yet.');
     await page.locator('#page-fridge [data-page-back]').click();
     await page.waitForSelector('#homeView:not([hidden])');
     assert.equal(await page.isVisible('#fridgeCameraSection'), false, 'Back returns to Home');
-  } finally {
-    await context.close();
-    if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;
-    else process.env.OSHAL_PACKAGE_DATA_DIR = prevDir;
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  }
+  } finally { await context.close(); }
+});
+
+/** A person's refrigerator state from before 1.9.0, with two items on the refrigerator's own grocery list. */
+function withEarlierList(owner) {
+  const { writePersistedJson } = require('../../routes/home-local-swarm.js');
+  const { formatFridgeAssessmentResponse, mutateFridgeMealAndCart } = require('../../routes/fridge-weekly-assessment.js');
+  formatFridgeAssessmentResponse(owner);
+  const { readPersistedJson } = require('../../routes/home-local-swarm.js');
+  const state = readPersistedJson(owner, 'fridge-weekly-state.json');
+  state.cart.items = [{ id: 'cart-oat-milk', name: 'Oat milk', quantity: '2 cartons', category: 'Grocery', reason: 'Added for weekly meal plan', priority: 'high', inCart: true },
+    { id: 'cart-eggs', name: 'Eggs', quantity: '1 item', category: 'Grocery', reason: 'Added for weekly meal plan', priority: 'high', inCart: true }];
+  assert.equal(writePersistedJson(owner, 'fridge-weekly-state.json', state), true);
+  assert.equal(mutateFridgeMealAndCart(owner, { action: 'log-order', name: 'Butter' }).groceryList.earlier.length, 2);
+}
+
+test('1.9.0: items a person had on the refrigerator\'s own list are moved to Shopping when the page opens, and forgotten here', async (t) => {
+  dataFolder(t);
+  withEarlierList('owner-moved');
+  const shop = shoppingStandIn();
+  const { page, context, tile, state } = await openRefrigerator('owner-moved', shop);
+  try {
+    await tile.click();
+    await page.waitForFunction(() => document.getElementById('fridgeGroceryItems').textContent.includes('Eggs'));
+    assert.deepEqual(shop.items.map((item) => item.title), ['Oat milk (2 cartons)', 'Eggs'], 'both are on Shopping\'s list, a real quantity kept in the words');
+    assert.equal(await words(page, '#fridgeGroceryBadge'), 'In Shopping · 2 to buy');
+    assert.deepEqual(state().groceryList.earlier, [], 'Smart Home holds them no longer');
+    assert.deepEqual(state().orderHistory.map((order) => order.name), ['Butter'], 'what else the person kept is untouched');
+    assert.equal(await page.locator('#fridgeGroceryEarlier').isVisible(), false);
+    assert.equal(shop.asked.filter((line) => line === 'POST /api/purchasing/lists/default/items').length, 1, 'moved once, in one request');
+  } finally { await context.close(); }
+});
+
+test('1.9.0: when Shopping does not answer for this account the earlier items stay, are shown, and nothing is lost', async (t) => {
+  dataFolder(t);
+  withEarlierList('owner-kept');
+  const shop = shoppingStandIn({ open: false });
+  const { page, context, tile, state } = await openRefrigerator('owner-kept', shop);
+  try {
+    await tile.click();
+    await page.waitForFunction(() => /cannot open here/.test(document.getElementById('fridgeGroceryItems').textContent));
+    assert.equal(await words(page, '#fridgeGroceryItems'), 'Your grocery list is kept by Shopping, which this account cannot open here.');
+    assert.equal(await words(page, '#fridgeGroceryEarlier'), 'Still on the refrigerator\'s earlier list: Oat milk, Eggs.');
+    assert.equal(await page.locator('#fridgeGroceryAdd').isVisible(), false, 'nothing can be added where Shopping is closed');
+    assert.deepEqual(state().groceryList.earlier.map((item) => item.name), ['Oat milk', 'Eggs'], 'Smart Home still holds them');
+    assert.deepEqual(shop.items, []);
+  } finally { await context.close(); }
 });

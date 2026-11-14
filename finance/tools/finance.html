@@ -9,7 +9,9 @@
   re-sync) and an Add account button. OAuth banks that return through PLAID_REDIRECT_URI land
   here with ?oauth_state_id=…; the page resumes Link with the token saved before it opened.
   Brief: the page reads the saved brief (GET /brief?cached=1; none saved is a plain notice, not an
-  error) and Request analysis asks for a new one with POST /brief/refresh, which saves it. Sync and
+  error) and Request analysis asks for a new one with POST /brief/refresh. The server saves it and
+  answers with it, or answers at once that the analyst is working and the page asks GET
+  /brief/analysis until the new one is saved. Sync and
   a completed bank link do not request analysis. A missing payment
   rail is said in words with where to go (Connections, Payments), never an environment variable.
   First screen: the money view whenever there is money to show (startScreen: linked items OR a saved
@@ -35,6 +37,9 @@
   2   | maintainer@emeraldcoastsystemsgroup.com | Pass individual sortable table elements to KernelTable.enhance instead of container elements (<main> / <div>) and default missing aggregate arrays so the overview never throws on .length.
   3   | maintainer@emeraldcoastsystemsgroup.com | Make the saved bank snapshot readable with source and dates, preserve unknown amounts, separate account sync from explicit analysis, and retain saved context when a refresh fails.
   4 | maintainer@emeraldcoastsystemsgroup.com | Explain partial or unknown transaction windows and withhold full-window spending in bank, household and company views while retaining balances and available activity.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis says the true wait (up to a minute) and, when the request ends with only a status code (the kernel's 60 s cut read as "HTTP 503" on blue, judge defect 4), says in words that nothing was saved and the earlier analysis is unchanged.
+  6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: spending categories read as words ("Transfers out", "Loan payments") in the bank page and the household and company views, never the bank's codes (judge defect 11).
+  7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis may be answered at once while the analyst works after the press (Roger, 2026-11-14: "yes background analysis"). The panel then says the analyst is working, above the earlier analysis, which stays until the new one is saved; the page asks every five seconds and shows the new analysis when it is saved, or the reason in words when nothing was. Opening the page while a request is working shows the same, and a request that failed after the saved analysis says so once the page opens. A server that answers with the analysis itself is shown as before.
 -->
 
 <script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
@@ -51,6 +56,19 @@
 <script src="/shared/ui/js/app-view.js"></script>
 <script>
 'use strict';
+/** Plaid's primary spending categories in a person's words (judge defect 11: "TRANSFER_OUT" was printed as it came). */
+const FINANCE_CATEGORY_WORDS = { INCOME: 'Income', TRANSFER_IN: 'Transfers in', TRANSFER_OUT: 'Transfers out', LOAN_PAYMENTS: 'Loan payments',
+  BANK_FEES: 'Bank fees', ENTERTAINMENT: 'Entertainment', FOOD_AND_DRINK: 'Food and drink', GENERAL_MERCHANDISE: 'General merchandise',
+  HOME_IMPROVEMENT: 'Home improvement', MEDICAL: 'Medical', PERSONAL_CARE: 'Personal care', GENERAL_SERVICES: 'General services',
+  GOVERNMENT_AND_NON_PROFIT: 'Government and nonprofit', TRANSPORTATION: 'Transportation', TRAVEL: 'Travel', RENT_AND_UTILITIES: 'Rent and utilities' };
+/** A spending category as a person reads it: a known code in words, another all-capitals code in sentence case, anything else as it came. */
+function financeCategoryName(code) {
+  const text = String(code === null || code === undefined ? '' : code).trim();
+  if (Object.prototype.hasOwnProperty.call(FINANCE_CATEGORY_WORDS, text)) return FINANCE_CATEGORY_WORDS[text];
+  if (!/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(text)) return text;
+  const words = text.toLowerCase().replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 /** Saved coverage is positive evidence; missing legacy metadata never means an empty window. */
 function financeTransactionCoverage(a) {
   const c = a && a.transactionCoverage;
@@ -106,9 +124,9 @@ function financeTransactionCoverage(a) {
           { id: 'spend', label: last.month ? 'Spent in ' + monthLabel(last.month) : 'Spent this month', value: coverage.complete ? A.money(last.spend, cur) : 'Unknown' }
         ],
         sections: [
-          { kind: 'progress', id: 'spending', title: 'Where the money goes', note: coverage.complete ? 'Top categories in the last ' + (a.transactionWindowDays || 30) + ' days.' : coverage.notice, empty: coverage.notice || 'No spending categories in the complete reported window.', items: top.slice(0, 6).map(function (t) { return { label: t.category, value: max ? (Number(t.total) || 0) / max : 0, text: A.money(t.total, cur) }; }) },
+          { kind: 'progress', id: 'spending', title: 'Where the money goes', note: coverage.complete ? 'Top categories in the last ' + (a.transactionWindowDays || 30) + ' days.' : coverage.notice, empty: coverage.notice || 'No spending categories in the complete reported window.', items: top.slice(0, 6).map(function (t) { return { label: financeCategoryName(t.category), value: max ? (Number(t.total) || 0) / max : 0, text: A.money(t.total, cur) }; }) },
           { kind: 'list', id: 'accounts', title: 'Accounts', empty: 'No accounts yet.', items: (a.accounts || []).map(function (x) { return { title: x.name + (x.mask ? ' ····' + x.mask : ''), text: [x.institution, x.subtype || x.type].filter(Boolean).join(' · '), meta: A.money(x.balance, cur) }; }) },
-          { kind: 'table', id: 'recent', title: 'Recent activity', wide: true, empty: coverage.complete ? 'No transactions in the reported window.' : 'No available transactions were read; coverage is unconfirmed.', columns: ['When', 'Who', 'Category', { label: 'Amount', align: 'right' }], rows: (a.recentTransactions || []).slice(0, 10).map(function (t) { return [A.date(t.date), t.name, t.category || '', { text: A.money(t.amount, cur), tone: Number(t.amount) < 0 ? 'ok' : null }]; }) }
+          { kind: 'table', id: 'recent', title: 'Recent activity', wide: true, empty: coverage.complete ? 'No transactions in the reported window.' : 'No available transactions were read; coverage is unconfirmed.', columns: ['When', 'Who', 'Category', { label: 'Amount', align: 'right' }], rows: (a.recentTransactions || []).slice(0, 10).map(function (t) { return [A.date(t.date), t.name, financeCategoryName(t.category), { text: A.money(t.amount, cur), tone: Number(t.amount) < 0 ? 'ok' : null }]; }) }
         ]
       };
     });
@@ -325,7 +343,7 @@ function renderMarkdown(md) {
 async function api(path, opts) {
   const r = await fetch('/api/finance' + path, Object.assign({ credentials: 'include' }, opts || {}));
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) { const err = new Error(j.message || j.error || ('HTTP ' + r.status)); err.code = j.error; err.status = r.status; throw err; }
+  if (!r.ok) { const err = new Error(j.message || j.error || ('HTTP ' + r.status)); err.code = j.error; err.status = r.status; err.body = j; err.said = typeof j.message === 'string' && j.message.trim() !== ''; throw err; }
   return j;
 }
 
@@ -549,7 +567,7 @@ function renderHoldings(a, cur) {
 function renderSpending(a, cur) {
   const topSpending = Array.isArray(a && a.topSpending) ? a.topSpending : [];
   return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays || 90} days)</h2><table data-sortable><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
-    topSpending.filter(Boolean).map((s) => `<tr><td>${escapeHtml(s.category)}</td><td class="num">${money(s.total, cur)}</td><td class="num">${Number.isFinite(s.count) ? s.count : 'Unknown'}</td></tr>`).join('') +
+    topSpending.filter(Boolean).map((s) => `<tr><td>${escapeHtml(financeCategoryName(s.category))}</td><td class="num">${money(s.total, cur)}</td><td class="num">${Number.isFinite(s.count) ? s.count : 'Unknown'}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 
@@ -557,23 +575,68 @@ function renderSpending(a, cur) {
 const PAYMENTS_UNAVAILABLE = 'Sending money from Finance is not set up on this installation. To take payments, connect Stripe on the Connections page and use the Payments app.';
 /** Said when no brief has been saved yet. */
 const NO_SAVED_BRIEF = 'No saved analysis yet. Choose Request analysis to ask for one.';
+/** Said while the analyst works: the server answers within a minute (the kernel ends a package request at 60 seconds). */
+const ANALYSIS_WAIT = 'Your finance analyst is reading your saved accounts. This can take up to a minute.';
+/** Said when the request ended with only a status code, such as the kernel ending it at 60 seconds. */
+const ANALYSIS_UNFINISHED = 'The analysis did not finish, so nothing was saved. Your earlier analysis, if any, is unchanged. Try Request analysis again in a few minutes.';
 
-/** Load the AI brief into its panel: the saved one, or (Re-analyze) a new one the server saves. */
+/** Said while a requested analysis runs after the press has answered. */
+const ANALYSIS_WORKING = 'Your finance analyst is working on a new analysis. It appears here when it is ready, usually within a few minutes. You can leave this page.';
+/** How often the page asks whether a working analysis has finished. */
+const ANALYSIS_POLL_MS = 5000;
+/** The saved analysis as last painted (or the no-saved notice). A notice above it never replaces it. */
+let savedAnalysis = '';
+let savedBriefAt = null;
+let analysisTimer = null;
+const workingNotice = (text) => '<div class="spin" role="status"><span class="dot"></span> ' + text + '</div>';
+const failedNotice = (text) => '<div class="notice err" role="status">' + escapeHtml(text) + '</div>';
+/** Paint the analysis panel: a notice, if any, then the saved analysis, which stays until a new one is saved. */
+function paintBrief(notice) { const panel = $('briefPanel'); if (panel) panel.innerHTML = (notice || '') + savedAnalysis; }
+/** The saved analysis with its date, and a line when it is older than the account snapshot. */
+function savedAnalysisHtml(j) {
+  const stale = new Date(j.briefAt).getTime() < new Date(snapshotAt).getTime();
+  return '<div class="analysis-head"><h2>Saved analysis</h2><span class="analysis-date">' + (fmtDate(j.briefAt) === 'Date unknown' ? 'Analysis date unknown' : 'Saved ' + escapeHtml(fmtDate(j.briefAt))) + '</span></div>' + (stale ? '<p class="analysis-stale">This analysis was saved before the account snapshot. Request analysis to review the refreshed data.</p>' : '') + renderMarkdown(j.brief);
+}
+
+/** Show what the latest analysis request reads as: working (and ask again shortly), failed in words when that is
+ *  newer than the saved analysis, or nothing. Request analysis and Sync wait while a request is working. */
+function showAnalysis(view) {
+  clearTimeout(analysisTimer); analysisTimer = null;
+  const working = Boolean(view && view.state === 'working');
+  briefBusy = working; setBusy();
+  if (working) { paintBrief(workingNotice(ANALYSIS_WORKING)); analysisTimer = setTimeout(pollAnalysis, ANALYSIS_POLL_MS); return; }
+  const failedAt = view && view.state === 'failed' ? new Date(view.finishedAt || view.requestedAt || 0).getTime() : NaN;
+  const unseen = Number.isFinite(failedAt) && !(savedBriefAt && failedAt <= new Date(savedBriefAt).getTime());
+  paintBrief(unseen ? failedNotice(view.message || ANALYSIS_UNFINISHED) : '');
+}
+
+/** Ask whether the working analysis has finished: show the new analysis once it is saved, or why nothing was. */
+async function pollAnalysis() {
+  if (!$('briefPanel')) return;
+  let view;
+  try { view = (await api('/brief/analysis')).analysis; }
+  catch { analysisTimer = setTimeout(pollAnalysis, ANALYSIS_POLL_MS); return; }
+  if (view && view.state === 'done') { await loadBrief(false); return; }
+  showAnalysis(view);
+}
+
+/** Load the analysis into its panel: the saved one, or (Request analysis) a new one. The server either answers with the
+ *  new analysis it saved, or answers at once that the analyst is working; the earlier analysis stays until then. */
 async function loadBrief(forceRefresh) {
-  const panel = $('briefPanel');
-  if (!panel) return;
-  const previous = panel.innerHTML;
-  if (forceRefresh) { briefBusy = true; setBusy(); panel.innerHTML = '<div class="spin" role="status"><span class="dot"></span> Requesting analysis of the saved accounts…</div>' + previous; }
+  if (!$('briefPanel')) return;
+  if (forceRefresh) { clearTimeout(analysisTimer); analysisTimer = null; briefBusy = true; setBusy(); paintBrief(workingNotice(ANALYSIS_WAIT)); }
   try {
     const j = forceRefresh
       ? await api('/brief/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       : await api('/brief?cached=1');
-    const stale = new Date(j.briefAt).getTime() < new Date(snapshotAt).getTime();
-    panel.innerHTML = '<div class="analysis-head"><h2>Saved analysis</h2><span class="analysis-date">' + (fmtDate(j.briefAt) === 'Date unknown' ? 'Analysis date unknown' : 'Saved ' + escapeHtml(fmtDate(j.briefAt))) + '</span></div>' + (stale ? '<p class="analysis-stale">This analysis was saved before the account snapshot. Request analysis to review the refreshed data.</p>' : '') + renderMarkdown(j.brief);
+    if (forceRefresh && j.analysis && typeof j.brief !== 'string') { showAnalysis(j.analysis); return; }
+    savedBriefAt = j.briefAt || null; savedAnalysis = savedAnalysisHtml(j);
+    showAnalysis(forceRefresh ? null : j.analysis);
   } catch (e) {
-    if (!forceRefresh && (e.code === 'no_saved_brief' || e.status === 404)) { panel.innerHTML = '<div class="notice">' + NO_SAVED_BRIEF + '</div>'; return; }
-    panel.innerHTML = '<div class="notice err" role="status">' + escapeHtml(e.message) + '</div>' + (forceRefresh ? previous : '');
-  } finally { if (forceRefresh) { briefBusy = false; setBusy(); } }
+    if (!forceRefresh && (e.code === 'no_saved_brief' || e.status === 404)) { savedBriefAt = null; savedAnalysis = '<div class="notice">' + NO_SAVED_BRIEF + '</div>'; showAnalysis(e.body && e.body.analysis); return; }
+    briefBusy = false; setBusy();
+    paintBrief(failedNotice(forceRefresh && !e.said ? ANALYSIS_UNFINISHED : e.message));
+  }
 }
 
 async function doSync() {

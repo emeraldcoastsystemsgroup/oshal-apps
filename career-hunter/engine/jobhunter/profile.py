@@ -862,6 +862,9 @@ def base_document(snapshot: dict | None = None) -> dict:
         "title": r.get("title", ""),
         "org": r.get("org", ""),
         "span": f"{r.get('start', '')}–{r.get('end') or 'present'}",
+        # 1.61.0: the months themselves, for the Work history page (an end of '' is present).
+        "start": str(r.get("start") or ""),
+        "end": str(r.get("end") or ""),
         "bullets": [str(b) for b in (r.get("deliverables") or [])],
         "stories": _master_stories(r),
     } for r in d.get("roles", []) or []]

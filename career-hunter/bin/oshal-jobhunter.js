@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * CHANGE LOG
+ * 48 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: `resume base-earlier` answers the main résumé document as it read at an earlier revision (master_edit.earlier_documents), so the My résumé Word document can be told apart: only behind, or holding typed text.
  * 47 | maintainer@emeraldcoastsystemsgroup.com | Select incremental keyword and AI work for nightly passes without changing explicit refresh commands.
  * 46 | maintainer@emeraldcoastsystemsgroup.com | Map saved-job preparation to the existing owner-leased engine without any submission command.
  * 41 | maintainer@emeraldcoastsystemsgroup.com | Preserve non-secret native network mode across the engine environment boundary so public employer reads use the signed kernel broker.
@@ -48,6 +49,7 @@
  * 33 | maintainer@emeraldcoastsystemsgroup.com  | Put an inherited PYTHONPATH after the engine directory instead of replacing it. The native kernel's package sandbox names its pinned, read-only Python package runtime there (/python-runtime); replacing it left `python3 -m jobhunter` without tenacity and Jinja2 on the native runtime. The engine directory stays first, so the engine's own modules always win.
  * 34 | maintainer@emeraldcoastsystemsgroup.com | Spend bounded title passes on the newest eligible postings first.
  * 35 | maintainer@emeraldcoastsystemsgroup.com | Run recent private resume matching before a scheduled title pass in the same leased child; emit a success verdict only after both complete.
+ * 36 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: `resume base` answers the main résumé document with its exact revision (master_edit.base_with_revision), and `resume base-undo` is Undo (work_history.restore: put back the earlier profile from its backup only while the profile is still exactly what the change left).
  * 44 | maintainer@emeraldcoastsystemsgroup.com  | build-board: keyword matching then scoring as one background run, for the Job Board's Find & score jobs.
  * 46 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. Two refusals of a résumé save say main résumé (was master resume), written with escapes so the engine's source stays plain. Words only.
  * 45 | maintainer@emeraldcoastsystemsgroup.com | score-titles matches first when CH_BOARD_MATCH is set, over the same window as the match verb, so the Job Board's button is one bounded background run.
@@ -59,7 +61,8 @@
  *   discover  -> discover --all-missing | --company NAME
  *   enrich    -> enrich --missing
  *   board     -> dashboard --no-browser --host 127.0.0.1 --port <port>
- *   resume    -> base (master editor document) | base-save (whitelist profile write-back)
+ *   resume    -> base (master editor document) | base-save (whitelist profile write-back) | base-undo (put back the earlier profile)
+ *                | base-earlier (the document as it read at an earlier revision, for the My résumé Word document)
  *   packet-remove -> jobhunter.packets.remove(CH_JOB)       (discard the caller's own packet)
  *
  * Per-user data lives under {STORE}/{tenant}/{user_segment}/; portable lowercase subjects retain
@@ -561,20 +564,21 @@ function resumeBaseSaveRun() {
 function resumeRuns(rest) {
   const sub = rest[0] || '';
   if (sub === 'base') {
-    return [['-c', 'import json\nfrom jobhunter import profile\n'
-      + 'print(json.dumps(profile.base_document(), ensure_ascii=False))']];
+    return [['-c', 'import json\nfrom jobhunter import master_edit\n'
+      + 'print(json.dumps(master_edit.base_with_revision(), ensure_ascii=False))']];
   }
   if (sub === 'base-save') return [resumeBaseSaveRun()];
-  if (sub === 'base-section' || sub === 'base-patch') {
-    const method = sub === 'base-section' ? 'read_section' : 'apply_edits';
-    return [['-c', 'import os,json\nfrom jobhunter import master_edit\n'
+  if (sub === 'base-section' || sub === 'base-patch' || sub === 'base-undo' || sub === 'base-earlier') {
+    const method = { 'base-section': 'read_section', 'base-patch': 'apply_edits', 'base-undo': 'restore', 'base-earlier': 'earlier_documents' }[sub];
+    const module = sub === 'base-undo' ? 'work_history' : 'master_edit';
+    return [['-c', 'import os,json\nfrom jobhunter import ' + module + ' as master_edit\n'
       + 'raw=os.environ.get("CH_RESUME_DOC", "")\n'
       + 'if len(raw.encode("utf-8"))>12288:\n print(json.dumps({"ok":False,"error":"master_patch_too_large"}));raise SystemExit(1)\n'
       + 'try:\n doc=json.loads(raw)\n result=master_edit.' + method + '(**doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid master request"}\n'
       + 'except (ValueError,TypeError):\n result={"ok":False,"error":"invalid master request"}\n'
       + 'print(json.dumps(result,ensure_ascii=False))\nraise SystemExit(0 if result.get("ok") is True else 1)']];
   }
-  throw cliError('resume: base|base-save|base-section|base-patch', 2);
+  throw cliError('resume: base|base-save|base-section|base-patch|base-undo|base-earlier', 2);
 }
 
 /** Read the bounded tail of this user's enrichment audit log as JSON, without touching the DB. */

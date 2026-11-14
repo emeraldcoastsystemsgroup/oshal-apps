@@ -1,3 +1,4 @@
+/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Bind four presses into new approvals without rewriting historical packet digests. */
 import {test,beforeEach,afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -64,4 +65,15 @@ test('owner stores are separate and unsafe queue files are refused',()=>{
   symlinkSync(join(dir,'submission-queue.json'),join(other,'submission-queue.json'));
   assert.throws(()=>q.read(other),{code:'queue_unavailable'});
   assert.ok(!readFileSync(join(dir,'submission-queue.json'),'utf8').includes('finalSubmitAuthorized'));
+});
+
+test('new packet binds maxPresses four and stored older approval keeps its original digest',()=>{
+  const first=enqueue();assert.equal(q.MAX_PRESSES,4);assert.equal(first.maxPresses,4);
+  assert.notEqual(first.packetDigest,q.jsonDigest({...q.binding(input),maxPresses:1}));
+  const state=q.read(dir),old=state.items[first.id];delete old.maxPresses;
+  const {maxPresses,...legacy}=q.binding(input);old.packetDigest=q.jsonDigest(legacy);
+  q.nativeUpdate(dir,first.id,{reason:'historical approval'});
+  const fs=require('node:fs');fs.writeFileSync(join(dir,'submission-queue.json'),JSON.stringify(state));
+  assert.equal(q.read(dir).items[first.id].packetDigest,q.jsonDigest(legacy));
+  assert.throws(()=>q.enqueue(dir,input,{now}),{code:'submission_conflict'});
 });

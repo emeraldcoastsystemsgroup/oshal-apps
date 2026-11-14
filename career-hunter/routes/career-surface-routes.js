@@ -10,6 +10,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the native board at the admitted package root as well as its existing named surface.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve Career's home page (GET /home, career-home.html): the first screen of Career as its own application, and the page that hosts another application's screen under Career's bar.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | T63: the retired /board and /board/* addresses answer a hand-off page to the native board (src-routes/hand-off-page.ts) instead of a 308. On the native kernel a package cannot redirect: the response has no `redirect` and no Location header is relayed, so these answered HTTP 500 on the test slot (2026-11-11).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: serve the Work history page (GET /work-history, career-work-history.html), where a person enters and edits the jobs their résumé is built from.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -80,6 +81,7 @@ function registerCareerSurfaceRoutes(router) {
     router.get('/settings', createCareerToolFileHandler('career-settings.html'));
     router.get('/home', createCareerToolFileHandler('career-home.html'));
     router.get('/resume-studio', createCareerToolFileHandler('career-resume-studio.html'));
+    router.get('/work-history', createCareerToolFileHandler('career-work-history.html'));
     router.get('/mobile', createCareerToolFileHandler('career-mobile.html'));
     router.get('/submissions', createCareerToolFileHandler('career-submissions.html'));
     router.get('/static/:file', serveStatic);

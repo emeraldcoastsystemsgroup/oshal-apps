@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read public careers pages with the pinned modern browser, page-state waits, bounded anonymous pagination and captured listing JSON; never fill applicant forms.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read as a browser that says what it is, press a cookie notice's accept button when one covers the jobs, and name what stopped a read: a site's human check, a refusal, or a browser that could not start. A check is reported, never worked around.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Give an anonymous AWS browser check up to twenty seconds within the existing source deadline and admit its exact proof request; a remaining CAPTCHA or login still reports its cause and closes no jobs.
  */
 'use strict';
 const {createHash}=require('node:crypto');
@@ -8,7 +9,7 @@ const {createReadPolicy}=require('./browser_read_policy.cjs');
 const VERSION='1.59.1',MAX_BYTES=8*1024*1024,MAX_ROWS=5000;
 const JOB=/\/jobs?[/-]|\/careers?\/[^/]+\/[^/]|\/positions?\/|\/openings?\/|\/vacanc|\/requisition|\/jobdetail|\/jobposting|jobid=|reqid=|\/p\/|\/roles?\/|\/listing\//i;
 const BAD=/^(apply|search|view all|see all|browse|explore|back|next|previous|sign in|login|home|menu|learn more|read more|filter|sort|share|email|cookie|privacy|terms)\b/i;
-const NEXT=["a[rel=next]","[aria-label='Next page' i]","[aria-label='Next' i]","[class*=pagination] [class*=next]","[class*=paging] a[class*=next]","[data-ph-at-id='pagination-next-link']"];
+const NEXT=["a[rel=next]","[aria-label='Next page' i]","[aria-label='Next' i]","a.paginationNextLink","[class*=pagination] [class*=next i]","[class*=paging] a[class*=next i]","[data-ph-at-id='pagination-next-link']"];
 const MORE=["button:has-text('Load more')","button:has-text('Show more')","button:has-text('More jobs')","button:has-text('View more')"];
 const NOTICE=['#onetrust-accept-btn-handler','#truste-consent-button','#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll','#CybotCookiebotDialogBodyButtonAccept','#didomi-notice-agree-button','[data-testid=uc-accept-all-button]'].join(',');
 const ACCEPT='^(accept( all)?( cookies)?|accept (&|and) continue|allow all( cookies)?|i accept|i agree|agree|got it|ok(ay)?)$';
@@ -25,13 +26,23 @@ function validateInput(value){
   if(!Number.isInteger(maxPages)||maxPages<1||maxPages>80||!Number.isInteger(deadlineMs)||deadlineMs<1000||deadlineMs>120000)throw Error('browser_input_invalid');
   return {url:url.href,maxPages,deadlineMs};
 }
+/** @description Keep Avature filters while increasing the listing batch size.
+ * @param {string} raw Listing URL. @returns {string} The normalized listing URL.
+ */
+function listingUrl(raw){
+  const url=new URL(raw);
+  if(/^\/[a-z]{2}_[a-z]{2}\/careers\/SearchJobs\/?$/i.test(url.pathname)){
+    url.pathname=url.pathname.replace(/\/?$/,'/');url.searchParams.set('jobRecordsPerPage','100');
+  }
+  return url.href;
+}
 async function links(page){
   const candidates=await page.locator('a[href]').evaluateAll(nodes=>nodes.slice(0,20000).map(a=>({
     url:a.href,title:(a.innerText||'').replace(/\s+/g,' ').trim(),
-    location:a.closest('li,div,article,tr')?.querySelector('[class*=location i],[class*=city i],[class*=region i],[class*=where i]')?.textContent?.trim().slice(0,120)||null,
+    location:(a.closest('article,li,tr')||a.closest('div'))?.querySelector('[class*=location i],[class*=city i],[class*=region i],[class*=where i]')?.textContent?.trim().slice(0,120)||null,
   })));
   return candidates.filter(row=>[...row.title].length>=4&&[...row.title].length<=160&&!BAD.test(row.title)
-    &&row.url.length<=4096&&JOB.test(row.url)&&/^https?:/.test(row.url));
+    &&row.url.length<=4096&&JOB.test(row.url)&&!(/\/careers\/(?:ApplicationMethods|SearchJobs|Login|Register)(?:\?|\/|#|$)/i).test(row.url)&&/^https?:/.test(row.url));
 }
 function jsonHasJobs(value,depth=0){
   if(depth>14||!value||typeof value!=='object')return false;
@@ -77,7 +88,7 @@ async function advance(page){
         &&!el.classList.contains('disabled')&&!el.hasAttribute('disabled'));
       if(!safe)continue;
       const href=await candidate.getAttribute('href');
-      if(href&&!href.startsWith('#')&&!/^javascript:/i.test(href))await page.goto(new URL(href,page.url()).href,{waitUntil:'domcontentloaded',timeout:15000});
+      if(href&&!href.startsWith('#')&&!/^javascript:/i.test(href))await page.goto(listingUrl(new URL(href,page.url()).href),{waitUntil:'domcontentloaded',timeout:15000});
       else await candidate.click({timeout:3000});
       return true;
     }
@@ -103,6 +114,9 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
     bytes+=size;result.payloads.push(payload);serial++;latest=Date.now();
   }
   function captureResponse(response){
+    if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame()){
+      const sent=response.headers();checked ||= sent['cf-mitigated']==='challenge'||/^(challenge|captcha)$/.test(sent['x-amzn-waf-action']||'');
+    }
     const work=(async()=>{
       try{
         const headers=await response.allHeaders(),type=headers['content-type']||'';
@@ -112,7 +126,7 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
       }catch{/* A failed optional resource is not evidence of a completed source. */}
     })();pending.add(work);work.finally(()=>pending.delete(work));
   }
-  async function harvest(){
+  async function harvestPage(){
     const embedded=await page.locator('script[type="application/ld+json"],script[type="application/json"]').evaluateAll(nodes=>{
       const bodies=[];let chars=0,limited=nodes.length>100;
       for(const node of nodes.slice(0,100)){
@@ -129,13 +143,23 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
       seenLinks.add(row.url);result.dom.push(row);bytes+=Buffer.byteLength(JSON.stringify(row));latest=Date.now();serial++;
     }
   }
+  async function harvest(){
+    try{await harvestPage();}
+    catch(error){
+      if(!expired&&/Execution context was destroyed|Cannot find context|most likely because of a navigation/.test(error.message)){
+        latest=Date.now();return;
+      }
+      throw error;
+    }
+  }
   async function notice(){
     if(noticed||Date.now()-tried<500)return;
     tried=Date.now();if(await dismissNotice(page)){noticed=true;latest=Date.now();}
   }
   async function settle(before){
     const started=Date.now();let changed=before===null;
-    while(Date.now()<Math.min(end,started+8000)&&!expired&&!cap){
+    const waiting=checked?Math.min(20000,Math.max(1000,end-started-5000)):8000;
+    while(Date.now()<Math.min(end,started+waiting)&&!expired&&!cap){
       await notice();await harvest();if(before!==null&&serial!==before)changed=true;
       if(serial===0&&await page.locator('input[type=password]:visible,'+CHECK).count())return;
       if(changed&&serial>0&&Date.now()-started>=500&&Date.now()-latest>=350&&pending.size===0)return;
@@ -150,11 +174,11 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
     // current Chrome and can also see, and refuse, exactly who is reading.
     const blank=await browser.newPage(),own=await blank.evaluate(()=>navigator.userAgent);await blank.close();
     context=await browser.newContext({serviceWorkers:'block',acceptDownloads:false,userAgent:own.replace('HeadlessChrome','Chrome')+READER});
-    await context.route('**/*',createReadPolicy({fixtureOrigin}));
+    await context.route('**/*',createReadPolicy({fixtureOrigin,browserCheck:()=>checked}));
     page=await context.newPage();page.on('response',captureResponse);
     page.on('request',request=>{if(['fetch','xhr'].includes(request.resourceType()))network.add(request);});
     page.on('requestfinished',request=>network.delete(request));page.on('requestfailed',request=>network.delete(request));
-    const response=await page.goto(settings.url,{waitUntil:'domcontentloaded',timeout:Math.min(30000,settings.deadlineMs)});
+    const response=await page.goto(listingUrl(settings.url),{waitUntil:'domcontentloaded',timeout:Math.min(30000,settings.deadlineMs)});
     const status=response?response.status():0,sent=response?response.headers():{};
     checked=sent['cf-mitigated']==='challenge'||/^(challenge|captcha)$/.test(sent['x-amzn-waf-action']||'');
     if(!checked&&[401,403,429,451].includes(status))throw Error('browser_refused');
@@ -181,12 +205,12 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
     return result;
   }catch(error){
     if(expired){result.reason='browser_deadline_exceeded';return result;}
-    throw Error(STOPS.includes(error.message)?error.message:'browser_read_failed');
+    throw Error(STOPS.includes(error.message)?error.message:'browser_read_failed',{cause:error});
   }finally{
     clearTimeout(timer);await context?.close().catch(()=>{});await browser?.close().catch(()=>{});
   }
 }
-module.exports={VERSION,validateInput,links,jsonHasJobs,scrape};
+module.exports={VERSION,validateInput,listingUrl,links,jsonHasJobs,scrape};
 if(require.main===module){
   (async()=>{
     if(process.versions.node.split('.')[0]!=='24'||require('playwright/package.json').version!==VERSION)throw Error('browser_runtime_unavailable');

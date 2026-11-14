@@ -1,4 +1,7 @@
 # CHANGE LOG
+# 17 | maintainer@emeraldcoastsystemsgroup.com | analysis-background also expects the cached saved read to answer exactly as before when the request's state cannot be read (the store gate's home-summary job read 502 for 404), and to only read while a request is working.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: register analysis-background; bank-snapshot-browser expects the working notice above the earlier analysis, the new analysis once saved, and a failure in words.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: register analysis-deadline; bank-snapshot-browser expects the kernel's 60 s cut and categories in words; finance-app-browser expects the Concierge to open inside the cockpit.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Verify partial and unknown transaction coverage, strict saved readers and analysis quote permissions across bank audiences.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Keep specialist holdings count/value unknown for incomplete or absent inventories and retain known zero controls.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Cover unknown and mixed-currency saved balances, independently dated analysis and concurrent Sync refusal.
@@ -188,6 +191,61 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
+  - id: analysis-deadline
+    name: Request analysis answers before the kernel ends the request
+    purpose: >-
+      Drive the compiled POST /brief/refresh on a simulated clock against the native kernel's 60-second package call
+      (host CALL_DEADLINE). The analyst and the pool are doubled; the budget, the rewrite rule and the words the person
+      reads are the code under test. The judge read "HTTP 503" after 60 s on blue, twice, with nothing saved.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/analysis-deadline.test.cjs
+    expected:
+      - A silent analyst gives 504 analysis_timeout within 45 simulated seconds, in words, with nothing saved and the earlier analysis kept.
+      - A first answer that took 35 seconds is saved without a rewrite; a sentence with an unlisted amount is left out with the visible note.
+      - A quick answer with an unlisted amount is still asked once to rewrite.
+      - A refused analyst gives 502 analyst_unavailable in words without the engine's text, and nothing is saved.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: analysis-background
+    name: Request analysis runs after the press has answered
+    purpose: >-
+      Drive the compiled POST /brief/refresh, POST /brief/analysis-result, GET /brief/analysis and GET /brief with the
+      store and the kernel's background-run port doubled. One turn of a slow model takes longer than the 60 seconds a
+      package request may last, so the kernel is asked for the analyst's turn and hands the answer back as the same
+      person. The request row, the fence to the snapshot and the words the person reads are the code under test.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/analysis-background.test.cjs
+    expected:
+      - The press records the request as working with the exact snapshot it read, asks the kernel for one turn of the analyst and answers 202; the analyst is not asked inside the request and the earlier analysis is untouched.
+      - The kernel's hand-over saves the analysis over that snapshot with the figures written in code and an unlisted amount left out; the request then reads done.
+      - A hand-over without the kernel's header, for another run or for a closed request is refused and saves nothing.
+      - A late, refused or empty answer and a changed snapshot save nothing and read as failed in words, without the kernel's own text.
+      - A second press while one is working starts nothing; a kernel still holding an earlier turn of the person is said in words.
+      - A request the kernel no longer holds, or one past its time, reads as not finished and the person can ask again.
+      - Without the kernel's port, without its function, or when it cannot start the turn, the 45 second path answers in the same press as before.
+      - The cached saved read answers exactly as before (a plain 404 or the saved analysis) when the request's module or table cannot be read, and with a request working it only reads and initialises nothing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
   - id: brief-figures
     name: The brief's figures come from the accounts, never the model
     purpose: >-
@@ -343,6 +401,7 @@ cases:
     - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden for this frame and restored when it is removed.
     - The page makes GET requests only.
     - A summary that does not answer is said in words and the other summaries and the jobs still show.
+    - Inside a page with the cockpit's own layout the Concierge's chat panel is hidden only while closed; opened, it sits beside Finance on a computer (at least 300 px, the page keeps the rest) and covers the screen as a sheet on a phone.
     prerequisites:
     - runner:node-test
     - dependency:playwright
@@ -381,3 +440,7 @@ cases:
       - Opening reads only; source and snapshot dates stay visible and unknown amounts differ from known zero.
       - Sync preserves the older dated analysis; Request analysis returns the actual saved date and reload retains it.
       - Link and OAuth never silently request analysis; failures preserve context and phone controls remain usable.
+      - When the kernel ends a slow analysis with only a status code (empty or store_unavailable), the panel says in words that nothing was saved and the earlier analysis is unchanged, never HTTP 503; the wait says up to a minute and a second press cannot start meanwhile.
+      - Spending categories read as words (Transfers out, Loan payments, Food and drink); an unknown all-capitals code reads in sentence case and other names stay as they came.
+      - When Request analysis is answered at once, the panel says the analyst is working above the earlier analysis, the button and Sync wait, and the page asks every five seconds until the new analysis is saved and shown.
+      - An analysis that fails after the press is said in words with the earlier analysis kept; opening the page during a request shows it without pressing anything; a failure newer than the saved analysis is said on opening and an older one is not; a phone's width holds the working notice.

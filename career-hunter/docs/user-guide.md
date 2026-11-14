@@ -1,6 +1,6 @@
 # Career user guide
 
-This guide describes the Career 1.60.8 experience for a job seeker. Start on **Home**.
+This guide describes the Career 1.60.10 experience for a job seeker. Start on **Home**.
 Your installation and assigned role determine which pages are available. On a
 phone, use the bottom bar and its menu to reach the rest of Career; your role is
 shown in the menu.
@@ -28,21 +28,44 @@ keep the facts and outcomes accurate.
 
 ## Ask the Concierge
 
-Use **Concierge** in Career's bar to ask about your saved résumé, jobs or applications.
-It uses the same conversation panel as the document editor: beside the page on a
-computer and above the bottom bar on a phone. **Close concierge** returns to the
-page; reopening keeps the conversation while you stay on that page.
+Career has one assistant, the **Concierge**. Press **Concierge** in Career's bar on any page. It is the same assistant
+on every page and in one conversation: what you said on Work history is still there on My jobs. It opens beside the
+page on a computer and over it on a phone, where **Back to** the page's name returns you to the page. Jarvis hands a
+Career request to this same Concierge.
 
-Ask “Is my résumé loaded?” to check your signed-in account. The answer reads your
-saved main résumé and its section headings, without loading its full text into
-the conversation. If none is saved, open **My résumé** to upload one. An unreadable
-record is reported as unavailable, so it does not mean you have no résumé.
+Ask it for anything you do in Career, from whatever page you are on:
 
-Career holds the saved main résumé used for matching and tailoring. **My résumé**
-opens a separate **Master resume (Career)** Word document in AI Office. Edits made
-there reach Career when you use **Save to main résumé**. The Concierge beside that
-document edits it with approval cards; ask Career for a section's wording when you
-want to discuss saved text.
+- your jobs: "what are my best matches", "list my saved jobs", "save this job", "take it off my list", "I applied to
+  it yesterday", "prepare an application for it";
+- your résumé and work history: "add a job", "change the end month of my last job", "tighten the second bullet",
+  "is my new job in my résumé?";
+- your settings: "only match remote jobs", "look for platform engineer jobs within 50 miles of Destin";
+- the companies you want and your recruiters: "add Acme's careers page", "mark the recruiter at Acme as contacted".
+
+It reads your saved Career data and makes the change itself. A change to your résumé or work history, and anything
+that spends your AI allowance or goes to an employer, appears as a card in the conversation: press **Approve** to
+apply it or **Cancel** to leave things as they are. A résumé change shows on the page at once with **Undo**. If you
+approve two cards one after the other, each is applied to your résumé as it is at that moment. A card is refused only
+when something it names changed after it was written; the Concierge then tells you which change and which job, and
+you ask again.
+
+## One résumé
+
+Your **main résumé** is one record. **Work history** shows its jobs, each with its title, employer, months and bullets.
+**My résumé** shows the same record as a Word document you can type in. They are the same thing, not two copies:
+
+- a job or a bullet you add on Work history, or approve on a card anywhere in Career, is in the document the next
+  time you open My résumé, with no extra step;
+- what you type in the document is saved into your main résumé when you press **Save to main résumé**, before the
+  Concierge answers you on that page, and when you next open My résumé or Work history;
+- if you typed in the document and something else changed your work history meanwhile, both are kept.
+
+If a document was made before this version and Career cannot tell whether it or your main résumé is newer, My résumé
+says so and leaves it alone: **Use my work history** puts your main résumé in the document, and **Save to main résumé**
+keeps what is typed in it. The earlier text stays in the document's Revision history either way.
+
+Ask "Is my résumé loaded?" to check your signed-in account. If none is saved, open **My résumé** to upload one. An
+unreadable record is reported as unavailable, so it does not mean you have no résumé.
 
 ## Begin with Today
 
@@ -162,13 +185,57 @@ connection; an administrator can help with the
 
 Review the employer, destination, exact documents and applicant details before
 **Approve & submit**. The approval applies to that packet and job. Unanswered
-employer questions return for your answers and another review.
+employer questions before a form press return for your answers and another review.
 
-If the outcome is unknown, check the employer's application history and the
-retained submission activity before authorizing another attempt. A queued,
-started or failed attempt does not establish that an application was sent.
-**Resume approved submission**, when offered, continues the retained approval;
-it is not a reason to submit a second copy yourself.
+A field for both documents receives the résumé only. Career records that the cover
+letter had no place to go; it never substitutes the cover letter for the résumé.
+Separate résumé and cover-letter fields receive their respective approved files.
+
+A stop without employer questions shows the reason. Choose **Review application
+again** after fixing it, **Apply yourself instead** and then **I applied** when you
+finish by hand, or leave it for later. Reviewing does not send anything; another
+attempt needs **Approve & submit** for its exact packet.
+
+**Check the submission outcome** means Career cannot safely try again. Check the
+employer's application history or receipt email. The page shows its kept browser
+picture when available; the picture alone is not proof of receipt. Then choose:
+
+- **It was sent**: Career records your word as Applied and closes the attempt.
+  Another automatic attempt remains blocked.
+- **It was not sent**: Career closes the attempt. You must review and approve a
+  new packet before trying again. This button sends nothing.
+
+You may leave the outcome undecided. Career keeps both your statement and the
+picture, when available. Older attempts may have no picture. Native sync cannot
+reopen an outcome you closed.
+
+The approval screen says: “This form can have more than one step; Career will press
+up to 4 buttons on jobs.example.com.” It shows the employer's actual site. That
+number is part of the packet you approve. Career asks permission for each press,
+never presses the same form step twice, and stops at an unfamiliar page or a page
+that tries to leave the approved site. Continue can itself send an application;
+a visible receipt after Continue counts as confirmation. Reaching four presses
+stops the attempt without pressing a fifth button.
+
+The job page and Submission activity show each button's words, time and result,
+with a picture when one was kept. A large picture is reduced before its verified
+fingerprint is recorded. If permission was given but the computer did not report
+back, Career says that whether it pressed the button is unknown. It never retries
+a lost permission request. A lost picture-report reply is retried once with the
+same report.
+
+If Career only opened the form with Apply and then found a missing answer, you
+can answer and review again. After Continue or Submit, an unconfirmed outcome
+stays held for you to check. A receipt is the point where Career records Sent.
+
+The computer helper must be reinstalled from 1.60.10 before using new approvals;
+older helpers refuse their changed packet. Ask the person who set it up to update
+it. At each run the helper clears only this employer's cookies in its own browser
+profile. Your usual browser and other sites' cookies stay as they were.
+
+A queued, started or failed attempt does not establish that an application was
+sent. **Resume approved submission**, when offered, continues the retained
+approval; it is not a reason to submit a second copy yourself.
 
 ## Record interviews, offers and closed applications
 
@@ -270,3 +337,9 @@ Use **Check my fit** when you want a new assessment of a particular job.
 <!-- CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Explain immediate Remove, refusal recovery and new-entry-only nightly matching in 1.60.7. -->
 
 <!-- CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Explain the 1.60.8 shared Concierge, bounded résumé check and separate AI Office save. -->
+
+<!-- CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Describe 1.60.9 document destinations, non-question recovery, explicit unknown closure and the one-press multi-step limit with retained bounded evidence. -->
+
+<!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Describe approved four-button sequences, each press’s evidence and reinstalling the 1.60.10 helper. -->
+
+<!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: one Concierge on every page, in one conversation, for everything in Career; the main résumé, Work history and the My résumé document are one record; two cards approved in turn both apply. -->

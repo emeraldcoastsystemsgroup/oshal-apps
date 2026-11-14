@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A refused Walmart call (HTTP 503: no Walmart connection on this installation) is shown as "Not connected" in the shopping page and the dashboard, never as "No products matched" or an empty deals grid, and no comparison price is invented for Amazon or Target, which have no connector. The guard EXECUTES the shipped search(), loadDeals(), checkout() and comparisonRows() out of the surfaces.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The refusal names the installation's fact (no Walmart rail: it runs no Walmart operations) and never says a Walmart connection can be added; connecting one would not help here.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (shop-lists): the dashboard is the List screen; without a retail rail (GET /deals 503) its storefront and Checkout are not rendered and a refused search is an alert in the error colour, never green header text.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.0: the List screen has Order in place of the rail-only Checkout. Without a rail the storefront is still not rendered, Order is enabled as soon as an item is left to buy, and opening the page makes no order.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -86,7 +87,7 @@ test('no comparison price is invented for a retailer with no connector', () => {
   for (const vendor of ['Amazon', 'Target']) assert.equal(rows.find((r) => r.vendor === vendor).price, null, vendor);
 });
 
-test('List without a retail rail: the storefront and Checkout are not rendered, and a refused search is an alert', async () => {
+test('List without a retail rail: the storefront is not rendered, Order is ready, and a refused search is an alert', async () => {
   const script = /<script>([\s\S]*?)<\/script>/g;
   let main = '';
   for (const match of dashboard.matchAll(script)) if (match[1].includes("const api = (p, opts)")) main = match[1];
@@ -107,8 +108,9 @@ test('List without a retail rail: the storefront and Checkout are not rendered, 
   assert.equal(reads[0], '/api/purchasing/deals?feed=rollback', 'one readiness read first');
   assert.equal(sandbox.rail(), false);
   assert.ok(els['#storefront'].classes.has('hidden'), 'no search, no deals without a rail');
-  assert.ok(els['#checkout'].classes.has('hidden'), 'no Checkout without a rail');
-  assert.ok(!reads.some((u) => /\/search|\/checkout/.test(u)), 'nothing else from the store is asked');
+  assert.equal(els['#order'].disabled, false, 'Order needs no rail: it is ready as soon as something is left to buy');
+  assert.doesNotMatch(dashboard, /id="checkout"/, 'the rail-only Checkout button is gone');
+  assert.ok(!reads.some((u) => /\/search|\/checkout|\/order/.test(u)), 'nothing else from the store is asked, and no order is made by opening the page');
   assert.match(main, /const NOT_CONNECTED = 'Shopping at a store is not connected on this installation\. Ask your administrator to connect a retailer\.';/);
   assert.match(main, /if \(providerRefused\(found\)\) \{ showAlert\(NOT_CONNECTED\); return; \}/, 'a refused search is an alert');
   assert.match(dashboard, /<div id="alert" class="alert hidden" role="alert"><\/div>/);

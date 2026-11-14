@@ -1,0 +1,91 @@
+{
+  "about": "What the generated instructions for the Godot 4 editor must say and must not say (Lane GD1, Orbit's Godot sidecar), in the shape of Lane G's pack-inputs.json, through the godot bridge word Orbit's Linux reader gives a bound Godot (desktop/oshal-node/src/main/linux-program-versions.ts). Every fact is as built at the kernel commit named and names the test that proves it on the real Godot 4.7.2 editor in a private display (desktop/oshal-node/scripts/test-godot-editor.cjs and test-godot-dock.cjs), unless another file is named. The verbs of the bridge word are in godot-bridge-facts.json beside this file. `acceptance` is a check a written pack can be held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-13T22:05:00Z",
+  "kernel_commit": "d67a8c2e",
+  "facts": "godot-bridge-facts.json",
+  "programs": [
+    {
+      "program": "godot",
+      "name": "Godot Engine (the Godot 4 editor with Orbit's add-on in the project)",
+      "platform": "linux",
+      "bridge": "godot",
+      "version_on_the_spark": {
+        "version": "4.7.2",
+        "version_kind": "file",
+        "from": "Godot's own --version line, 4.7.2.stable.official.ed1daf0bf (the official build in ~/.local/opt, owned by no package)"
+      },
+      "must_say": [
+        {
+          "fact": "Godot Engine is the Godot 4 editor, and Jarvis works in it only through Orbit's add-on in the open project. With the add-on a snapshot has `part` \"whole\" and reads the project, its open scenes, the edited scene's node tree (one line per node with its type and facts such as position, script, text, texture or instance of), the selection, whether the game runs, the project's input actions, its files and the scripts open. The document is the project, by its name.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"a snapshot reads the project, the scene tree and the declared actions\" and test \"the editor is bound as its project, with one window, read through the add-on\"; desktop/oshal-node/src/main/bridges/godot.ts composeGodot"
+        },
+        {
+          "fact": "Without the add-on the snapshot is refused with \"Orbit's Godot add-on is not running in this project. Turn it on in Orbit Settings, Bound Apps, Godot Engine, Orbit's add-on in this project\" and the window declares no verbs.",
+          "evidence": "desktop/oshal-node/src/main/bridges/godot.ts NO_GODOT_ADDON; desktop/oshal-node/scripts/test-godot-addon.cjs test \"a Godot window without the add-on is said in words, and declares nothing\""
+        },
+        {
+          "fact": "Every change is a declared verb through \"action\": \"invoke\": add-node, set-property, create-script, edit-script, rename-node, move-node, delete-node, add-input-action, instance-scene and import-asset. Each is one named step on Godot's own undo list (\"Jarvis: <what> (#tag)\"), which the person's own undo in Godot also undoes. A node is named by its path from the snapshot, such as Main/Player.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"add a node, set its property and attach a new GDScript, each one named Godot undo step\" and test \"rename, move and delete a node, and undo the delete\""
+        },
+        {
+          "fact": "A node is never typed into, pressed or selected: a type, press or select of a node is refused with \"Jarvis changes Godot through its declared actions (set-property, rename-node and the others)\". Change a node only with its verbs.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"a type, a press or a select of a Godot node is refused in words\""
+        },
+        {
+          "fact": "set-property sets `property` of `node` in the property's own type: a number, true or false, text, [x, y] or \"Vector2(1, 2)\" for a position, \"#ff8800\" for a colour, a res:// path for a resource. The answer's `verified` says whether the property reads back as asked.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"add a node, set its property and attach a new GDScript, each one named Godot undo step\" (set-property position Vector2(200, 75), verified true)"
+        },
+        {
+          "fact": "create-script writes a new res://….gd from `code` and attaches it to `node`; code that does not compile is refused with Godot's own words and nothing is written, and a script that would run inside the editor (@tool, EditorPlugin, EditorScript) is refused. edit-script changes a script in Godot's script editor: `text` is the whole new script, or `find` and `replace`. Nothing under res://addons/ or res://.godot/ is changed.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"a GDScript that does not compile is refused with Godot's words, and nothing is written\" and test \"edit a script's text in the script editor, and undo it there\"; desktop/oshal-node/plugins/godot/addons/orbit_door/orbit_common.gd path_problem and editor_code"
+        },
+        {
+          "fact": "To try the game: run-scene (the edited scene by default, \"main\" for the main scene, or a res:// scene), then game-output for what it printed with its errors and warnings, each with the script line it came from (such as res://player.gd:6), then stop-scene. Godot saves the scenes before it runs them when its own setting says so.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"run the scene, read what it printed and its error with the script line, then stop it\""
+        },
+        {
+          "fact": "Scenes and files are acts, not undo steps: open-scene, new-scene (a res://….tscn that does not exist yet, with root_type such as Node2D or Node3D), save-scene (with `as` for a new file). add-input-action adds keys such as [\"Space\", \"W\"] to an input action and saves project.godot. instance-scene adds another scene; import-asset adds a .png, .jpg, .webp, .svg, .glb or .gltf already in the project folder, a picture as a Sprite2D and a model as an instance.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"scenes: create one, add to it, save it, open the first again\", test \"add an input action to the project, saved to project.godot, and undo it\" and test \"instance a scene, and add a picture and a model already in the project folder\""
+        },
+        {
+          "fact": "\"action\": \"undo\" undoes one change, only while it is the newest change on Godot's undo list; a change with newer ones on top is refused and nothing is undone, so undo the newest first. Orbit keeps no copy of a Godot project, so \"action\": \"restore\" has nothing to open.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"undo goes through Godot's own undo only while the change is on top\"; desktop/oshal-node/src/main/bridges/godot.ts liveCopy"
+        },
+        {
+          "fact": "show-view puts the edited scene's 2D or 3D view (`what` \"editor\", \"2d\" or \"3d\") or the running game (`what` \"game\") in front of the screen for a look; a snapshot itself carries no picture.",
+          "evidence": "desktop/oshal-node/scripts/test-godot-editor.cjs test \"show the scene's 2D view for a look at the screen\" and the show-view game case in test \"run the scene, read what it printed and its error with the script line, then stop it\""
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does (no Ctrl+S, no Ctrl+Z, no Scene menu).",
+        "That Jarvis types into, presses or selects a node or a field of the Godot editor.",
+        "That Jarvis changes files under res://addons/ or res://.godot/, or writes @tool scripts or editor plugins.",
+        "That the add-on or a snapshot sends a picture or a screenshot.",
+        "A verb other than Godot's seventeen (no insert-paragraph, save-document or export-document), and any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "add-node",
+          "set-property",
+          "create-script",
+          "edit-script",
+          "run-scene",
+          "game-output",
+          "stop-scene",
+          "\"action\": \"invoke\"",
+          "\"action\": \"snapshot\"",
+          "\"action\": \"undo\"",
+          "whole",
+          "res://"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph",
+          "screenshot"
+        ]
+      }
+    }
+  ]
+}

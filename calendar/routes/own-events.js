@@ -15,6 +15,9 @@ exports.createOwnEventsRoutes = createOwnEventsRoutes;
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Events a person adds in OSHAL (by hand or through the concierge with their approval): list, add and remove the caller's own rows in calendar_own_events. Jarvis routed "put it on my calendar" to this app, whose concierge had only read tools, so a drafted event could never be saved. These rows stay in OSHAL; nothing is written to Google Calendar.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9. A timed start may be a wall-clock time with the person's IANA "timeZone" (the concierge demanded a UTC offset although the kernel names the zone on every turn); the zone, or the offset the start carried, is saved (migration 005) and every event answers "local", its start in that zone, so the screen and the Home card stop showing '2026-11-07T01:00:00.000Z'. An add identical to a saved event (same title, start and all-day) answers 409 and writes nothing: a confirmation turn re-proposed an approved event and its approval saved a duplicate.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A body that carries a repeat (or a recurrence) is refused with 400 and nothing saved. Production,
+ *   2026-11-13: "make the event for 20 weeks" after a weekly Friday request reached only this single-event add and became one event
+ *   on Friday, February 5, 2027; a repeating event is the Google add's one series (google-events.ts).
  */
 /** Events a person adds in OSHAL: the caller's own rows, never written to Google Calendar. */
 const express_1 = require("express");
@@ -27,6 +30,8 @@ exports.MAX_OWN_EVENTS = 500;
 /** Where a saved event lives, said in every answer so nobody reads it as a Google write. */
 exports.WHERE = 'Saved to your OSHAL calendar in Calendar Preparation. It is not added to Google Calendar.';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A repeat sent to this single-event store is refused, never saved as its first date alone (the 20-weeks defect). */
+const REPEATS_ELSEWHERE = 'This OSHAL calendar keeps single events only, so nothing was saved. A repeating event is added to Google Calendar as one series.';
 const NEEDS_ZONE = 'A start time needs the person\'s time zone: send "timeZone" (the IANA zone named on the Current time line, like America/Chicago) with a local start like 2026-11-06T18:00, or a start with its UTC offset like 2026-11-06T18:00:00-06:00.';
 /**
  * @description A calendar day as midnight UTC, only when the text is a real date (2026-02-30 is refused).
@@ -72,6 +77,8 @@ function bounded(value, max) {
  * @returns The stored values, or the refusal the person reads.
  */
 function parseEvent(body) {
+    if (body?.repeat != null || body?.recurrence != null)
+        return { ok: false, error: REPEATS_ELSEWHERE };
     const title = typeof body?.title === 'string' ? body.title.trim() : '';
     if (!title || title.length > 120)
         return { ok: false, error: 'A title of 1 to 120 characters is required.' };

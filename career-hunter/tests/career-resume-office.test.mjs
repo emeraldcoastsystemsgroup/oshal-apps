@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the master resume as a Word document (tools/career-resume-office.js): the document Career makes passes AI Office's own model validation, an untouched document maps back to exactly the master, and an edited document saved through the REAL `resume base-save` engine path keeps the career profile valid (roles, titles, unsent fields intact). A changed role heading, a removed role and an extra section are said, never silently saved.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Saving the document never changes the master by itself (live 2026-11-09 02:35, a Send in the Chat rail): with an empty headline the document shows the credential line in its place, and the save stored that line as the headline; a skill holding two semicolons came back as three skills in a new "Additional Skills" group. Over a profile with both, the untouched document says "Matches your master resume" on open and on Save, Save sends nothing, and even a forced save through the real `resume base-save` changes no byte, backup or history; a real bullet edit saves only that bullet. A skill containing the " · " separator survives an untouched round trip.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the words name the Work history page, which edits a job's title, employer and dates, never a "Profile" page (none exists; Roger, 2026-11-13, was sent to one). A document whose jobs are behind the main résumé but whose text matches is 'headings' (brought up to date on open), a different number of jobs is 'jobs', unsaved text is 'typed'.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the document's status lines say main résumé.
  */
 import { after, test } from 'node:test';
@@ -94,7 +95,9 @@ test('a changed role heading is said and kept out of the save; the save still su
   const s = store('heading'), master = engine('base', s), model = office.resumeToModel(master.resume, master.meta);
   setText(find(model, 'SRE — Beta Corp'), 'Senior SRE — Beta Corp');
   const mapped = office.modelToResume(model, master.resume);
-  assert.match(mapped.notes.join(' '), /role heading "Senior SRE — Beta Corp" stays in this document only/);
+  assert.match(mapped.notes.join(' '), /job heading "Senior SRE — Beta Corp" stays in this document only: change a job's title, employer and dates on the Work history page/);
+  assert.doesNotMatch(mapped.notes.join(' '), /\bProfile\b/);
+  assert.equal(office.documentState(model, master.resume), 'headings', 'only a heading differs: nothing typed would be lost');
   assert.equal(mapped.resume.experience[1].title, 'SRE');
   const saved = engine('base-save', s, { CH_RESUME_DOC: JSON.stringify({ resume: mapped.resume }) });
   assert.equal(saved.ok, true, 'no index/title mismatch refusal');
@@ -105,7 +108,9 @@ test('a removed role refuses the save in words; an extra section stays in the do
   const blocks = paragraphs(model), role = blocks.indexOf(find(model, 'SRE — Beta Corp'));
   blocks.splice(role, 1);
   const removed = office.modelToResume(model, master.resume);
-  assert.match(removed.error, /Experience section has 1 role and your profile has 2/);
+  assert.match(removed.error, /This document has 1 job and your Work history has 2\. Press Use my work history/);
+  assert.doesNotMatch(removed.error, /\bProfile\b/);
+  assert.equal(office.documentState(model, master.resume), 'jobs');
   assert.equal(removed.resume, undefined, 'nothing to save');
   const extra = office.resumeToModel(master.resume, master.meta);
   paragraphs(extra).push({ ...find(extra, 'Summary'), id: 'extra-heading', runs: [{ ...find(extra, 'Summary').runs[0], text: 'Volunteering' }] });

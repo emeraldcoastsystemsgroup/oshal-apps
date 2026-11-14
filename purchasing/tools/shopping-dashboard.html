@@ -96,10 +96,13 @@
 <body>
   <!-- UX audit 2026-11-05 (shop-lists, shop-concierge, shop-browse, shop-deals): this page is Shopping's one screen, List.
        An Add an item field (free text, the one primary) writes to POST /lists/:id/items; each row ticks off, steps its
-       quantity (POST /lists/:id/items/:itemId) and is removed from its ⋯ menu. The storefront (search, deals) and
-       Checkout are shown only when the readiness read (GET /deals) says this installation has a retail rail; without
-       one they are not rendered at all. Errors are an alert in the error colour where the work is, never green header
-       text. No inner Shop | List | Deals bar: the application's screens are the navigation. -->
+       quantity (POST /lists/:id/items/:itemId) and is removed from its ⋯ menu. The storefront (search, deals) is
+       shown only when the readiness read (GET /deals) says this installation has a retail rail; without one it is
+       not rendered at all. Errors are an alert in the error colour where the work is, never green header
+       text. No inner Shop | List | Deals bar: the application's screens are the navigation.
+       1.5.0: Order (POST /order) makes the order from the items still to buy and needs no rail: each item is
+       shown with Find at Walmart, opened in a new tab, and one Open Walmart cart link when the order has one. It
+       replaces Checkout, which was drawn only with a rail and could not order a written item. -->
   <main class="list-screen" data-ds-work>
     <form id="add-form" class="add-item" autocomplete="off">
       <label class="sr-only" for="add-title">Add an item</label>
@@ -110,9 +113,9 @@
     <p id="status" class="status-line" role="status"></p>
     <div id="list-items"></div>
     <div class="list-foot">
-      <button id="checkout" class="secondary hidden" type="button" disabled>Checkout</button>
+      <button id="order" class="secondary" type="button" disabled>Order</button>
     </div>
-    <div id="checkout-result" class="checkout-result hidden"></div>
+    <section id="order-result" class="order-result hidden" aria-live="polite"></section>
 
     <details id="prefs" class="prefs">
       <summary>Shopping preferences</summary>
@@ -158,6 +161,13 @@
     .row-more .menu { position: absolute; right: 0; top: 46px; z-index: 5; background: var(--ds-surface, var(--bg-card-solid, var(--card))); border: 1px solid var(--line); border-radius: 10px; padding: 4px; min-width: 140px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
     .row-more .menu button { width: 100%; min-height: 44px; text-align: left; background: none; border: 0; color: var(--status-error, #b91c1c); font: inherit; font-size: 14px; cursor: pointer; padding: 0 12px; }
     .list-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .order-result { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .order-result h2 { font-size: 16px; line-height: 24px; margin: 0 0 2px; }
+    .order-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .order-row .lr-title { min-width: 0; overflow-wrap: anywhere; }
+    .order-result a { min-height: 44px; display: inline-flex; align-items: center; flex: none; font-weight: 700; color: var(--emerald); }
+    .order-result a.primary { color: var(--ds-on-accent, var(--text-on-accent, var(--card))); }
+    .order-result a.primary { padding: 0 18px; border-radius: 10px; text-decoration: none; margin: 6px 0; width: auto; }
     .secondary { min-height: 44px; padding: 0 18px; border: 1px solid var(--ds-line-control, var(--line)); background: var(--ds-surface, var(--card)); color: var(--ink); border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
     .secondary:disabled { opacity: 1; color: var(--muted); background: var(--subtle, var(--card)); cursor: default; }
     .deals-title { font-size: 16px; line-height: 24px; margin: 22px 0 0; }
@@ -321,25 +331,44 @@
       const pending = ITEMS.filter((i) => i.status !== 'done'), done = ITEMS.filter((i) => i.status === 'done');
       if (!ITEMS.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'Your list is empty. Add the first thing above.'; wrap.append(p); }
       [...pending, ...done].forEach((i) => wrap.appendChild(rowFor(i)));
-      // Checkout only with a retail rail; solid-disabled while nothing is left to buy.
-      $('#checkout').classList.toggle('hidden', !RAIL);
-      $('#checkout').disabled = !pending.length;
+      // Order needs no retail rail; solid-disabled while nothing is left to buy.
+      $('#order').disabled = !pending.length;
     }
 
-    $('#checkout').addEventListener('click', async () => {
-      if (!RAIL || !await ensureList()) return;
-      setStatus('Building your cart…'); showAlert('');
-      const r = await api('/checkout', { method: 'POST', body: JSON.stringify({ listId }) });
-      const box = $('#checkout-result');
-      setStatus('');
-      if (providerRefused(r)) { showAlert(NOT_CONNECTED); return; }
-      if (r.error) { showAlert('Checkout could not start: ' + r.error + '.'); return; }
-      window.open(r.checkoutUrl, '_blank', 'noopener');
+    /** A link that leaves for the store in a new tab. */
+    function storeLink(href, text) {
+      const a = document.createElement('a');
+      a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.textContent = text;
+      return a;
+    }
+
+    /** The order as made from the list: every item with its place at Walmart, and the cart link when it has one. */
+    function showOrder(order) {
+      const box = $('#order-result');
       box.classList.remove('hidden');
       box.replaceChildren();
-      const p = document.createElement('p'); const strong = document.createElement('strong'); strong.textContent = 'Cart ready — $' + r.total + '.'; p.append(strong, ' ' + (r.note || ''));
-      const a = document.createElement('a'); a.className = 'primary'; a.href = r.checkoutUrl; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open checkout →';
-      box.append(p, a);
+      const head = document.createElement('h2'); head.textContent = 'Your order · ' + order.items.length + ' item' + (order.items.length === 1 ? '' : 's');
+      const note = document.createElement('p'); note.className = 'status-line'; note.textContent = order.note || '';
+      box.append(head, note);
+      if (order.cartUrl) { const cart = storeLink(order.cartUrl, 'Open Walmart cart'); cart.className = 'primary'; box.append(cart); }
+      order.items.forEach((item) => {
+        const row = document.createElement('div'); row.className = 'order-row';
+        const title = document.createElement('span'); title.className = 'lr-title'; title.textContent = (item.title || '') + (item.quantity > 1 ? ' ×' + item.quantity : '');
+        const where = item.inCartLink ? document.createElement('span') : storeLink(item.findUrl, 'Find at Walmart');
+        if (item.inCartLink) { where.className = 'lr-why'; where.textContent = 'In the Walmart cart'; }
+        row.append(title, where);
+        box.append(row);
+      });
+    }
+
+    // Order: made from the items still to buy. Nothing is bought here; each item opens at the store.
+    $('#order').addEventListener('click', async () => {
+      if (!await ensureList()) return;
+      setStatus('Making your order…'); showAlert('');
+      const r = await api('/order', { method: 'POST', body: '{}' });
+      setStatus('');
+      if (r.httpStatus >= 400 || !Array.isArray(r.items)) { showAlert(r.httpStatus === 409 ? (r.message || 'Your list has nothing left to buy.') : 'The order was not made: ' + (r.message || r.error || 'HTTP ' + r.httpStatus) + '.'); return; }
+      showOrder(r);
     });
 
     function showDeals(found) {

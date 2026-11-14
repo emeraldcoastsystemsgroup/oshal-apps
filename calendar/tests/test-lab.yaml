@@ -9,6 +9,7 @@
 # CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | own-events also proves (sweep 11) that approval-held tool descriptions read as card sentences without model instructions and that a span the person gave is one event with its end.
 # CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | own-events also expects a card named by its event, never by its place (sweep 13); the span expectation is quoted, since its unquoted colon made it a map the kernel loader refuses.
 # CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Register the design-standard layout case; Remove asks in the page now (the local-time expectation follows).
+# CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register google-events (single and repeating events written to the person's own Google Calendar through the declared egress, every refusal, the 20-weeks defect) and google-events-card (the card the kernel's own card code renders for it).
 version: 1
 cases:
   - id: own-events
@@ -249,4 +250,41 @@ cases:
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
     limits: { timeoutMs: 90000 }
+    installation: never
+  - id: google-events
+    name: Events added to the person's Google Calendar
+    purpose: >-
+      Drive the compiled google-events route over a stand-in for the kernel's package egress (declared host only, the
+      package's closed header list, the caller's own google-calendar credential placed by the kernel, "not connected"
+      without one) in front of a stand-in Google Calendar v3 events API on a loopback HTTP server that checks the bearer's
+      scopes and each event as Google does. Seams: the signed-in caller, the stand-in egress and the stand-in Google.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/google-events.test.cjs] }
+    expected:
+      - "Every Friday 6 to 7 PM for 20 weeks is one Google insert on the primary calendar: start 18:00 and end 19:00 in America/Chicago on the first Friday, RRULE:FREQ=WEEKLY;BYDAY=FR;COUNT=20, the location, and no Authorization header from the package."
+      - A series ending on a date carries UNTIL at the end of that local day in UTC; a single event has no recurrence; an all-day event's last day is included; a timed event with no end lasts one hour.
+      - Without a connection nothing reaches Google and the answer says to connect Google with event access; a read-only grant (403 insufficient scopes) and a refused credential (401) answer 409 in words and add nothing.
+      - The same series approved twice is added once (Google refuses the client-chosen id); a series removed in Google is restored when asked again.
+      - No caller, no confirmation, a timed start without a zone, a series without an end or with both, an unknown frequency, weekdays on a non-weekly series, a first date off its weekday (naming the first matching date) and an end before the start each answer 400 and reach nothing.
+      - "The manifest mounts /api/calendar/google-events and holds calendar-add-google-event for approval with its cardText; the OSHAL-only add refuses a repeat instead of saving one event (the 20-weeks defect), and the persona sends a series as one call whose start is its first date."
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: google-events-card
+    name: The Add to Google Calendar card as the kernel renders it
+    purpose: >-
+      Render the approval card and the after-Approve line for the production request with the kernel's own card code
+      (platform/src/api/jarvis-package-tools.js from OSHAL_KERNEL_PLATFORM, a read-only export of the kernel's platform folder).
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/google-events-card.test.cjs] }
+    expected:
+      - The card reads Add to Google Calendar and says it goes to the primary Google Calendar and that nothing is written before Approve.
+      - Its rows are Title, Starts (Fri, Nov 13, 6:00 PM CST), Ends, Where, Time zone, Repeat every (week), Repeat on (Friday) and Repeat times (20).
+      - After Approve the line names the series and its first time in its zone, keeps the calendar note and offers the event in Google Calendar; a refusal reads that Calendar Preparation did not do it, in the route's words.
+    prerequisites: [runner:node-test, dependency:js-yaml, harness:kernel-platform-export]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

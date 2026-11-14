@@ -4,6 +4,7 @@
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
+  10 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3 (Roger, 2026-11-14: "the jobs run needs to be moved back to 1AM"): the line about when new matches come names no hour. The pull starts when the installation says (OSHAL_CAREER_INGEST_CRON), so "New matches arrive overnight." reads "New matches arrive after each job refresh." Words only.
   1 | maintainer@emeraldcoastsystemsgroup.com | Career's home page (Roger, 2026-11-10: Career as "a full application by itself ... thoughtful layout", in the Little Monsters format). The first screen: a greeting and one search box, the person's pipeline as six stage cards that open the Job Board on that stage, their newest jobs, the state of their résumé with the one next step, and a card for every section they are admitted to. Everything is read from routes Career already serves (jobs/stats, jobs, resume/state, readiness) and from the person's own ribbon profile. With ?open=<view> it is also the page that shows another application's screen (Portrait Studio) under Career's bar, and only a screen the person's profile lists.
   2 | maintainer@emeraldcoastsystemsgroup.com | Home is the day of someone looking for a job (Roger, 2026-11-11), and Email, Portrait Studio and Social are worked into it instead of only being reachable. Under the search box, "Today" lists the day's steps from tools/career-today.js, each one line with one button: replies from the inbox against their job, new matches since yesterday, applications ready to approve, follow-ups due, interviews to prepare, the next thing for the person's profile, the next résumé improvement. A person with no résumé sees one sentence saying what Career does and three numbered steps, and no row of zero counters (an independent judge scored the first Home below Little Monsters for exactly that). One filled button on the page: the first step's. A job under "Your jobs" opens that job, and shows the newest reply from the inbox. This week's sent, answered and interview counts sit above the pipeline.
   3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The links say Open My jobs and Open My résumé, and the résumé card's line says main résumé. Words only. Guard: tests/career-page-names.test.mjs.
@@ -158,7 +159,7 @@
   <section aria-labelledby="todayTitle" aria-busy="true" id="todayPanel">
     <h2 class="section" id="todayTitle">Today</h2>
     <ol class="today" id="today"></ol>
-    <div class="card calm" id="calm" hidden><p>Nothing needs you right now. New matches arrive overnight.</p><a class="quiet" href="/api/career-hunter/search-ui" data-open="search">Search jobs</a></div>
+    <div class="card calm" id="calm" hidden><p>Nothing needs you right now. New matches arrive after each job refresh.</p><a class="quiet" href="/api/career-hunter/search-ui" data-open="search">Search jobs</a></div>
   </section>
 
   <section aria-labelledby="pipelineTitle" id="pipelinePanel" hidden>

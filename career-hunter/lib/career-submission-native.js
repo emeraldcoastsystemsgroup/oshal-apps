@@ -1,4 +1,7 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Retain kernel press words even without a result and verify each accepted press picture.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Publish the approved four-press bound in immutable native input.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain unknown-outcome browser pictures and leave owner-closed results immutable.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Publish exact approved form intents before native dispatch, recover lost acknowledgements by original ticket, and reconcile retained employer evidence without retrying a final action.
  */
 'use strict';
@@ -47,7 +50,7 @@ function approve(dir,material,input){
     const task={version:1,submissionId:saved.id,mode:'submit',approved:true,...queue.binding(saved),
       packetDigest:saved.packetDigest,profile:material.profile,
       documents:{'Resume_ATS.pdf':material.resume.toString('base64'),'CoverLetter.pdf':material.cover.toString('base64')}};
-    const bound={version:1,intentId:saved.id,origin:new URL(saved.url).origin,
+    const bound={version:1,intentId:saved.id,origin:new URL(saved.url).origin,maxPresses:saved.maxPresses,
       expiresAt:Date.parse(saved.authorizationExpiresAt),task};
     const requestDigest=queue.jsonDigest(bound);saveSnapshot(dir,saved.id,{...bound,requestDigest});
     queue.nativeUpdate(dir,saved.id,{requestDigest,title:approved.title,company:approved.company});
@@ -102,26 +105,7 @@ function followupProfile(dir,postingId,profile){
     .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0];
   return {...profile,...previous?.approvedAnswers};
 }
-/** Reads exact accepted bytes through native owner/package/source checks; no browser is dispatched here. */
-async function sync(dir,id,tickets,recordApplication){
-  const saved=item(dir,id);
-  if(!saved.nativeTicketId||['submitted','cancelled'].includes(saved.status))return queue.publicItem(saved);
-  const rows=await tickets.getTicketWork(saved.nativeTicketId);
-  if(!Array.isArray(rows)||rows.length>1)fail('native_binding_changed','The submission has unexpected work references.');
-  const row=rows[0];if(!row)return queue.publicItem(saved);
-  if(row.executor!=='browser-form-v1'||!ID.test(row.id||'')||saved.nativeWorkId&&saved.nativeWorkId!==row.id)
-    fail('native_binding_changed','The submission work reference changed.');
-  const patch={nativeWorkId:row.id,nativeState:row.state};
-  if(row.nodeId)patch.nativeNodeId=row.nodeId;
-  if(row.state==='completed'){
-    const input=snapshot(dir,id),accepted=await tickets.getAcceptedWork(saved.nativeTicketId,row.id);
-    if(!accepted)fail('result_unavailable','The accepted submission result is unavailable.',503);
-    const answer=resultData(saved,input,accepted),data=answer.data;
-    patch.status={completed:'submitted',needs_review:'needs_you',unknown:'unknown'}[answer.outcome];
-    patch.reason=String(data.reason||'').slice(0,500);patch.questions=(Array.isArray(data.questions)?data.questions:[]).slice(0,20);
-    patch.metrics={elapsedMs:data.elapsedMs,actions:data.actions,screenshots:data.screenshots};
-    patch.milestones=(Array.isArray(data.milestones)?data.milestones:[]).slice(0,30);
-    if(patch.status==='submitted'){
+async function retainConfirmed(dir,id,saved,patch,answer,data,tickets,row,recordApplication){
       const evidence=await tickets.getAcceptedArtifact(saved.nativeTicketId,row.id,answer.confirmationArtifact);
       const bytes=Buffer.from(evidence?.base64||'','base64');
       if(evidence?.name!=='confirmation.png'||bytes.length>2097152||bytes.length!==evidence.byteLength
@@ -136,6 +120,31 @@ async function sync(dir,id,tickets,recordApplication){
       patch.confirmationSha256=answer.confirmationSha256;patch.confirmationText=String(data.confirmationText).slice(0,500);
       patch.confirmationFile=name;patch.submittedAt=saved.submittedAt||new Date().toISOString();
       await recordApplication({...saved,...patch},target);
+}
+/** Reads exact accepted bytes through native owner/package/source checks; no browser is dispatched here. */
+async function sync(dir,id,tickets,recordApplication){
+  const saved=item(dir,id);
+  if(!saved.nativeTicketId||['submitted','cancelled','resolved_sent','resolved_not_sent'].includes(saved.status))return queue.publicItem(saved);
+  const rows=await tickets.getTicketWork(saved.nativeTicketId);
+  if(!Array.isArray(rows)||rows.length>1)fail('native_binding_changed','The submission has unexpected work references.');
+  const row=rows[0];if(!row)return queue.publicItem(saved);
+  if(row.executor!=='browser-form-v1'||!ID.test(row.id||'')||saved.nativeWorkId&&saved.nativeWorkId!==row.id)
+    fail('native_binding_changed','The submission work reference changed.');
+  const patch={nativeWorkId:row.id,nativeState:row.state,presses:(row.presses||[]).slice(0,6).map(press=>
+    Object.fromEntries(['step','kind','label','origin','allowedAt','result','reportedAt','afterSha256'].filter(k=>press[k]!=null).map(k=>[k,press[k]]))),
+    pressesAllowed:row.pressesAllowed??null,pressesEnded:row.pressesEnded??null};
+  if(row.nodeId)patch.nativeNodeId=row.nodeId;
+  if(row.state==='completed'){
+    const input=snapshot(dir,id),accepted=await tickets.getAcceptedWork(saved.nativeTicketId,row.id);
+    if(!accepted)fail('result_unavailable','The accepted submission result is unavailable.',503);
+    const answer=resultData(saved,input,accepted),data=answer.data;
+    patch.status={completed:'submitted',needs_review:'needs_you',unknown:'unknown'}[answer.outcome];
+    patch.reason=String(data.reason||'').slice(0,500);patch.questions=(Array.isArray(data.questions)?data.questions:[]).slice(0,20);
+    patch.metrics={elapsedMs:data.elapsedMs,actions:data.actions,screenshots:data.screenshots};
+    patch.milestones=(Array.isArray(data.milestones)?data.milestones:[]).slice(0,30);
+    Object.assign(patch,await require('./career-submission-resolution').retainPicture(dir,{...saved,...patch},answer,tickets,row.id));
+    if(patch.status==='submitted'){
+      await retainConfirmed(dir,id,saved,patch,answer,data,tickets,row,recordApplication);
     }
   }else if(['unknown','failed'].includes(row.state)){
     patch.status=row.state==='unknown'?'unknown':'failed';patch.reason=row.state==='unknown'

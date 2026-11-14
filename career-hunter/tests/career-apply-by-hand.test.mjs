@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Show approved press bounds and per-step evidence in actual approval, outcome and status screens.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Exercise non-question stop recovery from the actual application page.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -38,12 +40,14 @@ function application(state) {
     if (p === '/api/career-hunter/jobs/7/status' && method === 'POST') { state.writes.push({ path: p, body }); if (body.status === 'applied') applied(); return { json: { ok: true, status: body.status } }; }
     if (p === '/api/career-hunter/applications/7/applied' && method === 'POST') { state.writes.push({ path: p, body }); applied(); return { json: { ok: true } }; }
     if (p === '/api/career-hunter/applications') return { json: { applications: state.records || [] } };
+    const resolved = p.match(/^\/api\/career-hunter\/submission-queue\/([\w-]+)\/resolve$/);
+    if (resolved && method === 'POST') { state.writes.push({path:p,body}); state.job.application.intent.status='resolved_'+body.outcome; if(body.outcome==='sent')applied(); return {json:{ok:true,item:state.job.application.intent}}; }
     const cancel = p.match(/^\/api\/career-hunter\/submission-queue\/([\w-]+)\/cancel$/);
     if (cancel && method === 'POST') { state.writes.push({ path: p, body }); const held = state.job.application?.intent; if (held && held.id === cancel[1]) held.status = 'cancelled'; return { json: { ok: true, item: { id: cancel[1], status: 'cancelled' } } }; }
     if (p === '/api/career-hunter/experience-bank') return { json: { version: 1, revision: 'r1', entries: [] } };
     if (p === '/api/career-hunter/resume/state') return { json: { hasResume: state.hasResume !== false } };
     if (p === '/api/career-hunter/resume') return { text: url.searchParams.get('as') === 'html' ? '<p>document</p>' : `%PDF ${url.searchParams.get('kind')}` };
-    if (p === '/api/career-hunter/submission-review/7') return { json: { postingId: 7, title: 'Office Manager', company: 'Example Co', url: state.job.url, packetDigest: 'a'.repeat(64), profile: { fullName: 'Ada Lovelace' }, documents: [{ kind: 'resume', sha256: 'b'.repeat(64) }, { kind: 'cover', sha256: 'c'.repeat(64) }] } };
+    if (p === '/api/career-hunter/submission-review/7') return { json: { maxPresses:4, postingId: 7, title: 'Office Manager', company: 'Example Co', url: state.job.url, packetDigest: 'a'.repeat(64), profile: { fullName: 'Ada Lovelace' }, documents: [{ kind: 'resume', sha256: 'b'.repeat(64) }, { kind: 'cover', sha256: 'c'.repeat(64) }] } };
     if (p === '/api/apply-operator/workers') return state.computer === null ? { status: 503, json: { error: 'unavailable' } } : { json: { workers: state.computer ? [{ clientId: 'n1', available: true, boundBots: [BOT] }] : [], available: Boolean(state.computer) } };
     if (p === '/api/guest/session') return { json: { guest: Boolean(state.guest), active: Boolean(state.guest) } };
     if (p === '/api/auth/user') return { json: { authenticated: true, sub: 'ada' } };
@@ -358,4 +362,63 @@ test('G14: Other experience uses the same main résumé wording in its actual in
     assert.equal(await page.getByRole('menuitem',{name:'Main résumé & résumé bank',exact:true}).isVisible(),true);
     assert.equal(calls.some(c=>['POST','PATCH','DELETE'].includes(c.method)),false);
   }finally{await context.close();}
+});
+
+test('a stop without employer questions shows the reason and offers review or manual application', async () => {
+  const state = { job: ready(), computer: true, writes: [] };
+  state.job.application.intent = { id: 'ab000000-0000-0000-0000-000000000001', status: 'needs_you', questions: [], reason: 'The form sends applicant data to another site. Review its destination first.' };
+  const { page, context } = await open(state, DESKTOP);
+  try {
+    await page.locator('#application h2').waitFor();
+    assert.match(await page.locator('#application').innerText(), /The form sends applicant data to another site/);
+    assert.equal(await page.getByRole('button', { name: 'Save answers & review application' }).count(), 0);
+    await page.getByRole('button', { name: 'Review application again', exact: true }).click();
+    await page.getByRole('heading', { name: 'Approve this application' }).waitFor();
+    assert.equal(state.writes.length, 0, 'reviewing is not an approval');
+    await page.reload();
+    await page.getByRole('button', { name: 'Apply yourself instead' }).click();
+    await page.getByRole('heading', { name: 'Send your application' }).waitFor();
+    await page.getByRole('button', { name: 'I applied', exact: true }).click();
+    await page.waitForFunction(() => document.getElementById('sentLine'));
+    assert.equal(state.job.application_source, 'manual-mark');
+  } finally { await context.close(); }
+});
+
+for (const outcome of ['sent','not_sent']) test(`an unknown outcome shows the kept picture and records ${outcome} without sending`, async () => {
+  const state = { job: ready(), computer: true, writes: [] };
+  state.job.application.intent = { id: 'ab000000-0000-0000-0000-000000000002', status: 'unknown', reason: 'The final outcome is uncertain.', outcomeFile: 'fixture-outcome.png' };
+  const { page, context } = await open(state, DESKTOP);
+  try {
+    await page.getByRole('heading', { name: 'Check the submission outcome' }).waitFor();
+    assert.equal(await page.getByRole('img', {name:'Last browser picture from this attempt'}).count(),1);
+    assert.equal(await page.getByRole('button', { name: 'Approve & submit', exact: true }).count(),0);
+    await page.getByRole('button', { name: outcome==='sent'?'It was sent':'It was not sent', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('[data-action="resolve-sent"]'));
+    assert.deepEqual(state.writes,[{path:'/api/career-hunter/submission-queue/ab000000-0000-0000-0000-000000000002/resolve',body:{outcome}}]);
+    if(outcome==='sent')assert.equal(state.job.application_source,'manual-mark');
+    else assert.equal(await page.getByRole('button', {name:'Approve & submit',exact:true}).count(),0,'fresh review is required');
+  } finally { await context.close(); }
+});
+
+test('approval names four buttons and the approved employer site before any write',async()=>{
+  const state={job:ready(),computer:true,writes:[]},f=await open(state,DESKTOP);
+  try{
+    await toSend(f.page,DESKTOP);await f.page.getByRole('button',{name:'Send it for me from my computer'}).click();
+    await f.page.getByRole('heading',{name:'Approve this application'}).waitFor();
+    assert.match(await f.page.locator('#application').innerText(),/This form can have more than one step; Career will press up to 4 buttons on jobs.example.com\./);
+    assert.match(await f.page.locator('#application').innerText(),/never the same step twice/);assert.deepEqual(state.writes,[]);
+  }finally{await f.context.close();}
+});
+for(const status of ['unknown','submitted'])test(`job ${status} page shows every press with its picture or missing-picture words`,async()=>{
+  const state={job:ready(),computer:true,writes:[]};if(status==='submitted')state.job.status='applied';
+  state.job.application.intent={id:'press-proof',status,pressesAllowed:4,presses:[
+    {step:1,kind:'open',label:'Apply',origin:'https://jobs.example.com',allowedAt:1794549600000,result:'advanced'},
+    {step:2,kind:'continue',label:'Continue',origin:'https://jobs.example.com',allowedAt:1794549601000}],pressPictures:[{step:1,file:'kept.png'}]};
+  const f=await open(state,DESKTOP);
+  try{
+    await f.page.locator('#application h2').first().waitFor();
+    const text=await f.page.locator('#application').innerText();assert.match(text,/Step 1 of up to 4/);assert.match(text,/Career pressed “Apply” on jobs.example.com/);
+    assert.match(text,/The application form opened/);assert.match(text,/did not report back/);assert.match(text,/No picture was kept for this step/);
+    assert.equal(await f.page.locator('img[src$="/press-proof/press-picture/1"]').count(),1);assert.deepEqual(state.writes,[]);
+  }finally{await f.context.close();}
 });

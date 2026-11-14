@@ -24,6 +24,8 @@ In the main Jarvis conversation the guide can be followed with the phone tools J
 
 The guide route is covered by integration tests over the mounted route (`tests/remote-guides.test.cjs`). Jarvis following it on a real phone and TV has not been accepted yet.
 
+Version 1.19 adds one declaration on that tool, `devicePath`. It tells the kernel's path planner (`device.path`) that this way exists: an Android phone or tablet with the Amazon Fire TV app reaches a Fire TV with the remote's keys, for waking it and carrying on with what was on. It grants nothing and runs nothing. The planner offers the way only for your own phone, only while **Let Jarvis control this device** is on there, and says to read this guide first. The declaration is checked by `tests/phone-control-device-path.test.cjs`; the kernel reading it from this installed package has not been tested yet.
+
 ## How it works
 
 The page sends each command to a computer of yours that runs oshal Node with **Let Jarvis control this computer**

@@ -269,7 +269,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Your household money in one place: link your banks and brokerages via Plaid to see balances, net worth and spending, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.6.3",
+      "version": "1.6.5",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -492,8 +492,8 @@
       "name": "purchasing",
       "suite": "ai-productivity",
       "displayName": "Shopping",
-      "description": "AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. Other swarm bots can ask it to prepare a purchase.",
-      "version": "1.4.8",
+      "description": "Keeps your grocery and shopping list and makes the grocery order from it: add items by name, tick them off, and say \"order the groceries\" to get every item still to buy with its place at Walmart, where you add it to your cart and pay. Nothing is bought or charged here.",
+      "version": "1.5.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -526,11 +526,46 @@
       "status": "ready"
     },
     {
+      "name": "career-coaching",
+      "suite": "ai-knowledge",
+      "displayName": "Career Coaching",
+      "description": "Share a summary of your job search with your career coach for a few days, and stop sharing whenever you like. Your coach sees counts by stage and, if you choose, your applications and next steps; never your résumé, documents, mail or saved searches. Coaches see what their clients shared with them.",
+      "version": "0.1.2",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [
+            "career-hunter"
+          ],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "career-coaching",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/career-coaching.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
+    },
+    {
       "name": "career-hunter",
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
-      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Edit your main résumé as a Word document on the My résumé page, with AI Office's Concierge beside it. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.60.9",
+      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
+      "version": "1.62.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -577,7 +612,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.3",
+      "version": "2.20.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -668,8 +703,8 @@
       "name": "portrait-studio",
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
-      "description": "Edit face crops and generation settings in a saved source project, retain original photos, and hand rendered results into the image editor.",
-      "version": "1.17.6",
+      "description": "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor.",
+      "version": "1.17.7",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -710,8 +745,8 @@
       "name": "home",
       "suite": "ai-home",
       "displayName": "Smart Home",
-      "description": "Control your smart home by chat. Connect a hub at /utilities (SmartThings or Google Nest); the home-bot reads your real devices + scenes via your connector token, inspects SmartThings appliances and Samsung Family Hub refrigerators (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer temperatures, door sensors and live component capabilities), keeps your own grocery list, logged orders and meals beside the refrigerator's weekly check (what is inside the refrigerator is not read yet), keeps a persistent Smart Home Operations Guide & Runbook, and turns \"turn off the living room lights\" into the right commands. Destructive actions (locks, garage, thermostat) are confirmed first. It also gives the weather forecast for any US city, address or ZIP code from the National Weather Service (weather.gov): today, tonight and the coming days. It finds the TVs and streaming sticks on your home network through your own computer (Samsung, Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.",
-      "version": "1.8.0",
+      "description": "Control your smart home by chat. Connect a hub at /utilities (SmartThings or Google Nest); the home-bot reads your real devices + scenes via your connector token, inspects SmartThings appliances and Samsung Family Hub refrigerators (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer temperatures, door sensors and live component capabilities), keeps the meals you plan and the items you say you bought beside the refrigerator's weekly check (what is inside the refrigerator is not read yet; your grocery list is kept by Shopping, not here), keeps a persistent Smart Home Operations Guide & Runbook, and turns \"turn off the living room lights\" into the right commands. Destructive actions (locks, garage, thermostat) are confirmed first. It also gives the weather forecast for any US city, address or ZIP code from the National Weather Service (weather.gov): today, tonight and the coming days. It finds the TVs and streaming sticks on your home network through your own computer (Samsung, Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.",
+      "version": "1.9.0",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -732,7 +767,8 @@
             "pumpkin",
             "spaces",
             "camera",
-            "phone-control"
+            "phone-control",
+            "purchasing"
           ],
           "tools": [],
           "connectors": [
@@ -1872,7 +1908,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "One front door for your job search: the board, search, resume and strengthen tools, your profile picture, and your LinkedIn and Facebook presence — with a setup page that shows what is connected and what still needs you. An ADR-141 application GROUP: no code of its own, three member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.1.13",
+      "version": "1.1.14",
       "theme": "daylight",
       "dependencies": {
         "apps": [
@@ -2395,8 +2431,8 @@
       "name": "calendar",
       "suite": "ai-home",
       "displayName": "Calendar Preparation",
-      "description": "Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.",
-      "version": "1.2.3",
+      "description": "Add single and repeating events to your Google Calendar once you approve them, sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.",
+      "version": "1.3.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3894,7 +3930,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.18.0",
+      "version": "1.19.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3987,6 +4023,74 @@
       },
       "audit": {
         "record": "audits/audio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
+    },
+    {
+      "name": "program-instructions",
+      "suite": "ai-productivity",
+      "displayName": "Program Instructions",
+      "description": "Writes the instruction text Jarvis reads before it works inside a program on a person's computer, one program version at a time. A background job that an administrator turns on from Jobs; it has no screen and takes no requests from people.",
+      "version": "0.1.7",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "program-instructions",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/program-instructions.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
+    },
+    {
+      "name": "lists",
+      "suite": "ai-productivity",
+      "displayName": "Lists",
+      "description": "Make any list and keep track of it: a to-do list, a packing list, gift ideas, anything you name. Add items one at a time or several at once, tick them off, edit, reorder and remove them, with a note, a quantity or a due date. Your grocery and shopping list is kept by Shopping and shown beside your other lists.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [
+            "purchasing"
+          ],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "lists",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/lists.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "pending"

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | One name for each Career page, in a job seeker's words (judge's report 2026-11-11, changes 4, 12, 13 and 14). The bar already read Home, Find jobs, My jobs, Applications, Résumé, Profile & contacts and More, while the pages under it, their titles and headings and the entries under More still said Search Jobs, Job Board, Resume Studio, Additional experience, Strengthen, Profile Studio, Career Settings, Master record and Insights. This holds the names together: the manifest's label, the page's title and its heading agree for every page a tile opens, the résumé every application starts from is the main résumé, and no page, script, answer, tool description or persona line a person can meet carries a retired name. Ids, tool names, addresses, routes and file names are not names a person reads and did not change.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Retire core résumé in served words while preserving the stored Office lookup title and backend identities.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: Work history (career-work-history) is a page with one name too: its tile, title and heading say Work history, and the persona names it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page that was Improve it is Improve my résumé. "Improve it" reads well under the Résumé section of Career's own bar and says nothing by itself, and the workspace group's toolbar and the cockpit's main menu list the tile by its label alone. The manifest's label, the page's title and its heading are the full name; Career's own bar still says Improve it there, the way it says Photo for Portrait Studio's page; and no other page, script, answer or line for the assistant uses the short form.
  */
 import { test } from 'node:test';
@@ -38,6 +39,7 @@ const PAGES = [
   { tool: 'career-insights', name: 'Job market', file: 'career-insights.html' },
   { tool: 'career-strengthen', name: 'Improve my résumé', file: 'career-strengthen.html' },
   { tool: 'career-resume-studio', name: 'My résumé', file: 'career-resume-studio.html' },
+  { tool: 'career-work-history', name: 'Work history', file: 'career-work-history.html' },
   { tool: 'career-experience-library', name: 'Other experience', file: 'career-experience-bank.html' },
   { tool: 'career-master-record', name: 'Download my data', file: 'career-master-record.html' },
   { tool: 'career-profile-studio', name: 'LinkedIn profile', file: 'career-profile-studio.html' },
@@ -148,7 +150,7 @@ test('the manifest and the persona tell a person and the assistant the same name
   assert.deepEqual(hits('oshal-app.yaml', [manifest.description, manifest.localEditing.description].join('\n'), MASTER_RESUME), []);
   const persona = read('personas', 'career-hunter.yaml').replace(/^\s*#.*$/gm, '');
   assert.deepEqual(hits('personas/career-hunter.yaml', persona, RETIRED), []);
-  for (const name of ['My jobs', 'My résumé', 'Improve my résumé', 'Download my data', 'Job market', 'main résumé']) assert.ok(persona.includes(name), `the persona says ${name}`);
+  for (const name of ['My jobs', 'My résumé', 'Work history', 'Improve my résumé', 'Download my data', 'Job market', 'main résumé']) assert.ok(persona.includes(name), `the persona says ${name}`);
 });
 
 test('the page is Improve my résumé everywhere, and Improve it only in Career\'s own bar under Résumé', () => {

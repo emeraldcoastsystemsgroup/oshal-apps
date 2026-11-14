@@ -90,6 +90,15 @@
 # 80   | maintainer@emeraldcoastsystemsgroup.com     | The cloud job runs the Cloud app's suites (its persona and, since 1.3.0, Google Cloud projects and billing); before it no step ran them.
 # 81 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` also runs tests/native-relay.test.cjs (the saved phone-to-TV relay routes, 1.17.0) and tests/remote-guides.test.cjs (the Fire TV phone-app guide, 1.18.0). Neither name matches tests/phone-control-*.test.cjs, so both were registered in the package's Test Lab catalog and ran in no step here.
 # 82 | maintainer@emeraldcoastsystemsgroup.com | The career-hunter step names OSHAL_KERNEL_PLATFORM, the kernel's platform folder, so Career's concierge panel suites render the real shared assistant instead of skipping.
+# 83 | maintainer@emeraldcoastsystemsgroup.com | Run Career’s real-browser sender proof with pinned Chromium and register its explicit command alongside the package suite.
+# 84 | maintainer@emeraldcoastsystemsgroup.com | Job `program-instructions` (0.1.0): the instruction writer's suite. One tick against a stand-in for the kernel's intent and bot rails (nothing to claim, one claim published with exactly id, claim and body, an answer that fails the check reported as invalid-output, a bot turn that does not answer, a refused claim answered as an error), the text check's rules, the request text, the service route on the toolchain's Express router, and the manifest and persona declarations (no authorization catalog: a system job with one cannot be activated on the native kernel).
+# 85 | maintainer@emeraldcoastsystemsgroup.com | Job `program-instructions` also runs tests/bridge-verbs-sheet.test.cjs (same glob): the package's distilled bridge verbs against Lane G's bridge fact sheet on the host, at OSHAL_BRIDGE_FACTS or its handover path. Without the sheet that case fails, never skips; after the sheet is regenerated it fails until node scripts/bridge-verbs.cjs rewrites lib/bridge-verbs.json.
+# 86 | maintainer@emeraldcoastsystemsgroup.com | Job `program-instructions` no longer runs the bridge fact sheet case: it moved to tests/sheet/, out of the job's glob, because it reads a file outside this repository; the package's Test Lab case runs it by name.
+# 87 | maintainer@emeraldcoastsystemsgroup.com | Job `career-coaching` (0.1.0): a job seeker shares an expiring summary with one coach. The route suite (stand-in kernel identity, tickets and human gate; a store that returns any row so each refusal is the package's own), the snapshot rules, the declarations, the red-before proof that each refusal guard fails without it, and the page in Chromium at phone and desktop sizes.
+# 88 | maintainer@emeraldcoastsystemsgroup.com | Job `calendar` (1.3.0) also runs the own and Google event suites (tests/*-events.test.cjs: the OSHAL-only add, and the Google Calendar add over a stand-in kernel egress and Google API, every refusal and the 20-weeks defect) and the Add to Google Calendar card as the kernel's own card code renders it (tests/google-events-card.test.cjs, with OSHAL_KERNEL_PLATFORM). Neither ran in any step before.
+# 89 | maintainer@emeraldcoastsystemsgroup.com | Job `lists` (1.0.0): the Lists application. The rules of a list, every route through the real router over a memory pool that refuses a write during a GET, the same route scenarios on a real PostgreSQL with the package's migration applied (a database of its own on the gate's disposable PostgreSQL, created and dropped), the declarations (every concierge tool is a route of the screen, exactly three changes are cards, no name in an address) and the screen in Chromium with Shopping's own compiled routes behind the grocery list.
+# 90 | maintainer@emeraldcoastsystemsgroup.com | Job `purchasing` (1.5.0) provisions the pinned toolchain and Chromium before its suites: the same glob now also runs the order made from the list (tests/shopping-order.test.js: POST /order on the compiled routes with the native kernel's Walmart answer and with a rail, and the grocery chain through the tools' own endpoints) and Order on the List screen in Chromium (tests/shopping-order-browser.test.js). The job's other suites already read js-yaml from that toolchain.
+# 91 | maintainer@emeraldcoastsystemsgroup.com | Run scripts/role-template-coverage.test.mjs in `catalog-parity`: a role template must map its own application and every required application, as the kernel requires to load the package (crates/packages/src/experience.rs validate_members). Career Coaching 0.1.1 required career-hunter, mapped it in neither template, passed every store check and was refused by the kernel at its first load.
 
 name: store-ci
 
@@ -195,6 +204,10 @@ jobs:
       # of that rule needs the retired platform and is skipped.
       - name: Refuse a group whose concierge no required member owns
         run: node --test scripts/group-concierge.test.mjs
+      # The kernel refuses a package whose role template leaves out the package itself or a required application
+      # (experience.rs validate_members: "role template must cover its application and every required component").
+      - name: Refuse a role template that leaves out its application or a required application
+        run: node --test scripts/role-template-coverage.test.mjs
       # Core ADR-170 D10: every package's rating label (container memory low/high, each model
       # feature's unit and tier) is the source of AI-USAGE-LEDGER.md and each README's generated
       # section. A stale mirror or malformed block fails; all 67 packages are now rated.
@@ -921,6 +934,10 @@ jobs:
       # SQLite -> PostgreSQL loader, which requires both database drivers.
       - name: Provide the Career loader's database drivers
         run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/career-loader" pg@8.20.0 better-sqlite3@12.9.0
+      - name: Provide the Career browser proof toolchain
+        run: npm ci --no-audit --no-fund --prefix scripts/toolchain
+      - name: Provide the Career proof Chromium
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
       - name: Run career-hunter suites
         working-directory: career-hunter
         # Step-level on purpose: the job context (job.services.*.ports) does not exist at
@@ -928,11 +945,17 @@ jobs:
         # workflow file, which then fails a zero-second stub run on EVERY push to EVERY
         # branch because an unparseable file has no readable triggers.
         env:
+          STORE_CI_TOOLCHAIN: ${{ github.workspace }}/scripts/toolchain
           CAREER_TEST_POSTGRES_ADMIN_URL: postgresql://postgres:career-contract-ci@127.0.0.1:${{ job.services.career_postgres.ports[5432] }}/postgres
           CAREER_LOADER_NODE_PATH: ${{ runner.temp }}/career-loader/node_modules
           OSHAL_ROOT: ${{ runner.temp }}/tsroot
           OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.mjs"
+      - name: Run Career real-browser submission proof
+        working-directory: career-hunter
+        env:
+          STORE_CI_TOOLCHAIN: ${{ github.workspace }}/scripts/toolchain
+        run: node --test "tests/browser/career-submission-browser-proof.mjs"
 
   purchasing:
     name: purchasing package suites
@@ -949,6 +972,12 @@ jobs:
       # browser-sent price is ignored, an unconfirmed id is refused), totals are integer cents, and
       # a chat checkout is only a proposal until the shopper's confirm calls POST /checkout. The
       # surface guard proves the page speaks the shared bridge and opens Walmart from one place.
+      # 1.5.0: the order made from the list (tests/shopping-order.test.js) and Order on the List screen in
+      # Chromium (tests/shopping-order-browser.test.js), which needs the pinned toolchain's Express and Playwright.
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the Shopping proof Chromium
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
       - name: Run purchasing suites
         working-directory: purchasing
         run: node --test "tests/*-*.test.js"
@@ -1143,6 +1172,17 @@ jobs:
       - name: Run personal calendar date, PostgreSQL and browser suites
         working-directory: calendar
         run: node --test "tests/personal-calendar*.test.*js"
+      # Calendar 1.3.0 adds events to the person's own Google Calendar. The route suite drives the compiled route over a
+      # stand-in for the kernel's package egress and a stand-in Google Calendar API (no account is touched); the card suite
+      # renders the Add to Google Calendar card with the kernel's own card code, so what the person approves is checked.
+      - name: Run calendar own and Google event suites
+        working-directory: calendar
+        run: node --test "tests/*-events.test.cjs"
+      - name: Run calendar Google Calendar card suite
+        working-directory: calendar
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test tests/google-events-card.test.cjs
 
   scan-to-print:
     name: scan-to-print package suites
@@ -1490,6 +1530,79 @@ jobs:
       - name: Run the phone-control Fire TV guide suite
         working-directory: phone-control
         run: node --test "tests/remote-guides.test.cjs"
+
+  program-instructions:
+    name: program-instructions writer tick, text check and service route
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Run the program-instructions writer suite
+        working-directory: program-instructions
+        run: node --test "tests/*.test.cjs"
+
+  career-coaching:
+    name: career-coaching share routes, snapshot rules, declarations, red-before proof and page
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the Career Coaching proof Chromium
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run the Career Coaching suites
+        working-directory: career-coaching
+        run: node --test "tests/*.test.cjs"
+      - name: Run the Career Coaching page in Chromium
+        working-directory: career-coaching
+        run: node --test tests/browser/coaching-page.browser.cjs
+
+  lists:
+    name: Lists rules, routes on memory and PostgreSQL, declarations and the screen
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    services:
+      operations_postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: operations-contract-ci
+          POSTGRES_DB: postgres
+        ports:
+          - 35689:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the Lists proof Chromium
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      # tests/lists-postgres.test.cjs runs every route scenario on a real PostgreSQL (a database of its own, created
+      # and dropped) with migrations/001-lists.sql applied; without the address it fails, it never skips.
+      - name: Run the Lists rule, route, PostgreSQL and declaration suites
+        working-directory: lists
+        env:
+          OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres
+        run: node --test "tests/*.test.cjs"
+      - name: Run the Lists screen in Chromium
+        working-directory: lists
+        run: node --test tests/browser/lists-page.browser.cjs
 
   home:
     name: Smart Home routes, TVs and streaming sticks, and its phone-width pages

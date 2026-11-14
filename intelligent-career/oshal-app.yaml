@@ -10,6 +10,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.11: the front door opens on Career's Home (career-hunter 1.53.0), which leads the toolbar ungrouped. Home carries the job search box, the person's pipeline and their next step; Career's page frame draws this toolbar as one bar across the top of every Career page.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.1.12: the group's concierge is career-concierge, Career's own since career-hunter 1.57.0 (T9). Naming career-hunter, the group could not be activated again: the test slot's restart at 20:44 UTC 2026-11-11 left it loaded but inactive ("group concierge is not owned by an active required member"), and production would have done the same at its next restart. Guard: scripts/group-concierge.test.mjs in the store gate.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.1.13: Put Career's Gmail authorization in its Settings Accounts section and remove the broad Social Accounts tile and Facebook setup requirement together; optional Social remains in its admitted workspace.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.1.14: the Resume band borrows Career's Work history (career-hunter 1.61.0), the page where a person enters and edits the jobs, months and bullets their résumé is built from, beside My résumé.
 #
 # A group carries NO code. It binds its installed applications into one front
 # door with one toolbar and a setup dashboard:
@@ -43,7 +44,7 @@ description: >-
   One front door for your job search: the board, search, resume and strengthen
   tools and your profile picture, with account setup inside Career Settings
   and optional Social workspace access when your role allows it.
-version: 1.1.13
+version: 1.1.14
 status: active
 scope: public
 theme: daylight
@@ -96,6 +97,7 @@ toolbar:
   - { app: career-hunter,   surface: career-recruiters,     group: Connections }
   - { app: career-hunter,   surface: career-insights,       group: Review }
   - { app: career-hunter,   surface: career-resume-studio,  group: Resume }
+  - { app: career-hunter,   surface: career-work-history,   group: Resume }
   - { app: career-hunter,   surface: career-experience-library, group: Resume }
   - { app: career-hunter,   surface: career-master-record,  group: Resume }
   - { app: career-hunter,   surface: career-strengthen,     group: Resume }

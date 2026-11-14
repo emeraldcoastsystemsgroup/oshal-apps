@@ -32,6 +32,8 @@
  *   event. If it fails due to sync/identity issues, report back ...") as the event's Notes. The add tool's notes field, as the
  *   kernel offers it to the model, says it is optional and only the person's own note, never an explanation, a status or failure
  *   instructions; the field stays optional and the route still saves a note the person gave.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: calendar-add-google-event is a fourth approval-held tool, held to the same person-facing
+ *   description and cardText rules as the other three (tests/google-events.test.cjs covers what it writes).
  */
 'use strict';
 const test = require('node:test');
@@ -240,7 +242,7 @@ test('an approval card reads a person-facing sentence: no held tool description 
   const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(ROOT, '../scripts/toolchain')] }));
   const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
   const held = manifest.tools.filter((t) => t.requiresApproval === true);
-  assert.deepEqual(held.map((t) => t.name).sort(), ['calendar-add-event', 'calendar-remove-event', 'calendar-sync']);
+  assert.deepEqual(held.map((t) => t.name).sort(), ['calendar-add-event', 'calendar-add-google-event', 'calendar-remove-event', 'calendar-sync']);
   for (const tool of held) {
     assert.doesNotMatch(tool.description, /calendar-[a-z-]+|uuid|\bids?\b|\bcall\b|never its title/i, `${tool.name}: ${tool.description}`);
     assert.match(tool.description, /Held for the person's approval\.$/, tool.name);

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Local HTTP fixture serves shipped Career and real shared assistant assets, with fictional owner status and no external requests.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The shared UI comes from OSHAL_KERNEL_PLATFORM, which the store gate supplies; OSHAL_CORE_ROOT is read only when that is unset.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: a suite may add its own routes before the catch-all (extend), for the one-concierge cases: a saved conversation, and Settings as a second page.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,9 +12,10 @@ export const {chromium}=require(require.resolve('playwright',{paths:[path.join(r
 export const sharedRoot=process.env.OSHAL_KERNEL_PLATFORM||process.env.OSHAL_CORE_ROOT;
 const items=[['home','Home','home'],['search','Find jobs','search-ui'],['board','My jobs','board-native'],['resume-studio','My résumé','resume-studio'],['settings','Settings','settings']]
  .map(([id,label,view])=>({id:'tool-career-'+id,label,section:'top',toolUi:{iframeUrl:'/api/career-hunter/'+view,visibilityToolName:'career-'+id}}));
-export async function startConciergeFixture(){
+export async function startConciergeFixture(extend){
  const app=express(),calls=[];app.use(express.json());
- app.use((req,res,next)=>{calls.push({method:req.method,path:req.path,body:req.body});next();});
+ app.use((req,res,next)=>{calls.push({method:req.method,path:req.path,query:req.query,body:req.body});next();});
+ if(typeof extend==='function')extend(app,{repo,express});
  app.get('/api/ui/profile',(_req,res)=>res.json({profile:{ribbon:{items}}}));
  app.get('/api/auth/user',(_req,res)=>res.json({displayName:'Alex Fixture'}));
  app.get('/api/career-hunter/home',(_req,res)=>res.sendFile(path.join(repo,'career-hunter/tools/career-home.html')));

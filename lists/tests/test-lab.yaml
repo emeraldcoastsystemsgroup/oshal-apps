@@ -1,0 +1,150 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: register Lists' readiness and its five suites: the rules, the routes over a memory pool, the same route scenarios on a real PostgreSQL with the migration applied, the declarations, and the screen in Chromium with Shopping's own routes behind the grocery list.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Lists readiness
+    purpose: Read installed package identity without a person's lists, a model or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is lists at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: lists-rules
+    name: How a list is named and found, and what an item may hold
+    purpose: Check the pure rules. A list is found the way people say it, grocery names belong to Shopping, an item holds words and an optional note, whole quantity and real day, and a moved item takes a place between its neighbours.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lists-rules.test.cjs
+    expected:
+      - A list said as "my packing list" is the list Packing; a name of only those words keeps them.
+      - Groceries, Grocery and Shopping are Shopping's names; Christmas shopping is an ordinary list.
+      - A quantity is a whole number from 1 to 9999 and a due date is a real day; anything else is refused in words.
+      - A change names only what changes; a note, quantity or due date can be cleared and the words cannot.
+      - Open items keep their order and done items follow, the one finished last first.
+      - A list or item is found by id, then exact words, then the only one holding the words; two matches are not guessed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+  - id: lists-routes
+    name: Every Lists action through the real router
+    purpose: Drive the package's routes over loopback HTTP on the gate's Express with a memory pool that answers only the statements the store issues and refuses a write during a GET, as the native kernel does.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lists-routes.test.cjs
+    expected:
+      - A person makes a list, adds one item and several, ticks, unticks, edits, moves, removes and clears done items, renames and deletes the list.
+      - Adding to a list that does not exist makes it; an item already on the list is not added twice; a done one comes back.
+      - A grocery or shopping name answers 409 kept_by_shopping and nothing is made.
+      - Another person sees none of a person's lists and changes none; nobody signed in is refused 401 everywhere.
+      - A list holds at most 300 items, a call 50, a person 100 lists.
+      - A GET issues only queries; every statement names the caller; a failing store answers 503 in words.
+      - The page and its two files are served and nothing else in the folder is.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+  - id: lists-postgres
+    name: The same scenarios on a real PostgreSQL
+    purpose: Apply migrations/001-lists.sql to a database made for the run on the gate's disposable PostgreSQL and run every route scenario through the real store and the pg driver, so the memory pool cannot drift from a database.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lists-postgres.test.cjs
+    expected:
+      - Every route scenario passes on PostgreSQL with the package's own migration.
+      - The migration applies a second time without error and keeps the rows.
+      - Without OSHAL_TEST_POSTGRES the suite fails; it never skips.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+      - dependency:pg
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+    installation: never
+  - id: lists-declarations
+    name: Tools, cards, description, persona, screen and migration held to the package
+    purpose: Hold the manifest to what the package does, so the screen and the concierge can do the same things and Jarvis reads a true description.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lists-declarations.test.cjs
+    expected:
+      - Every tool is a route the real router registers and every action route has a tool.
+      - Reads are GETs, changes are POSTs with their names in the body, and no name travels in an address.
+      - Exactly lists-delete, lists-remove-item and lists-clear-done are cards, each with a sentence for the person.
+      - Tool schemas use only what the kernel validator accepts.
+      - The description says what Lists does and that the grocery list is Shopping's; the persona knows every tool.
+      - The screen takes its colours from the portal theme and writes server text as text.
+      - The migration and the statements have no ON CONFLICT, join, ORDER BY or transaction, and one text primary key a table.
+      - This catalog registers every suite of the package.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+      - dependency:js-yaml
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+  - id: lists-page-browser
+    name: The Lists screen in Chromium, with the grocery list through Shopping
+    purpose: Drive the real page at 1280x900 and 412x915 over a local server that mounts the package's router and Shopping's own compiled routes, the way a person uses it.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/lists-page.browser.cjs
+    expected:
+      - New list makes a list ready to type into; items are added in order; a ticked item goes under a collapsed Done row, struck through.
+      - Details saves a note, a quantity and a due date; Move down and a drag change the order; Remove offers Undo.
+      - Rename, Clear done items and Delete list work from the list's menu; Cancel deletes nothing.
+      - A grocery name is refused with where it lives; an item already on the list is not added twice.
+      - Groceries is shown first with its Shopping mark; adding, ticking and removing change Shopping's own list and never a Lists list; Order opens Shopping.
+      - A person who cannot open Shopping sees no grocery list.
+      - On a phone the lists are their own screen with Back, nothing scrolls sideways and every control is at least 44px.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - fixture:store-toolchain
+    sideEffects: synthetic browser fixtures only; no installation, account or provider is contacted
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 240000
+    installation: never

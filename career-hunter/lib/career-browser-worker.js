@@ -1,4 +1,8 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | List only retained acknowledged press pictures and reserve the kernel answer ceiling before fixing evidence.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Clear only employer cookies, permit every step, retry identical reports and retain fixed per-press picture bytes.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Drop review evidence first and shrink actual PNG bytes to preserve confirmed outcomes within the native artifact budget.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Retain a last browser picture for an unknown outcome without treating it as employer confirmation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Send the device credential in the native heartbeat body's required token field as well as its device header; other work routes retain header-only authentication.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute serial device-bound native form work with semantic Playwright controls, one-use final permits, durable exact-result recovery and private per-worker browser state.
  */
@@ -32,7 +36,7 @@ function client(settings){
     const chunks=[];let size=0;
     for await(const chunk of response.body){size+=chunk.length;if(size>24000000)throw Error('worker_response_bound');chunks.push(chunk);}
     let answer;try{answer=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Error('worker_response_invalid');}
-    if(!response.ok){const error=Error('worker_request_refused');error.status=response.status;throw error;}
+    if(!response.ok){const error=Error(answer.detail||'The press was not authorized.');error.status=response.status;error.reason=answer.reason;throw error;}
     return answer;
   };
 }
@@ -61,57 +65,95 @@ function durable(file,body){
   const temp=file+'.tmp';fs.writeFileSync(temp,JSON.stringify(body),{mode:0o600,flag:'wx'});
   const fd=fs.openSync(temp,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(temp,file);
 }
+async function prepareInput(call,prefix,envelope,dir){
+  const packet=await call(prefix+'input');
+  if(packet.version!==1||packet.executor!=='browser-form-v1'||packet.model||packet.persona||packet.envelope?.id!==envelope.id
+      ||packet.envelope?.owner!==envelope.owner||packet.envelope?.tenant!==envelope.tenant||packet.envelope?.bot!==envelope.bot
+      ||!Number.isSafeInteger(packet.limits?.artifact_bytes)||packet.limits.artifact_bytes<16384||packet.limits.artifact_bytes>2097152
+      ||packet.files?.length!==1||packet.files[0].path!=='browser-task.json'||packet.limits?.wall_ms>120000)
+    throw Error('worker_input_invalid');
+  const bytes=Buffer.from(packet.files[0].bytes);
+  if(bytes.length>1048576||queue.digest(bytes)!==hashHex(packet.files[0].digest))throw Error('worker_input_changed');
+  const input=JSON.parse(bytes.toString('utf8')),{requestDigest,...bound}=input;
+  if(input.version!==1||input.maxPresses!==input.task?.maxPresses||!Number.isInteger(input.maxPresses??1)||(input.maxPresses??1)<1||(input.maxPresses??1)>6||input.intentId!==input.task?.submissionId||new URL(input.task.url).origin!==input.origin
+      ||queue.jsonDigest(bound)!==requestDigest||input.expiresAt<=Date.now()||input.expiresAt>Date.now()+86400000)
+    throw Error('worker_intent_changed');
+  const documents=input.task.documents;
+  if(!documents||Object.keys(documents).some(k=>!['Resume_ATS.pdf','CoverLetter.pdf'].includes(k)))throw Error('worker_documents_invalid');
+  for(const [name,encoded]of Object.entries(documents)){
+    if(typeof encoded!=='string'||encoded.length>500000)throw Error('worker_document_bound');
+    fs.writeFileSync(path.join(dir,name),Buffer.from(encoded,'base64'),{mode:0o600,flag:'wx'});
+  }
+  return {input,requestDigest,packet};
+}
+function packEvidence(input,result,permit,limit){
+  const {confirmation,review,pressPictures=[],...data}=result;
+  const pictures=pressPictures.filter(p=>!confirmation||p.step!==result.presses.at(-1)?.step);
+  let keepReview=review;
+  const build=()=>{
+    data.pressPictures=pictures.map(p=>({step:p.step,artifact:'press-'+p.step+'.png',sha256:queue.digest(p.bytes)}));
+    const answer=JSON.stringify({version:1,intentId:input.intentId,requestDigest:input.requestDigest,
+      outcome:result.status==='submitted'?'completed':result.status==='unknown'?'unknown':'needs_review',permit,
+      confirmationArtifact:confirmation?'confirmation.png':null,confirmationSha256:confirmation?queue.digest(confirmation):null,data});
+    const artifacts=[nodeFile('answer.md',Buffer.from(answer))];
+    if(keepReview)artifacts.push(nodeFile('review.png',keepReview));
+    for(const picture of pictures)artifacts.push(nodeFile('press-'+picture.step+'.png',picture.bytes));
+    if(confirmation)artifacts.push(nodeFile('confirmation.png',confirmation));
+    return {answer,artifacts};
+  };
+  let packed=build();const size=()=>packed.artifacts.reduce((n,f)=>n+f.bytes.length,0);
+  if(size()>limit){keepReview=null;packed=build();}
+  while(size()>limit&&pictures.length){pictures.shift();packed=build();}
+  if(size()>limit)throw Error('worker_evidence_bound');
+  return packed;
+}
+async function clearSiteCookies(context,origin){
+  const host=new URL(origin).hostname;
+  for(const cookie of await context.cookies()){
+    const domain=cookie.domain.replace(/^\./,'');
+    if(host===domain||host.endsWith('.'+domain))await context.clearCookies({name:cookie.name,domain:cookie.domain,path:cookie.path});
+  }
+}
+// Reserve the kernel’s 64 KiB answer ceiling plus 4 KiB before fixing any reported picture.
+function pressHooks(call,prefix,input,state,budget){
+  const progress=body=>call(prefix+'browser-progress',{...body,intentId:input.intentId,requestDigest:input.requestDigest});
+  return {pictureBudget:budget,
+    ask:async body=>{
+      const approved=await progress({phase:'press',...body});
+      if(approved.current!==true||approved.phase!=='press'||approved.step!==body.step||!UUID.test(approved.permit||''))throw Error('The press acknowledgement was lost or invalid.');
+      state.permit=approved.permit;return approved;
+    },
+    report:async body=>{
+      const report={phase:'pressed',...body};let reply;
+      try{reply=await progress(report);}catch(error){if(error.reason)throw error;reply=await progress(report);}
+      if(reply.current!==true||reply.phase!=='pressed'||reply.step!==body.step||!['advanced','confirmed','unknown','left_site'].includes(reply.result)||typeof reply.next!=='boolean')throw Error('The press report acknowledgement was lost or invalid.');
+      return reply;
+    }};
+}
 /** A fresh page is the only browser surface this function owns or closes. */
 async function execute(call,envelope,context,{generation,root,fixtureOrigin,timeoutMs=10000}){
   if(!UUID.test(envelope?.id||''))throw Error('worker_envelope_invalid');
   const dir=fs.mkdtempSync(path.join(privateDirectory(root),'work-')),prefix='work/'+envelope.id+'/',started=Date.now();
-  let page,permit=null,output,completed=false;
+  let page,output;const state={permit:null};
   try{
-    const packet=await call(prefix+'input');
-    if(packet.version!==1||packet.executor!=='browser-form-v1'||packet.model||packet.persona||packet.envelope?.id!==envelope.id
-        ||packet.envelope?.owner!==envelope.owner||packet.envelope?.tenant!==envelope.tenant||packet.envelope?.bot!==envelope.bot
-        ||packet.files?.length!==1||packet.files[0].path!=='browser-task.json'||packet.limits?.wall_ms>120000)
-      throw Error('worker_input_invalid');
-    const bytes=Buffer.from(packet.files[0].bytes);
-    if(bytes.length>1048576||queue.digest(bytes)!==hashHex(packet.files[0].digest))throw Error('worker_input_changed');
-    const input=JSON.parse(bytes.toString('utf8')),{requestDigest,...bound}=input;
-    if(input.version!==1||input.intentId!==input.task?.submissionId||new URL(input.task.url).origin!==input.origin
-        ||queue.jsonDigest(bound)!==requestDigest||input.expiresAt<=Date.now()||input.expiresAt>Date.now()+86400000)
-      throw Error('worker_intent_changed');
-    const documents=input.task.documents;
-    if(!documents||Object.keys(documents).some(k=>!['Resume_ATS.pdf','CoverLetter.pdf'].includes(k)))throw Error('worker_documents_invalid');
-    for(const [name,encoded]of Object.entries(documents)){
-      if(typeof encoded!=='string'||encoded.length>500000)throw Error('worker_document_bound');
-      fs.writeFileSync(path.join(dir,name),Buffer.from(encoded,'base64'),{mode:0o600,flag:'wx'});
-    }
+    const {input,requestDigest,packet}=await prepareInput(call,prefix,envelope,dir);
     await call(prefix+'browser-progress',{phase:'reviewing',intentId:input.intentId,requestDigest});
+    await clearSiteCookies(context,input.origin);
     page=await context.newPage();
     const timer=setTimeout(()=>{page.close().catch(()=>{});},Math.max(100,packet.limits.wall_ms-2000));timer.unref();
     let result;
     try{
       result=await runSubmission(page,input.task,dir,{
         check:async()=>{try{return (await call(prefix+'check')).current===true;}catch{return false;}},
-        beforeSubmit:async()=>{
-          // Never retry this request: a missing acknowledgement may already have consumed it.
-          const approved=await call(prefix+'browser-progress',{phase:'submitting',intentId:input.intentId,requestDigest});
-          if(approved.current!==true||!UUID.test(approved.permit||''))return false;
-          permit=approved.permit;return true;
-        },
+        ...pressHooks(call,prefix,input,state,Math.floor((packet.limits.artifact_bytes-65536-4096)/((input.maxPresses??1)+1))),
       },{fixtureOrigin,timeoutMs});
     }finally{clearTimeout(timer);}
-    const {confirmation,review,...data}=result;
-    const answer=JSON.stringify({version:1,intentId:input.intentId,requestDigest,
-      outcome:result.status==='submitted'?'completed':result.status==='unknown'||permit?'unknown':'needs_review',
-      permit,confirmationArtifact:confirmation?'confirmation.png':null,confirmationSha256:confirmation?queue.digest(confirmation):null,data});
-    const artifacts=[nodeFile('answer.md',Buffer.from(answer))];
-    if(review)artifacts.push(nodeFile('review.png',review));
-    if(confirmation)artifacts.push(nodeFile('confirmation.png',confirmation));
-    if(artifacts.reduce((n,f)=>n+f.bytes.length,0)>packet.limits.artifact_bytes)throw Error('worker_evidence_bound');
+    const {answer,artifacts}=packEvidence(input,result,state.permit,packet.limits.artifact_bytes);
     output={generation,inference_receipt:'browser-form-v1:'+envelope.id,inference_receipts:[],answer,artifacts,
       elapsed_ms:Date.now()-started};
     const outbox=path.join(root,envelope.id+'.result.json');durable(outbox,output);
     // Recovery sends these exact retained bytes. It never opens the employer form again.
-    await call(prefix+'result',output);completed=true;fs.unlinkSync(outbox);
+    await call(prefix+'result',output);fs.unlinkSync(outbox);
     return {id:envelope.id,status:result.status,actions:result.actions,screenshots:result.screenshots,elapsedMs:result.elapsedMs};
   }catch(error){
     if(!output)await call(prefix+'failed').catch(()=>{});
@@ -131,7 +173,7 @@ async function recover(call,root){
   }
 }
 function fingerprint(playwrightVersion,browserPath){
-  const files=['career-browser-worker.js','career-submission-browser.js','career-submission-queue.js','autofill-bookmarklet.js'];
+  const files=['career-browser-worker.js','career-submission-browser.js','career-submission-steps.js','career-submission-png.js','career-submission-queue.js','autofill-bookmarklet.js'];
   return queue.digest(Buffer.concat([...files.map(name=>fs.readFileSync(path.join(__dirname,name))),fs.readFileSync(path.join(__dirname,'../bin/career-browser-worker.cjs')),Buffer.from(playwrightVersion),
     Buffer.from(queue.digest(fs.readFileSync(browserPath)))]));
 }

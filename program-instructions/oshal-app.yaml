@@ -1,0 +1,119 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: the installation's writer of per-program instruction text (T76). A computer reports the version of a program its person bound; the kernel keeps one row per program version and hands this package at most one of them per tick. The package's own tool-free bot writes the instruction text, the package checks it with the kernel's rules, and publishes it or reports why it could not. It never learns which person or computer has the program. It has no screen, no person-facing route and no data of its own. The kernel links application-profiles.write only for this package; a kernel that does not link it yet refuses the claim, and the job says so.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0, before any delivery: no authorization catalog. The native kernel resolves a catalog application's route through a current named role, and an application's service is never given one, so with a catalog an administrator's activation of this system job was refused ("no current named application role permits this operation") and no tick ran. The kernel has no handling of a catalog `jobs` binding or of `requires` for a service. The job now follows the system jobs that run natively (calendar, marketing-engine, daily-trade-recap): no catalog, no `requires`, a service-only route. Who may claim, publish and report stays the kernel's decision behind application-profiles.write.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the writer is given the facts measured for a program on its platform and bridge (lib/program-facts.json, distilled from Lane G's pack inputs) and holds its text to their words before publication. The text 0.1.0 published on the test slot for LibreOffice Writer 24.2.7 lacked four of the eight required words; a published text is never written again, so it is held to them first.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: production's first three runs for LibreOffice Writer 24.2.7 were refused by the package's own check: twice for quoting the request's placeholder "declared": "<id>" (now not taken for a verb), once for writing part without its quotation marks (the request now lists the required words outright and says quotation marks are part of a word). An answer the check refuses is asked about once more in the same run with the refusal's words when the first turn used at most a third of the 48 s deadline. A newer writer version may claim the version 0.1.1 left failed.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: the Windows 11 Notepad, Word and Excel. The kernel now keeps a row for each (microsoft.windowsnotepad, microsoft.office.winword.exe.15, microsoft.office.excel.exe.15, through the windows-uia bridge). That bridge had no entry in lib/bridge-verbs.json, so a Word text naming Word's own format-text was refused and the request said no declared verbs were known; and no Windows program had measured facts. The bridge's verbs (Word's six edit verbs, Excel's seven spreadsheet verbs, none for any other window) and the three programs' facts, each naming the Windows PC's proof it comes from, are the package's own inputs/windows-bridge-facts.json and inputs/windows-pack-inputs.json, distilled into lib/ with Lane G's Linux files.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: PowerPoint on Windows. The kernel now keeps a row for microsoft.office.powerpnt.exe.15 through the windows-uia bridge, and Orbit's Windows bridge edits PowerPoint live through its own object model (the Windows board's W10). The writer had no verbs for it (no kind matched powerpnt.exe and the bridge's catch-all kind has none), so a text naming add-slide was refused, and no measured facts. The six slide verbs (inputs/windows-bridge-facts.json, each at the line of Orbit's code it is read from) and PowerPoint's facts, each naming the W10 receipt or the source it comes from (inputs/windows-pack-inputs.json), are distilled into lib/; the Linux facts are unchanged.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: Lane G3's eleven Linux programs (Chrome, Firefox, Thunderbird, VS Code, Mousepad, Document Viewer, Files, Thunar, Okular, Image Viewer, Xfce Terminal), whose keys the kernel keeps since 6e05f160, had no measured facts: the committed file held three programs while Lane G's handover pack-inputs.json held fourteen, so the facts check failed on main. The package now keeps its own Linux inputs, inputs/linux-pack-inputs.json, a copy of Lane G's file with Lane G4's wording for the programs Orbit starts readable (kernel 6602c84d: a copy the person started unreadable is refused as started without accessibility), each fact naming its proof; lib/program-facts.json is distilled from it and the Windows inputs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.1.5: Excel's pivot tables and charts on Windows. Orbit's Windows bridge declares create-pivot-table and add-chart for Excel since the Windows board's W9 (kernel 06f12f46, carried by Orbit 0.7.23), through Excel's own object model with Calc's ids and inputs. 0.1.4's Excel facts said there were none and forbade both words, so a text naming them was refused. The Windows sheet lists the two verbs at windows-excel.ts:15, and Excel's facts say what the Windows PC measured for them (the add-on's defaults, the pivot table built where it goes after measuring, the not-active refusal, the chart's series and types, read-back and undo by name), require both words and forbid neither; the file verbs stay refused. As a newer writer version, 0.1.5 writes once more an Excel text 0.1.4 published (kernel d0d4bc31). Delivered only once Orbit 0.7.23 is published.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane GD1): the Godot 4 editor on Linux. Orbit's Linux reader gives a bound Godot the bridge word godot and reads its own --version (kernel 0814f7f7), Orbit's Godot add-on declares seventeen verbs through it (desktop/oshal-node/src/main/bridges/godot-actions.ts), and the kernel keeps a row for program godot once PROGRAMS names it. inputs/godot-bridge-facts.json lists the verbs at the lines they are declared and inputs/godot-pack-inputs.json the facts the real Godot 4.7.2 suites prove (kernel d67a8c2e); both distillers read them after the Windows inputs. Delivered only once an Orbit release carries the Godot add-on (Orbit 0.7.24) and the kernel names godot in PROGRAMS.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane LX1): nineteen everyday Linux programs (gedit, Calculator, To Do, Document Scanner, Calendar, Characters, Transmission, File Roller, PDF Arranger, System Monitor, Fonts, Videos, Rhythmbox, Shotwell, Ristretto, Remmina, qBittorrent, Claude, ChatGPT). The kernel keeps a row for each since 52981f3b, and Lane LX1 measured Orbit's Linux bridge on each real program (kernel 4eb54fdb, desktop/oshal-node/scripts/test-linux-everyday-programs.cjs); inputs/linux-pack-inputs.json gains their facts, what each text never says and its required and forbidden words, and lib/program-facts.json is distilled from it. The kernel also keeps a row on demand now for a bound program outside its list, which is written from the request alone, with nothing measured.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6: Blender on Linux (Lane BL1). Orbit's Linux reader reports a bound Blender on the blender bridge with its own --version (kernel 871319bb: the Spark's Blender 5.1.0, version kind file), and Orbit's Blender add-on reads the open .blend whole and changes it through sixteen declared verbs, each edit one named step on Blender's own undo list (kernel 54321ffd). The writer had no entry for that bridge, so a Blender text naming any verb was refused, and no measured facts. The Blender sheet (inputs/blender-bridge-facts.json: the sixteen verbs, each at the line of Orbit's code it is read from) and Blender's facts (inputs/blender-pack-inputs.json, each naming the case of the real-Blender suite or the source it comes from: the whole-file snapshot, invoke only, the named undo step, degrees, colors, refusals that change nothing, modifiers, Object Mode, export-glb's res:// hand-off to Godot, save-file, run-python's two yeses, the viewport picture said in words, the add-on not connected) are distilled into lib/. Delivered only once an Orbit carrying the Blender sidecar (0.7.24) is published.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane VS1): VS Code on the vscode bridge. From kernel 7ed028e0 Orbit reports a bound VS Code on the vscode bridge, Orbit's VS Code extension, which had no entry here, so a VS Code text naming the extension's edit-text was refused and its request said no declared verbs were known. The vscode sheet (inputs/vscode-bridge-facts.json: the twelve verbs, each at its line of bridges/vscode-actions.ts) and VS Code's facts on it (inputs/vscode-pack-inputs.json, each citing the kernel commit and the real-VS Code test it is proved by: the whole reading, type and edit-text as one step on VS Code's own Undo, the run gate's confirmed: true after the person's yes, nothing in Restricted Mode, terminal output, Problems, find in files) are distilled into lib/ last; Lane G3's linux-atspi entry for VS Code stays. With 9, 10 and 11 one release, 0.1.6, delivered only once Orbit 0.7.24, which carries the four sidecars and the everyday Linux bridge, is published.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7 (Lane BL2, Blender as a game-asset tool): Orbit's Blender add-on 1.1.0 declares thirty verbs, its game-asset families (import-model; edit-mesh and clean-mesh; uv-unwrap; texture-material and bake-texture; add-light, add-camera, organize-collection; add-armature and skin-to-armature; make-action and shape-key; scene-stats; export-glb with animations), each at its line of blender-actions.ts in inputs/blender-bridge-facts.json. Blender's facts gain what the real Blender 5.1.0 and Godot 4.7.2 measured (kernel 4692a724, desktop/oshal-node/scripts/test-blender-game-asset.cjs, 8 of 8): edit-mesh's operation and faces, decimate to a triangle budget, a character's order from unwrap to make-action, export-glb's animations as Godot's AnimationPlayer lists them, import and bake; the run-python fact now follows the person's two Python switches as the snapshot's Python snippets line states them (off; on and asking before each snippet, the default; on without asking), and says that a scheduled turn never runs Python. A text must hold edit-mesh and make-action and never the input name op (the door keeps op). The facts are worded to keep Blender's request, with its thirty verbs, under 8 KiB with room to be asked once more (7,805 bytes). On top of the 0.7.24 facts release (feat/program-instructions-0724). Delivered only once an Orbit release carries the Blender add-on 1.1.0 (0.7.25).
+# -----------------------------------------------------------------------------
+name: program-instructions
+suite: ai-productivity   # ADR-097: primary catalog shelf
+# Rating label (core ADR-170). After editing, run `node scripts/ai-usage-ledger.mjs --write`.
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: instruction-writing
+      unit: instruction text for one program version
+      tier: T3
+      generation: none
+      degrade: disable
+displayName: Program Instructions
+description: Writes the instruction text Jarvis reads before it works inside a program on a person's computer, one program version at a time. A background job that an administrator turns on from Jobs; it has no screen and takes no requests from people.
+version: 0.1.7
+runtime: process
+status: active
+scope: operator
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: program-instructions
+  ref: main
+
+# intent.run reaches the kernel's three application_profiles intents; application-profiles.write is the
+# capability the kernel links for them. Declaring it grants nothing by itself: an administrator must still
+# turn the job on, and the kernel admits only this package's own activated service inside a scheduled run.
+uses:
+  - app-dependencies   # compatibility floor for the tiered dependencies block (BUILDING-EXTENSIONS.md, section 6)
+  - test-catalog
+  - intent.run
+  - application-profiles.write
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+# The writer. posture: node with no tools: the kernel answers a package's own node bot as a plain
+# completion on the installation's inference rail (no tool loop, no enrolled machine needed).
+bots:
+  - agentId: 648137ba-2418-4a23-a59d-2e5b661b8ce3
+    name: instruction-writer
+    persona: personas/instruction-writer.yaml
+    posture: node
+    role: program-instructions/writer
+    capabilities:
+      - program-instruction-writing
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
+# touches user data, calls a provider, mutates state, or spends tokens.
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/program-instructions/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/program-instructions.mjs
+    factory: createProgramInstructionsRoutes
+    mountPath: /api/program-instructions
+    auth: service
+    requiresContext: true
+    requiresAi: true
+
+# ADR-157: a SYSTEM service. A tick asks the kernel for at most one discovered program version, has the
+# writer bot write its instruction text once, and publishes it or reports the failure; nothing in the run
+# comes from whoever turned it on. A swarm administrator activates it once for the installation.
+# What a run may spend is the cap set on this job's Jobs row; no figure is in this package.
+# No authorization catalog and no `requires`: the native kernel gives an application's service no named role, so a
+# catalog would refuse the activation. The route is mounted for the service only.
+schedules:
+  - id: write-instructions
+    cron: "* * * * *"
+    runsAs: system
+    target: service-route
+    route: /api/program-instructions/write
+    handler: runInstructionTick
+    body: {}
+    description: Write the instruction text for at most one newly discovered program version, check it, and publish it or report why it could not be written.
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/program-instructions/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false

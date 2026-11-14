@@ -8,6 +8,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: local discovery lists only what the installation's discovery file names (no made-up devices, never a TV), and a TV registered as a local device is refused by control instead of having its saved switch flipped.
  * 4   | maintainer@emeraldcoastsystemsgroup.com | home 1.5.0 (J-6): verify read-only samsungce.viewInside SmartThings capability operation (readSmartThingsViewInside, validateViewInsideDeviceInput, validateViewInsideFileId, renderViewInsideSvg), dictionary-keyed contents.value + supportedFocusAreas + lastUpdatedTime parsing, and home-view-inside manifest & route declarations.
  * 5   | maintainer@emeraldcoastsystemsgroup.com | home 1.6.2: the refrigerator cases hold the route to listing nothing until the inside was read, to keeping what a person set or added when a state saved from the fixed list is carried over, and to never carrying an item, comparison, order, meal or device id in its source again. All three fail on 1.6.1's route.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com | home 1.9.0: Smart Home keeps no grocery list. The refrigerator answer has no cart: it says the grocery list is Shopping's and lists what a person had put on the refrigerator's own list before, so the page can move it; the four grocery actions are refused with where the list lives and change nothing; forget-earlier-list drops what was moved. The manifest no longer declares a grocery word, its tool takes no grocery action, and its description says the grocery list is kept by Shopping.
  *
  * Dependency-free `node --test` suite apart from the store toolchain's js-yaml.
  */
@@ -46,6 +47,7 @@ const {
   mutateFridgeMealAndCart,
   buildMealsForFocus,
   NOTHING_READ,
+  GROCERY_LIST_IS_SHOPPINGS,
 } = require('../routes/fridge-weekly-assessment.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -405,7 +407,11 @@ test('1.6.2: a refrigerator lists nothing until its inside has been read; a pers
     assert.equal(initial.weeklySchedule.lastRunAt, null, 'no run has happened');
     assert.equal(initial.telemetry.measuredAt, null, '37 and 0 are placeholders until the hub reports a temperature (1.6.1)');
     // Nothing was read, so nothing is listed, and the words say so. Until 1.6.2 everyone was shown one fixed list.
-    assert.deepEqual([initial.currentSnapshot.items, initial.previousWeekSnapshot.items, initial.orderHistory, initial.cart.items, initial.mealPlan.entries], [[], [], [], [], []]);
+    assert.deepEqual([initial.currentSnapshot.items, initial.previousWeekSnapshot.items, initial.orderHistory, initial.mealPlan.entries], [[], [], [], []]);
+    // 1.9.0: no grocery list is kept here. The answer says where it is, and has nothing to move for a new person.
+    assert.equal(initial.cart, undefined, 'the refrigerator answer carries no cart');
+    assert.deepEqual(initial.groceryList, { keptBy: 'Shopping', app: 'purchasing', open: '/cockpit/?app=purchasing',
+      words: 'Your grocery list is kept by Shopping, which also makes the grocery order from it.', earlier: [] });
     assert.equal(initial.currentSnapshot.capturedAt, null);
     assert.deepEqual(initial.reading, { read: false, capturedAt: null, words: NOTHING_READ });
     assert.equal(initial.comparison.read, false);
@@ -420,12 +426,16 @@ test('1.6.2: a refrigerator lists nothing until its inside has been read; a pers
     assert.deepEqual([ran.telemetry.measuredAt, ran.currentSnapshot.capturedAt, ran.mealPlan.entries.length, ran.reading.read], [null, null, 0, false]);
     assert.ok(!Number.isNaN(Date.parse(ran.weeklySchedule.lastRunAt)), 'the run itself is recorded');
 
-    // The list is the person's own: starting it marks it, adding puts an item on it.
-    const started = mutateFridgeMealAndCart('owner-1', { action: 'start-cart', store: 'Weekly Swarm Cart' });
-    assert.deepEqual([started.cart.status, started.cart.store, started.cart.activeItemCount], ['active', 'Weekly Swarm Cart', 0]);
-    const withAdded = mutateFridgeMealAndCart('owner-1', { action: 'add-cart-item', name: 'Sparkling Mineral Water', quantity: '2 cases' });
-    assert.deepEqual(withAdded.cart.items.map((i) => [i.name, i.quantity, i.inCart]), [['Sparkling Mineral Water', '2 cases', true]]);
-    assert.equal(withAdded.cart.activeItemCount, 1);
+    // 1.9.0: the grocery actions are refused with where the list lives, and nothing is kept here. On the test
+    // installation "add eggs, bread and bananas to my grocery list" was written here while Shopping, which orders,
+    // had an empty list, and "order the groceries" then logged the three as ordered.
+    for (const body of [{ action: 'start-cart', store: 'Weekly Swarm Cart' }, { action: 'add-cart-item', name: 'Sparkling Mineral Water', quantity: '2 cases' },
+      { action: 'toggle-cart-item', name: 'Sparkling Mineral Water' }, { action: 'remove-cart-item', name: 'Sparkling Mineral Water' }]) {
+      const refused = mutateFridgeMealAndCart('owner-1', body);
+      assert.deepEqual(refused, { refusal: { error: 'kept_by_shopping', message: GROCERY_LIST_IS_SHOPPINGS, keptBy: { app: 'purchasing', open: '/cockpit/?app=purchasing' } } }, body.action);
+    }
+    assert.match(GROCERY_LIST_IS_SHOPPINGS, /^Your grocery list is kept by Shopping, which also makes the grocery order from it\./);
+    assert.deepEqual(formatFridgeAssessmentResponse('owner-1').groceryList.earlier, [], 'a refused action writes nothing');
 
     const measured = runWeeklyFridgeAssessment('owner-1', { coolerTempF: 36, freezerTempF: 0, focus: 'high-protein' });
     assert.equal(measured.telemetry.coolerTempF, 36);
@@ -470,13 +480,18 @@ test('1.6.2: a state saved from the fixed list is carried over with only what th
     const after = formatFridgeAssessmentResponse('owner-2');
     assert.deepEqual([after.currentSnapshot.items, after.previousWeekSnapshot.items, after.currentSnapshot.capturedAt, after.reading.read], [[], [], null, false], 'the fixed shelves and comparison are gone');
     assert.deepEqual(after.orderHistory.map((o) => o.name), ['Oat milk'], 'the order the person logged is kept');
-    assert.deepEqual(after.cart.items.map((i) => i.name), ['Sparkling Mineral Water'], 'the item the person added is kept');
-    assert.deepEqual([after.cart.status, after.cart.activeItemCount], ['active', 1]);
+    assert.deepEqual(after.groceryList.earlier, [{ id: 'cart-sparkling-mineral-water', name: 'Sparkling Mineral Water', quantity: '2 cases' }], 'the item the person added is kept, for the page to move to Shopping');
+    assert.equal(after.cart, undefined);
     assert.deepEqual(after.mealPlan.entries.map((m) => m.title), ['Friday pizza night'], 'the meal the person wrote is kept');
     assert.deepEqual([after.weeklySchedule.enabled, after.weeklySchedule.dayOfWeek, after.weeklySchedule.time, after.mealPlan.focus], [false, 'Tuesday', '07:30', 'quick'], 'their settings are kept');
     assert.deepEqual([after.telemetry.coolerTempF, after.telemetry.freezerTempF, after.telemetry.measuredAt], [35, -2, '2026-11-09T15:00:00.000Z'], 'a temperature the hub reported is kept');
     assert.deepEqual([after.deviceId, after.companionDependency.phoneDeviceId], ['', '']);
     assert.equal(readPersistedJson('owner-2', 'fridge-weekly-state.json').version, 2, 'and it is saved in the new shape, once');
+    // 1.9.0: once the page has moved an earlier item to Shopping, Smart Home forgets it; an id it does not hold changes nothing.
+    assert.deepEqual(mutateFridgeMealAndCart('owner-2', { action: 'forget-earlier-list', ids: ['not-here'] }).groceryList.earlier.length, 1);
+    const forgotten = mutateFridgeMealAndCart('owner-2', { action: 'forget-earlier-list', ids: ['cart-sparkling-mineral-water'] });
+    assert.deepEqual([forgotten.groceryList.earlier, forgotten.orderHistory.map((o) => o.name), forgotten.mealPlan.entries.map((m) => m.title)], [[], ['Oat milk'], ['Friday pizza night']], 'only the moved item is forgotten');
+    assert.deepEqual(formatFridgeAssessmentResponse('owner-2').groceryList.earlier, []);
   } finally {
     if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;
     else process.env.OSHAL_PACKAGE_DATA_DIR = prevDir;
@@ -495,13 +510,30 @@ test('1.6.2: no item, comparison, order, meal or device id is written into the r
   }
 });
 
-test('the manifest declares phone-control optional dependency and weekly fridge assessment/meal/cart tools and routing words', () => {
+test('the manifest declares phone-control optional dependency, the weekly fridge tools and their words, and no grocery list', () => {
   const m = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
   assert.ok(m.dependencies.optional.apps.includes('phone-control'), 'phone-control optional dependency declared');
   assert.ok(m.tools.find((t) => t.name === 'home-fridge-assessment'), 'home-fridge-assessment tool declared');
   assert.ok(m.tools.find((t) => t.name === 'home-fridge-assessment-run'), 'home-fridge-assessment-run tool declared');
   assert.ok(m.tools.find((t) => t.name === 'home-fridge-meal-cart'), 'home-fridge-meal-cart tool declared');
-  for (const word of ['meal list', 'meal plan', 'grocery cart', 'start a cart', 'what is in the fridge', 'weekly fridge', 'fridge assessment']) {
+  for (const word of ['meal list', 'meal plan', 'what is in the fridge', 'weekly fridge', 'fridge assessment']) {
     assert.ok(m.bots[0].routingKeywords.includes(word), `routingKeyword missing: ${word}`);
   }
+  // 1.9.0: Shopping keeps the grocery list. Smart Home declares no grocery word, its tool takes no grocery action, and
+  // its description (what Jarvis reads to choose an application) says where the list is.
+  const persona = yaml.load(fs.readFileSync(path.join(ROOT, 'personas', 'home-bot.yaml'), 'utf8'));
+  for (const word of ['grocery cart', 'start a cart', 'grocery list', 'shopping cart']) {
+    assert.ok(!m.bots[0].routingKeywords.includes(word), `Smart Home no longer declares: ${word}`);
+    assert.ok(!(persona.routing_keywords || []).includes(word), `the persona no longer declares: ${word}`);
+  }
+  const mealTool = m.tools.find((t) => t.name === 'home-fridge-meal-cart');
+  assert.deepEqual(mealTool.inputSchema.properties.action.enum, ['build-meal-list', 'log-order', 'set-weekly-schedule']);
+  assert.match(mealTool.description, /keeps no grocery list/);
+  assert.match(mealTool.description, /orders nothing/);
+  const described = String(m.description).split(/\s+/).join(' ');
+  assert.match(described, /your grocery list is kept by Shopping, not here/);
+  assert.doesNotMatch(described, /keeps your own grocery list/);
+  assert.doesNotMatch(m.tools.find((t) => t.name === 'home-fridge-assessment').description, /own grocery list/);
+  assert.match(persona.perspective, /grocery list is kept by Shopping/);
+  assert.match(m.version, /^1\.9\.\d+$/);
 });

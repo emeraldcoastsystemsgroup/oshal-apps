@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — load the COMPILED Shopping route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers exactly the SQL the cart, list, checkout and chat routes issue, and a recording Walmart provider. Shared by the route suite and the browser smoke's fixture (which passes the framework's real express so the same compiled router serves real HTTP); not a suite itself (no .test.js name, so the package glob never runs it).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Native admission double: admittedPool applies the native host's rule (crates/packages/src/sql_transaction.rs) to every statement, so while callAdmitted runs a GET only a query or idempotent table setup reaches the pool and any other statement is refused with the host's own message. The in-memory pool also answers the remaining GET reads (lists, list items, the latest conversation) and POST /lists, so a suite can walk every GET route a fresh shopper can open.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The fake pool answers the List row update (tick off, quantity) on the shopper's own non-removed rows.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The fake pool answers the row removal (DELETE /lists/:listId/items/:itemId sets the shopper's own row removed): the Lists screen removes a grocery item through that route (lists/tests/browser/lists-page.browser.cjs), and no suite here had driven it.
  */
 'use strict';
 const fs = require('node:fs');
@@ -39,6 +40,7 @@ function fakePool(seed = {}) {
     [/^INSERT INTO shop_list_items/, (p) => { const r = { item_id: id('item'), list_id: p[0], user_sub: p[1], retailer: p[2], product_id: p[3], title: p[4], brand: p[5], image_url: p[6], product_url: p[7], quantity: p[8], unit_price: p[9] === null ? null : Number(p[9]).toFixed(2), reason: p[10], status: 'pending' }; t.items.push(r); return rows([r]); }],
     [/^INSERT INTO shop_preferences/, (p) => { t.prefs.push(p); return rows([]); }],
     [/^UPDATE shop_list_items SET quantity = COALESCE\(\$4, quantity\), status = COALESCE\(\$5, status\)/, (p) => rows(t.items.filter((i) => i.item_id === p[0] && i.list_id === p[1] && i.user_sub === p[2] && i.status !== 'removed').map((i) => { if (p[3] !== null) i.quantity = p[3]; if (p[4] !== null) i.status = p[4]; return i; }))],
+    [/^UPDATE shop_list_items SET status = 'removed' WHERE item_id = \$1 AND user_sub = \$2/, (p) => rows(t.items.filter((i) => i.item_id === p[0] && i.user_sub === p[1]).map((i) => Object.assign(i, { status: 'removed' })))],
     [/^SELECT \* FROM shop_list_items WHERE list_id = \$1 AND user_sub = \$2 AND status = 'pending'/, (p) => rows(t.items.filter((i) => i.list_id === p[0] && i.user_sub === p[1] && i.status === 'pending'))],
     [/^SELECT product_id, title, quantity, unit_price FROM shop_list_items/, (p) => rows(t.items.filter((i) => i.list_id === p[0] && i.user_sub === p[1] && i.status === 'pending'))],
     [/^INSERT INTO shop_purchase_history/, (p) => { t.history.push({ user_sub: p[0], order_ref: p[1], items: p[2], total: p[3], handoff_url: p[4] }); return rows([]); }],

@@ -33,6 +33,7 @@
  * 13  | maintainer@emeraldcoastsystemsgroup.com   | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
  * 14  | maintainer@emeraldcoastsystemsgroup.com   | home 1.5.0 (J-6): add schema-bounded read-only SmartThings `samsungce.viewInside` server operation (`GET /api/home/view-inside` and `GET /api/home/view-inside/image/:fileId`) returning interior camera bay metadata and SVG bay previews for the Smart Home app and Jarvis.
  * 15  | maintainer@emeraldcoastsystemsgroup.com   | Serve the extracted overview renderer and stylesheet as exact known UI assets; keep all home device actions and authorization unchanged.
+ * 16  | maintainer@emeraldcoastsystemsgroup.com   | home 1.9.0: POST /fridge-meal-plan answers 409 kept_by_shopping for a grocery action. Smart Home keeps no grocery list any more (Shopping keeps the person's one grocery list and makes the order from it), so the action changes nothing and the answer says where the list is.
  *
  * @module home-routes
  */
@@ -683,7 +684,13 @@ function createHomeRoutes(ctx) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
-        res.json((0, fridge_weekly_assessment_1.mutateFridgeMealAndCart)(sub, (req.body || {})));
+        // home 1.9.0: a grocery action is refused (the list is Shopping's) and answers 409 with where it lives.
+        const out = (0, fridge_weekly_assessment_1.mutateFridgeMealAndCart)(sub, (req.body || {}));
+        if ('refusal' in out) {
+            res.status(409).json(out.refusal);
+            return;
+        }
+        res.json(out);
     });
     router.post('/fridge-refresh', async (req, res) => {
         const sub = callerSub(req);

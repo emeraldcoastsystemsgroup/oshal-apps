@@ -10,6 +10,7 @@ CHANGE LOG
 2 | maintainer@emeraldcoastsystemsgroup.com | Add, Remove and Put back on the Companies page: `add:<name>|<link>` creates an employer and reads its link, `remove:employer` closes its jobs and takes it out of every pull, and `restore:employer` lists it again.
 3 | maintainer@emeraldcoastsystemsgroup.com | A person's answer to a source maintenance decision travels the same way: `keep:employer` marks the open decision kept and stops it being raised again for a while, and an applied `remove:employer` marks it archived.
 4 | maintainer@emeraldcoastsystemsgroup.com | Apply only the exact confirmed source decision in one writer transaction; stale or recovered decisions do nothing, and generic remove or keep cannot answer an open decision.
+5 | maintainer@emeraldcoastsystemsgroup.com | Verify explicit Oracle source changes with three actual jobs; the same pull still enumerates the changed board in full rather than timing out while resolving it.
 """
 from __future__ import annotations
 
@@ -109,11 +110,18 @@ def _is_public_link(link):
     return parts.scheme in ("http", "https") and bool(parts.hostname) and http._host_is_public(parts.hostname)
 
 
+def _change_jobs(ats_type, token):
+    """Prove an explicit source change promptly; the full pull still enumerates a previewed board."""
+    if ats_type == "oracle_orc":
+        return ats.OracleORC.preview(token)
+    return review._jobs_at(ats_type, token)
+
+
 def _from_link(url):
     """The board a link leads to and its jobs, or nothing. A page read directly is the last resort, as Resolve has always done."""
     hit = resolve.classify_url_deep(url)
     ats_type, token = hit if hit and hit[0] != "workday_host" else (None, None)
-    feed = review._jobs_at(ats_type, token) if ats_type else None
+    feed = _change_jobs(ats_type, token) if ats_type else None
     if len(feed or ()) < 3 and ats_type != "web" and _reader_guarded():
         from . import webscrape
         try:
@@ -132,9 +140,11 @@ def _move(company, ats_type, token, url, feed, pull):
         conn.execute(f"""UPDATE {db.companies_table()} SET ats_type=?,ats_token=?,discover_status='manual',
             careers_url=COALESCE(?,careers_url) WHERE id=?""", (ats_type, token, url, company["id"]))
         counts = memory.ingest(conn, company["id"], feed)
+        if getattr(feed, "preview", False) and pull is not None:
+            _reopen_preview(conn, pull, company["id"])
         added = {"new": counts["new"], "seen": counts["changed"] + counts["unchanged"], "closed": counts["closed"],
                  "skipped": counts["skipped"], "confirmed": int(counts["complete"]), "unconfirmed": int(not counts["complete"])}
-        settled = pull is not None and company["id"] not in pull.finished
+        settled = pull is not None and company["id"] not in pull.finished and not getattr(feed, "preview", False)
         if settled:  # Read just now: the pull need not read the same board again tonight.
             pull.settle(conn, company["id"], **added)
     if settled:
@@ -142,6 +152,19 @@ def _move(company, ats_type, token, url, feed, pull):
         pull.totals.update(added)
     return {"outcome": "applied", "board": f"{ats_type}:{token}", "jobs": len(feed), "new": counts["new"], "closed": counts["closed"],
             "from": f"{company['ats_type'] or 'none'}:{company['ats_token'] or ''}", "complete": bool(counts["complete"])}
+
+
+def _reopen_preview(conn, pull, company_id):
+    """An old source's completed checkpoint cannot stand in for enumeration of its replacement."""
+    if company_id not in pull.finished:
+        return
+    table = memory.table("pull_checkpoint_sources")
+    row = conn.execute(f"SELECT counts FROM {table} WHERE company_id=?", (company_id,)).fetchone()
+    if row and row["counts"]:
+        pull.totals.subtract(json.loads(row["counts"]))
+    conn.execute(f"DELETE FROM {table} WHERE company_id=?", (company_id,))
+    pull.finished.discard(company_id)
+    pull.attempts.pop(company_id, None)
 
 
 def _parse_add(target):
@@ -343,7 +366,7 @@ def _apply(change, pull):
         return {"outcome": "unsafe"}
     if ats_type == "web" and (not link or not _reader_guarded()):
         return {"outcome": "no_jobs"}
-    feed = review._jobs_at(ats_type, token) if ats_type else None
+    feed = _change_jobs(ats_type, token) if ats_type else None
     if url:
         ats_type, token, feed = _from_link(url)
     if not feed:

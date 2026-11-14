@@ -1,5 +1,17 @@
 # Shopping — OSHAL app package
 
+1.5.0: **the grocery and shopping list, and the order made from it.** A shopper has one list here. "Add eggs, bread
+and bananas to my grocery list" puts them on it (one approval card, `shopping-list-add-many`), and "order the
+groceries" makes the order from every item still to buy (`shopping-order`, `POST /api/purchasing/order`, one approval
+card): each item is answered with the address that finds it at Walmart, where the shopper adds it to their cart and
+pays. Lines already matched to a Walmart product go in one cart link where the installation runs Walmart's catalog.
+The order is kept in the purchase history; nothing is bought or charged here and nothing is marked bought. The List
+screen has **Order** for the same thing. `prepare-checkout` is retired, and `POST /checkout` answers 400 for a list
+with no matched line instead of asking Walmart for an empty cart. Smart Home no longer keeps a grocery list of its
+own, and the Lists application shows this one beside a person's other lists. Proven by `tests/shopping-order.test.js`
+and `tests/shopping-order-browser.test.js` (Test Lab cases `shopping-order`, `shopping-order-browser`). What is not
+built is in [BACKLOG.md](BACKLOG.md).
+
 1.3.4 makes `GET /cart` a pure read: a shopper with no list yet gets `listId: null` and no lines instead of a list
 created by the read, which the native host refuses on a GET. The chat surface creates the default list through
 `POST /lists` before its first add. Proven by `tests/shopping-routes.test.js` under a double of the native admission
@@ -19,7 +31,7 @@ shopper money or credentials touch OSHAL.
 
 - `oshal-app.yaml` — manifest: one `service-or-oidc` route mount (`/api/purchasing`), six
   route-backed framework tools (search / compare / scan-deals / suggest-from-history /
-  explain-pick / prepare-checkout approval-gated), four ribbon tiles (chat / dashboard /
+  explain-pick; since 1.5.0 `shopping-order`, approval-gated, in place of prepare-checkout), four ribbon tiles (chat / dashboard /
   lists / deals), `guestTier: blocked` request, `connectors: [walmart]`, ticketType
   `purchasing` + concierge workflow. **No bots** — see below.
 - `src-routes/purchasing-routes.ts` — the API + two surfaces (compiled to `routes/` by

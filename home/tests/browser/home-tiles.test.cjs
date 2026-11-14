@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | home 1.6.0, Home as tiles in headless Chromium at 412 x 915 (Roger, 2026-11-10: "Smart home needs a redesign ... connected devices are smart home items, fire sticks are as well"). The first screen shows the refrigerator, the TVs, the switch cards, the person's phones and their computers in groups that fit the phone; no label on it names a provider key or a device capability; the refrigerator tile opens its page and Back returns; a phone or computer tile opens Phone & Device Control; a device known to both lists shows once; with Phone & Device Control waiting for re-approval it is asked for nothing and the tiles open the Devices page; opening the screen writes nothing.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The overview names its hub inventory count home devices so it does not imply the separately listed phones, computers and remotes are included.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | home 1.9.0: the refrigerator page has no Start a grocery list button, and its answer carries where the grocery list is (Shopping) instead of a cart.
  */
 'use strict';
 const test = require('node:test');
@@ -110,7 +111,7 @@ test('a tile opens its page and Back returns to Home; Connections and Help and n
     assert.equal(await page.isVisible('#homeView'), false);
     assert.equal(await page.textContent('#page-fridge h2'), 'Refrigerator');
     assert.deepEqual(await page.locator('#page-fridge .fridge-actions .btn').allTextContents(),
-      ['Look inside', 'Take new photos', 'Check what is inside now', 'Start a grocery list']);
+      ['Look inside', 'Take new photos', 'Check what is inside now'], 'home 1.9.0: no grocery list is started here; it is Shopping\'s');
     assert.equal(new URL(page.url()).hash, '#fridge');
     const fit = await overflow(page);
     assert.ok(fit.scrollWidth <= fit.clientWidth, `the refrigerator page is ${fit.scrollWidth}px wide in a ${fit.clientWidth}px screen: ${fit.offenders.join(', ')}`);
@@ -151,7 +152,7 @@ test('with Phone & Device Control waiting for re-approval it is asked for nothin
 test('a refrigerator temperature shows only when the hub reported it: placeholders are never shown as readings', async () => {
   // 1.6.1: the weekly state starts with 37 and 0, and the page showed them ("Cooler: 37°F · Closed") for everyone.
   const comparison = { depletedFromLastWeek: [], runningLow: [], useFirst: [], summary: '' };
-  const state = (telemetry) => ({ ok: true, comparison, telemetry, currentSnapshot: { items: [] }, cart: { items: [], status: 'recommended', activeItemCount: 0 }, mealPlan: { entries: [] },
+  const state = (telemetry) => ({ ok: true, comparison, telemetry, currentSnapshot: { items: [] }, groceryList: { keptBy: 'Shopping', app: 'purchasing', open: '/cockpit/?app=purchasing', words: 'Your grocery list is kept by Shopping, which also makes the grocery order from it.', earlier: [] }, mealPlan: { entries: [] },
     weeklySchedule: { dayOfWeek: 'Sunday', time: '09:00', enabled: true } });
   const withAssessment = async (telemetry) => {
     const { page, context } = await openPage(browser, PHONE_VIEW, { url: '/api/home/ui', files: FILES,

@@ -24,6 +24,7 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: a refrigerator temperature shows only when the hub reported it. The weekly state starts with 37 and 0 as placeholders and the tile and the refrigerator page showed them as readings; `telemetry.measuredAt` now says when a run was handed a reported temperature, and the page says Temperature not read yet until then. The weekly list, comparison, grocery list and meal ideas are unchanged (they are still the fixed list in routes/fridge-weekly-assessment.js; see BACKLOG).
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: the refrigerator lists nothing until its inside has really been read. Every person was shown one fixed set of shelf items, changes since "last week", orders, a grocery list and five meals as their own refrigerator, and the assistant read them out. They are gone from the source; the page and the three tools say that nothing has been read yet; a person's own list, logged orders and meals are kept, also from a state saved before; the description and the tools say what they do. No route or permission change.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.7.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): on an Android or Fire TV, home-lan-control also plans now_playing (what is playing and in which app) and play, pause, next, previous and stop, which reach the app playing even behind another app (Phone & Device Control's bridge 1.8.0, which Smart Home installs on the computer when it is older); home-lan-record's answer says what is playing after the press, and the TV's card shows a media row and a Now playing line. A Roku or Samsung TV refuses them in words. No route, permission or egress changed.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.0 (Roger, 2026-11-14, asked for one grocery list that "order the groceries" is made from): Smart Home keeps no grocery list. It kept one of its own beside Shopping's and could not order from it; on the test installation "add eggs, bread and bananas to my grocery list" was written here while Shopping's list stayed empty, and "order the groceries" then started this list and logged the three items as ordered, which nothing had been. The description no longer says it keeps a grocery list and says the list is Shopping's (Jarvis picks an application from its description). home-fridge-meal-cart takes no grocery action (meals, items the person says they bought, the weekly check's time); an older caller's grocery action answers 409 kept_by_shopping. The refrigerator page shows Shopping's list in place of its own and adds to it through Shopping's routes; items a person had on the refrigerator's own list are moved to Shopping when the page opens. The four grocery routing words are withdrawn.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -67,9 +68,10 @@ description: >-
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token, inspects SmartThings appliances and Samsung Family Hub refrigerators
   (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer
-  temperatures, door sensors and live component capabilities), keeps your own
-  grocery list, logged orders and meals beside the refrigerator's weekly check
-  (what is inside the refrigerator is not read yet), keeps a
+  temperatures, door sensors and live component capabilities), keeps the meals
+  you plan and the items you say you bought beside the refrigerator's weekly
+  check (what is inside the refrigerator is not read yet; your grocery list is
+  kept by Shopping, not here), keeps a
   persistent Smart Home Operations Guide & Runbook, and turns "turn off the
   living room lights" into the right commands. Destructive actions (locks,
   garage, thermostat) are confirmed first. It also gives the weather forecast
@@ -78,7 +80,7 @@ description: >-
   streaming sticks on your home network through your own computer (Samsung,
   Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off,
   volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.
-version: 1.8.0
+version: 1.9.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -118,7 +120,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [drone, sat-ops, pumpkin, spaces, camera, phone-control]   # five tabs FRAME these apps' own surfaces; phone-control assists optical Family Hub camera capture
+    apps: [drone, sat-ops, pumpkin, spaces, camera, phone-control, purchasing]   # five tabs FRAME these apps' own surfaces; phone-control assists optical Family Hub camera capture; the Family Hub's list reads and changes the person's list in Shopping through /api/purchasing
     tools: []
     connectors: [smartthings, google-home]
 
@@ -199,14 +201,10 @@ bots:
       - runbook
       - meal list
       - meal plan
-      - grocery cart
-      - start a cart
       - what is in the fridge
       - what's in the fridge
       - weekly fridge
       - fridge assessment
-      - grocery list
-      - shopping cart
       - tv
       - tvs
       - the tv
@@ -319,15 +317,15 @@ tools:
     displayName: Weekly Fridge Assessment & Cart
     type: api
     category: smart-home
-    description: Read what is known about the refrigerator. That is the weekly check's day and time, a temperature when the hub reported one, and the person's own grocery list, logged orders and meals. What is inside is not read yet, so no shelf list, comparison with last week or meal idea exists; the answer says so in `reading.words`. Read-only.
+    description: Read what is known about the refrigerator. That is the weekly check's day and time, a temperature when the hub reported one, the meals the person wrote and the items they said they bought. What is inside is not read yet, so no shelf list, comparison with last week or meal idea exists; the answer says so in `reading.words`. The grocery list is not here; Shopping keeps it. Read-only.
     executor: { executorType: api, apiEndpoint: "GET /api/home/fridge-assessment" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema: { type: object, properties: {} }
     usageInstructions: >-
-      Call with {} whenever the person asks what is in the fridge, how this week compares to last week, what groceries
-      are running low, or for a meal list or their grocery list. When `reading.read` is false, tell them in the answer's
-      own words that nothing has been read from the refrigerator yet; never name an item that is not in the answer.
+      Call with {} whenever the person asks what is in the fridge, how this week compares to last week, what is
+      running low, or for their meal list. When `reading.read` is false, tell them in the answer's own words that
+      nothing has been read from the refrigerator yet; never name an item that is not in the answer.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-assessment-run
     displayName: Run Fridge Assessment
@@ -346,25 +344,24 @@ tools:
       answer holds; when `reading.read` is false nothing inside was read.
     tags: [home, smartthings, route-backed]
   - name: home-fridge-meal-cart
-    displayName: Start Cart or Meal List
+    displayName: Meals, Bought Items and Weekly Check
     type: api
     category: smart-home
-    description: Start or update the person's own grocery list (add, remove or tick an item), log an item they ordered, set the weekly check's day and time, or add a meal they describe. It suggests nothing from what is inside the refrigerator, which is not read yet.
+    description: Add a meal the person describes, note an item they say they already bought, or set the weekly check's day and time. It keeps no grocery list (Shopping keeps the person's grocery list and makes the grocery order) and it orders nothing.
     executor: { executorType: api, apiEndpoint: "POST /api/home/fridge-meal-plan" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
       type: object
       properties:
-        action: { type: string, enum: ["start-cart", "add-cart-item", "remove-cart-item", "toggle-cart-item", "build-meal-list", "log-order", "set-weekly-schedule"], description: "Cart or meal-plan action to perform." }
-        name: { type: string, maxLength: 160, description: "Item name when adding/removing/toggling a cart item or logging an order." }
-        quantity: { type: string, maxLength: 80, description: "Optional quantity such as 1 dozen or 2 packs." }
+        action: { type: string, enum: ["build-meal-list", "log-order", "set-weekly-schedule"], description: "What to do: add or rebuild the meal list, note a bought item, or set the weekly check." }
+        name: { type: string, maxLength: 160, description: "The item the person says they already bought, for log-order." }
         focus: { type: string, maxLength: 80, description: "Meal focus when action is build-meal-list (use-first, high-protein, quick-prep)." }
       required: [action]
     usageInstructions: >-
-      Call with {"action": "start-cart"} when the person wants to start a grocery cart from the fridge recommendations,
-      {"action": "add-cart-item", "name": "..."} to add an item, or {"action": "build-meal-list", "focus": "use-first"}
-      to build or adjust the weekly meal list.
+      Call with {"action": "build-meal-list", "focus": "use-first"} to build or adjust the weekly meal list, or
+      {"action": "log-order", "name": "..."} only when the person says they already bought that item. Never call it to
+      add to a grocery list or to order groceries: the grocery list and the order are Shopping's.
     tags: [home, smartthings, route-backed]
   - name: home-operations-guide
     displayName: Smart Home Operations Guide & Runbook

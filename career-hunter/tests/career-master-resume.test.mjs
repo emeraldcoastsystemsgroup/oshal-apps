@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Size the oversize fixture so it can actually reach the engine on Linux, and assert that it does. At 263 KB it exceeded execve's 128 KiB per-variable limit, so the spawn failed before the refusal branch ran and the test only passed on Windows.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin the ADR-141 D7 stories key on the editor document: a role the review has not reached carries an empty list, never a missing key, so a surface reading it never has to guess whether the evidence is absent or the field is.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: each job in the document also carries its start and end month as stored ('' end is present) for the Work history page, and the document names the exact revision of the profile it was read from.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the picker, the Save button and the route's answers say main résumé; the value they carry is still `master`.
  */
 import { after, test } from 'node:test';
@@ -86,6 +87,7 @@ test('resume base maps the profile straight into the editor document shape', () 
   assert.equal(result.status, 0, result.stderr);
   const doc = JSON.parse(result.stdout.trim());
   assert.equal(doc.meta.master, true);
+  assert.match(doc.revision, /^[a-f0-9]{64}$/, 'the document names the exact profile revision it was read from');
   assert.equal(doc.meta.name, 'Alex Fixture');
   assert.deepEqual(doc.cover, {});
   const r = doc.resume;
@@ -96,7 +98,7 @@ test('resume base maps the profile straight into the editor document shape', () 
   assert.deepEqual(r.skills, ['AWS', 'Terraform', 'Mentoring']);
   assert.equal(r.experience.length, 2);
   assert.deepEqual(r.experience[0], {
-    title: 'Platform Lead', org: 'Acme', span: '2019-01–present',
+    title: 'Platform Lead', org: 'Acme', span: '2019-01–present', start: '2019-01', end: '',
     bullets: ['Led the team that shipped the platform', 'Cut deploy time 60%'],
     // ADR-141 D7: the key is always present. This fixture has never been through the story
     // review, so it is empty — a missing key would make "no evidence yet" indistinguishable

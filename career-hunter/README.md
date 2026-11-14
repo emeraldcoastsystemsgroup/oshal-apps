@@ -34,6 +34,17 @@ The versioned sections below retain engineering and release history, including
 older page names and workflows. Use the current guides for user and deployment
 instructions.
 
+## Source readers (1.60.13)
+
+Oracle boards are read to their stated count with bounded retries and facet searches that reach
+past their 10,000-result search window. Resolve verifies an actual sample promptly; the same pull
+still enumerates the replacement source in full. Workday saves completed facet searches inside the ingest's
+private scratch directory, so a restarted pull can reuse recent searches whose counts still
+match. The anonymous page reader can finish AWS browser checks and follow Avature's next-page
+controls. Failed, empty and incomplete reads retain existing jobs.
+
+See [Source reader recovery](docs/source-readers.md) for source changes, limits and checks.
+
 ## Source decisions (1.59)
 
 A Job source administrator can review an unresolved employer source in
@@ -1142,3 +1153,37 @@ or installed identity acceptance is claimed. See the Test Lab concierge cases.
 The shared concierge that 1.60.8 introduced is a module script (`career-concierge.mjs`). Career's `/static` route now serves `.mjs` files as it serves `.js`, so the concierge opens on a deployed kernel; in 1.60.8 the route refused it and the concierge did not load. Every module script a shipped page imports from `/static` is checked by `tests/career-native-surface-contract.test.mjs`.
 
 <!-- CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Document the 1.60.9 module-script fix. -->
+
+## One concierge, one résumé (1.62.0)
+
+**One concierge.** `career-concierge` is the one assistant a person meets in Career: the pane on every page
+(`tools/career-concierge.mjs` names it and no other bot), Jarvis's hand-off (the kernel's default is `chatBot`) and the
+Intelligent Career group. A page with no document of its own hands the pane the person's Career record (`recordId`
+`master`, the record My résumé and Work history hand over) with the page's surface, name, open job and the tools that
+page's work uses, so the kernel keeps one conversation (`doc:career-hunter:master`) for every page.
+
+It carries a tool for everything a person does in Career: 59 in all (the kernel offers at most 64 route tools). Each
+route tool is bound in `authorization.yaml` to exactly its route's permission. The kernel shows a turn the twelve tools
+whose descriptions fit the message best and reads `description` and `inputSchema` only, so each description says what
+its tool is for; the first eight display names are what Jarvis's catalog lists for Career.
+
+`career-hunter` is the engine's worker: it ranks and classifies jobs and drafts an application's documents inside
+Career's runs and tickets. Its persona `perspective` is not edited, not even for wording: the kernel hashes that text
+into the scoring model identity, and a change makes every saved fit score read as another configuration's
+(`tests/career-concierge-tools.test.mjs` holds its digest). The native kernel has no switch that keeps a declared bot out
+of conversation while it runs the package's own turns, so the manifest's `role` says what each bot is.
+
+**One résumé.** The main résumé (`career_db.json`) is the source of truth. The Word document on My résumé is a view of
+it: its first page's id names the main résumé revision it was made from, and `CareerResumeOffice.settle()`
+(`tools/career-resume-office.js`) is the one way every page brings the two together. A document that is only behind is
+rewritten; typed text is saved into the main résumé, merged field by field and bullet by bullet with what changed there;
+a document Career cannot place is left for the person; a document near AI Office's 100-revision limit is replaced.
+`GET /resume/doc?id=master&earlier=<revision|recent>` answers the document as it read earlier (the engine's
+`resume base-earlier`, from the backups Undo reads) under the existing read binding.
+
+**Approve.** `master_edit.apply_edits` no longer refuses a card whose revision moved. `card_rebase` applies it to the
+version it read to learn which job and item each change names, finds each in the main résumé as it is now (the job by
+title and employer, a bullet by its whole text, a removed job whole, a moved job or bullet in the order read) and
+applies it all or nothing with a note; otherwise the refusal names the change and the job (409).
+
+<!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.0: one concierge with every tool, the one-résumé rule and the card applied on the current revision. -->

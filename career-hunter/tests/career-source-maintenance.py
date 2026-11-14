@@ -3,6 +3,8 @@
 2 | maintainer@emeraldcoastsystemsgroup.com | Six review fixes, each with a case that fails without it: a careers link on someone else's site is never connected as the employer's own, by a page read or a list read; a part that asks to end the process ends its pass and never the pull; connecting keeps a saved careers link and changes nothing once the employer has a board, a person's choice or a removal; a suggestion stays until the employer has a board or is removed; two hosts on one vendor's domain are two sites; and a redirect into a private address is refused by the real connection guard, against a real local server.
 3 | maintainer@emeraldcoastsystemsgroup.com | Keep real full-pull acceptance on exact confirmed action identities while retaining every nondecision source change.
 4 | maintainer@emeraldcoastsystemsgroup.com | Apply queued immutable decision identities on the next real pull without time-warping their opening timestamp.
+5 | maintainer@emeraldcoastsystemsgroup.com | Assert the repair brief names the actual extracted Pinpoint reader module.
+6 | maintainer@emeraldcoastsystemsgroup.com | Choose the latest inserted maintenance report when two pulls finish in the same second; keep the archive assertions on the current pull.
 """
 import json
 import os
@@ -159,8 +161,9 @@ class Base(unittest.TestCase):
             return [dict(row) for row in conn.execute(f"SELECT * FROM corpus.{table} WHERE {where}", args).fetchall()]
 
     def report(self):
-        runs = self.rows("source_maintenance_runs")
-        return json.loads(max(runs, key=lambda run: run["finished_at"])["report"]) if runs else None
+        with db.connect() as conn:
+            row = conn.execute("SELECT report FROM corpus.source_maintenance_runs ORDER BY finished_at DESC, rowid DESC LIMIT 1").fetchone()
+        return json.loads(row["report"]) if row else None
 
     def company(self, company_id):
         return self.rows("companies", "id=?", (company_id,))[0]
@@ -315,7 +318,7 @@ class RepairBriefs(Base):
         self.assertEqual((employers["count"], employers["jobs"]), (3, 15))
         self.assertEqual([(shown["name"], shown["board"], shown["read"], shown["pulls"]) for shown in employers["shown"]][0],
                          ("Partial 2 Co", "careers.partial2.example", 6, 3), "the most stored jobs first, with what the last pull read")
-        for expected in ("the `Pinpoint` class in `career-hunter/engine/jobhunter/ats.py`", "Reason code: `completion_unverified`", "Employers affected: 3.",
+        for expected in ("the `Pinpoint` class in `career-hunter/engine/jobhunter/ats_portals.py`", "Reason code: `completion_unverified`", "Employers affected: 3.",
                          "| Partial 0 Co | careers.partial0.example | 4 | 3 | 4 |", "## What done means", "`career-hunter/tests/career-jibe-feed-contract.py`",
                          "## Files to hand over", "- `career-hunter/engine/jobhunter/source_memory.py`"):
             self.assertIn(expected, brief["brief"])

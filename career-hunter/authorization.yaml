@@ -1,3 +1,7 @@
+# CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner per-press evidence reads to career.read.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0, one concierge (Roger, 2026-11-14: "one concierge for the entire app that can do everything that needs to be done in the app"): bind 29 new concierge tools, each to exactly the permission of the route it calls (the kernel withholds a tool bound differently from its route; tests/career-concierge-tools.test.mjs checks each one by the kernel's rule). No permission, role, grant or route binding changed, so every assignment grants what it granted before. The five job-source tools carry career.administer, as their routes do.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: bind its page (GET /work-history) to app.open like every Career page, and Undo of a main-résumé change (POST /resume/master-undo, the caller's own store) to career.change like the edit it undoes. Job edits ride the existing POST /resume/master-edit and career_resume_patch bindings. No new permission and no role change, so every assignment grants what it granted before.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Bind owner outcome statements and retained browser-picture reads to existing change/read permissions.
 # CHANGE LOG
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Bind owner preparation preferences to existing read/change permissions.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Bind the optional original-owner application goal change to career.change; progress reads use the existing job parameter binding on career.read.
@@ -83,6 +87,9 @@ bindings:
     - { id: submission-start, method: POST, path: /submission-queue/:id/start, allOf: [career.execute] }
     - { id: submission-sync, method: POST, path: /submission-queue/:id/sync, allOf: [career.change] }
     - { id: submission-answers, method: POST, path: /submission-queue/:id/answers, allOf: [career.change] }
+    - { id: submission-resolve, method: POST, path: /submission-queue/:id/resolve, allOf: [career.change] }
+    - { id: submission-press-picture, method: GET, path: /submission-queue/:id/press-picture/:step, allOf: [career.read] }
+    - { id: submission-outcome-picture, method: GET, path: /submission-queue/:id/outcome-picture, allOf: [career.read] }
     - { id: submission-cancel, method: POST, path: /submission-queue/:id/cancel, allOf: [career.change] }
     - { id: submission-confirmation, method: GET, path: /submission-queue/:id/confirmation, allOf: [career.read] }
     - { id: application-mail-check, method: POST, path: /jobs/updates/check, allOf: [career.change] }
@@ -96,6 +103,7 @@ bindings:
     - { id: settings-ui, method: GET, path: /settings, allOf: [app.open] }
     - { id: home-ui, method: GET, path: /home, allOf: [app.open] }
     - { id: resume-studio-ui, method: GET, path: /resume-studio, allOf: [app.open] }
+    - { id: work-history-ui, method: GET, path: /work-history, allOf: [app.open] }
     - { id: mobile-ui, method: GET, path: /mobile, allOf: [app.open] }
     - { id: submissions-ui, method: GET, path: /submissions, allOf: [app.open] }
     - { id: profile-studio-ui, method: GET, path: /profile-studio, allOf: [app.open] }
@@ -150,6 +158,7 @@ bindings:
     - { id: resume-guide, method: POST, path: /resume/guide, allOf: [career.execute] }
     - { id: resume-save, method: POST, path: /resume/save, allOf: [career.change] }
     - { id: resume-master-edit, method: POST, path: /resume/master-edit, allOf: [career.change] }
+    - { id: resume-master-undo, method: POST, path: /resume/master-undo, allOf: [career.change] }
     - { id: resume-local-import, method: POST, path: /resume/local-import, allOf: [career.change] }
     # Artifacts, including the ADR-139 Send-to-Career destination (career-artifacts).
     - { id: artifacts, method: GET, path: /artifacts, allOf: [career.read] }
@@ -262,6 +271,37 @@ bindings:
     - { id: career_resume_save, allOf: [career.change] }
     - { id: career_resume_local_export, allOf: [career.read] }
     - { id: career_resume_local_import, allOf: [career.change] }
+    # 1.62.0, one concierge: the tools for the rest of what a person does in Career. Each is bound to exactly the
+    # permission of the route it calls (the kernel withholds a tool bound differently from its route).
+    - { id: career_jobs, allOf: [career.read] }
+    - { id: career_job_update, allOf: [career.change] }
+    - { id: career_job_track, allOf: [career.change] }
+    - { id: career_market, allOf: [career.read] }
+    - { id: career_submission_cancel, allOf: [career.change] }
+    - { id: career_resume_undo, allOf: [career.change] }
+    - { id: career_experience_save, allOf: [career.change] }
+    - { id: career_strengthen, allOf: [career.read] }
+    - { id: career_strengthen_answer, allOf: [career.execute] }
+    - { id: career_settings, allOf: [career.read] }
+    - { id: career_titles_set, allOf: [career.change] }
+    - { id: career_area_set, allOf: [career.change] }
+    - { id: career_remote_only_set, allOf: [career.change] }
+    - { id: career_preparation, allOf: [career.read] }
+    - { id: career_preparation_set, allOf: [career.change] }
+    - { id: career_digest, allOf: [career.read] }
+    - { id: career_digest_set, allOf: [career.change] }
+    - { id: career_targets, allOf: [career.read] }
+    - { id: career_target_add, allOf: [career.change] }
+    - { id: career_target_remove, allOf: [career.change] }
+    - { id: career_companies, allOf: [career.administer] }
+    - { id: career_company_add, allOf: [career.administer] }
+    - { id: career_company_remove, allOf: [career.administer] }
+    - { id: career_company_restore, allOf: [career.administer] }
+    - { id: career_company_board, allOf: [career.administer] }
+    - { id: career_recruiters, allOf: [career.read] }
+    - { id: career_recruiter_add, allOf: [career.change] }
+    - { id: career_recruiter_update, allOf: [career.change] }
+    - { id: career_recruiter_remove, allOf: [career.change] }
   bots:
     - { id: cb000000-0000-0000-0000-000000000005, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }

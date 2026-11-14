@@ -1,0 +1,80 @@
+{
+  "about": "What the generated instructions for VS Code on its vscode bridge (Orbit's VS Code extension, Lane VS1, 2026-11-13) must say and must not say, in the shape of Lane G's pack-inputs.json. Every fact is as built at the kernel commit named and names its evidence: the commits and the real-VS Code tests (desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs, VS Code 1.146 in a private display) it was proved by. The verbs are in vscode-bridge-facts.json beside this file. Orbit reports VS Code on this bridge from kernel 7ed028e0 (Orbit 0.7.24); Orbit 0.7.23 and earlier report linux-atspi, whose entry stays in linux-pack-inputs.json. `acceptance` is the check a written text is held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-13T22:05:00Z",
+  "kernel_commit": "7ed028e0",
+  "facts": "vscode-bridge-facts.json",
+  "programs": [
+    {
+      "program": "com.microsoft.vscode",
+      "name": "Visual Studio Code",
+      "platform": "linux",
+      "bridge": "vscode",
+      "version_on_the_spark": {
+        "version": "1.146.0",
+        "version_kind": "package",
+        "from": "code 1.146.0-1794340783"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "With Orbit's VS Code extension connected, a snapshot reads the active file whole (\"part\" is \"whole\"; the shown line says \"through Orbit's VS Code extension\"): one element with the role document named after the file, whose value is the file's text, and a selection element while text is selected. Without the extension a snapshot reads only the visible window and declares no verbs: ask the person to press Install Orbit's extension in Visual Studio Code in Orbit Settings, Bound Apps; VS Code starts it at once, with no restart.",
+          "evidence": "4d5ca179, 4f919a66 (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'the vertical slice: the active file read whole, typed into, undone with VS Code's own Undo, then changed and saved'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'one press installs it for this person with code --install-extension, it reaches Orbit in that open VS Code, and Jarvis reads and types there'"
+        },
+        {
+          "fact": "\"action\": \"type\" on the document element appends (\"mode\": \"append\"), inserts at a character (\"mode\": \"insert\" with \"at\") or replaces the whole file (\"mode\": \"replace\"); on the selection element it replaces the selected text. Each is one step on VS Code's own Undo, its answer carries \"verified\", and it is refused when the file changed since the snapshot. Nothing is saved until save-file.",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'the vertical slice: the active file read whole, typed into, undone with VS Code's own Undo, then changed and saved'"
+        },
+        {
+          "fact": "The extension declares workspace, read-file, problems, find-in-files, open-file, edit-text, save-file, list-tasks, run-task, run-command, terminals and terminal-output, each run with \"action\": \"invoke\" and its inputs. Files are named by their path inside the workspace (such as src/app.js); a file outside the window's folders is refused. open-file makes a file the active one the next snapshot reads.",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'workspace, read-file, open-file and find-in-files name files inside the workspace; a file outside it is refused'"
+        },
+        {
+          "fact": "edit-text changes the active file or `path` as one WorkspaceEdit: `find` with `replace` changes one place (a text found more than once is refused unless `all` is true), `line` and `endLine` with `text` replace whole lines, and `text` with `at` (start, end or a line number) inserts. The answer carries the lines before and after and \"verified\".",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'edit-text: whole lines, an insertion, every match in another file; save-file all; an undo after a later change writes back its own place'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'the vertical slice: the active file read whole, typed into, undone with VS Code's own Undo, then changed and saved'"
+        },
+        {
+          "fact": "An edit or a type is undone with \"action\": \"undo\" naming the answer's undo how and group: VS Code's own Undo while the change is still the last one in its file; after the person changed the file again, only the change's own text is written back, and when that text is gone the undo is refused and \"action\": \"restore\" opens the copy saved before the change.",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'edit-text: whole lines, an insertion, every match in another file; save-file all; an undo after a later change writes back its own place'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'the vertical slice: the active file read whole, typed into, undone with VS Code's own Undo, then changed and saved'"
+        },
+        {
+          "fact": "run-command and run-task run something only when the person asked for that command or task in this conversation. An invoke without confirmed: true is refused with the question to put to the person (\"Ask the person first: Run ...? ... Nothing was run.\"); only after they say yes is it sent again with confirmed: true. A command is one line and runs in a terminal named Jarvis the person sees; the answer carries its output and exit code (it waits at most 50 seconds). In a folder VS Code holds in Restricted Mode nothing runs, confirmed or not.",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'a command and a task run only with confirmed: true, in the Jarvis terminal the person sees, and their output is read'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'Restricted Mode: a folder the person has not trusted is read through the extension and runs nothing, even confirmed'"
+        },
+        {
+          "fact": "terminal-output reads what a terminal wrote since the extension started (commands VS Code's shell integration reports, colors removed); terminals lists them. problems lists VS Code's Problems panel (file, line, column, severity, message, errors first); find-in-files finds text in the workspace's files, unsaved editors included, with the workspace's excludes.",
+          "evidence": "4d5ca179, 8b49295c (Lane VS1), desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'a command and a task run only with confirmed: true, in the Jarvis terminal the person sees, and their output is read'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'problems: VS Code's own check of an open file is listed, errors first, and narrowed to one file'; desktop/oshal-node/scripts/test-vscode-extension-desktop.cjs 'workspace, read-file, open-file and find-in-files name files inside the workspace; a file outside it is refused'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis runs a task or a command the person did not ask for, or sends one with confirmed: true before the person said yes.",
+        "That the person must restart VS Code or reload its window after installing the extension.",
+        "That the person must start VS Code with a flag or change a desktop setting.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open.",
+        "save-document, open-document or another LibreOffice verb: VS Code's own verbs are save-file and open-file."
+      ],
+      "acceptance": {
+        "contains": [
+          "Orbit's VS Code extension",
+          "\"part\"",
+          "whole",
+          "edit-text",
+          "confirmed: true",
+          "Nothing was run",
+          "\"action\": \"undo\"",
+          "Restricted Mode",
+          "Install Orbit's extension"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "open-document",
+          "insert-paragraph",
+          "Reload Window"
+        ]
+      },
+      "by": "lane-vs1-vscode-sidecar"
+    }
+  ]
+}

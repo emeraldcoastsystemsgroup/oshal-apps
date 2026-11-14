@@ -1,3 +1,12 @@
+# 154 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "there is no point having the career hunter bot .. every time i ask him to do something with my resume he cant ... i want one concierge for the entire app that can do everything that needs to be done in the app", and "i cant use the tools to update my resume and see it in the resume tab after adding experience"). One concierge: career-concierge is the one assistant on every Career page, in one conversation that goes with the person from page to page, and it carries every person-facing tool: 29 new ones for saved jobs and application tracking, settings, the companies a person wants and (for an administrator) the shared job sources, recruiters, other experience, Improve my résumé, the job market, stopping a submission and Undo, 59 in all inside the kernel's 64; the first eight names are what Jarvis's catalog shows for Career. career-hunter is declared as the engine's worker. One résumé: the Word document on My résumé is a view of the main résumé, names the revision it was made from and is brought up to date by every Career page, typed text is saved into the main résumé and merged with what changed there, and the status the concierge reads no longer calls the document separate (it had answered "I can't see that document from here"). Approve: a card whose revision moved (two cards from one reading, or the document saving in between) is applied on the main résumé as it is now when every job and bullet it names still reads the same, and is otherwise refused naming the change and the job (it had answered "Your main résumé changed"). GET /companies-admin/list takes a name search. No permission, role or binding of an existing route changed; the new tools are bound to their routes' own permissions. Guards: tests/career-card-rebase.test.mjs, tests/career-resume-one-source.test.mjs, tests/career-one-concierge.test.mjs, tests/career-concierge-tools.test.mjs.
+# 153 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3 (Roger, 2026-11-14, in Intelligent Career: "The application did not open. Use Open application to try again."): Prepare application, Open application and the approvals link open inside an application group. They asked the shell for the bare career-board; a group registers that screen as career-hunter--career-board, the shell ignored the name it never registered and the page's 10 s wait ended in that message on every press. tools/career-job-actions.js looks the Job Board up under its member name too. No route, permission, schedule or migration changes. Guard: tests/career-open-application-in-group.test.mjs, against the real intelligent-career toolbar.
+# 152 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13, the Work history concierge: "it wasnt able to perform the change i asked for"; one card of four edits, two bullets under a job with none and two jobs removed, answered "item index must be an integer from 0 to 0", and later each new job held his whole pasted draft as one bullet the concierge could not quote or split). One card means what the person read on it: career_resume_patch names each job by its exact title (and employer, roleOrg) where the concierge read it, and each bullet by its exact text, the opening of a long one or the same text with other spacing; earlier edits of a card never renumber later ones (engine/jobhunter/card_targets.py); an add with no bullet named goes at the end in order; a pasted block becomes one bullet per line on add, set or the new split; a refused card names the change, the job and what is wrong. The Work history bullet box keeps a long paste whole (it had maxlength 1000), and the Word document on My résumé is brought up to date when it is behind only on job headings or dates and never saves one job's bullets into another. Guards: tests/career-work-history-card.test.mjs, tests/career-work-history-keeps.test.mjs, tests/career-work-history-page.test.mjs (pasted draft).
+# 151 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: the browser helper installer's --upgrade makes an installed helper current in place (defect 16): same enrolled device and settings file, the delivered program re-pinned in the unit's start line, one restart, ready only when the kernel's device profile reports the new fingerprint, rolled back otherwise; --upgrade --check-only compares installed and delivered fingerprints. Guard: tests/career-browser-upgrade.test.mjs.
+# 150 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "there is no way to edit my resume ... the concierge said it couldnt change my dates and i needed to go to career profile.. but there is no career profile page"; and on the phone "everything is too bunched up to use the concierge"). A Work history page under Résumé (career-work-history, GET /work-history): each job's title, employer, start and end month (or I work here now), its bullets added, edited, moved and removed, a job added, moved or removed, saved through the existing revision-checked main-résumé edit (POST /resume/master-edit) with Undo (POST /resume/master-undo), and My résumé's Word document follows it. Career's concierge is the one assistant on My résumé too (AI Office's editor opens with its own concierge off), proposes each change as an approval card (career_resume_patch, now able to change a job and move a bullet, with a one-line summary per edit the card shows), the open page shows the approved change at once with Undo; on a phone it takes the whole screen with Back to the page, and My résumé is one column with its toolbar on one row. No page named Profile is mentioned any more. Guards: tests/career-work-history-engine.test.mjs, tests/career-work-history-routes.test.mjs, tests/browser/career-work-history-proof.mjs, tests/browser/career-resume-phone-proof.mjs, tests/career-concierge-words.test.mjs.
+# 149 | maintainer@emeraldcoastsystemsgroup.com | 1.60.13: read Oracle boards past their 10000-result window through public facets and verify moved sources within the existing repair deadline without settling their full pull.
+# 148 | maintainer@emeraldcoastsystemsgroup.com | 1.60.12: counted and retrying Oracle boards, resumed Workday facet reads and anonymous AWS browser checks; recognize and page Avature controls while retaining source closure guards.
+# 147 | maintainer@emeraldcoastsystemsgroup.com | Release four individually permitted submission presses, fixed per-step evidence, owner press records and kernel-served browser assets as 1.60.10; reinstall the helper.
+# 146 | maintainer@emeraldcoastsystemsgroup.com | Submission safety (released with the press sequence as 1.60.10; 1.60.9 went to the concierge module hotfix): exact upload destinations, permitted single presses, owner outcome resolution, bounded retained evidence and real-browser CI; synchronize marketplace.json, audits/career-hunter.json and the generated README row.
 # 145 | maintainer@emeraldcoastsystemsgroup.com | 1.60.9: the /static route serves .mjs module scripts, so the shared concierge (career-concierge.mjs, new in 1.60.8) loads on a deployed kernel; it was refused with 404.
 # 144 | maintainer@emeraldcoastsystemsgroup.com | Release owner résumé status, corpus-independent presence and the shared Career concierge as 1.60.8.
 # 143 | maintainer@emeraldcoastsystemsgroup.com | Release new-entry-only nightly matching, ordered pipeline reads and immediate durable removal as 1.60.7.
@@ -188,6 +197,7 @@
 
 # 141 | maintainer@emeraldcoastsystemsgroup.com | Remove a Career pick through its owner board dismissal while retaining application and native ticket history.
 # 142 | maintainer@emeraldcoastsystemsgroup.com | Prepare and Open use the owner status writer, bounded explicit recovery and the admitted shell, with truthful action names.
+# 143 | maintainer@emeraldcoastsystemsgroup.com | 1.60.11: each job a complete read stops listing is recorded with the read that closed it; a job the employer only re-keyed stays the same job (saved and removed state kept); each nightly pull writes a closure receipt (closed, re-keyed, possible re-key per source).
 name: career-hunter
 suite: ai-knowledge   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -247,9 +257,10 @@ description: >-
   experience to include, generate and review its résumé and cover letter, then approve submission.
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
-  Edit your main résumé as a Word document on the My résumé page, with AI Office's Concierge beside it.
+  Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved.
+  One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.60.9
+version: 1.62.0
 
 localEditing:
   itemId: master
@@ -456,8 +467,15 @@ guestTier: readonly
 # engine does NO LLM work of its own: each model call it needs is sent through the worker
 # rail (/api/career-hunter/engine) to THIS bot, cost-attributed to the run's owner.
 # ─────────────────────────────────────────────────────────────────────────────
-# The front-desk inline concierge answers in the app (1.57.0, T9, the Create concierge pattern: trading 1.54.0);
-# career-hunter stays the worker for career-application tickets and the engine rail.
+# ONE CONCIERGE (1.62.0; Roger, 2026-11-14: "i want one concierge for the entire app that can do everything that needs
+# to be done in the app"). career-concierge is the one assistant a person meets in Career: on every page (the pane of
+# tools/career-concierge.mjs names it and no other), through Jarvis's hand-off (the kernel's default is chatBot) and in
+# the Intelligent Career group. It carries every person-facing tool below. career-hunter is the engine's worker: its
+# turns are the engine's own (ranking and classifying jobs, drafting an application's documents) and its persona text
+# is part of the scoring model identity the kernel computes (crates/oshald/src/package_bot_turn.rs model_identity),
+# so that text is not edited for wording. The kernel has no switch that keeps a declared bot out of conversation
+# while it runs the package's own turns (its facts reader is what lets it run them and also what lists it), so its
+# role below says what it is, which is what Jarvis's catalog shows beside each bot's name.
 chatBot: career-concierge
 
 bots:
@@ -465,7 +483,7 @@ bots:
     name: career-concierge
     persona: personas/career-concierge.yaml
     posture: inline
-    role: career/concierge
+    role: "concierge: the one assistant a person talks to, for everything in Career"
     # A resume request reaches Career (and its Resume Studio) by these words, not by AI Office's "a word document".
     routingKeywords: [my resume, master resume, edit my resume, tighten my resume, update my resume]
     capabilities:
@@ -475,11 +493,15 @@ bots:
       - application-status
       - application-strategy
       - resume-tailoring
+      - work-history
+      - career-settings
+      - job-sources
+      - recruiters
       - career-coaching
     selectorDescriptor: >-
-      Select for the signed-in person's own job search in Intelligent Career: their saved matches and fit, applications
-      and their status, their main résumé, interview preparation, recruiters and the job market, answered from their real
-      Career data. Hands career-application tickets and engine work to career-hunter.
+      Select for anything the signed-in person asks of Intelligent Career: their matches and saved jobs, applications
+      and their status, their main résumé and work history, interview preparation, their settings, the companies they
+      want, their recruiters and the job market. It reads their real Career data and makes the change itself.
   - agentId: cb000000-0000-0000-0000-000000000001
     name: career-hunter
     persona: personas/career-hunter.yaml   # package copy — the one persona (worker + advisor)
@@ -491,26 +513,17 @@ bots:
     # rather than silently degrading onto a runtime the declaration opted out of.
     container: career-bot
     port: 5000
-    role: career/job-hunt-owner
+    role: "engine worker: ranks and classifies jobs in Career's runs; not for conversation"
     capabilities:
-      - ats-scraping
       - job-scoring
+      - job-classification
       - resume-generation
       - cover-letter-generation
-      - careers-discovery
-      - job-search
-      - job-fit-advice
-      - job-matching
-      - application-strategy
-      - application-status
-      - resume-tailoring
-      - recruiter-outreach
-      - career-coaching
   - agentId: cb000000-0000-0000-0000-000000000004
     name: career-submission-browser
     posture: node
     persona: Execute only an approved exact application form intent through browser-form-v1. No model inference, invented answers or automatic final-action retries.
-    role: career/submission-browser
+    role: "browser worker: sends one approved application form; not for conversation"
     capabilities: [application-submission]
 
 # Bot tools auto-discovered at load (wrap the CLI verbs + the surface HTML).
@@ -522,8 +535,12 @@ bots:
 # tool-executor (OSHAL_USER_SUB + .oshal-user-sub in the task workspace).
 # ─────────────────────────────────────────────────────────────────────────────
 tools:
+  # The first eight names are what Jarvis's catalog lists for Career beside its description (the kernel shows eight
+  # tool names, 200 characters), so they are the things a person asks for most. Every route tool of this application
+  # goes to every bot of it; the native kernel shows a turn the twelve whose descriptions fit the message best, and
+  # reads description and inputSchema only (never usageInstructions), so each description says what its tool is for.
   - name: career_database
-    displayName: Career Database
+    displayName: Find Jobs and My Matches
     type: builtin
     description: >-
       Read the signed-in user's career-hunter data — scored job matches, applied/generated
@@ -589,51 +606,129 @@ tools:
       absent scores; assessedAt and model describe saved provenance. currentness is not-revalidated:
       never describe these as newly scored or current after a resume/job change without a new
       scoring receipt. Give the assessment date when relevant. A fit score is not a hiring probability.
-
-  - name: career_interview
-    displayName: Read interview preparation and practice
+  - name: career_resume_patch
+    displayName: Change My Résumé or Work History
     type: api
-    description: Read your saved preparation guide, exact experience references, practice answers and feedback for one job. Reports whether the job or profile changed.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/interview/{input.postingId}"}
+    description: >-
+      Apply at most 20 small exact edits to the current main résumé revision with backup and audit: text, lists,
+      a job's bullets (add, change, move, remove, or split a pasted block into one bullet per line), and a job itself
+      (its title, employer, start or end month; add, move or remove it). Every edit is numbered as the work history
+      was read. Its card stays good after another change is saved, as long as every job and bullet it names still
+      reads the same; My résumé's document and the Work history page both show the result.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/resume/master-edit"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        revision: {type: string, minLength: 64, maxLength: 64}
+        edits:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              op: {type: string, enum: [set, add, remove, move, split]}
+              field: {type: string, enum: [headline, summary, clearance, competencies, skills, experience, role]}
+              index: {type: integer, minimum: 0}
+              roleIndex: {type: integer, minimum: 0}
+              roleTitle: {type: string, description: 'the job, by its exact title as read'}
+              roleOrg: {type: string, description: 'its employer as read'}
+              key: {type: string, enum: [title, org, start, end]}
+              to: {type: integer, minimum: 0}
+              before: {type: string, description: "the exact current text it changes or goes before; '' for an add at the end or a new job"}
+              value: {type: string, description: 'the new text; several lines become one bullet per line'}
+              summary: {type: string, minLength: 1, maxLength: 300}
+            required: [op, field, before, summary]
+      required: [revision, edits]
+    usageInstructions: >-
+      Propose it once the person asked for the change; the card is their approval. Carry the exact revision from
+      career_resume_section. Number every edit against the work history as you read it: earlier edits on the same card
+      never renumber later ones, and Career follows each job and bullet through them. Every edit carries summary, one
+      line in the person's words saying the change (for example: Start of Software Engineer at Sample Bank: Jun 2014 to
+      Sep 2013); the card shows it. A job is named by roleTitle, its exact title as you read it, roleOrg, its employer as
+      you read it, and roleIndex, its position as you read it (0 is first); a job this card adds is named by its title
+      and the index its add gave it. A bullet, competency or skill is named by its exact text in before (for a long one,
+      at least its first 30 characters are enough); index is only where you read it. field experience edits a job's
+      bullets: add puts the new bullet before the bullet whose text is in before, or at the end, in the order written,
+      when before is empty; set replaces the bullet in before; remove takes it out; move takes to, its new position;
+      split, with before and no value, turns a bullet holding several lines (a pasted draft) into one bullet per line.
+      A value of several lines also becomes one bullet per line. field role changes a job: set with key (title, org,
+      start or end) and before its exact current value (end '' is present); add with index (its position in the work
+      history as the card's earlier edits leave it, 0 is first) and value the title, then set its org and start (and
+      end) in the same card; remove or move (to) with before the job's exact title, no index. Text fields accept set
+      only. Months read YYYY-MM. set/add need value; remove, move and split omit it. Keep the entire request below 12
+      KiB. A card written before another change was saved still applies when everything it names reads as it did; when
+      something it names changed, it is refused naming the change and the job, and you read again and propose it
+      again. All edits apply or none. Qualifications are not changed here; never add an unverified claim,
+      employer, title or date the person did not give.
+  - name: career_jobs
+    displayName: List My Jobs by Stage
+    type: api
+    description: >-
+      List the signed-in person's own jobs in one stage, a page at a time: status saved (Saved), queue (Getting ready),
+      dismissed (Removed), tracked (every job applied to), interview, offer or rejected (Closed); or matches 1 for the
+      new matches Career picked. Fifteen jobs a page, each with its id, title, employer, place, fit and status. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/jobs?status={input.status}&matches={input.matches}&q={input.q}&sort={input.sort}&page={input.page}&per=15"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [saved, queue, dismissed, tracked, interview, offer, rejected]}
+        matches: {type: string, enum: ['1'], description: 'new matches; send no status with it'}
+        q: {type: string, maxLength: 120, description: 'words in the title or employer'}
+        sort: {type: string, enum: [ai, posted, recent, salary, company, applied]}
+        page: {type: integer, minimum: 1, maximum: 2000, description: 'fifteen jobs a page; ask for the next page for more'}
+  - name: career_job_update
+    displayName: Save or Remove a Job
+    type: api
+    description: >-
+      Change one job on the person's own board: favorite true saves it (and puts a removed job back), favorite false
+      unsaves it, status dismissed removes it from their lists, status new puts it back, status deferred sets it aside.
+      Sends nothing to an employer.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
     defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
       properties:
         postingId: {type: integer, minimum: 1}
+        favorite: {type: boolean}
+        status: {type: string, enum: [new, dismissed, deferred]}
       required: [postingId]
-    usageInstructions: Read the persisted result. Questions are suggested practice, not the employer's actual interview script. Never claim preparation succeeded while only a background run is acknowledged.
-  - name: career_interview_prepare
-    displayName: Prepare for this job's interview
+  - name: career_draft
+    displayName: Draft Application
     type: api
-    description: Start a job-specific guide using recorded candidate experience. Preserves earlier practice and does not change the resume profile.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/prepare"}
+    description: >-
+      Start fit scoring and tailored resume/cover generation for one selected job using its employer details and your recorded experience. Returns an acknowledgement, not finished documents.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
     defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
       properties:
         postingId: {type: integer, minimum: 1}
+        guidance: {type: string, maxLength: 2000}
+        experienceIds: {type: array, maxItems: 12, uniqueItems: true, items: {type: string, pattern: '^[a-zA-Z0-9-]{8,80}$'}}
+        experienceRevision: {type: string, pattern: '^[a-f0-9]{64}$'}
       required: [postingId]
-    usageInstructions: After acknowledgement, read career_interview until its operation receipt completes. Show experience citations and gaps honestly, with the workspace link /api/career-hunter/interview?postingId=POSTING_ID.
-  - name: career_interview_practice
-    displayName: Save an interview practice answer and get feedback
-    type: api
-    description: Assess the person's own answer to one saved question. Saves private feedback without treating new claims as verified profile facts.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/practice"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        postingId: {type: integer, minimum: 1}
-        planId: {type: string, minLength: 32, maxLength: 32}
-        questionId: {type: string, enum: [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10]}
-        answer: {type: string, minLength: 1, maxLength: 8000}
-      required: [postingId, planId, questionId, answer]
-    usageInstructions: Use the current planId and questionId from career_interview and the person's actual answer. Do not invent an answer or achievements on their behalf. Read the saved receipt and feedback after the background run completes.
+    usageInstructions: >-
+      Other experience is opt-in per application. Read career_experience_bank to obtain IDs
+      and its current revision; pass experienceIds and experienceRevision only for entries the user
+      chose. Otherwise use the core resume alone.
+      Call career_draft with input.postingId (the posting id from the ticket or
+      career_database) to produce the tailored resume + cover letter for that ONE job.
+      Read career_job after the acknowledgement and wait for its board.completedAt receipt.
+      The board.requestId must equal the requestId returned by this draft acknowledgement.
+      A different requestId is an older packet receipt: report that this preparation is still in progress.
+      A receipt with phase ready means documents exist; phase failed gives the observed error.
+      Link the saved resume and cover from /api/career-hunter/resume?id=POSTING_ID&kind=resume or kind=cover.
   - name: career_submission_review
-    displayName: Review application for submission
+    displayName: Review an Application to Send
     type: api
     description: Read one prepared job's exact documents, packet digest and applicant facts before proposing submission.
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/submission-review/{input.postingId}"}
@@ -645,9 +740,221 @@ tools:
         postingId: {type: integer, minimum: 1}
       required: [postingId]
     usageInstructions: Read this first. Show the job, employer, document links and application facts to the person. Never infer missing answers or claim submission happened.
+  - name: career_settings
+    displayName: Read My Settings
+    type: api
+    description: >-
+      Read the person's Career settings: the job titles they are looking for, remote only, their matching area (town
+      and miles), nightly matching and when titles were last matched. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/title-profile/state"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_recruiters
+    displayName: List My Recruiters
+    type: api
+    description: >-
+      List the recruiters and firms the person keeps on the Recruiters page, each with its id, contact, status,
+      follow-up date, next action and notes; status narrows the list. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/recruiters?status={input.status}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        status: {type: string, enum: [To contact, Contacted, Replied, Call scheduled, Submitted me, On radar, Dead]}
+  # ── jobs, matches and saved jobs ──
+  - name: career_job
+    displayName: Read a job and its preparation progress
+    type: api
+    description: Read one job's employer details, fit, private status, saved star and document-generation receipt.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/jobs/{input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {postingId: {type: integer, minimum: 1}}
+      required: [postingId]
+    usageInstructions: >-
+      job.fit_assessment distinguishes a saved AI assessment from a keyword-only match.
+      Use its score, date and model provenance; an old or date-unknown assessment is not
+      evidence that the current resume and job were rechecked. Retired land_prob/high_win
+      fields are null. Never turn a fit score into a probability of being hired.
+  - name: career_save
+    displayName: Save and star a job
+    type: api
+    description: Add one selected job to your private saved board and star it. If the person enabled saved-job preparation, it queues that preparation. Sends no application.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        favorite: {type: boolean, enum: [true]}
+      required: [postingId, favorite]
+  - name: career_promote
+    displayName: Promote a job to the document queue
+    type: api
+    description: Move one selected job to your submission preparation queue and star it. With saved-job preparation off, select optional experience and request document generation as the next step. If enabled by the person, preparation runs automatically to review or ready; nothing is submitted.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        status: {type: string, enum: [promoted]}
+      required: [postingId, status]
+  - name: career_job_track
+    displayName: Record What Happened With an Application
+    cardText: Record this on your own board. Nothing is sent to an employer.
+    type: api
+    description: >-
+      Record what the person says happened with a job they applied to themselves: status applied (I applied), interview
+      (with interview_at when they give the time), offer, or rejected (closed). Their statement only; never a claim
+      that Career sent anything.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        status: {type: string, enum: [applied, interview, offer, rejected]}
+        interview_at: {type: string, maxLength: 40, description: 'ISO time with its zone, only with status interview'}
+      required: [postingId, status]
+  - name: career_documents
+    displayName: Read one job's generated application documents
+    type: api
+    description: Read the actual saved resume and cover-letter content for one prepared job.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id={input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {postingId: {type: integer, minimum: 1}}
+      required: [postingId]
+  - name: career_draft_oshal
+    displayName: Draft with saved independent experience
+    type: api
+    description: >-
+      Legacy opt-in for the original owner's saved independent portfolio. Prefer career_experience_bank and career_draft for explicit other experience selection.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        oshal: {type: boolean, enum: [true]}
+      required: [postingId, oshal]
+    usageInstructions: >-
+      Call career_draft_oshal ONLY when the ticket or operator explicitly approved the
+      OSHAL/open-source variant for input.postingId. When in doubt, use career_draft.
+      Use career_job to check completion, requiring the same requestId as this acknowledgement.
+  - name: career_score
+    displayName: Score Fresh Postings
+    type: api
+    description: >-
+      Start a bounded fit-score pass for the signed-in user's recent saved target titles,
+      including teaching/support roles, using their saved area and remote preference.
+      An accepted run is not a finished pass.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/score"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 50}
+    usageInstructions: >-
+      Start only when asked to score fresh postings. limit defaults to 50 and must be 1..50.
+      The seven-day window uses the employer posted date, or first-seen date if undated.
+      On native installations a 202 acknowledgement means accepted and running, not scored.
+      Read career_runs and match this exact runId to a succeeded receipt before reporting its
+      scored/skipped counts. Missing status or no receipt is unconfirmed; never invent completion.
+      Unavailable or changed scoring configuration is a failure; previously saved fits are not new results.
+  - name: career_runs
+    displayName: Career Run Status
+    type: api
+    description: Read the signed-in user's actual active engine runs and retained manual-score success receipt.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/runs"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+    usageInstructions: >-
+      Match the exact acknowledged runId. A running entry means still active. Only a succeeded
+      entry with saved scored/skipped counts confirms a manual score pass. Absence does not
+      establish success, failure or cancellation. These are personal engine runs, not the shared corpus ingest.
+  - name: career_run_cancel
+    displayName: Stop Career Engine Run
+    type: api
+    description: Request cancellation of one original-owner Career engine run identified by its start acknowledgement.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/_runtime/runs/{input.runId}/cancel"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        runId: {type: string, format: uuid}
+      required: [runId]
+    usageInstructions: >-
+      Use only when the person requests stopping a specific in-progress engine task. Use the
+      exact runId from that task's acknowledgement or the person's explicit selection; never
+      guess which task an unidentified active id belongs to. Check career_runs and require
+      that exact active entry's canCancel true before requesting a stop. A 202 cancelling response is only
+      a stop request. Read career_runs for that exact id's cancelled receipt before confirming
+      it stopped. A finishing response means publication already began: check the saved result.
+      Stopped-run receipts are bounded and expire after 30 minutes or a kernel restart; missing
+      evidence is unconfirmed, never success. This does not withdraw an employer application.
+  - name: career_refresh
+    displayName: Refresh Jobs Database
+    type: api
+    description: >-
+      Request the existing authenticated refresh route. Native shared-corpus ingestion is
+      installation-managed and this route refuses a personal refresh request explicitly.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/refresh"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+    usageInstructions: >-
+      Use only for an explicit refresh request. A native 409 installation-managed response
+      means this action did not start anything; say that the shared pull is managed by the
+      installation schedule. A 403 means refused, not started. Only an actual started response
+      confirms a start; none of these establish completion. Do not shell out or bypass a refusal.
+  - name: career_refresh_status
+    displayName: Refresh Status
+    type: api
+    description: >-
+      Read actual native pull state, last successful publication and its recorded counts;
+      legacy installations retain their own refresh and corpus observations.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/run/refresh"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+    usageInstructions: >-
+      Read the actual returned facts. With observationAvailable true, status describes the native
+      scheduler: running, idle, failed, disabled or unavailable. A running pull is not published.
+      lastPublishedAt and lastPublication describe the previous successful publication, including
+      its recorded job and source counts; they do not describe current partial progress. Compare
+      lastStartedAt with lastCompletedAt before claiming the latest pull finished. running:null
+      means unavailable. corpusFreshAt is not supplied by the native scheduler; never substitute
+      publication time for a row-freshness scan. Missing counts are unknown, not zero. Source
+      failures remain separate from successful overall publication. This read starts no pull.
+  - name: career_market
+    displayName: Read the Job Market
+    type: api
+    description: >-
+      Read the Job market page's numbers: the person's own search counts and the open jobs Career can see by employer,
+      state and pay band, for the last 7, 30 or 90 days. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/analytics?days={input.days}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        days: {type: integer, enum: [7, 30, 90]}
+  # ── prepare, send, submission status and interviews ──
   - name: career_submission_approve
     displayName: Approve this application for auto-submit
-    cardText: Authorize one application using the reviewed job, exact resume, cover letter and applicant facts. The browser may click final Submit once.
+    cardText: Authorize one application using the reviewed job, exact resume, cover letter and applicant facts. Career may press up to 4 buttons on the employer's site, one at a time, and stops at anything it does not recognise.
     type: api
     description: Approve one reviewed job packet for automatic submission. This saves consent and input but does not start a browser yet.
     executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue"}
@@ -724,252 +1031,88 @@ tools:
         id: {type: string, minLength: 36, maxLength: 36}
         answers: {type: object}
       required: [id, answers]
-
-  # ── engine work tools: what the codex sandbox shell-out used to do, now server-side ──
-  - name: career_job
-    displayName: Read a job and its preparation progress
+  - name: career_submission_cancel
+    displayName: Stop a Submission
     type: api
-    description: Read one job's employer details, fit, private status, saved star and document-generation receipt.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/jobs/{input.postingId}"}
+    description: >-
+      Stop one approved submission that has not been sent, by its id from the submission activity. A submission the
+      employer already received is not withdrawn by this.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue/{input.id}/cancel"}
     defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
-      properties: {postingId: {type: integer, minimum: 1}}
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+      required: [id]
+  - name: career_interview
+    displayName: Read interview preparation and practice
+    type: api
+    description: Read your saved preparation guide, exact experience references, practice answers and feedback for one job. Reports whether the job or profile changed.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/interview/{input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
       required: [postingId]
-    usageInstructions: >-
-      job.fit_assessment distinguishes a saved AI assessment from a keyword-only match.
-      Use its score, date and model provenance; an old or date-unknown assessment is not
-      evidence that the current resume and job were rechecked. Retired land_prob/high_win
-      fields are null. Never turn a fit score into a probability of being hired.
-  - name: career_save
-    displayName: Save and star a job
+    usageInstructions: Read the persisted result. Questions are suggested practice, not the employer's actual interview script. Never claim preparation succeeded while only a background run is acknowledged.
+  - name: career_interview_prepare
+    displayName: Prepare for this job's interview
     type: api
-    description: Add one selected job to your private saved board and star it. If the person enabled saved-job preparation, it queues that preparation. Sends no application.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    description: Start a job-specific guide using recorded candidate experience. Preserves earlier practice and does not change the resume profile.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/prepare"}
     defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
       properties:
         postingId: {type: integer, minimum: 1}
-        favorite: {type: boolean, enum: [true]}
-      required: [postingId, favorite]
-  - name: career_promote
-    displayName: Promote a job to the document queue
-    type: api
-    description: Move one selected job to your submission preparation queue and star it. With saved-job preparation off, select optional experience and request document generation as the next step. If enabled by the person, preparation runs automatically to review or ready; nothing is submitted.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        postingId: {type: integer, minimum: 1}
-        status: {type: string, enum: [promoted]}
-      required: [postingId, status]
-  - name: career_documents
-    displayName: Read one job's generated application documents
-    type: api
-    description: Read the actual saved resume and cover-letter content for one prepared job.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id={input.postingId}"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties: {postingId: {type: integer, minimum: 1}}
       required: [postingId]
-  - name: career_draft
-    displayName: Draft Application
+    usageInstructions: After acknowledgement, read career_interview until its operation receipt completes. Show experience citations and gaps honestly, with the workspace link /api/career-hunter/interview?postingId=POSTING_ID.
+  - name: career_interview_practice
+    displayName: Save an interview practice answer and get feedback
     type: api
-    description: >-
-      Start fit scoring and tailored resume/cover generation for one selected job using its employer details and your recorded experience. Returns an acknowledgement, not finished documents.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
+    description: Assess the person's own answer to one saved question. Saves private feedback without treating new claims as verified profile facts.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/practice"}
     defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
       properties:
         postingId: {type: integer, minimum: 1}
-        guidance: {type: string, maxLength: 2000}
-        experienceIds: {type: array, maxItems: 12, uniqueItems: true, items: {type: string, pattern: '^[a-zA-Z0-9-]{8,80}$'}}
-        experienceRevision: {type: string, pattern: '^[a-f0-9]{64}$'}
-      required: [postingId]
-    usageInstructions: >-
-      Other experience is opt-in per application. Read career_experience_bank to obtain IDs
-      and its current revision; pass experienceIds and experienceRevision only for entries the user
-      chose. Otherwise use the core resume alone.
-      Call career_draft with input.postingId (the posting id from the ticket or
-      career_database) to produce the tailored resume + cover letter for that ONE job.
-      Read career_job after the acknowledgement and wait for its board.completedAt receipt.
-      The board.requestId must equal the requestId returned by this draft acknowledgement.
-      A different requestId is an older packet receipt: report that this preparation is still in progress.
-      A receipt with phase ready means documents exist; phase failed gives the observed error.
-      Link the saved resume and cover from /api/career-hunter/resume?id=POSTING_ID&kind=resume or kind=cover.
-  # The master record (1.51.0): everything Career keeps for the person, read-only, in pages of at most 12 KB whose
-  # text together is the Master record page's Download. Same career.read permission as the other reads.
-  - name: career_master_record
-    displayName: Read everything Career keeps
-    type: api
-    description: >-
-      Read everything Career keeps for the signed-in person, in pages of at most 12 KB: the counts, every role with its
-      numbered bullets and skills, skills by group, other experience, education and certifications, evidence, the
-      dated history of what was added, the answers given on Improve my résumé and snapshot dates, and the link to the Download my data page.
-      Read-only.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/master-record?page={input.page}"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        page: {type: integer, minimum: 1, maximum: 9999}
-      required: [page]
-    usageInstructions: >-
-      Start with page 1; it carries the counts and the page link. When the person asks for everything (every bullet,
-      every skill, the history of what they added), answer with the counts and the link to the Download my data page,
-      where Download saves it all as one file and Print is in More. Do not paste the whole record into the chat. Read
-      further pages (nextPage) only for the part the person asks about and quote it as saved. If revision differs
-      between pages, the record changed: start again from page 1.
-  - name: career_experience_bank
-    displayName: Read other experience
-    type: api
-    description: Read the original owner's recorded optional projects, other work and skills, with IDs for per-application selection. Does not edit the core resume.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/experience-bank?summary=1"}
-    defaultAuthMode: auto
-    inputSchema: {type: object, additionalProperties: false, properties: {}}
-  - name: career_draft_oshal
-    displayName: Draft with saved independent experience
-    type: api
-    description: >-
-      Legacy opt-in for the original owner's saved independent portfolio. Prefer career_experience_bank and career_draft for explicit other experience selection.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        postingId: {type: integer, minimum: 1}
-        oshal: {type: boolean, enum: [true]}
-      required: [postingId, oshal]
-    usageInstructions: >-
-      Call career_draft_oshal ONLY when the ticket or operator explicitly approved the
-      OSHAL/open-source variant for input.postingId. When in doubt, use career_draft.
-      Use career_job to check completion, requiring the same requestId as this acknowledgement.
-  - name: career_score
-    displayName: Score Fresh Postings
-    type: api
-    description: >-
-      Start a bounded fit-score pass for the signed-in user's recent saved target titles,
-      including teaching/support roles, using their saved area and remote preference.
-      An accepted run is not a finished pass.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/score"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        limit: {type: integer, minimum: 1, maximum: 50}
-    usageInstructions: >-
-      Start only when asked to score fresh postings. limit defaults to 50 and must be 1..50.
-      The seven-day window uses the employer posted date, or first-seen date if undated.
-      On native installations a 202 acknowledgement means accepted and running, not scored.
-      Read career_runs and match this exact runId to a succeeded receipt before reporting its
-      scored/skipped counts. Missing status or no receipt is unconfirmed; never invent completion.
-      Unavailable or changed scoring configuration is a failure; previously saved fits are not new results.
-
-  - name: career_runs
-    displayName: Career Run Status
-    type: api
-    description: Read the signed-in user's actual active engine runs and retained manual-score success receipt.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/runs"}
-    defaultAuthMode: auto
-    inputSchema: {type: object, additionalProperties: false, properties: {}}
-    usageInstructions: >-
-      Match the exact acknowledged runId. A running entry means still active. Only a succeeded
-      entry with saved scored/skipped counts confirms a manual score pass. Absence does not
-      establish success, failure or cancellation. These are personal engine runs, not the shared corpus ingest.
-
-  - name: career_run_cancel
-    displayName: Stop Career Engine Run
-    type: api
-    description: Request cancellation of one original-owner Career engine run identified by its start acknowledgement.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/_runtime/runs/{input.runId}/cancel"}
-    defaultAuthMode: auto
-    inputSchema:
-      type: object
-      additionalProperties: false
-      properties:
-        runId: {type: string, format: uuid}
-      required: [runId]
-    usageInstructions: >-
-      Use only when the person requests stopping a specific in-progress engine task. Use the
-      exact runId from that task's acknowledgement or the person's explicit selection; never
-      guess which task an unidentified active id belongs to. Check career_runs and require
-      that exact active entry's canCancel true before requesting a stop. A 202 cancelling response is only
-      a stop request. Read career_runs for that exact id's cancelled receipt before confirming
-      it stopped. A finishing response means publication already began: check the saved result.
-      Stopped-run receipts are bounded and expire after 30 minutes or a kernel restart; missing
-      evidence is unconfirmed, never success. This does not withdraw an employer application.
-
-  # The kernel's oshal-apply.js profile/queue/trace verbs intentionally are NOT registered here.
-  # They remain controller-private implementation details of staged dispatch and trusted ingest.
-  - name: career_refresh
-    displayName: Refresh Jobs Database
-    type: api
-    description: >-
-      Request the existing authenticated refresh route. Native shared-corpus ingestion is
-      installation-managed and this route refuses a personal refresh request explicitly.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/refresh"}
-    defaultAuthMode: auto
-    inputSchema: {type: object, additionalProperties: false, properties: {}}
-    usageInstructions: >-
-      Use only for an explicit refresh request. A native 409 installation-managed response
-      means this action did not start anything; say that the shared pull is managed by the
-      installation schedule. A 403 means refused, not started. Only an actual started response
-      confirms a start; none of these establish completion. Do not shell out or bypass a refusal.
-  - name: career_refresh_status
-    displayName: Refresh Status
-    type: api
-    description: >-
-      Read actual native pull state, last successful publication and its recorded counts;
-      legacy installations retain their own refresh and corpus observations.
-    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/run/refresh"}
-    defaultAuthMode: auto
-    inputSchema: {type: object, additionalProperties: false, properties: {}}
-    usageInstructions: >-
-      Read the actual returned facts. With observationAvailable true, status describes the native
-      scheduler: running, idle, failed, disabled or unavailable. A running pull is not published.
-      lastPublishedAt and lastPublication describe the previous successful publication, including
-      its recorded job and source counts; they do not describe current partial progress. Compare
-      lastStartedAt with lastCompletedAt before claiming the latest pull finished. running:null
-      means unavailable. corpusFreshAt is not supplied by the native scheduler; never substitute
-      publication time for a row-freshness scan. Missing counts are unknown, not zero. Source
-      failures remain separate from successful overall publication. This read starts no pull.
-
-  # ── resume editing tools: "a bot and a tool to edit the database and re-render the resume" ──
-  # The bot checks bounded status with career_resume_read and reads text with career_resume_section, proposing edits in
-  # conversation, and applies them with career_resume_save — which rides the SAME audited route
-  # rails Resume Studio uses (validation, backup snapshot, whitelist write-back; a numeric
-  # postingId save also re-renders that packet's PDF). The save is approval-gated: nothing
-  # changes the durable career profile without the user confirming the tool call.
+        planId: {type: string, minLength: 32, maxLength: 32}
+        questionId: {type: string, enum: [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10]}
+        answer: {type: string, minLength: 1, maxLength: 8000}
+      required: [postingId, planId, questionId, answer]
+    usageInstructions: Use the current planId and questionId from career_interview and the person's actual answer. Do not invent an answer or achievements on their behalf. Read the saved receipt and feedback after the background run completes.
+  # ── the main résumé and work history (one record: My résumé's Word document and Work history both show it) ──
+  # career_resume_read checks it without text, career_resume_section reads it a page at a time, career_resume_patch
+  # (above) changes it by an approval card, career_resume_undo puts the latest change back. career_resume_save keeps the
+  # whole-document save for a job's tailored packet. Each save has a backup and an audit line.
   - name: career_resume_read
     displayName: Check Saved Resume
     type: api
     description: >-
-      Check the signed-in person's saved main résumé: presence, exact revision and section headings,
-      without its text. Reads Career's own master profile, independently of job matching or AI Office.
+      Check the signed-in person's saved main résumé: whether it is there, its exact revision, the revision before its
+      latest change (previousRevision, for Undo), how many jobs it holds and its section headings, without its text.
+      My résumé's Word document and the Work history page show this same main résumé.
       Returns My résumé as the upload/edit destination when absent; unreadable is unavailable, never absent.
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id=master&view=status"}
     defaultAuthMode: auto
     inputSchema: {type: object, additionalProperties: false, properties: {}}
     usageInstructions: >-
       Call once for résumé presence questions. Use career_resume_section for requested text or edits;
-      do not read the whole résumé for a status question. A separate AI Office draft may differ until
-      Save to main résumé. Never infer credentials or experience from the headings.
+      do not read the whole résumé for a status question. My résumé's Word document is this main résumé: it is
+      brought up to date when a Career page is open, and what is typed there is saved here. Never infer
+      credentials or experience from the headings.
   - name: career_resume_section
     displayName: Read Resume Section
     type: api
-    description: Read one bounded page of the signed-in user's master profile, including read-only qualifications.
+    description: >-
+      Read one bounded page of the signed-in user's master profile, including read-only qualifications. The overview
+      lists each job with its title, employer, start and end month (end '' is present).
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/master-section?field={input.field}&index={input.index}&offset={input.offset}"}
     defaultAuthMode: auto
     inputSchema:
@@ -983,46 +1126,27 @@ tools:
     usageInstructions: >-
       Start with field overview, index 0, offset 0. For experience use the role's zero-based
       index; other fields require index 0. Follow nextOffset until complete. List entries have
-      zero-based indices; text offsets count Unicode code points. Every page names its exact
+      zero-based indices and each comes whole, never cut; for a list, offset counts entries (the
+      next entry to read), and for headline, summary and clearance it counts Unicode code points. Every page names its exact
       revision. If revisions differ, reread affected sections. Qualifications are source statements,
-      including expired or pending status, and read-only here. Role titles, employers and dates are anchors.
-  - name: career_resume_patch
-    displayName: Save Selected Master Edits
+      including expired or pending status, and read-only here. A job's title, employer and months change only
+      through career_resume_patch field role, against their exact current values.
+  - name: career_resume_undo
+    displayName: Undo the Last Résumé Change
     type: api
-    description: Apply at most 20 small exact edits to the current master revision with backup and audit.
-    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/resume/master-edit"}
-    defaultAuthMode: ask
-    requiresApproval: true
+    description: >-
+      Put the main résumé and work history back to how they were before the latest change. Send revision and restore:
+      the revision and previousRevision the résumé status read answers. Works only while nothing changed after that
+      change; the same Undo the page offers.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/resume/master-undo"}
+    defaultAuthMode: auto
     inputSchema:
       type: object
       additionalProperties: false
       properties:
         revision: {type: string, minLength: 64, maxLength: 64}
-        edits:
-          type: array
-          minItems: 1
-          maxItems: 20
-          items:
-            type: object
-            additionalProperties: false
-            properties:
-              op: {type: string, enum: [set, add, remove]}
-              field: {type: string, enum: [headline, summary, clearance, competencies, skills, experience]}
-              index: {type: integer, minimum: 0}
-              roleIndex: {type: integer, minimum: 0}
-              roleTitle: {type: string}
-              before: {type: string}
-              value: {type: string}
-            required: [op, field, before]
-      required: [revision, edits]
-    usageInstructions: >-
-      Use only after approval of these specific changes. Carry the exact revision and before
-      text from career_resume_section. Text fields accept set only, without indices. List edits
-      require index; experience also requires roleIndex and exact roleTitle. add inserts before
-      index (before must match that item), or appends at total with before empty. set/add need
-      value; remove must omit value. Keep the entire request below 12 KiB. A conflict requires
-      rereading and reviewing new text, never an automatic overwrite. All edits apply or none.
-      Do not change role anchors or qualifications here; never add unverified claims.
+        restore: {type: string, minLength: 64, maxLength: 64}
+      required: [revision, restore]
   - name: career_resume_save
     displayName: Save Resume Edits
     type: api
@@ -1052,9 +1176,9 @@ tools:
       postingId send the FULL saved resume AND cover documents; this saves and re-renders that
       packet's PDF. For master edits prefer career_resume_patch so large profiles need not be
       round-tripped; this legacy master route accepts whitelisted fields. Report only the
-      changelog/paths actually returned. Titles, organizations and
-      date spans on master experience entries are anchors and cannot be changed here — say so
-      if asked.
+      changelog/paths actually returned. A job's title, employer and months on the main résumé
+      are not changed by this save: change them with career_resume_patch field role (the Work
+      history page).
   - name: career_resume_local_export
     displayName: Export Master Resume for Local Editing
     type: api
@@ -1094,7 +1218,367 @@ tools:
     usageInstructions: >-
       Use when the person says they are ready to import their locally edited resume back into
       Career. Saves the new whitelisted master fields and preserves the previous version in backups/.
-      Role titles, employers, and date spans remain protected anchors.
+      Job titles, employers and months are not changed by an import; they change on the Work history page.
+  - name: career_master_record
+    displayName: Read everything Career keeps
+    type: api
+    description: >-
+      Read everything Career keeps for the signed-in person, in pages of at most 12 KB: the counts, every role with its
+      numbered bullets and skills, skills by group, other experience, education and certifications, evidence, the
+      dated history of what was added, the answers given on Improve my résumé and snapshot dates, and the link to the Download my data page.
+      Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/master-record?page={input.page}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        page: {type: integer, minimum: 1, maximum: 9999}
+      required: [page]
+    usageInstructions: >-
+      Start with page 1; it carries the counts and the page link. When the person asks for everything (every bullet,
+      every skill, the history of what they added), answer with the counts and the link to the Download my data page,
+      where Download saves it all as one file and Print is in More. Do not paste the whole record into the chat. Read
+      further pages (nextPage) only for the part the person asks about and quote it as saved. If revision differs
+      between pages, the record changed: start again from page 1.
+  - name: career_experience_bank
+    displayName: Read other experience
+    type: api
+    description: Read the original owner's recorded optional projects, other work and skills, with IDs for per-application selection. Does not edit the core resume.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/experience-bank?summary=1"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_experience_save
+    displayName: Change My Other Experience
+    cardText: Save this to your Other experience library. It is used in an application only when you choose it.
+    type: api
+    description: >-
+      Add or change one entry of the person's Other experience library (a project, other work, volunteering or skills),
+      or archive or restore one. Send expectedRevision from the library read. Only what the person stated.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/experience-bank"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        operation: {type: string, enum: [save, archive, restore]}
+        expectedRevision: {type: string, maxLength: 80}
+        id: {type: string, maxLength: 80, description: 'an existing entry, for a change, archive or restore'}
+        entry:
+          type: object
+          additionalProperties: false
+          properties:
+            title: {type: string, maxLength: 160}
+            kind: {type: string, enum: [project, work, volunteer, skills]}
+            organization: {type: string, maxLength: 160}
+            period: {type: string, maxLength: 100}
+            facts: {type: string, maxLength: 8000}
+            skills: {type: array, maxItems: 64, items: {type: string, maxLength: 100}}
+          required: [title, kind, facts]
+      required: [operation, expectedRevision]
+  - name: career_strengthen
+    displayName: Read What Would Improve My Résumé
+    type: api
+    description: >-
+      Read the Improve my résumé page: the themes many of the person's matched jobs ask for that their résumé does not
+      show, each with how many jobs, the question to answer and whether they answered it. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/strengthen"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_strengthen_answer
+    displayName: Add My Answer to My Résumé
+    cardText: Add your own answer to your main résumé. Career turns it into bullets under the job it belongs to.
+    type: api
+    description: >-
+      Save the person's own answer to one Improve my résumé theme (key from the themes read, response their words).
+      Career works it into their main résumé in the background. Never write the answer for them.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/strengthen/answer"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        key: {type: string, minLength: 1, maxLength: 120}
+        response: {type: string, minLength: 1, maxLength: 6000}
+      required: [key, response]
+  # ── settings ──
+  - name: career_titles_set
+    displayName: Set the Job Titles I Want
+    type: api
+    description: >-
+      Replace the list of job titles Career matches for the person (Settings, What I'm looking for): the whole new
+      list, at most 16 titles of 3 to 60 characters. Read the settings first and keep the titles they did not ask to drop.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/settings/title-profile"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        terms: {type: array, maxItems: 16, items: {type: string, minLength: 3, maxLength: 60}}
+      required: [terms]
+  - name: career_area_set
+    displayName: Set My Matching Area
+    type: api
+    description: >-
+      Set where Career matches jobs for the person: scope with near (a US town and state, or a ZIP), radiusMiles (1 to
+      250) and includeRemote (true to also match remote jobs).
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/settings/title-profile"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        scope:
+          type: object
+          additionalProperties: false
+          properties:
+            near: {type: string, minLength: 2, maxLength: 160}
+            radiusMiles: {type: integer, minimum: 1, maximum: 250}
+            includeRemote: {type: boolean}
+          required: [near, radiusMiles, includeRemote]
+      required: [scope]
+  - name: career_remote_only_set
+    displayName: Set Remote Only
+    type: api
+    description: Turn remote-only matching on or off for the person (remoteOnly true or false).
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/settings/remote-only"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        remoteOnly: {type: boolean}
+      required: [remoteOnly]
+  - name: career_preparation
+    displayName: Read My Preparation Choice
+    type: api
+    description: >-
+      Read whether Career prepares a résumé and cover letter by itself for each saved job (enabled), and whether it
+      stops for the person's review or goes on to ready (mode). Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/application-workflow"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_preparation_set
+    displayName: Change My Preparation Choice
+    cardText: Turning this on starts preparing documents for every job you have saved, which uses your AI allowance.
+    type: api
+    description: >-
+      Turn saved-job preparation on or off (enabled) and choose review or automatic (mode). Turning it on starts
+      preparing documents for every saved job; nothing is sent to an employer.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/application-workflow"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled: {type: boolean}
+        mode: {type: string, enum: [review, automatic]}
+      required: [enabled, mode]
+  - name: career_digest
+    displayName: Read My Email Updates Setting
+    type: api
+    description: >-
+      Read the person's Email updates setting: whether the daily digest is on, by email or text, the phone number for
+      text, when the last one went and whether each channel is ready. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/digest/state"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_digest_set
+    displayName: Change My Email Updates
+    type: api
+    description: >-
+      Turn the daily digest on or off and choose email or text. All three values are saved together, so read the
+      setting first and send enabled, channel and (for text) the phone number as they should be after the change.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/settings/digest"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        enabled: {type: boolean}
+        channel: {type: string, enum: [email, text]}
+        phone: {type: string, maxLength: 20, description: 'E.164, for example +15551234567; only for text'}
+      required: [enabled, channel]
+  # ── companies and job sources (the person's own Companies I want; the shared sources for an administrator) ──
+  - name: career_targets
+    displayName: List the Companies I Want
+    type: api
+    description: >-
+      List the employers the person added on Settings, Companies I want: each with its id, link, the job board Career
+      found, its state and how many jobs it has. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/settings/targets"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_target_add
+    displayName: Add a Company I Want
+    cardText: Career checks this employer's careers page and, when it can read it, adds its jobs for everyone here.
+    type: api
+    description: >-
+      Add one employer to the person's Companies I want by the link to its careers page or job board (url). Career
+      checks that it can read the board; an unsupported one is refused with the reason.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/settings/targets"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        url: {type: string, minLength: 4, maxLength: 512}
+      required: [url]
+  - name: career_target_remove
+    displayName: Remove a Company I Want
+    type: api
+    description: Remove one employer from the person's Companies I want, by its id from the list.
+    executor: {executorType: api, apiEndpoint: "DELETE /api/career-hunter/settings/targets/{input.id}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: integer, minimum: 1}
+      required: [id]
+  - name: career_companies
+    displayName: Find an Employer in the Job Sources
+    type: api
+    description: >-
+      For a job source administrator: find employers in Career's shared job sources by name (q), each with its id, job
+      board, how many open jobs it has and how its last pull went. Read-only.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/companies-admin/list?search=1&limit=15&q={input.q}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        q: {type: string, minLength: 2, maxLength: 120, description: 'part of the employer name; at most fifteen employers come back'}
+  - name: career_company_add
+    displayName: Add an Employer to the Job Sources
+    cardText: Add this employer to the shared job sources. The next nightly pull reads its jobs for everyone here.
+    type: api
+    description: >-
+      For a job source administrator: add an employer to the shared job sources by its name and the link to its
+      careers page or job board (url). The next nightly pull reads it.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/companies-admin/add"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 2, maxLength: 120}
+        url: {type: string, minLength: 8, maxLength: 512}
+      required: [name, url]
+  - name: career_company_remove
+    displayName: Remove an Employer from the Job Sources
+    cardText: Remove this employer from the shared job sources at the next nightly pull. Put back undoes it.
+    type: api
+    description: >-
+      For a job source administrator: remove one employer (companyId from the search) from the shared job sources at
+      the next nightly pull.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/companies-admin/remove"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        companyId: {type: integer, minimum: 1}
+      required: [companyId]
+  - name: career_company_restore
+    displayName: Put an Employer Back in the Job Sources
+    cardText: Put this employer back in the shared job sources at the next nightly pull.
+    type: api
+    description: >-
+      For a job source administrator: put a removed employer (companyId from the search) back in the shared job
+      sources at the next nightly pull.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/companies-admin/restore"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        companyId: {type: integer, minimum: 1}
+      required: [companyId]
+  - name: career_company_board
+    displayName: Set an Employer's Careers Link
+    cardText: Point this employer at this job board. The next nightly pull reads its jobs from there.
+    type: api
+    description: >-
+      For a job source administrator: set the job board or careers page link (board) Career reads one employer
+      (companyId from the search) from; the next nightly pull applies it.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/companies-admin/seturl"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        companyId: {type: integer, minimum: 1}
+        board: {type: string, minLength: 8, maxLength: 512}
+      required: [companyId, board]
+  # ── recruiters ──
+  - name: career_recruiter_add
+    displayName: Add a Recruiter
+    type: api
+    description: >-
+      Add a recruiter or firm to the person's Recruiters list: firm (required), contact_name, contact_link, website,
+      bucket and status. Only what the person gave; it starts as To contact.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/recruiters"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        firm: {type: string, minLength: 1, maxLength: 200}
+        contact_name: {type: string, maxLength: 200}
+        contact_link: {type: string, maxLength: 500}
+        website: {type: string, maxLength: 500}
+        bucket: {type: string, maxLength: 80}
+        status: {type: string, enum: [To contact, Contacted, Replied, Call scheduled, Submitted me, On radar, Dead]}
+      required: [firm]
+  - name: career_recruiter_update
+    displayName: Update a Recruiter
+    type: api
+    description: >-
+      Change one recruiter on the person's list (id from the list): status, date_contacted, followup_date, next_action,
+      notes, contact_name, contact_role, contact_link, channel, website, bucket or firm. Send only what changes.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/recruiters/{input.id}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: integer, minimum: 1}
+        status: {type: string, enum: [To contact, Contacted, Replied, Call scheduled, Submitted me, On radar, Dead]}
+        date_contacted: {type: string, maxLength: 20, description: 'YYYY-MM-DD'}
+        followup_date: {type: string, maxLength: 20, description: 'YYYY-MM-DD'}
+        next_action: {type: string, maxLength: 300}
+        notes: {type: string, maxLength: 2000}
+        contact_name: {type: string, maxLength: 200}
+        contact_role: {type: string, maxLength: 200}
+        contact_link: {type: string, maxLength: 500}
+        channel: {type: string, maxLength: 80}
+        website: {type: string, maxLength: 500}
+        bucket: {type: string, maxLength: 80}
+        firm: {type: string, maxLength: 200}
+      required: [id]
+  - name: career_recruiter_remove
+    displayName: Remove a Recruiter
+    cardText: Remove this recruiter and their notes from your list. This cannot be undone.
+    type: api
+    description: Remove one recruiter (id from the list) and their notes from the person's Recruiters list.
+    executor: {executorType: api, apiEndpoint: "DELETE /api/career-hunter/recruiters/{input.id}"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: integer, minimum: 1}
+      required: [id]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # UI SURFACES
@@ -1189,6 +1673,13 @@ ui:
       label: My résumé
       icon: codicon codicon-edit
       iframeUrl: /api/career-hunter/resume-studio
+      section: top
+      group: Resume
+    # Work history (1.61.0): the jobs the résumé is built from, each with its title, employer, months and bullets.
+    - toolName: career-work-history
+      label: Work history
+      icon: codicon codicon-briefcase
+      iframeUrl: /api/career-hunter/work-history
       section: top
       group: Resume
     - toolName: career-experience-library
@@ -1575,3 +2066,43 @@ integrations:
         - title
         - notes
         - sourceUrl
+
+# Addresses of this application that are plain published files. The kernel answers a GET of one itself, from
+# the files it holds for the installed version, after the same sign-in and permission checks as the route,
+# with no call into the package. Any other name still goes to the route. The list is the files this
+# application's own pages, scripts and styles refer to at these addresses.
+staticFiles:
+  - route: /api/career-hunter/static/:file
+    folder: tools
+    files:
+      - career-accounts.js
+      - career-application.js
+      - career-change-bar.js
+      - career-concierge.css
+      - career-concierge.mjs
+      - career-frame.css
+      - career-frame.js
+      - career-hunter.css
+      - career-job-actions.js
+      - career-job-feedback.js
+      - career-job-lists.js
+      - career-journey.css
+      - career-kit.css
+      - career-leaflet.css
+      - career-leaflet.js
+      - career-local-sources.json
+      - career-mark.svg
+      - career-navigation.js
+      - career-resume-office.js
+      - career-search-map.js
+      - career-search-memory.js
+      - career-settings-support.js
+      - career-stages.js
+      - career-status-line.js
+      - career-submit.js
+      - career-theme.css
+      - career-today.js
+      - career-work-history-page.js
+      - career-work-history.js
+      - career-workflow-settings.js
+      - mic.js

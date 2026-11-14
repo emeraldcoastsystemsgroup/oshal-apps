@@ -20,6 +20,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: register home-lan-devices (TV plans, records and the network-TV /control refusal against the compiled routes) and home-tvs (the TVs and streaming sticks section in Chromium at 412 x 915); home-device-inspect-and-guide also proves local discovery lists no made-up device and no TV. All run in store-ci's new home job. The press on a real TV is the person's own, from their own computer: no test sends one.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register home-tv-plans: Jarvis presses TV buttons through the kernel's computer.run_plan. The two plan tools' computerPlan declarations are pinned exactly and every command the compiled plan routes answer is checked against the kernel's plan grammar (mirrored from oshal-kernel computer_plans.rs, with negative controls); the descriptions, the next step and the persona name computer.run_plan and the planId. A real press still needs the person's own session and computer: no test sends one.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 4): home-tv-plans and home-tvs expect what is playing and the media presses on an Android TV's card and in Jarvis's TV tool.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: home-device-inspect-and-guide and home-empty-state expect no grocery list of Smart Home's own: the grocery actions are refused with where the list lives, the refrigerator page shows and changes Shopping's list, and items a person had on the refrigerator's own list are moved there or stay when Shopping does not answer.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -90,6 +91,8 @@ cases:
       - A refused refresh (409) is an alert reading "SmartThings isn't connected yet. Connect it above." with Connect a hub, never a /utilities path.
       - With devices the Smart Home screen is devices then scenes; the SmartThings pill says when it was read; the diagnostic brief stays withheld while no connected action mounts.
       - Automations (?view=automations) holds the schedules and New schedule, or one empty state (No automations yet, Connect a hub) when nothing can run.
+      - The refrigerator page's Grocery list card shows the person's list in Shopping, adds to it and ticks it off through Shopping's routes, and Smart Home's own state stays empty; there is no Start a grocery list (1.9.0).
+      - Items a person had on the refrigerator's own list are moved to Shopping when the page opens and forgotten here; when Shopping refuses the account they stay and are shown (1.9.0).
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
@@ -139,6 +142,8 @@ cases:
       - tests/home-device-inspect-and-guide.test.js
     expected:
     - Every case passes with a stand-in fetch and temporary package data directory.
+    - The refrigerator answer carries no cart; the four grocery actions answer kept_by_shopping and write nothing; forget-earlier-list drops only what was moved (1.9.0).
+    - The manifest declares no grocery word, its meal tool takes no grocery action, and the description says the grocery list is kept by Shopping (1.9.0).
     prerequisites:
     - runner:node-test
     sideEffects: none

@@ -1,0 +1,51 @@
+{
+  "about": "What computer.app does through the windows-uia bridge word, for the writer of program instructions (T76 on Windows, Lane A4; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6). The bridge sheet's own shape (Lane G's bridge-facts.json), for the one bridge word Orbit gives every Windows program (desktop/oshal-node/src/main/windows-program-versions.ts WINDOWS_BRIDGE). Written from Orbit's code at the kernel commit named and the Windows PC's proofs (oshal-collab windows/proofs); every verb id names the source line it is read from, and tests/sheet/windows-sources.test.cjs fails when Orbit's code declares other verbs. As built at that commit; no planned change is described.",
+  "generated_at": "2026-11-13T20:00:24Z",
+  "kernel_commit": "06f12f46",
+  "generator": "program-instructions/inputs/windows-bridge-facts.json, written from Orbit's code and the Windows PC's proofs",
+  "bridges": {
+    "windows-uia": {
+      "programs": "A bound Windows program, read and acted in through UI Automation by orbit-uia.exe (desktop/oshal-node/src/main/bridges/windows-apps.ts); Word, Excel and PowerPoint are also edited through their own object models by its word, excel and powerpoint requests.",
+      "actions": {
+        "snapshot": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:261" },
+        "scroll": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:270" },
+        "type": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:315" },
+        "press": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:320" },
+        "select": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:325" },
+        "invoke": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:389" },
+        "undo": { "source": "desktop/oshal-node/src/main/bridges/windows-apps.ts:330 and :408" },
+        "restore": { "source": "desktop/oshal-node/src/main/app-acts.ts:259" }
+      },
+      "declared": {
+        "text document (Microsoft Word)": [
+          { "id": "insert-paragraph", "source": "desktop/oshal-node/src/main/windows-word.ts:13" },
+          { "id": "add-section", "source": "desktop/oshal-node/src/main/windows-word.ts:13" },
+          { "id": "replace-text", "source": "desktop/oshal-node/src/main/windows-word.ts:13" },
+          { "id": "delete-paragraph", "source": "desktop/oshal-node/src/main/windows-word.ts:13" },
+          { "id": "format-text", "source": "desktop/oshal-node/src/main/windows-word.ts:13" },
+          { "id": "find-replace", "source": "desktop/oshal-node/src/main/windows-word.ts:13" }
+        ],
+        "spreadsheet (Microsoft Excel)": [
+          { "id": "read-range", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "set-cells", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "format-cells", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "find-replace", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "sort-range", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "filter-range", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "manage-sheet", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "create-pivot-table", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "add-chart", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" }
+        ],
+        "presentation (Microsoft PowerPoint)": [
+          { "id": "add-slide", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },
+          { "id": "set-slide-text", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },
+          { "id": "replace-text", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },
+          { "id": "format-text", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },
+          { "id": "delete-slide", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },
+          { "id": "move-slide", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" }
+        ],
+        "any other window": []
+      }
+    }
+  }
+}

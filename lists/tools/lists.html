@@ -1,0 +1,102 @@
+<!doctype html>
+<!-- CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | First Lists screen (1.0.0), in the shape the leading list products agree on (sources in the package README): the lists down the left with their open counts and New list with them (their own screen on a phone, with Back), quick add at the top of a list, a checkbox on every row, done items struck through under a collapsed Done row, the list's actions in one more-menu (Rename, Clear done items, Delete list), an item's note, quantity and due date in its details, reorder by drag or Move up and Move down. The grocery list is Shopping's and is shown beside the others. Every colour comes from the portal theme.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lists</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/lists/static/lists.css" />
+</head>
+<body>
+  <main class="lx" id="lx" data-view="lists">
+    <aside class="lx-side" aria-label="Your lists">
+      <h1>Lists</h1>
+      <ul id="lists" class="lx-lists"></ul>
+      <p id="side-empty" class="lx-muted lx-empty" hidden>No lists yet.</p>
+      <form id="new-list" class="lx-new" autocomplete="off">
+        <label class="lx-sr" for="new-list-name">New list</label>
+        <input id="new-list-name" maxlength="80" placeholder="New list" enterkeyhint="done" />
+        <button type="submit" id="new-list-add" aria-label="Make the list">+</button>
+      </form>
+      <p id="side-alert" class="lx-alert" role="alert" hidden></p>
+    </aside>
+
+    <section class="lx-main" aria-live="polite">
+      <div id="none" class="lx-none" hidden>
+        <h2>Make your first list</h2>
+        <p class="lx-muted">Packing, to-dos, gift ideas: name it on the left.</p>
+      </div>
+
+      <div id="list" hidden>
+        <header class="lx-head">
+          <button type="button" id="back" class="lx-back" aria-label="Back to your lists">‹ Lists</button>
+          <h2 id="list-name"></h2>
+          <span id="list-chip" class="lx-chip" hidden>Shopping</span>
+          <a id="order" class="lx-button" href="/cockpit/?app=purchasing" target="_top" hidden>Order</a>
+          <details id="list-menu" class="lx-more">
+            <summary aria-label="List actions" title="List actions">⋯</summary>
+            <div class="lx-menu" data-no-glass>
+              <button type="button" id="rename">Rename</button>
+              <button type="button" id="clear-done">Clear done items</button>
+              <button type="button" id="delete-list" class="lx-danger">Delete list</button>
+            </div>
+          </details>
+        </header>
+
+        <form id="add" class="lx-add" autocomplete="off">
+          <label class="lx-sr" for="add-title">Add an item</label>
+          <input id="add-title" maxlength="300" placeholder="Add an item" enterkeyhint="done" />
+          <button type="submit" id="add-button" class="lx-primary">Add</button>
+        </form>
+        <p id="alert" class="lx-alert" role="alert" hidden></p>
+        <p id="status" class="lx-status" role="status" hidden><span id="status-text"></span> <button type="button" id="undo" class="lx-link" hidden>Undo</button></p>
+
+        <ul id="open-items" class="lx-items"></ul>
+        <p id="empty" class="lx-muted lx-empty" hidden>Nothing here yet.</p>
+        <details id="done" class="lx-done" hidden>
+          <summary><span id="done-count">Done</span></summary>
+          <ul id="done-items" class="lx-items"></ul>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="details" class="lx-dialog" aria-labelledby="details-title">
+    <form id="details-form" method="dialog" autocomplete="off">
+      <h2 id="details-title">Item</h2>
+      <label class="lx-field">Item<input id="d-title" maxlength="300" required /></label>
+      <label class="lx-field">Note<textarea id="d-note" maxlength="1000" rows="3"></textarea></label>
+      <div class="lx-pair">
+        <label class="lx-field">Quantity<input id="d-quantity" type="number" min="1" max="9999" step="1" inputmode="numeric" /></label>
+        <label class="lx-field">Due date<input id="d-due" type="date" /></label>
+      </div>
+      <p id="d-error" class="lx-alert" role="alert" hidden></p>
+      <div class="lx-actions">
+        <button type="button" id="d-remove" class="lx-danger">Remove</button>
+        <span class="lx-grow"></span>
+        <button type="button" id="d-cancel">Cancel</button>
+        <button type="submit" id="d-save" class="lx-primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="ask" class="lx-dialog" aria-labelledby="ask-title">
+    <form id="ask-form" method="dialog" autocomplete="off">
+      <h2 id="ask-title"></h2>
+      <label class="lx-field" id="ask-field" hidden><span id="ask-label"></span><input id="ask-input" maxlength="80" /></label>
+      <p id="ask-error" class="lx-alert" role="alert" hidden></p>
+      <div class="lx-actions">
+        <span class="lx-grow"></span>
+        <button type="button" id="ask-cancel">Cancel</button>
+        <button type="submit" id="ask-ok" class="lx-primary"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/api/lists/static/lists.js"></script>
+</body>
+</html>

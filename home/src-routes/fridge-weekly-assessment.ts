@@ -5,6 +5,7 @@
 // 1 | maintainer@emeraldcoastsystemsgroup.com | Weekly Samsung Family Hub refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, and weekly meal list builder combining current fridge contents and order history.
 // 2 | maintainer@emeraldcoastsystemsgroup.com | A temperature says when it was read (home 1.6.1). The state starts with 37 and 0 as placeholders, and the page showed them as readings ("Cooler: 37°F · Closed") for anyone whose hub had reported nothing. `telemetry.measuredAt` is null until a run is handed a temperature the hub reported, and is the time of that run afterwards; a state saved before this has none and counts as not read. The page shows a temperature only when it is set.
 // 3 | maintainer@emeraldcoastsystemsgroup.com | Nothing is listed until the refrigerator's inside has really been read (home 1.6.2). Every person's state used to start from one fixed list: nine items on three shelves, eight changes since "last week", an order history, a grocery list and five meals, shown as their own refrigerator, with one household's device ids written in. That list is gone. A state starts empty and says so (NOTHING_READ); a state saved from the fixed list is carried over keeping only what the person set or added themselves (the schedule, a temperature the hub reported, items they added to the list, orders they logged, meals they wrote); a run no longer claims a capture time; meal ideas exist only from a reading. Guard: tests/home-device-inspect-and-guide.test.js fails if the route source carries an item again.
+// 4 | maintainer@emeraldcoastsystemsgroup.com | Smart Home keeps no grocery list (home 1.9.0). It kept one of its own beside Shopping's, with no way to order from it: on the test installation "add eggs, bread and bananas to my grocery list" was written here while Shopping's list stayed empty, and "order the groceries" then started this list and logged the three items as ordered, which nothing had been. The grocery list is Shopping's alone now. The answer has no cart: `groceryList` says where the list is and holds what the person had put on the refrigerator's own list before (`earlier`), so the page can move it to Shopping; the four grocery actions are refused with those words and change nothing; forget-earlier-list drops what was moved. Meals, logged items and the weekly check are unchanged.
 // ----------------------------------------------------------------------------
 import { readPersistedJson, writePersistedJson } from './home-local-swarm';
 
@@ -122,6 +123,32 @@ const ADDED_BY_PERSON = 'Added for weekly meal plan';
 /** What the page and the assistant say while no reading exists. */
 export const NOTHING_READ = 'Nothing has been read from this refrigerator yet, so there is no list of what is inside, no comparison with last week and no meal ideas. Reading the inside photos is not built yet.';
 
+/** What the page and the assistant say when a grocery action is asked of Smart Home (home 1.9.0). */
+export const GROCERY_LIST_IS_SHOPPINGS = 'Your grocery list is kept by Shopping, which also makes the grocery order from it. Smart Home keeps no grocery list, so nothing was changed here.';
+
+/** The grocery actions this route took until 1.9.0. They change nothing now. */
+const GROCERY_ACTIONS = new Set(['start-cart', 'add-cart-item', 'remove-cart-item', 'toggle-cart-item']);
+
+/** Where a person's grocery list is, and what they had put on the refrigerator's own list before 1.9.0. */
+export interface GroceryListPointer {
+  keptBy: 'Shopping';
+  app: 'purchasing';
+  open: string;
+  words: string;
+  earlier: Array<{ id: string; name: string; quantity: string }>;
+}
+
+/**
+ * @description Where the person's grocery list is, and what they had put on the refrigerator's own list before
+ * 1.9.0, which the page moves to Shopping.
+ * @param state The person's refrigerator state.
+ * @returns The answer's groceryList.
+ */
+function groceryListOf(state: FridgeWeeklyState): GroceryListPointer {
+  const earlier = ((state.cart && state.cart.items) || []).map((item) => ({ id: item.id, name: item.name, quantity: item.quantity }));
+  return { keptBy: 'Shopping', app: 'purchasing', open: '/cockpit/?app=purchasing', words: 'Your grocery list is kept by Shopping, which also makes the grocery order from it.', earlier };
+}
+
 /**
  * @description Meal ideas for a focus. They come from a reading of what is inside; no reading exists yet, so there are none.
  * @param _focus The focus a person chose (kept with their plan for when readings exist).
@@ -233,7 +260,6 @@ export function buildWeekOverWeekComparison(state: FridgeWeeklyState) {
 export function formatFridgeAssessmentResponse(sub: string) {
   const state = readFridgeWeeklyState(sub);
   const comparison = buildWeekOverWeekComparison(state);
-  const activeCartCount = (state.cart.items || []).filter((i) => i.inCart).length;
   return {
     ok: true,
     deviceId: state.deviceId,
@@ -246,7 +272,7 @@ export function formatFridgeAssessmentResponse(sub: string) {
     orderHistory: state.orderHistory,
     comparison,
     reading: { read: comparison.read, capturedAt: state.currentSnapshot.capturedAt, words: comparison.read ? '' : NOTHING_READ },
-    cart: { ...state.cart, activeItemCount: activeCartCount },
+    groceryList: groceryListOf(state),
     mealPlan: state.mealPlan,
   };
 }
@@ -272,43 +298,20 @@ export function runWeeklyFridgeAssessment(
   return formatFridgeAssessmentResponse(sub);
 }
 
-function applyCartMutation(state: FridgeWeeklyState, action: string, body: Record<string, unknown>, nowIso: string) {
-  if (action === 'start-cart') {
-    state.cart.status = 'active';
-    state.cart.startedAt = nowIso;
-    state.cart.updatedAt = nowIso;
-    if (typeof body.store === 'string' && body.store.trim()) state.cart.store = body.store.trim();
-    state.cart.items.forEach((item) => { if (item.priority === 'high' || item.priority === 'medium') item.inCart = true; });
-  } else if (action === 'toggle-cart-item') {
-    const target = String(body.id || body.name || '').trim().toLowerCase();
-    const found = state.cart.items.find((i) => i.id.toLowerCase() === target || i.name.toLowerCase().includes(target));
-    if (found) { found.inCart = typeof body.inCart === 'boolean' ? body.inCart : !found.inCart; state.cart.updatedAt = nowIso; }
-  } else if (action === 'add-cart-item') {
-    const name = String(body.name || '').trim();
-    if (!name) return;
-    const id = 'cart-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32);
-    const existing = state.cart.items.find((i) => i.id === id || i.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-      existing.inCart = true;
-      if (typeof body.quantity === 'string' && body.quantity.trim()) existing.quantity = body.quantity.trim();
-    } else {
-      state.cart.items.push({ id, name, quantity: String(body.quantity || '1 item').trim(), category: String(body.category || 'Grocery').trim(), reason: String(body.reason || 'Added for weekly meal plan').trim(), priority: 'high', inCart: true });
-    }
-    state.cart.updatedAt = nowIso;
-  } else if (action === 'remove-cart-item') {
-    const target = String(body.id || body.name || '').trim().toLowerCase();
-    state.cart.items = state.cart.items.filter((i) => i.id.toLowerCase() !== target && !i.name.toLowerCase().includes(target));
-    state.cart.updatedAt = nowIso;
-  }
-}
-
 export function mutateFridgeMealAndCart(sub: string, body: Record<string, unknown>) {
   const state = readFridgeWeeklyState(sub);
-  const action = String(body.action || 'start-cart').trim().toLowerCase();
+  const action = String(body.action || '').trim().toLowerCase();
   const nowIso = new Date().toISOString();
 
-  if (action.includes('cart')) {
-    applyCartMutation(state, action, body, nowIso);
+  // The grocery list is Shopping's: a grocery action is refused with where it lives, and nothing is kept here.
+  if (GROCERY_ACTIONS.has(action)) {
+    return { refusal: { error: 'kept_by_shopping', message: GROCERY_LIST_IS_SHOPPINGS, keptBy: { app: 'purchasing', open: '/cockpit/?app=purchasing' } } };
+  }
+  if (action === 'forget-earlier-list') {
+    // The page moved these items of the refrigerator's earlier list to Shopping; they are forgotten here.
+    const ids = new Set((Array.isArray(body.ids) ? body.ids : []).map(String));
+    state.cart.items = (state.cart.items || []).filter((item) => !ids.has(String(item.id)));
+    state.cart.updatedAt = nowIso;
   } else if (action === 'build-meal-list') {
     const focus = String(body.focus || state.mealPlan.focus || 'use-first').trim();
     state.mealPlan.focus = focus;

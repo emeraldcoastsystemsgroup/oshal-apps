@@ -1,0 +1,56 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | First Career Coaching catalog (0.1.0). Three resources, all own scope. coaching-share is a job seeker's own sharing records (preview, approval, consent, stop sharing); coaching-card is a coach's own code and "stop viewing" records; coaching-summary is what a coach may read of a snapshot shared with them, projected to the summary-v1 field set. The Coaching client role is editor because a share is a write and its human gate needs an own-scoped Execute grant (the kernel's original-owner ticket decision requires one); it has no model, provider, engine, mail or Career permission. The Career coach role writes only its own code and stop-viewing records and reads only coaching.summary.read; it holds no Career role, cannot share, renew or revoke for anyone, and no administrator role exists here, so platform administration grants no coaching relationship. Who may read which snapshot is decided by the consent rows and the installed relationship policy (storage/relationships.json), never by this catalog alone.
+#
+# Bindings are matched on the path relative to the mount that serves the request: GET / is the page here and the
+# install-readiness smoke on its own mount. POST /previews/:previewId/prepare opens the seeker's own approval ticket
+# (a ticket needs a Write or Execute permission of this application); activation needs the seeker's change and confirm
+# permissions, and only the kernel's owner-verified decision receipt makes it share anything.
+
+version: 1
+resources:
+  coaching-share: { scopes: [own] }
+  coaching-card: { scopes: [own] }
+  coaching-summary:
+    scopes: [own]
+    fieldSets:
+      summary-v1: [alias, schema, label, sourceAsOf, publishedAt, expiresAt, pipeline, activity, applications, nextSteps]
+permissions:
+  app.open: { resource: coaching-share, effect: read, minimumTier: viewer }
+  coaching.share.read: { resource: coaching-share, effect: read, minimumTier: viewer }
+  coaching.share.change: { resource: coaching-share, effect: write, minimumTier: editor }
+  coaching.share.confirm: { resource: coaching-share, effect: execute, minimumTier: editor }
+  coaching.card.read: { resource: coaching-card, effect: read, minimumTier: viewer }
+  coaching.card.change: { resource: coaching-card, effect: write, minimumTier: editor }
+  coaching.summary.read: { resource: coaching-summary, effect: read, minimumTier: viewer }
+roles:
+  seeker:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: coaching.share.read, scope: own }
+      - { permission: coaching.share.change, scope: own }
+      - { permission: coaching.share.confirm, scope: own }
+  coach:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: coaching.card.read, scope: own }
+      - { permission: coaching.card.change, scope: own }
+      - { permission: coaching.summary.read, scope: own, fields: summary-v1 }
+bindings:
+  http:
+    - { id: page, method: GET, path: /, allOf: [app.open] }
+    - { id: static-file, method: GET, path: /static/:file, allOf: [app.open] }
+    - { id: card-read, method: GET, path: /card, allOf: [coaching.card.read] }
+    - { id: card-publish, method: POST, path: /card, allOf: [coaching.card.change] }
+    - { id: card-off, method: DELETE, path: /card, allOf: [coaching.card.change] }
+    - { id: shares-read, method: GET, path: /shares, allOf: [coaching.share.read] }
+    - { id: preview, method: POST, path: /previews, allOf: [coaching.share.change] }
+    - { id: preview-prepare, method: POST, path: /previews/:previewId/prepare, allOf: [coaching.share.change, coaching.share.confirm] }
+    - { id: preview-activate, method: POST, path: /previews/:previewId/activate, allOf: [coaching.share.change, coaching.share.confirm] }
+    - { id: share-revoke, method: POST, path: /shares/:linkId/revoke, allOf: [coaching.share.change] }
+    - { id: shared-read, method: GET, path: /shared-with-me, allOf: [coaching.summary.read] }
+    - { id: shared-stop, method: POST, path: /shared-with-me/:linkId/stop, allOf: [coaching.card.change] }

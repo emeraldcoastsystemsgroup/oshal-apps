@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "actor_table": "cc_people",
+  "issuer_column": "issuer",
+  "subject_column": "subject",
+  "provisioning_tenant": null,
+  "tables": {
+    "cc_people": {
+      "read": "r.issuer=$1 AND r.subject=$2",
+      "insert": "r.issuer=$1 AND r.subject=$2 AND $3 IS NULL",
+      "update": "r.issuer=$1 AND r.subject=$2",
+      "delete": "r.issuer=$1 AND r.subject=$2",
+      "immutable": ["person_id", "issuer", "subject", "tenant_id"],
+      "unique": [["issuer", "subject"]]
+    },
+    "cc_coach_codes": {
+      "read": "$3 IS NOT NULL",
+      "insert": "r.coach_issuer=$1 AND r.coach_subject=$2 AND r.coach_person_id=$3->>'person_id'",
+      "delete": "r.coach_issuer=$1 AND r.coach_subject=$2 AND r.coach_person_id=$3->>'person_id'",
+      "immutable": ["code_hash", "coach_person_id", "coach_issuer", "coach_subject", "tenant_id", "display_name", "email", "created_at"],
+      "unique": [["coach_person_id"]]
+    },
+    "cc_previews": {
+      "read": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id'",
+      "insert": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id' AND r.coach_person_id<>r.seeker_person_id AND EXISTS(SELECT 1 FROM cc_coach_codes c WHERE c.coach_person_id=r.coach_person_id AND c.coach_issuer=r.coach_issuer AND c.coach_subject=r.coach_subject)",
+      "update": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id'",
+      "delete": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id'",
+      "immutable": ["preview_id", "link_id", "expected_revision", "seeker_person_id", "seeker_issuer", "seeker_subject", "coach_person_id", "coach_issuer", "coach_subject", "tenant_id", "scope", "field_groups", "alias", "days", "payload", "payload_digest", "source_as_of", "created_at", "expires_at"]
+    },
+    "cc_links": {
+      "read": "(r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id') OR (r.coach_issuer=$1 AND r.coach_subject=$2 AND r.coach_person_id=$3->>'person_id' AND r.state='active' AND r.expires_at > now() AND EXISTS(SELECT 1 FROM cc_people p WHERE p.person_id=r.seeker_person_id AND p.issuer=r.seeker_issuer AND p.subject=r.seeker_subject) AND NOT EXISTS(SELECT 1 FROM cc_link_drops d WHERE d.link_id=r.link_id))",
+      "insert": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id' AND r.coach_person_id<>r.seeker_person_id AND EXISTS(SELECT 1 FROM cc_previews v WHERE v.link_id=r.link_id AND v.seeker_person_id=r.seeker_person_id AND v.coach_person_id=r.coach_person_id AND v.coach_issuer=r.coach_issuer AND v.coach_subject=r.coach_subject AND v.tenant_id=r.tenant_id)",
+      "update": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id'",
+      "delete": "r.seeker_issuer=$1 AND r.seeker_subject=$2 AND r.seeker_person_id=$3->>'person_id'",
+      "immutable": ["link_id", "seeker_person_id", "seeker_issuer", "seeker_subject", "coach_person_id", "coach_issuer", "coach_subject", "tenant_id", "app", "scope", "created_at"]
+    },
+    "cc_snapshots": {
+      "read": "(r.seeker_person_id=$3->>'person_id' AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.seeker_person_id=r.seeker_person_id AND l.seeker_issuer=$1 AND l.seeker_subject=$2)) OR (r.coach_person_id=$3->>'person_id' AND NOT EXISTS(SELECT 1 FROM cc_link_drops d WHERE d.link_id=r.link_id) AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.coach_person_id=r.coach_person_id AND l.coach_issuer=$1 AND l.coach_subject=$2 AND l.state='active' AND l.revision=r.revision AND l.expires_at > now() AND EXISTS(SELECT 1 FROM cc_people p WHERE p.person_id=l.seeker_person_id AND p.issuer=l.seeker_issuer AND p.subject=l.seeker_subject)))",
+      "insert": "r.seeker_person_id=$3->>'person_id' AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.seeker_person_id=r.seeker_person_id AND l.coach_person_id=r.coach_person_id AND l.seeker_issuer=$1 AND l.seeker_subject=$2)",
+      "update": "r.seeker_person_id=$3->>'person_id' AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.seeker_person_id=r.seeker_person_id AND l.coach_person_id=r.coach_person_id AND l.seeker_issuer=$1 AND l.seeker_subject=$2)",
+      "delete": "r.seeker_person_id=$3->>'person_id' AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.seeker_person_id=r.seeker_person_id AND l.coach_person_id=r.coach_person_id AND l.seeker_issuer=$1 AND l.seeker_subject=$2)",
+      "immutable": ["link_id", "seeker_person_id", "coach_person_id"]
+    },
+    "cc_link_drops": {
+      "read": "(r.coach_issuer=$1 AND r.coach_subject=$2 AND r.coach_person_id=$3->>'person_id') OR EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.seeker_issuer=$1 AND l.seeker_subject=$2 AND l.seeker_person_id=$3->>'person_id')",
+      "insert": "r.coach_issuer=$1 AND r.coach_subject=$2 AND r.coach_person_id=$3->>'person_id' AND EXISTS(SELECT 1 FROM cc_links l WHERE l.link_id=r.link_id AND l.coach_person_id=r.coach_person_id AND l.coach_issuer=r.coach_issuer AND l.coach_subject=r.coach_subject)",
+      "immutable": ["link_id", "coach_person_id", "coach_issuer", "coach_subject", "dropped_at"]
+    }
+  }
+}

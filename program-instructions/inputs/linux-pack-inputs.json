@@ -1,0 +1,1473 @@
+{
+  "about": "The package's own Linux inputs: a copy of Lane G's pack-inputs.json (oshal-handover lanes/linux-application-packs-2026-11-13/pack-inputs.json, last updated 2026-11-13T17:33:12Z by lane-g3-linux-any-program), with Lane G4's wording for the programs Orbit now starts readable (kernel 6602c84d); the programs named in `amended` are the only ones that differ from Lane G's file, and tests/sheet/linux-sources.test.cjs holds that. Lane G's own description follows. Step D of the Linux application packs (Lane G, 2026-11-13): what the generated instructions for three Linux programs must say and must not say, as input for Lane A's writer package program-instructions. Every fact is as built at kernel commit 1cefa139 on dev/native-parity (Writer's replace-text and find-replace facts updated by Lane G2, with and without the add-on; the rest as Lane G wrote them at 33ec9e1b) and names the test that proves it on the real program (scripts/test-linux-apps-desktop.cjs in the private desktop of linux-apps-desktop.Dockerfile, unless another file is named). The verbs, inputs and refusal words of each bridge word are in bridge-facts.json beside this file. `acceptance` is a check a written pack can be held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-13T18:55:00Z",
+  "kernel_commit": "6602c84d",
+  "facts": "bridge-facts.json",
+  "contract": {
+    "note": "The kernel's own contract for every pack (T76 proposal 4.3 and validate_body): at most the two tools, only the actions listed, 200 to 8,192 bytes, first line starting with '# ', no address and no tool_call or handoff block.",
+    "tools": [
+      "computer.app",
+      "computer.open"
+    ],
+    "actions": [
+      "apps",
+      "snapshot",
+      "scroll",
+      "press",
+      "type",
+      "select",
+      "invoke",
+      "undo",
+      "restore"
+    ],
+    "min_bytes": 200,
+    "max_bytes": 8192
+  },
+  "amended": {
+    "by": "lane-a5-powerpoint",
+    "from": "lanes/linux-application-packs-2026-11-13/pack-inputs.json",
+    "programs": [
+      "google-chrome",
+      "com.microsoft.vscode",
+      "firefox",
+      "thunderbird"
+    ],
+    "what": "Lane G4 (kernel 6602c84d): when Orbit opens Chrome or VS Code it adds --force-renderer-accessibility, and Firefox or Thunderbird it starts with GNOME_ACCESSIBILITY=1, for that one process; a copy the person started unreadable is refused as \"it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\". Each program's first fact says so with G4's proof, Firefox's and Thunderbird's second fact reads \"Started readable\" for \"With the switch on\", a never-line says the person changes no setting, and 'started without accessibility' is a required word (for Firefox and Thunderbird in place of 'accessibility switch')."
+  },
+  "programs": [
+    {
+      "program": "org.gnome.texteditor",
+      "name": "Text Editor (GNOME Text Editor)",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.3",
+        "version_kind": "package",
+        "from": "gnome-text-editor 46.3-0ubuntu2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Text Editor edits plain text files. `computer.open` with app org.gnome.texteditor starts it; `computer.app` with \"action\": \"apps\" lists its open windows.",
+          "evidence": "bound-apps.ts openIfBound; test D6 and D7 (apps names the bridge accessibility)"
+        },
+        {
+          "fact": "A snapshot holds the whole document as one element with the role text box, editable, whose value is the document's text.",
+          "evidence": "deca2148, test 'D6 and D7: Text Editor's window (published as an application) is found, and its document (a text box) is read and editable'"
+        },
+        {
+          "fact": "To change the document, type into that element: mode replace sets the whole text, insert puts the text at `at`, append adds it at the end.",
+          "evidence": "1bbde785, test 'D1 and D2: a type into Text Editor answers what was read back, with verified ...'; measure-after-c/measure.json text-editor probes (append, two-line replace, write-back, 3 of 3)"
+        },
+        {
+          "fact": "The answer's `after` is what the document holds when read again, and `verified` says whether that is what was asked for. When verified is false, read a new snapshot before anything else; do not repeat the type.",
+          "evidence": "1bbde785, same test; bridges/atspi.ts writeText"
+        },
+        {
+          "fact": "A change is undone with \"action\": \"undo\", which writes the earlier text back only while the document still holds what was written; otherwise \"action\": \"restore\" opens the copy saved before it.",
+          "evidence": "same test (the undo answers the earlier text, verified); app-acts.ts undo"
+        },
+        {
+          "fact": "Text Editor declares no verbs: opening, saving, searching and replacing files are not done through invoke, which answers \"I can't do <verb> in Text Editor yet.\" The person saves the file in Text Editor.",
+          "evidence": "bridges/linux-apps.ts declared (verbs only for a LibreOffice text document); app-control.ts invoke"
+        },
+        {
+          "fact": "A one-line box in Text Editor (such as its search box) is not typed into: \"Orbit cannot tell whether this box is a password field, so it does not type into it\".",
+          "evidence": "deca2148, test 'D3: a one-line GTK 4 text box is refused ...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does (no Ctrl+S, no File menu).",
+        "That Jarvis saves, opens or searches files in Text Editor.",
+        "Any declared verb for Text Editor (insert-paragraph, format-text, save-document and the rest belong to LibreOffice).",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "text box",
+          "verified",
+          "\"action\": \"type\"",
+          "\"action\": \"snapshot\"",
+          "\"action\": \"undo\"",
+          "computer.open"
+        ],
+        "absent": [
+          "Ctrl+",
+          "save-document",
+          "insert-paragraph",
+          "format-text",
+          "screen.read"
+        ]
+      }
+    },
+    {
+      "program": "org.gnome.terminal",
+      "name": "Terminal (GNOME Terminal)",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "3.52.0",
+        "version_kind": "package",
+        "from": "gnome-terminal 3.52.0-1ubuntu2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "`computer.open` with app org.gnome.terminal opens a Terminal window; `computer.app` with \"action\": \"apps\" lists its windows.",
+          "evidence": "bound-apps.ts openIfBound; test D4 (bound from Open now)"
+        },
+        {
+          "fact": "A snapshot reads the lines shown in the terminal as one element with the role terminal; the empty rows below the last line are empty lines. Only what is shown is read.",
+          "evidence": "cf94cdb4, test 'D4: a terminal's lines are read, and typing into it is refused ...'; measure-after-c/measure.json terminal"
+        },
+        {
+          "fact": "Nothing is typed into the terminal: \"action\": \"type\" is refused with \"Terminal did not do that: This needs the mouse and keyboard.\" and nothing reaches the program running in it. Do not repeat it; tell the person the terminal takes typing only from the keyboard.",
+          "evidence": "cf94cdb4, same test (a fresh snapshot shows nothing reached the program)"
+        },
+        {
+          "fact": "Terminal declares no verbs; invoke answers \"I can't do <verb> in Terminal yet.\"",
+          "evidence": "bridges/linux-apps.ts declared; app-control.ts invoke"
+        }
+      ],
+      "must_not_say": [
+        "A command for Jarvis to type into the terminal, or any shell command presented as something Jarvis runs there.",
+        "A key or key combination as something Jarvis does.",
+        "That the terminal's text can be changed through computer.app.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "This needs the mouse and keyboard.",
+          "\"action\": \"snapshot\"",
+          "terminal"
+        ],
+        "absent": [
+          "Ctrl+",
+          "sudo",
+          "shell.exec",
+          "screen.read"
+        ]
+      }
+    },
+    {
+      "program": "libreoffice-writer",
+      "name": "LibreOffice Writer",
+      "platform": "linux",
+      "bridge": "libreoffice",
+      "version_on_the_spark": {
+        "version": "24.2.7",
+        "version_kind": "package",
+        "from": "libreoffice-common 4:24.2.7-0ubuntu0.24.04.7"
+      },
+      "shipped_guide": "platform/docs/guides/libreoffice-writer.md (Lane A's decision 9: the shipped guide comes first and the pack after it; the pack adds and must not contradict it)",
+      "must_say": [
+        {
+          "fact": "Two ways in, told apart by the snapshot: with Orbit's LibreOffice add-on connected, `part` is \"whole\" and the reading holds every paragraph and table; without it, `part` is \"visible\" and `shown` says \"the paragraphs shown on the screen\".",
+          "evidence": "bridges/libreoffice.ts read; bridges/atspi.ts readTextDocument; test-attached-apps-desktop.cjs (visible part) and test-libreoffice-plugin-desktop.cjs (whole document)"
+        },
+        {
+          "fact": "With the add-on: the declared verbs insert-paragraph, add-section, replace-text, delete-paragraph, format-text, find-replace and the file verbs recent-documents, open-document, new-document, save-document, export-document, each through \"action\": \"invoke\", each one step on LibreOffice's own Undo.",
+          "evidence": "bridge-facts.json bridges.libreoffice.declared.text; test-libreoffice-plugin-desktop.cjs"
+        },
+        {
+          "fact": "With the add-on (1.2.3 and later), replace-text and find-replace change only the matched text, as without it: the text around it keeps its bold, italic and font, the new text takes the formatting of the text it replaces, a match in more than one formatting is refused and nothing changes, and the answer carries `verified` from reading back the text and each character's formatting. find-replace with the add-on reaches the whole document (tables left out), and `\"all\": false` changes only the first match; the whole change is one named step on LibreOffice's Undo. A line ending in the new text is a line break inside that paragraph, with or without the add-on; add paragraphs with insert-paragraph.",
+          "evidence": "1cefa139, scripts/test-libreoffice-plugin-desktop.cjs tests 'G2 with the add-on: replace-text changes only the matched word ...', '... replace-text on the bold word gives its bold to the new word ...', '... find-replace changes the word in both paragraphs ...', '... a line ending in the new text is a line break ...', '... a match across a change of formatting is refused ...' (red on add-on 1.2.2, green on 1.2.3: lane-g2/addon-red-before and lane-g2/addon-green)"
+        },
+        {
+          "fact": "Without the add-on: insert-paragraph and add-section add plain paragraphs only; a heading, a font size, or bold, italic or underline inside insert-paragraph or replace-text is refused in words naming the add-on (\"... needs the LibreOffice add-on: install it in Orbit Settings, Bound Apps (Install the LibreOffice add-on)\"), and nothing changes.",
+          "evidence": "d19e4be8, tests 'D2, Writer over the bus: insert-paragraph adds a paragraph ...' and '... a heading is refused in words naming the add-on, and nothing changes'"
+        },
+        {
+          "fact": "Without the add-on: format-text sets bold, italic or underline on a paragraph (`ref`) or a text (`find`) and is checked in the text's own attributes; when the format does not read back it is refused and nothing is claimed.",
+          "evidence": "d19e4be8, test 'D2, Writer over the bus: format-text makes the word bold, checked in its own attributes, and one Undo takes it away'"
+        },
+        {
+          "fact": "Without the add-on: replace-text (with `find`) and find-replace change only the matched text. The text around it keeps its bold, italic and font, and the new text takes the formatting of the text it replaces (a bold word replaced stays bold). The answer's `verified` is true only when both the text and that formatting read back as expected.",
+          "evidence": "8c2ac754, scripts/test-linux-apps-desktop.cjs tests 'G2, Writer over the bus: replace-text changes only the matched word; ...', '... replace-text on the bold word gives its bold to the new word ...', '... find-replace changes the word in both paragraphs ...' (red at edee33a5, green at 8c2ac754: lane-g2/red-before and lane-g2/green-after)"
+        },
+        {
+          "fact": "Without the add-on: a match that is in more than one formatting (part bold, part plain) is refused and nothing changes: \"'<text>' is in more than one formatting ('<part>' | '<part>'), so its new text could keep only one of them; nothing changed. Replace each part on its own.\" Replace each part with its own replace-text.",
+          "evidence": "8c2ac754, test 'G2, Writer over the bus: a match that crosses a change of formatting is refused before anything changes'; bridge-facts.json bridges.linux-atspi declared replace-text and find-replace refuses"
+        },
+        {
+          "fact": "Without the add-on: replace-text without `find` replaces the paragraph's whole text (by `ref`, else the first paragraph shown); the new text takes the formatting the paragraph ends with. With a `find` the paragraph named by `ref` does not hold, it is refused and nothing changes.",
+          "evidence": "8c2ac754, test 'G2, Writer over the bus: a whole-paragraph replace-text (no find) changes that paragraph only, and one Undo puts its bold back'; bridges/linux-writer.ts replaceText"
+        },
+        {
+          "fact": "Without the add-on: find-replace reaches only the paragraphs shown on the screen, changes at most 10 places at once (20 when the replacement is empty), is refused when the paragraphs shown hold none, and answers the touched paragraphs before and as read back. One \"action\": \"undo\" with its group takes the whole change away. Searching the whole document in one step needs the add-on.",
+          "evidence": "8c2ac754, test 'G2, Writer over the bus: find-replace changes the word in both paragraphs ...' and 'G2: one find-replace over the bus changes at most ten places ...'; bridges/linux-writer.ts placesRefusal"
+        },
+        {
+          "fact": "Without the add-on: delete-paragraph leaves the paragraph empty in place; the file verbs are refused.",
+          "evidence": "bridges/linux-writer.ts clearParagraph; bridge-facts.json bridges.linux-atspi.writer_over_the_bus"
+        },
+        {
+          "fact": "Every edit's answer carries `after` as read back and `verified`; when verified is false, read a new snapshot before anything else.",
+          "evidence": "d19e4be8 and 1bbde785, the Writer and Text Editor tests"
+        },
+        {
+          "fact": "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`.",
+          "evidence": "d19e4be8 (one Undo removes the inserted paragraph and the bold); test-attached-edits-desktop.cjs"
+        }
+      ],
+      "must_not_say": [
+        "That a heading, a font size or a paragraph style can be set without the add-on.",
+        "That replace-text or find-replace drop the formatting of the paragraph they change, with or without the add-on (both did in Orbit 0.7.19 with add-on 1.2.2; since kernel 1cefa139 neither does).",
+        "A menu path, a key or a key combination as something Jarvis does (the shipped guide names menus only as where the person finds things).",
+        "Anything the shipped guide says differently about the add-on's verbs.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "add-on",
+          "\"part\"",
+          "whole",
+          "visible",
+          "insert-paragraph",
+          "format-text",
+          "verified",
+          "\"action\": \"invoke\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "drops any formatting"
+        ]
+      }
+    },
+    {
+      "program": "google-chrome",
+      "name": "Google Chrome",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "156.0.8078.47",
+        "version_kind": "package",
+        "from": "google-chrome-stable 156.0.8078.47-1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Chrome shows what is inside its window to computer.app only when it was started with --force-renderer-accessibility, and Orbit adds that flag itself when it opens Chrome with computer.open (by its bound key, with a file, or by its program name). A Chrome the person started without it is refused in words: \"Orbit cannot read Google Chrome's controls: it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\" Ask the person to close Chrome and open it again with computer.open, or the page is done by mouse and keyboard.",
+          "evidence": "6602c84d (Lane G4), desktop/oshal-node/scripts/test-linux-open-readable.cjs 'Chrome already running as the person started it (no flag)...', 'Chrome closed, then opened by Orbit with a file...' and 'app.open with a program name that is not bound (\"google-chrome\"...'; test-linux-any-program.cjs 'Chrome as it starts by default publishes an empty window...' (refused as started without accessibility since 6602c84d); src/main/readable-launch.ts STARTED_UNREADABLE"
+        },
+        {
+          "fact": "With the flag, a snapshot reads the page shown: headings, paragraphs, field labels and values, buttons, check boxes, list boxes, and the tab and address bar.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Chrome with --force-renderer-accessibility...'"
+        },
+        {
+          "fact": "\"action\": \"press\" presses a button or check box on the page. Nothing can be typed into a field or the address bar through computer.app: a type is refused \"This needs the mouse and keyboard.\"",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Chrome with --force-renderer-accessibility...'"
+        },
+        {
+          "fact": "A list box cannot be chosen from (\"that element cannot be selected\"), a password field is never typed into, and scroll is refused because Chrome publishes no scroll bar.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Chrome: a list box that cannot be selected...'; probes/results chrome-force (scroll)"
+        },
+        {
+          "fact": "Act only in a Chrome window that is in front: a window covered by another runs no press and does not update what it shows until it is uncovered.",
+          "evidence": "lane-g3/probes/chrome-press.cjs covered: \"Not pressed\" for 3 s after a press"
+        }
+      ],
+      "must_not_say": [
+        "That the person must start Chrome with a flag or change a desktop setting: Orbit starts it readable when it opens it.",
+        "That Jarvis types into a page field, the address bar or a search box in Chrome.",
+        "That Jarvis chooses an option in a list box.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "--force-renderer-accessibility",
+          "started without accessibility",
+          "\"action\": \"snapshot\"",
+          "\"action\": \"press\"",
+          "This needs the mouse and keyboard."
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "firefox",
+      "name": "Firefox",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "158.0-2",
+        "version_kind": "package",
+        "from": "snap firefox 158.0-2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Firefox shows what is inside its window to computer.app only when it was started with GNOME_ACCESSIBILITY=1, which Orbit sets for that one process when it opens Firefox with computer.open, or while the desktop's accessibility switch was on from before it started. A Firefox the person started otherwise is refused in words: \"Orbit cannot read <program>'s controls: it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "6602c84d (Lane G4), desktop/oshal-node/scripts/test-linux-open-readable.cjs 'Firefox already running as the person started it (switch off)...', 'Firefox closed, then opened by Orbit with a file...' and 'app.open with a name that is not bound (\"g4-firefox\"...'; test-linux-any-program.cjs 'Firefox while the desktop's accessibility switch is off...' (refused as started without accessibility since 6602c84d); src/main/bridges/linux-apps.ts notPublished"
+        },
+        {
+          "fact": "Started readable, a snapshot reads the page shown: headings, paragraphs, field labels and values, buttons, check boxes, list boxes, the tab and the address box.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Firefox publishing (GNOME_ACCESSIBILITY=1)...'"
+        },
+        {
+          "fact": "Firefox takes no text through computer.app: a type is refused (it took no text, and the field did not change) and needs the mouse and keyboard. A check box can be pressed; its push buttons publish no action to press.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Firefox publishing (GNOME_ACCESSIBILITY=1)...'; probes/gecko-probe.cjs; probes/results firefox-isenabled"
+        }
+      ],
+      "must_not_say": [
+        "That the person must turn on the desktop's accessibility switch: Orbit starts Firefox readable when it opens it.",
+        "That Jarvis types into or submits a form in Firefox.",
+        "That Jarvis presses a button on a Firefox page.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "started without accessibility",
+          "\"action\": \"snapshot\"",
+          "This needs the mouse and keyboard."
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "thunderbird",
+      "name": "Thunderbird",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "159.0-1",
+        "version_kind": "package",
+        "from": "snap thunderbird 159.0-1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Thunderbird shows what is inside its window to computer.app only when it was started with GNOME_ACCESSIBILITY=1, which Orbit sets for that one process when it opens Thunderbird with computer.open, or while the desktop's accessibility switch was on from before it started. A Thunderbird the person started otherwise is refused in words: \"Orbit cannot read <program>'s controls: it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "6602c84d (Lane G4), desktop/oshal-node/scripts/test-linux-open-readable.cjs 'Thunderbird opened by Orbit (app.open with its bound key)...'; src/main/bridges/linux-apps.ts notPublished (a Gecko window not on the bus; Thunderbird already running without it is code only, the suite runs that case for Firefox); src/main/readable-launch.ts STARTED_UNREADABLE"
+        },
+        {
+          "fact": "Started readable, a snapshot reads the window's headings, fields, buttons and links. Nothing can be typed into it through computer.app: a type is refused (it took no text) and needs the mouse and keyboard.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Thunderbird publishing (GNOME_ACCESSIBILITY=1)...'"
+        }
+      ],
+      "must_not_say": [
+        "That the person must turn on the desktop's accessibility switch: Orbit starts Thunderbird readable when it opens it.",
+        "That Jarvis writes, sends or files an email in Thunderbird.",
+        "Anything about reading a message list or a message: not measured.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "started without accessibility",
+          "\"action\": \"snapshot\"",
+          "This needs the mouse and keyboard."
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "com.microsoft.vscode",
+      "name": "Visual Studio Code",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "1.146.0",
+        "version_kind": "package",
+        "from": "code 1.146.0-1794340783"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "VS Code shows what is inside its window to computer.app only when it was started with --force-renderer-accessibility, and Orbit adds that flag itself when it opens VS Code with computer.open (by its bound key or with a file). A VS Code the person started without it is refused in words: \"Orbit cannot read <program>'s controls: it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "6602c84d (Lane G4), desktop/oshal-node/scripts/test-linux-open-readable.cjs 'VS Code opened by Orbit with a file...'; src/main/bridges/atspi.ts nothingInside (a Chromium window whose process has no flag; VS Code already running without it is code only, the suite runs that case for Chrome); src/main/readable-launch.ts STARTED_UNREADABLE"
+        },
+        {
+          "fact": "With the flag, a snapshot reads the open file whole, as one element whose value is the file's text, and the workbench's tabs, buttons and status bar; a tab or button can be pressed.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'VS Code with --force-renderer-accessibility...'; probes/results vscode-force (press)"
+        },
+        {
+          "fact": "Nothing can be typed into the editor through computer.app: a type is refused \"This needs the mouse and keyboard.\"",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'VS Code with --force-renderer-accessibility...'"
+        }
+      ],
+      "must_not_say": [
+        "That the person must start VS Code with a flag or change a desktop setting: Orbit starts it readable when it opens it.",
+        "That Jarvis edits, saves or runs code in VS Code.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "--force-renderer-accessibility",
+          "started without accessibility",
+          "\"action\": \"snapshot\"",
+          "This needs the mouse and keyboard."
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "org.xfce.mousepad",
+      "name": "Mousepad",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "0.6.1",
+        "version_kind": "package",
+        "from": "mousepad 0.6.1-1build2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot holds the whole document as one editable text element.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Mousepad bound from All apps owns its window...'"
+        },
+        {
+          "fact": "To change it, type into that element (replace, insert at `at`, or append); the answer's `after` is what the document holds when read again and `verified` says whether it is what was asked. A change is undone with \"action\": \"undo\".",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Mousepad bound from All apps owns its window...'"
+        },
+        {
+          "fact": "Mousepad declares no verbs: opening and saving files are not done through invoke. computer.open with the key starts it.",
+          "evidence": "bridges/linux-apps.ts declared"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis saves or opens files in Mousepad.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"type\"",
+          "verified",
+          "\"action\": \"undo\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "org.gnome.evince",
+      "name": "Document Viewer",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.3.1",
+        "version_kind": "package",
+        "from": "evince 46.3.1-0ubuntu1.1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the text of the PDF page on the screen, the page number box, the page count and the zoom box. Only the page shown is read; scroll moves the document to read further.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Document Viewer: the text of the PDF page on the screen is read'; probes/results evince (scroll)"
+        },
+        {
+          "fact": "The PDF's text cannot be changed. Typing into the page number or zoom box goes to that page or zoom, read back and verified.",
+          "evidence": "probes/results evince"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis edits, annotates or fills a PDF in Document Viewer.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"snapshot\"",
+          "\"action\": \"scroll\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "org.gnome.nautilus",
+      "name": "Files",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.4",
+        "version_kind": "package",
+        "from": "nautilus 1:46.4-0ubuntu0.2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the sidebar's places and the files shown in the folder, each a grid cell named by its file name.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Files: a file in the folder is listed and selected...'"
+        },
+        {
+          "fact": "\"action\": \"select\" with a file's ref selects that file, and Files reads it as selected. Scroll is refused (Files publishes no scroll bar).",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Files: a file in the folder is listed and selected...'; probes/results nautilus"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis copies, moves, renames or deletes files in Files.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "grid cell",
+          "\"action\": \"select\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "thunar",
+      "name": "Thunar",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "4.18.8",
+        "version_kind": "package",
+        "from": "thunar 4.18.8-1build3"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the location box (the folder's path), the toolbar buttons and the status bar, which counts the folder's files and their size. The files themselves are not read in Thunar's icon view: it publishes no icons.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'Thunar: its status bar...'"
+        },
+        {
+          "fact": "Typing into the location box changes the text there, read back and verified; it does not open the folder by itself.",
+          "evidence": "probes/results thunar"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis selects, opens, copies or deletes a file in Thunar.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"snapshot\"",
+          "status bar"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "org.kde.okular",
+      "name": "Okular",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "23.08.5",
+        "version_kind": "package",
+        "from": "okular 4:23.08.5-0ubuntu5"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads Okular's zoom box, page number, sidebar thumbnails and buttons, not the PDF's text.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'control: Okular (Qt 5)...'"
+        },
+        {
+          "fact": "Zoom In and Zoom Out are pressed; the zoom box takes text, read back, verified and undone. Scroll is refused (no scroll bar published).",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'control: Okular (Qt 5)...'; probes/results okular"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis reads the text of a PDF in Okular.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"press\"",
+          "\"action\": \"snapshot\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "org.gnome.eog",
+      "name": "Image Viewer",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "45.3",
+        "version_kind": "package",
+        "from": "eog 45.3-1ubuntu2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the zoom and Image Viewer's buttons; a picture has no text to read.",
+          "evidence": "probes/results eog"
+        },
+        {
+          "fact": "\"action\": \"press\" on Zoom Out or Zoom In changes the zoom, which a new snapshot reads.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'control: Image Viewer's Zoom Out is pressed...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis describes, edits or saves the picture.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"press\"",
+          "Zoom"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "xfce4-terminal",
+      "name": "Xfce Terminal",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "1.1.3",
+        "version_kind": "package",
+        "from": "xfce4-terminal 1.1.3-1build1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the lines shown in the terminal.",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'control: ... Xfce Terminal is read and a type refused...'"
+        },
+        {
+          "fact": "Nothing is typed through computer.app: a type is refused \"This needs the mouse and keyboard.\"",
+          "evidence": "c0d3cb39, test-linux-any-program.cjs 'control: ... Xfce Terminal is read and a type refused...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis runs a command in the terminal.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"snapshot\"",
+          "This needs the mouse and keyboard."
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "save-document",
+          "insert-paragraph"
+        ]
+      },
+      "by": "lane-g3-linux-any-program"
+    },
+    {
+      "program": "gedit",
+      "name": "gedit",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.2",
+        "version_kind": "package",
+        "from": "gedit 46.2-2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the open file's whole text as one editable text element, and the window's document is the file's name.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'gedit: its window's document is the file it holds...'"
+        },
+        {
+          "fact": "\"action\": \"type\" writes into it (replace, insert or append); Orbit reads the text back and answers verified, and \"action\": \"undo\" writes the earlier text back.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'gedit: its window's document is the file it holds...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis saves the file.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"type\"",
+          "verified"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.calculator",
+      "name": "Calculator",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.3",
+        "version_kind": "package",
+        "from": "gnome-calculator 1:46.3-0ubuntu0.1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the keypad as buttons, each named by what it shows (7, +, = and C), and the display as a text box.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Calculator: its buttons are read as buttons, and 7 + 5 = pressed through them makes the display read 12...'"
+        },
+        {
+          "fact": "\"action\": \"press\" presses one key at a time: 7, +, 5 and = make the display read 12. Read a new snapshot after = to see the result.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Calculator: its buttons are read as buttons, and 7 + 5 = pressed through them makes the display read 12...'"
+        },
+        {
+          "fact": "A press on plain text is refused: \"that element has no action Orbit can press\".",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'To Do: a list is read by its own labels and selected; its Add Tasks button is pressed; a press on a label is refused, not answered as done...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"press\"",
+          "display"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.todo",
+      "name": "To Do",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "43.0",
+        "version_kind": "package",
+        "from": "endeavour 43.0-1build3"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the task lists (Inbox, Today, Next 7 Days, All) as list items named with their count, and the Add Tasks... button.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'To Do: a list is read by its own labels and selected; its Add Tasks button is pressed; a press on a label is refused, not answered as done...'"
+        },
+        {
+          "fact": "\"action\": \"select\" opens a list and \"action\": \"press\" presses a button. A press on plain text is refused: \"that element has no action Orbit can press\". Typing a new task was not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'To Do: a list is read by its own labels and selected; its Add Tasks button is pressed; a press on a label is refused, not answered as done...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis types a task into To Do.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"select\"",
+          "Inbox"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "simple-scan",
+      "name": "Document Scanner",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.0",
+        "version_kind": "package",
+        "from": "simple-scan 46.0-0ubuntu2.1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its state (Searching for Scanners..., No scanners, Ready to Scan) and its Scan and Save buttons.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Document Scanner: its state and its Scan button are read...'"
+        },
+        {
+          "fact": "Pressing Scan was not measured: it starts a real scanner. Press Scan only when the person asks for a scan.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Document Scanner: its state and its Scan button are read...'"
+        }
+      ],
+      "must_not_say": [
+        "That a scan was made without the person asking.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Scan"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.calendar",
+      "name": "Calendar",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.1",
+        "version_kind": "package",
+        "from": "gnome-calendar 46.1-0ubuntu2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the month shown: its days as buttons named by their number, and the month as a button.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Calendar: the month's days are read as buttons and one is pressed...'"
+        },
+        {
+          "fact": "\"action\": \"press\" on a day selects that day. Adding, moving or deleting an event was not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Calendar: the month's days are read as buttons and one is pressed...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis adds, moves or deletes an event in Calendar.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"press\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.characters",
+      "name": "Characters",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.0",
+        "version_kind": "package",
+        "from": "gnome-characters 46.0-1build1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its categories (Emojis, Letters & Symbols) as list items named by their labels, and its Search and Main Menu buttons. Choosing and copying a character were not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Characters: its categories are read by name as list items...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Emojis"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "transmission-gtk",
+      "name": "Transmission",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "4.0.5",
+        "version_kind": "package",
+        "from": "transmission-gtk 4.0.5-1ubuntu0.1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its toolbar buttons (Open, Properties), the Show filter and the alternative speed toggle; \"action\": \"press\" presses them, and Open opens Transmission's file chooser in a window of its own.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Transmission: its Open button is read and pressed...'"
+        },
+        {
+          "fact": "Adding or starting a torrent was not measured; never start a download the person did not ask for.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Transmission: its Open button is read and pressed...'"
+        }
+      ],
+      "must_not_say": [
+        "That a download was started without the person asking.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"press\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.fileroller",
+      "name": "File Roller",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "44.3",
+        "version_kind": "package",
+        "from": "file-roller 44.3-0ubuntu2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the archive's location, its buttons (Extract..., Add Files, Back, Up, Home) and its column headings.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'File Roller: the archive's buttons are read...'"
+        },
+        {
+          "fact": "Its list of the files in the archive is not published: a snapshot does not show which files the archive holds, so say so and never guess a file's name.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'File Roller: the archive's buttons are read...'"
+        }
+      ],
+      "must_not_say": [
+        "Any file the archive holds, named as read from a snapshot.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Extract"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "com.github.jeromerobert.pdfarranger",
+      "name": "PDF Arranger",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "1.10.1",
+        "version_kind": "package",
+        "from": "pdfarranger 1.10.1-1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its toolbar buttons by their tooltips (Open, Import, Save, Save As, Zoom In, Zoom Out, Rotate Left, Rotate Right; the two rotate buttons work only while a page is selected), and \"action\": \"press\" presses them.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'PDF Arranger bound from All apps owns its window...'"
+        },
+        {
+          "fact": "Its pages are not published one by one, so a page cannot be chosen through computer.app.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'PDF Arranger bound from All apps owns its window...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Zoom In"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.systemmonitor",
+      "name": "System Monitor",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.0",
+        "version_kind": "package",
+        "from": "gnome-system-monitor 46.0-1build1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its tabs (Processes, Resources, File Systems) and on Processes the processes shown; \"action\": \"press\" on a tab shows that view. The Resources view's graphs publish no numbers.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'System Monitor bound from All apps owns its window...'"
+        },
+        {
+          "fact": "Ending a process was not measured; never end one the person did not name.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'System Monitor bound from All apps owns its window...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis ends or kills a process.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Resources"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.font-viewer",
+      "name": "Fonts",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "46.0",
+        "version_kind": "package",
+        "from": "gnome-font-viewer 46.0-1build1"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads the fonts shown as cells named by their font. A select is refused: \"the application did not select it\". Opening or installing a font was not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'control: Fonts lists its fonts as cells...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "did not select it"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.totem",
+      "name": "Videos",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "43.0",
+        "version_kind": "package",
+        "from": "totem 43.0-2ubuntu4"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its header buttons (Back, Fullscreen, Menu). Its play controls (Play / Pause and the position slider) show only while the pointer moves over the video; while they are hidden they are not in a snapshot.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Videos: its header buttons are read...'"
+        },
+        {
+          "fact": "\"action\": \"press\" presses what is shown. A scroll is refused: it has no scroll bar Orbit can move.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Videos: its header buttons are read...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Play / Pause"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.rhythmbox3",
+      "name": "Rhythmbox",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "3.4.7",
+        "version_kind": "package",
+        "from": "rhythmbox 3.4.7-2ubuntu6"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its window; with no music folder chosen it reads its first page, which asks for a location containing music. Playing music was not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Rhythmbox: its first page, which asks where the music is, is read...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "\"action\": \"snapshot\""
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.gnome.shotwell",
+      "name": "Shotwell",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "0.32.6",
+        "version_kind": "package",
+        "from": "shotwell 0.32.6-1ubuntu3"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Opened with a picture, a snapshot reads its buttons, and \"action\": \"press\" on Rotate rotates the picture shown. A picture has no text.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Shotwell: its Rotate button is pressed...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Rotate"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.xfce.ristretto",
+      "name": "Ristretto",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "0.13.1",
+        "version_kind": "package",
+        "from": "ristretto 0.13.1-1build2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its toolbar buttons (Zoom In, Zoom Out, Rotate and others) and its status bar, and \"action\": \"press\" presses them. A picture has no text.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Ristretto: its Zoom In button is pressed and its status bar is read...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "Zoom In"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.remmina.remmina",
+      "name": "Remmina",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "1.4.43+dfsg",
+        "version_kind": "package",
+        "from": "remmina 1.4.43+dfsg-0ubuntu0.24.04.2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "A snapshot reads its main window: the server field, its buttons and its status bar.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Remmina: the server field is typed into, read back and undone...'"
+        },
+        {
+          "fact": "\"action\": \"type\" writes into the server field; Orbit reads it back and answers verified, and \"action\": \"undo\" puts the earlier text back. Connecting and a remote session's screen were not measured.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Remmina: the server field is typed into, read back and undone...'"
+        }
+      ],
+      "must_not_say": [
+        "That Jarvis connects to a computer the person did not name.",
+        "A password.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "verified"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "org.qbittorrent.qbittorrent",
+      "name": "qBittorrent",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "4.6.3",
+        "version_kind": "package",
+        "from": "qbittorrent 4.6.3-1build2"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "qBittorrent (a Qt 6 program) shows its controls to computer.app only when it was started with QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1, and Orbit adds that itself when it opens qBittorrent with computer.open. A qBittorrent the person started is refused: \"Orbit cannot read qBittorrent's controls: it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'started by the person, it publishes nothing...' and 'opened by Orbit, it is read...'"
+        },
+        {
+          "fact": "Opened by Orbit, a snapshot reads its toolbar (Open URL and others), its lists and its search field, and \"action\": \"type\" writes into the search field, read back and verified.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'opened by Orbit, it is read...'"
+        },
+        {
+          "fact": "Adding or starting a torrent was not measured; never start a download the person did not ask for.",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'opened by Orbit, it is read...'"
+        }
+      ],
+      "must_not_say": [
+        "That a download was started without the person asking.",
+        "That the person changes a setting so that qBittorrent can be read.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "started without accessibility",
+          "computer.open"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "com.anthropic.claude",
+      "name": "Claude",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "3.1623.0",
+        "version_kind": "package",
+        "from": "claude-desktop 3.1623.0"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "Claude is a Chromium program: it shows what is inside its window only when it was started with --force-renderer-accessibility, and Orbit adds that flag itself when it opens Claude with computer.open. A Claude the person started without it is refused: \"it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Claude: its welcome page is read with its Get started button...'"
+        },
+        {
+          "fact": "Opened by Orbit, a snapshot reads its page: headings, text and buttons (its welcome page's Get started). Typing was not measured in Claude; in the other Chromium programs measured (Chrome, VS Code, Antigravity IDE) a type is refused \"This needs the mouse and keyboard.\"",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'Claude: its welcome page is read with its Get started button...' and 'Antigravity IDE bound from All apps owns its window...'"
+        }
+      ],
+      "must_not_say": [
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "computer.open",
+          "started without accessibility"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    },
+    {
+      "program": "chatgpt",
+      "name": "ChatGPT",
+      "platform": "linux",
+      "bridge": "linux-atspi",
+      "version_on_the_spark": {
+        "version": "26.1016.51333",
+        "version_kind": "package",
+        "from": "chatgpt 26.1016.51333"
+      },
+      "shipped_guide": null,
+      "must_say": [
+        {
+          "fact": "ChatGPT is a Chromium program: it shows what is inside its window only when it was started with --force-renderer-accessibility, and Orbit adds that flag itself when it opens ChatGPT with computer.open. A ChatGPT the person started without it is refused: \"it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\"",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'ChatGPT: its sign-in page is read...'"
+        },
+        {
+          "fact": "Opened by Orbit, a snapshot reads its page: its sign-in page's heading and its Continue to sign in, Sign in another way and Sign up buttons. Typing was not measured in ChatGPT; in the other Chromium programs measured a type is refused \"This needs the mouse and keyboard.\"",
+          "evidence": "4eb54fdb, test-linux-everyday-programs.cjs 'ChatGPT: its sign-in page is read...'"
+        }
+      ],
+      "must_not_say": [
+        "A password or a sign-in code.",
+        "A menu path, a key or a key combination as something Jarvis does.",
+        "Any tool other than computer.app and computer.open."
+      ],
+      "acceptance": {
+        "contains": [
+          "computer.open",
+          "started without accessibility"
+        ],
+        "absent": [
+          "Ctrl+",
+          "screen.read",
+          "insert-paragraph",
+          "save-document"
+        ]
+      },
+      "by": "lane-lx1-everyday-linux"
+    }
+  ],
+  "updated": [
+    {
+      "at": "2026-11-13T08:46:55Z",
+      "by": "lane-g2-linux",
+      "what": "libreoffice-writer: replace-text and find-replace without the add-on change only the matched text and keep the formatting around it (kernel 8c2ac754); the fact that they drop formatting is removed and named in must_not_say and acceptance.absent"
+    },
+    {
+      "at": "2026-11-13T09:05:19Z",
+      "by": "lane-g2-linux",
+      "what": "libreoffice-writer: with the add-on 1.2.3 (kernel 1cefa139), replace-text and find-replace also change only the matched text and keep the formatting around it, answer verified, refuse a match in more than one formatting, and make a line ending in the new text a line break inside the paragraph"
+    },
+    {
+      "at": "2026-11-13T17:33:12Z",
+      "by": "lane-g3-linux-any-program",
+      "what": "Eleven Linux document programs measured on the Spark (kernel c0d3cb39 Orbit bridge, 6e05f160 PROGRAMS): google-chrome, firefox, thunderbird, com.microsoft.vscode, org.xfce.mousepad, org.gnome.evince, org.gnome.nautilus, thunar, org.kde.okular, org.gnome.eog, xfce4-terminal; each fact names its test in desktop/oshal-node/scripts/test-linux-any-program.cjs or its probe in lane-g3/probes. The measured per-program record is lane-g3/programs.json, also embedded in bridge-facts.json."
+    },
+    {
+      "at": "2026-11-13T18:55:00Z",
+      "by": "lane-a5-powerpoint",
+      "what": "Lane G4 (kernel 6602c84d): when Orbit opens Chrome or VS Code it adds --force-renderer-accessibility, and Firefox or Thunderbird it starts with GNOME_ACCESSIBILITY=1, for that one process; a copy the person started unreadable is refused as \"it was started without accessibility; close it and let Jarvis open it, or use the mouse and keyboard.\". Each program's first fact says so with G4's proof, Firefox's and Thunderbird's second fact reads \"Started readable\" for \"With the switch on\", a never-line says the person changes no setting, and 'started without accessibility' is a required word (for Firefox and Thunderbird in place of 'accessibility switch')."
+    },
+    {
+      "at": "2026-11-13T22:30:00Z",
+      "by": "lane-lx1-everyday-linux",
+      "what": "Lane LX1 (kernel 4eb54fdb): nineteen everyday Linux programs measured on the Spark in test-linux-everyday-programs.cjs (gedit, Calculator, To Do, Document Scanner, Calendar, Characters, Transmission, File Roller, PDF Arranger, System Monitor, Fonts, Videos, Rhythmbox, Shotwell, Ristretto, Remmina, qBittorrent, Claude, ChatGPT), each with what Jarvis reads, does and is refused; qBittorrent, Claude and ChatGPT are started readable by Orbit's computer.open."
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3 (Roger, 2026-11-14, in Intelligent Career: "The application did not open. Use Open application to try again."): Prepare application, Open application and the approvals link open inside an application group. Their old screens became stages of the Job Board on 2026-11-06, and navigate() looked for a group's member screen only under the old name (career-hunter--career-submissions), which no group lists any more, so it asked the shell for the bare career-board, the shell ignored a name the group never registered, and the 10 s wait ended in that message on every press. The member name of the Job Board is looked up too. Guard: tests/career-open-application-in-group.test.mjs, against the real intelligent-career toolbar.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 2: employerUrl() answers a job's address only when it parses as an http: or https: address, and '' otherwise. A job is read from a source, so its address can be any text; a page that makes a link of it asks here first, so a script or data address is never something a person can press. The entry below was numbered 11 twice when two branches met and is 12 now. Guard: tests/career-apply-by-hand.test.mjs.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9 (say each move out loud): a move that ends with opening another page is said on the page it opens. announce() keeps the one line for this tab for a few seconds and announced() hands it over once, so "Getting ready: Office Manager at Acme." is read on the application page the press opened.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads.
@@ -61,8 +62,11 @@
     try{
       // Groups qualify borrowed surfaces; a standalone Career workspace keeps
       // the short name. Use the admitted rail instead of guessing its front door.
-      const member='career-hunter--'+tool;
-      if([...root.parent.document.querySelectorAll('[data-view]')].some(node=>node.getAttribute('data-view')==='tool-'+member))target=member;
+      // A link that names a merged screen is looked up under the Job Board's member name too:
+      // the group registers the screen it opens on, never the name the link used to carry.
+      const views=new Set([...root.parent.document.querySelectorAll('[data-view]')].map(node=>node.getAttribute('data-view')));
+      const member=[tool,target].map(name=>'career-hunter--'+name).find(name=>views.has('tool-'+name));
+      if(member)target=member;
     }catch(_){/* A different-origin host can still support the short-name contract. */}
     const query=new URL(href,root.location.href).searchParams;query.delete('v');
     const send=()=>root.parent.postMessage({type:'app-navigate',tool:target,...(query.size?{query:query.toString()}:{})},root.location.origin);

@@ -1,4 +1,7 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Verify missing optional press pictures settle without requesting absent kernel artifacts.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove approved press bounds, live kernel words and exact retained per-press evidence on real files.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify exact unknown evidence retention and that subsequent native sync cannot reopen an owner resolution.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove published approval precedes native dispatch, identical-ticket recovery survives lost acknowledgements, and only exact retained confirmation can change application status.
  */
 import {test} from 'node:test';
@@ -71,4 +74,52 @@ test('only displayed owner questions can add per-job facts, and new facts requir
   assert.equal(native.snapshot(dir,item.id).task.profile[key],undefined,'the original approved input remains immutable');
   const changed={...material,profile};assert.notEqual(native.review(changed).packetDigest,review.packetDigest);
   assert.throws(()=>native.approve(dir,changed,{approved:true,packetDigest:review.packetDigest}),/Review this job/);
+});
+
+test('an accepted unknown result retains only exact hash-checked outcome picture bytes',async t=>{
+  const dir=setup(t),review=native.review(material),{item}=native.approve(dir,material,{approved:true,packetDigest:review.packetDigest});
+  const input=native.snapshot(dir,item.id),png=Buffer.from('89504e470d0a1a0a000000000000000000','hex'),hash=queue.digest(png);let wrong=true;
+  const answer={version:1,intentId:item.id,requestDigest:input.requestDigest,outcome:'unknown',
+    data:{submissionId:item.id,postingId:101,status:'unknown',reason:'Check with employer',outcomeArtifact:'review.png',outcomeSha256:hash}};
+  const tickets={createTicket:async()=>({ticketId}),getTicketWork:async()=>[{id:workId,executor:'browser-form-v1',state:'completed'}],
+    getAcceptedWork:async()=>({answer:JSON.stringify(answer)}),getAcceptedArtifact:async()=>({name:'review.png',byteLength:png.length,sha256:hash,base64:(wrong?Buffer.from('wrong'):png).toString('base64')})};
+  await native.bind(dir,item.id,tickets,'owner');
+  await assert.rejects(native.sync(dir,item.id,tickets,()=>assert.fail('unknown is never confirmed')),/picture could not be verified/);
+  wrong=false;const saved=await native.sync(dir,item.id,tickets,()=>assert.fail('unknown is never confirmed'));
+  assert.equal(saved.status,'unknown');assert.equal(saved.outcomeSha256,hash);assert.deepEqual(readFileSync(join(dir,saved.outcomeFile)),png);
+  queue.resolveUnknown(dir,item.id,'not_sent');
+  assert.equal((await native.sync(dir,item.id,tickets,()=>assert.fail())).status,'resolved_not_sent','sync cannot reopen a closed result');
+});
+
+test('four approved presses are covered by both packet and immutable native input digests',t=>{
+  const dir=setup(t),review=native.review(material);assert.equal(review.maxPresses,4);
+  const {item}=native.approve(dir,material,{approved:true,packetDigest:review.packetDigest});
+  const input=native.snapshot(dir,item.id);assert.equal(input.maxPresses,4);assert.equal(input.task.maxPresses,4);
+  const {requestDigest,...bound}=input;assert.equal(queue.jsonDigest(bound),requestDigest);
+  assert.notEqual(queue.jsonDigest({...bound,maxPresses:1}),requestDigest);
+});
+
+test('native sync keeps press words before result and validates every accepted press picture',async t=>{
+  const dir=setup(t),review=native.review(material),{item}=native.approve(dir,material,{approved:true,packetDigest:review.packetDigest});
+  const input=native.snapshot(dir,item.id),png=Buffer.from('89504e470d0a1a0a000000000000000000','hex'),hash=queue.digest(png);
+  const presses=[{step:1,kind:'open',label:'Apply',origin:input.origin,allowedAt:1794549600000,result:'advanced',reportedAt:1794549600100,afterSha256:hash}];
+  let state='browser_reviewing',wrong=true;
+  const answer={version:1,intentId:item.id,requestDigest:input.requestDigest,outcome:'needs_review',data:{submissionId:item.id,postingId:101,status:'needs_you',presses,pressPictures:[{step:1,artifact:'press-1.png',sha256:hash}]}};
+  const tickets={createTicket:async()=>({ticketId}),getTicketWork:async()=>[{id:workId,executor:'browser-form-v1',state,presses,pressesAllowed:4,pressesEnded:null}],
+    getAcceptedWork:async()=>({answer:JSON.stringify(answer)}),getAcceptedArtifact:async()=>({name:'press-1.png',byteLength:png.length,sha256:hash,base64:(wrong?Buffer.from('wrong'):png).toString('base64')})};
+  await native.bind(dir,item.id,tickets,'owner');
+  const live=await native.sync(dir,item.id,tickets,()=>assert.fail());assert.deepEqual(live.presses,presses);assert.equal(live.pressesAllowed,4);
+  state='completed';await assert.rejects(native.sync(dir,item.id,tickets,()=>assert.fail()),/picture could not be verified/);
+  wrong=false;const saved=await native.sync(dir,item.id,tickets,()=>assert.fail());
+  assert.equal(saved.status,'needs_you');assert.equal(saved.pressPictures[0].sha256,hash);assert.deepEqual(readFileSync(join(dir,saved.pressPictures[0].file)),png);
+});
+
+test('missing optional press pictures do not request an absent native artifact',async t=>{
+  const dir=setup(t),review=native.review(material),{item}=native.approve(dir,material,{approved:true,packetDigest:review.packetDigest});
+  const input=native.snapshot(dir,item.id),presses=[{step:1,kind:'open',label:'Apply',result:'advanced',afterSha256:'f'.repeat(64)}];
+  const answer={version:1,intentId:item.id,requestDigest:input.requestDigest,outcome:'needs_review',data:{submissionId:item.id,postingId:101,status:'needs_you',pressPictures:[]}};
+  const tickets={createTicket:async()=>({ticketId}),getTicketWork:async()=>[{id:workId,executor:'browser-form-v1',state:'completed',presses,pressesAllowed:4}],
+    getAcceptedWork:async()=>({answer:JSON.stringify(answer)}),getAcceptedArtifact:async()=>{throw Error('accepted artifact is unavailable');}};
+  await native.bind(dir,item.id,tickets,'owner');const saved=await native.sync(dir,item.id,tickets,()=>assert.fail());
+  assert.equal(saved.status,'needs_you');assert.deepEqual(saved.pressPictures,[]);assert.equal(saved.presses.length,1);
 });

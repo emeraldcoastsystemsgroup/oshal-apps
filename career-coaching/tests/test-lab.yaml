@@ -1,0 +1,152 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: register Career Coaching's readiness and its five suites (the share routes with every study refusal, the projection, the declarations, the red-before proof of each refusal guard and the page in Chromium). Locally tested only: these cases use stand-ins for the kernel's identity, tickets and human gate and an in-memory store; the relationship policy on the real interpreter is proved by the kernel test crates/oshald/tests/career_coaching_relationships.rs, which a package runner cannot run.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the route suite runs the package's own participant-status reader over a stand-in of the kernel's person.status read; its expectations now say a coach opens an active seeker's snapshot, an inactive seeker's is closed, and a kernel without the read keeps every coach read closed. The red-before suite names the four guards of that read.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the declarations suite's expectations say Career is an optional application, the Coaching client template maps Career's own Job seeker role and the Career coach template maps nothing in Career.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Career Coaching readiness
+    purpose: Read installed package identity without grants, coaching records, a model or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is career-coaching at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: coaching-share-routes
+    name: Share a summary with one coach, read it as the coach, stop sharing
+    purpose: Drive the compiled routes on the gate's Express with a stand-in kernel (verified principal, owner-scoped tickets, one-use confirmation, owner decision) and a store that returns any row, so every refusal is the package's own.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/coaching-routes.test.cjs
+    expected:
+      - A coach's code resolves to them; the seeker previews, confirms through the human gate and shares; the coach reads exactly the summary-v1 fields as themself, with no seeker account id, subject, issuer or email.
+      - Counts only by default; applications and next steps reach the coach only when the seeker opted in.
+      - Another coach, an administrator, a bot, an unverified caller and a coach in another organization read nothing and cannot stop, revoke or share.
+      - Access ends at the deadline itself while the snapshot is still stored; the seeker's next write removes it. Shares last 1, 3, 7 (default), 14 or 30 days and never longer.
+      - Stop sharing is one action with no approval; the consent's revision rises and its snapshot is deleted together.
+      - A preview older than 10 minutes, a preview made beside a live consent, a changed recipient or scope, a replayed approval and a body saying approved are refused.
+      - Only the kernel's owner-verified receipt for that preview's own ticket shares; Cancel shares nothing and that preview never shares later.
+      - A lost answer retried with the same intent id gets the same preview, the same ticket and the same share; nothing is granted twice.
+      - Headers, query, extra body fields, names and emails never select a person; a new account with an old issuer and subject inherits no link.
+      - The coach opens the snapshot of a seeker the kernel says is active; the kernel is asked for exactly that person's native id, issuer and subject and nothing else.
+      - A suspended, deactivated, unknown or moved seeker's snapshot is left out while the coach's other clients still show; a read removes nothing.
+      - On a kernel without the status read, for a package that did not declare it, on a failing read and for any answer that is not exactly active or inactive, every coach read answers 503 before any coaching row is read and the seeker is told coach viewing is unavailable.
+      - GET routes create nothing.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+  - id: coaching-projection
+    name: The career-summary.v1 snapshot and the page that builds it
+    purpose: Check the server's closed, bounded snapshot rules and the seeker page's builder from Career's own count, progress and applied-list answers.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/projection.test.cjs
+    expected:
+      - Extra or missing fields are refused at every level; counts are whole numbers or unknown, and unknown is never zero.
+      - Future and day-old source times, a period other than the past 7 days, more than 25 applications, a stage outside Career's words and over-long text are refused.
+      - Next steps are 1 to 3, at most 160 characters, with no link, meeting address, mail or phone link, and a real date and time zone.
+      - The coach view is cut to the consented groups and the summary-v1 fields.
+      - The page maps Career's stats to Saved, Getting ready, Applied, Interviewing, Offer and Closed, keeps only employer, title, stage and day of each application, and its snapshot passes the server's rules.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+  - id: coaching-declarations
+    name: Catalog, relationship policy, manifest and source boundary
+    purpose: Hold the authorization catalog, the policy, the migration, the manifest and the server code to the study's contract.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/declarations.test.cjs
+    expected:
+      - Two roles and no administrator role; the coach's only read is coaching.summary.read on summary-v1, which equals the projection's fields; the seeker holds an own-scoped Execute grant for the human gate.
+      - Every served route has exactly one binding under the kernel's segment rule, and no binding is unused or overlapping.
+      - Every table and column the policy names exists in the migration; no table is readable by everyone; the policy also ends access at the deadline.
+      - The approval workflow is one editor-gated completion phase with no bot or worker; there is no schedule; Career is a declared optional application and no application is required.
+      - The Coaching client template maps this application's seeker role and Career's member role, the role Career's own Job seeker template gives; the Career coach template maps this application's coach role and nothing in Career.
+      - Server code never names Career's store, files, mail, engines, models or the network; the page reads only the seeker's own three Career routes and writes server values as text.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+      - dependency:js-yaml
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+  - id: coaching-red-before
+    name: Each refusal guard goes red when removed
+    purpose: Remove one guard at a time from a private copy of the package and require its guarding route case to fail, while the untouched copy passes.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/red-before.test.cjs
+    expected:
+      - The untouched copy passes every guarded case.
+      - Without the deadline, the organization check, closed bodies, one live consent per coach, the replay check, the stale person row, the ticket marker, the owner-verified receipt or the person-only caller, its case fails.
+      - Without each guard of the kernel status read (an inactive participant closes their snapshot, no answer closes every read, only the two exact answers count, the installation is proved able to confirm people before any row is read), its case fails.
+      - A guard whose source text is no longer found fails the proof instead of passing silently.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+  - id: coaching-page-browser
+    name: Share with a coach and Shared with me in Chromium
+    purpose: Drive the real page at 412x915 and 1280x900 over a local server that applies the catalog's role bindings and plays the kernel's confirmation and decision.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/coaching-page.browser.cjs
+    expected:
+      - Get my code shows a code; Review shows the coach's name, email, In your organization, the counts, the application and Access ends 7 days after you share, and no job address.
+      - Share then the Share confirmation shares; People with access lists the coach with its end and Stop sharing; the form returns to 7 days.
+      - The coach's card shows the client's alias, Seeker-shared snapshot, its age and end and the counts; Stop sharing in one press removes it.
+      - Cancel in the confirmation shares nothing and opens no approval.
+      - With coach viewing closed the coach and the seeker are told plainly; a person without the coach role is told which role opens the page.
+      - No page error, no sideways scroll at phone width and 44px buttons.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - fixture:store-toolchain
+    sideEffects: synthetic browser fixtures only; no installation, account, ticket or provider is contacted
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 180000
+    installation: never

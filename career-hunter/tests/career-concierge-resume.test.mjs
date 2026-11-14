@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Synthetic concierge replay crosses the declared tool, shipped route and saved owner reader; counts scripted completions, reads and engine launches.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: the concierge's persona was rewritten as the one assistant; the presence rule is matched in its new words.
  */
 import {after, test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,7 +87,8 @@ test('status read refuses corrupt, oversized and linked sources, and requires si
 });
 test('concierge asks once for bounded presence and reads content only when asked',()=>{
  const persona=yaml.load(fs.readFileSync(path.join(packageRoot,'personas/career-concierge.yaml'),'utf8'));
- assert.match(persona.perspective,/presence and section headings/);assert.match(persona.perspective,/Do not repeat/);
+ // 1.62.0: one bounded read for a presence question, no text and no jobs read for it.
+ assert.match(persona.perspective,/For a résumé presence question, call\s+career_resume_read once/);assert.match(persona.perspective,/do not fetch text for a presence\s+question/);
  assert.match(manifest.tools.find(t=>t.name==='career_resume_read').executor.apiEndpoint,/view=status/);
 });
 

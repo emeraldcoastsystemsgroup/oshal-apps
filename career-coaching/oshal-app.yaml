@@ -1,0 +1,132 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0, the first slice of the Career coach design study (oshal-handover lanes/career-coach-readonly-recovery-2026-11-12.md): a job seeker shares an expiring, seeker-approved summary snapshot (counts by default; the short application list and up to three next steps only when they opt in) with one coach in the same organization, and stops sharing in one action. The coach publishes a code from their own view and reads shared snapshots as themself; they never get the seeker's identity, Career files, documents, mailbox or any way to act in Career. A separate package so Career's own personal SQL is untouched: its relationship store is the generic operator-installed policy in storage/relationships.json, and until an operator installs it each person's tables stay private, so a code resolves to nobody and nothing is shared. Coach reads are refused while the installation cannot confirm the person who shared is still active (no kernel status read of another person exists); see docs/deployment.md. Approval is the kernel's own original-owner human gate on a seeker-owned ticket with no worker phase. No model, provider, engine, schedule, mail or notification.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: coaches can open what was shared with them. The package declares `person-status.read` and asks the kernel's `person.status` read whether the person who shared is still an active member of the same organization before it shows their snapshot; a suspended, deactivated or removed seeker's snapshot is not shown. On a kernel without that read the coach's page stays closed as in 0.1.0. Nothing else changed: sharing, the approval, the snapshot rules, the roles and the relationship policy are 0.1.0's.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the package loads on the native kernel. 0.1.1 required career-hunter and mapped it in neither role template, and the kernel refuses a role template that does not map every required application ("role template must cover its application and every required component", crates/packages/src/experience.rs), so the package was refused at its first load. Career is now an optional application, which is what the code does: only the Coaching client's page reads Career, in that person's own session, and a count it cannot read is shown as unknown; the server and the Career coach's page read nothing in Career. The Coaching client template maps Career's `member` role, granted only when the administrator ticks career-hunter under Optional components; the Career coach template maps this application alone, so a coach is given nothing in Career. No route, page, table, permission or policy changed.
+# -----------------------------------------------------------------------------
+name: career-coaching
+suite: ai-knowledge   # ADR-097: primary catalog shelf, beside Intelligent Career
+# Rating label (core ADR-170). No model touches this package.
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features: []   # no model in the loop (T0)
+displayName: Career Coaching
+description: Share a summary of your job search with your career coach for a few days, and stop sharing whenever you like. Your coach sees counts by stage and, if you choose, your applications and next steps; never your résumé, documents, mail or saved searches. Coaches see what their clients shared with them.
+version: 0.1.2
+runtime: process
+status: active
+scope: person
+# The platform assistant owns the right rail; this package gives it no tools.
+chatBot: oshal-assistant
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: career-coaching
+  ref: main
+
+uses:
+  - app-dependencies       # compatibility floor for the tiered dependencies block
+  - test-catalog           # installed scenario registration
+  - application-authorization
+  - experience-roles       # the two role templates below
+  - person-status.read     # the kernel read behind coach viewing: is this exact person of my organization still active
+
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  # The kernel requires every template to map this application and every REQUIRED application, and lets a template
+  # map an optional one. A Coaching client's page reads their own Career counts, so that template maps Career's
+  # ordinary role (`member`, what Career's own Job seeker template gives); it is granted only when the administrator
+  # ticks career-hunter under Optional components, and a person who already holds Job seeker needs no tick. A Career
+  # coach reads nothing in Career, so that template maps this application alone and the kernel refuses the
+  # career-hunter tick on it.
+  roleTemplates:
+    - id: seeker
+      version: 1
+      label: Coaching client
+      members:
+        - app: career-coaching
+          role: seeker
+        - app: career-hunter
+          role: member
+    - id: coach
+      version: 1
+      label: Career coach
+      members:
+        - app: career-coaching
+          role: coach
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+# The seeker's page reads their own Career counts (GET /api/career-hunter/jobs/stats, /progress and, when they choose,
+# /jobs?status=tracked) in their own session to build the snapshot they review. Career is not changed by this package.
+# Optional, not required: each of those reads may fail and its count is then shared as unknown (tools/coaching-page.js
+# careerReads), and nothing on the server or on the coach's page reads Career. A required application would have to be
+# mapped by every role template, the Career coach's included.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps:
+      - career-hunter
+    tools: []
+    connectors: []
+
+ui:
+  static:
+    - toolName: coaching-share
+      label: Share with a coach
+      icon: codicon codicon-person-add
+      iframeUrl: /api/career-coaching/?view=share
+      section: top
+    - toolName: coaching-shared-with-me
+      label: Shared with me
+      icon: codicon codicon-organization
+      iframeUrl: /api/career-coaching/?view=coach
+      section: top
+
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/career-coaching/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/coaching-routes.js
+    factory: createCareerCoachingRoutes
+    mountPath: /api/career-coaching
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# Plain tables; isolation comes from the kernel's person scope, or from the installed relationship policy.
+migrations:
+  - migrations/001-career-coaching.sql
+
+# The seeker's own approval: one completion phase stopped at an editor gate, no worker or bot phase. Only the seeker's
+# confirmed decision in their own session releases it (kernel /tickets/:id/application/decision).
+workflows:
+  - id: career-coaching:career-coaching-share
+    ticketType: career-coaching-share
+    name: Share a job search summary with a coach
+    phases:
+      - {name: approve-share, action: complete, approval: {approver: editor}}
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/career-coaching/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false

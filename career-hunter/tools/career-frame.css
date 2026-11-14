@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Career opens as its own application (Roger, 2026-11-10: "a full application by itself ... full screen, custom navigation, thoughtful layout", in the Little Monsters format). This file is its skin and its frame: the palette every Career page wears while career-frame.js owns the window, the top bar (brand, sections, More, the person's chips), the row of a section's pages under it, and the phone's bottom bar. Nothing here applies unless career-frame.js has set data-career-frame on the page, so a Career page hosted by anything other than the cockpit looks as it did.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The person's role in Career sits beside their name as one pill ("Ada · Job seeker"), and under the name in the phone's top-bar menu (judge's report 2026-11-11, change 11). The name keeps its own element, so the pill is drawn by the two together.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Give phone section links 44 px targets and wrap the row so every page stays reachable.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the changed-with-Undo bar Work history and My résumé show after a change (career-change-bar.js), above the phone's bottom bar and clear of the docked concierge. On a phone My résumé's Word document now reaches the bottom bar: the 64 px kept for the old Edit with AI bar is kept only in the classic view that still has it (before, an empty band sat under the document).
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
@@ -184,9 +185,24 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   /* Resume Studio pins its own assistant bar to the bottom of the window; it rests on the frame's bar. */
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar { padding-bottom: 0; }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .wrap { height: calc(100dvh - 64px - var(--cf-top) - var(--cf-bottom)); }
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar[data-view=office] .wrap { height: calc(100dvh - var(--cf-top) - var(--cf-bottom)); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar #aiBar { bottom: var(--cf-bottom); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .chat { bottom: calc(64px + var(--cf-bottom)); }
 }
+/* ── 6. The changed-with-Undo bar (career-change-bar.js) ───────────────────── */
+.cf-change-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--cf-bottom)); z-index: 105;
+  display: flex; align-items: center; gap: 4px; width: max-content; max-width: min(560px, calc(100vw - 32px)); padding: 4px 4px 4px 16px;
+  border-radius: 14px; background: var(--text-primary); color: var(--bg-primary); box-shadow: var(--depth-shadow);
+  font: 500 14px/1.35 "Segoe UI", system-ui, -apple-system, sans-serif; box-sizing: border-box;
+}
+.cf-change-bar[hidden] { display: none !important; }
+.cf-change-bar .cf-change-text { flex: 1 1 auto; min-width: 0; padding: 8px 0; }
+.cf-change-bar button { flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: 700 14px/1 inherit; cursor: pointer; }
+.cf-change-bar .cf-change-undo { color: color-mix(in srgb, var(--accent-primary) 55%, var(--bg-primary)); }
+.cf-change-bar button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+html[data-career-concierge=open] .cf-change-bar { left: calc(50% - 170px); }
+@media (max-width: 800px) { html[data-career-concierge=open] .cf-change-bar { left: 50%; } }
 @media (prefers-reduced-motion: no-preference) {
   .cf-topbar nav a, .cf-more > summary, .cf-subnav a { transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease; }
 }

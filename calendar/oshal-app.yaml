@@ -21,6 +21,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: the calendar's buttons take the design standard's body text token (docs/ux/design-standard.md §2.5, §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"), so on a desktop with a fine pointer their labels are 15px like the other applications' controls; 16px on touch as before. Heights, corners and fills are unchanged.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: UX audit sweep (calendar--calendar-review, D1=glass, D2=c). Drop manifest hardcoded theme: light-blue so portal theme selection applies by default, load surface-glass.css while keeping dialogs and menus opaque via data-no-glass, align badge/dot/handle radii to the token scale, and split Meeting briefs into its own second tile (calendar-briefs at /api/calendar/review?view=briefs).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: Jarvis routing words (backlog P4-16m): calendar-concierge adds 'meeting' and 'prepare'. "Prepare me for my 10am meeting with the Hendersons" scored here but claimed nothing and now reaches Calendar; "Schedule a meeting with Karen tomorrow" stays with Intelligent Communication. No route, tool or permission changed.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: add single and repeating events to the person's own primary Google Calendar. Production, 2026-11-13: "a new appointment at 6:00 p.m. to 7:00 p.m. every Friday ... add that to my Google calendar" was handed here; the app answered that it could not write Google Calendar or repeat an event, and "make the event for 20 weeks" became one OSHAL card dated Friday, February 5, 2027. routes/google-events.js at /api/calendar/google-events and the approval-held calendar-add-google-event tool write one event or one RRULE series (every day, week on named weekdays, month or year; ending after a count or on a last date) through the declared www.googleapis.com egress, where the kernel places the caller's own google-calendar grant. No connection, an expired one or a read-only grant answers in words what to connect. The OSHAL-only add refuses a repeat instead of saving its first date. The description says plainly that the app adds single and repeating events to Google Calendar.
 name: calendar
 suite: ai-home
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -34,8 +35,8 @@ rating:
       generation: none
       degrade: disable
 displayName: Calendar Preparation
-description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.2.3
+description: Add single and repeating events to your Google Calendar once you approve them, sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
+version: 1.3.0
 status: active
 scope: person
 source:
@@ -110,8 +111,9 @@ smoke:
     requiresAi: false
 
 # Outbound hosts (native kernel): the sandbox has no network, so the explicit sync reads the primary
-# calendar through the kernel's fenced egress, which applies the caller's own Google grant (the
-# google-calendar connector) as the Authorization header. This package never holds the token.
+# calendar, and an approved Google add writes it, through the kernel's fenced egress, which applies the
+# caller's own Google grant (the google-calendar connector) as the Authorization header. This package
+# never holds the token.
 bots:
   - agentId: ca1e0000-0000-0000-0000-000000000001
     name: calendar-concierge
@@ -212,6 +214,37 @@ tools:
       required: [id]
     usageInstructions: Read calendar-my-events first and send the id of the event the person named. Synced Google events cannot be removed here.
     tags: [calendar, route-backed]
+  - name: calendar-add-google-event
+    displayName: Add to Google Calendar
+    type: api
+    category: productivity
+    description: Add one event, or one repeating series, to the person's primary Google Calendar. Held for the person's approval.
+    cardText: Adds this to your primary Google Calendar, as one event or one repeating series. Nothing is written to Google until you approve.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/google-events" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The FIRST occurrence: a date (2026-11-20) for an all-day event, or the person's local date-time (2026-11-13T18:00) with timeZone. For a series it is the first matching day on or after the day it begins, taken from the CURRENT TIME list, never its last date." }
+        end: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "When the first occurrence ends, in the same form as start (2026-11-13T19:00 for 6 to 7 PM); for an all-day event, the last day it covers. Send it whenever the person gave an end or a length; a timed event without one lasts an hour." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn. Required for a timed start and for every timed series." }
+        location: { type: string, maxLength: 200, description: "Where it happens, as the person said it." }
+        notes: { type: string, maxLength: 2000, description: "Optional. Only a note the person asked to keep on this event, in their own words. Leave it out when they gave none; never your own explanation or a connection status." }
+        repeat:
+          type: object
+          description: "Only for an event that repeats; leave it out for a single event."
+          properties:
+            every: { type: string, enum: [day, week, month, year], description: "How often it repeats: every day, week, month or year." }
+            on: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: string, enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday] }, description: "For a weekly series, the weekdays it repeats on. The start's date must be one of them." }
+            times: { type: integer, minimum: 2, maximum: 730, description: "How many times it happens in all, the first included: \"for 20 weeks\" every week is 20. Send times or until, never both." }
+            until: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "The last date it may happen (2027-04-02). Send times or until, never both." }
+          required: [every]
+        confirm: { type: boolean, const: true }
+      required: [title, start, confirm]
+    usageInstructions: Call once per event or series the person asked to put on their Google Calendar, with {"confirm":true}. A repeating event is ONE call with "repeat", never one call per occurrence and never a single event in its place. "start" is the first occurrence, the first matching day on or after the day it begins (today when today matches and the time is still ahead), taken from the CURRENT TIME list; never the last date, and never a date worked out from the number of weeks, which goes in "times". When the person gave no end for a series, ask how many times or until when before calling. Never call it again for an event the conversation shows was already proposed or added; the approval card is their confirmation. A 409 answer says Google Calendar is not connected, the connection may only read it, or the event is already there; relay its words. A 400 answer says what to fix; relay it.
+    tags: [calendar, route-backed]
 
 egress:
   - host: www.googleapis.com
@@ -241,6 +274,13 @@ routes:
   - module: routes/own-events.js
     factory: createOwnEventsRoutes
     mountPath: /api/calendar/events
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/google-events.js
+    factory: createGoogleEventsRoutes
+    mountPath: /api/calendar/google-events
     auth: oidc
     requiresContext: true
     requiresAuth: true

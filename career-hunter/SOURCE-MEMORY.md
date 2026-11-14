@@ -48,6 +48,26 @@ All existing engine write paths (nightly scrape, targeted URL/target intake, res
 dashboard) use this shared ingestion guard. The CLI's source summary reports confirmed and unconfirmed employers
 separately; completion of a process is not evidence that every source succeeded.
 
+## Closures, re-keys and the nightly receipt
+
+Every job a complete read stops listing gets one row in `posting_closures` (`engine/jobhunter/closures.py`): the
+posting id, the key it had, `closed_at`, and `attempt_id`, the read in `source_pull_runs` that did it. A source that
+moves to another reader often lists the same vacancy under a new key. When the read lists, for the first time, exactly
+one job from the same source with the same requisition number (the last run of at least four digits in the key, or in
+its link), the same title and the same place, and no other job it stopped listing matches that one, the outcome is
+`rekeyed`: the job keeps its posting id and takes the new key and listing, and the new row is removed. A person's
+saved, applied and removed marks are keyed by posting id, so they stay with the job, and a job someone removed does
+not come back as new. Anything less certain stays `closed` with `possible_rekey` naming why: `title-differs`,
+`place-differs`, `several-successors`, `shared-successor`, or `listed-before` (the match was already listed before this
+read, so people may hold marks on both). A re-keyed job counts as neither new nor closed in `source_pull_runs`.
+
+A full pull ends with one row in `closure_receipts` (the newest 60 are kept; per-job rows for 90 days): totals and
+per-source counts of `closed`, `possibleRekey`, `rekeyed` and `wentInactive` (= closed + possibleRekey), from the
+per-job rows written since the pull started, and `sourceRunsClosed`, the sum the reads reported, which should equal
+`wentInactive`. The summary line adds `N re-keyed (kept as the same job); M of the closed may be re-keyed.` when either
+is nonzero, and the engine prints `Closure receipt: ...` after the source review. Jobs closed before this release have
+no rows.
+
 ## Native installation boundary
 
 The native kernel already invokes this package's engine as `python -m jobhunter scrape --all`. Its installation-owned

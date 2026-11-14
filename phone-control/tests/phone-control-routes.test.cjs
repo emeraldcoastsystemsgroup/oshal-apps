@@ -31,6 +31,7 @@
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata to follow package1.16.0 while retaining manifest bytes, compression, history and owner-isolation checks.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata1.17.0 while preserving byte, compression, history and owner-isolation guards.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.18.0, the release that adds the Fire TV phone-app guide; every byte, compression, history and owner-isolation guard is unchanged.
+ * 29 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.19.0 (the guide declares devicePath); every other guard is unchanged.
  */
 'use strict';
 
@@ -247,7 +248,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.18.0');
+  assert.equal(manifest.version, '1.19.0');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);

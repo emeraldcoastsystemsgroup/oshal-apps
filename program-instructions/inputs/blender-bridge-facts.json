@@ -1,0 +1,51 @@
+{
+  "about": "What computer.app does through the blender bridge word, for the writer of program instructions (Lane BL1, Orbit's Blender sidecar; Lane BL2, its game-asset families). The bridge sheet's own shape (Lane G's bridge-facts.json), for the bridge word Orbit's Linux reader gives a bound Blender (desktop/oshal-node/src/main/linux-program-versions.ts BLENDER_BRIDGE): Orbit's Blender add-on (desktop/oshal-node/plugins/blender) inside Blender, reached through Orbit's plugin door by the Blender bridge (desktop/oshal-node/src/main/bridges/blender.ts). Written from Orbit's code at the kernel commit named and the real-Blender suite desktop/oshal-node/scripts/test-blender-plugin-desktop.cjs (the Spark's Blender 5.1.0 in a private display) and desktop/oshal-node/scripts/test-blender-game-asset.cjs (Blender 5.1.0 and Godot 4.7.2); every verb id names the source line it is read from, and tests/sheet/blender-sources.test.cjs fails when Orbit's code declares other verbs. Blender's objects are read only elements: type, press, select and scroll are refused for a Blender window, so they are not its actions. As built at that commit; no planned change is described.",
+  "generated_at": "2026-11-13T23:58:44Z",
+  "kernel_commit": "4692a724",
+  "generator": "program-instructions/inputs/blender-bridge-facts.json, written from Orbit's code and the real-Blender suite",
+  "bridges": {
+    "blender": {
+      "programs": "A bound Blender (blender.desktop, or a program named blender) whose Orbit add-on is connected to Orbit's plugin door; the open .blend is read whole and changed only through declared verbs, each one named step on Blender's own undo list.",
+      "actions": {
+        "snapshot": { "source": "desktop/oshal-node/src/main/bridges/blender.ts:168" },
+        "invoke": { "source": "desktop/oshal-node/src/main/bridges/blender.ts:186" },
+        "undo": { "source": "desktop/oshal-node/src/main/bridges/blender.ts:212" },
+        "restore": { "source": "desktop/oshal-node/src/main/app-acts.ts:266" }
+      },
+      "declared": {
+        "scene (Blender)": [
+          { "id": "add-primitive", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:20" },
+          { "id": "transform-object", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:25" },
+          { "id": "delete-object", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:30" },
+          { "id": "rename", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:35" },
+          { "id": "set-parent", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:40" },
+          { "id": "add-modifier", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:45" },
+          { "id": "set-modifier", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:50" },
+          { "id": "remove-modifier", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:55" },
+          { "id": "apply-modifier", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:60" },
+          { "id": "edit-mesh", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:65" },
+          { "id": "clean-mesh", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:70" },
+          { "id": "uv-unwrap", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:79" },
+          { "id": "set-material-color", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:84" },
+          { "id": "texture-material", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:89" },
+          { "id": "bake-texture", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:94" },
+          { "id": "add-light", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:99" },
+          { "id": "add-camera", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:104" },
+          { "id": "organize-collection", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:109" },
+          { "id": "add-armature", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:118" },
+          { "id": "skin-to-armature", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:123" },
+          { "id": "insert-keyframe", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:128" },
+          { "id": "make-action", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:133" },
+          { "id": "shape-key", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:138" },
+          { "id": "import-model", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:143" },
+          { "id": "run-python", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:148" },
+          { "id": "read-object", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:160" },
+          { "id": "scene-stats", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:165" },
+          { "id": "viewport-screenshot", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:170" },
+          { "id": "save-file", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:179" },
+          { "id": "export-glb", "source": "desktop/oshal-node/src/main/bridges/blender-actions.ts:184" }
+        ]
+      }
+    }
+  }
+}

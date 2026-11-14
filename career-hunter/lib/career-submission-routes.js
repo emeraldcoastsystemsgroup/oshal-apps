@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve per-press pictures only to their original owner with a digest check on every read.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Expose owner-only unknown resolution and hash-checked retained browser pictures.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose caller-owned packet review, explicit one-job approval, recoverable native dispatch and retained confirmation through the original Career namespace.
  */
 'use strict';
@@ -39,16 +41,54 @@ function record(sub){return async(saved,confirmation)=>{
       application_task_id=?,confirmation_path=? WHERE posting_id=?`).run(saved.submittedAt,saved.nativeWorkId,confirmation,saved.postingId);
   }finally{db.close();}
 };}
+function recordManual(sub){return async saved=>{
+  const db=openUserDb(sub,false);if(!db)throw Error('Career store unavailable');
+  try{
+    if(!db.prepare('SELECT posting_id FROM user_signals WHERE posting_id=?').get(saved.postingId))throw Error('Original application row unavailable');
+    db.prepare(`UPDATE user_signals SET status=CASE WHEN status IN ('interview','offer','rejected') THEN status ELSE 'applied' END,
+      applied_at=COALESCE(applied_at,?), application_source='manual-mark' WHERE posting_id=?`).run(new Date().toISOString(),saved.postingId);
+  }finally{db.close();}
+};}
 /** The existing original-person mailbox schedule reconciles work even when no Career tab is open. */
 async function reconcileCareerSubmissions(ctx,sub){
   const {userDir}=userPaths(sub),items=Object.values(queue.read(userDir).items)
-    .filter(item=>item.nativeTicketId&&!['submitted','cancelled','needs_you','failed','unknown'].includes(item.status)).slice(0,50);
+    .filter(item=>item.nativeTicketId&&!['submitted','cancelled','needs_you','failed','unknown','resolved_sent','resolved_not_sent'].includes(item.status)).slice(0,50);
   const result={checked:0,submitted:0,unavailable:0};
   for(const item of items){
     try{const saved=await native.sync(userDir,item.id,ctx.ticketService,record(sub));result.checked++;if(saved.status==='submitted')result.submitted++;}
     catch{result.unavailable++;}
   }
   return result;
+}
+function registerEvidenceRoutes(router,run){
+  router.post('/submission-queue/:id/resolve',run(async(req,res,sub,dir)=>{
+    if(Object.keys(req.body||{}).some(k=>k!=='outcome'))throw new queue.SubmissionError('invalid_request','Record only what happened to this application.',400);
+    const item=await require('./career-submission-resolution').resolve(dir,req.params.id,req.body?.outcome,recordManual(sub));
+    res.json({ok:true,item});
+  }));
+  router.get('/submission-queue/:id/outcome-picture',run(async(req,res,_sub,dir)=>{
+    const saved=queue.read(dir).items[req.params.id];
+    if(!saved?.outcomeFile)return res.status(404).json({error:'No retained browser picture.'});
+    const file=resolveContainedRegularFile(require('node:path').join(dir,saved.outcomeFile),dir);
+    if(!file||queue.digest(fs.readFileSync(file))!==saved.outcomeSha256)return res.status(409).json({error:'Browser evidence changed.'});
+    res.type('png').sendFile(file);
+  }));
+  router.get('/submission-queue/:id/press-picture/:step',run(async(req,res,_sub,dir)=>{
+    const saved=queue.read(dir).items[req.params.id],step=Number(req.params.step);
+    const picture=saved?.pressPictures?.find(p=>p.step===step),press=saved?.presses?.find(p=>p.step===step);
+    if(!picture||!press||!Number.isInteger(step)||step<1||step>6)return res.status(404).json({error:'No retained press picture.'});
+    const file=resolveContainedRegularFile(require('node:path').join(dir,picture.file),dir);
+    if(!file||picture.sha256!==press.afterSha256||fs.lstatSync(file).nlink!==1||queue.digest(fs.readFileSync(file))!==press.afterSha256)
+      return res.status(409).json({error:'Browser evidence changed.'});
+    res.type('png').sendFile(file);
+  }));
+  router.get('/submission-queue/:id/confirmation',run(async(req,res,_sub,dir)=>{
+    const saved=queue.read(dir).items[req.params.id];
+    if(!saved?.confirmationFile||saved.status!=='submitted')return res.status(404).json({error:'No retained confirmation.'});
+    const file=resolveContainedRegularFile(require('node:path').join(dir,saved.confirmationFile),dir);
+    if(!file||queue.digest(fs.readFileSync(file))!==saved.confirmationSha256)return res.status(409).json({error:'Confirmation evidence changed.'});
+    res.type('png').sendFile(file);
+  }));
 }
 function createCareerSubmissionRoutes(ctx){
   registerCareerAuthorization(ctx);
@@ -76,13 +116,7 @@ function createCareerSubmissionRoutes(ctx){
     if(Object.keys(req.body||{}).length)throw new queue.SubmissionError('invalid_request','Select only the previous approval.',400);
     res.json({ok:true,item:await require('./career-submission-cancel').retire(dir,req.params.id,ctx.ticketService,record(sub))});
   }));
-  router.get('/submission-queue/:id/confirmation',run(async(req,res,_sub,dir)=>{
-    const saved=queue.read(dir).items[req.params.id];
-    if(!saved?.confirmationFile||saved.status!=='submitted')return res.status(404).json({error:'No retained confirmation.'});
-    const file=resolveContainedRegularFile(require('node:path').join(dir,saved.confirmationFile),dir);
-    if(!file||queue.digest(fs.readFileSync(file))!==saved.confirmationSha256)return res.status(409).json({error:'Confirmation evidence changed.'});
-    res.type('png').sendFile(file);
-  }));
+  registerEvidenceRoutes(router,run);
   return router;
 }
 module.exports={createCareerSubmissionRoutes,reconcileCareerSubmissions};

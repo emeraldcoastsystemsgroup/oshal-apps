@@ -1,4 +1,7 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep authoritative press history and verified per-step picture references in the owner record.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind four individually permitted presses in every new approval; preserve saved approvals unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Close unknown outcomes only by an explicit owner statement; sent stays blocked, not-sent requires a fresh approval.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain immutable native ticket/work references and person-supplied per-job answers without reopening a consumed final action.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner submission intents to exact approved packets and retain ambiguity-safe durable execution states.
  */
@@ -9,10 +12,11 @@ const crypto = require('node:crypto');
 const net = require('node:net');
 const FILE = 'submission-queue.json';
 const MAX_ITEMS = 2000;
+const MAX_PRESSES = 4;
 const MAX_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const HASH = /^[a-f0-9]{64}$/;
-const STATES = new Set(['queued','claimed','reviewing','submitting','submitted','needs_you','failed','cancelled','unknown']);
+const STATES = new Set(['queued','claimed','reviewing','submitting','submitted','needs_you','failed','cancelled','unknown','resolved_sent','resolved_not_sent']);
 const ACTIVE = new Set(['queued','claimed','reviewing','submitting','unknown']);
 class SubmissionError extends Error {
   constructor(code, message, status = 409) { super(message); this.name='SubmissionError'; this.code=code; this.status=status; }
@@ -65,13 +69,13 @@ function binding(input, fixtureOrigin) {
   const url=jobUrl(input.url,fixtureOrigin);
   if(!HASH.test(input.resumeSha256)||input.coverSha256!=null&&!HASH.test(input.coverSha256)||!HASH.test(input.profileSha256))
     fail('packet_unavailable','Prepare and review the resume packet first.',409);
-  return {postingId:input.postingId,url,resumeSha256:input.resumeSha256,coverSha256:input.coverSha256||null,profileSha256:input.profileSha256};
+  return {maxPresses:MAX_PRESSES,postingId:input.postingId,url,resumeSha256:input.resumeSha256,coverSha256:input.coverSha256||null,profileSha256:input.profileSha256};
 }
 function enqueue(dir,input,{now=Date.now(),fixtureOrigin}={}) {
   if(input.approved!==true)fail('submission_approval_required','Approve this job and its exact documents before submitting.',428);
   const bound=binding(input,fixtureOrigin), state=read(dir), packetDigest=jsonDigest(bound);
   const previous=Object.values(state.items).find(item=>item.postingId===bound.postingId
-    && (ACTIVE.has(item.status)||item.status==='submitted'));
+    && (ACTIVE.has(item.status)||['submitted','resolved_sent'].includes(item.status)));
   if(previous) {
     if(previous.packetDigest!==packetDigest)fail('submission_conflict','This job already has a submission in progress or recorded. Review it before changing its packet.');
     return {item:previous,deduped:true};
@@ -149,17 +153,27 @@ function nativeUpdate(dir,id,patch,now=Date.now()) {
     if(patch.requestDigest!=null&&(!HASH.test(patch.requestDigest)||(item.requestDigest&&item.requestDigest!==patch.requestDigest)))
       fail('native_binding_changed','The original submission input changed.');
     if(patch.status&&!STATES.has(patch.status))fail('invalid_submission_transition','Invalid native submission state.');
-    if(['submitted','unknown','cancelled'].includes(item.status)&&patch.status&&patch.status!==item.status
+    if(['submitted','unknown','cancelled','resolved_sent','resolved_not_sent'].includes(item.status)&&patch.status&&patch.status!==item.status
         &&!(item.status==='unknown'&&patch.status==='submitted'&&HASH.test(patch.confirmationSha256||'')))
       fail('submission_finished','A settled outcome cannot be replayed as new work.');
     if(patch.status==='submitted'&&(!HASH.test(patch.confirmationSha256)||!patch.confirmationText))
       fail('confirmation_required','Retain the employer confirmation before recording a submission.');
     const allowed=['nativeTicketId','nativeWorkId','nativeNodeId','requestDigest','status','nativeState','reason',
-      'title','company','questions','approvedAnswers','confirmationSha256','confirmationText','confirmationFile','submittedAt','metrics','milestones'];
+      'title','company','questions','approvedAnswers','confirmationSha256','confirmationText','confirmationFile','submittedAt','metrics','milestones','outcomeFile','outcomeSha256','presses','pressesAllowed','pressesEnded','pressPictures'];
     if(Object.keys(patch).some(k=>!allowed.includes(k)))fail('invalid_native_update','Unsupported submission update.');
     const old=item.status;Object.assign(item,patch);
     if(old!==item.status){item.events.push({at:new Date(now).toISOString(),kind:item.status});item.events=item.events.slice(-40);}
   },now);
 }
+function resolveUnknown(dir,id,outcome,now=Date.now()) {
+  if(!['sent','not_sent'].includes(outcome))fail('invalid_outcome','Say whether it was sent or was not sent.',400);
+  return mutate(dir,id,item=>{
+    if(item.status!=='unknown')fail('outcome_not_unknown','Only an unknown outcome can be closed.');
+    item.status='resolved_'+outcome;item.resolvedAt=new Date(now).toISOString();
+    item.reason=outcome==='sent'?'You said it was sent. Recorded as your word.':'You said it was not sent. Review and approve a new packet before another attempt.';
+    item.events.push({at:item.resolvedAt,kind:item.status,statement:outcome==='sent'?'it was sent':'it was not sent'});
+    item.events=item.events.slice(-40);
+  },now);
+}
 function publicItem(item) {const {claimToken,requestDigest,approvedAnswers,...safe}=item;return {...safe,answersSaved:!!approvedAnswers&&Object.keys(approvedAnswers).length>0};}
-module.exports={SubmissionError,read,enqueue,claim,transition,cancel,reconcile,nativeUpdate,publicItem,binding,digest,jsonDigest,jobUrl};
+module.exports={MAX_PRESSES,resolveUnknown,SubmissionError,read,enqueue,claim,transition,cancel,reconcile,nativeUpdate,publicItem,binding,digest,jsonDigest,jobUrl};

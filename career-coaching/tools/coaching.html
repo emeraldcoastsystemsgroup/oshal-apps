@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | First Career Coaching page (0.1.0): Share with a coach (People with access, the share form, the review of exactly what the coach will see, the Share confirmation) and Shared with me (Your coach code, the clients' seeker-shared snapshots). The portal theme's tokens colour it; one column at phone width.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Career Coaching</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/career-coaching/static/coaching.css" />
+</head>
+<body>
+  <main class="cc">
+    <section id="share-view" class="cc-view" hidden>
+      <header class="cc-head">
+        <h1>Share with a coach</h1>
+        <p class="cc-sub">Your coach sees a summary of your job search for as long as you choose. Stop sharing at any time.</p>
+      </header>
+
+      <div id="share-role" class="cc-card cc-note" hidden></div>
+      <div id="viewing-note" class="cc-note cc-muted" hidden>Your coach can’t open shared snapshots on this installation yet.</div>
+
+      <section class="cc-card" aria-labelledby="access-title">
+        <h2 id="access-title">People with access</h2>
+        <ul id="share-list" class="cc-list"></ul>
+        <p id="share-empty" class="cc-muted" hidden>You haven’t shared with a coach.</p>
+      </section>
+
+      <form id="share-form" class="cc-card" autocomplete="off" novalidate>
+        <h2>Share a summary</h2>
+        <label class="cc-field">Coach code
+          <input id="coach-code" name="coachCode" inputmode="text" maxlength="20" placeholder="K7QM-4XPD-9TRA" required />
+          <span class="cc-hint">Ask your coach for the code on their Shared with me page.</span>
+        </label>
+        <label class="cc-field">Show my name as
+          <input id="alias" name="alias" maxlength="60" required />
+        </label>
+        <label class="cc-field">Access ends after
+          <select id="days" name="days"></select>
+        </label>
+        <fieldset class="cc-choices">
+          <legend>Your coach always sees counts by stage and applications recorded in the past 7 days.</legend>
+          <label class="cc-check"><input type="checkbox" id="include-applications" /> Include my applications <span class="cc-hint">Employer, job title, stage and date, up to 25</span></label>
+          <label class="cc-check"><input type="checkbox" id="include-steps" /> Add next steps <span class="cc-hint">Up to 3, written by you</span></label>
+        </fieldset>
+        <div id="steps" class="cc-steps" hidden>
+          <div class="cc-step"><input class="step-text" maxlength="160" placeholder="Next step" /><input class="step-due" type="date" aria-label="Due date" /></div>
+          <div class="cc-step"><input class="step-text" maxlength="160" placeholder="Next step (optional)" /><input class="step-due" type="date" aria-label="Due date" /></div>
+          <div class="cc-step"><input class="step-text" maxlength="160" placeholder="Next step (optional)" /><input class="step-due" type="date" aria-label="Due date" /></div>
+        </div>
+        <p id="form-error" class="cc-error" role="alert" hidden></p>
+        <div class="cc-actions"><button type="submit" id="review" class="cc-primary">Review</button></div>
+      </form>
+
+      <section id="review-panel" class="cc-card" hidden aria-labelledby="review-title">
+        <h2 id="review-title">What your coach will see</h2>
+        <p class="cc-recipient"><span id="review-coach"></span> <span id="review-email" class="cc-muted"></span> <span class="cc-chip">In your organization</span></p>
+        <div id="review-snapshot"></div>
+        <p class="cc-muted" id="review-terms"></p>
+        <p id="review-error" class="cc-error" role="alert" hidden></p>
+        <div class="cc-actions">
+          <button type="button" id="review-back">Back</button>
+          <button type="button" id="review-share" class="cc-primary">Share</button>
+        </div>
+      </section>
+
+      <dialog id="confirm" aria-labelledby="confirm-title">
+        <h2 id="confirm-title">Share with your coach?</h2>
+        <p id="confirm-text"></p>
+        <div class="cc-actions">
+          <button type="button" id="confirm-cancel">Cancel</button>
+          <button type="button" id="confirm-share" class="cc-primary">Share</button>
+        </div>
+      </dialog>
+    </section>
+
+    <section id="coach-view" class="cc-view" hidden>
+      <header class="cc-head">
+        <h1>Shared with me</h1>
+        <p class="cc-sub">Job search summaries your clients chose to share with you.</p>
+      </header>
+      <div id="coach-role" class="cc-card cc-note" hidden></div>
+      <section id="code-card" class="cc-card" aria-labelledby="code-title" hidden>
+        <h2 id="code-title">Your coach code</h2>
+        <p id="code-value" class="cc-code"></p>
+        <p class="cc-hint">Give this code to a client so they can share a summary with you. It gives you no access to their account.</p>
+        <div class="cc-actions" id="code-actions"></div>
+      </section>
+      <div id="clients-note" class="cc-card cc-note" hidden></div>
+      <ul id="client-list" class="cc-list"></ul>
+      <p id="client-empty" class="cc-muted" hidden>Nothing has been shared with you yet. Give a client your coach code.</p>
+    </section>
+    <p id="toast" class="cc-toast" role="status" hidden></p>
+  </main>
+  <script src="/api/career-coaching/static/coaching.js"></script>
+  <script src="/api/career-coaching/static/coaching-page.js"></script>
+</body>
+</html>

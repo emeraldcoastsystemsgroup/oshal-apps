@@ -32,6 +32,7 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Follow package1.16.0; version metadata only, with the same bridge verbs and protocol.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Follow package1.17.0; version metadata only, with unchanged bridge verbs and protocol.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.18.0 (the Fire TV phone-app guide is a package route, not a bridge verb); version metadata only, with unchanged bridge verbs and protocol.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.19.0 (the Fire TV guide declares devicePath in the manifest); version metadata only, with unchanged bridge verbs and protocol.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -45,7 +46,7 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.18.0'
+VERSION = '1.19.0'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',

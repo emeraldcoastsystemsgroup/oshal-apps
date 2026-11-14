@@ -39,6 +39,7 @@
 # 30 | maintainer@emeraldcoastsystemsgroup.com | Device and TV tools prepare commands without claiming execution; instructions require an authorized computer result before success.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.17.0: declare closed native saved-relay tools for original-person Jarvis requests, with explicit target and connection selection and no bridge fallback.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | Release 1.18.0: the version follows change 33, the Fire TV phone-app guide (phone-control-fire-tv-guide, GET /remote-apps/fire-tv/guide), a read-only guide that inspects, connects, selects, presses and plays nothing. The bridge says 1.18.0 with no verb changed. No permission, grant or egress changed.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | Release 1.19.0 (path planner, kernel ADR-219; Roger, 2026-11-12: "if there is a phone that can sling it to the tv then it should have those connected paths"): the Fire TV phone-app guide declares devicePath, so the kernel's device.path can offer "the phone, then the Fire TV app on it" as a way to a Fire TV for waking it and carrying on with what was on. The declaration says where the application runs (an Android phone or tablet), its package, that it reaches a Fire TV with the remote's keys, that it reads nothing back from the TV and that it can wake it. It grants nothing and runs nothing: the kernel only learns that this way exists. The bridge says 1.19.0 with no verb changed. No route, permission, grant or egress changed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -65,7 +66,7 @@ description: >-
   person left off, opens a title's link in its streaming app, and says what the TV is playing.
   It also says which streaming apps a saved Android or Fire TV has, among Netflix, Prime Video,
   Disney+, Max, Hulu, YouTube and the oshal TV app, and keeps them in the person's device inventory.
-version: 1.18.0
+version: 1.19.0
 status: active
 scope: person
 chatBot: device-concierge
@@ -229,6 +230,7 @@ tools:
     routingTags: [operations, phone-control, fire-tv, remote-app]
     skills: [phone-device-control]
     tags: [route-backed]
+    devicePath: { how: companion-app, on: [android-phone, tablet], app: com.amazon.storm.lightning.client.aosp, reaches: [fire-tv], jobs: [tv.wake, tv.resume], controls: [keys], observes: [], wakes: true }
 
   - {"name":"phone-control-relay-bindings", "displayName":"Read My Saved Phone-to-TV Connections", "type":"api", "category":"operations",
      "description":"Read this person's native saved phone-to-TV connections and their current states. This requires an original Jarvis conversation. It does not discover, set up, wake or control a device. These canonical target and binding IDs are separate from the saved Linux-bridge phone records.",

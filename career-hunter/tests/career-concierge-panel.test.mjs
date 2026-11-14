@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Phone and desktop shared concierge over local HTTP: open, native ask, close/reopen, geometry and one entry; no live service or provider.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: once a reply is in the conversation the help line and the suggestion chips are not shown.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: on a phone the pane is left by its header's Back to Home (the page's name in Career's bar) and the cross is not shown; on a desktop the cross stays. Coming back with Concierge shows the same conversation.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The skip names OSHAL_KERNEL_PLATFORM, which the store gate now supplies, so these cases run in the gate instead of skipping.
  */
 import {test,after,before} from 'node:test';
@@ -23,6 +25,7 @@ for(const host of ['native','cockpit'])for(const width of [412,1280])test(`${hos
   await panel.getByRole('textbox',{name:'Message to concierge'}).fill('is my resume loaded');await panel.getByRole('button',{name:'Send',exact:true}).click();
   await panel.locator('.ef-assistant-reply').getByText(/résumé is saved/).waitFor();
   await panel.locator('.ef-assistant-notice').getByText('The concierge finished.',{exact:true}).waitFor();
+  assert.deepEqual(await panel.evaluate(node=>[...node.querySelectorAll('.ef-assistant-help,.ef-assistant-prompts')].map(n=>getComputedStyle(n).display)),['none','none'],'with a conversation the help line and the chips step aside');
   const ask=fixture.calls.filter(c=>c.method==='POST'&&c.path.endsWith('/ask')).at(-1);assert.equal(ask.body.context.app,'career-hunter');
   assert.equal(ask.body.message.startsWith('is my resume loaded'),true);
   const box=await panel.boundingBox();assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=width+1&&box.y+box.height<=915+1);
@@ -30,7 +33,11 @@ for(const host of ['native','cockpit'])for(const width of [412,1280])test(`${hos
   const metrics=await panel.evaluate(node=>{const p=node.getBoundingClientRect(),c=node.querySelector('.ef-assistant-composer').getBoundingClientRect();return{border:getComputedStyle(node.parentElement).borderLeftWidth,composerInside:c.bottom<=p.bottom+1,overflow:document.documentElement.scrollWidth>innerWidth};});
   assert.equal(metrics.composerInside,true);assert.equal(metrics.overflow,false);if(width===1280)assert.equal(metrics.border,'1px');
   if(process.env.CAREER_CONCIERGE_SCREENSHOTS&&host==='native')await page.screenshot({path:path.join(process.env.CAREER_CONCIERGE_SCREENSHOTS,`concierge-${width}.png`)});
-  await panel.getByRole('button',{name:'Close concierge'}).click();await panel.waitFor({state:'hidden'});await toggle.click();await panel.waitFor({state:'visible'});
+  // 1.61.0: a phone leaves the pane by the header's Back to <this page>, which keeps the conversation; a desktop by the cross.
+  if(width===412){assert.equal(await panel.getByRole('button',{name:'Close concierge'}).isVisible(),false);await panel.getByRole('button',{name:'Back to Home',exact:true}).click();}
+  else{assert.equal(await panel.getByRole('button',{name:/^Back to /}).isVisible(),false);await panel.getByRole('button',{name:'Close concierge'}).click();}
+  await panel.waitFor({state:'hidden'});await toggle.click();await panel.waitFor({state:'visible'});
+  assert.equal(await panel.locator('.ef-assistant-reply').count(),1,'the conversation is still there');
   assert.equal(await frame.locator('.ef-assistant').count(),1);assert.deepEqual(external,[]);
  }finally{await context.close();}
 });

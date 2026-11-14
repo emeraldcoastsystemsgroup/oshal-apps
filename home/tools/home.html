@@ -50,6 +50,11 @@
      14 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): the Now playing line and the media row
        (Previous, Pause, Play, Next, What's playing) on an Android or Fire TV's card, every button at least 44 x 44.
      15 | maintainer@emeraldcoastsystemsgroup.com | Extract the overview and styles; searchable device details use reported state and existing actions, with keyboard scenes and connected-device-aware empty states.
+     16 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.0: the refrigerator page keeps no grocery list of its own. The Grocery list card shows the
+       person's list in Shopping (GET /api/purchasing/cart), adds to it and ticks an item off through Shopping's own routes in their
+       session, and has Open Shopping, where the order is made. Items a person had put on the refrigerator's own list are moved to
+       Shopping when the page opens (one POST to Shopping, then forget-earlier-list here); when Shopping does not answer for this
+       account they are shown where they are and nothing is lost. Start a grocery list is gone.
 -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
@@ -245,7 +250,6 @@
       <button type="button" class="btn" id="readViewInsideBtn" onclick="loadFridgeViewInside(true)">Look inside</button>
       <button type="button" class="btn" id="refreshFridgeCamBtn" onclick="refreshFridgeCamera()">Take new photos</button>
       <button type="button" class="btn" id="runFridgeAssessmentBtn" onclick="runFridgeAssessmentNow()">Check what is inside now</button>
-      <button type="button" class="btn" id="startFridgeCartBtn" onclick="startFridgeCart()">Start a grocery list</button>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -270,15 +274,18 @@
           <div id="fridgeComparisonSummary" class="dim" style="margin-bottom:8px"></div>
           <div id="fridgeComparisonLists" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
         </div>
-        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
-          <div class="crow" style="margin-bottom:6px">
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)" id="fridgeGroceryCard">
+          <div class="crow" style="margin-bottom:6px;flex-wrap:wrap">
             <span class="nm">Grocery list</span>
-            <span class="pill ok" id="fridgeCartStatusBadge">Your list</span>
+            <span class="pill ok" id="fridgeGroceryBadge">In Shopping</span>
+            <span class="spacer"></span>
+            <a class="btn" id="fridgeGroceryOpen" href="/cockpit/?app=purchasing" target="_top">Open Shopping</a>
           </div>
-          <div id="fridgeCartItems" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
-          <div class="crow" style="margin-top:8px">
-            <label class="schf" for="fridge-cart-add-input" style="flex:1"><span>Add an item</span><input id="fridge-cart-add-input" class="tin" placeholder="e.g. Avocado Oil or Sparkling Water" /></label>
-            <button type="button" class="btn" onclick="addFridgeCartItem()">Add</button>
+          <div id="fridgeGroceryItems" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
+          <div id="fridgeGroceryEarlier" class="dim" style="margin-top:6px" hidden></div>
+          <div class="crow" style="margin-top:8px" id="fridgeGroceryAdd">
+            <label class="schf" for="fridge-grocery-add-input" style="flex:1"><span>Add an item</span><input id="fridge-grocery-add-input" class="tin" maxlength="300" placeholder="e.g. eggs" /></label>
+            <button type="button" class="btn" id="fridgeGroceryAddBtn" onclick="addGroceryItem()">Add</button>
           </div>
         </div>
         <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
@@ -465,24 +472,8 @@ function renderFridgeComparisonAndShelves(a) {
 function renderFridgeAssessment(a) {
   if (!a || !a.comparison) return;
   renderFridgeComparisonAndShelves(a);
-  const cart = a.cart || { items: [], status: 'recommended', activeItemCount: 0 };
-  if ($('fridgeCartStatusBadge')) {
-    // "Suggested" belongs to a list made from a reading; until one exists the list is only what the person put on it.
-    const kind = cart.status === 'active' ? 'Started' : (a.reading && a.reading.read ? 'Suggested' : 'Your list');
-    const onList = cart.activeItemCount || 0;
-    $('fridgeCartStatusBadge').textContent = (cart.items || []).length ? `${kind} · ${onList} item${onList === 1 ? '' : 's'}` : 'Nothing listed yet';
-  }
-  if ($('fridgeCartItems')) {
-    $('fridgeCartItems').innerHTML = !(cart.items || []).length ? '<div class="dim" data-fridge-empty="list">Nothing is on the list yet. Add an item below.</div>' : (cart.items || []).map((c) =>
-      `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
-        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
-          <input type="checkbox" ${c.inCart ? 'checked' : ''} onchange="toggleFridgeCartItem('${esc(c.id)}')" />
-          <span><strong style="color:var(--text)">${esc(c.name)}</strong> <span class="dim">(${esc(c.quantity)} — ${esc(c.reason)})</span></span>
-        </label>
-        <span class="pill ${c.inCart ? 'ok' : ''}">${c.inCart ? 'In Cart' : 'Optional'}</span>
-      </div>`
-    ).join('');
-  }
+  // 1.9.0: the grocery list is Shopping's; this card shows it.
+  if (a.groceryList) loadGroceryList(a.groceryList);
   const meals = (a.mealPlan && a.mealPlan.entries) || [];
   if ($('fridgeMealPlanList')) {
     $('fridgeMealPlanList').innerHTML = !meals.length ? '<div class="dim" data-fridge-empty="meals">Meal ideas come from a reading of what is inside. None has been read yet.</div>' : meals.map((m) =>
@@ -543,35 +534,74 @@ async function runFridgeAssessmentNow() {
     if (b) { b.disabled = false; b.textContent = 'Check what is inside now'; }
   }
 }
-async function startFridgeCart() {
+// ── The grocery list (home 1.9.0) ────────────────────────────────────────────
+// Shopping keeps the person's one grocery list and makes the order from it. This card reads it and changes it through
+// Shopping's own routes, in the person's session; Smart Home keeps nothing.
+const GROCERY = { listId: null, earlier: [] };
+async function shopping(path, body, method) {
   try {
-    const a = await api('/fridge-meal-plan', { action: 'start-cart' }, 'POST');
-    renderFridgeAssessment(a);
-    toast(((a.cart && a.cart.items) || []).length ? 'Grocery list started' : 'Nothing is on the list yet: add an item first');
-  } catch (e) {
-    toast('The list could not be started: ' + e.message);
-  }
+    const r = await fetch('/api/purchasing' + path, { method: method || (body ? 'POST' : 'GET'), credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  } catch (_) { return { status: 0, body: {} }; }
 }
-async function toggleFridgeCartItem(id) {
-  try {
-    const a = await api('/fridge-meal-plan', { action: 'toggle-cart-item', id }, 'POST');
-    renderFridgeAssessment(a);
-  } catch (e) {
-    toast('Update failed: ' + e.message);
-  }
+/** Items a person had on the refrigerator's own list go to Shopping once; what Shopping refuses stays where it is. */
+async function moveEarlierGroceries() {
+  const batch = GROCERY.earlier.slice(0, 30);
+  const titled = (item) => item.name + (item.quantity && !/^1( item)?$/.test(String(item.quantity)) ? ' (' + item.quantity + ')' : '');
+  const r = await shopping('/lists/default/items', { items: batch.map((item) => ({ title: titled(item).slice(0, 300) })) });
+  if (r.status !== 200) return false;
+  try { await api('/fridge-meal-plan', { action: 'forget-earlier-list', ids: batch.map((item) => item.id) }, 'POST'); } catch (_) { /* they move again next time, and Shopping does not add an item twice by hand */ }
+  GROCERY.earlier = GROCERY.earlier.slice(batch.length);
+  toast('Moved ' + batch.length + ' item' + (batch.length === 1 ? '' : 's') + ' to your grocery list in Shopping');
+  return true;
 }
-async function addFridgeCartItem() {
-  const inp = $('fridge-cart-add-input');
-  const name = (inp && inp.value || '').trim();
-  if (!name) { toast('Enter an item name to add'); return; }
-  try {
-    const a = await api('/fridge-meal-plan', { action: 'add-cart-item', name }, 'POST');
-    if (inp) inp.value = '';
-    renderFridgeAssessment(a);
-    toast('Added ' + name);
-  } catch (e) {
-    toast('Failed: ' + e.message);
+function groceryRow(item) {
+  const row = document.createElement('label');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;min-height:44px;cursor:pointer;border-bottom:1px solid var(--line)';
+  const box = document.createElement('input'); box.type = 'checkbox'; box.setAttribute('aria-label', 'Got ' + (item.title || 'it'));
+  box.addEventListener('change', () => tickGroceryItem(item));
+  const words = document.createElement('strong'); words.style.color = 'var(--text)';
+  words.textContent = (item.title || '') + (Number(item.quantity) > 1 ? ' ×' + item.quantity : '');
+  row.append(box, words);
+  return row;
+}
+async function loadGroceryList(pointer) {
+  if (pointer) GROCERY.earlier = (pointer.earlier || []).slice();
+  if (GROCERY.earlier.length) await moveEarlierGroceries();
+  const r = await shopping('/cart'), box = $('fridgeGroceryItems');
+  if (!box) return;
+  const empty = (words) => { const note = document.createElement('div'); note.className = 'dim'; note.dataset.fridgeEmpty = 'list'; note.textContent = words; box.replaceChildren(note); };
+  const earlier = $('fridgeGroceryEarlier');
+  earlier.hidden = !GROCERY.earlier.length;
+  earlier.textContent = GROCERY.earlier.length ? 'Still on the refrigerator\'s earlier list: ' + GROCERY.earlier.map((item) => item.name).join(', ') + '.' : '';
+  if (r.status !== 200) {
+    $('fridgeGroceryBadge').textContent = 'In Shopping';
+    $('fridgeGroceryAdd').style.display = 'none';
+    empty('Your grocery list is kept by Shopping, which this account cannot open here.');
+    return;
   }
+  GROCERY.listId = r.body.listId || null;
+  const items = r.body.items || [];
+  $('fridgeGroceryAdd').style.display = '';
+  $('fridgeGroceryBadge').textContent = items.length ? 'In Shopping · ' + items.length + ' to buy' : 'In Shopping';
+  if (!items.length) empty('Nothing is on your grocery list. Add an item below.');
+  else box.replaceChildren(...items.map(groceryRow));
+}
+async function addGroceryItem() {
+  const inp = $('fridge-grocery-add-input');
+  const title = (inp && inp.value || '').replace(/\s+/g, ' ').trim();
+  if (!title) { toast('Enter an item name to add'); return; }
+  const r = await shopping('/lists/default/items', { title, quantity: 1 });
+  if (r.status !== 200) { toast('“' + title + '” was not added: ' + (r.body.error || 'HTTP ' + r.status)); return; }
+  inp.value = '';
+  await loadGroceryList();
+  toast('Added ' + title + ' to your grocery list');
+}
+async function tickGroceryItem(item) {
+  const r = GROCERY.listId ? await shopping('/lists/' + encodeURIComponent(GROCERY.listId) + '/items/' + encodeURIComponent(item.item_id), { checked: true }) : { status: 0, body: {} };
+  if (r.status !== 200) toast('“' + (item.title || 'That item') + '” could not be ticked off: ' + (r.body.error || 'HTTP ' + r.status));
+  await loadGroceryList();
 }
 async function rebuildFridgeMealList() {
   const focus = ($('fridge-meal-focus') && $('fridge-meal-focus').value) || 'use-first';

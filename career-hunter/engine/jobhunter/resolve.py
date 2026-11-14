@@ -6,6 +6,7 @@ HTTP-only (fast). Sites that hide the ATS behind JavaScript stay on the to-do li
 large majority expose it in the page HTML or a redirect.
 """
 # CHANGE LOG
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Use the Oracle reader's exact candidate-site parser, including named sites with hyphens, rather than independently rebuilding a host/site token.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Recognise the US job lists of Experis and Manpower (/en/all-jobs, /en/search and a job under /en/job, on the bare or www host) as the ManpowerGroup reader's, whose token is the www host.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | The three listed boards' link rules name a reader only for what that reader reads. They took any subdomain of the employer and any path that began like the job search, so randstadusa.com/jobsearch, xplore.randstadusa.com/jobs/... and www.talent-soft.com each named a reader. Now: the employer's own site, bare or under www, at /jobs or /tech-jobs or below it; and a Talentsoft tenant, one label before the vendor's domain and none of the vendor's own (www, support, help).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The three listed boards' link rules sit in a function of their own, _listed_board, so classify_url, already long, grows by two lines and not by seven. What a link names does not change.
@@ -156,10 +157,9 @@ def classify_url(url: str):
 
     # ── Oracle Recruiting Cloud ────────────────────────────────────────────
     # Direct backend URL (….oraclecloud.com/…/sites/CX_xxxx/jobs) → build token straight off it.
-    if "oraclecloud.com" in host:
-        ms = re.search(r"/sites/([A-Za-z0-9_]+)", full)
-        if ms:
-            return ("oracle_orc", f"{host}|{ms.group(1)}|{host}")
+    oracle = ats.OracleORC.detect(full)
+    if oracle:
+        return ("oracle_orc", oracle)
     # Vanity careers host with a /sites/{SITE}/ SPA (often behind a # fragment) → resolve backend.
     if re.search(r"/sites/[A-Za-z0-9_]+/(?:jobs|requisitions)", full, re.I) or "oraclecloud.com" in low:
         tok = ats.resolve_orc(host)

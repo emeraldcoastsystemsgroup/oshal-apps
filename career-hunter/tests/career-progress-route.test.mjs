@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Measure FIFO handler refusal separately from bounded child startup, so parallel route initialization cannot masquerade as a blocking read.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the shipped owner-bound progress and optional goal handlers over disposable SQLite, mixed timestamp forms and bounded no-follow preference files.
  */
 import {test,after} from 'node:test';
@@ -9,6 +10,7 @@ import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
+import {performance} from 'node:perf_hooks';
 import {createRouter,loadCompiledModules} from './helpers/career-route-harness.mjs';
 const NOW=Date.parse('2026-11-12T20:00:00.000Z'),DAY=86400000,RealDate=globalThis.Date;
 globalThis.Date=class extends RealDate {constructor(...args){super(...(args.length?args:[NOW]));}static now(){return NOW;}};
@@ -37,8 +39,8 @@ async function call(method,pathname,sub='progress-owner',body={},query={}){
   Promise.resolve(found.handler({oidc:{user:sub?{sub}:null},params:found.params,query,body,headers:{}},res)).catch(reject);});
 }
 if(process.env.CAREER_PROGRESS_FIFO_PROBE==='1'){
- assert.equal(spawnSync('mkfifo',[goalFile]).status,0);const reply=await call('GET','/jobs/progress');
- console.log('FIFO_RECEIPT='+JSON.stringify({code:reply.code}));process.exit(0);
+ assert.equal(spawnSync('mkfifo',[goalFile]).status,0);const started=performance.now(),reply=await call('GET','/jobs/progress');
+ console.log('FIFO_RECEIPT='+JSON.stringify({code:reply.code,elapsedMs:performance.now()-started}));process.exit(0);
 }
 test('progress counts every original-owner application across stages without a corpus or 50-row limit',async()=>{
  const a=await call('GET','/jobs/progress');assert.equal(a.code,200);assert.equal(a.body.period,'past7days');assert.equal(a.body.applied,64);assert.equal(a.body.goal,null);
@@ -87,7 +89,8 @@ test('unreadable, oversized and symlink goals stay unavailable; writes never fol
 test('a non-regular FIFO goal is refused without blocking the real handler',{skip:process.platform==='win32'?'FIFOs are a POSIX filesystem feature':false},()=>{
  const fixture=fs.mkdtempSync(path.join(os.tmpdir(),'career-progress-fifo-'));
  try{
-  const probe=spawnSync(process.execPath,[new URL(import.meta.url).pathname],{encoding:'utf8',timeout:3000,env:{...process.env,CAREER_PROGRESS_FIFO_PROBE:'1',CAREER_PROGRESS_FIXTURE_DIR:fixture}});
-  assert.equal(probe.status,0,probe.error?.message||probe.stderr);const line=probe.stdout.split('\n').find(value=>value.startsWith('FIFO_RECEIPT='));assert.ok(line,probe.stdout);assert.equal(JSON.parse(line.slice('FIFO_RECEIPT='.length)).code,503);
+  const probe=spawnSync(process.execPath,[new URL(import.meta.url).pathname],{encoding:'utf8',timeout:10000,env:{...process.env,CAREER_PROGRESS_FIFO_PROBE:'1',CAREER_PROGRESS_FIXTURE_DIR:fixture}});
+  assert.equal(probe.status,0,probe.error?.message||probe.stderr);const line=probe.stdout.split('\n').find(value=>value.startsWith('FIFO_RECEIPT='));assert.ok(line,probe.stdout);
+  const receipt=JSON.parse(line.slice('FIFO_RECEIPT='.length));assert.equal(receipt.code,503);assert.ok(Number.isFinite(receipt.elapsedMs)&&receipt.elapsedMs<1000,`FIFO handler took ${receipt.elapsedMs}ms`);
  }finally{fs.rmSync(fixture,{recursive:true,force:true});}
 });

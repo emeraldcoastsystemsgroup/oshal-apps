@@ -1,3 +1,13 @@
+# 86 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: register one-concierge-live, the walk through the kernel's real concierge on an installed Career as a test person with a made-up résumé.
+# 85 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: register card-rebase (a card whose revision moved is applied on the main résumé as it is now, or refused naming the change and the job), resume-one-source (the Word document on My résumé follows the main résumé and typed text is never lost), one-concierge (one assistant and one conversation on every Career page) and concierge-tools (the manifest, catalog and personas as the kernel reads them: one bot answers a person, every person-facing tool, each bound to its route).
+# 84 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: register work-history-card (one concierge card means what the person read on it: the four-edit card as the concierge wrote it, counted from one and as read, two removals, an add and a move in one job, a removal before a later change, split and pasted blocks, long bullets named by their opening, refusals in words) and work-history-keeps (applied cards keep what they wrote, through the engine and the Word document on My résumé); work-history also runs the pasted-draft case.
+# 83 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: register browser-worker-upgrade (the installer's --upgrade re-pins an installed helper in place, keeps its device and settings, restarts the real worker and rolls back a program that fails to start).
+# 82 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: register work-history (the Work history page in Chromium over the real résumé route module and engine, at 1280, 412 and 360, with the concierge's approved job and Undo), work-history-engine (job edits and Undo through the launcher's real Python programs) and concierge-words; master-sections also runs Undo's route guard; resume-office-browser and concierge-shared-panel expect Career's concierge as My résumé's one assistant with Back to the page on a phone.
+# 81 | maintainer@emeraldcoastsystemsgroup.com | Cover Oracle capped-window facet searches and bounded source previews that reopen completed checkpoints in fresh and resumed pulls.
+# 80 | maintainer@emeraldcoastsystemsgroup.com | Register counted Oracle transport/store, interrupted Workday progress and exact anonymous AWS browser-check regressions for 1.60.12.
+# 79 | maintainer@emeraldcoastsystemsgroup.com | Register closure-receipts: each job a complete read stops listing is recorded with its read, a re-keyed job stays the same job for a person, ambiguous matches stay closed and are counted, and a full pull leaves a receipt per source.
+# 78 | maintainer@emeraldcoastsystemsgroup.com | Register all fourteen counted Chromium press sequences, four-bound approval, owner press pictures and published static assets.
+# 77 | maintainer@emeraldcoastsystemsgroup.com | Register owner unknown-outcome closure and sender command coverage; expand loopback upload, Continue, retained picture and oversized confirmation expectations.
 # 76 | maintainer@emeraldcoastsystemsgroup.com | Register owner résumé presence/heading tool replay and shared concierge at 412/1280 on native/cockpit fixtures.
 # 75 | maintainer@emeraldcoastsystemsgroup.com | Register synthetic owner-writer review/automatic preparation, background CLI, exact review and ready-only UI coverage.
 # 74 | maintainer@emeraldcoastsystemsgroup.com | Register nested Prepare/Open recovery over the recovered shell and shipped owner writer with synthetic isolated stores.
@@ -151,11 +161,12 @@ cases:
       - The site is told a current Chrome and this reader by name, never a headless browser.
       - A cookie notice that covers the jobs is accepted and the jobs behind it are read, and an accept button outside a notice or inside a form is never pressed.
       - A human check or a sign-in page with no jobs is a named failure that closes nothing, and a page that answers past a check keeps its jobs.
+      - A delayed anonymous browser check can navigate to jobs; Avature next-page controls retain locations and exclude community forms and navigation links.
       - A refusal, a missing page and a browser that cannot start each fail under their own cause.
     prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the loopback server and browsers; remove temporary SQLite databases. Native namespace proofs run separately in the kernel delivery lane."}
-    limits: {timeoutMs: 60000, maxMemoryMb: 1024}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
     installation: never
   - id: native-corpus-observations
     name: Native pull state and previous publication
@@ -199,7 +210,7 @@ cases:
     runner:
       kind: node-test
       scope: package
-      files: [tests/career-master-sections.test.mjs, tests/career-master-section-routes.test.mjs]
+      files: [tests/career-master-sections.test.mjs, tests/career-master-section-routes.test.mjs, tests/career-work-history-engine.test.mjs]
     expected:
       - Every recorded item remains reachable under bounded responses and explicit continuation offsets.
       - Conflicts, wrong text, unsupported credentials and invalid edits preserve the original master.
@@ -1459,6 +1470,34 @@ cases:
       timeoutMs: 240000
       maxMemoryMb: 512
     installation: never
+  - id: closure-receipts
+    name: Every job a pull closes is recorded with its read, and a re-keyed job stays the same job
+    purpose: Run complete, partial and re-keying source reads and two full pulls over real temporary SQLite with made-up employers and a made-up person, then read the person's saved jobs through the shipped saved-jobs board query.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-closure-receipts.test.mjs
+    expected:
+      - Each job a complete read stops listing has one record naming that read and its time, as closed or re-keyed.
+      - A job listed again under a new key with the same requisition number, title and place keeps its id and takes the new key and address; it is counted as re-keyed, not new or closed.
+      - A match that differs in title or place, has two successors, shares one or was listed before stays closed and is counted as a possible re-key.
+      - A partial, empty or invalid read closes nothing and records nothing.
+      - A person's saved or applied re-keyed job stays open at its new address, a job they removed does not come back, and a job the employer took down still shows as closed.
+      - Each full pull keeps one receipt with closed, possible re-key and re-keyed counts per source, and its summary line still reads the way the kernel parses it.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores; no employer is read.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 512
+    installation: never
   - id: source-review
     name: Nightly review of sources the pull could not read
     purpose: Exercise the source review on real temporary SQLite with the real connectors over recorded employer replies, its public-only guard against a real local server, and its report on the shipped Companies page in Chromium.
@@ -1674,7 +1713,19 @@ cases:
       - Approved contact and eligibility answers reach only the selected application form, with both PDF uploads retained.
       - Unknown questions, changed packets, different recipients and missing final authorization stop before submission.
       - A final click with an uncertain response is not retried or reported as successful.
-      - Two evidence captures suffice for the common fixture, and delayed steps use page-state waits.
+      - Two exact upload fields and a combined field receive only their approved PDF bytes.
+      - Continue then Submit and Apply then Submit each use two distinct permits, report advanced then confirmed and send one application.
+      - Continue can itself confirm receipt with one permit and one application.
+      - Saving on the same step reports unknown after one press and never asks again.
+      - Five distinct steps stop after four permits and four presses without an application.
+      - A second host is blocked, reported left_site and never contacted.
+      - An unanswered question after Apply returns needs_review; after Continue it stays unknown.
+      - A refused or lost second ask never presses the second button and never repeats that ask.
+      - A lost first report reply is retried byte-identically and the sequence can continue.
+      - Only approved-site cookies are cleared before the next run; another host's cookie remains.
+      - Every ask refused means zero presses and needs_review; every retained picture matches its report.
+      - Oversized confirmation PNGs stay confirmed within the artifact budget, with matching digests.
+      - Unknown outcomes retain per-press pictures without claiming employer confirmation.
     prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation:
@@ -1686,17 +1737,20 @@ cases:
     installation: never
   - id: native-submission-dispatch
     name: Exact native submission dispatch and evidence recovery
-    purpose: Exercise published approval, private immutable packets, owner ticket binding, lost start acknowledgement recovery and exact accepted confirmation checks.
+    purpose: Exercise published approval, private immutable packets, owner ticket binding, lost start acknowledgement recovery exact accepted confirmation checks, owner closure of unknown outcomes and the CI command registration.
     level: integration
     runner:
       kind: node-test
       scope: package
-      files: [tests/career-submission-native.test.mjs]
+      files: [tests/career-submission-native.test.mjs, tests/career-submission-resolution.test.mjs, tests/career-submission-gate.test.mjs]
     expected:
       - Approval and its frozen packet are published before any external worker is started.
       - Retrying a lost start response reuses the same ticket and exact input.
       - Application status changes only after the retained original-intent result and confirmation bytes match.
-    prerequisites: [runner:node-test]
+      - Four approved presses are covered by both digests and appear in the immutable input.
+      - Kernel press words survive an unfinished worker; every present press picture is verified and absent pictures are not fetched.
+      - Original-owner picture reads reject other owners and changed bytes.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation:
       mode: disposable
@@ -1850,6 +1904,25 @@ cases:
       cleanup: Close the loopback server and remove temporary synthetic configuration files; no systemd service is created.
     limits: {timeoutMs: 30000, maxMemoryMb: 128}
     installation: never
+  - id: browser-worker-upgrade
+    name: Upgrade an installed browser helper in place
+    purpose: Re-pin an installed Career browser helper to the delivered program without a new enrolment, by running the real installer, the unit's own start line and the real worker in Chromium against a loopback stand-in of the kernel's device profile.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-browser-upgrade.test.mjs]
+    expected:
+      - A second, different settings file for the same person is still refused; --upgrade instead keeps the enrolled device and the settings file byte for byte, rewrites only the start line, restarts once and returns when the kernel profile reports the new fingerprint ready.
+      - The previous program copy and start line are kept; a delivered program that fails to start is rolled back and the previous pin heartbeats ready again.
+      - With no install, a helper still working, a pending result or missing settings the upgrade refuses with a closed reason and restarts nothing; no device token enters any output.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Stop the stand-in service's worker, close the loopback server and remove the scratch home; no real systemd unit is created or restarted.
+    limits: {timeoutMs: 150000, maxMemoryMb: 512}
+    installation: never
   - id: ux-audit-screens
     name: Career screens to the design standard (UX audit 2026-11-06)
     purpose: Drive the shipped Career screens in Chromium over synthetic same-origin fixtures, and the recruiter routes over a disposable store pinned read-only the way the kernel pins a read.
@@ -1908,12 +1981,13 @@ cases:
     limits: {timeoutMs: 60000}
     installation: never
   - id: resume-office-browser
-    name: Resume Studio edits the master resume with AI Office's editor and standard Concierge
+    name: My résumé edits the main résumé in AI Office's editor with Career's concierge as its one assistant
     purpose: >-
-      In Chromium over AI Office's real forced-RLS fixture and Career's real engine: edit the headline, ask the Concierge to
-      tighten a bullet (a scripted fixture model proposes one office-apply-edits card), approve, Save to master resume,
-      re-open and see both; a second person cannot read the document; at 412x743 the document comes first with one main
-      button and the Concierge opens as a sheet.
+      In Chromium over AI Office's real forced-RLS fixture and Career's real engine: AI Office shows no concierge of its own
+      (assistant=host); the person types the headline, asks Career's concierge to move a job's start month (a scripted
+      fixture model proposes one career_resume_patch card), approves, and the Word document and the profile both show it;
+      Undo puts it back in both; a second person cannot read the document; at 412x915 and 360x800 the page is one column,
+      the document reaches Career's bottom bar, and the concierge fills the screen with Back to My résumé.
     level: browser
     runner:
       kind: playwright
@@ -1921,7 +1995,8 @@ cases:
       files:
         - tests/career-resume-office-browser.spec.mjs
     expected:
-      - Both changes are in the document after re-opening and in career_db.json; bob's read answers 404; the phone layout holds.
+      - The approved month is in the document and in career_db.json with the typed headline, Undo restores the month only, bob's read answers 404.
+      - On a phone the controls are one row of 44 px inside the screen, the concierge is full width between the bars, and the conversation survives Back.
     prerequisites: [runner:playwright, browser:chromium, fixture:office-postgres-35689, harness:kernel-platform-export]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "The Office fixture drops its database and role; the temporary profile is removed."}
@@ -2371,6 +2446,7 @@ cases:
       scope: package
       files:
         - tests/career-apply-one-route.test.mjs
+        - tests/career-open-application-in-group.test.mjs
         - tests/career-apply-by-hand.test.mjs
         - tests/career-applications-section.test.mjs
         - tests/career-approvals-stage.test.mjs
@@ -2616,6 +2692,21 @@ cases:
       - { level: integration, file: tests/career-workflow-engine.test.mjs }
       - { level: integration, file: tests/career-workflow-background.test.mjs }
 
+  - id: career-static-files
+    name: Published Career browser assets
+    purpose: Parse the real manifest and verify every browser static reference names a published regular file under the existing permission.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-static-files.test.mjs]
+    expected:
+      - Every literal static browser reference is declared once and exists in tools.
+      - Private helper runtime code is not published as a browser asset.
+    prerequisites: [runner:node, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: No stores or network are used.}
+    limits: {timeoutMs: 10000, maxMemoryMb: 128}
   - id: concierge-saved-resume
     name: Concierge knows the asking person's saved résumé
     purpose: Cross the declared real tool endpoint, compiled route and shared owner reader with made-up people, using scripted completions only at the model boundary.
@@ -2639,10 +2730,213 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/career-concierge-panel.test.mjs] }
     expected:
       - Native and cockpit hosts at 412 and 1280 widths show one shared assistant and hide their retired rail and application bar.
-      - Send crosses the native ask contract; close and reopen retain a single pane with the composer inside the viewport.
-      - My résumé keeps AI Office's own assistant; the package imports the shared component without copying it.
+      - Send crosses the native ask contract; Back to Home (phone) or the cross (desktop) and reopen keep one pane and the conversation.
+      - The package imports the shared component without copying it.
     prerequisites: [runtime:chromium, 'source:shared-ui']
     sideEffects: none
     isolation: { mode: disposable }
     limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: source-reader-recovery
+    name: Counted Oracle boards and resumable Workday sources
+    purpose: Exercise the Oracle reader through a disposable HTTP server and SQLite, and reuse only complete, recent Workday facet searches after an interrupted ingest.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-source-readers.test.mjs
+        - tests/career-browser-check.test.mjs
+    expected:
+      - Oracle partitions a search capped at 10000 results and reads past 12000 jobs, recovers overlapping pages without duplicate rows, links to its real candidate site and closes no jobs on a refused or incomplete pull.
+      - A source preview verifies three actual jobs, closes nothing and leaves full enumeration pending even when the previous source finished in a resumed pull.
+      - Workday resumes completed facets, rereads changed or expired counts and removes progress after a complete pull.
+      - Only an active AWS browser check admits the bounded anonymous proof; applicant forms, files, unrelated POSTs and private addresses remain refused.
+    prerequisites: [runner:node-test, runner:python, harness:career-python-contracts]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Stop the fixture server and remove temporary stores and progress files."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+  - id: work-history
+    name: Work history edits a person's jobs, months and bullets, and the concierge's approved change is on the page with Undo
+    purpose: >-
+      The shipped Work history page in Chromium over Career's real résumé route module and engine programs on a made-up
+      person's disposable profile: edit a job's months, employer and bullets, add, move and remove a job, Undo each, at 1280,
+      412 and 360; Career's concierge proposes a new job as an approval card (scripted model, real engine patch) and the
+      approved job shows on the page with Undo.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-work-history-page.test.mjs, tests/career-work-history-engine.test.mjs] }
+    expected:
+      - Saved edits equal the form, Undo restores the exact earlier profile, a form without an employer is refused in words.
+      - A pasted draft longer than 1000 characters stays whole in the bullet box and saves as one bullet per line.
+      - At 412 and 360 every control is 44 px and inside the screen, fields are 16 px, nothing scrolls sideways.
+      - Nothing changes before Approve; after it the job is on the page and Undo removes it.
+    prerequisites: [runtime:chromium, runner:python, 'source:shared-ui']
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 120000 }
+    installation: never
+
+  - id: work-history-card
+    name: One concierge card means what the person read on it, however its edits are numbered
+    purpose: >-
+      Through the launcher's real Python programs on a made-up person's disposable profile whose jobs carry no ids: the
+      four-edit card (two bullets under a job with none, two jobs removed) as Career's concierge wrote it on blue, counted
+      from one and numbered as read; two removals; an add and a move in one job; a removal before a later change; a
+      pasted block split into one bullet per line; long bullets named by their opening; refusals in words.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-work-history-card.test.mjs] }
+    expected:
+      - Every numbering of the four-edit card leaves the same work history, as one change with one backup.
+      - A pasted block becomes one bullet per line on add, set or split; a long bullet reads whole and is named by its opening.
+      - A refused card names the change, the job and what is wrong in words, never an index, and changes nothing.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: work-history-keeps
+    name: Applied concierge cards keep what they wrote
+    purpose: >-
+      A second card keeps the first card's employers, months and bullets; the Word document on My résumé is brought up to
+      date when it is behind only on job headings or dates, and a document made before jobs were removed and added never
+      saves one job's bullets into another (engine programs and tools/career-resume-office.js over a fake AI Office).
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-work-history-keeps.test.mjs] }
+    expected:
+      - After two cards every employer, month and bullet either card wrote is in the main résumé.
+      - The save before a concierge turn on My résumé changes nothing after a change made on Work history.
+      - A document whose jobs are other jobs is refused in words with Use my work history and nothing is saved.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: concierge-words
+    name: The concierge edits work history itself and names only pages that exist
+    purpose: No Career line sends a person to a Profile page for jobs or dates; both personas edit by card and name Work history; the patch tool accepts what the engine applies.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/career-concierge-words.test.mjs] }
+    expected:
+      - The résumé document's notes, the tool texts and the personas never point to a Profile page or call dates unchangeable.
+      - The patch tool's edit keys equal the engine's, and each edit requires the summary its approval card shows.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: card-rebase
+    name: A card written before another change still applies when what it names reads the same
+    purpose: >-
+      Through the launcher's real Python programs on a made-up person's disposable profile: two cards written from one
+      reading, a card for another bullet of a job the first card changed, a save from the My résumé document in between,
+      a second new job, two jobs with one title; and the refusals when a bullet, a removed job, a moved job or a text
+      the card names changed after it was written, or its reading is no longer kept.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-card-rebase.test.mjs] }
+    expected:
+      - The second card applies on the revision the first left, as one change with one backup, and says so in a note.
+      - A change that no longer fits is refused naming the change and the job, and nothing changes (409 at the route).
+      - A card on the revision it read behaves as before.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: resume-one-source
+    name: The Word document on My résumé follows the main résumé, and typed text is never lost
+    purpose: >-
+      Career's engine programs and tools/career-resume-office.js over an in-memory AI Office with its store's limits, on
+      a made-up person's disposable profile: a job or bullet approved where no document was open, text typed in the
+      document and a card approved meanwhile, the save before a concierge turn on a document that is behind, a document
+      from before this version, one Career cannot place, and one at the 100-revision limit.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-resume-one-source.test.mjs, tests/career-work-history-keeps.test.mjs] }
+    expected:
+      - The document shows the main résumé when My résumé opens, with no press, and names the revision it shows.
+      - Typed text is saved into the main résumé and merged with what changed there; a part both changed keeps the saved one and says so.
+      - A document that is only behind is never saved back; one Career cannot place is left until the person chooses.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: one-concierge
+    name: One assistant and one conversation on every Career page
+    purpose: >-
+      The shipped Home and Settings pages in Chromium with the kernel's real shared assistant and a recording stand-in
+      for the kernel's ask: a page with no document of its own hands over the person's Career record, so every page
+      shares one conversation; the earlier conversation is in the pane as the person typed it; and the Word document
+      and the main résumé are brought together around a turn and after an approved card.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-one-concierge.test.mjs, tests/career-concierge-panel.test.mjs] }
+    expected:
+      - Every page asks career-concierge with the session doc:career-hunter:master and the page's name and tools.
+      - An earlier message shows without the page details sent along with it.
+      - The person's Word documents are looked at before the concierge reads and again after the turn and an approved card.
+    prerequisites: [runtime:chromium, 'source:shared-ui']
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "Stop the fixture server." }
+    limits: { timeoutMs: 120000 }
+    installation: never
+
+  - id: concierge-tools
+    name: The concierge carries every person-facing tool, each bound to its route, and the worker is the engine's
+    purpose: >-
+      The manifest, the authorization catalog and the personas as the kernel reads them: one bot answers a person and
+      the worker's persona text is unchanged to the byte (it is part of the scoring model identity); a tool for
+      everything a person does in Career, each calling a served route with exactly that route's permission, inside the
+      kernel's limits; the concierge's persona names every tool; the administrator's employer search through the
+      shipped route.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/career-concierge-tools.test.mjs, tests/career-create-concierge.test.mjs, tests/career-one-concierge-live-proof.test.mjs] }
+    expected:
+      - No route tool is bound differently from its route, and none calls a route the package does not serve.
+      - The first eight tool names fit Jarvis's catalog; every list tool names a small page.
+      - The concierge never hands a person to the worker or to another page, and is told My résumé shows the main résumé.
+      - The live walk passes against a stand-in kernel with the real engine, refuses a concierge that cannot see the document, and puts the résumé back.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: one-concierge-live
+    name: One concierge, one résumé and two cards in turn, on the installed package
+    purpose: >-
+      After career-hunter 1.62.0 is installed on a test slot, walk the kernel's real concierge and the model the
+      installation runs as a test person whose résumé is made up: from My résumé's context ask for a new job with two
+      bullets and approve the card; from Work history's ask for a new version of the résumé; ask for two cards from one
+      reading and approve both in turn; from My résumé's ask about saved jobs. Graded by the tool trace, the cards and
+      the main résumé the routes answer; the main résumé is put back to the revision the walk started on. Run with
+      CAREER_LIVE_BASE=http://127.0.0.1:38798 CAREER_LIVE_ENV=<the slot's environment file>
+      node career-hunter/tests/career-one-concierge-live-proof.mjs.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-one-concierge-live-proof.mjs
+    expected:
+      - career-concierge answers every turn; a résumé change is one career_resume_patch card and the job and bullets are in the main résumé after Approve.
+      - Asked for a new version of the résumé it reads the main résumé, names the new job and My résumé, and never says it cannot see the document.
+      - Two cards from one reading both apply, the second on the revision the first left; the last line is PASSED and the résumé is back as it was.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.62.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        One Undo puts the test person's main résumé back to the exact revision the walk started on; a walk that cannot
+        says RESTORE FAILED and exits 1. It refuses any base that is not a loopback address.
+    limits:
+      timeoutMs: 900000
+      maxMemoryMb: 256
     installation: never

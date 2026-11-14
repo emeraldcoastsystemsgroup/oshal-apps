@@ -5,6 +5,7 @@ CHANGE LOG
 3 | maintainer@emeraldcoastsystemsgroup.com | Respect explicitly unknown normalized fields in real employer pay quotes when comparing hash-less legacy rows, while preserving omitted enrichment.
 1 | maintainer@emeraldcoastsystemsgroup.com | Remember per-employer pull health and posting hashes; only a verified complete nonempty feed may close missing jobs.
 4 | maintainer@emeraldcoastsystemsgroup.com | ingest: a job the feed sends unchanged is still filed by its stored location when its stored state is not the one that location states. Unchanged jobs never reach upsert_posting, so a corrected state lookup reached none of them. A feed that answers "not modified" is not read, so its jobs wait until it next changes.
+5 | maintainer@emeraldcoastsystemsgroup.com | ingest: a complete read closes through closures.settle, which records each job it stops listing with the read, keeps a job the employer only re-keyed as the same job (counted as rekeyed, not new or closed) and counts ambiguous matches as possible_rekey.
 """
 from __future__ import annotations
 
@@ -13,7 +14,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from . import config, db
+from . import closures, config, db
 from .salary_text import has_salary_quote
 
 
@@ -52,6 +53,7 @@ def ensure(conn):
     conn.execute(f"""CREATE TABLE IF NOT EXISTS {table('source_http_validators')} (
         company_id INTEGER PRIMARY KEY, request_key TEXT NOT NULL, etag TEXT, last_modified TEXT)""")
     conn.execute(f"CREATE TABLE IF NOT EXISTS {table('source_identity')} (company_id INTEGER PRIMARY KEY, identity_hash TEXT NOT NULL)")
+    closures.ensure(conn)
 
 
 def begin_on(conn, company_id, identity_key=None):
@@ -172,7 +174,7 @@ def ingest(conn, company_id, rows):
         f"SELECT {columns} FROM {db.corpus_table()} WHERE company_id=?", (company_id,)).fetchall()}
     hashes = {row["ats_job_id"]: row["content_hash"] for row in conn.execute(
         f"SELECT ats_job_id,content_hash FROM {table('source_posting_hashes')} WHERE company_id=?", (company_id,)).fetchall()}
-    counts = dict(fetched=len(feed), new=0, changed=0, unchanged=0, closed=0, skipped=0)
+    counts = dict(fetched=len(feed), new=0, changed=0, unchanged=0, closed=0, skipped=0, rekeyed=0, possible_rekey=0)
     if feed.not_modified:
         counts["unchanged"] = sum(bool(row.get("active")) for row in current.values())
         yes = "TRUE" if config.POSTGRES else "1"
@@ -219,7 +221,7 @@ def ingest(conn, company_id, rows):
             VALUES (?,?,?) ON CONFLICT (company_id,ats_job_id) DO UPDATE SET content_hash=EXCLUDED.content_hash""", (company_id, job_id, digest))
     complete = bool(feed) and feed.complete and valid
     if complete:
-        counts["closed"] = db.deactivate_missing(conn, company_id, seen)
+        closures.settle(conn, company_id, attempt, seen, current, counts)
         conn.execute(f"UPDATE {db.companies_table()} SET last_scraped_at=? WHERE id=?", (db.now(), company_id))
         if feed.request_key and feed.validators:
             conn.execute(f"""INSERT INTO {table('source_http_validators')} (company_id,request_key,etag,last_modified)

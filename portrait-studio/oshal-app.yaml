@@ -30,6 +30,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.17.4: Roger, 2026-11-06: bounded Step 1 cropper (<=460x340px), compact Step 3 two-column minor-adjustment grid paired with a live image preview, plus Roman Soldier armor preset and Gladiator armor fix.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.17.5: Jarvis routing words (backlog P4-16g): portrait-artist adds 'headshot from'. "Make a professional headshot from this photo of me" tied Camera Ops on 'photo' and now reaches Portrait Studio; "Take a photo of me with the webcam" stays with Camera Ops. No route, tool or permission changed.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Release 1.17.6 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.17.7: the catalog description says what the studio makes. Jarvis names an application from its description (kernel ADR-212), and this one said only "Edit face crops and generation settings in a saved source project ...": on blue (kernel f86cd306, routing scoreboard r1-before, 3 of 3 runs) "Create a pet portrait of my golden retriever as an astronaut" went to Create, and Jarvis wrote that Portrait Studio is "built for editing face crops and generation settings on saved photos". It now says it turns a person's or pet's photo into a professional headshot, a character portrait in a themed scene, or one group scene (the three modes of routes/portrait-catalog.js and the persona), and keeps what the old sentence said. Routed to Portrait Studio 3 of 3 after. No route, tool, bot or permission change.
 name: portrait-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -43,8 +44,8 @@ rating:
       generation: hosted
       degrade: disable
 displayName: Portrait Studio
-description: "Edit face crops and generation settings in a saved source project, retain original photos, and hand rendered results into the image editor."
-version: 1.17.6
+description: "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor."
+version: 1.17.7
 chatBot: portrait-artist
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid

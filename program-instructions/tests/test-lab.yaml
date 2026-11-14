@@ -1,0 +1,456 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: register readiness and the instruction writer's suite (the tick against a stand-in for the kernel's rails, the text check, the request text, the service route and the declarations). Locally tested only: no case here proves that a kernel admits the job or that a model writes usable text.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0, before any delivery: the suite follows the package without an authorization catalog and the text check as the kernel applies it (a computer tool word anywhere in the text, file:/ anywhere, actions read with white space removed).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0, before any delivery: the prompt's data-fence marks; declared verbs named only as the request's bridge lists them; the distiller of the bridge fact sheet; and the case bridge-verbs-sheet, which runs the distiller's --check against the sheet itself.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0, before any delivery: the sheet case lives in tests/sheet/, out of the store job's glob, and runs here by name.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the measured facts. The case program-facts (tests/program-facts.test.cjs, in the store job's glob) holds the text writer 0.1.0 published on the test slot for LibreOffice Writer 24.2.7 (a fixture, byte for byte) to the words Lane G's pack inputs require and proves the request carries the facts; the case program-facts-inputs runs the new distiller's --check against the pack inputs by name.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the case failure-reasons: a failure report carries one line saying why, the writer gives up on its bot at 48 s and reports a timeout itself, and a kernel without the detail field gets the report without it.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the case production-failures, from production's first three refusals for LibreOffice Writer 24.2.7.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: the Windows 11 Notepad, Word and Excel. The case windows-programs (tests/windows-programs.test.cjs, in the store job's glob) proves Word's and Excel's declared verbs, Notepad's none, each Windows request's measured facts, and that the committed files hold what the package's own Windows inputs give; the case windows-sources checks those inputs against Orbit's code and the Windows PC's receipts by name. The instruction-writer case's request line follows the windows-uia entry. The production-failures expectation that quotes "declared": "<id>" is quoted as one YAML string: unquoted, its ": " made the whole catalog unreadable YAML (line 173, column 43, on main).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4 (Lane A5): PowerPoint. The case windows-programs also proves PowerPoint's six slide verbs and no alias, file verb or other program's verb, its request's measured facts, and that a PowerPoint text holding the measured words is published while one lacking verified is reported; the case windows-sources also checks PowerPoint's verbs against Orbit's POWERPOINT_VERBS.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4 (Lane A5): Lane G3's eleven Linux programs and Lane G4's wording. The case linux-programs (tests/linux-programs.test.cjs, in the store job's glob) proves that each of the eleven has its facts, that Chrome, VS Code, Firefox and Thunderbird say Orbit starts them readable and how a copy started unreadable is refused, that the committed Linux entries are what inputs/linux-pack-inputs.json gives, and that a Firefox text without G4's words is reported; the case linux-sources holds that file to Lane G's handover file and the tests its facts cite to the kernel checkout; program-facts-inputs runs --check over the package's own two inputs files.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.1.5 (Lane A6): Excel's create-pivot-table and add-chart (the Windows board's W9, kernel 06f12f46). The case windows-programs also proves Excel's nine verbs with no alias and no other Windows program naming the two, Excel's facts requiring both words and no longer forbidding them, and that a text 0.1.4's facts held Excel to is now reported while one naming the two is published; the case windows-sources also holds each Windows board entry a fact names to the Windows PC's entry of that time.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane GD1): the Godot 4 editor. The case godot-program (tests/godot-program.test.cjs, in the store job's glob) proves the seventeen Godot verbs and no other, the Godot request's measured facts, that the committed files hold what the package's own Godot inputs give, and that a Godot text lacking game-output is reported; the case godot-sources holds those inputs to Orbit's code and the kernel's real Godot suites by name.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane LX1): linux-programs also proves the nineteen everyday Linux programs Lane LX1 measured (each with its facts and citing test-linux-everyday-programs.cjs; qBittorrent, Claude and ChatGPT started readable by Orbit; File Roller's unpublished file list; no scan or download without the person asking), and linux-sources also holds the facts that cite test-linux-everyday-programs.cjs to the kernel checkout.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane BL1): Blender on Linux through the blender bridge. The case blender-program (tests/blender-program.test.cjs, in the store job's glob) proves Blender's sixteen verbs and no other program's, its request with its measured facts and room to be asked once more, the committed entries equal to the package's own Blender inputs, a Blender text published or reported, and the distillers' order; the case blender-sources (tests/sheet/blender-sources.test.cjs) holds the Blender sheet to BLENDER_ACTIONS in Orbit's code and every Orbit file a fact names to the kernel checkout.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane VS1): VS Code on the vscode bridge (Orbit's VS Code extension, kernel 7ed028e0). The case vscode-programs (tests/vscode-programs.test.cjs, in the store job's glob) proves VS Code's facts and the extension's twelve verbs, that a text may name them on vscode only and no LibreOffice verb, that the committed entries are what the package's own VS Code inputs give, and that a text without the run gate's words is reported; the case vscode-sources holds those inputs to Orbit's VSCODE_ACTIONS and to the real-VS Code suite and commits they cite.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7 (Lane BL2): Orbit's Blender add-on 1.1.0 declares thirty verbs, its game-asset families. blender-program proves the thirty and no other program's, the new facts in the request with room to be asked once more (edit-mesh's operation and faces, decimate to a budget, the character's order through make-action, export-glb's animations, import and bake, the Python gate's second switch), and that a text must hold edit-mesh and make-action and never the input name op; blender-sources holds the thirty to BLENDER_ACTIONS at kernel 4692a724 and the facts that cite test-blender-game-asset.cjs to the kernel checkout.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed Program Instructions readiness
+    purpose: Read installed package identity without grants, business records, a model or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is program-instructions at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: instruction-writer
+    name: The writer's tick, its text check and its service route
+    purpose: Verify what one tick sends and answers with a stand-in for the kernel's intent and bot rails (nothing to claim, one claim
+      published, an answer that fails the check, a bot turn that does not answer, a refused claim, a refused publication), the rules the
+      text check applies, the request text the writer bot gets, the route module on the gate's real Express router with a response that
+      has only status and json, and the manifest and persona declarations. No kernel, model, network or database is used.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/program-instructions.test.cjs
+    expected:
+      - The claim input is exactly {}; nothing to claim answers 200 with zero counts and asks nobody else.
+      - One claim takes one bot turn (instruction-writer, 2000 output tokens) and is published with exactly id, claim and body.
+      - An answer that fails the check, and a publication the kernel refuses, are reported as invalid-output; nothing is repaired, padded or published.
+      - A bot turn that does not answer is reported as over-budget, timeout, invalid-output or model-refused from the refusal's words.
+      - A refused claim, a refused failure report and an unusable request answer an error status with the kernel's words, never 200.
+      - The check enforces 200 to 8192 UTF-8 bytes, no control character but newline and tab, a first line starting with "# ", no tool_call or handoff block, and no http://, https:// or file:/ anywhere.
+      - A word starting with "computer." outside the contract's tools is refused anywhere in the text, in backticks or not; an action outside the contract is refused however its white space is spread.
+      - The texts the kernel's own test accepts and refuses get the same verdict, the prompt's data-fence marks included.
+      - '"declared": "<id>" passes only for a verb the bridge lists for the program; a bridge with no entry allows none; the tick reports such a text as invalid-output with no publication.'
+      - The request lists Writer's declared verbs for a LibreOffice Writer request, says none are known for the classic notepad on windows-uia, and stays under the package's 8 KiB request bound at the largest.
+      - The distiller keeps action names, verb ids by kind and the sheet's provenance, refuses a malformed sheet, and its --check passes on what it wrote and fails on a changed sheet.
+      - The request text names the program, version, platform, bridge and contract, never the row id or claim, and stays under 4 KiB at every accepted size.
+      - POST /write is the only served route and its factory asks for no authorization port; the package declares no authorization catalog, no application-authorization and no requires.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: bridge-verbs-sheet
+    name: The committed bridge verbs are what the bridge fact sheet gives now
+    purpose: Run the distiller's --check against the bridge fact sheet at OSHAL_BRIDGE_FACTS or its handover path. It fails, never skips,
+      when the sheet is absent, and it fails after the sheet is regenerated until lib/bridge-verbs.json is rewritten and committed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/bridge-verbs-sheet.test.cjs
+    expected:
+      - node scripts/bridge-verbs.cjs --check exits 0 and says the committed file is what the sheet gives now.
+    prerequisites:
+      - runner:node-test
+      - fixture:bridge-facts-sheet
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: program-facts
+    name: The writer is given the measured facts and a text is held to their words
+    purpose: Prove with the text writer 0.1.0 published on the test slot for LibreOffice Writer 24.2.7 on Linux (a byte-for-byte
+      fixture) that a text passing every earlier rule is refused when it lacks a word the measured facts require, that the request
+      for that program on its platform and bridge carries every fact, never-line and word, and that the distiller is pure and its
+      --check tells a current file from a stale one. Stand-in kernel rails as in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/program-facts.test.cjs
+    expected:
+      - The blue text passes checkBody and acceptanceProblem names the four words it lacks (add-on, "part", whole, verified).
+      - The tick reports such a text as invalid-output with no publication attempt; a text holding every word is published unchanged.
+      - The Writer request carries each measured fact, never-line, required and forbidden word and stays under 8 KiB; a program with no entry is asked as before.
+      - The distiller keeps facts, never-lines and words with the inputs' date and commit, refuses malformed inputs, and its --check passes on what it wrote and fails on changed inputs.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: program-facts-inputs
+    name: The committed program facts are what the pack inputs give now
+    purpose: Run the distiller's --check against the package's own inputs/linux-pack-inputs.json (or OSHAL_PACK_INPUTS) and
+      inputs/windows-pack-inputs.json. It fails, never skips, when the inputs are absent, and it fails after a program's facts or
+      words change until lib/program-facts.json is rewritten and committed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/program-facts-inputs.test.cjs
+    expected:
+      - node scripts/program-facts.cjs --check exits 0 and says the committed file is what the inputs give now.
+    prerequisites:
+      - runner:node-test
+      - fixture:pack-inputs
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: failure-reasons
+    name: A failure report says why, and a bot that does not answer in time is a timeout
+    purpose: Prove that every report of a version that was not written carries one line saying why (the writer's own check, the
+      kernel's refusal of a publication, the bot rail's refusal), that the writer gives up on its bot at its deadline and
+      reports a timeout itself before the kernel ends the package call, and that a kernel without the detail field gets the
+      same report without it. Stand-in kernel rails as in the package suite; the deadline is shortened by the tick's options.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/failure-reasons.test.cjs
+    expected:
+      - The blue text's report is invalid-output with the detail naming the four missing words.
+      - A refused publication's report carries the kernel's words; a refused bot turn's carries the rail's words.
+      - A bot that never answers is reported as timeout with the deadline in its detail, well before the tick's caller gives up.
+      - A kernel that refuses the detail field gets the report again without it; another refusal of the report stays an error.
+      - detailOf folds white space to one line of at most 240 characters and gives none for nothing.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: production-failures
+    name: Production's three refusals for Writer 24.2.7 do not repeat
+    purpose: From production's first runs (2026-11-13), prove that a placeholder such as <id> is not taken for a declared verb while a
+      verb-shaped name the bridge does not list is still refused, that the request lists every required word outright with its
+      quotation marks, and that an answer the package's own check refuses is asked about once more with the refusal's words only
+      when the first turn used at most a third of the deadline. Stand-in kernel rails with a fake clock; no model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/production-failures.test.cjs
+    expected:
+      - 'A text quoting "declared": "<id>" passes the check; "declared": "set-cells" in a Writer text is still refused in 0.1.1''s words.'
+      - The Writer request carries a "use each of these words" list holding all eight required words, one a line.
+      - A quick refused first answer gets a second request ending with the refusal's words; the second answer is published or reported.
+      - A first turn over 16 s, a bot rail refusal and a publication the kernel refuses get no second turn.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: windows-programs
+    name: The Windows 11 Notepad, Word, Excel and PowerPoint get their verbs and measured facts
+    purpose: Prove that a Word, Excel or PowerPoint text names only the declared verbs Orbit's Windows bridge declares for that program
+      and a Notepad text none, that each Windows request carries its program's measured facts and leaves room to be asked once more, that
+      lib/bridge-verbs.json and lib/program-facts.json hold exactly what inputs/windows-bridge-facts.json and
+      inputs/windows-pack-inputs.json give, that each fact names the Windows PC's receipt it comes from, and that both distillers
+      merge their sources. Stand-in kernel rails as in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/windows-programs.test.cjs
+    expected:
+      - Word's six edit verbs and Excel's nine spreadsheet verbs pass; a file verb or another program's verb is refused in the windows-uia words; Notepad names none.
+      - Excel's create-pivot-table and add-chart pass with no alias (insert-chart, create-chart, pivot-table refused) and Word, PowerPoint and Notepad name neither; Excel's facts require both words, forbid neither and no longer say pivot tables and charts are not Excel verbs, while its file verbs stay refused.
+      - A text 0.1.4's facts held Excel 16.0.20527.20196 to is reported invalid-output for lacking create-pivot-table and add-chart; one naming them is published unchanged.
+      - PowerPoint's six slide verbs pass; new-slide, insert-slide, a file verb or a Word or Excel verb is refused, and Word, Excel and Notepad name no slide verb.
+      - Each Windows request lists its verbs (or says none are known) and every fact, never-line and word, and a second request still fits under 8 KiB.
+      - The committed Windows entries equal what the package's own inputs give, and every fact's evidence names a receipt or an Orbit source.
+      - A Word text and a PowerPoint text holding the measured words are published unchanged; one lacking verified is reported invalid-output with that word.
+      - Both distillers merge their sources in order with each source's provenance and refuse a bridge or a program named twice.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: windows-sources
+    name: The Windows inputs are what Orbit's code and the Windows PC's receipts say
+    purpose: Check inputs/windows-bridge-facts.json against Orbit's code (Word's, Excel's and PowerPoint's verbs are WORD_VERBS, EXCEL_VERBS
+      and POWERPOINT_VERBS, each at the line it names) and inputs/windows-pack-inputs.json against its evidence (every receipt and source file named exists), in
+      the kernel checkout at OSHAL_KERNEL_ROOT and the receipts at OSHAL_WINDOWS_PROOFS or their default folders. It fails, never
+      skips, when either is absent, and it fails when Orbit declares other verbs until the inputs are rewritten and committed.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/windows-sources.test.cjs
+    expected:
+      - The Word, Excel and PowerPoint verb lists equal Orbit's WORD_VERBS, EXCEL_VERBS (create-pivot-table and add-chart included) and POWERPOINT_VERBS and each named source line holds its verb.
+      - Every windows/proofs receipt and desktop/oshal-node file (.ts, .rs or .cjs) a fact names exists, and every windows/FROM-WINDOWS.md entry a fact names is the Windows PC's entry of that time.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+      - fixture:windows-proofs
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: godot-program
+    name: The Godot 4 editor gets its seventeen verbs and measured facts
+    purpose: Prove that a Godot text names only the seventeen verbs Orbit's Godot add-on declares, that the Godot request carries its
+      measured facts and leaves room to be asked once more, that lib/bridge-verbs.json and lib/program-facts.json hold exactly what
+      inputs/godot-bridge-facts.json and inputs/godot-pack-inputs.json give, that each fact names the Godot test or Orbit source it
+      comes from, and that a Godot text holding the measured words is published while one lacking game-output is reported. Stand-in
+      kernel rails as in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/godot-program.test.cjs
+    expected:
+      - The seventeen Godot verbs pass on the godot bridge for program godot; insert-paragraph, save-document, set-cells, add-slide and export-document are refused in the godot words.
+      - The Godot request lists the verbs under one kind and every fact, never-line and word, and a second request still fits under 8 KiB.
+      - The committed godot entries equal what the package's own Godot inputs give; the godot bridge's actions are snapshot, invoke and undo.
+      - A Godot text holding the measured words is published unchanged; one lacking game-output is reported invalid-output with that word.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: godot-sources
+    name: The Godot inputs are what Orbit's code and the real Godot suites say
+    purpose: Check inputs/godot-bridge-facts.json against Orbit's code (the verbs are GODOT_ACTIONS, each at the line it names, and each
+      action names the bridge method that runs it) and inputs/godot-pack-inputs.json against its evidence (every Godot test it names is
+      a test in the kernel's Godot suites and every Orbit file it names exists), in the kernel checkout at OSHAL_KERNEL_ROOT or its
+      default folder. It fails, never skips, when the checkout is absent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/godot-sources.test.cjs
+    expected:
+      - The Godot verb list equals Orbit's GODOT_ACTIONS ids in order and each named source line holds its verb.
+      - Every Godot test a fact names is in test-godot-editor.cjs, test-godot-dock.cjs or test-godot-addon.cjs, and every Orbit file it names exists.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: linux-programs
+    name: Lane G3's Linux programs get their measured facts, with Lane G4's words
+    purpose: Prove that Chrome, Firefox, Thunderbird, VS Code, Mousepad, Document Viewer, Files, Thunar, Okular, Image Viewer and Xfce
+      Terminal each have measured facts, that Chrome, VS Code, Firefox and Thunderbird say Orbit starts them readable when it opens
+      them and how a copy started unreadable is refused, that the committed Linux entries are exactly what
+      inputs/linux-pack-inputs.json gives, and that every Linux request leaves room to be asked once more. Stand-in kernel rails as
+      in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/linux-programs.test.cjs
+    expected:
+      - Each of the eleven programs has facts for linux and linux-atspi.
+      - Each of Lane LX1's nineteen everyday programs has facts for linux and linux-atspi, each citing test-linux-everyday-programs.cjs.
+      - qBittorrent, Claude and ChatGPT quote the started-without-accessibility refusal and computer.open in their first fact; File Roller says its file list is not published; Document Scanner and Transmission never act without the person asking.
+      - The four programs Orbit starts readable require started without accessibility and quote G4's refusal in their first fact.
+      - The committed Linux entries equal what inputs/linux-pack-inputs.json gives, and each Linux request and its second ask fit under 8 KiB.
+      - A Firefox text holding the measured words is published; one without started without accessibility is reported invalid-output.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: linux-sources
+    name: The package's Linux inputs are Lane G's, amended only by Lane G4
+    purpose: Hold inputs/linux-pack-inputs.json to Lane G's pack-inputs.json at its handover path (every program not named as amended
+      is as Lane G wrote it, each amended one cites 6602c84d), and check that every test of test-linux-any-program.cjs,
+      test-linux-open-readable.cjs and test-linux-everyday-programs.cjs a Linux fact names is in the kernel checkout at OSHAL_KERNEL_ROOT or its default folder. It fails,
+      never skips, when either is absent, and it fails when Lane G changes its file until the copy is brought up to date.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/linux-sources.test.cjs
+    expected:
+      - The programs and their order are Lane G's; each program not named as amended equals Lane G's entry; each amended one cites 6602c84d.
+      - Every test title a Linux fact cites is in the kernel's Linux suites.
+    prerequisites:
+      - runner:node-test
+      - fixture:pack-inputs
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: blender-program
+    name: Blender gets its thirty verbs and measured facts
+    purpose: Prove that a Blender text names only the thirty declared verbs Orbit's Blender add-on declares on the open .blend and no
+      other program's, that Blender's request lists them and carries its measured facts with room to be asked once more, that
+      lib/bridge-verbs.json and lib/program-facts.json hold exactly what inputs/blender-bridge-facts.json and inputs/blender-pack-inputs.json
+      give, that each fact names the real-Blender suite or an Orbit source, and that both distillers take the Blender files after the
+      Windows ones. Stand-in kernel rails as in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/blender-program.test.cjs
+    expected:
+      - Blender's thirty verbs pass on the blender bridge; save-document, insert-paragraph, set-cells, add-slide and unlisted Blender-sounding names are refused in the blender words.
+      - Blender's request lists its verbs under scene (Blender) and every fact, never-line and word, and a second request still fits under 8 KiB.
+      - The committed Blender entries equal what the package's own Blender inputs give, and most facts cite the real-Blender suite.
+      - A Blender text holding the measured words is published unchanged; one lacking res:// is reported invalid-output with that word.
+      - The default sheets and inputs end with the Blender files.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: blender-sources
+    name: The Blender inputs are what Orbit's code says
+    purpose: Check inputs/blender-bridge-facts.json against Orbit's code (the verbs are BLENDER_ACTIONS in
+      desktop/oshal-node/src/main/bridges/blender-actions.ts, in order, each at the line it names; each action at the Blender bridge's
+      method that runs it) and inputs/blender-pack-inputs.json against its evidence (every Orbit file a fact names exists), in the kernel
+      checkout at OSHAL_KERNEL_ROOT or its default folder. It fails, never skips, when the checkout is absent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/blender-sources.test.cjs
+    expected:
+      - The Blender verb list equals Orbit's BLENDER_ACTIONS and each named source line holds its verb; each action's line is its method.
+      - Every desktop/oshal-node or crates file and test-blender suite a fact names exists in the kernel checkout.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: vscode-programs
+    name: VS Code on the vscode bridge gets its measured facts and the extension's verbs
+    purpose: Prove that VS Code (com.microsoft.vscode) on the vscode bridge, Orbit's VS Code extension, has its measured facts and the
+      extension's twelve declared verbs, that a text may name those verbs on vscode and not on linux-atspi and names no LibreOffice verb,
+      that the committed entries equal what inputs/vscode-pack-inputs.json and inputs/vscode-bridge-facts.json give, and that a text
+      holding the measured words is published while one without the run gate's words (confirmed true, Nothing was run) is reported.
+      Stand-in kernel rails as in the package suite; no kernel, model or network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/vscode-programs.test.cjs
+    expected:
+      - VS Code has facts for linux and vscode, and its request lists the twelve verbs and fits a second ask under 8 KiB.
+      - Each of the twelve verbs passes the text check on vscode; save-document, open-document, insert-paragraph and find-replace do not.
+      - The committed vscode entries equal what the package's own VS Code inputs give, and every fact cites a real-VS Code test.
+      - A VS Code text holding the measured words is published; one without confirmed true and Nothing was run is reported.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: vscode-sources
+    name: The package's VS Code inputs are what Orbit's code and its real-VS Code suite say
+    purpose: Hold inputs/vscode-bridge-facts.json to VSCODE_ACTIONS in the kernel checkout (desktop/oshal-node/src/main/bridges/vscode-actions.ts,
+      in order, each at the line it names) and check that every test and commit a fact of inputs/vscode-pack-inputs.json cites is in the
+      kernel checkout at OSHAL_KERNEL_ROOT or its default folder. It fails, never skips, when that is absent.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sheet/vscode-sources.test.cjs
+    expected:
+      - The vscode bridge's verbs are VSCODE_ACTIONS' ids, each at its source line.
+      - Every test title and commit a VS Code fact cites is in the kernel checkout.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never

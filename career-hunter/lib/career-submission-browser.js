@@ -1,4 +1,8 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Execute four individually permitted, distinct form steps with fixed per-press pictures and conservative outcomes.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Recognize accented résumé document labels without changing applicant-fact matching; name the actual permitted step in uncertain outcomes.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Consume the one-use permit before any employer button; hold Continue/Apply outcomes without a second press.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prefer the approved résumé for combined upload fields and count only the verified document actually attached.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Compose worker network guards and preserve an unknown outcome when the final-action acknowledgement is lost.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Fill approved application facts with semantic browser controls, verify packet bytes and retain conservative final-submit evidence without per-field vision turns.
  */
@@ -8,6 +12,7 @@ const path = require('node:path');
 const {FIELD_DEFINITIONS} = require('./autofill-bookmarklet');
 const queue = require('./career-submission-queue');
 const normalized = value => String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const documentWords = value => normalized(String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,''));
 const compact = value => normalized(value).replace(/ /g,'');
 const CONFIRMATION = /(?:thank you for (?:applying|your application)|your application (?:has been|was) (?:successfully )?(?:submitted|received)|we (?:have |have successfully )?received your application|application submitted successfully)/i;
 const NEVER_ANSWER = /(?:reference|referee|emergency contact|supervisor|manager(?:'s)? email|password|one time|verification code|social security|national insurance|bank account)/i;
@@ -52,7 +57,9 @@ function validateTask(task,dir,fixtureOrigin) {
   if(task?.version!==1||task.mode!=='submit'||task.approved!==true||!task.profile||Array.isArray(task.profile)
       ||Object.entries(task.profile).some(([k,v])=>k.length>80||typeof v!=='string'||v.length>2000))
     throw new NeedsYou('The worker did not receive one approved application.');
+  if(!Number.isInteger(task.maxPresses??1)||(task.maxPresses??1)<1||(task.maxPresses??1)>6)throw new NeedsYou('The approved press bound is invalid.');
   const bound=queue.binding(task,fixtureOrigin);
+  if(task.maxPresses==null)delete bound.maxPresses;else bound.maxPresses=task.maxPresses;
   if(queue.jsonDigest(bound)!==task.packetDigest||queue.jsonDigest(task.profile)!==task.profileSha256)
     throw new NeedsYou('The approved application facts or packet changed.');
   return {resume:packetFile(dir,'Resume_ATS.pdf',task.resumeSha256),
@@ -93,14 +100,14 @@ async function fillKnown(page,profile,metrics,scope) {
 async function upload(page,packet,uploaded,metrics,scope) {
   for(const control of (await controls(page)).filter(c=>c.formIndex===scope)) {
     if(control.type!=='file'||control.disabled)continue;
-    const text=normalized([control.label,control.aria,control.name,control.id].join(' '));
-    const kind=/cover|letter/.test(text)?'cover':/resume|curriculum|\bcv\b/.test(text)?'resume':null;
+    const text=documentWords([control.label,control.aria,control.name,control.id].join(' '));
+    const kind=/resume|curriculum|\bcv\b/.test(text)?'resume':/cover|letter/.test(text)?'cover':null;
     if(!kind||!packet[kind]||uploaded.has(control.index))continue;
     await page.locator('input,textarea,select').nth(control.index).setInputFiles(packet[kind]);metrics.actions++;
     const committed=await page.locator('input,textarea,select').nth(control.index).evaluate(e=>[...e.files||[]].map(f=>({name:f.name,size:f.size})));
     if(committed.length!==1||committed[0].name!==path.basename(packet[kind])||committed[0].size!==fs.statSync(packet[kind]).size)
       throw new NeedsYou('The employer form did not retain the approved PDF upload.');
-    uploaded.add(control.index);
+    uploaded.set(control.index,kind);
   }
 }
 async function missingRequired(page,scope) {
@@ -119,7 +126,7 @@ async function oneButton(page,expression,scope) {
 }
 
 function applicationScope(snapshot,origin) {
-  let scopes=[...new Set(snapshot.filter(c=>c.type==='file'&&/resume|curriculum|\bcv\b/.test(normalized([c.label,c.name,c.id].join(' ')))).map(c=>c.formIndex))];
+  let scopes=[...new Set(snapshot.filter(c=>c.type==='file'&&/resume|curriculum|\bcv\b/.test(documentWords([c.label,c.name,c.id].join(' ')))).map(c=>c.formIndex))];
   if(!scopes.length)scopes=[...new Set(snapshot.map(c=>c.formIndex))].filter(index=>{
     const keys=snapshot.filter(c=>c.formIndex===index&&c.visible).map(fieldKey);
     return keys.includes('email')&&(keys.includes('fullName')||keys.includes('firstName'));
@@ -131,22 +138,55 @@ function applicationScope(snapshot,origin) {
   return scope;
 }
 
-/**
- * One fresh, worker-owned page per application. Hooks come from native held-work admission:
- * check revalidates original authority; beforeSubmit durably consumes the one final-click intent.
- * This function never reconnects, retries Submit, accesses a mailbox, or invents a required fact.
- */
+/** Choose exactly one visible employer control; fill only the recognized application form. */
+async function chooseStep(page,task,state,checkpoint,origin) {
+  await checkpoint();const fields=await controls(page);
+  if(!fields.some(c=>c.visible&&!['hidden','submit','button','reset'].includes(c.type))) {
+    if(state.allowedForm)throw new NeedsYou('No next application form was recognized.');
+    const button=await oneButton(page,/^(?:apply|apply now|apply for this job)$/i);
+    if(!button)throw new NeedsYou('Open the application form or complete its sign-in first.');
+    return {button,kind:'open',label:await buttonLabel(button),scope:null};
+  }
+  const scope=applicationScope(fields,origin);
+  await fillKnown(page,task.profile,state.metrics,scope);await checkpoint();
+  const uploaded=new Map();await upload(page,state.packet,uploaded,state.metrics,scope);
+  state.uploadedResume ||= [...uploaded.values()].includes('resume');
+  state.uploadedCover ||= [...uploaded.values()].includes('cover');
+  state.documentWarnings=state.packet.cover&&!state.uploadedCover?['The cover letter had no place to go; only the résumé was attached.']:[];
+  const missing=await missingRequired(page,scope);
+  if(missing.length)throw new NeedsYou('Approved answers are needed for: '+missing.slice(0,8).map(q=>q.text).join('; '),missing.slice(0,20));
+  let button=await oneButton(page,/^(?:submit|submit application|send application)$/i,scope),kind='submit';
+  if(button&&!state.uploadedResume)throw new NeedsYou('Verify that the employer received the approved resume before submission.');
+  if(!button){button=await oneButton(page,/^(?:next|continue|review application)$/i,scope);kind='continue';}
+  if(!button)throw new NeedsYou('Review the form’s remaining controls before submission.');
+  return {button,kind,label:await buttonLabel(button),scope};
+}
+async function buttonLabel(button){
+  const label=await button.evaluate(e=>(e.getAttribute('aria-label')||e.innerText||e.value||'').trim());
+  if(!label||label.length>80||/[\x00-\x1f\x7f]/.test(label))throw new NeedsYou('Review this application button’s words.');
+  return label;
+}
+async function sequence(page,task,state,hooks,checkpoint,origin,blocked,timeoutMs){
+  for(let step=1;step<=(task.maxPresses??1);step++){
+    const chosen=await chooseStep(page,task,state,checkpoint,origin);
+    const confirmed=await require('./career-submission-steps').press(page,chosen,state,hooks,checkpoint,origin,blocked,CONFIRMATION,timeoutMs);
+    if(confirmed){state.milestones.push('employer_confirmation_visible');return confirmed;}
+  }
+  throw new NeedsYou('Career reached the approved number of presses and stopped.');
+}
+/** Fresh page and exact packet; every distinct press requires a native permit and report. */
 async function runSubmission(page,task,dir,hooks,{fixtureOrigin,timeoutMs=10000}={}) {
-  const started=Date.now(),metrics={actions:0,screenshots:0},milestones=[];
-  let sent=false,consumed=false,blocked=false,guard=null;
-  const result=(status,reason,extra={})=>({version:1,submissionId:task?.submissionId,postingId:task?.postingId,status,reason,
-    elapsedMs:Date.now()-started,actions:metrics.actions,screenshots:metrics.screenshots,milestones,...extra});
+  const started=Date.now(),state={metrics:{actions:0,screenshots:0},milestones:[],presses:[],pictures:[],fingerprints:new Set(),uncertain:false,allowedForm:false};
+  let blocked=false,guard=null;
+  const result=(status,reason,extra={})=>({version:1,submissionId:task?.submissionId,postingId:task?.postingId,status,
+    elapsedMs:Date.now()-started,...state.metrics,milestones:state.milestones,review:state.review,presses:state.presses,pressPictures:state.pictures,pictureResized:!!state.pictureResized,...extra,
+    documentWarnings:state.documentWarnings||[],reason:[reason,...(state.documentWarnings||[])].join(' ')});
   const checkpoint=async()=>{
     if(blocked)throw new NeedsYou('The form attempted to leave the approved employer.');
     if(!hooks||typeof hooks.check!=='function'||await hooks.check()!==true)throw new NeedsYou('Submission authorization is no longer current.');
   };
   try {
-    const packet=validateTask(task,dir,fixtureOrigin),origin=new URL(packet.url).origin;
+    state.packet=validateTask(task,dir,fixtureOrigin);const origin=new URL(state.packet.url).origin;
     page.setDefaultTimeout(timeoutMs);page.setDefaultNavigationTimeout(timeoutMs);
     guard=async route=>{
       const request=route.request(),url=new URL(request.url());
@@ -154,70 +194,16 @@ async function runSubmission(page,task,dir,hooks,{fixtureOrigin,timeoutMs=10000}
       if((request.isNavigationRequest()||changesData)&&url.origin!==origin) {blocked=true;await route.abort('blockedbyclient');}
       else await route.fallback();
     };
-    await page.route('**/*',guard);
-    await checkpoint();await page.goto(packet.url,{waitUntil:'domcontentloaded'});metrics.actions++;
+    await page.route('**/*',guard);await checkpoint();
+    await page.goto(state.packet.url,{waitUntil:'domcontentloaded'});state.metrics.actions++;
     if(new URL(page.url()).origin!==origin)throw new NeedsYou('Review the employer redirect before sending application data.');
-    milestones.push('posting_opened');
-    const initial=await page.locator('body').innerText();
-    if(CONFIRMATION.test(initial))throw new NeedsYou('This page already shows an application receipt. Review it before submitting again.');
-    let uploadedResume=false;
-    for(let step=0;step<6;step++) {
-      await checkpoint();
-      let fields=await controls(page);
-      if(!fields.some(c=>c.visible&&c.type!=='hidden'&&c.type!=='submit')) {
-        const apply=await oneButton(page,/^(?:apply|apply now|apply for this job)$/i);
-        if(!apply)throw new NeedsYou('Open the application form or complete its sign-in first.');
-        await apply.click();metrics.actions++;
-        await page.locator('input:not([type=hidden]),textarea,select').first().waitFor({state:'attached'});
-      }
-      const scope=applicationScope(await controls(page),origin);
-      await checkpoint();await fillKnown(page,task.profile,metrics,scope);
-      await checkpoint();
-      const uploaded=new Set();await upload(page,packet,uploaded,metrics,scope);
-      uploadedResume=uploadedResume||(await controls(page)).some(c=>c.formIndex===scope&&c.type==='file'&&c.value&&/resume|curriculum|\bcv\b/.test(normalized([c.label,c.name,c.id].join(' '))));
-      fields=await missingRequired(page,scope);
-      if(fields.length)throw new NeedsYou('Approved answers are needed for: '+fields.slice(0,8).map(q=>q.text).join('; '),fields.slice(0,20));
-      const submit=await oneButton(page,/^(?:submit|submit application|send application)$/i,scope);
-      if(submit) {
-        if(!uploadedResume)throw new NeedsYou('Verify that the employer received the approved resume before submission.');
-        await checkpoint();
-        const review=await page.screenshot({type:'png'});metrics.screenshots++;
-        milestones.push('approved_fields_filled','resume_uploaded','review_captured');
-        let authorized=false;
-        if(typeof hooks.beforeSubmit==='function'){
-          try{authorized=await hooks.beforeSubmit()===true;}
-          catch{consumed=true;throw new NeedsYou('The final-action acknowledgement was lost. Check the employer outcome before retrying.');}
-        }
-        if(!authorized)throw new NeedsYou('Final submission was not authorized for this exact packet.');
-        consumed=true;await checkpoint();
-        const before=await page.locator('body').innerText();
-        if(CONFIRMATION.test(before))throw new NeedsYou('A receipt appeared before Submit. Review the existing application.');
-        sent=true;await submit.click();metrics.actions++;
-        await page.waitForFunction(({source,flags})=>new RegExp(source,flags).test(document.body?.innerText||''),
-          {source:CONFIRMATION.source,flags:CONFIRMATION.flags},{timeout:timeoutMs});
-        await checkpoint();
-        const text=await page.locator('body').innerText(),match=text.match(CONFIRMATION);
-        if(!match)throw new NeedsYou('The employer response needs review.');
-        const confirmation=await page.screenshot({type:'png'});metrics.screenshots++;
-        milestones.push('final_submit_clicked','employer_confirmation_visible');
-        return result('submitted','Employer confirmation is visible.',{confirmationText:match[0],
-          confirmationSha256:queue.digest(confirmation),confirmation,review});
-      }
-      const next=await oneButton(page,/^(?:next|continue|review application)$/i,scope);
-      if(!next)throw new NeedsYou('Review the form’s remaining controls before submission.');
-      const previousText=await page.locator('body').innerText(),previousUrl=page.url();
-      await next.click();metrics.actions++;
-      await page.waitForFunction(({text,url})=>location.href!==url||(document.body?.innerText||'')!==text,
-        {text:previousText,url:previousUrl},{timeout:timeoutMs});
-    }
-    throw new NeedsYou('The application has more steps than this worker supports.');
+    state.milestones.push('posting_opened');
+    if(CONFIRMATION.test(await page.locator('body').innerText()))throw new NeedsYou('This page already shows an application receipt. Review it before submitting again.');
+    const evidence=await sequence(page,task,state,hooks,checkpoint,origin,()=>blocked,timeoutMs);
+    return result('submitted',evidence.reason,evidence);
   } catch(error) {
-    // A timed-out final click may have reached the employer. Never turn it into an automatic retry.
-    return result(sent||consumed?'unknown':'needs_you',error instanceof NeedsYou?error.message:
-      sent?'The final outcome is uncertain. Check the employer before retrying.':'The form could not be completed; review its current state.',
+    return result(state.allowedForm||state.uncertain?'unknown':'needs_you',error.message||'The form could not be completed; review its current state.',
       {questions:error instanceof NeedsYou?error.questions:[]});
-  } finally {
-    if(guard)await page.unroute('**/*',guard).catch(()=>{});
-  }
+  } finally {if(guard)await page.unroute('**/*',guard).catch(()=>{});}
 }
 module.exports={runSubmission,fieldKey,validateTask};

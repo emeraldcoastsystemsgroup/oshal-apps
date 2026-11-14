@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | Pin Publishing Studio's publishing-social-publish (runsAs: user, 0.5.0): the person's own job that sends their due scheduled social posts (RP-PUB-07).
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | Pin Intelligent Communication's mail-watches (runsAs: user, 1.8.0): the person's own 5-minute deterministic Gmail watch check that reports only unseen security/priority alert arrivals (such as TotalConnect).
  * 13 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's career-source-maintenance (runsAs: user, 1.54.0): a Career administrator's own morning job that reports what last night's source maintenance newly left for a person. Its route reads the shared corpus only and answers 403 for anyone who is not a Career administrator.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com  | Pin Program Instructions' write-instructions (runsAs: system, 0.1.0): the installation's writer of per-program instruction text, activated once by a swarm administrator; it serves no person and reads no person's data.
  */
 
 import test from 'node:test';
@@ -43,6 +44,7 @@ const DECLARED = [
   ['lora', 'lora-autonomous-overnight', 'system'],
   ['marketing-engine', 'daily-metrics-ingest', 'system'],
   ['marketing-engine', 'weekly-campaign-review', 'system'],
+  ['program-instructions', 'write-instructions', 'system'],
   ['publishing-studio', 'publishing-social-publish', 'user'],
   ['sports-edge', 'refresh-pass', 'user'],
   ['trading', 'oshal-daily-report', 'user'],

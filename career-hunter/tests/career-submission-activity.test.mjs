@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Verify shared per-press words and picture links in the expanded activity page.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -110,4 +111,16 @@ test('a job Career only picked is not activity', async () => {
     assert.deepEqual(await page.locator('.activity-row .rtitle').allInnerTexts(), ['Warehouse Supervisor']);
     assert.doesNotMatch(await page.locator('body').innerText(), /Waiting for your approval/);
   } finally { await context.close(); }
+});
+
+test('expanded activity shows the same press words and digest-backed picture addresses',async()=>{
+  const items=[{id:'press-story',postingId:4,title:'Fixture',status:'unknown',updatedAt:new Date().toISOString(),pressesAllowed:4,
+    presses:[{step:1,kind:'continue',label:'Continue',result:'unknown',origin:'https://jobs.example.com'}],pressPictures:[{step:1,file:'kept.png'}]}];
+  const f=await openScreen(browser,'career-submissions.html',api({items}),DESKTOP);
+  try{
+    await f.page.getByRole('link',{name:/View activity/}).click();
+    assert.match(await f.page.locator('.story').innerText(),/Step 1 of up to 4/);
+    assert.match(await f.page.locator('.story').innerText(),/The page did not move on in 10 seconds/);
+    assert.equal(await f.page.locator('img[src$="/press-story/press-picture/1"]').count(),1);
+  }finally{await f.context.close();}
 });

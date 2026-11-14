@@ -17,6 +17,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance on the Companies page: the list carries the newest maintenance report, the decisions waiting for a person and the open repair briefs; POST /companies-admin/keep saves "keep trying" for the next nightly pull, refusing an employer with no decision waiting; POST /companies-admin/maintenance-report answers the daily briefing job.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The page a refused person meets says job source administrator, the label the role template now carries (was Career Hunter administrator). Words only.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Prepare original-owner native human decision tickets, reconcile exact confirmed outcomes and refuse generic source-change bypasses.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: one concierge that can do everything in the app): GET /companies-admin/list?q=<name>&limit=<1 to 25> answers only the employers whose name holds the words, for the concierge's career_companies tool; the whole list is past what one tool answer may carry, so a search with no name (search=1) answers none and says to name one. The Companies page sends neither and reads what it always read. Add, Remove, Put back and the board link take their inputs from the address, as the page sends them, or from the JSON body, as a tool sends its input. Guard: tests/career-concierge-tools.test.mjs.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCareerAdmin = isCareerAdmin;
@@ -134,6 +135,23 @@ const requireCareerAdmin = (req, res, next) => {
 function canChangeSources() {
     return process.env.OSHAL_EGRESS !== 'kernel';
 }
+/**
+ * A search by name (`?q=`, at least two characters; `?limit=` 1 to 25), for the concierge: the few employers whose name
+ * holds the words, each as the page lists it, without the page's whole-list reports. The page itself sends no `q`.
+ */
+function searchCompanies(db, q, limit, res) {
+    const like = `%${q.replace(/[\\%_]/g, (mark) => '\\' + mark)}%`;
+    const found = db.prepare(`SELECT c.id, c.name, c.ats_type, c.ats_token, c.careers_url, c.discover_status,
+            (SELECT COUNT(*) FROM corpus.postings_corpus p WHERE p.company_id=c.id AND p.active=1) AS active_jobs
+       FROM corpus.companies c
+      WHERE c.name LIKE ? ESCAPE '\\'
+      ORDER BY active_jobs DESC, c.name
+      LIMIT ?`).all(like, limit + 1);
+    const health = sourceHealthByCompany(db);
+    res.json({ companies: found.slice(0, limit).map((company) => ({ ...company,
+            pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' } })),
+        more: found.length > limit, sourceChangeMode: canChangeSources() ? 'now' : 'next-pull' });
+}
 function listCompanies(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     const db = userSub && (0, career_user_store_1.openCorpusDb)();
@@ -142,6 +160,17 @@ function listCompanies(req, res) {
         return;
     }
     try {
+        const q = typeof req.query?.q === 'string' ? req.query.q.trim().slice(0, 120) : '';
+        if (req.query?.search !== undefined && q.length < 2) {
+            // The concierge's search with no name yet: never the whole list, which is past what one tool answer carries.
+            res.json({ companies: [], more: false, message: 'Name the employer to look for, with at least two characters.',
+                sourceChangeMode: canChangeSources() ? 'now' : 'next-pull' });
+            return;
+        }
+        if (q.length >= 2) {
+            searchCompanies(db, q, Math.min(25, Math.max(1, parseInt(String(req.query?.limit ?? '10'), 10) || 10)), res);
+            return;
+        }
         const companies = db.prepare(`SELECT c.id, c.name, c.ats_type, c.ats_token, c.careers_url, c.discover_status, c.source_lists,
               (SELECT COUNT(*) FROM corpus.postings_corpus p WHERE p.company_id=c.id AND p.active=1) AS active_jobs
          FROM corpus.companies c
@@ -162,10 +191,18 @@ function listCompanies(req, res) {
         db.close();
     }
 }
+/**
+ * One input of a change: from the address, as the Companies page sends it, or from the JSON body, as the concierge's
+ * tools send it (a tool's input is its request body).
+ */
+function given(req, name) {
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    return req.query?.[name] ?? body[name];
+}
 /** The change waits in the caller's store; the kernel hands it on only if this admission holds the permission. */
 function queueSourceChange(req, res, userSub) {
-    const companyId = parseInt(String(req.query.companyId ?? ''), 10);
-    const target = validTarget(req.query.board ?? req.query.url);
+    const companyId = parseInt(String(given(req, 'companyId') ?? ''), 10);
+    const target = validTarget(given(req, 'board') ?? given(req, 'url'));
     if (!companyId || companyId < 1 || !target) {
         res.status(400).json({ ok: false, error: 'A company and a job board link are required.' });
         return;
@@ -216,7 +253,7 @@ function corpusEmployerNamed(name) {
 }
 /** What to queue for Add: the target under the placeholder id, or an answer that refuses it. */
 function addRequest(req) {
-    const added = addTarget(req.query.name, req.query.url);
+    const added = addTarget(given(req, 'name'), given(req, 'url'));
     if (!added)
         return { status: 400, error: 'An employer name (2 to 120 characters) and its careers page or job board link (http or https) are required.' };
     const listed = corpusEmployerNamed(added.name);
@@ -246,7 +283,7 @@ function keepRequest(companyId, listed) {
 }
 /** What to queue for Remove, Put back or Keep trying on a listed employer, or an answer that refuses it. */
 function employerRequest(req, kind) {
-    const companyId = parseInt(String(req.query.companyId ?? ''), 10);
+    const companyId = parseInt(String(given(req, 'companyId') ?? ''), 10);
     if (!companyId || companyId < 1)
         return { status: 400, error: 'A company is required.' };
     const listed = corpusCompany(companyId);
@@ -425,8 +462,8 @@ async function setCompanyUrl(ctx, req, res) {
         queueSourceChange(req, res, userSub);
         return;
     }
-    const companyId = parseInt(String(req.query.companyId ?? ''), 10);
-    const url = String(req.query.url ?? '').trim();
+    const companyId = parseInt(String(given(req, 'companyId') ?? ''), 10);
+    const url = String(given(req, 'url') ?? given(req, 'board') ?? '').trim();
     if (!companyId || !url) {
         res.status(400).json({ error: 'companyId and url required' });
         return;
