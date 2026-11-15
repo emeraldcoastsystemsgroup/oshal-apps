@@ -12,6 +12,8 @@
  *   the kernel places the caller's own google-calendar grant. No connection, an expired one, or a grant that may only read the
  *   calendar answers 409 in words saying what to connect; nothing is written to Google before the approval, and a second approval
  *   of the same series is refused by Google itself through a client-chosen event id (one removed in Google is restored).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the time parser, the day arithmetic and the one Calendar API request are exported
+ *   for the meeting changes and cancellations (google-meetings.ts), so a changed meeting's times are read exactly as an added one's.
  */
 /** Events the person adds to their own primary Google Calendar, one event or one repeating series per approved card. */
 import { Router } from 'express';
@@ -46,7 +48,7 @@ const NEEDS_ZONE = 'A start time needs the person\'s time zone: send "timeZone" 
 const RATE_LIMITS = ['rateLimitExceeded', 'userRateLimitExceeded', 'quotaExceeded', 'calendarUsageLimitsExceeded', 'dailyLimitExceeded', 'RATE_LIMIT_EXCEEDED'];
 
 /** The start or end of an event: its calendar date, the instant it names (midnight UTC for a date) and what Google is sent. */
-interface When { date: string; instant: string; google: { date?: string; dateTime?: string; timeZone?: string } }
+export interface When { date: string; instant: string; google: { date?: string; dateTime?: string; timeZone?: string } }
 /** A validated event: what Google is sent and the words the answer and the duplicate refusal use. */
 export interface GoogleEvent { google: any; title: string; allDay: boolean; zone: string | null; start: When; end: When; rule: string | null; repeat: string | null }
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -57,7 +59,8 @@ function realDay(text: string): boolean {
   const at = new Date(`${text}T00:00:00.000Z`);
   return DAY.test(text) && !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === text;
 }
-const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+/** A calendar date moved by whole days. */
+export const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
 const weekday = (date: string) => new Date(`${date}T00:00:00.000Z`).getUTCDay();
 /** A date in the words people read: 'Fri, Nov 13, 2026'. */
 export function dayWords(date: string): string {
@@ -73,7 +76,7 @@ export function dayWords(date: string): string {
  * @param allDay - Whether the event is all day (decided by the start).
  * @returns The time, or null when it is not a real date or time of the event's kind.
  */
-function when(text: string, zone: string | null, allDay: boolean): When | null {
+export function when(text: string, zone: string | null, allDay: boolean): When | null {
   if (allDay) return realDay(text) ? { date: text, instant: `${text}T00:00:00.000Z`, google: { date: text } } : null;
   const wall = WALL.exec(text);
   if (wall) {
@@ -236,7 +239,8 @@ async function legacyToken(ctx: AppContext, sub: string): Promise<string | null>
   return getValidAccessToken(ctx.pool, sub, 'google');
 }
 
-type Sent = { refused: string } | { status: number; data: any };
+/** Google's answer to one request, or the words for a connection the kernel would not use. */
+export type Sent = { refused: string } | { status: number; data: any };
 
 /**
  * @description One Calendar API request. Under the native kernel it carries no Authorization header: the kernel's egress applies
@@ -248,7 +252,7 @@ type Sent = { refused: string } | { status: number; data: any };
  * @param payload - The event, for a write.
  * @returns Google's status and body, or the words for a missing connection.
  */
-async function send(ctx: AppContext, sub: string, method: string, url: string, payload?: any): Promise<Sent> {
+export async function send(ctx: AppContext, sub: string, method: string, url: string, payload?: any): Promise<Sent> {
   const headers: Record<string, string> = { accept: 'application/json' };
   if (payload) headers['content-type'] = 'application/json';
   if (process.env.OSHAL_EGRESS !== 'kernel') {

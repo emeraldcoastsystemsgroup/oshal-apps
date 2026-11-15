@@ -3,14 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Storage Settings — oshal</title>
+<title>Storage Settings — Open Swarm</title>
 <!-- CHANGE LOG
      1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (storage--storage-settings FIX-LAYOUT &
        storage--storage-assistant MERGE): carry the Business/Home audience view now that storage-settings is ui.static[0],
        disable unconnected Dropbox/GitHub options with a Connections link beneath each select, save immediately on change
        with inline 'Saved' status and role="alert" errors (removing the Save bar), display local store usage / 250 MB limit
        in the help line rather than option labels, link to /api/files, lowercase 'oshal', and style disabled/primary buttons
-       using solid disabled and on-accent tokens on Graphite. -->
+       using solid disabled and on-accent tokens on Graphite.
+     2 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.3: name the product Open Swarm in the page title, audience view, subtitle, option label and bucket hint. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
@@ -19,7 +20,7 @@
 (function () {
   var A = window.AppView; if (!A) return;
   var SHOWN = 12;
-  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'oshal local' };
+  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'Open Swarm local' };
   var STORES = [{ conn: 'github', provider: 'github' }, { conn: 'dropbox', provider: 'dropbox' }, { conn: 'google', provider: 'google-drive' }];
   function call(path) {
     return fetch('/api/storage' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
@@ -65,9 +66,9 @@
   function filesSection(local) {
     var files = local.ok ? (local.body.files || []).slice() : [];
     files.sort(function (a, b) { return String(a.name).toLowerCase() < String(b.name).toLowerCase() ? -1 : 1; });
-    return { kind: 'table', id: 'local-files', title: 'oshal local store', columns: ['File', { label: 'Size', align: 'right' }],
-      note: 'Files at the top of your oshal local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
-      empty: local.ok ? 'No files in the oshal local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
+    return { kind: 'table', id: 'local-files', title: 'Open Swarm local store', columns: ['File', { label: 'Size', align: 'right' }],
+      note: 'Files at the top of your Open Swarm local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
+      empty: local.ok ? 'No files in the Open Swarm local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
       rows: files.slice(0, SHOWN).map(function (f) { return [String(f.name || ''), { text: size(f.size) }]; }) };
   }
   function lede(sum, s) {
@@ -94,7 +95,7 @@
           targetStat('code', 'Code target', code, s.code, prefs), targetStat('files', 'Files target', files, s.files, prefs),
           { id: 'connected', label: 'Connected stores', value: connected ? connected.length : 'Unavailable', tone: !connected || !connected.length ? 'warn' : null,
             hint: !connected ? 'Could not be read (HTTP ' + prefs.status + ')' : connected.length ? connected.map(function (c) { return storeName(STORES.filter(function (x) { return x.conn === c; })[0].provider); }).join(', ') : 'Connect GitHub, Dropbox or Google Drive in Identity' },
-          { id: 'local', label: 'Files in oshal local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
+          { id: 'local', label: 'Files in Open Swarm local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
         ],
         sections: [filesSection(local), storesSection(prefs, code, files)]
       };
@@ -165,7 +166,7 @@
 <body data-ds-work>
   <div class="page">
     <h1>Storage Settings</h1>
-    <div class="sub">Choose where oshal saves what it generates, or browse your folders in <a href="/api/files" target="_top">Files</a>.</div>
+    <div class="sub">Choose where Open Swarm saves what it generates, or browse your folders in <a href="/api/files" target="_top">Files</a>.</div>
     <div class="result" id="result" role="alert" hidden></div>
     <div id="body"><span class="spin">Loading…</span></div>
   </div>
@@ -188,7 +189,7 @@ function clearAlert(){
 }
 
 function providerOpts(sel){
-  const opts = [['oshal-local','oshal (local)'], ['dropbox','Dropbox'], ['github','GitHub']];
+  const opts = [['oshal-local','Open Swarm (local)'], ['dropbox','Dropbox'], ['github','GitHub']];
   return opts.map(([v,l]) => {
     const off = v !== 'oshal-local' && !CONNECTED.includes(v);
     return `<option value="${v}"${v===sel?' selected':''}${off?' disabled':''}>${l}${off?' (not connected)':''}</option>`;
@@ -319,7 +320,7 @@ async function load(){
   const prefs = j.prefs || { code: { provider: 'oshal-local' }, files: { provider: 'oshal-local' } };
   $('body').innerHTML =
     bucketCard('code', 'Generated code', 'Code and development work — version control fits best (GitHub).', prefs.code)
-    + bucketCard('files', 'Generated files', 'Presentations, drafts, and exports — a document store (Dropbox or oshal local).', prefs.files)
+    + bucketCard('files', 'Generated files', 'Presentations, drafts, and exports — a document store (Dropbox or Open Swarm local).', prefs.files)
     + `<div class="note" id="local-usage">${esc(formatLocalUsage(localRes))} Browse and manage your files in <a href="/api/files" target="_top">Files</a>.</div>`;
   for (const id of ['code','files']){
     await syncDetails(id, prefs[id]);

@@ -1,7 +1,7 @@
 {
-  "about": "What the generated instructions for four Windows programs must say and must not say (T76 on Windows, Lane A4, 2026-11-13; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6), in the shape of Lane G's pack-inputs.json. Every fact is as built at the kernel commit named and names its evidence: a receipt of the Windows PC's own runs against the real program (oshal-collab windows/proofs/<file>) and, where a sentence or a rule is quoted, the Orbit or orbit-uia source it is read from. A fact with code alone as its evidence says so. Excel's create-pivot-table and add-chart (the Windows board's W9, kernel 06f12f46) have as their receipt the Windows PC's W9 RESULT entry on the board (oshal-collab windows/FROM-WINDOWS.md, entry of 2026-11-13T19:27:07Z) and the real-Excel test that entry reports, desktop/oshal-node/scripts/test-windows-excel-real.cjs; they reach people in Orbit 0.7.23. The verbs are in windows-bridge-facts.json beside this file. `acceptance` is the check a written text is held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
-  "written_at": "2026-11-13T20:01:49Z",
-  "kernel_commit": "06f12f46",
+  "about": "What the generated instructions for four Windows programs must say and must not say (T76 on Windows, Lane A4, 2026-11-13; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6; Excel's W15 power-user verbs, dynamic arrays, structured Tables, summarization, modeling guardrails and starter-verb compatibility by @lane-excel-instructions, 2026-11-15), in the shape of Lane G's pack-inputs.json. Every fact names its evidence: a receipt of the Windows PC's own runs against the real program (oshal-collab windows/proofs/<file>), entries on windows/FROM-WINDOWS.md, and the Orbit / orbit-uia source it is read from. The verbs are in windows-bridge-facts.json beside this file. `acceptance` is the check a written text is held to: `contains` are phrases it must hold, `absent` are phrases it must not.",
+  "written_at": "2026-11-15T06:31:00Z",
+  "kernel_commit": "5233d37d",
   "facts": "windows-bridge-facts.json",
   "programs": [
     {
@@ -147,62 +147,59 @@
       "bridge": "windows-uia",
       "must_say": [
         {
-          "fact": "Excel declares the spreadsheet verbs read-range, set-cells, format-cells, find-replace, sort-range, filter-range, manage-sheet, create-pivot-table and add-chart, each run with \"action\": \"invoke\" and the same inputs as in LibreOffice Calc. Orbit runs each through Excel's own object model; Excel is not brought to the front and no key is sent.",
-          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15 EXCEL_VERBS; windows/proofs/w9-excel-live-edit-2026-11-13.md (what a request does; sort-range, filter-range and manage-sheet added at 05:36Z, the real Excel 5 of 5); windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (create-pivot-table and add-chart in kernel 06f12f46 with Calc's ids and inputs; the real Excel 13 of 13 on two runs in a row); desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs (Excel is never brought to the front and no key is sent)"
+          "fact": "Excel declares seventeen spreadsheet verbs run via \"action\": \"invoke\" through Excel's COM object model (never bringing Excel to the front or sending keys). Check the window's declared actions in snapshot / ATTACHED DOCUMENT first: if an older Orbit lists only the nine starter verbs (read-range, set-cells, format-cells, find-replace, sort-range, filter-range, manage-sheet, create-pivot-table, add-chart), invoke only those declared verbs.",
+          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15 EXCEL_VERBS; desktop/oshal-node/src/main/app-control.ts; windows/proofs/w9-excel-live-edit-2026-11-13.md; windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z; windows/FROM-WINDOWS.md entry of 2026-11-15T06:06:00Z; windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z; desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs"
         },
         {
-          "fact": "Read cells with read-range: each cell of a range on the sheet in front, or on one named, with what it shows and its formula, at most 2,000 cells at once (\"that range holds <n> cells; read at most 2000 at once\"). A sheet that is not there is refused (\"there is no sheet named <name>\").",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 1)"
+          "fact": "Inspect first with workbook-schema before blind read-range paging on unfamiliar or multi-sheet workbooks: it maps sheets, UsedRange bounds, ListObjects Tables (name, range, headers, row count, ShowTotals), Workbook.Names, PivotTables, ChartObjects, Workbook.Queries (names/refresh state only; credentials omitted), and formula error counts (#REF!, #N/A, #VALUE!, #NAME?, #SPILL!). Use read-range for slices up to 2,000 cells (\"that range holds <n> cells; read at most 2000 at once\"); missing sheets are refused (\"there is no sheet named <name>\").",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 1); windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z (W15 workbook-schema); desktop/oshal-node/windows-helper/uia/src/win/excel.rs"
         },
         {
-          "fact": "Write cells with set-cells, by address: a text that starts with = is a formula, one that reads as a number is a number, an empty one clears the cell, and anything else stays text (1/2 and TRUE stay texts). A formula Excel does not take is refused, and the cells written before it are put back.",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 2)"
+          "fact": "On database sheets (> 500 rows, up to 200k rows via 2D SAFEARRAY Value2), prefer summarize-range (in-helper filter, group-by, and sum/count/avg/min/max with bounded rows) or create-pivot-table / refresh-pivot instead of paging raw read-range cells into chat.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-15T06:06:00Z (W15 Phase 2 summarize-range); desktop/oshal-node/windows-helper/uia/src/win/excel.rs"
         },
         {
-          "fact": "format-cells sets bold, italic, underline, a font size, a number format (currency, percent or a pattern), fill and font colour, and a column width or auto-fit. find-replace changes every match on the sheet in any case and answers how many; a text that is nowhere is refused (\"could not find '<text>' in sheet <name>\").",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 3)"
+          "fact": "Convert tabular datasets into named ListObjects Tables with manage-table (create over headers, resize, ShowTotals/totals functions, and structured-reference columns like =[@Qty]*[@UnitPrice]) so formulas, charts, and PivotTables auto-expand as rows are added.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z (W15 Phase 1 manage-table); desktop/oshal-node/windows-helper/uia/src/win/excel.rs"
         },
         {
-          "fact": "sort-range orders a range's rows by one column (a header, column letters or a number) and keeps the header row; filter-range shows or hides the rows below the first by one column's cell, and \"clear\": true shows every row; manage-sheet adds, renames, shows or deletes a sheet, and deletes only a sheet that holds nothing.",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (added at 05:36Z: 38e4c7a8, the real Excel 5 of 5)"
+          "fact": "Write contiguous 2D blocks in one set-cells call: set-cells and read-range use Range.Formula2 (Formula fallback) over 2D SAFEARRAY I/O so dynamic arrays avoid implicit @. Prefer XLOOKUP (with if_not_found), FILTER, UNIQUE, SORT, SORTBY, SEQUENCE, SUMIFS/COUNTIFS, INDEX/MATCH, and LET over brittle VLOOKUP, volatile OFFSET/INDIRECT, or nested IFs, leaving spill room to avoid #SPILL!. Values starting with = are formulas, numbers stay numeric, empty clears, others stay text; bad formulas roll back that call.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 2); windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z (W15 Formula2 + 2D SAFEARRAY); desktop/oshal-node/windows-helper/uia/src/win/excel.rs"
         },
         {
-          "fact": "create-pivot-table makes a native PivotTable from `sourceRange` (default A1:D13; its first row names the fields) at `targetCell` (default F1) on `targetSheet` (else `sheet`): `rowFields` down the rows (default the first column), optional `columnFields` across, `dataFields` by header, and `function` SUM, AVERAGE, COUNT, MAX or MIN (any other is SUM). Its name is `name`, else JarvisPivot, then JarvisPivot2 and on.",
-          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (the add-on's defaults: F1, the first column for rows, SUM, JarvisPivot); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: at F1 as JarvisPivot, Region down the rows and Revenue summed, Excel's own sums 150, 225 and 375; one with no name became JarvisPivot2, Region down the rows by default, Product across, two data fields counted; after \"F1 [pivot-table JarvisPivot from A1:D7]\"); desktop/oshal-node/windows-helper/uia/src/sheet_objects.rs consolidation_of (any other function is a sum; code only)"
+          "fact": "Separate Inputs / Assumptions, Data / Model, and Summary / Output: drive formulas from named cells/ranges and LAMBDA definitions via manage-names instead of magic numbers; guard inputs with data-validation; highlight exceptions with conditional-format; use single- or multi-key sort-range (keeping headers), filter-range (\"clear\": true resets), manage-sheet (deletes empty sheets only), and refresh-queries on existing Workbook.Queries / connections (never adding external URLs or running VBA).",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (sort-range, filter-range, manage-sheet); windows/FROM-WINDOWS.md entry of 2026-11-15T06:06:00Z (W15 Phase 2 modeling & query guardrails); desktop/oshal-node/src/main/windows-excel.ts"
         },
         {
-          "fact": "A pivot table is never moved or written over anything: Orbit lays it out on a sheet it adds and deletes again, then builds it only where every cell it covered on the way is empty and off its own source (an empty table covers 18 rows by 3 columns, so F1 needs F1:H18 empty). Refused in words, leaving nothing behind: a place inside its source or over cells that hold something (the answer names the cells), a name the sheet already has, a source column without a header, a sheet that is not there.",
-          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (PivotTable.Location crashed the test's own Excel three times, so a table is built where it goes after being measured on a scratch sheet, and the checked block is the largest it covers while it is laid out); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: F1 inside A1:G7 refused; J40 refused for J40:L57 while K41 held x; a name the sheet holds, column E without a name and a sheet that is not there refused; no sheet and no pivot table left behind); desktop/oshal-node/windows-helper/uia/src/words.rs covers_source, place_not_empty, name_taken, needs_header"
+          "fact": "format-cells sets bold, italic, underline, font size, number format (currency, percent or pattern), fill/font colour, and column width or auto-fit; find-replace replaces case-insensitively on the sheet and returns the count, refusing when absent (\"could not find '<text>' in sheet <name>\").",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 3); desktop/oshal-node/windows-helper/uia/src/win/excel.rs"
         },
         {
-          "fact": "A pivot table is made only while the bound workbook is the one in front in Excel. Otherwise it is refused with `not-active` before anything changes, and the person clicks that workbook's window in Excel and asks again; Orbit does not switch Excel's workbooks.",
-          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (building with another workbook in front of the bound one crashed Excel, so that is refused in words, not-active); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: refused with another workbook in front, no sheet added and no pivot table in either workbook, the other still in front); desktop/oshal-node/windows-helper/uia/src/words.rs PIVOT_NOT_ACTIVE"
+          "fact": "create-pivot-table builds a native PivotTable from sourceRange (default A1:D13; row 1 headers) at targetCell (default F1) on targetSheet/sheet with rowFields, columnFields, dataFields (shared or per-field sum, count, average, min, max), and name (default JarvisPivot), measured on a scratch sheet first and built only when the bound workbook is active in Excel (else refused not-active) and target cells are empty and off sourceRange. refresh-pivot refreshes, re-sources, or adds calculated fields.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z; windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z (per-field dataFields + refresh-pivot); desktop/oshal-node/scripts/test-windows-excel-real.cjs; desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs"
         },
         {
-          "fact": "add-chart inserts a native chart over `sourceRange` (or `range`; default A1:D13) on `sheet`: the first row names the series and the first column holds the categories. `chartType` is column (the default), bar, line, pie, area or scatter, and any other is drawn as column; it has a title only when `title` is given; its name is `name`, else JarvisChart or the next free name. A range of only a header row is refused, and so is a name the sheet already has.",
-          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (column, the add-on's box, JarvisChart; Excel adds a title to a pie chart by itself, so the no-title element is set and the chart read again for a second); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: a line chart titled Sales of exactly two series named by their headers over the quarters; column, bar, pie, area, scatter and xy each drawn with two series and no title; a one-row range and a name the sheet holds refused, nothing drawn); desktop/oshal-node/windows-helper/uia/src/sheet_objects.rs chart_type_of (an unknown type is drawn and said as column; code only)"
+          "fact": "add-chart inserts a native chart over sourceRange (or range; default A1:D13) on sheet (row 1 series, col 1 categories): chartType is column (default), bar, line, pie, area or scatter, titled only when title is given, named name or JarvisChart; header-only ranges or duplicate names are refused.",
+          "evidence": "windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z; desktop/oshal-node/scripts/test-windows-excel-real.cjs; desktop/oshal-node/windows-helper/uia/src/sheet_objects.rs"
         },
         {
-          "fact": "Every written cell, pivot table and chart is read back from Excel, and the answer carries `verified`; when verified is false, read the range again before anything else.",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (every written cell is read back, with verified); desktop/oshal-node/windows-helper/uia/src/win/excel/objects.rs (the pivot table's place, fields, data fields and functions, the chart's type, series and title, read back for verified); desktop/oshal-node/scripts/test-windows-excel-real.cjs (verified true on every pivot table and chart made); desktop/oshal-node/src/main/windows-excel.ts excelEdit"
+          "fact": "Every edit returns verified after read-back (if false, read again first) and snapshots a live backup via Workbook.SaveCopyAs without changing path or saved state. \"action\": \"undo\" (how/group) restores set-cells, format-cells (Bold, Italic, Underline, NumberFormat), manage-table, manage-names, data-validation, or deletes a created PivotTable/chart only while Excel holds what that edit left; Excel's own Undo does not undo COM edits.",
+          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (verified, excel-undo); windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z; windows/FROM-WINDOWS.md entry of 2026-11-15T06:14:00Z (W14/W15 format-cells undo + SaveCopyAs); desktop/oshal-node/scripts/test-windows-excel-real.cjs; desktop/oshal-node/src/main/windows-excel.ts"
         },
         {
-          "fact": "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`: Orbit puts back what its cells held only while every one still holds what the edit left, and deletes a pivot table or chart it made only while that still reads exactly as made (one changed in Excel is kept and the undo refused). Otherwise nothing is put back. Excel's own Undo does not take these edits back, and a format-cells is not undone in place.",
-          "evidence": "windows/proofs/w9-excel-live-edit-2026-11-13.md (test 4: excel-undo, not-on-top puts nothing back; Excel's own Undo refused; an undo of format-cells answers not-on-top); windows/FROM-WINDOWS.md entry of 2026-11-13T19:27:07Z (undo by name: deleted only while it reads exactly as it was made); desktop/oshal-node/scripts/test-windows-excel-real.cjs (the real Excel: a pivot table undone and its cells empty, a chart undone, a second undo refused not-on-top, a pivot table and a chart changed in Excel kept with their undo refused); desktop/oshal-node/windows-helper/uia/src/words.rs made_changed"
-        },
-        {
-          "fact": "Opening or saving workbooks are not Excel verbs: invoke answers \"I can't do <verb> in Excel yet.\" A protected sheet is refused, and so is a busy Excel (a cell being edited, or a dialog open). Typing into the grid with \"action\": \"type\" was not measured; cells are written with set-cells.",
-          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15 (no file verb among Excel's); desktop/oshal-node/src/main/app-control.ts:533; windows/proofs/w9-excel-live-edit-2026-11-13.md (the code refuses a protected sheet and a busy Excel, neither run against a real workbook; only the verbs were run); desktop/oshal-node/windows-helper/uia/src/words.rs PROTECTED_SHEET, EXCEL_BUSY"
+          "fact": "Opening or saving workbooks are not Excel verbs: invoke answers \"I can't do <verb> in Excel yet.\" and the person opens/saves files in Excel. Protected sheets, busy Excel (editing a cell or dialog open), and administrator windows are refused; write grid cells with set-cells, not \"action\": \"type\".",
+          "evidence": "desktop/oshal-node/src/main/windows-excel.ts:15; desktop/oshal-node/src/main/app-control.ts:533; windows/proofs/w9-excel-live-edit-2026-11-13.md; desktop/oshal-node/windows-helper/uia/src/words.rs PROTECTED_SHEET, EXCEL_BUSY"
         }
       ],
       "must_not_say": [
-        "A menu path, a ribbon button, a key or a key combination as something Jarvis does (no Ctrl+Z).",
+        "A menu path, ribbon button, or key combination as something Jarvis does (no Ctrl+Z, no Ctrl+T).",
         "That Jarvis opens, saves or exports a workbook, or any file verb for Excel.",
+        "That Jarvis adds external connection URLs or runs VBA macros.",
         "That Excel's own Undo takes back an edit Jarvis made.",
-        "That a pivot table is moved or placed over cells that hold something, or that a pivot table or chart replaces one of the same name.",
-        "That Jarvis switches Excel's workbooks or brings Excel to the front to make a pivot table.",
+        "That a pivot table or chart overwrites occupied cells, source cells, or an existing name.",
+        "That Jarvis switches Excel's workbooks or brings Excel to the front.",
         "A chart type other than column, bar, line, pie, area or scatter.",
-        "That a text-document verb (insert-paragraph, format-text and the rest) works in Excel.",
+        "That a Word or PowerPoint verb (insert-paragraph, format-text, add-slide) works in Excel.",
         "Any tool other than computer.app and computer.open."
       ],
       "acceptance": {
@@ -212,12 +209,24 @@
           "set-cells",
           "create-pivot-table",
           "add-chart",
+          "workbook-schema",
+          "summarize-range",
+          "manage-table",
+          "Formula2",
+          "XLOOKUP",
+          "refresh-pivot",
+          "manage-names",
+          "data-validation",
+          "conditional-format",
+          "refresh-queries",
           "verified",
           "\"action\": \"undo\""
         ],
         "absent": [
           "Ctrl+",
           "insert-paragraph",
+          "save-document",
+          "open-document",
           "screen.read"
         ]
       }

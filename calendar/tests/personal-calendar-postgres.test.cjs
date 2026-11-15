@@ -1,3 +1,4 @@
+// CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the agenda reads Google Calendar live; this fixture reaches no Google, so the snapshot cases run on the fallback path, where the saved copy is shown with the warning "Showing your last synced copy from <time>: Google did not answer." before any invalid-event warning.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{fixture}=require('./fixtures/personal-calendar.cjs');
 test('real HTTP + forced-RLS calendar merges past/ongoing spans and snapshot under the original owner', {timeout:30000},async()=>{
@@ -6,12 +7,12 @@ test('real HTTP + forced-RLS calendar merges past/ongoing spans and snapshot und
  await f.seed('bob',{title:'Foreign appointment',start:'2026-10-01'});
  await f.snapshot('alice',[{id:'google',title:'Google holiday',start:'2026-10-02',end:'2026-10-04',allDay:true}], '2026-10-01T12:00:00Z');
  const route='/api/calendar/events/agenda?from=2026-10-01&to=2026-10-31&tz=America%2FChicago';
- const mine=await f.call('GET',route);assert.equal(mine.status,200);assert.deepEqual(mine.body.events.map(e=>e.title),['Ongoing trip','Google holiday']);assert.equal(mine.body.events[0].lastDay,'2026-10-02');assert.equal(mine.body.snapshot.complete,false);
+ const mine=await f.call('GET',route);assert.equal(mine.status,200);assert.deepEqual(mine.body.events.map(e=>e.title),['Ongoing trip','Google holiday']);assert.equal(mine.body.events[0].lastDay,'2026-10-02');assert.equal(mine.body.snapshot.complete,false);assert.equal(mine.body.google.state,'saved-copy');assert.deepEqual(mine.body.warnings,['Showing your last synced copy from Oct 1, 2026, 12:00 PM UTC: Google did not answer.']);
  const other=await f.call('GET',route,null,'bob');assert.deepEqual(other.body.events.map(e=>e.title),['Foreign appointment']);assert.equal(other.body.snapshot.state,'missing');
  assert.equal((await f.call('DELETE','/api/calendar/events/'+trip.body.event.id,null,'bob')).status,404);
  assert.equal((await f.scoped('bob','SELECT * FROM calendar_own_events WHERE user_sub=$1',['alice'])).rows.length,0);
  await assert.rejects(f.scoped('bob',"INSERT INTO calendar_own_events(user_sub,id,title,starts_at,created_at) VALUES('alice','foreign','Denied','2026-10-01',now())"),/row-level security/);
- await f.snapshot('alice',[{id:'bad',title:'Invalid saved time',start:'bad'}],'2026-10-01T12:00:00Z');const partial=await f.call('GET',route);assert.equal(partial.body.partial,true);assert.equal(partial.body.warnings.length,1);assert.equal(partial.body.events[0].title,'Ongoing trip');
+ await f.snapshot('alice',[{id:'bad',title:'Invalid saved time',start:'bad'}],'2026-10-01T12:00:00Z');const partial=await f.call('GET',route);assert.equal(partial.body.partial,true);assert.deepEqual(partial.body.warnings,['Showing your last synced copy from Oct 1, 2026, 12:00 PM UTC: Google did not answer.','An invalid saved google event could not be displayed.']);assert.equal(partial.body.events[0].title,'Ongoing trip');
  assert.equal((await f.call('GET',route,null,null)).status,401);
  assert.equal((await f.call('GET',route+'&owner=bob')).status,400);
  assert.equal((await f.call('GET',route,null,'alice',{'x-oshal-tenant-id':'other'})).status,400);

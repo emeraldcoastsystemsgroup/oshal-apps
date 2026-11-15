@@ -17,6 +17,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): the bridge carries oshal_phone_play.py.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): the bridge carries oshal_phone_apps.py.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): installationOrigin, the address a phone or TV is told to sign in to: the origin of the page the person opened, which is the installation they are on. The four places that push the oshal app to a device carried one installation's public address as a fallback; on another installation that would have sent the person's device to a server that is not theirs.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0 (Lane TV1): the bridge carries oshal_phone_front.py (an application opened, listed and read in front on a Roku or a Samsung TV).
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -34,7 +35,7 @@ export const VERBS = Object.freeze([
 ]);
 export const BRIDGE_FILE_NAMES = Object.freeze([
   'oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',
-  'oshal_phone_links.py', 'oshal_phone_play.py', 'oshal_phone_apps.py', 'oshal-phone-bridge'
+  'oshal_phone_links.py', 'oshal_phone_play.py', 'oshal_phone_apps.py', 'oshal_phone_front.py', 'oshal-phone-bridge'
 ]);
 export const QUALITY_PRESETS = Object.freeze({
   high: Object.freeze({ width: 720, phoneMs: 450, computerMs: 900, label: 'High' }),
@@ -55,7 +56,7 @@ const INSTALLER = [
   'b=os.path.join(h,".local","bin")',
   'os.makedirs(d,mode=0o700,exist_ok=True)',
   'os.makedirs(b,exist_ok=True)',
-  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal_phone_lan.py":d,"oshal_phone_links.py":d,"oshal_phone_play.py":d,"oshal_phone_apps.py":d,"oshal-phone-bridge":b}',
+  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal_phone_lan.py":d,"oshal_phone_links.py":d,"oshal_phone_play.py":d,"oshal_phone_apps.py":d,"oshal_phone_front.py":d,"oshal-phone-bridge":b}',
   'ready=[]',
   'for f in m["files"]:',
   '    n=f["name"]',

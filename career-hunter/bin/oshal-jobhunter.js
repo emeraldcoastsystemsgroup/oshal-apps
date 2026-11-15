@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * CHANGE LOG
+ * 50 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): the nightly score-titles marks the person's unreadable jobs "details needed" after keyword matching (score.mark_unreadable: native kernel, no read, no model call, at most 200 a night) and its count line says how many (needsDetails; the settled pass adds the jobs it marked after a refused read). prepare-job passes CH_JOB_DESCRIPTION, the description the person pasted, to prepare_job.
+ * 49 | maintainer@emeraldcoastsystemsgroup.com | score-titles runs the settled nightly pass (jobhunter.settle) when the nightly route sets CH_SETTLE=1, with its own bounds (CH_LIMIT up to 2000, CH_CONCURRENCY, CH_BAND, CH_BUDGET_SECONDS, read before keyword matching so the whole run counts against its time) and its own count line; without it the nightly pass is exactly as before (CH_LIMIT must be 50).
  * 48 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: `resume base-earlier` answers the main résumé document as it read at an earlier revision (master_edit.earlier_documents), so the My résumé Word document can be told apart: only behind, or holding typed text.
  * 47 | maintainer@emeraldcoastsystemsgroup.com | Select incremental keyword and AI work for nightly passes without changing explicit refresh commands.
  * 46 | maintainer@emeraldcoastsystemsgroup.com | Map saved-job preparation to the existing owner-leased engine without any submission command.
@@ -367,16 +369,28 @@ function corpusRuns(verb, rest) {
       + ' fresh_days=int(os.environ.get("CH_FRESH_DAYS","7") or 7)\n'
       + ' remote_only=os.environ.get("CH_REMOTE_ONLY","0")=="1"\n'
       + ' keyword_matched=0\n'
+      + ' needs=0\n'
+      // Settled nightly scoring (settle.py) only when the nightly route asks for it; its bounds start the clock.
+      + ' settled=os.environ.get("CH_NIGHTLY_MATCH")=="1" and os.environ.get("CH_SETTLE")=="1"\n'
+      + ' if settled:\n'
+      + '  from jobhunter import settle\n'
+      + '  night=settle.night_from_env(os.environ)\n'
       + ' if os.environ.get("CH_NIGHTLY_MATCH")=="1":\n'
-      + '  if not terms or limit!=50: raise ValueError("Invalid nightly matching bounds")\n'
+      + '  if not terms or (limit!=50 and not settled): raise ValueError("Invalid nightly matching bounds")\n'
       + '  from jobhunter import match\n'
       + '  keyword_matched=match.rescore_new()\n'
+      // Jobs no reader can describe are listed for the person with a warning, never scored (score.mark_unreadable).
+      + '  needs=score.mark_unreadable(terms,remote_only)\n'
       + ' elif os.environ.get("CH_BOARD_MATCH")=="1":\n'
       + '  if not terms or limit is None or limit>50: raise ValueError("Invalid board matching bounds")\n'
       + '  from jobhunter import match\n'
       + '  keyword_matched=match.rescore_recent(int(os.environ.get("CH_MATCH_DAYS","45")))\n'
-      + ' done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms,fresh_days=fresh_days,remote_only=remote_only,recent_first=True,new_only=os.environ.get("CH_NIGHTLY_MATCH")=="1") if terms else (0,0))\n'
-      + ' print(json.dumps({"result":"complete","scored":done,"skipped":skipped,"terms":len(terms),"keywordMatched":keyword_matched}),flush=True)\n'
+      + ' if settled:\n'
+      + '  counts=settle.score_night(terms,remote_only,night)\n'
+      + '  print(json.dumps({"result":"complete",**counts,"needsDetails":needs+counts.get("needsDetails",0),"terms":len(terms),"keywordMatched":keyword_matched}),flush=True)\n'
+      + ' else:\n'
+      + '  done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms,fresh_days=fresh_days,remote_only=remote_only,recent_first=True,new_only=os.environ.get("CH_NIGHTLY_MATCH")=="1") if terms else (0,0))\n'
+      + '  print(json.dumps({"result":"complete","scored":done,"skipped":skipped,"needsDetails":needs,"terms":len(terms),"keywordMatched":keyword_matched}),flush=True)\n'
       + 'except Exception as error:\n'
       + ' print(json.dumps({"result":"failed","errorType":type(error).__name__}),flush=True)\n'
       + ' raise']];
@@ -510,7 +524,7 @@ function applicationRuns(verb, rest) {
     case 'prepare-saved': return [['-c', 'import os,json\nfrom jobhunter.workflow import prepare_saved\nprint(json.dumps(prepare_saved(os.environ.get("CH_WORKFLOW_BATCH",""))))']];
     case 'draft': return [['-m', 'jobhunter', 'apply', ...rest]];
     case 'prepare-job': return [['-c', 'import os,json\nfrom jobhunter.prepare import prepare_job\n'
-      + 'print(json.dumps(prepare_job(int(os.environ.get("CH_JOB","0")),documents=os.environ.get("CH_DOCUMENTS")!="0",include_oshal=os.environ.get("CH_OSHAL")=="1",request_id=os.environ.get("CH_REQUEST_ID",""),guidance=os.environ.get("CH_GUIDANCE",""),experience_ids=json.loads(os.environ.get("CH_EXPERIENCE_IDS","[]")),experience_revision=os.environ.get("CH_EXPERIENCE_REVISION",""))))']];
+      + 'print(json.dumps(prepare_job(int(os.environ.get("CH_JOB","0")),documents=os.environ.get("CH_DOCUMENTS")!="0",include_oshal=os.environ.get("CH_OSHAL")=="1",request_id=os.environ.get("CH_REQUEST_ID",""),guidance=os.environ.get("CH_GUIDANCE",""),experience_ids=json.loads(os.environ.get("CH_EXPERIENCE_IDS","[]")),experience_revision=os.environ.get("CH_EXPERIENCE_REVISION",""),pasted_description=os.environ.get("CH_JOB_DESCRIPTION",""))))']];
     case 'rerender': return [['-c', 'import os, json\nfrom jobhunter import generate\n'
       + 'print(json.dumps({"dir": generate.rerender_packet(int(os.environ.get("CH_JOB","0")))}))']];
     case 'tailor': return [['-c', 'import os, json\nfrom jobhunter import profile, generate\n'

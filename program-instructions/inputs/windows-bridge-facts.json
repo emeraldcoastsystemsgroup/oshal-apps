@@ -1,7 +1,7 @@
 {
-  "about": "What computer.app does through the windows-uia bridge word, for the writer of program instructions (T76 on Windows, Lane A4; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6). The bridge sheet's own shape (Lane G's bridge-facts.json), for the one bridge word Orbit gives every Windows program (desktop/oshal-node/src/main/windows-program-versions.ts WINDOWS_BRIDGE). Written from Orbit's code at the kernel commit named and the Windows PC's proofs (oshal-collab windows/proofs); every verb id names the source line it is read from, and tests/sheet/windows-sources.test.cjs fails when Orbit's code declares other verbs. As built at that commit; no planned change is described.",
-  "generated_at": "2026-11-13T20:00:24Z",
-  "kernel_commit": "06f12f46",
+  "about": "What computer.app does through the windows-uia bridge word, for the writer of program instructions (T76 on Windows, Lane A4; PowerPoint by Lane A5; Excel's pivot tables and charts by Lane A6; Excel's W15 power-user verbs by @lane-excel-instructions). The bridge sheet's own shape (Lane G's bridge-facts.json), for the one bridge word Orbit gives every Windows program (desktop/oshal-node/src/main/windows-program-versions.ts WINDOWS_BRIDGE). Written from Orbit's code and spreadsheet skill specification at the kernel commit named and the Windows PC's proofs (oshal-collab windows/proofs and windows/FROM-WINDOWS.md); every verb id names the source line it is read from, and tests/sheet/windows-sources.test.cjs fails when Orbit's code declares other verbs.",
+  "generated_at": "2026-11-15T06:31:00Z",
+  "kernel_commit": "5233d37d",
   "generator": "program-instructions/inputs/windows-bridge-facts.json, written from Orbit's code and the Windows PC's proofs",
   "bridges": {
     "windows-uia": {
@@ -34,7 +34,15 @@
           { "id": "filter-range", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
           { "id": "manage-sheet", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
           { "id": "create-pivot-table", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
-          { "id": "add-chart", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" }
+          { "id": "add-chart", "source": "desktop/oshal-node/src/main/windows-excel.ts:15" },
+          { "id": "workbook-schema", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "manage-table", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "refresh-pivot", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "summarize-range", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "manage-names", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "data-validation", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "conditional-format", "source": "platform/docs/skills/spreadsheets.md:5" },
+          { "id": "refresh-queries", "source": "platform/docs/skills/spreadsheets.md:5" }
         ],
         "presentation (Microsoft PowerPoint)": [
           { "id": "add-slide", "source": "desktop/oshal-node/src/main/windows-powerpoint.ts:13" },

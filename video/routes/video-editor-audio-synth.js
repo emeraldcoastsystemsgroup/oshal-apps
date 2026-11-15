@@ -12,6 +12,7 @@ exports.detectSpeechSegments = detectSpeechSegments;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Procedural CC0-1.0 stereo WAV music/SFX generator, libflite/formant TTS synthesizer, and 16 kHz PCM acoustic speech-band segmenter for auto-captions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: SOUND_LIBRARY attribution names Open Swarm Procedural.
  */
 const node_child_process_1 = require("node:child_process");
 const node_crypto_1 = require("node:crypto");
@@ -25,14 +26,14 @@ exports.VOICES = Object.freeze([
     { id: 'awb', label: 'Callum', style: 'Documentary' },
 ]);
 exports.SOUND_LIBRARY = Object.freeze([
-    { id: 'ambient-dawn', title: 'Ambient Dawn', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Warm major-seventh synth pad bed' },
-    { id: 'upbeat-pulse', title: 'Upbeat Pulse', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Rhythmic 120 BPM electronic arpeggio' },
-    { id: 'cinema-drone', title: 'Cinema Horizon', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Deep orchestral bass swell' },
-    { id: 'acoustic-warmth', title: 'Acoustic Warmth', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Plucked harmonic chord progression' },
-    { id: 'whoosh-transition', title: 'Whoosh Transition', category: 'sfx', durationSeconds: 1.2, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Swept air cut transition' },
-    { id: 'chime-ding', title: 'Bright Chime', category: 'sfx', durationSeconds: 1.5, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Clean harmonic bell accent' },
-    { id: 'pop-accent', title: 'Pop Accent', category: 'sfx', durationSeconds: 0.6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Crisp title pop' },
-    { id: 'riser-swell', title: 'Tension Riser', category: 'sfx', durationSeconds: 2.5, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Rising pitch reveal' },
+    { id: 'ambient-dawn', title: 'Ambient Dawn', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Warm major-seventh synth pad bed' },
+    { id: 'upbeat-pulse', title: 'Upbeat Pulse', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Rhythmic 120 BPM electronic arpeggio' },
+    { id: 'cinema-drone', title: 'Cinema Horizon', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Deep orchestral bass swell' },
+    { id: 'acoustic-warmth', title: 'Acoustic Warmth', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Plucked harmonic chord progression' },
+    { id: 'whoosh-transition', title: 'Whoosh Transition', category: 'sfx', durationSeconds: 1.2, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Swept air cut transition' },
+    { id: 'chime-ding', title: 'Bright Chime', category: 'sfx', durationSeconds: 1.5, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Clean harmonic bell accent' },
+    { id: 'pop-accent', title: 'Pop Accent', category: 'sfx', durationSeconds: 0.6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Crisp title pop' },
+    { id: 'riser-swell', title: 'Tension Riser', category: 'sfx', durationSeconds: 2.5, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Rising pitch reveal' },
 ]);
 const SAMPLE_RATE = 48000;
 const wavCache = new Map();

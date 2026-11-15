@@ -1,4 +1,6 @@
 /* CHANGE LOG:
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): a job the nightly pass could not read is listed (New matches, My jobs, the phone card and the posting sheet) with "Details needed" where its fit would be, and the warning "Career could not read this job's details. Open the posting and paste its description in Prepare application to get your fit and a tailored résumé." with Open the posting. It offers no Check my fit, which could not work without a description. Guard: tests/career-paste-details-phone.test.mjs.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | A job the settled nightly pass left as a close call says "Close call, not settled yet" beside Check my fit, instead of "Not scored yet"; a job the pass did not reach still says "Not scored yet", never a low score.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | Remove saved rows immediately through durable dismissal, retaining exact refusal recovery.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Show ready, review and stopped-preparation reasons in Getting ready without claiming submission.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render stable per-stage lists, remembered account-scoped filters and scroll, and direct application handoffs without nested document panels.
@@ -151,9 +153,12 @@
   const at=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(String(newest.date))?new Date(newest.date):null,day=at&&!Number.isNaN(at.getTime())?at.toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
   return REPLY[newest.kind]+(day?' · '+day:'');
  }
+ /** @description The warning on a job Career could not read: what is missing and the posting to get it from. @param {object} job @returns {string} Markup. */
+ function detailsNote(job){const link=CareerJobActions.employerUrl(job.url);return `<p class="details-needed" role="note">Career could not read this job’s details. Open the posting and paste its description in Prepare application to get your fit and a tailored résumé.${link?` <a href="${esc(link)}" target="_blank" rel="noopener">Open the posting ↗</a>`:''}</p>`;}
  /** @description The actual fit, or an explicit next step without claiming that an ended check is pending. @param {object} job @returns {string} Markup. */
  function fitMarkup(job){
-  const check=fitChecks.get(job.id),label=job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}${job.fit_assessment?.assessedAt?' · '+esc(new Date(job.fit_assessment.assessedAt).toLocaleDateString()):''}</span>`:'<span>Not scored yet</span>';
+  if(CareerJobActions.detailsNeeded(job))return '<span class="details-needed-label">Details needed</span>'+detailsNote(job);
+  const check=fitChecks.get(job.id),label=job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}${job.fit_assessment?.assessedAt?' · '+esc(new Date(job.fit_assessment.assessedAt).toLocaleDateString()):''}</span>`:job.fit_assessment?.kind==='undecided'?'<span>Close call, not settled yet</span>':'<span>Not scored yet</span>';
   if(job.ai_fit_score!=null&&!check?.error&&!check?.busy)return label;
   if(noResume())return label+'<a class="fit-link" href="/api/career-hunter/resume-studio" data-career-tool="career-resume-studio">Add your résumé to see your fit</a>';
   if(readingResume())return label+'<span>Reading your résumé…</span>';
@@ -199,7 +204,7 @@
  }
 
  function deckCardMarkup(job,lead){
-  return `<article class="match-card ${lead?'lead':'peek'}" data-deck-id="${job.id}"><p class="co">${esc(job.company)}</p><h2><button class="job-title" type="button" data-posting="${job.id}">${esc(job.title)}</button></h2><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}</span>`:''}</div><p class="why">${esc(job.ai_fit_rationale||'Open this role to inspect full posting requirements and fit details.')}</p></article>`;
+  return `<article class="match-card ${lead?'lead':'peek'}" data-deck-id="${job.id}"><p class="co">${esc(job.company)}</p><h2><button class="job-title" type="button" data-posting="${job.id}">${esc(job.title)}</button></h2><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}</span>`:CareerJobActions.detailsNeeded(job)?'<span class="details-needed-label">Details needed</span>':''}</div>${CareerJobActions.detailsNeeded(job)?detailsNote(job):`<p class="why">${esc(job.ai_fit_rationale||'Open this role to inspect full posting requirements and fit details.')}</p>`}</article>`;
  }
 
  async function actDeck(kind){

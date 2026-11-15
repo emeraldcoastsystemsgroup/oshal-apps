@@ -5,6 +5,8 @@
 - Exponential-backoff retry on transient errors / 429 / 5xx.
 """
 # CHANGE LOG
+# 5 | maintainer@emeraldcoastsystemsgroup.com | page_once: one public-only GET of one posting's own page for the pull, never retried and never redirected, read to a byte bound, so the pull can keep the description of a job it has just found.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | detail_json: one never-retried, never-redirected GET for one posting's structured detail, through the rail on the native kernel, for the Oracle and SmartRecruiters detail readers.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Add a public-only mode, checked for every redirect hop in the adapter, for unattended reads that follow links from pages we do not control.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Read selected employer details through the run's signed kernel callback on native installations, retaining namespace network isolation.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
@@ -243,6 +245,59 @@ def post_once(url: str, **kwargs) -> requests.Response:
     _throttle(url)
     kwargs.setdefault("timeout", config.REQUEST_TIMEOUT)
     return _session.post(url, **kwargs)
+
+
+def detail_json(url: str):
+    """One GET of one posting's structured detail, never retried and never redirected: anything but a 200 with JSON
+    is None, so a refusal marks nothing and costs this one read. On the native kernel it goes through the rail."""
+    _throttle(url)
+    try:
+        if os.environ.get('OSHAL_EGRESS') == 'kernel':
+            resp = _native_public_get(url)
+        else:
+            resp = _session.get(url, timeout=config.REQUEST_TIMEOUT, allow_redirects=False)
+    except requests.RequestException:
+        return None
+    if resp.status_code != 200:
+        return None
+    try:
+        return resp.json()
+    except ValueError:
+        return None
+
+
+class PageTooLarge(requests.RequestException):
+    """A posting page past the byte bound: nothing of it is kept."""
+
+
+def page_once(url: str, max_bytes: int, timeout: float = 15.0):
+    """One GET of one posting's own page during the pull: public addresses only, never retried, never redirected.
+
+    Returns (status, text, content type). The body is read to `max_bytes` and refused past it, so one page cannot fill
+    the pull's memory. A page without a stated charset is read as UTF-8, which is what the JSON-LD on it is written in.
+    Never on the native kernel's request sandbox: that has no network, and the pull runs in the ingest's own namespace.
+    """
+    if os.environ.get('OSHAL_EGRESS') == 'kernel':
+        raise requests.RequestException('native_page_read_refused')
+    _throttle(url)
+    with public_only():
+        resp = _session.get(url, timeout=timeout, allow_redirects=False, stream=True)
+        try:
+            body = bytearray()
+            for chunk in resp.iter_content(64 * 1024):
+                body.extend(chunk)
+                if len(body) > max_bytes:
+                    raise PageTooLarge('posting_page_too_large')
+        finally:
+            resp.close()
+    ctype = resp.headers.get('Content-Type') or ''
+    charset = next((part.split('=', 1)[1].strip().strip('"') for part in ctype.split(';')
+                    if part.strip().lower().startswith('charset=')), '') or 'utf-8'
+    try:
+        text = bytes(body).decode(charset, errors='replace')
+    except LookupError:
+        text = bytes(body).decode('utf-8', errors='replace')
+    return resp.status_code, text, ctype
 
 
 def get_json(url: str, **kwargs):

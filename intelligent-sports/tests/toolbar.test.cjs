@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the two-member Intelligent Sports group (ADR-146 Q4): exactly fantasy-football and sports-edge, no executable surface of its own, every tile a real unique member surface, the default view a borrowed surface, and the connector allow-list exactly the members' union.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant Concierge (F22): each member owns its own specialist concierge (fantasy-quant and sports-quant), and the group borrows its default required member's canonical concierge.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.0.4: the catalog description says the group has no work of its own and gives each act to the member that does it by name. It read as if the group itself followed a game with the odds maker, and Jarvis, which names an application from its description, asked "Intelligent Sports or Sports Edge?" for a question only Sports Edge answers.
  */
 'use strict';
 const { test } = require('node:test');
@@ -50,4 +51,15 @@ test('the connector allow-list is exactly the members\' declared connector choic
   const offered = new Set(required.flatMap((name) => members.get(name).dependencies?.optional?.connectors || []));
   assert.deepEqual(new Set(group.dependencies.optional.connectors), offered);
   assert.deepEqual(group.dependencies.required.connectors, []);
+});
+
+test('the description says the group gathers its members and gives each act to the member that does it', () => {
+  const text = String(group.description).split(/\s+/).join(' ');
+  assert.match(text, /^One front door for sport\. Intelligent Sports is a group with no work of its own: one toolbar that opens its two member applications' screens\./, text);
+  // What a member does is said of that member by name, never of the group.
+  assert.match(text, /Fantasy Football manages your own fantasy football team/, text);
+  assert.match(text, /Sports Edge follows a team's next game with an odds maker that is graded on closing-line value/, text);
+  for (const [name, member] of members) assert.ok(text.includes(member.displayName), `${name} is named as ${member.displayName}`);
+  assert.doesNotMatch(text, /front door for sport: manage/, 'the group no longer lists its members\' work as its own');
+  assert.ok(text.split(/\s+/).length <= 80, 'a product description, not a word list');
 });

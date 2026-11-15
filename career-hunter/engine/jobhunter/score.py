@@ -19,6 +19,11 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Apply the owner's local-or-remote scope before model selection and include the work arrangement in fit assessment.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Materialize the recent SQLite date ranges before applying role and geography filters, preserving the bounded result while avoiding an active-corpus scan.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Facts learned about a posting go through db.enrich_corpus, so a shared read-only corpus does not fail the pass.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel the nightly new-only pass leaves out a job no reader there can describe: no listing text, no saved private copy and no Workday posting. Such a job was skipped, stayed pending, and took a slot again every night ahead of jobs that could be scored (production 2026-11-14: 37 of 50 slots skipped, with no model call and at most four reads leaving the kernel).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | The native nightly selection also keeps a job of an Oracle Recruiting Cloud board on a host the Career rail admits: the rail now reads its documented requisition details, so Oracle jobs with no listing text (741 of the 7,543 first seen since 2026-11-13 that nothing on the native kernel could describe) can be scored.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | The native nightly selection also keeps a job of a SmartRecruiters company: the rail now reads one posting from the Posting API, so those jobs (272 of the 7,543 first seen since 2026-11-13 that nothing on the native kernel could describe) can be scored.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): a job in the person's nightly selection whose details cannot be read is marked "details needed" in its model attribution (NEEDS_DETAILS_PREFIX, no score, no model call) so New matches lists it with a warning. On the native kernel the jobs the readable test leaves out are marked without any read, best title and keyword matches first, at most UNREAD_NIGHTLY_LIMIT a night (mark_unreadable); a selected job whose one read is refused is marked after that read. A later score replaces the mark; a close call keeps its runs. The selection, its order and the scoring question are unchanged. A description the person pasted is scored with source basis person-pasted (person-pasted-short under 1,000 characters, with the existing short-source limitation line).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | For settled nightly scoring (settle.py): the scoring question (`ask`), the pass's profile (`pass_context`) and the selection's WHERE (`_batch_where`) are shared, unchanged, with every existing pass, and `settled_sql` orders the same pending readable jobs best candidates first (saved titles the title contains, Career's keyword match, the newest) and leaves out a close call already asked on two nights.
 
 """The matching algorithm: for every relevant posting, fetch the FULL job description,
 then have the LLM score it against the user's actual resume — fit 0-100, why it fits, what
@@ -63,11 +68,18 @@ from __future__ import annotations
 import concurrent.futures as cf
 import json
 import math
+import os
 
 from . import db, detail, enrich, profile, config, search_scope, score_freshness, job_context
 
 SCORING_MAX_TOKENS = 1400
 SCORING_CONTRACT_VERSION = 1
+# A job whose details cannot be read keeps no score; its model attribution starts with this instead (lib/career-fit.js
+# reads it as "details needed", migrations/sqlite/002 indexes it). The close-call mark (settle.UNDECIDED_PREFIX) is the
+# same idea for a job that could be read.
+NEEDS_DETAILS_PREFIX = '{"needsDetails":'
+# At most this many unreadable jobs are newly marked in one nightly pass, best title and keyword matches first.
+UNREAD_NIGHTLY_LIMIT = 200
 
 SYSTEM = (
     "You are a recruiter matching ONE candidate to ONE advertised job. Be rigorous and honest: "
@@ -277,7 +289,7 @@ def _scoring_inputs(row, prof_summary, company, *, fetch_detail=False, model_ide
     basis = ('employer-detail' if fetched else
              (resolved.get('description_context') or {}).get('basis'))
     if len(desc) < 1000 or basis == 'listing-summary':
-        basis = 'employer-detail-short' if basis == 'employer-detail' else 'listing-summary'
+        basis = {'employer-detail': 'employer-detail-short', 'person-pasted': 'person-pasted-short'}.get(basis, 'listing-summary')
     elif basis in (None, 'listing', 'corpus-description', 'employer-detail'):
         # These names describe where the same full text was stored or retrieved. Keeping
         # them equivalent avoids a second inference after fetched text enters the corpus.
@@ -287,7 +299,7 @@ def _scoring_inputs(row, prof_summary, company, *, fetch_detail=False, model_ide
                                + ('\n[Remaining employer text omitted; do not infer its requirements.]' if len(desc)>16000 else ''),
                            source_basis=basis,
                            work_arrangement='Feed marks remote (unverified; check attendance and location eligibility)' if row.get('remote') else 'On-site or hybrid')
-    if len(desc) < 1000 or basis == 'listing-summary':
+    if len(desc) < 1000 or basis in ('listing-summary', 'person-pasted-short'):
         prompt += '\nSOURCE LIMITATION: The employer text is short or a listing summary. Assess only its explicit requirements and state where job details are insufficient; do not invent missing requirements.\n'
     model = (model_identity or enrich.resolve_scoring_identity(config.ANTHROPIC_SCORE_MODEL)).cache_key
     fingerprint = score_freshness.fingerprint({
@@ -321,31 +333,44 @@ def _score_one(row, prof_summary, *, prior_fingerprint=None, model_identity=None
                 "context_cached": bool(fetched),
                 "company": company["name"], "title": row["title"],
                 "fingerprint": fingerprint, "model": model}
-    data = None
+    data, answered, _ = ask(prompt, model_identity)
+    if answered is not None:
+        model = answered
+    return {"id": row["id"], "fetched": fetched, "context_cached": bool(fetched), "data": data, "company": company["name"],
+            "title": row["title"], "fingerprint": fingerprint, "model": model}
+
+
+def ask(prompt, model_identity, empty_is_unanswered=False):
+    """Career's one scoring question for one job: the allowance, then one retry at 2048 with the compact-JSON line.
+
+    Shared by a single-call pass (_score_one) and each run of a settled nightly pass (settle.py), so both ask exactly
+    the same question. A lost worker ends the run; retries never leave the accounted rail. With empty_is_unanswered
+    (the settled pass only), an answer with no text is one more answer without a valid score: Career's retry follows.
+    @returns (the valid fit document or None, the answering route's attribution or None, the calls made).
+    """
     for attempt, allowance in enumerate((SCORING_MAX_TOKENS, 2048)):
         try:
             answer = enrich.complete_scoring(SYSTEM, prompt + (
                 '\nReturn one complete compact JSON object in the exact requested shape. No prose or tool calls.' if attempt else ''),
-                max_tokens=allowance, model=config.ANTHROPIC_SCORE_MODEL, identity=model_identity)
+                max_tokens=allowance, model=config.ANTHROPIC_SCORE_MODEL, identity=model_identity,
+                **({'empty_is_unanswered': True} if empty_is_unanswered else {}))
             candidate = enrich.parse_json(answer.text)
+        except enrich.EmptyAnswer:
+            continue
         except enrich.CareerWorkerUnavailable:
-            # A lost worker ends the run; retries never leave the accounted rail.
             raise
         except Exception:
-            break
+            return None, None, attempt + 1
         fit = candidate.get('fit_score') if isinstance(candidate, dict) else None
         explanation_ok = isinstance(candidate, dict) and (candidate.get('rationale') is None or isinstance(candidate['rationale'], str)) and all(
             candidate.get(key) is None or isinstance(candidate[key], list) and all(isinstance(item, str) for item in candidate[key])
             for key in ('matched', 'gaps'))
         if isinstance(fit, (int, float)) and not isinstance(fit, bool) and 0 <= fit <= 100 and explanation_ok:
-            data = candidate
             # The fingerprint names the configured policy. Attribution names the route
             # that actually answered, including an allowed fallback, without a schema change.
-            model = (json.dumps({'provider': answer.provider, 'model': answer.model, 'fallback': answer.fallback},
-                                ensure_ascii=False, separators=(',', ':')) if answer.provider else answer.model)
-            break
-    return {"id": row["id"], "fetched": fetched, "context_cached": bool(fetched), "data": data, "company": company["name"],
-            "title": row["title"], "fingerprint": fingerprint, "model": model}
+            return candidate, (json.dumps({'provider': answer.provider, 'model': answer.model, 'fallback': answer.fallback},
+                                          ensure_ascii=False, separators=(',', ':')) if answer.provider else answer.model), attempt + 1
+    return None, None, 2
 
 
 def _commit_one(res, model) -> bool:
@@ -410,9 +435,148 @@ def _commit_one(res, model) -> bool:
     return True
 
 
+def _native_readable_where() -> str:
+    """On the native kernel, only jobs whose details a reader there can obtain. Returns SQL to append to a WHERE.
+
+    The bare test is _native_readable_predicate(); off the native kernel there is none and this is ''.
+
+    The native engine has no network of its own (the kernel's package sandbox unshares the network namespace):
+    http.request reads through the Career rail's employer-detail-get,
+    which lib/career-employer-detail.js admits for a Workday posting only, and the JSON-LD page and the other
+    connectors' readers have no route. job_context.hydrate refuses a job with no listing text and no saved copy that
+    those readers cannot fill. In new-only mode a refused job stays pending, so it took a slot every night ahead of
+    jobs that could be scored. A Workday job stays a candidate: its refusals (a maintenance redirect) are temporary.
+    The test is deliberately wider than the readers (any listing text, any Workday-looking URL, any saved copy),
+    so it can only leave out a job that would have been refused.
+    The rail also reads one Oracle Recruiting Cloud requisition on the candidate-site hosts it admits (the same four
+    host forms as oracle_orc.DETAIL_HOST and the package's egress block) and one SmartRecruiters posting, so a job of
+    such a board or company stays a candidate too; an Oracle board on any other host would be refused and is left out.
+    """
+    predicate = _native_readable_predicate()
+    return f" AND ({predicate})" if predicate else ''
+
+
+def _native_readable_predicate() -> str | None:
+    """The native kernel's readable test as one SQL condition, or None off the native kernel (see above)."""
+    if os.environ.get('OSHAL_EGRESS') != 'kernel':
+        return None
+    saved = ','.join(str(posting_id) for posting_id in job_context.saved_ids())
+    oracle = ' OR '.join(f"ats_token LIKE '%.{suffix}|%'" for suffix in _ORACLE_DETAIL_SUFFIXES)
+    return ("TRIM(COALESCE(description,'')) <> ''"
+            " OR LOWER(COALESCE(url,'')) LIKE 'https://%myworkdayjobs.com%/job/%'"
+            f" OR company_id IN (SELECT id FROM {db.companies_table()} WHERE ats_type IN ('workday', 'smartrecruiters')"
+            f" OR (ats_type = 'oracle_orc' AND ({oracle})))"
+            + (f" OR id IN ({saved})" if saved else ''))
+
+
+# The Oracle candidate-site host forms lib/career-employer-detail.js admits: <pod>.fa[.us2|.us6|.ocs].oraclecloud.com.
+_ORACLE_DETAIL_SUFFIXES = ('fa.oraclecloud.com', 'fa.us2.oraclecloud.com', 'fa.us6.oraclecloud.com',
+                           'fa.ocs.oraclecloud.com')
+
+
 def _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only,
                days, first_seen_days, fresh_days, allow_posted_date_window, recent_first):
     """Build the same explicit refresh selection or a pending-only nightly backlog."""
+    prefix, source, where, params = _batch_where(title_any, company_any, scope, remote_only, min_keyword, new_only,
+                                                 days, first_seen_days, fresh_days, allow_posted_date_window)
+    sql = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {_order_by(recent_first)}"
+    return sql, params
+
+
+def settled_sql(title_any, scope, remote_only, undecided_prefix, undecided_nights):
+    """The settled nightly selection: the same pending, readable, in-lane jobs, the best candidates first.
+
+    Ordered by what is known without a model call: how many of the person's saved titles the job's title contains,
+    then Career's keyword match (fit_score, set by match.rescore_new before scoring), then the newest, so the jobs a
+    night's time does not reach are the least promising. A close call asked on `undecided_nights` nights already is
+    left to the person's own Check my fit (settle.py).
+    @returns (selection SQL, its parameters, the count SQL of every candidate, its parameters).
+    """
+    prefix, source, where, params = _batch_where(title_any, None, scope, remote_only, 0, True,
+                                                 None, None, None, False)
+    where += f" AND COALESCE(ai_model,'') NOT LIKE '{undecided_prefix}{int(undecided_nights)},%'"
+    terms = [str(term).strip().lower() for term in (title_any or []) if str(term).strip()]
+    strength = ' + '.join('CASE WHEN LOWER(title) LIKE ? THEN 1 ELSE 0 END' for _ in terms) or '0'
+    posted = 'posted_date DESC NULLS LAST' if config.POSTGRES else 'posted_date DESC'
+    order = f"({strength}) DESC, COALESCE(fit_score,0) DESC, {posted}, first_seen_at DESC, id"
+    select = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {order}"
+    count = f"{prefix}SELECT COUNT(*) FROM {source} WHERE {where}"
+    return select, params + [f"%{term}%" for term in terms], count, list(params)
+
+
+def unread_sql(title_any, scope, remote_only, limit=UNREAD_NIGHTLY_LIMIT):
+    """The nightly pass's unreadable jobs not yet marked: the same pending in-lane jobs the person's titles select, that
+    the native readable test leaves out, in settled_sql's order (saved titles in the title, keyword match, newest).
+
+    @returns (selection SQL, its parameters), or None off the native kernel, where no job is known unreadable before
+             its read (a refused read marks the job instead).
+    """
+    predicate = _native_readable_predicate()
+    if predicate is None:
+        return None
+    prefix, source, where, params = _batch_where(title_any, None, scope, remote_only, 0, True,
+                                                 None, None, None, False, readable=False)
+    where += f" AND NOT ({predicate}) AND COALESCE(ai_model,'') = ''"
+    terms = [str(term).strip().lower() for term in (title_any or []) if str(term).strip()]
+    strength = ' + '.join('CASE WHEN LOWER(title) LIKE ? THEN 1 ELSE 0 END' for _ in terms) or '0'
+    posted = 'posted_date DESC NULLS LAST' if config.POSTGRES else 'posted_date DESC'
+    order = f"({strength}) DESC, COALESCE(fit_score,0) DESC, {posted}, first_seen_at DESC, id"
+    sql = (f"{prefix}SELECT postings.id, postings.ai_fit_score, postings.ai_model FROM {source} WHERE {where} "
+           f"ORDER BY {order} LIMIT {int(limit)}")
+    return sql, params + [f"%{term}%" for term in terms]
+
+
+def needs_details_mark() -> str:
+    """The model attribution of a job whose details could not be read: the mark and when it was made."""
+    return json.dumps({'needsDetails': 1, 'at': db.now()}, ensure_ascii=False, separators=(',', ':'))
+
+
+def mark_needs_details(conn, row) -> bool:
+    """Mark one unscored job "details needed" for this person. A scored job, a close call or any other attribution is
+    left as it is.
+
+    @param conn: The person's store connection.
+    @param row: The job's id, ai_fit_score and ai_model.
+    @returns True when the job was marked.
+    """
+    model = row.get('ai_model')
+    if row.get('ai_fit_score') is not None or (model and not str(model).startswith(NEEDS_DETAILS_PREFIX)):
+        return False
+    db.user_set(conn, row['id'], ai_model=needs_details_mark())
+    return True
+
+
+def clear_needs_details(conn, row) -> None:
+    """Remove the "details needed" mark from an unscored job once the person has given its description."""
+    if row.get('ai_fit_score') is None and str(row.get('ai_model') or '').startswith(NEEDS_DETAILS_PREFIX):
+        db.user_set(conn, row['id'], ai_model=None)
+
+
+def mark_unreadable(title_any, remote_only) -> int:
+    """List the nightly pass's unreadable jobs for the person without reading or scoring them (native kernel only).
+
+    @param title_any: The person's saved titles, as the nightly pass selects with them.
+    @param remote_only: The person's remote-only preference.
+    @returns How many jobs were newly marked "details needed".
+    """
+    selection = unread_sql(title_any, search_scope.load(config.CAREER_DB.parent), remote_only, UNREAD_NIGHTLY_LIMIT)
+    if not selection or not [str(term).strip() for term in (title_any or []) if str(term).strip()]:
+        return 0
+    marked = 0
+    with db.connect() as conn:
+        rows = [dict(row) for row in conn.execute(*selection).fetchall()]
+        for row in rows:
+            marked += mark_needs_details(conn, row)
+        conn.commit()
+    return marked
+
+
+def _batch_where(title_any, company_any, scope, remote_only, min_keyword, new_only,
+                 days, first_seen_days, fresh_days, allow_posted_date_window, readable=True):
+    """The selection's source and WHERE clause, shared by every pass. Returns (prefix, source, where, params).
+
+    `readable=False` leaves the native readable test out of a new-only selection (unread_sql negates it itself).
+    """
     # Generic passes use the shared technology/professional lane. Explicit user titles
     # are their own selection: adjunct/instructor roles must not be rejected just because
     # the shared classifier does not label them technology work. Empty terms cannot
@@ -438,7 +602,7 @@ def _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only
     if min_keyword:
         where += f" AND COALESCE(fit_score,0) >= {int(min_keyword)}"
     if new_only:
-        where += " AND ai_fit_score IS NULL AND COALESCE(status,'new') <> 'dismissed'"
+        where += " AND ai_fit_score IS NULL AND COALESCE(status,'new') <> 'dismissed'" + (_native_readable_where() if readable else '')
     else:
         where += _freshness_where(days, first_seen_days, fresh_days, allow_posted_date_window)
     selector_sql, params = _selector_where(title_any, company_any)
@@ -456,8 +620,7 @@ def _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only
                   f"SELECT id AS fresh_id FROM postings WHERE posted_date >= date('now','-{n} days') "
                   "UNION ALL SELECT fresh_id FROM seen_candidates WHERE posted_date IS NULL) ")
         source = 'fresh_candidates CROSS JOIN postings ON postings.id = fresh_candidates.fresh_id'
-    sql = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {_order_by(recent_first)}"
-    return sql, params
+    return prefix, source, where, params
 
 
 def _batch_rows(sql, params, rescore):
@@ -495,11 +658,16 @@ def _select_stale(rows, fingerprints, companies, prof_summary, model_identity, r
     return selected, inspected
 
 
-def _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers):
-    """Save model results and preserve explicit unavailable-worker failures."""
+def _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers, mark_unread=False):
+    """Save model results and preserve explicit unavailable-worker failures.
+
+    With `mark_unread` (the nightly new-only pass, whose jobs have no score) a job whose details could not be read is
+    marked "details needed" for the person's list.
+    """
     model = model_identity.cache_key
     total = len(selected)
     scored = skipped = refused = 0
+    rows = {row['id']: row for row in selected}
 
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
         for i, res in enumerate(ex.map(lambda r: _score_one(r, prof_summary,
@@ -513,11 +681,29 @@ def _score_selected(selected, fingerprints, prof_summary, model_identity, rescor
             else:
                 skipped += 1
                 refused += bool(res.get('refused'))
+                if mark_unread and res.get('refused') == 'job_details_unavailable':
+                    with db.connect() as conn:
+                        mark_needs_details(conn, rows[res['id']])
             if i % 25 == 0 or i == total:
                 print(f"   {i}/{total}  ({scored} scored)", flush=True)
     if refused:
         print(f"   {refused} skipped: employer details unavailable", flush=True)
     return scored, skipped, refused
+
+
+def pass_context():
+    """The profile every scoring call of a pass carries, and the person's saved matching area.
+
+    Scoring is private (never shown to an employer), so it credits the user's full ability, including his
+    independent open-source / agentic R&D (OSHAL). This is what lets applied-research / emerging-tech / agentic
+    roles score on his real depth. Resume/cover generation gates OSHAL separately (opt-in, default off).
+    @returns (the profile text, the matching area or None).
+    """
+    prof_summary = profile.scoring_context(include_oshal=True)
+    scope = search_scope.load(config.CAREER_DB.parent)
+    if scope:
+        prof_summary += search_scope.summary(scope)
+    return prof_summary, scope
 
 
 def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=None, company_any=None,
@@ -542,14 +728,7 @@ def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=N
         raise RuntimeError("No AI auth found. Log into Claude Code, or set ANTHROPIC_API_KEY.")
     model_identity = enrich.resolve_scoring_identity(config.ANTHROPIC_SCORE_MODEL)
     model = model_identity.cache_key
-    # Scoring is private (never shown to an employer), so it credits the user's full
-    # ability — including his independent open-source / agentic R&D (OSHAL). This is
-    # what lets applied-research / emerging-tech / agentic roles score on his real
-    # depth. Resume/cover generation gates OSHAL separately (opt-in, default off).
-    prof_summary = profile.scoring_context(include_oshal=True)
-    scope = search_scope.load(config.CAREER_DB.parent)
-    if scope:
-        prof_summary += search_scope.summary(scope)
+    prof_summary, scope = pass_context()
     sql, params = _batch_sql(title_any, company_any, scope, remote_only, min_keyword, new_only,
                              days, first_seen_days, fresh_days, allow_posted_date_window, recent_first)
     budget = int(limit) if limit is not None and int(limit) > 0 else None
@@ -572,7 +751,8 @@ def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=N
     if inspection_limit:
         rows = rows[:inspection_limit]
     selected, inspected = _select_stale(rows, fingerprints, companies, prof_summary, model_identity, rescore, budget)
-    scored, skipped, refused = _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers)
+    scored, skipped, refused = _score_selected(selected, fingerprints, prof_summary, model_identity, rescore, workers,
+                                               mark_unread=new_only)
     if budget and not new_only and skipped == refused:
         # Invalid/retryable outputs must remain reachable on the next attempt. Successful
         # earlier rows are already fingerprinted, so retaining this position costs no

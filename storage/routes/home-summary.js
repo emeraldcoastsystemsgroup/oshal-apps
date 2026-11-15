@@ -1,4 +1,11 @@
 "use strict";
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.3: name the product Open Swarm in the Home summary default-target note.
+ */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
 /** Saved storage evidence. GET is owner-scoped, bounded, and side-effect free. */
@@ -31,7 +38,7 @@ function createHomeSummaryRoutes(ctx) {
             items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "storage-settings" });
         else if (!items.length)
             items.push({ text: 'No storage target saved; the default target is in use. Storage Settings shows it.', tone: 'neutral', fix: "storage-settings" });
-        items.push({ text: "Shows explicitly saved target preferences. Automatic means nothing is saved, so the default target is in use: OSHAL (local), unless GitHub is connected (code) or Dropbox or Google Drive is connected (files). Storage Settings and the Storage assistant show that default as the current target. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.", tone: 'neutral', fix: "storage-settings" });
+        items.push({ text: "Shows explicitly saved target preferences. Automatic means nothing is saved, so the default target is in use: Open Swarm (local), unless GitHub is connected (code) or Dropbox or Google Drive is connected (files). Storage Settings and the Storage assistant show that default as the current target. A saved target is not evidence of a live connection, a successful export or provider free space. Browse and export through the existing Files surface.", tone: 'neutral', fix: "storage-settings" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });
     return router;

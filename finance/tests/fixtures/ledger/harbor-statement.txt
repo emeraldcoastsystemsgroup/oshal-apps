@@ -1,0 +1,16 @@
+Harbor Bank
+Everyday Checking, account ending 4821
+Statement period October 1, 2026 through October 31, 2026
+
+Date   Description                         Amount      Balance
+10/01  MAPLE COURT APARTMENTS             1,450.00     1,975.29
+10/08  CORNER FUEL                           38.55     1,936.74
+10/12  STREAMING PLUS                        13.99     1,922.75
+10/15  PAYROLL LAKESIDE DESIGN CO         3,200.00     5,122.75
+       DIRECT DEPOSIT REF 4471
+10/28  CORNER TRATTORIA                      52.80     5,069.95
+10/30  CITY UTILITIES                       112.40     4,957.55
+10/31  HARBOR MARKET                         84.31     4,873.24
+10/31  SERVICE FEE WAIVED
+
+Customer service 1-800-555-0100

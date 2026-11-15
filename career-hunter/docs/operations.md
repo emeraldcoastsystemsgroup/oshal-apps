@@ -12,6 +12,222 @@ private corpus copy and publishes that copy atomically after success. A failed o
 unfinished pull leaves the last published corpus available. Restarting the daemon
 interrupts its running pull; check its actual state before a maintenance restart.
 
+The nightly match counts one pass per pull cycle, and a cycle begins at the pull's time
+of day. The kernel does not pass `OSHAL_CAREER_INGEST_CRON` into the package, so an
+installation whose pull is not at 18:00 Central also sets the same plain daily cadence for
+the package: `OSHAL_PACKAGE_ENV_CAREER_HUNTER__CAREER_INGEST_CRON="0 1 * * *"` in
+`oshald.env`, then a daemon restart. Without it, cycles begin at 18:00, and a pull that
+publishes before 18:00 waits for the next day's match.
+
+In the nightly receipt (`nightly-match-success.json`), `skipped` counts slots of the 50 that
+produced no score. On the native kernel the engine reads employer details only through the
+Career rail (`lib/career-employer-detail.js`), and since 1.62.3 a job with no listing text, no
+saved copy and no posting the rail can read is not selected at all. The rail reads exactly these,
+each one GET with no credential, no redirect followed and at most 256 KiB:
+
+| Source | Host (egress) | The one address admitted | Since |
+|---|---|---|---|
+| Workday | `*.myworkdayjobs.com` | `/wday/cxs/<tenant>/<site>/job/...` on the tenant's own host | 1.34.1 |
+| Oracle Recruiting Cloud | `*.fa.oraclecloud.com`, `*.fa.us2.oraclecloud.com`, `*.fa.us6.oraclecloud.com`, `*.fa.ocs.oraclecloud.com` | `/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%22<id>%22,siteNumber=<site>` | 1.63.0 |
+| SmartRecruiters | `api.smartrecruiters.com` | `/v1/companies/<company>/postings/<digits>` | 1.63.0 |
+
+An Oracle board on another host form (for example `*.fa.em2.oraclecloud.com`) is not admitted and
+its jobs are left out like any other unreadable job; adding a host form means the guard, the
+egress block, `oracle_orc.DETAIL_HOST` and `score._ORACLE_DETAIL_SUFFIXES` together, and their
+test (`tests/career-employer-detail.test.mjs`). The Oracle and SmartRecruiters readers make one
+read per job and never retry: a closed posting (Oracle answers an empty list, SmartRecruiters
+`404`), a refusal or any other status marks nothing, and the job is tried again the next night.
+A Workday job is skipped when Workday answers a redirect instead of the posting: during
+Workday's maintenance every read is a `303` to `community.workday.com/maintenance-page`
+(the kernel log shows `package_egress` with status 303). Such a job is tried again the next night.
+Jobs of the other sources have no reader on the native kernel. Since 1.64.0 the pull keeps
+their descriptions instead (next section), and a job with listing text is selected and scored
+with no request at all.
+
+### Jobs listed without a description (1.66.0)
+
+A job of the person's nightly selection (their saved titles, area and remote choice, no score yet,
+not removed) whose description cannot be had is marked "details needed" in that person's store:
+`user_signals.ai_model = {"needsDetails":1,"at":...}`, `ai_fit_score` stays NULL, no model call.
+On the native kernel the jobs the readable test above leaves out are marked after keyword matching
+with no read at all, best title and keyword matches first, at most 200 a night
+(`score.UNREAD_NIGHTLY_LIMIT`); a selected job whose one read is refused (`job_details_unavailable`)
+is marked after that read. A close call and any scored job are never marked; a later score
+replaces the mark. The engine's count line carries `needsDetails` (in the settled pass including
+the jobs marked after a refused read); the receipts are unchanged. New matches lists and counts
+marked jobs through the owner index `idx_user_needs_details` (`migrations/sqlite/002`, applied by
+the engine's nightly matching and by writable owner opens, like `001`); an owner store without it
+lists scored matches only. A person's pasted description is kept in their own
+`job-context/<posting>.json` (basis `person-pasted`, 200 to 20,000 characters, mode 0600), never in
+the corpus and never logged; `POST /jobs/:id/generate` refuses a marked job with no description and
+nothing pasted with 409 `job_details_needed` before the engine starts. An unmarked job with no description
+still starts the engine, which tries the employer page once; when that preparation stops with
+`job_details_unavailable` (or `job_context_unavailable`, a saved copy that cannot be verified),
+`GET /jobs/:id` carries `details_needed` with the same words as the 409 (since 1.66.1), which is what
+the Concierge and Jarvis read after `career_draft`. To see how many a person has:
+`SELECT COUNT(*) FROM user_signals WHERE ai_fit_score IS NULL AND ai_model GLOB '{"needsDetails":*'`
+on their `user.db` (read-only).
+
+### Descriptions the pull keeps (1.64.0)
+
+Most job lists the pull reads give a title, a place and a link, not the description. The pull
+runs with the network the kernel's ingest grants it (`crates/host-process/src/career_ingest.rs`:
+the ingest namespace shares the host network; nothing about it changed), so once every list is
+read it ends its job finding with a **description stage** (`engine/jobhunter/pull_details.py`):
+it reads the job's own page, on the site the list came from, and keeps the description in the
+corpus's listing text, the field scoring reads first. Scoring reaches nothing new: the rail's
+table above and the package's `egress:` block are unchanged.
+
+| Source kind | What the stage reads | Unreadable in-lane jobs on 2026-11-14 |
+|---|---|---|
+| Google | nothing: the results page the list already reads carries every job's description, which the reader now keeps | 166 |
+| Eightfold | the posting page's JSON-LD `JobPosting` | 1,643 |
+| Experis and other listed boards (`htmllist`) | JSON-LD | 1,286 |
+| Radancy | JSON-LD | 736 |
+| SuccessFactors | the schema.org microdata in the page (`itemprop=description` under its `itemprop=title`) | 362 |
+| iCIMS | JSON-LD | 167 |
+| Avature | JSON-LD, else the details article | 58 of 79 |
+| Webflow | the rich-text body | 20 |
+| Employers' own sites (`web`) | JSON-LD, microdata or the Avature details article, by plain HTTP | about 1,120 of 2,055 |
+
+What it does not read: jobs whose site refuses a plain read with a browser check (Jacobs, CBRE,
+Delta: `202`; Regeneron, SAIC, Verizon: `403`; 935 jobs on 2026-11-14), which would need one
+browser launch per job; a page on another host than the list's (ManTech's 21 Avature jobs link
+`careers.mantech.com`); Goldman Sachs (`gsroles`, 12) and Brassring (4); jobs outside the shared
+lane (`target_role`); and jobs first seen more than seven days ago.
+
+The bound. Only a full pull (`scrape --all`); only active in-lane jobs with no listing text,
+first seen in the last seven days; a job read twice is never read again. Sources take turns one
+page at a time within the newest day any of them still has, then the next day's, so the night's
+budget reaches every source's newest jobs before older ones, and one site's one-second politeness
+pause overlaps another's read. No page is read in parallel with another, and no host gets more
+pages a pull than the per-source cap, however many sources share it. Each read is one GET on
+public addresses only (`http.page_once`: never retried, no redirect followed, 2 MB at most,
+15 s), and a text is kept only when the page names the job (its JSON-LD identifier or title, or
+the page title for a layout read), whole up to 64,000 characters, markup stripped. A refused,
+empty or failed read leaves the job as it is; the stage never fails the pull and never shortens
+the lists, which are all read before it starts. Reads are recorded with their text every 25
+pages, so a pull stopped in the stage continues without reading a page it kept. When no source
+has a page left to read, the stage ends at once, however much of its budget is left.
+
+Defaults and settings (1.64.1, owner 2026-11-14: "Yes let's increase the pull"). 600 pages a
+source (and a host), 6,000 a pull, 80 minutes a pull (read time, counted across a stopped and
+continued pull; one read in flight may finish past it); one source stops after 600 s of its own
+reads or three refusals in a row. A run that has gone seven hours reads no more pages, which
+leaves the kernel's eight-hour ceiling room to publish. An administrator changes them, or turns
+the stage off, without a release: a source change on the Companies page's Resolve route, for any
+listed employer, whose link is one of
+
+    setting:descriptions=off                   (or on)
+    setting:descriptions_per_source=600        (0-1000)
+    setting:descriptions_per_pull=6000         (0-20000)
+    setting:descriptions_minutes=80            (0-180)
+    setting:descriptions_source_seconds=600    (0-3600)
+
+The pull applies it before its lists, so the same night follows it, and keeps it in the corpus
+(`pull_settings`) for every later pull. The Companies page shows the change's outcome:
+`setting_saved`, or `bad_setting` for a name or value outside those (nothing changes).
+
+What to look for after a pull: the summary line ends `Descriptions kept: N of M job pages read.`
+(both counts cover the whole pull); the corpus holds one row per read in `source_detail_reads`
+(`outcome` is `saved`, `not_named`, `refused`, `unreadable`, or `skipped` for a link on another
+host). Estimated from the 2026-11-14 counts (aggregates only; latencies from one read per host
+and the one-second pause), of the 5,551 reachable among the 6,530 unreadable jobs: the first
+night reads about 6,000 pages in 74-80 minutes and describes 63-74 percent, the second 73-95
+percent, the third about 98 percent (the range is how many new jobs arrive, 1,100 to 2,200 a
+night). The largest single sources (Lockheed Martin on Eightfold, Experis) take their 600 pages a
+night, so they clear on the third. Once the backlog is gone a night reads only its own new jobs
+and the stage ends by itself: about 1,100 to 2,200 pages in 21 to 38 minutes (about 1,400 pages
+in 25 minutes). No host gets more than 600 of the stage's pages in a night.
+
+### Settled nightly scoring (since 1.65.0, off unless the installation turns it on)
+
+Off, the nightly pass is exactly 1.63.0's: at most 50 jobs, newest first, one model call each, on the
+package's own batch order (guard: `tests/fixtures/nightly-off-switch-1.63.0.json`, recorded from
+1.63.0). On, each job is asked three times on byte-identical input and **settled**: all three runs have a
+valid score, share one side of 70 and their median lies outside the band (64 to 75 at the default 6
+points); the saved score is the median and its attribution lists the three runs (`settled.runs`).
+Anything else with at least two valid runs is a **close call**: the runs disagree, the median is inside
+the band, or one run gave no valid score (a failed run counts as no side). **Fewer than two valid runs:**
+nothing is saved, the job reads **Not scored yet** and stays pending for the next night (`failed` in the
+receipt). A run is failed when Career's call and its one retry both gave no valid score. An answer with no
+text is one of those: the kernel refuses it as unavailable (`crates/inference/src/generic.rs`, "returned an
+empty completion"; `package_bot_turn.rs`, "inference returned an empty answer"), the rail answers its usual
+`503 career-worker-unavailable` with `detail: "empty-answer"`, and the settled pass counts that try as
+unanswered and goes on; any other rail failure still ends the run as before. Switched off, an empty
+answer still ends the pass, exactly as in 1.63.0. Measured on 50 made-up postings, see
+[the measurement](settled-scoring-measurement.md).
+
+**How a call's model is chosen, and why close calls are not sent to a stronger model yet.** Every call
+the engine makes goes through the Career rail to the kernel's `bot_turn`, which takes no model, provider
+or kind of work (`crates/oshald/src/package_bot_turn.rs` `input`). The kernel picks the order by the kind
+of work: every call of a run a schedule keeps alive is background work
+(`crates/oshald/src/package_runs.rs`: `Run.background`, and `inference::work::scoped(run.background, …)`
+in `RunContinuation::serve`), so it reads `inference.order.background` (Career's own record, else the
+installation's). A package cannot send one of those calls to another order. A close call is therefore
+left **undecided**: no score is saved (so no screen can put it on a shortlist), the job's `ai_model`
+keeps `{"undecided":<nights>,"runs":[…],"why":…,"at":…}`, it is asked again the next night once, and
+after two nights it is left to the person's **Check my fit**, which runs as the person's own request and
+reads the application-assistant order (`inference.order.concierges`).
+
+**What the kernel would have to offer** for the close calls to go to a stronger model: a second order
+for one of the package's own bots in background work. Concretely, the background order looked up by
+package **and bot** (`crates/oshald/src/turn_background.rs` `order(base, settings, package)`, called
+from `host_services.rs` `configured_bot_inference`, which today resolves before the bot is known; the bot
+is resolved in `package_bot_turn.rs` `execute`, line 273), a settings holder for it in
+`crates/api/src/model_orders.rs`, and the Career identity read accepting that second bot
+(`host_services.rs` `career.model_identity` accepts no selectors; `package_bot_turn.rs` `CAREER_BOT` and
+`is_career_bot`). Career would then declare a second node bot with the same persona and send close calls
+to it.
+
+**The settings** (per-package, `OSHAL_PACKAGE_ENV_CAREER_HUNTER__<NAME>` in `oshald.env`, then a
+daemon restart; a duplicate key refuses the start):
+
+| Setting | Default | Bounds | What it does |
+|---|---|---|---|
+| `CAREER_NIGHTLY_SETTLE` | unset (off) | `1` = on; anything else is off | The switch. Off is 1.63.0's pass and receipt. |
+| `CAREER_NIGHTLY_LIMIT` | 400 | 1 to 2000 | Jobs a night (all runs of the night together). 400 is about 85 percent of what the measured 7.61 s a job at three at once fits in an hour (about 470). |
+| `CAREER_NIGHTLY_CONCURRENCY` | 3 | 1 to 3 | Calls at once. The local model serves about three at a time and is shared with training. |
+| `CAREER_NIGHTLY_BAND` | 6 | 0 to 15 | Points on either side of 70 that make a median a close call. |
+| `CAREER_NIGHTLY_BUDGET_MINUTES` | 60 | 5 to 240 | The night's time, over all its runs. |
+
+The rail's own limit also applies: `CAREER_WORKER_RAIL_CONCURRENCY` (default 2) admits at most that many
+completions at once, so three at once needs it set to 3; at 2 the night runs at two thirds of the speed.
+
+**The night is several kept runs.** The kernel keeps a run alive at most 1800 s (`package_runs.rs`
+`MAX_SECONDS`) and publishes the owner's writes only when the run ends well, so one run takes at most 20
+minutes (`NIGHTLY_RUN_SECONDS`): no job starts after that, a started job may finish its runs for 180 s
+more and then stops between runs, and the run ends on its own with what it scored. The receipt then says
+`continues: true`, and the next half-hourly check of the same pull cycle starts the next run with what is
+left of the night's limit and time (it stops continuing with under two minutes left). The route keeps its
+30-minute timeout, which is the kernel's 1800 s. At the defaults a night is three runs on three consecutive
+half-hourly checks after the publication, about 470 jobs at three at once (about 315 at the rail's
+default two).
+
+**The order.** Within the pending, readable, in-lane jobs: how many of the person's saved titles the job's
+title contains, then Career's keyword match (`fit_score`, from `match.rescore_new` earlier in the same
+run), then the newest. No model call decides the order.
+
+**The receipt** (`nightly-match-success.json`, `version: 2`, `mode: "settled"`): `scored`, `undecided`
+(close calls), `unreadable` (employer details could not be read), `failed` (no run gave a valid score;
+the job stays pending), `notReached` (pending candidates this run did not reach), `calls`, `runs`,
+`usedSeconds` of `budgetSeconds`, `limit` and `continues`; totals are the night's, `notReached` is the
+last run's. The engine's last line carries the same counts with `"mode":"settled"`. Career Settings →
+Nightly résumé matches shows them in words; in My jobs a job not reached reads **Not scored yet** and an
+undecided one **Close call, not settled yet**.
+
+**To switch it on** (outside the nightly window): the batch order Career's calls read must be the local
+model (Career's own `inference.order.background`, else the installation's). A call the kernel's local
+connection cap (`inference.background.local_connections`, 3, shared by all background work) holds past
+`inference.background.local_wait` goes to the order's next rail; with none it is refused, and a refused
+call ends the engine's run (`enrich._rail_trip`), whose writes are then not published. So the order
+either lists a fallback (each such call then costs it and is attributed `fallback: true`) or accepts that
+a crowded run ends with nothing kept and the next half-hourly check starts it again. Then set
+`CAREER_NIGHTLY_SETTLE=1` and `CAREER_WORKER_RAIL_CONCURRENCY=3` for the package and restart. It takes
+effect at the next publication: a receipt already written for the current corpus is a finished night.
+**To switch it off:** remove `CAREER_NIGHTLY_SETTLE` and restart; a settled receipt is then read as a
+finished night, and the next publication runs 1.63.0's pass.
+
 Career Settings and Jarvis's `career_refresh_status` read
 `GET /api/career-hunter/run/refresh`. On a kernel with the safe observation port,
 this requires normal Career read access and returns the following facts without
@@ -389,3 +605,4 @@ the runner and a runner-level proof was green, but the launcher still applied it
 the next live pass failed identically; 1.12.5 made the launcher honor the runner's verdict. Proof
 that it was over: `ps` in the api showed `jobhunter score` with four `codex exec` workers, and the
 operator's board gained AI-scored rows two minutes after the restart.
+<!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.1: an unmarked job whose preparation stopped for missing details reads with details_needed, the 409's words. -->

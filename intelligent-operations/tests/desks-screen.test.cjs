@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: fixture 403 refusal text names Open Swarm. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | The four desk tabs in a real browser over the shipped assets, at 390x844 and 412x915 (spec lanes/monitoring-four-desks-spec-2026-11-08.md section 8): the tabs follow Overview, each tab shows its five panels, an empty desk says what will fill each panel and names the probe, the Settings panel shows the topic with the way to Notifications, the source and the host threshold file path with the snapshot a heartbeat carried or that none has, nothing overflows the phone, the four topics are seeded once through POST /api/notify/prefs with channel none, every control is reached by keyboard, a rule toggle saves through the desk's own policy route with the binding's revision, and a refused desk clears and names the role. The server answers are fixtures in the shape routes/desks.js serves; the server side is desks.test.cjs. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),http=require('node:http'),fs=require('node:fs');
@@ -30,7 +31,7 @@ async function page(run,{shapes={},viewport={width:390,height:844},prefs=[],refu
    if(url.pathname.startsWith(prefix)&&!route.startsWith('/assets/')&&route!=='/app'){
     if(route==='/desks')return json(catalog());
     const m=/^\/desks\/([a-z-]+)(\/policy)?$/.exec(route);
-    if(m){const desk=DESKS.find(d=>d.id===m[1]);if(!desk)return json({error:'no such desk'},404);if(refuse[desk.id])return json({error:'Your current OSHAL role does not permit this operation.'},refuse[desk.id]);
+    if(m){const desk=DESKS.find(d=>d.id===m[1]);if(!desk)return json({error:'no such desk'},404);if(refuse[desk.id])return json({error:'Your current Open Swarm role does not permit this operation.'},refuse[desk.id]);
      if(m[2]){const body=JSON.parse(raw);saved.push({desk:desk.id,body});return json({policy:{id:'c'.repeat(64),name:desk.sourceName+' checks',rules:body.rules||[]},binding:{sourceId:'a'.repeat(64),policyId:'c'.repeat(64),revision:(body.expectedRevision||0)+1}});}
      return json(summary(desk,shapes[desk.id]||'empty'));}
     if(route==='/records')return json({sources:[],events:[],inventory:[],processing:[],attempts:[]});if(route==='/pipeline')return json({policies:[],bindings:[],decisions:[],symptoms:[],evidenceWork:[],correlations:[]});if(route==='/investigations')return json({items:[]});if(route==='/topology')return json({asOf:new Date().toISOString(),assets:[],relationships:[],collections:[]});if(route==='/topology/discovery')return json({enabled:false});

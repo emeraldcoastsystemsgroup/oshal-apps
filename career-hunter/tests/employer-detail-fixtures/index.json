@@ -1,0 +1,69 @@
+{
+ "note": "Real public responses read 2026-11-14 with the package user agent, no sign-in; contact fields emptied and contact mailboxes and phone numbers replaced.",
+ "fixtures": [
+  {
+   "file": "oracle-jpmc-210801278.json",
+   "url": "https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%22210801278%22,siteNumber=CX_1001",
+   "jobId": "210801278",
+   "status": 200,
+   "contentType": "application/json",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "oracle-eeho-us2-346395.json",
+   "url": "https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%22346395%22,siteNumber=CX_45001",
+   "jobId": "346395",
+   "status": 200,
+   "contentType": "application/json",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "oracle-iawmqy-ocs-R283698.json",
+   "url": "https://iawmqy.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%22R283698%22,siteNumber=cx_1001",
+   "jobId": "R283698",
+   "status": 200,
+   "contentType": "application/json",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "oracle-eeho-us2-closed.json",
+   "url": "https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%229999999999%22,siteNumber=CX_45001",
+   "jobId": "9999999999",
+   "status": 200,
+   "contentType": "application/json",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "smartrecruiters-boschgroup-744000161629479.json",
+   "url": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000161629479",
+   "jobId": "744000161629479",
+   "status": 200,
+   "contentType": "application/json; charset=utf-8",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "smartrecruiters-abbvie-3743990016859246.json",
+   "url": "https://api.smartrecruiters.com/v1/companies/abbvie/postings/3743990016859246",
+   "jobId": "3743990016859246",
+   "status": 200,
+   "contentType": "application/json; charset=utf-8",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "smartrecruiters-servicenow-744000161596339.json",
+   "url": "https://api.smartrecruiters.com/v1/companies/servicenow/postings/744000161596339",
+   "jobId": "744000161596339",
+   "status": 200,
+   "contentType": "application/json; charset=utf-8",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "smartrecruiters-servicenow-closed.json",
+   "url": "https://api.smartrecruiters.com/v1/companies/servicenow/postings/1",
+   "jobId": "1",
+   "status": 404,
+   "contentType": "application/json; charset=utf-8",
+   "retrieved": "2026-11-14"
+  }
+ ]
+}

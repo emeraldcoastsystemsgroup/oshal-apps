@@ -34,6 +34,8 @@
  *   503 "Try again". An installation with no remote storage still answers 503 and is not called the person's missing connection.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo, in the
  *   kernel's own refusal words as read on a running kernel ("GitHub storage requires a selected repository"); it answered 503 "Try again".
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: card sentences and usage answers name the product Open Swarm ("your Open Swarm storage",
+ *   "Your Open Swarm local store").
  */
 'use strict';
 const test = require('node:test');
@@ -170,7 +172,7 @@ test('POST /files/upload (storage-upload-file) uploads files to connected Dropbo
   assert.ok(uploadTool, 'storage-upload-file tool declared in oshal-app.yaml');
   assert.equal(uploadTool.executor.apiEndpoint, 'POST /api/storage/files/upload');
   assert.equal(uploadTool.requiresApproval, true);
-  assert.match(uploadTool.cardText || '', /Uploads this file to your OSHAL storage/);
+  assert.match(uploadTool.cardText || '', /Uploads this file to your Open Swarm storage/);
 });
 
 test('a note name, its kind and its size are bounded before anything is written', async () => {
@@ -222,7 +224,7 @@ test('the list answers how much of the OSHAL-local limit the files use, and the 
     STUBS['@/app/routes/inline-bot-execution'].executeBotOrInline = async () => ({ response: '{"action":"usage","args":{}}' });
     try {
       const said = await call(k.r, 'POST /assistant', { message: 'How much space am I using?' });
-      assert.match(said.body.reply, /^Your OSHAL-local store holds 2 file\(s\) using 2\.0 MB of 250\.0 MB\. Counts the files at the top/);
+      assert.match(said.body.reply, /^Your Open Swarm local store holds 2 file\(s\) using 2\.0 MB of 250\.0 MB\. Counts the files at the top/);
     } finally { STUBS['@/app/routes/inline-bot-execution'].executeBotOrInline = async () => ({ response: '{}' }); }
   });
   const empty = kernel();
@@ -279,10 +281,10 @@ test('each held note tool declares a people-facing card sentence (sweep 12)', ()
   const held = manifest.tools.filter((t) => t.requiresApproval === true && /note/.test(t.name));
   assert.deepEqual(held.map((t) => t.name).sort(), ['storage-delete-note', 'storage-save-note']);
   for (const tool of held) {
-    assert.match(tool.cardText || '', /^[A-Z][^]*\byour OSHAL storage\b[^]*\.$/, `${tool.name} declares a sentence to the person`);
+    assert.match(tool.cardText || '', /^[A-Z][^]*\byour Open Swarm storage\b[^]*\.$/, `${tool.name} declares a sentence to the person`);
     assert.doesNotMatch(tool.cardText, /storage-[a-z-]+|\bconfirm\b|\bcall\b|the person/i, tool.name);
   }
-  assert.equal(manifest.tools.find((t) => t.name === 'storage-delete-note').cardText, 'Deletes this note from your OSHAL storage.');
+  assert.equal(manifest.tools.find((t) => t.name === 'storage-delete-note').cardText, 'Deletes this note from your Open Swarm storage.');
 });
 
 test('every delete request calls the delete tool, and nothing is called deleted before it answers (sweep 13)', () => {

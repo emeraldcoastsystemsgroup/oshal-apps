@@ -4,9 +4,12 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0 (T79, the device inventory; Roger, 2026-11-12: "when you add a device and that device gives the swarm control it runs discovery on the device ... so then there is a device inventory with how it can integrate, what is available over each integration and what you can get to"): What a TV can play is kept where Jarvis and the Devices page read it. POST /devices/:id/apps/record (tool phone-control-tv-apps-record) takes the one JSON line the TV's computer printed for What a TV can play, checks it (the bridge's tv_apps answer, its apps through the same closed list, a count of the others, the model and maker when they are plain names), records it against the TV, and hands the kernel's device.inventory.record, as the person, what was found: the TV (by its saved id, name and type: a Fire TV when its model or name says so, else an Android TV), its ADB route through the person's own computer that carries it and that it worked now, that its applications can be listed, the applications found with the services they reach, the seven it looked for and how many others it saw. A failed read records the route as down (the TV did not answer) or refused, with the bridge's words, and changes nothing else. A kernel without the intent, or one that refuses it, is said in words beside the applications, which are answered either way.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: a TV that is not the person's own saved device is refused with a sentence beside its code (lib/refusals.js).
  */
 
 'use strict';
+
+const { deviceNotFound } = require('../lib/refusals.js');
 
 /** The apps the bridge's tv_apps looks for, in its order (oshal_phone_apps.KNOWN_APPS), and the service each reaches. */
 const LOOKED_FOR = Object.freeze(['netflix', 'prime', 'disney', 'max', 'hulu', 'youtube', 'oshal']);
@@ -155,7 +158,7 @@ function mountInventory(router, env) {
   const { store, db, ctx, resolveDevice, refuse } = env;
   router.post('/devices/:id/apps/record', async (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try {
       return res.json(await recordTvApps({ store, db, owner: req.owner, ctx }, device, req.body || {}));
     } catch (error) {

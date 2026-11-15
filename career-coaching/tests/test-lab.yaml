@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: register Career Coaching's readiness and its five suites (the share routes with every study refusal, the projection, the declarations, the red-before proof of each refusal guard and the page in Chromium). Locally tested only: these cases use stand-ins for the kernel's identity, tickets and human gate and an in-memory store; the relationship policy on the real interpreter is proved by the kernel test crates/oshald/tests/career_coaching_relationships.rs, which a package runner cannot run.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: the route suite runs the package's own participant-status reader over a stand-in of the kernel's person.status read; its expectations now say a coach opens an active seeker's snapshot, an inactive seeker's is closed, and a kernel without the read keeps every coach read closed. The red-before suite names the four guards of that read.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the declarations suite's expectations say Career is an optional application, the Coaching client template maps Career's own Job seeker role and the Career coach template maps nothing in Career.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog case declarations with the kernel loader contract (explicit installation: never on non-smoke suites, cleanup note on coaching-red-before, and closed sideEffects enum on coaching-page-browser).
 version: 1
 cases:
   - id: package-readiness
@@ -54,6 +55,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 60000
+    installation: never
   - id: coaching-projection
     name: The career-summary.v1 snapshot and the page that builds it
     purpose: Check the server's closed, bounded snapshot rules and the seeker page's builder from Career's own count, progress and applied-list answers.
@@ -76,6 +78,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
   - id: coaching-declarations
     name: Catalog, relationship policy, manifest and source boundary
     purpose: Hold the authorization catalog, the policy, the migration, the manifest and the server code to the study's contract.
@@ -101,6 +104,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
   - id: coaching-red-before
     name: Each refusal guard goes red when removed
     purpose: Remove one guard at a time from a private copy of the package and require its guarding route case to fail, while the untouched copy passes.
@@ -121,8 +125,10 @@ cases:
     sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Remove the temporary package copy after each guard check.
     limits:
       timeoutMs: 180000
+    installation: never
   - id: coaching-page-browser
     name: Share with a coach and Shared with me in Chromium
     purpose: Drive the real page at 412x915 and 1280x900 over a local server that applies the catalog's role bindings and plays the kernel's confirmation and decision.
@@ -144,9 +150,10 @@ cases:
       - runner:playwright
       - browser:chromium
       - fixture:store-toolchain
-    sideEffects: synthetic browser fixtures only; no installation, account, ticket or provider is contacted
+    sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Close the browser contexts and loopback fixture server; synthetic browser fixtures only.
     limits:
       timeoutMs: 180000
     installation: never

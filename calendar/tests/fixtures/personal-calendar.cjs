@@ -1,15 +1,19 @@
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain disposable fixture connections before database cleanup; never terminate a closing client.
+// CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: apply migration 006 (the revision a change is bound to) and mount the meetings routes (find, change, cancel, decline; routes/meetings.js), loading each compiled module's own relative imports.
+// CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the agenda reads Google Calendar live. This Source fixture reaches no Google Calendar (no token broker, no egress), a named seam: the legacy broker answers that Google is unreachable, so the agenda reads as Google not answering (the saved copy, with its warning). A suite that needs a live Google puts the stand-in kernel egress in front (tests/fixtures/google-calendar-standin.cjs).
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),{randomUUID}=require('node:crypto');
 const root=path.resolve(__dirname,'../..'),store=path.resolve(root,'..');
 const modules=process.env.STORE_CI_TOOLCHAIN?path.join(process.env.STORE_CI_TOOLCHAIN,'node_modules'):path.join(store,'scripts/toolchain/node_modules');
 const dependency=Module.createRequire(path.join(modules,'fixture.cjs'));
 const express=dependency('express'),{Client,Pool}=dependency('pg');
-function load(name){const m={exports:{}};new Function('require','module','exports',fs.readFileSync(path.join(root,'routes',name+'.js'),'utf8'))(id=>{
+const loaded={};
+function load(name){if(loaded[name])return loaded[name];const m={exports:{}};loaded[name]=m.exports;new Function('require','module','exports',fs.readFileSync(path.join(root,'routes',name+'.js'),'utf8'))(id=>{
  if(id==='express')return express;if(id==='crypto'||id==='path')return require(id);
  if(id==='@/shared/logger')return{createChildLogger:()=>({error(){},warn(){},info(){}})};
- if(id==='./event-time')return load('event-time');throw Error('Unexpected fixture import '+id);
-},m,m.exports);return m.exports;}
+ if(id==='@/app/routes/connectors-routes')return{getValidAccessToken:async()=>{throw Error('The Source fixture reaches no Google Calendar.');}};
+ if(/^\.\/[a-z-]+$/.test(id))return load(id.slice(2));throw Error('Unexpected fixture import '+id);
+},m,m.exports);loaded[name]=m.exports;return m.exports;}
 const own=load('own-events');
 async function dropDatabase(admin,db){
  const deadline=Date.now()+5000;
@@ -26,12 +30,14 @@ async function fixture(){
  try{
   await admin.query(`CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOBYPASSRLS`);await admin.query(`CREATE DATABASE ${db}`);
   url.pathname='/'+db;pool=new Pool({connectionString:url.href,max:4,connectionTimeoutMillis:3000,statement_timeout:5000});
-  for(const name of ['001-calendar-preparation.sql','003-calendar-own-events.sql','004-calendar-own-events-rls.sql','005-calendar-own-events-zone.sql'])await pool.query(fs.readFileSync(path.join(root,'migrations',name),'utf8'));
+  for(const name of ['001-calendar-preparation.sql','003-calendar-own-events.sql','004-calendar-own-events-rls.sql','005-calendar-own-events-zone.sql','006-calendar-own-events-revision.sql'])await pool.query(fs.readFileSync(path.join(root,'migrations',name),'utf8'));
   await pool.query(`GRANT USAGE ON SCHEMA public TO ${role}`);await pool.query(`GRANT SELECT,INSERT,DELETE,UPDATE ON ALL TABLES IN SCHEMA public TO ${role}`);
   // Named Source seams: verified OIDC principal and legacy scoped-SQL session; real Express, SQL, migrations and RLS run.
   async function scoped(sub,q,values){const c=await pool.connect();try{await c.query('BEGIN');await c.query(`SET LOCAL ROLE ${role}`);await c.query("SELECT set_config('oshal.current_sub',$1,true),set_config('oshal.is_operator','false',true)",[sub]);const out=await c.query(q,values);await c.query('COMMIT');return out;}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}}
   const app=express();app.use(express.json());app.use((req,res,next)=>{const match=/(?:^|;\s*)person=(alice|bob)/.exec(req.headers.cookie||'');req.oidc={user:{sub:match?.[1]},isAuthenticated:()=>!!match};req.ctx={pool:{query:(q,v)=>scoped(match?.[1]||'',q,v)}};next();});
   app.use('/api/calendar/events',(req,res,next)=>own.createOwnEventsRoutes(req.ctx)(req,res,next));
+  app.use('/api/calendar/meetings',(req,res,next)=>load('meetings').createMeetingsRoutes(req.ctx)(req,res,next));
+  app.use('/api/calendar/google-events',(req,res,next)=>load('google-events').createGoogleEventsRoutes(req.ctx)(req,res,next));
   app.use('/api/calendar/review',load('review').createReviewRoutes({appPackageDir:root}));
   app.get('/cockpit/js/app-handoff.js',(_q,r)=>r.type('js').send('export function receiveHandoff(){}'));
   app.get('/cockpit/js/app-workflows.js',(_q,r)=>r.type('js').send('export async function mountConnectedActions(){}'));

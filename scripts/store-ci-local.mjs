@@ -26,12 +26,18 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com | A check that can never run here again stops blocking a push (Roger, 2026-11-03, "1 yes"): LEGACY steps test the retired TypeScript platform this gate no longer resolves and the Embodied live suites need a running engine, so every push had to pass --allow-skips, and that flag also accepted a real missing prerequisite. They are still printed on every run and still say they did not run. Any other skip, such as Career's Python, still exits non-zero.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Show failed TAP diagnostics from the middle of long suites and optionally retain complete failed-check output privately without changing any verdict.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | OSHAL_KERNEL_PLATFORM: a suite that renders the kernel's shared UI (Career's concierge panel uses the shared assistant) gets the kernel's `platform` folder from STORE_CI_KERNEL_PLATFORM, an explicit read-only path the operator sets (an export of the commit production runs). It is never found by looking around, and without it such a step stays a named skip, which fails the gate.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"). A change to one package waited for every package's suites, 12 to 15 minutes, and unrelated one-test timeouts under load failed the gate four times in one night. A run now does the publish wall, the structural rules and the suites of the packages the change touches or reaches (scripts/store-ci-scope.mjs decides; anything it cannot place runs everything), says before it starts what it runs and what it leaves to the scheduled full run, and ends on a line that says scoped: the full-pass line is printed by a full run only. --full runs every job, --plan prints the plan and runs nothing, --base measures from another commit, --retry-from reruns the jobs that failed in a first run on the same tree plus the publish wall, and STORE_CI_RESULT_FILE receives the result for the hook, store-push and the scheduled full run. An argument this runner does not know is refused, so a mistyped --full cannot quietly run less.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { decideScope, headCommit, treeFingerprint } from './store-ci-scope.mjs';
+import {
+  acceptRetry, buildResult, planLines, rerunFlags, scopeCounts, scopedTail, writeResult,
+} from './store-ci-report.mjs';
 
 // CHANGE LOG: maintainer@emeraldcoastsystemsgroup.com | Isolate fixture Git commands from inherited pre-push repository locations.
 
@@ -42,6 +48,13 @@ const ROOT = process.env.STORE_CI_LOCAL_ROOT
   : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'store-ci.yml');
 const ALLOW_SKIPS = process.argv.includes('--allow-skips');
+// Every job, whatever changed: what the coordinator and the scheduled run ask for. Without it a run is
+// scoped to the change whenever the change can be read and placed (scripts/store-ci-scope.mjs).
+const FULL = process.argv.includes('--full');
+// Print the plan and stop: nothing runs.
+const PLAN_ONLY = process.argv.includes('--plan');
+const FLAGS = ['--allow-skips', '--full', '--plan'];
+const VALUED = ['--base', '--retry-from'];
 
 // A suite that leaves a handle open (a database pool, a server, a timer) never exits, and
 // `node --test` waits on it without limit. Past this many seconds a check is hung, not slow: it is
@@ -76,6 +89,29 @@ const LEGACY_ENV = [
   'OSHAL_ROOT', 'OSHAL_FRAMEWORK', 'OSHAL_FRAMEWORK_ROOT', 'OSHAL_CORE_DIR', 'OSHAL_CORE_ROOT',
   'KALSHI_BROWSER_DEPS', 'CAREER_LOADER_NODE_PATH', 'NODE_PATH',
 ];
+
+/**
+ * @description Read a valued argument, as `--name value` or `--name=value`.
+ * @param {string} name The argument's name.
+ * @returns {string} Its value, or '' when it was not given.
+ */
+function argument(name) {
+  const args = process.argv.slice(2);
+  const at = args.indexOf(name);
+  if (at >= 0) return args[at + 1] ?? '';
+  return args.find((arg) => arg.startsWith(`${name}=`))?.slice(name.length + 1) ?? '';
+}
+
+/**
+ * @description Refuse an argument this runner does not know. A mistyped --full would otherwise run a
+ *   scoped gate for someone who asked for the whole suite.
+ * @returns {string} The first unknown argument, or ''.
+ */
+function unknownArgument() {
+  const args = process.argv.slice(2);
+  return args.find((arg, index) => !FLAGS.includes(arg) && !VALUED.includes(arg)
+    && !VALUED.some((name) => arg.startsWith(`${name}=`)) && !VALUED.includes(args[index - 1])) ?? '';
+}
 
 /**
  * @description Read a YAML block scalar (`|` or `>`) that begins on the line after `index`.
@@ -625,6 +661,7 @@ function plan(jobs, capabilities) {
         workingDirectory: step.workingDirectory,
         needs: job.needs,
         env,
+        envKeys: step.env,
         services: SERVICE_ENV.filter((key) => step.env.includes(key))
           .map((key) => ({ key, value: step.envValues[key] })),
         skipReason,
@@ -649,44 +686,37 @@ function failedTapEvidence(output) {
   return selected;
 }
 
-/** @description Run every mirrored store-ci check against the working tree and report one verdict. */
-async function main() {
-  const failureLogDir = process.env.STORE_CI_FAILURE_LOG_DIR || '';
-  if (failureLogDir && !isAbsolute(failureLogDir)) throw new Error('STORE_CI_FAILURE_LOG_DIR must be an absolute fresh directory');
-  const jobs = parseJobs(readFileSync(WORKFLOW, 'utf8'));
-  const declared = jobs.flatMap((job) => job.steps.map((s) => s.nodeVersion).filter(Boolean));
-  const highest = Math.max(...declared.map(Number));
-  const local = Number(process.versions.node.split('.')[0]);
-  const capabilities = resolveCapabilities();
-  const checks = plan(jobs, capabilities);
-
-  // The drift guard. Every job store-ci declares has to produce at least one local check: a job
-  // that contributes none is a gate that quietly stopped existing the moment the trigger changed.
-  const covered = new Set(checks.map((check) => check.job));
-  const uncovered = jobs.filter((job) => !covered.has(job.id)).map((job) => job.id);
-  if (uncovered.length) {
-    throw new Error(`${WORKFLOW}: ${uncovered.length} job(s) produce no local check: ${uncovered.join(', ')}`);
-  }
-
-  console.log(`store-ci-local — ${checks.length} checks mirroring all ${jobs.length} store-ci jobs `
-    + `(${WORKFLOW.replace(ROOT, '.')})`);
+/**
+ * @description Print what this run mirrors, the runtime, the toolchain and the plan.
+ * @param {object} run The run: jobs, checks, capabilities, scope, counts, declared node versions.
+ * @returns {void}
+ */
+function printHeader({ jobs, checks, capabilities, scope, counts, declared }) {
+  const workflow = WORKFLOW.replace(ROOT, '.');
+  console.log(scope.mode === 'full'
+    ? `store-ci-local — ${checks.length} checks mirroring all ${jobs.length} store-ci jobs (${workflow})`
+    : `store-ci-local — SCOPED: ${counts.runChecks} of ${checks.length} checks, in ${counts.run.length} of ${jobs.length} store-ci jobs (${workflow})`);
   console.log(`node ${process.versions.node} (store-ci declares ${[...new Set(declared)].sort().join(', ')})`);
   console.log(`toolchain ${TOOLCHAIN}${capabilities.OSHAL_ROOT.value ? '' : ` — ${INSTALL}`}`);
   const inherited = LEGACY_ENV.filter((key) => process.env[key]);
   if (inherited.length) {
     console.log(`ignoring inherited ${inherited.join(', ')}: no suite here resolves the old platform checkout`);
   }
-  if (local < highest) {
-    console.error(`REFUSED: store-ci runs some jobs on node ${highest}; this is node ${local}. `
-      + 'Running them on an older runtime would prove something the release does not.');
-    process.exitCode = 1;
-    return;
-  }
-  console.log('');
+  for (const line of planLines(scope, checks)) console.log(line);
+}
 
+/**
+ * @description Run the checks this run selected, in workflow order, and grade each.
+ * @param {object[]} checks The whole plan.
+ * @param {boolean[]} runNow Whether each check runs in this process.
+ * @param {object[]} places Each check's place (always, or a package's).
+ * @returns {Promise<object[]>} The graded results of the checks that were selected.
+ */
+async function runChecks(checks, runNow, places) {
   const results = [];
   const failedJobs = new Set();
-  for (const check of checks) {
+  for (const [index, check] of checks.entries()) {
+    if (!runNow[index]) continue;
     const blockedBy = check.needs.find((need) => failedJobs.has(need));
     const where = check.workingDirectory ? `${check.workingDirectory}/` : '';
     const title = `${check.job} · ${where}${check.label}`.slice(0, 96);
@@ -697,7 +727,7 @@ async function main() {
     } else if (check.skipReason) {
       outcome = { status: 'SKIPPED', detail: check.skipReason, reasons: [check.skipReason], seconds: 0 };
     } else if (gap) {
-      outcome = { status: 'FAIL', detail: gap, seconds: 0 };
+      outcome = { status: 'FAIL', detail: gap, seconds: 0, environment: true };
     } else {
       // Live feedback only on a terminal; piped into a log the carriage return would leave the
       // half-written progress line sitting beside the verdict it was meant to be overwritten by.
@@ -705,13 +735,50 @@ async function main() {
       outcome = await runCheck(check);
     }
     if (outcome.status === 'FAIL') failedJobs.add(check.job);
-    results.push({ ...check, ...outcome, title });
+    results.push({ ...check, ...outcome, title, place: places[index].kind });
     const time = outcome.seconds ? ` (${outcome.seconds.toFixed(1)}s)` : '';
     const verdict = `${outcome.status.padEnd(8)}${title}${time}`;
     console.log(process.stdout.isTTY ? verdict.padEnd(118) : verdict);
     if (outcome.status !== 'PASS') console.log(`          ${outcome.detail}`);
   }
+  return results;
+}
 
+/**
+ * @description Print one failed check: its detail, the private evidence file, and bounded output.
+ * @param {object} r The failed result.
+ * @param {number} index Its position among the failures.
+ * @param {string} failureLogDir Where full output is kept, or ''.
+ * @returns {void}
+ */
+function printFailure(r, index, failureLogDir) {
+  console.log(`  FAILED   ${r.title}\n           ${r.detail}`);
+  if (failureLogDir) {
+    const outputPath = join(failureLogDir, `check-${String(index + 1).padStart(3, '0')}.log`);
+    writeFileSync(outputPath, r.output ?? '', { mode: 0o600, flag: 'wx' });
+    console.log(`           Full failed-check output: ${outputPath}`);
+  }
+  const diagnostic = failedTapEvidence(r.output ?? '');
+  if (diagnostic.length) {
+    console.log('           Failed TAP diagnostics (bounded):');
+    for (const line of diagnostic) console.log(`           ! ${line}`);
+  }
+  // Preserve both startup context and the final TAP summary alongside failed-test diagnostics.
+  const lines = (r.output ?? '').split(/\r?\n/).filter(Boolean);
+  for (const line of lines.slice(0, 12)) console.log(`           | ${line}`);
+  if (lines.length > 24) {
+    console.log(`           | … ${lines.length - 24} lines omitted …`);
+    for (const line of lines.slice(-12)) console.log(`           | ${line}`);
+  }
+}
+
+/**
+ * @description Print the summary and everything that did not pass cleanly.
+ * @param {object[]} results The graded results.
+ * @param {string} failureLogDir Where full failed output is kept, or ''.
+ * @returns {{failures:object[],skipped:object[],partial:object[]}} The results that decide the verdict.
+ */
+function printSummary(results, failureLogDir) {
   const failures = results.filter((r) => r.status === 'FAIL');
   const blocked = results.filter((r) => r.status === 'BLOCKED');
   const skipped = results.filter((r) => r.status === 'SKIPPED');
@@ -723,54 +790,116 @@ async function main() {
   for (const r of skipped) console.log(`  SKIPPED  ${r.title}\n           ${r.detail}`);
   for (const r of blocked) console.log(`  BLOCKED  ${r.title}\n           ${r.detail}`);
   if (failures.length && failureLogDir) mkdirSync(failureLogDir, { mode: 0o700 });
-  for (const [index, r] of failures.entries()) {
-    console.log(`  FAILED   ${r.title}\n           ${r.detail}`);
-    if (failureLogDir) {
-      const outputPath = join(failureLogDir, `check-${String(index + 1).padStart(3, '0')}.log`);
-      writeFileSync(outputPath, r.output ?? '', { mode: 0o600, flag: 'wx' });
-      console.log(`           Full failed-check output: ${outputPath}`);
-    }
-    const diagnostic = failedTapEvidence(r.output ?? '');
-    if (diagnostic.length) {
-      console.log('           Failed TAP diagnostics (bounded):');
-      for (const line of diagnostic) console.log(`           ! ${line}`);
-    }
-    // Preserve both startup context and the final TAP summary alongside failed-test diagnostics.
-    const lines = (r.output ?? '').split(/\r?\n/).filter(Boolean);
-    for (const line of lines.slice(0, 12)) console.log(`           | ${line}`);
-    if (lines.length > 24) {
-      console.log(`           | … ${lines.length - 24} lines omitted …`);
-      for (const line of lines.slice(-12)) console.log(`           | ${line}`);
-    }
-  }
+  for (const [index, r] of failures.entries()) printFailure(r, index, failureLogDir);
+  return { failures, skipped, partial };
+}
+
+/**
+ * @description Print the verdict and return it with the line it ended on. A scoped run names itself on
+ *   every one of these lines; the full-pass lines are reachable from a full run only.
+ * @param {object} graded failures, skipped, partial and the required checks that did not run.
+ * @param {{scoped:boolean,tail:string,rerun:string}} how Whether the run was scoped, its closing words, and the rerun note.
+ * @returns {{verdict:string,summary:string}} 'failed', 'incomplete' or 'passed', and the last line.
+ */
+function conclude({ failures, skipped, partial, unrun }, { scoped, tail, rerun }) {
+  const say = (line) => { console.log(line); return line.trim(); };
   if (failures.length) {
-    console.log('\nstore-ci-local FAILED — do not push.');
-    process.exitCode = 1;
-    return;
+    return { verdict: 'failed', summary: say(scoped ? `\nstore-ci-local SCOPED FAILED — do not push. It was ${tail}` : '\nstore-ci-local FAILED — do not push.') };
   }
   // A skip is not a pass. The exit code is what a hook and a human reading `$?` act on, so a check
   // that did not run has to be visible THERE and not only in the text above it. `--allow-skips`
   // is the deliberate opt-out for a workstation that cannot supply a prerequisite.
-  const unrun = [...skipped, ...partial].filter((r) => !onlyNotRequired(r));
   if (unrun.length && !ALLOW_SKIPS) {
-    console.log(`\nstore-ci-local INCOMPLETE — ${unrun.length} required check(s) did not run or ran with skipped cases:`);
-    for (const r of unrun) console.log(`  ${r.title}`);
-    console.log('Supply the prerequisite, or re-run with --allow-skips to accept them deliberately.');
-    process.exitCode = 1;
-    return;
-  }
-  if (unrun.length) {
-    console.log('\nstore-ci-local PASSED with --allow-skips. The skips above did NOT run; '
-      + 'nothing here proves them.');
-    return;
+    console.log(`\nstore-ci-local ${scoped ? 'SCOPED ' : ''}INCOMPLETE — ${unrun.length} required check(s) did not run or ran with skipped cases:`);
+    for (const title of unrun) console.log(`  ${title}`);
+    return { verdict: 'incomplete', summary: say(`Supply the prerequisite, or re-run with --allow-skips to accept them deliberately.${scoped ? ` It was ${tail}` : ''}`) };
   }
   const notRun = skipped.length + partial.length;
-  if (notRun) {
-    console.log(`\nstore-ci-local PASSED. ${notRun} check(s) above did not fully run because they test the retired `
-      + 'platform or need a running engine; nothing here proves those.');
+  const accepted = 'The skips above did NOT run; nothing here proves them.';
+  const retired = `${notRun} check(s) above did not fully run because they test the retired platform or need a running engine; nothing here proves those.`;
+  if (scoped) {
+    if (unrun.length || notRun) console.log(`\n${unrun.length ? `Passed with --allow-skips. ${accepted}` : retired}`);
+    return { verdict: 'passed', summary: say(`${unrun.length || notRun ? '' : '\n'}store-ci-local SCOPED PASSED${rerun} — ${tail}`) };
+  }
+  if (unrun.length) return { verdict: 'passed', summary: say(`\nstore-ci-local PASSED${rerun} with --allow-skips. ${accepted}`) };
+  if (notRun) return { verdict: 'passed', summary: say(`\nstore-ci-local PASSED${rerun}. ${retired}`) };
+  return { verdict: 'passed', summary: say(`\nstore-ci-local PASSED${rerun}.`) };
+}
+
+/**
+ * @description Decide whether this is a rerun of a first run's failed jobs, and say so.
+ * @param {object} scope The decided scope.
+ * @param {object[]} checks The plan.
+ * @param {string} plan This plan's key.
+ * @param {string} tree This tree's fingerprint.
+ * @returns {{jobs:string[],prior:object}|null} The accepted rerun, or null when the whole plan runs.
+ */
+function rerunOf(scope, checks, plan, tree) {
+  const file = argument('--retry-from');
+  if (!file) return null;
+  const retry = acceptRetry(file, scope, plan, tree);
+  if (retry.refused) {
+    console.log(`retry: not used — ${retry.refused}; the whole ${scope.mode === 'full' ? 'suite' : 'scoped plan'} runs`);
+    return null;
+  }
+  const again = rerunFlags(checks, scope.run, retry.jobs).filter(Boolean).length;
+  console.log(`retry: rerunning the ${retry.jobs.length} job(s) that failed in the first run on this same tree (${retry.jobs.join(', ')}), `
+    + `and the publish wall; the first run's other ${scope.run.filter(Boolean).length - again} check(s) passed and are not run again`);
+  return retry;
+}
+
+/** @description Run the store-ci checks this change needs against the working tree and report one verdict. */
+async function main() {
+  const failureLogDir = process.env.STORE_CI_FAILURE_LOG_DIR || '';
+  if (failureLogDir && !isAbsolute(failureLogDir)) throw new Error('STORE_CI_FAILURE_LOG_DIR must be an absolute fresh directory');
+  if (unknownArgument()) throw new Error(`store-ci-local: unknown argument ${unknownArgument()} (known: ${[...FLAGS, ...VALUED].join(', ')})`);
+  const started = Date.now();
+  const jobs = parseJobs(readFileSync(WORKFLOW, 'utf8'));
+  const declared = jobs.flatMap((job) => job.steps.map((s) => s.nodeVersion).filter(Boolean));
+  const capabilities = resolveCapabilities();
+  const checks = plan(jobs, capabilities);
+
+  // The drift guard. Every job store-ci declares has to produce at least one local check: a job
+  // that contributes none is a gate that quietly stopped existing the moment the trigger changed.
+  const covered = new Set(checks.map((check) => check.job));
+  const uncovered = jobs.filter((job) => !covered.has(job.id)).map((job) => job.id);
+  if (uncovered.length) {
+    throw new Error(`${WORKFLOW}: ${uncovered.length} job(s) produce no local check: ${uncovered.join(', ')}`);
+  }
+
+  const scope = decideScope(ROOT, checks, { full: FULL, base: argument('--base') || process.env.STORE_CI_SCOPE_BASE || '' });
+  const counts = scopeCounts(checks, scope.run);
+  const tree = treeFingerprint(ROOT);
+  const planKey = `${scope.mode}:${checks.filter((_c, index) => scope.run[index]).map((check) => `${check.job}|${check.workingDirectory}|${check.command}`).join('\n')}`;
+  const facts = { scope, counts, tree, head: headCommit(ROOT), plan: createHash('sha256').update(planKey).digest('hex') };
+  const finish = (verdict, summary, more = {}) => {
+    writeResult(process.env.STORE_CI_RESULT_FILE || '', buildResult({ ...facts, verdict, summary, seconds: (Date.now() - started) / 1000, ...more }));
+    if (verdict !== 'passed' && verdict !== 'planned') process.exitCode = 1;
+  };
+  printHeader({ jobs, checks, capabilities, scope, counts, declared });
+  if (PLAN_ONLY) { finish('planned', 'plan only: nothing ran'); return; }
+  if (Number(process.versions.node.split('.')[0]) < Math.max(...declared.map(Number))) {
+    const refusal = `REFUSED: store-ci runs some jobs on node ${Math.max(...declared.map(Number))}; this is node ${process.versions.node.split('.')[0]}. `
+      + 'Running them on an older runtime would prove something the release does not.';
+    console.error(refusal);
+    finish('refused', refusal);
     return;
   }
-  console.log('\nstore-ci-local PASSED.');
+  const retry = rerunOf(scope, checks, facts.plan, tree);
+  console.log('');
+
+  const runNow = retry ? rerunFlags(checks, scope.run, retry.jobs) : scope.run;
+  const results = await runChecks(checks, runNow, scope.placement.places);
+  const graded = printSummary(results, failureLogDir);
+  // What the first run left unrun still counts on a rerun, for the jobs this rerun did not run again.
+  const carried = retry ? (retry.prior.unrun ?? []).filter((title) => !retry.jobs.includes(title.split(' · ')[0])) : [];
+  const unrun = [...carried, ...[...graded.skipped, ...graded.partial].filter((r) => !onlyNotRequired(r)).map((r) => r.title)];
+  const { verdict, summary } = conclude({ ...graded, unrun }, {
+    scoped: scope.mode === 'scoped',
+    tail: scopedTail(scope, counts),
+    rerun: retry ? ` on the rerun of ${retry.jobs.length} failed job(s)` : '',
+  });
+  finish(verdict, summary, { results, unrun, retry });
 }
 
 // A check leads its own process group, so the terminal's Ctrl-C reaches only this runner: pass the

@@ -3,13 +3,14 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (concierge audit batch 2b; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): Intelligent Operations' front-desk inline concierge, the Create concierge pattern with Intelligent Trades 1.54.0 and Intelligent Career 1.57.0 the worked examples. It answers in the concierge panel and for Jarvis from the person's own Operations records through the package's route tools (the attention, systems, investigations, response-plan, anomaly, hand-off and four desk reads; ops-remove-source held for the person's approval), carries ops-rca-specialist's concierge-panel rules word for word, and adds the plain-prose rule, the ```tool_call fence and runtime harness claude-code. ops-rca-specialist and ops-incident-reviewer stay the RCA pipeline's workers, and the specialist still answers the Console, Cloud & SSH commands and Pod console packets.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: name the product Open Swarm in the front-desk concierge perspective.
 
 name: ops-concierge
 role: Intelligent Operations Concierge
 agent_id: 0be32215-3a5a-43cd-9f84-afc659aa1d65
 
 perspective: |
-  You are the Intelligent Operations front-desk concierge inside OSHAL, talking with the signed-in
+  You are the Intelligent Operations front-desk concierge inside Open Swarm, talking with the signed-in
   person about their own monitoring and incident work. Use the CURRENT APPLICATION and ON SCREEN NOW
   context to see which Operations screen they have open.
   Root-cause investigation is back-office work. A ticket of type intelligent-operations runs the RCA

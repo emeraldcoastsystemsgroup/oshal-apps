@@ -1,3 +1,14 @@
+# 97 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1: register paste-words-unmarked and paste-disabled-phone: a job the nightly pass did not mark whose preparation stopped for missing details reads with the paste words the Concierge and Jarvis say, and Generate is drawn off until 200 characters are pasted.
+# 96 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0: register unread-jobs-flow-in, pasted-details and paste-details-phone: a job Career cannot read reaches New matches as Details needed with no read or model call, and its pasted description is kept for that person only and prepares it.
+# 95 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1: register resume-editor-composer: on My résumé the résumé editor's text box and Send are under the thread at 412x915 and at 1440x900, Close the editor is in the phone sheet's heading, nothing is behind Career's bottom bar, and the newest message is in view after Send, after a reply, when the sheet opens and when the window gets shorter.
+# 94 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (closed sideEffects enum on keyword-search-relevance and career-accounts, remove unsupported regressionTests blocks on cases 101..104, add installation: never on career-static-files and source-reader-recovery, and bound one-concierge-live timeoutMs to 300000).
+# 93 | maintainer@emeraldcoastsystemsgroup.com | 1.65.0: register preparation-notice: a failed preparation's notice with no PDF renderer on the server names no page and says what the person can do, and the application page ends every message with exactly one full stop.
+# 92 | maintainer@emeraldcoastsystemsgroup.com | 1.65.0: register nightly-settled-scoring: with CAREER_NIGHTLY_SETTLE on, the nightly pass asks each job three times and settles it on Career's 70 line (close calls left undecided), takes the best candidates first, stops cleanly on its time and continues; switched off it is 1.63.0's recorded night.
+# 91 | maintainer@emeraldcoastsystemsgroup.com | 1.64.1: pull-keeps-descriptions also checks the raised defaults, a source's seconds as a setting, a host shared by two sources, newest day first, and that the stage ends at once when no page is left.
+# 90 | maintainer@emeraldcoastsystemsgroup.com | 1.64.0: register pull-keeps-descriptions (after every list is read, a full pull keeps the description of an in-lane job from its own saved real page, within caps an administrator can change or turn off, and a pull stopped inside the stage continues without reading a page it kept); nightly-native-readable scores jobs whose text the pull kept with no detail read.
+# 89 | maintainer@emeraldcoastsystemsgroup.com | 1.63.0: register employer-detail-guard (the Career rail admits exactly the Workday, Oracle Recruiting Cloud and SmartRecruiters detail shapes, every admitted host is declared in egress without a credential) and employer-detail-readers (the Oracle and SmartRecruiters readers on saved real public responses: one read, the whole description, nothing on a closed posting or a refusal); nightly-native-readable scores those jobs.
+# 88 | maintainer@emeraldcoastsystemsgroup.com | 1.62.3: register nightly-native-readable: on the native kernel a nightly pass never spends a slot on a job no reader there can describe, and tries a Workday job that answered a redirect again the next night.
+# 87 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: concierge-tools also checks the two workers' conversation: false and a walk against a concierge that answers past the kernel's inline wait; one-concierge-live waits for each whole turn.
 # 86 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: register one-concierge-live, the walk through the kernel's real concierge on an installed Career as a test person with a made-up résumé.
 # 85 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: register card-rebase (a card whose revision moved is applied on the main résumé as it is now, or refused naming the change and the job), resume-one-source (the Word document on My résumé follows the main résumé and typed text is never lost), one-concierge (one assistant and one conversation on every Career page) and concierge-tools (the manifest, catalog and personas as the kernel reads them: one bot answers a person, every person-facing tool, each bound to its route).
 # 84 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: register work-history-card (one concierge card means what the person read on it: the four-edit card as the concierge wrote it, counted from one and as read, two removals, an add and a move in one job, a removal before a later change, split and pasted blocks, long bullets named by their opening, refusals in words) and work-history-keeps (applied cards keep what they wrote, through the engine and the Word document on My résumé); work-history also runs the pasted-draft case.
@@ -114,9 +125,10 @@ cases:
     prerequisites:
       - runner:node-test
       - runner:playwright
-    sideEffects: synthetic SQLite and browser fixtures only
+    sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Remove temporary SQLite databases and close synthetic browser contexts.
     limits:
       timeoutMs: 180000
     installation: never
@@ -136,9 +148,10 @@ cases:
     prerequisites:
       - runner:node-test
       - runner:playwright
-    sideEffects: synthetic browser fixtures only; no live OAuth, mailbox or credential actions
+    sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Close synthetic browser contexts; no live OAuth, mailbox or credential actions.
     limits:
       timeoutMs: 180000
     installation: never
@@ -1867,6 +1880,138 @@ cases:
     isolation: {mode: disposable, cleanup: "Remove synthetic owner stores, cursors and corpus files."}
     limits: {timeoutMs: 30000, maxMemoryMb: 128}
     installation: never
+  - id: nightly-native-readable
+    name: A native nightly pass spends its slots only on jobs it can describe
+    purpose: >-
+      The shipped nightly launcher on invented native jobs, with the Career rail answering from the real employer
+      detail guard (lib/career-employer-detail.js), Workday answering its maintenance redirect and Oracle and
+      SmartRecruiters answering with saved real responses: jobs with no listing text that no reader on the native
+      kernel can fill, and no saved copy, never take one of the 50 slots.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-nightly-unreadable.test.mjs]
+    expected:
+      - Ten described jobs, one job with a saved private copy, five SmartRecruiters jobs and five Oracle requisitions on an admitted host are scored from saved real responses read through the rail.
+      - 45 Eightfold jobs and three Oracle jobs on a host the rail does not admit, all with no listing text, cost no slot and no detail read.
+      - Two Workday jobs answered a 303 and a closed posting of each new source are skipped after one read and tried again the next night.
+      - Off the native kernel the same Eightfold jobs stay candidates for the direct readers.
+      - A job of each source kind whose description the pull kept is scored from that listing text with no detail read; the same sources' jobs with no text take no slot.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic owner stores and corpus files."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: preparation-notice
+    name: A failed preparation's notice says something true and ends once
+    purpose: >-
+      The shipped application page and the shipped message table over one job whose document preparation failed:
+      what the notice says when the server has no PDF renderer, and how every message is ended before the
+      kept-work sentence.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-preparation-notice.test.mjs]
+    expected:
+      - With no PDF renderer the notice says this server cannot make PDF documents right now, that it is a fault on the server, and to tell whoever runs it; it names no page.
+      - Every failed preparation reads with exactly one full stop before Your saved notes, selections and previous documents are retained, whether the message ends with one stop, none or two.
+      - No Career page adds a full stop of its own after a message, so the Job Board's two lines print it as it is.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing is written; the shipped page code runs over fixture answers in memory."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: nightly-settled-scoring
+    name: Settled nightly scoring asks each job three times and keeps Sonnet's shortlist
+    purpose: >-
+      The shipped nightly launcher with CAREER_NIGHTLY_SETTLE on (CH_SETTLE=1) on invented jobs, the model answering
+      Token Chase's 24 made-up postings with the scores the local model gave them run by run, and the nightly route's
+      settings, receipt and continued night; with the setting off, the night 1.63.0 recorded.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-nightly-settled.test.mjs]
+    expected:
+      - A job settles on the median when all three runs share one side of 70 and the median lies outside 64 to 75; runs that disagree, a median inside the band or a failed run make a close call.
+      - On the measured answers the shortlist is Sonnet's settled one (the six strong postings); the two close calls get no score, are asked again the next night once, and are then left to Check my fit.
+      - The best candidates are asked first (saved titles the title contains, then the keyword match, then the newest); a job not reached has no score.
+      - A run whose time is up starts no further job, ends on its own and keeps what it scored; the next run continues; at most three calls at once.
+      - An answer with no text (the kernel's empty-answer refusal) is one unanswered try and the pass goes on; fewer than two valid runs leave the job Not scored yet; switched off, the same answer ends the pass as in 1.63.0.
+      - With the setting off the command inputs, receipt and engine night equal 1.63.0's recorded night; a receipt of one mode read by the other is a finished night.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic owner stores and corpus files."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 128}
+    installation: never
+  - id: employer-detail-guard
+    name: The Career rail reads only the employer detail shapes it names
+    purpose: >-
+      The employer detail guard (lib/career-employer-detail.js) admits a Workday cxs posting, one Oracle Recruiting
+      Cloud requisition-details read by the ById finder on four candidate-site host forms, and one SmartRecruiters
+      posting, each rebuilt from its checked parts, and the package's egress block declares exactly those hosts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-employer-detail.test.mjs]
+    expected:
+      - The documented Oracle and SmartRecruiters shapes are admitted on each host form, spelled any equivalent way.
+      - Other paths, queries, finders, traversal, encoded segments, look-alike hosts, other regions, ports, userinfo and plain HTTP are refused.
+      - A body that names a method, a header, a body or a credential is refused before any request; the read is a GET with no credential that follows no redirect, and a body over 256 KiB is refused.
+      - Every admitted host is declared in egress without a credential, and egress names no other employer host.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing is written; the saved fixtures are only read."}
+    limits: {timeoutMs: 10000, maxMemoryMb: 64}
+    installation: never
+  - id: employer-detail-readers
+    name: Oracle and SmartRecruiters jobs are described from their own posting
+    purpose: >-
+      The Oracle Recruiting Cloud and SmartRecruiters detail readers, through ats.fetch_detail and detail.fetch, on
+      saved real public responses, with the native rail answering from the real guard's verdicts.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-detail-readers.test.mjs]
+    expected:
+      - Each saved posting is read once at the address the guard admits and gives its whole description with the markup stripped.
+      - A closed posting, a 303, 404, 410, 429 or 5xx answer, unreadable JSON or an unreachable employer marks nothing and costs exactly one read.
+      - An answer for another posting, or a description too long to keep whole, marks nothing; a board or posting id the rail would refuse is not asked for.
+      - Off the native kernel each reader makes one direct GET that follows no redirect.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing is written; the saved fixtures are only read."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: pull-keeps-descriptions
+    name: The pull keeps the descriptions its lists leave out
+    purpose: >-
+      The real scrape --all over a disposable SQLite corpus opened as the native ingest opens it, with the network
+      answering from saved real posting pages (tests/pull-detail-fixtures): once every list is read, the description
+      stage keeps an in-lane job's description in the corpus's listing text, under its caps and its off switch.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-pull-details.test.mjs]
+    expected:
+      - Each saved page gives its job's whole description, markup stripped, from one GET that follows no redirect; a page naming another job gives nothing.
+      - Google jobs keep the description their saved real results page already carries, with no request added; a page whose job data cannot be read gives the same jobs with none.
+      - Job finding is unchanged; an out-of-lane job is never read; a refused, timed-out or oversized read leaves the job as it is and the pull finishes.
+      - A kept description survives the next pull and is never read again, the job's source hash is unchanged, and a refused job is read once more and then never.
+      - setting:descriptions=off, the per-source, per-pull, minutes and source-seconds caps, and three refusals in a row each stop the reads; a bad setting is refused and changes nothing.
+      - At the defaults (600 a source, 6,000 a pull, 80 minutes, 600 s a source) one source reads 600 pages, the next night the rest, and a night with nothing left asks for no page and ends at once.
+      - A host shared by two sources gets one source's cap, and the newest day's jobs of both sources are read before either's older ones.
+      - A pull killed inside the stage continues, reads only the pages it had not kept and counts both processes' reads.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary corpus, ingest store and source-change folder."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 256}
+    installation: never
   - id: selected-job-context
     name: Full employer detail in private job preparation
     purpose: Verify one selected job retains structured employer detail across scoring, generation and Node reads without modifying the shared corpus or profile.
@@ -2609,8 +2754,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/career-running-feedback-browser.test.mjs }
 
   - id: career-save-only
     name: Save keeps a job without starting scoring
@@ -2634,9 +2777,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/career-save-only-browser.test.mjs }
-      - { level: integration, file: tests/career-job-workflow.test.mjs }
 
   - id: career-prepare-open
     name: Prepare and open one application
@@ -2659,8 +2799,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/career-prepare-navigation.test.mjs }
 
   - id: career-saved-preparation-choice
     name: Review applications or prepare saved jobs automatically
@@ -2687,10 +2825,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/career-application-workflow.test.mjs }
-      - { level: integration, file: tests/career-workflow-engine.test.mjs }
-      - { level: integration, file: tests/career-workflow-background.test.mjs }
 
   - id: career-static-files
     name: Published Career browser assets
@@ -2707,6 +2841,7 @@ cases:
     sideEffects: none
     isolation: {mode: disposable, cleanup: No stores or network are used.}
     limits: {timeoutMs: 10000, maxMemoryMb: 128}
+    installation: never
   - id: concierge-saved-resume
     name: Concierge knows the asking person's saved résumé
     purpose: Cross the declared real tool endpoint, compiled route and shared owner reader with made-up people, using scripted completions only at the model boundary.
@@ -2757,6 +2892,7 @@ cases:
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Stop the fixture server and remove temporary stores and progress files."}
     limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
   - id: work-history
     name: Work history edits a person's jobs, months and bullets, and the concierge's approved change is on the page with Undo
     purpose: >-
@@ -2899,7 +3035,8 @@ cases:
       - No route tool is bound differently from its route, and none calls a route the package does not serve.
       - The first eight tool names fit Jarvis's catalog; every list tool names a small page.
       - The concierge never hands a person to the worker or to another page, and is told My résumé shows the main résumé.
-      - The live walk passes against a stand-in kernel with the real engine, refuses a concierge that cannot see the document, and puts the résumé back.
+      - The two workers carry conversation false and the concierge carries no mark.
+      - The live walk passes against a stand-in kernel with the real engine, also when the concierge answers past the kernel's inline wait, refuses a concierge that cannot see the document, and puts the résumé back.
     prerequisites: [runner:node-test, runner:python]
     sideEffects: none
     isolation: { mode: disposable }
@@ -2937,6 +3074,126 @@ cases:
         One Undo puts the test person's main résumé back to the exact revision the walk started on; a walk that cannot
         says RESTORE FAILED and exits 1. It refuses any base that is not a loopback address.
     limits:
-      timeoutMs: 900000
+      timeoutMs: 300000
       maxMemoryMb: 256
+    installation: never
+  - id: resume-editor-composer
+    name: The résumé editor's text box is under its thread
+    purpose: >-
+      Open the shipped My résumé page with the shipped Career frame in headless Chromium at 412x915 and at 1440x900,
+      over a made-up person's tailored résumé, and hold a conversation in the page's own résumé editor: where the
+      heading, the thread, the text box and Send, Close the editor and Career's bars are, and which message is in view.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-resume-editor-composer.test.mjs
+    expected:
+      - The text box and Send are under the thread's newest message at both sizes, never above the thread, and nothing covers them.
+      - On a phone the sheet begins under Career's bars with its heading in sight, Close the editor is in that heading, the Edit with AI bar is away while the sheet is open, and nothing is behind Career's bottom bar.
+      - The newest message is in view after Send, after each reply, when the sheet opens after a reply that came while it was closed, and in a window 520 px tall; a person who scrolled up to read is left there when the window changes height.
+      - On a desktop the thread scrolls inside the editor's column, the text box stays at its foot and the page itself does not scroll.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: unread-jobs-flow-in
+    name: Jobs Career cannot read reach New matches without a read or a model call
+    purpose: >-
+      Run the shipped nightly launcher on the native rail over a disposable invented person with readable and
+      unreadable jobs, in the 1.63.0 pass and the settled pass, then list New matches from the same stores with the
+      shipped board feed.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-unread-jobs.test.mjs]
+    expected:
+      - Readable jobs are scored; jobs no reader on the native kernel can describe are marked details needed with no read and no model call, best title and keyword matches first and at most the night's bound.
+      - A job whose one read is refused is marked after that read; a removed job, a job no saved title names, a close call and a scored job are never marked.
+      - New matches lists and counts the marked jobs, after every AI fit under Best AI fit and by date under Date posted, and an owner store without the index lists scored matches only.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the synthetic owner stores and corpus files."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 512}
+    installation: never
+  - id: pasted-details
+    name: A pasted job description is that person's, bounded, and prepares the job
+    purpose: >-
+      Prepare a job no reader can describe for one of two invented people through the real engine with a stand-in
+      model, and start it through the compiled generate route with the engine start recorded.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-pasted-details.test.mjs, tests/career-paste-details-route.test.mjs]
+    expected:
+      - With nothing pasted, Generate and Check my fit are refused before the engine starts, in words that say to paste the description in Prepare application, step 1 · Tailor.
+      - A paste shorter than 200 or longer than 20,000 characters is refused and kept nowhere; a valid paste starts preparation with the text.
+      - The pasted text is kept in that person's own folder only, never in the corpus or another person's store, and is the description both the scoring and the generation prompt read, with no employer read; a second paste replaces it.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the synthetic owner stores, corpus and job-context files."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: paste-details-phone
+    name: Details needed on the list, and the paste box in Prepare application on a phone
+    purpose: >-
+      Open the shipped New matches, My jobs and Prepare application pages with the shipped Career frame in headless
+      Chromium at 412x915 over a made-up person's job that Career could not read.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-paste-details-phone.test.mjs]
+    expected:
+      - New matches' card and My jobs' row say Details needed with the warning and Open the posting, inside the window's width, and offer no Check my fit.
+      - Step 1 · Tailor shows Paste the job description from the posting with Open the posting beside it; Generate résumé & cover letter is off, with the reason under the box, until 200 characters are pasted.
+      - Once pasted, Generate is above Career's bottom bar and nothing covers it, and its press sends the pasted text; a pasted description can be replaced and a job with its own description has no box.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: paste-words-unmarked
+    name: A job Career could not read, unmarked, says where to paste its description
+    purpose: >-
+      Start preparation of an unmarked job with no description through the compiled generate route with the real engine
+      preparation behind it (stand-in résumé, employer read and model), then read the job as the Concierge and Jarvis
+      read it after career_draft.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-paste-details-unmarked.test.mjs]
+    expected:
+      - The engine still tries the employer page once and stops with job_details_unavailable before any model call; a retry still starts it.
+      - The job read then carries details_needed, the same words as a marked job's refusal, saying to paste the job description in Prepare application, step 1 · Tailor, and generate there; a saved copy that cannot be verified reads the same, and so does the saved-job preparation receipt.
+      - A job with its own listing text, or a stop for another reason, carries no such words; career_job's description and the Concierge's instructions name the words.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the synthetic owner stores, corpus, board receipts and job-context files."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: paste-disabled-phone
+    name: Generate is drawn off until the description is pasted, on a phone
+    purpose: >-
+      Open the shipped Prepare application page with the shipped Career frame in headless Chromium at 412x915 over a
+      made-up person's job that needs its description pasted: a marked job, and unmarked jobs whose last preparation
+      stopped for missing details.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-paste-disabled-phone.test.mjs]
+    expected:
+      - With nothing pasted, Generate résumé & cover letter (or Retry generation) is disabled and aria-disabled, drawn with the page's disabled look instead of the on colour, and a tap sends nothing; the line under the box says why.
+      - At 199 characters it is still off; at 200 it is on and drawn as the on button.
+      - A stopped unmarked job's notice says to paste the description in Prepare application, step 1 · Tailor.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
     installation: never

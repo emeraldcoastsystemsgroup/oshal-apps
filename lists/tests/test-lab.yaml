@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: register Lists' readiness and its five suites: the rules, the routes over a memory pool, the same route scenarios on a real PostgreSQL with the migration applied, the declarations, and the screen in Chromium with Shopping's own routes behind the grocery list.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (explicit installation: never on unit suites, disposable cleanup on lists-postgres, and closed sideEffects enum on lists-page-browser).
 version: 1
 cases:
   - id: package-readiness
@@ -44,6 +45,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
   - id: lists-routes
     name: Every Lists action through the real router
     purpose: Drive the package's routes over loopback HTTP on the gate's Express with a memory pool that answers only the statements the store issues and refuses a write during a GET, as the native kernel does.
@@ -69,6 +71,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 60000
+    installation: never
   - id: lists-postgres
     name: The same scenarios on a real PostgreSQL
     purpose: Apply migrations/001-lists.sql to a database made for the run on the gate's disposable PostgreSQL and run every route scenario through the real store and the pg driver, so the memory pool cannot drift from a database.
@@ -90,6 +93,7 @@ cases:
     sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Drop the suite's disposable database and role after the run.
     limits:
       timeoutMs: 180000
     installation: never
@@ -120,6 +124,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
   - id: lists-page-browser
     name: The Lists screen in Chromium, with the grocery list through Shopping
     purpose: Drive the real page at 1280x900 and 412x915 over a local server that mounts the package's router and Shopping's own compiled routes, the way a person uses it.
@@ -142,9 +147,10 @@ cases:
       - runner:playwright
       - browser:chromium
       - fixture:store-toolchain
-    sideEffects: synthetic browser fixtures only; no installation, account or provider is contacted
+    sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Close the browser contexts and loopback fixture server; synthetic browser fixtures only.
     limits:
       timeoutMs: 240000
     installation: never

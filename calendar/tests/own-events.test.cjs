@@ -34,6 +34,15 @@
  *   instructions; the field stays optional and the route still saves a note the person gave.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: calendar-add-google-event is a fourth approval-held tool, held to the same person-facing
  *   description and cardText rules as the other three (tests/google-events.test.cjs covers what it writes).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: every add saves a revision (migration 006), and the four new approval-held tools (change
+ *   and cancel a Google meeting, decline an invitation, change an OSHAL event) are held to the same person-facing description and
+ *   cardText rules; the remove tool's card goes through the meetings mount, which checks the title and start it shows
+ *   (tests/own-event-changes.test.cjs and tests/google-meetings.test.cjs cover what they write).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: the answers, the Home summary mark, the tool descriptions, the card sentences and the persona say
+ *   Open Swarm where they said OSHAL (Roger, 2026-11-13: what a person sees names the product Open Swarm).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: own-events and the Home summary read Google Calendar live (routes/google-live.js), which
+ *   is loaded with its own declared imports; without a Google connection the summary's tiles read "Not connected", not "Not
+ *   synced" (tests/home-summary-live-events.test.cjs covers the live read).
  */
 'use strict';
 const test = require('node:test');
@@ -54,8 +63,11 @@ function load(file, deps) {
 }
 const router = () => { const routes = {}; const add = (m) => (p, f) => { routes[`${m} ${p}`] = f; }; return { routes, get: add('GET'), post: add('POST'), delete: add('DELETE') }; };
 const time = load('event-time.js', {});
-const own = load('own-events.js', { express: { Router: router }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time });
-const summary = load('home-summary.js', { express: { Router: router }, '@/shared/logger': logger, './own-events': own });
+const sync = load('sync.js', { express: { Router: router }, '@/shared/logger': logger });
+const google = load('google-events.js', { express: { Router: router }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time });
+const live = load('google-live.js', { '@/shared/logger': logger, './google-events': google, './event-time': time, './sync': sync });
+const own = load('own-events.js', { express: { Router: router }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time, './google-live': live });
+const summary = load('home-summary.js', { express: { Router: router }, '@/shared/logger': logger, './own-events': own, './google-live': live, './event-time': time });
 
 /** A pool that keeps calendar_own_events rows per owner and records every statement. */
 function pool(seed = {}) {
@@ -71,9 +83,9 @@ function pool(seed = {}) {
     if (/^SELECT .* FROM calendar_own_events WHERE user_sub = \$1 AND title = \$2 AND starts_at = \$3 AND all_day = \$4 LIMIT 1$/.test(text)) {
       return { rows: mine.filter((r) => r.title === vals[1] && r.starts_at === vals[2] && r.all_day === vals[3]).slice(0, 1) };
     }
-    if (/^INSERT INTO calendar_own_events\(user_sub,id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10\)$/.test(text)) {
-      const [, id, title, starts_at, ends_at, all_day, time_zone, location, notes, created_at] = vals;
-      mine.push({ id, title, starts_at, ends_at, all_day, time_zone, location, notes, created_at });
+    if (/^INSERT INTO calendar_own_events\(user_sub,id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at,revision\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10,\$11\)$/.test(text)) {
+      const [, id, title, starts_at, ends_at, all_day, time_zone, location, notes, created_at, revision] = vals;
+      mine.push({ id, title, starts_at, ends_at, all_day, time_zone, location, notes, created_at, revision });
       return { rowCount: 1, rows: [] };
     }
     if (/^DELETE FROM calendar_own_events WHERE user_sub = \$1 AND id = \$2$/.test(text)) {
@@ -144,14 +156,14 @@ test('a full calendar answers 409 without a write, and removal takes only the ca
   assert.deepEqual((await call(r, 'GET /')).body.events, []);
 });
 
-test('the Home summary lists added events marked "added in OSHAL" and is unchanged when there are none', async () => {
+test('the Home summary lists added events marked "added in Open Swarm" and is unchanged when there are none', async () => {
   const now = new Date('2026-10-12T16:00:00Z');
   const added = [own.ownEvent({ id: 'a', title: 'sweep8 Denver trip', starts_at: '2026-11-07T00:00:00.000Z', ends_at: '2026-11-09T00:00:00.000Z', all_day: true, location: 'Denver', created_at: now })];
   const none = summary.calendarEvidence(null, now, 'not-connected');
   assert.deepEqual(summary.calendarEvidence(null, now, 'not-connected', []), none);
   const withOwn = summary.calendarEvidence(null, now, 'not-connected', added);
-  assert.deepEqual(withOwn.metrics.map((m) => [m.id, m.value]), [['upcoming-5d', 'Not synced'], ['upcoming-30d', 'Not synced'], ['own-upcoming', '1']]);
-  assert.deepEqual([withOwn.items[0].text, withOwn.items[0].detail], ['sweep8 Denver trip', 'Sat, Nov 7, 2026 (all day) / added in OSHAL / Denver']);
+  assert.deepEqual(withOwn.metrics.map((m) => [m.id, m.value]), [['upcoming-5d', 'Not connected'], ['upcoming-30d', 'Not connected'], ['own-upcoming', '1']]);
+  assert.deepEqual([withOwn.items[0].text, withOwn.items[0].detail], ['sweep8 Denver trip', 'Sat, Nov 7, 2026 (all day) / added in Open Swarm / Denver']);
   assert.deepEqual([withOwn.items[0].start, withOwn.items[0].allDay], ['2026-11-07', true], 'the machine start rides beside the words');
   assert.equal(withOwn.items[0].actions.length, 4, 'an added event carries the planning offers');
   assert.equal(withOwn.items.at(-1).text, none.items.at(-1).text, 'the Google note still says what is missing');
@@ -166,10 +178,12 @@ test('the manifest mounts the route, applies the migration and holds both writes
   const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
   const tool = (name) => manifest.tools.find((t) => t.name === name);
   assert.deepEqual([tool('calendar-add-event').executor.apiEndpoint, tool('calendar-add-event').requiresApproval], ['POST /api/calendar/events', true]);
-  assert.deepEqual([tool('calendar-remove-event').executor.apiEndpoint, tool('calendar-remove-event').requiresApproval], ['DELETE /api/calendar/events/{input.id}', true]);
+  assert.deepEqual([tool('calendar-remove-event').executor.apiEndpoint, tool('calendar-remove-event').requiresApproval], ['DELETE /api/calendar/meetings/oshal/{input.id}', true]);
   assert.deepEqual([tool('calendar-my-events').executor.apiEndpoint, tool('calendar-my-events').requiresApproval], ['GET /api/calendar/events', false]);
   assert.ok(manifest.routes.some((r) => r.mountPath === '/api/calendar/events' && r.module === 'routes/own-events.js' && r.requiresAuth === true));
   assert.ok(manifest.migrations.includes('migrations/003-calendar-own-events.sql'));
+  assert.ok(manifest.migrations.includes('migrations/006-calendar-own-events-revision.sql'));
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'migrations/006-calendar-own-events-revision.sql'), 'utf8'), /\bDO\b|ROW LEVEL SECURITY|pg_policies/, 'one plain statement for both engines');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'migrations/003-calendar-own-events.sql'), 'utf8'), /\bDO\b|ROW LEVEL SECURITY|pg_policies/, 'one file the native kernel and PostgreSQL both apply');
 });
 
@@ -194,7 +208,7 @@ test('an event identical to a saved one answers 409 and writes no second row', a
   assert.equal((await call(r, 'POST /', body)).statusCode, 201);
   const again = await call(r, 'POST /', body);
   assert.equal(again.statusCode, 409);
-  assert.match(again.body.error, /already on your OSHAL calendar; nothing was added/);
+  assert.match(again.body.error, /already on your Open Swarm calendar; nothing was added/);
   assert.equal(again.body.duplicate, true);
   assert.equal(p.rows.alice.length, 1, 'approving a re-proposed card adds nothing');
   assert.equal((await call(r, 'POST /', { ...body, title: 'sweep10 checkup 2' })).statusCode, 201, 'a different event is still added');
@@ -214,7 +228,7 @@ test('the add tool takes timeZone and tells the concierge never to re-propose an
   assert.match(persona, /never call calendar-add-event again/);
   assert.match(persona, /after such a reply call\s+calendar-my-events instead/);
   assert.match(persona, /call calendar-add-event in that same reply; never\s+ask "shall I save it\?" or for a typed yes first/);
-  assert.match(persona, /never makes an\s+OSHAL event appear there/);
+  assert.match(persona, /never makes\s+an Open Swarm event appear there/);
 });
 
 test('removal takes the listed uuid, never a title: the tool declares it and the route refuses a title', async () => {
@@ -242,18 +256,19 @@ test('an approval card reads a person-facing sentence: no held tool description 
   const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(ROOT, '../scripts/toolchain')] }));
   const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
   const held = manifest.tools.filter((t) => t.requiresApproval === true);
-  assert.deepEqual(held.map((t) => t.name).sort(), ['calendar-add-event', 'calendar-add-google-event', 'calendar-remove-event', 'calendar-sync']);
+  assert.deepEqual(held.map((t) => t.name).sort(), ['calendar-add-event', 'calendar-add-google-event', 'calendar-cancel-google-event', 'calendar-change-event',
+    'calendar-change-google-event', 'calendar-decline-google-event', 'calendar-remove-event', 'calendar-sync']);
   for (const tool of held) {
     assert.doesNotMatch(tool.description, /calendar-[a-z-]+|uuid|\bids?\b|\bcall\b|never its title/i, `${tool.name}: ${tool.description}`);
     assert.match(tool.description, /Held for the person's approval\.$/, tool.name);
   }
   assert.equal(manifest.tools.find((t) => t.name === 'calendar-remove-event').description,
-    "Remove one event the person added in OSHAL. Held for the person's approval.");
+    "Remove one event the person added in Open Swarm. Held for the person's approval.");
   for (const tool of held) {
     assert.match(tool.cardText, /^[A-Z][^.]*(?:your|this)[^]*\.$/, `${tool.name} declares a people-facing cardText`);
     assert.doesNotMatch(tool.cardText, /calendar-[a-z-]+|uuid|\bids?\b|\bcall\b|the person/i, tool.name);
   }
-  assert.equal(manifest.tools.find((t) => t.name === 'calendar-remove-event').cardText, 'Removes this event from your OSHAL calendar.');
+  assert.equal(manifest.tools.find((t) => t.name === 'calendar-remove-event').cardText, 'Removes this event from your Open Swarm calendar.');
 });
 
 test('a span the person gave is one event with its end: the tool and persona say so and the route keeps the end (sweep 11)', async () => {
@@ -278,7 +293,7 @@ test('a removal never starts with a sync, and a reply names only the events it m
   const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(__dirname, '../../scripts/toolchain')] }));
   const manifest = yaml.load(fs.readFileSync(path.join(__dirname, '..', 'oshal-app.yaml'), 'utf8'));
   const tool = (name) => manifest.tools.find((t) => t.name === name);
-  assert.match(tool('calendar-sync').usageInstructions, /Never call it as a step of adding, finding or removing an event added in OSHAL/);
+  assert.match(tool('calendar-sync').usageInstructions, /Never call it as a step of adding, finding or removing an event added in Open Swarm/);
   assert.match(tool('calendar-add-event').usageInstructions, /Each call makes one card for one event, so in the reply name only the events you called it for in that reply, with their count/);
   assert.match(tool('calendar-add-event').usageInstructions, /say an event is saved only when its result or calendar-my-events shows it/);
   const persona = yaml.load(fs.readFileSync(path.join(__dirname, '..', 'personas', 'calendar-concierge.yaml'), 'utf8')).perspective;

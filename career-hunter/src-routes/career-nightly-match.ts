@@ -5,6 +5,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bound successful passes to the corpus's 18:00 Chicago refresh cycle, so midday catch-up never consumes the coming evening's publication.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A failed pass logs the engine's error type: six days of failures had said only "code 1".
  * 4 | maintainer@emeraldcoastsystemsgroup.com | A receipt names the match that wrote it, so a match that reaches more jobs runs once without waiting for the next publication.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Settled nightly scoring (career-nightly-settled.ts), only when the installation sets CAREER_NIGHTLY_SETTLE=1: the run carries its settings to the engine, its version-2 receipt says what was scored, left undecided, unreadable, failed and not reached, and a night stopped by its run's time is continued by the next half-hourly check while the night's time and limit remain. Without the setting the pass, its command inputs and its receipt are exactly 1.63.0's; a version-2 receipt left from a night with the setting on is read as a finished night.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.62.2: the cycle starts at the installation's own pull time, from the per-package setting CAREER_INGEST_CRON (plain daily "minute hour * * *", Chicago), else 18:00. A pull moved to 01:00 published at 06:01 and the half-hourly check called it the previous evening's cycle, so 3,446 new jobs waited a day unmatched.
  */
 import fs from 'fs';
 import path from 'path';
@@ -13,6 +15,10 @@ import { userPaths } from './career-user-store';
 import { runCareerCliAsync } from './career-engine-dispatch';
 import { writeFileAtomicAsync } from './career-file-transaction';
 import { createChildLogger } from '@/shared/logger';
+import {
+  nightlySettledSettings, settledReceipt, settledRunInputs, settledVerdict, validSettledReceipt,
+  type NightlySettledSettings, type SettledContinuation, type SettledReceipt,
+} from './career-nightly-settled';
 
 const logger = createChildLogger({ module: 'career-nightly-match' });
 export const NIGHTLY_MATCH_LIMIT = 50;
@@ -20,13 +26,31 @@ export const NIGHTLY_MATCH_FILE = 'nightly-match-success.json';
 /** Raise this when people should not wait for the next publication: a receipt from an older match runs once more. */
 export const NIGHTLY_MATCH_CONTRACT = 3;
 
-/** The evening refresh cycle a published corpus belongs to, independent of when its owner catches up. */
-export function nightlyPublicationCycle(millis: number): string {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(millis));
+/** The Chicago time of day a pull cycle starts when the installation names no pull time. */
+export const DEFAULT_PULL_BOUNDARY = Object.freeze({ hour: 18, minute: 0 });
+
+/**
+ * @description The Chicago time of day the installation's shared pull starts, which is where one pull cycle ends and the
+ * next begins. The kernel clears the package's environment, so the pull's own OSHAL_CAREER_INGEST_CRON never reaches
+ * here; the operator passes the same cadence as the per-package setting CAREER_INGEST_CRON. Only a plain daily
+ * "minute hour * * *" schedule is understood: anything else, or none, keeps 18:00, the cadence these cycles began with.
+ * @param schedule - The pull's cron expression, read in America/Chicago.
+ * @returns The boundary's hour (0-23) and minute (0-59).
+ */
+export function nightlyPullBoundary(schedule: string | undefined = process.env.CAREER_INGEST_CRON): { hour: number; minute: number } {
+  const daily = /^\s*(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*\s*$/.exec(schedule || '');
+  const minute = Number(daily?.[1]), hour = Number(daily?.[2]);
+  return daily && minute <= 59 && hour <= 23 ? { hour, minute } : { ...DEFAULT_PULL_BOUNDARY };
+}
+
+/** The pull cycle a published corpus belongs to, independent of when its owner catches up. */
+export function nightlyPublicationCycle(millis: number, boundary = nightlyPullBoundary()): string {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(millis));
   const get = (key: string) => Number(parts.find(p => p.type === key)?.value);
   const day = Date.UTC(get('year'), get('month') - 1, get('day'));
-  return new Date(day - (get('hour') < 18 ? 86400_000 : 0)).toISOString().slice(0, 10);
+  const before = get('hour') * 60 + get('minute') < boundary.hour * 60 + boundary.minute;
+  return new Date(day - (before ? 86400_000 : 0)).toISOString().slice(0, 10);
 }
 
 export interface NightlyMatchReceipt {
@@ -41,14 +65,16 @@ export interface NightlyMatchReceipt {
 }
 
 /** Read only the exact caller's bounded regular receipt; corruption never starts more scoring. */
-export function readNightlyMatchReceipt(userDir: string): NightlyMatchReceipt | null {
+export function readNightlyMatchReceipt(userDir: string): NightlyMatchReceipt | SettledReceipt | null {
   try {
     const file = path.join(userDir, NIGHTLY_MATCH_FILE), stat = fs.lstatSync(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 2048) throw new Error('Nightly matching receipt is unavailable.');
     const r = JSON.parse(fs.readFileSync(file, 'utf8'));
     const at = Date.parse(r?.completedAt);
-    if (r?.version !== 1 || !/^\d+:\d+$/.test(r.corpusVersion) || !Number.isFinite(at)
-      || new Date(at).toISOString() !== r.completedAt || at > Date.now() + 60_000
+    if (!/^\d+:\d+$/.test(r?.corpusVersion) || !Number.isFinite(at)
+      || new Date(at).toISOString() !== r.completedAt || at > Date.now() + 60_000) throw new Error('Nightly matching receipt is unavailable.');
+    if (r.version === 2 && validSettledReceipt(r)) return r;
+    if (r.version !== 1
       || ![r.keywordMatched, r.scored, r.skipped, r.limit].every(n => Number.isSafeInteger(n) && n >= 0)
       || r.limit !== NIGHTLY_MATCH_LIMIT || r.scored + r.skipped > r.limit) throw new Error('Nightly matching receipt is unavailable.');
     return r;
@@ -58,18 +84,27 @@ export function readNightlyMatchReceipt(userDir: string): NightlyMatchReceipt | 
   }
 }
 
-/** A published corpus is immutable during a native run; the ingest's private working copy is never mounted here. */
-export function nightlyMatchDecision(userDir: string, corpusDb: string) {
+/**
+ * A published corpus is immutable during a native run; the ingest's private working copy is never mounted here.
+ * With settled scoring on, a night its last run left unfinished (`continues`) in this same cycle is continued.
+ */
+export function nightlyMatchDecision(userDir: string, corpusDb: string, settled: NightlySettledSettings | null = null) {
   const stat = fs.lstatSync(corpusDb);
   if (!stat.isFile() || stat.isSymbolicLink() || !Number.isFinite(stat.mtimeMs) || stat.size <= 0) {
     throw new Error('Published job corpus is unavailable.');
   }
   const corpusVersion = `${Math.trunc(stat.mtimeMs)}:${stat.size}`;
-  const receipt = readNightlyMatchReceipt(userDir);
+  const receipt = readNightlyMatchReceipt(userDir), boundary = nightlyPullBoundary();
+  const sameCycle = receipt
+    ? nightlyPublicationCycle(Number(receipt.corpusVersion.split(':')[0]), boundary) === nightlyPublicationCycle(stat.mtimeMs, boundary)
+    : false;
   const reason = receipt?.matchContract !== NIGHTLY_MATCH_CONTRACT ? null
     : receipt.corpusVersion === corpusVersion ? 'up-to-date'
-    : nightlyPublicationCycle(Number(receipt.corpusVersion.split(':')[0])) === nightlyPublicationCycle(stat.mtimeMs)
-      ? 'daily-cooldown' : null;
+    : sameCycle ? 'daily-cooldown' : null;
+  if (settled && reason && receipt?.version === 2 && receipt.continues && sameCycle) {
+    const continuation: SettledContinuation = { prior: receipt };
+    return { corpusVersion, receipt, reason: null, continuation };
+  }
   return { corpusVersion, receipt, reason };
 }
 
@@ -100,6 +135,20 @@ export function nightlyMatchFailure(stdout?: string): string | undefined {
   return undefined;
 }
 
+/** The receipt a completed run writes: 1.63.0's while settled scoring is off, else the night's version 2. */
+function nightlyReceipt(
+  stdout: string | undefined, decision: { corpusVersion: string; continuation?: SettledContinuation },
+  settled: NightlySettledSettings | null, inputs: Record<string, string>,
+): NightlyMatchReceipt | SettledReceipt | null {
+  const base = { matchContract: NIGHTLY_MATCH_CONTRACT, corpusVersion: decision.corpusVersion, completedAt: new Date().toISOString() };
+  if (!settled) {
+    const verdict = nightlyMatchVerdict(stdout);
+    return verdict ? { version: 1, ...base, limit: NIGHTLY_MATCH_LIMIT, ...verdict } : null;
+  }
+  const verdict = settledVerdict(stdout, Number(inputs.CH_LIMIT));
+  return verdict ? settledReceipt(base, settled, verdict, decision.continuation) : null;
+}
+
 /** Start under the authenticated owner's schedule admission, shared score lease, and kept bot run. */
 export async function startNightlyMatching(
   pool: AppContext['pool'], userSub: string,
@@ -109,32 +158,38 @@ export async function startNightlyMatching(
     return { started: false, reason: 'native-scheduler-required' };
   }
   const { userDir, corpusDb } = userPaths(userSub);
-  const decision = nightlyMatchDecision(userDir, corpusDb);
+  const settled = nightlySettledSettings();
+  const decision = nightlyMatchDecision(userDir, corpusDb, settled);
   if (decision.reason) return { started: false, reason: decision.reason };
   if (!profile.titleTerms.length) return { started: false, reason: 'no-title-profile' };
   let runId: string | undefined;
+  const inputs = settled ? settledRunInputs(settled, decision.continuation) : {};
   const result = await runCareerCliAsync(pool, userSub, ['score-titles'], {
     CH_TITLES: profile.titleTerms.join('\n'), CH_LIMIT: String(NIGHTLY_MATCH_LIMIT), CH_FRESH_DAYS: '7',
-    CH_REMOTE_ONLY: profile.remoteOnly ? '1' : '0', CH_NIGHTLY_MATCH: '1',
+    CH_REMOTE_ONLY: profile.remoteOnly ? '1' : '0', CH_NIGHTLY_MATCH: '1', ...inputs,
   }, {
     slot: 'score', captureStdout: true, timeoutMs: 30 * 60_000,
     onRunStarted: id => { runId = id; },
     onComplete: async completion => {
-      const verdict = completion.ok ? nightlyMatchVerdict(completion.stdout) : null;
-      if (!verdict) {
+      const receipt = completion.ok ? nightlyReceipt(completion.stdout, decision, settled, inputs) : null;
+      if (!receipt) {
         logger.warn({ userSub, runId, code: completion.code, timedOut: completion.timedOut,
           errorType: nightlyMatchFailure(completion.stdout) }, 'nightly matching failed; receipt not advanced');
         return;
       }
-      const receipt: NightlyMatchReceipt = { version: 1, matchContract: NIGHTLY_MATCH_CONTRACT, corpusVersion: decision.corpusVersion,
-        completedAt: new Date().toISOString(), limit: NIGHTLY_MATCH_LIMIT, ...verdict };
       // Both cursors and private scores publish together. A failed completion or owner
       // publication cannot consume the next nightly attempt.
       await onSuccess();
       const file = path.join(userDir, NIGHTLY_MATCH_FILE);
       await writeFileAtomicAsync(file, JSON.stringify(receipt) + '\n');
       await fs.promises.chmod(file, 0o600);
-      logger.info({ userSub, runId, ...verdict, limit: NIGHTLY_MATCH_LIMIT }, 'nightly matching completed');
+      if (receipt.version === 1) {
+        const { keywordMatched, scored, skipped } = receipt;
+        logger.info({ userSub, runId, keywordMatched, scored, skipped, limit: NIGHTLY_MATCH_LIMIT }, 'nightly matching completed');
+      } else {
+        const { version, matchContract, corpusVersion, completedAt, ...counted } = receipt;
+        logger.info({ userSub, runId, mode: 'settled', ...counted }, 'nightly matching completed');
+      }
     },
   });
   if (result.limitReason) return { started: false, reason: result.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };

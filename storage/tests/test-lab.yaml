@@ -15,6 +15,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects every delete request to call the delete tool and a card named by what it does (sweep 13).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register the file-sources case (the shared file picker's Dropbox, Google Drive, GitHub and OSHAL-local sources, Jarvis's "+ Add").
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: register storage-ux-batch7 (storage--storage-assistant MERGE + storage--storage-settings FIX-LAYOUT).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register product-name (what a person reads or hears names the product Open Swarm; technical provider ids stay oshal-local).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -89,7 +90,7 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
-      - With nothing saved the compiled route (routes/home-summary.js, run with a stub Router and pool) says the default target is in use and that Automatic resolves to OSHAL (local) unless GitHub, Dropbox or Google Drive is connected, never that the location is unset; its saved and failed answers match the summaries the view is tested with.
+      - With nothing saved the compiled route (routes/home-summary.js, run with a stub Router and pool) says the default target is in use and that Automatic resolves to Open Swarm (local) unless GitHub, Dropbox or Google Drive is connected, never that the location is unset; its saved and failed answers match the summaries the view is tested with.
       - On open the company view reads only GET /home-summary, GET /prefs and GET /local/list; it never POSTs /assistant (the chat turn, which runs a model and acts with the caller's tokens) and never reads /dropbox/folders or /github/repos (live provider calls).
       - The title names the effective code and files targets; the stats are the two targets with their saved or automatic state, the connected stores among GitHub, Dropbox and Google Drive, and the top-level file count of the oshal-local store; the table lists those files by name with their size, capped at twelve; the stores list marks each store connected or not and which bucket it serves.
       - Signed out (401), refused (403), nothing saved, an empty store, a partial summary, a failed prefs read, a failed store listing and a failed summary read each read as what they are; only both the summary and the prefs failing raises the kit's failure notice.
@@ -109,10 +110,25 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/storage-ux-batch7.test.cjs] }
     expected:
       - The manifest declares chatBot storage-assistant, sets ribbon.defaultView to storage-files, and keeps storage-settings and storage-files in ui.static with zero cross-store experience dependencies on storage-assistant.
-      - Unconnected Dropbox and GitHub options in Storage Settings are disabled and followed by a Connections link; local usage (or the 250 MB limit) sits in the help line rather than option labels, and copy uses lowercase oshal.
+      - Unconnected Dropbox and GitHub options in Storage Settings are disabled and followed by a Connections link; local usage (or the 250 MB limit) sits in the help line rather than option labels, and copy names the product Open Swarm.
       - Changing a Backend select immediately sends PUT /api/storage/prefs and shows Saved beside the select; a failed save surfaces role="alert" with the reason, and no Save bar or opacity:.5 rule remains.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: product-name
+    name: What a person reads or hears names the product Open Swarm
+    purpose: Drive the Storage routes, Home summary, file-picker sources, manifest, persona and HTML surfaces and verify person-facing copy says Open Swarm while technical identifiers keep oshal.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/product-name.test.cjs] }
+    expected:
+      - Route answers, refusals and Home summary copy name the product Open Swarm and never OSHAL or oshal.
+      - Manifest display names, descriptions, card sentences, usage instructions and the storage-assistant persona name the product Open Swarm and instruct the assistant never to say the provider identifier oshal-local aloud.
+      - Shipped routes, TypeScript route sources and HTML surfaces contain no person-facing OSHAL or oshal outside allowlisted technical identifiers.
+      - Technical identifiers (provider id oshal-local, User-Agent OSHAL, route paths, environment variables and table names) remain unchanged.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
     limits: { timeoutMs: 15000 }
     installation: never

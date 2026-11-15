@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: the live walk (tests/career-one-concierge-live-proof.mjs) is itself checked, so the first run on an installed Career is not the first run of the walk. It runs as a child process against a stand-in kernel on a loopback port that answers the kernel's own addresses (sign-in, the application list, the concierge ask, a card and its Approve at /api/jarvis/package-tools/execute) with a scripted concierge and Career's real engine on a made-up person's disposable profile: the walk passes, two cards from one reading both apply through the real engine, and the profile is back to the byte; a concierge that answers "I can't see that document from here" is refused and the profile is still put back; an older Career and a base that is not a loopback address are refused before anything is asked.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (Career 1.62.0's walk on blue, 2026-11-14: "REFUSED: it read the main résumé first (used nothing)" while the turn had read the résumé and written the right card). The stand-in now answers a slow turn as the kernel does (crates/api/src/swarm_api.rs ask_bot, jarvis_pending::answer, jarvis_history::result): a request with Prefer: respond-async is answered 202 with a pending id, and the answer read later at /api/jarvis/ask/result is the saved turn, which carries the reply as answer and the card but no toolsUsed and no bot. A request without that preference waits for the whole turn and gets the tool trace. The walk must pass against a concierge that answers late.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +27,7 @@ const fixture = {
 const ADMIN = 'made-up-admin-token', SESSION = 'made-up-session-token';
 
 /** A stand-in kernel: the addresses the walk calls, a scripted concierge, Career's real engine behind its routes. */
-async function kernel({ version = '1.62.0', blind = false } = {}) {
+async function kernel({ version = '1.62.0', blind = false, slow = false } = {}) {
   const dir = fs.mkdtempSync(path.join(root, 'person-')), file = path.join(dir, 'career_db.json');
   fs.writeFileSync(file, JSON.stringify(fixture, null, 2));
   const engine = (verb, input = {}) => {
@@ -34,7 +35,7 @@ async function kernel({ version = '1.62.0', blind = false } = {}) {
       env: { ...process.env, JOBHUNTER_DATA: dir, JOBHUNTER_CAREER_DB: file, PYTHONPATH: path.join(packageRoot, 'engine'), CH_RESUME_DOC: JSON.stringify(input) } });
     return JSON.parse(out.stdout.trim());
   };
-  const cards = new Map(), asked = [];
+  const cards = new Map(), asked = [], late = new Map();
   const job = { roleIndex: 0, roleTitle: 'IL6 Platform Engineer', roleOrg: 'Demo Defense Cloud' };
   /** The scripted concierge: what a model that follows its persona does for each of the walk's four sentences. */
   function concierge(message) {
@@ -72,9 +73,14 @@ async function kernel({ version = '1.62.0', blind = false } = {}) {
       if (key === 'POST /api/career-hunter/resume/master-undo') { const answer = engine('base-undo', input); return send(answer.ok ? 200 : 409, answer); }
       if (key === 'POST /api/swarm/bots/career-concierge/ask') {
         asked.push(input);
-        const turn = concierge(input.message);
-        return send(200, { bot: 'career-concierge', reply: turn.reply, toolsUsed: turn.used.map((tool) => ({ tool })), packageToolProposals: turn.made, status: 'completed' });
+        const turn = concierge(input.message), whole = { bot: 'career-concierge', reply: turn.reply, toolsUsed: turn.used.map((tool) => ({ tool })), packageToolProposals: turn.made, status: 'completed' };
+        if (!slow || !/respond-async/.test(String(req.headers.prefer || ''))) return send(200, whole);
+        // Past the kernel's inline wait: 202 now, and later the saved turn, which keeps no tool trace and no bot.
+        const id = `pending-${late.size + 1}`;
+        late.set(id, { jobId: `saved-${late.size + 1}`, status: 'done', answer: turn.reply, packageToolProposal: turn.made[0] && cards.get(turn.made[0]), ...(turn.made.length > 1 ? { packageToolProposals: turn.made.map((made) => cards.get(made)) } : {}) });
+        return send(202, { jobId: id, status: 'pending' });
       }
+      if (key === 'GET /api/jarvis/ask/result') return late.has(url.searchParams.get('jobId')) ? send(200, late.get(url.searchParams.get('jobId'))) : send(404, {});
       const one = url.pathname.match(/^\/api\/jarvis\/package-tools\/proposals\/(.+)$/);
       if (req.method === 'GET' && one) return cards.has(one[1]) ? send(200, { proposal: cards.get(one[1]) }) : send(404, {});
       if (key === 'POST /api/jarvis/package-tools/execute') {
@@ -112,6 +118,18 @@ test('the walk passes against a concierge that does its job, through the real en
       [['doc:career-hunter:master', 'master', 'resume-studio'], ['doc:career-hunter:master', 'master', 'work-history'],
         ['doc:career-hunter:master', 'master', 'work-history'], ['doc:career-hunter:master', 'master', 'resume-studio']], 'one conversation, as the pane sends it');
     assert.doesNotMatch(out, new RegExp(`${ADMIN}|${SESSION}|Shipped the routing service|Bearer`), 'no token and none of the person\'s own résumé text is printed');
+  } finally { await k.close(); }
+});
+
+test('a concierge that answers after the kernel\'s inline wait is still graded by its tool trace', async () => {
+  const k = await kernel({ slow: true }), before = fs.readFileSync(k.file, 'utf8');
+  try {
+    const { code, out } = await run(k.base, k.env);
+    assert.equal(code, 0, out);
+    assert.match(out, /1 add a job from My résumé: \{"tools":\["career_resume_section"\]/);
+    assert.match(out, /PASSED: one concierge, one résumé, two cards in turn\./);
+    assert.equal(fs.readFileSync(k.file, 'utf8'), before, 'to the byte');
+    assert.equal(k.asked.length, 4);
   } finally { await k.close(); }
 });
 

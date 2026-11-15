@@ -15,6 +15,7 @@
     python -m jobhunter source-review [--max-sources N]     (recheck sources the pull could not read, JSON)
 """
 # CHANGE LOG
+# 10 | maintainer@emeraldcoastsystemsgroup.com | A full pull ends its job finding with the description stage (pull_details.stage): once every list is read, it keeps the descriptions of in-lane jobs their lists gave none for, under caps an administrator can change or turn off, and says on its summary line how many it kept.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | A full pull counts re-keyed jobs (kept as the same job) and the closed ones that may be re-keyed on its summary line, only when there are any, and ends with a closure receipt per source kept in the copy it publishes (closures.write_receipt).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | A full pull ends with source maintenance, straight after the source review: decisions for a person, repair briefs and the search for employers' job sites are recorded on the pull's own copy and publish with it.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | cmd_init's note follows db.py 19: init_db no longer seeds a person's recruiter tracker, so in the swarm database it only proves the store opens.
@@ -26,7 +27,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
-from . import closures, pull_checkpoint, source_maintenance, source_memory, source_requests, source_review
+from . import closures, pull_checkpoint, pull_details, source_maintenance, source_memory, source_requests, source_review
 import argparse
 import csv
 import json
@@ -262,7 +263,10 @@ def cmd_scrape(a):
     for r in rows:
         if not pull or pull.claim(r):
             totals.update(_scrape_source(r, pull))
+    described = pull_details.stage(pull, rows) if full else {"detail_reads": 0}
     tail = f" {totals['skipped']} skipped (no title)." if totals["skipped"] else ""
+    if described["detail_reads"]:
+        tail += f" Descriptions kept: {described['described']} of {described['detail_reads']} job pages read."
     if totals["rekeyed"] or totals["possible_rekey"]:
         tail = f" {totals['rekeyed']} re-keyed (kept as the same job); {totals['possible_rekey']} of the closed may be re-keyed.{tail}"
     continued = f" Continued after {pull.resumes} interruption{'s' if pull.resumes > 1 else ''}." if pull and pull.resumes else ""

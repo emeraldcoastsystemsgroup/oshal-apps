@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness smoke and Ambient Recall surface empty-state + pre-promotion 404 acceptance suite.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Document Continuous Profile Learning and Eavesdrop Business Cards verification in ambient-recall-surface e2e case.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Set ambient-recall-surface level to browser to satisfy the closed Test Lab level enum.
 version: 1
 cases:
   - id: package-readiness
@@ -25,7 +26,7 @@ cases:
   - id: ambient-recall-surface
     name: Ambient Recall unhidden tile, Continuous Profile Learning, Business Cards, and pre-promotion 404 grace
     purpose: Verify person-model 1.2.1 manifest unhide, inline concierge contract, Continuous Profile Learning & Eavesdrop Business Cards UI/API, and Chromium rendering of empty states across projection, recall, asks, people, and trends as well as HTTP 404 pre-promotion grace.
-    level: e2e
+    level: browser
     runner:
       kind: node-test
       scope: package

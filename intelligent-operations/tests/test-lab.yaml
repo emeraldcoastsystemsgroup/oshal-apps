@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 41 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name (tests/product-name.test.cjs: person-facing copy names the product Open Swarm; technical identifiers keep oshal; OSHAL Node component wording stays unchanged).
+# 40 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (closed sideEffects enum on cases 28..43, quoted flow-mapping cleanup strings containing commas, <=1000-character purpose summaries on monitor-enroll-prepare and monitor-enroll-otlp, and quoted colon-containing expectation on monitor-enroll-token-controls).
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1 (Monitoring Trust M2 rework): update monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: verify package code never touches oshal.current_sub or set_config, enrollment prepare with headless/Windows/macOS/config-pack and optional device trust metadata, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
 # 37 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3, T71: percolation-reduction also expects rule generations to rotate (an activation retires the unbound ones once older than an hour).
 # 38 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, concierge audit batch 2b: register create-concierge (the front desk is ops-concierge; ops-rca-specialist and ops-incident-reviewer stay the RCA workers).
@@ -453,7 +455,7 @@ cases:
       - Saved correlation binds exact deliveries, scans and policy without dispatching work.
       - Kubernetes UIDs, owner chains, runtime container IDs and endpoint conditions survive translation without pod secrets.
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres]
-    sideEffects: disposable database and loopback fixture server
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Drop fixture databases and roles and close all browsers and server connections in finally. }
     limits: { timeoutMs: 60000, maxMemoryMb: 768 }
     installation: never
@@ -470,8 +472,8 @@ cases:
       - An activation retires the person's rule generations no source binding keeps, never a bound one, another person's or one under an hour old (T71).
       - A generation is sealed with the add-block API, never an index settings update, which OpenSearch 3.3.2 never frees; a sealed generation published again writes nothing (1.9.1).
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
-    sideEffects: disposable databases, rule indexes, local engine process and loopback HTTP server
-    isolation: { mode: disposable, cleanup: Delete only test-owned rule indexes and databases; close browser, engine and server in finally. }
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "Delete only test-owned rule indexes and databases; close browser, engine and server in finally." }
     limits: { timeoutMs: 120000, maxMemoryMb: 768 }
     installation: never
 
@@ -486,7 +488,7 @@ cases:
       - Correlation results survive reload and remain invisible to another SQL owner.
       - Replayed policy decisions cannot inflate the displayed delivery cohort.
     prerequisites: [runner:node-test, browser:chromium, service:postgresql, service:opensearch]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Drop test-owned SQL databases and OpenSearch rule indexes. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -501,7 +503,7 @@ cases:
       - Bounded failures require explicit retry after exhaustion and never become no-match.
       - Missing native scheduler status is shown as unavailable; revoked access clears private work.
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, service:disposable-postgres, service:disposable-opensearch]
-    sideEffects: disposable databases, rule indexes, local engine and HTTP servers
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Remove owned fixture databases and indexes and close every engine and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -515,7 +517,7 @@ cases:
       - Different users and exact native resource identities never share context.
       - Pinned preprocessed evidence survives reuse of its raw bank and grants no infrastructure execution.
     prerequisites: [runner:node-test, service:postgresql]
-    sideEffects: temporary-data
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Drop only the fixture database and role in finally. }
     limits: { timeoutMs: 60000, maxMemoryMb: 512 }
     installation: never
@@ -533,8 +535,8 @@ cases:
       - Only synthetic replay sources can be discarded; a real source is refused and kept.
       - Live context reads its detector when it opens, lists streams as checklist rows and says why Run detection now is off.
     prerequisites: [runner:node-test, service:postgresql, service:opensearch, browser:chromium, dependency:playwright]
-    sideEffects: temporary-data
-    isolation: { mode: disposable, cleanup: Close browser, fixture server and engine; drop fixture database/role and owned rule indexes in finally. }
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "Close browser, fixture server and engine; drop fixture database/role and owned rule indexes in finally." }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
 
@@ -549,8 +551,8 @@ cases:
       - Explicit activation checks the loaded source revision; stale publication cannot overwrite another change.
       - Browser editing, saved-generation drafts, phone layout and access-withdrawal clearing use shipped assets.
     prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
-    sideEffects: disposable databases, saved candidate indexes, engine process and loopback server
-    isolation: { mode: disposable, cleanup: Drop only test-owned SQL databases and query indexes; close browser, server and engine. }
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "Drop only test-owned SQL databases and query indexes; close browser, server and engine." }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
 
@@ -564,7 +566,7 @@ cases:
       - CPU canvas has real XYZ perspective and works with keyboard and phone layouts.
       - Access withdrawal removes private pixels, controls and node results.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close owned loopback server and headless browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -582,7 +584,7 @@ cases:
       - Listed investigations carry their alert label; the evidence card offers Investigate again only after a failed or cancelled ticket.
       - Completed AI outputs require canonical receipts; accepted reports do not establish infrastructure recovery.
     prerequisites: [runner:node-test, service:postgresql]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Drop owned SQL database and role; canonical ticket boundary uses an explicit fixture port. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -597,7 +599,7 @@ cases:
       - Registered notification transports do not imply successful delivery.
       - Denied and stale reads cannot restore private service rows.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close only owned loopback server and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -613,7 +615,7 @@ cases:
       - Actual shipped UX confirms through native Actions and reads back state without automatic retries.
       - Operator reports never change canonical status or establish server-verified delivery or recovery.
     prerequisites: [runner:node-test, browser:chromium, service:postgresql]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close fixture browser and server and drop only owned SQL databases and roles. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -630,7 +632,7 @@ cases:
       - Lower-verified promotion retains its test evidence without a contradictory waiver.
       - All four screens fit phone and desktop layouts and send no service requests.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -646,7 +648,7 @@ cases:
       - Keyboard navigation, captured failure reasons and phone layouts work in the shipped renderer.
       - Disposal clears resource identities and details.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -662,7 +664,7 @@ cases:
       - Denied or older reads cannot restore private report content.
       - Phone and desktop use the shared resource workbench layout.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -678,7 +680,7 @@ cases:
       - AI receives selected status and output and never executes a suggested command.
       - Unconfigured service, revocation and late results cannot restore private console data.
     prerequisites: [runner:node-test, browser:chromium]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Close only owned loopback fixture server and browser. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
     installation: never
@@ -693,7 +695,7 @@ cases:
       - Concurrent consumers commit one immutable packet and completion, with bounded retries and pause fencing.
       - Context is preprocessed and credential-redacted; missing context and unrequested capture stay explicit.
     prerequisites: [runner:node-test, service:disposable-postgresql]
-    sideEffects: disposable
+    sideEffects: none
     isolation: { mode: disposable, cleanup: Drop only owned temporary PostgreSQL databases and roles. }
     limits: { timeoutMs: 60000 }
     installation: never
@@ -835,7 +837,7 @@ cases:
     installation: never
   - id: monitor-enroll-prepare
     name: Enrolment prepare for a monitored installation (ADR-216)
-    purpose: "Verify (oshal-kernel ADR-216, lane S1) through the real router, real SQL with forced owner policies, the real percolator on the disposable search and a store per person that POST /installations/enroll, which the kernel runs as the person approving a server's code, creates the source urn:operations:source:<name> with the id Sources gives it, its Alertmanager mapping, the policy whose rule lists moved from wire_producer.py (critical captured, warning recorded) and a first processing configuration with the chain on, records what the server said of itself and answers the one /ingest/alertmanager/<id> route the kernel mints a token for; that the same name again reuses the source with its history, mapping and an edited policy; that a removed source is never reused and its route stays 410; that processing switched off stays off and only gains the source; that an OpenTelemetry Collector is answered with its /ingest/otlp/<id> route, the label <name> otel and the same mapping, policy and processing, and the same name again keeps its source; that a malformed name or client (including a client name past 80 characters), a full processing list and the engine down are refused with nothing written; that a long name fits the kernel's 80-character label, a spaced name is URI-encoded, a desk's own source starts from its desk's default; and that the manifest declares producers.enroll as the kernel validates it, on records.write."
+    purpose: "Verify (oshal-kernel ADR-216, lane S1) through the real router, forced-owner SQL and disposable OpenSearch percolator that POST /installations/enroll creates urn:operations:source:<name>, its Alertmanager or OTLP (/ingest/otlp/<id>, <name> otel) mapping, the 25-rule policy and initial processing configuration (or adds the source without flipping a disabled schedule on); reuses an active source by name without republishing; never reuses a removed source (410); refuses malformed names/clients, a full list (409) and a down engine (503) with nothing written; encodes spaced/long labels within 80 chars; and declares producers.enroll on records.write."
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/enroll-prepare.test.cjs] }
     expected:
@@ -869,7 +871,7 @@ cases:
     installation: never
   - id: monitor-enroll-otlp
     name: An OpenTelemetry Collector reports to Operations (ADR-216)
-    purpose: "Verify (oshal-kernel ADR-216, lane S2) through real SQL with forced owner policies, the real router and, for the policy, the real percolator on the disposable search, that POST /ingest/otlp/:sourceId reads an OpenTelemetry Collector's OTLP/JSON hostmetrics and httpcheck metrics onto the heartbeat's keys as one heartbeat per delivery, so the card, its checks, the charts and the telemetry banks read them and checks a collector cannot read say Not reported by its collector; that SiteDown, SiteSlow, DiskFull, DiskHigh, MemoryLow and LoadHigh fire only after the Prometheus rules' windows (5, 10, 10, 30, 10 and 15 minutes) from when the breach began and resolve when the reading clears; that a breach unread for over two minutes starts again and nothing fires without its reading; that a failed admit is owed to the next delivery and a firing alert is repeated so the card keeps it; that a critical goes through the source's policy captured and a warning recorded; that logs and traces answer 200 {} and are ignored, a missing x-oshal-producer-path is metrics and an unknown one 400, malformed bodies 400 and over 256 KiB 413 with nothing recorded; that the router answers 200 {}, 410 {gone} for a removed source and 404 for an unknown one; and that Disconnect stops watching an installation that was reporting and keeps its chart history."
+    purpose: "Verify (oshal-kernel ADR-216, lane S2) through forced-owner SQL, the real router and disposable OpenSearch percolator that POST /ingest/otlp/:sourceId maps OpenTelemetry Collector hostmetrics and httpcheck metrics onto one heartbeat per delivery (marking uncollected checks Not reported by its collector); fires SiteDown, SiteSlow, DiskFull, DiskHigh, MemoryLow and LoadHigh only after their 5/10/10/30/10/15-minute windows and resolves on clear; retries a failed admit on the next delivery and keeps firing alerts alive; captures critical and records warning through the source policy; answers 200 {} on logs/traces, 400/413 on bad or oversized (>256 KiB) bodies, 410 on removed sources and 404 on unknown ones; and stops watching on Disconnect while keeping chart history."
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/otlp-ingest.test.cjs] }
     expected:
@@ -890,7 +892,7 @@ cases:
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/installations-screen.test.cjs] }
     expected:
-      - The line reads Last delivery <when>: accepted (HTTP 202). First accepted <when>. The token it replaced stops working <when>.
+      - "The line reads Last delivery <when>: accepted (HTTP 202). First accepted <when>. The token it replaced stops working <when>."
       - Rotate token posts /api/v1/producer-tokens/<current id>/rotate once and the line says Rotation requested; the server picks it up within 5 minutes.
       - Disconnect revokes every token naming the source and posts {stopWatching true, sourceId, disconnect true}; a refused revoke posts nothing.
       - At 412x915 nothing scrolls sideways and every control is at least 44px high.
@@ -911,7 +913,7 @@ cases:
       - Systems displays the headless/config-pack disclosure, approves a pending device with its Ed25519 key fingerprint and edited CIDRs, updates an installation token's allowed addresses, and fits 412x915 without horizontal scroll.
     prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch, dependency:express, dependency:playwright, browser:chromium]
     sideEffects: none
-    isolation: { mode: disposable, cleanup: Drop the fixture database and role, delete rule indexes and close the browser. }
+    isolation: { mode: disposable, cleanup: "Drop the fixture database and role, delete rule indexes and close the browser." }
     limits: { timeoutMs: 180000, maxMemoryMb: 768 }
     installation: never
   - id: create-concierge
@@ -929,6 +931,23 @@ cases:
       - The routing words moved to ops-concierge; neither worker keeps any.
       - The persona carries plain prose, the tool_call fence and runtime harness claude-code, and the specialist's concierge-panel rules word for word.
       - Every route tool is authorized for the concierge (reads auto, ops-remove-source ask); it is bound to app.open and listed in CONCIERGES.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: product-name
+    name: What a person reads or hears names the product Open Swarm
+    purpose: >-
+      Verify (1.9.2) that Intelligent Operations names the product Open Swarm across route caller refusals, manifest and
+      personas, experience screens and standalone workspace assets, while technical identifiers retain oshal and OSHAL Node
+      component references remain unchanged.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/product-name.test.cjs] }
+    expected:
+      - Intake and topology-store caller refusals answer 401 naming Open Swarm, while commands keeps OSHAL Node.
+      - The manifest and all three personas contain no bare product-name OSHAL/oshal outside OSHAL Node.
+      - Shipped experience, routes, TypeScript route sources and ui files contain no product-name OSHAL/oshal outside comments, technical identifiers and OSHAL Node.
     prerequisites: [runner:node-test, dependency:js-yaml]
     sideEffects: none
     isolation: { mode: none }

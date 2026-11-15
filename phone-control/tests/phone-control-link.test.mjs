@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the reconnect rules (only a not_connected refusal, only a device reached over the network, at most once in 20 seconds), the command sent again after a reconnect and to a new serial when the reconnect reports one, the words for a device still not connected (a TV is never called a phone), and the note under a stored picture.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the installer carries oshal_phone_links.py.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 and 1.12.0: the installer carries oshal_phone_play.py and oshal_phone_apps.py.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: the installer carries oshal_phone_front.py.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,7 +67,7 @@ test('the install command installs exactly the package bridge, and the bridge re
   const installed = parseReply(shell(installCommand(manifest)));
   assert.equal(installed.ok, true, installed.message);
   assert.deepEqual(installed.installed.sort(), [
-    'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
+    'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_front.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);
   assert.ok(installCommand(manifest).length < 100 * 1024, 'the install command stays one shell argument with room to spare');
   for (const file of manifest.files) {

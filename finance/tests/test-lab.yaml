@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register recurring; record-pages-browser also drives Recurring.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register mail-parse, mail-bills and mail-bills-browser (bills from the person's own mail against a stand-in Gmail server).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register day-corrections (VER2's three observations and the deletes); record-pages-browser expects the deletes and the corrected lists; finance-app-browser expects Where you stand read again on coming back to Home.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: register the ledger suites, day-records, record-pages and record-pages-browser; finance-app-browser expects the new bar and Where you stand.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | analysis-background also expects the cached saved read to answer exactly as before when the request's state cannot be read (the store gate's home-summary job read 502 for 404), and to only read while a request is working.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: register analysis-background; bank-snapshot-browser expects the working notice above the earlier analysis, the new analysis once saved, and a failure in words.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: register analysis-deadline; bank-snapshot-browser expects the kernel's 60 s cut and categories in words; finance-app-browser expects the Concierge to open inside the cockpit.
@@ -395,11 +399,12 @@ cases:
       files:
       - tests/browser/finance-app.browser.test.cjs
     expected:
-    - The bar reads Home, Bank accounts, Trades, More; authorized optional applications remain in More. Home shows account summaries and finance jobs grouped by application
+    - The bar reads Home, Accounts, Transactions, Bills, Spending, Goals, Trades, More; Bank accounts and the authorized optional applications are in More; a phone's bar reads Home, Accounts, Bills, Spending, More. Home shows account summaries and finance jobs grouped by application
       with last run, result, next run and run counts, another application's job left out, and what needs attention first.
     - A section opens inside the page, the address keeps it across a reload, and Bank accounts keeps its Overview and Linked banks views.
     - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden for this frame and restored when it is removed.
     - The page makes GET requests only.
+    - Home opens with Where you stand - three steps and Add your first account on a first run, otherwise net worth, bills due, the month's money out and the new transactions with their sources - and its buttons open those pages.
     - A summary that does not answer is said in words and the other summaries and the jobs still show.
     - Inside a page with the cockpit's own layout the Concierge's chat panel is hidden only while closed; opened, it sits beside Finance on a computer (at least 300 px, the page keeps the rest) and covers the screen as a sheet on a phone.
     prerequisites:
@@ -444,3 +449,260 @@ cases:
       - Spending categories read as words (Transfers out, Loan payments, Food and drink); an unknown all-capitals code reads in sentence case and other names stay as they came.
       - When Request analysis is answered at once, the panel says the analyst is working above the earlier analysis, the button and Sync wait, and the page asks every five seconds until the new analysis is saved and shown.
       - An analysis that fails after the press is said in words with the earlier analysis kept; opening the page during a request shows it without pressing anything; a failure newer than the saved analysis is said on opening and an older one is not; a phone's width holds the working notice.
+  - id: ledger
+    name: Finance's own records and statement import on a disposable PostgreSQL
+    purpose: >-
+      Drive the compiled ledger routes (accounts, transactions, statement preview, apply and undo) and the snapshot rebuild over
+      Finance's declared migrations on a disposable database, with synthetic CSV, OFX, QFX and text statements. Only
+      Express's Router, the logger and the artifact relay are doubled.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/ledger-import-csv.test.cjs
+      - tests/ledger-import-ofx.test.cjs
+      - tests/ledger-import-text.test.cjs
+      - tests/ledger-dedupe.test.cjs
+      - tests/ledger-undo.test.cjs
+      - tests/ledger-records.test.cjs
+      - tests/ledger-artifact-import.test.cjs
+      - tests/ledger-no-ddl.test.cjs
+      - tests/ledger-aggregate-fold.test.cjs
+      - tests/sample-ledger.test.cjs
+    expected:
+    - A CSV, OFX, QFX or text statement previews before anything is added; applying adds only new lines, the same file twice adds nothing, and undo takes them out.
+    - Only the last four digits of an account number are kept; an unknown balance is null with Not known yet, never zero; every amount names its source and date.
+    - A linked bank's saved snapshot and its analysis are never rewritten by an import or a typed entry; without a link the snapshot is the records' own with balancesComplete and transactionsComplete false.
+    - Demo data writes 1.6.5's sample snapshot and the same household as sample records; a person's own records survive its removal.
+    - No ledger module creates a table; every statement names the owner and keeps the kernel's plain shapes.
+    prerequisites:
+    - runner:node-test
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      cleanup: Each case creates its own uniquely named database on the loopback test server named by OSHAL_TEST_POSTGRES and drops it when the case ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: day-records
+    name: Bills, goals, the month and the day over a person's own records
+    purpose: >-
+      Drive the compiled bills, goals, month and day routes on a disposable database after a synthetic statement is
+      applied through the ledger routes.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/day-records.test.cjs
+    expected:
+    - The day before any account is a first run, and every GET writes nothing.
+    - A charge repeating monthly is proposed as a bill when the statement is applied; it becomes a bill only with confirm true, and Mark paid says it pays nothing.
+    - A typed bill is a bill at once; Set aside says no money moved and progress is what was set aside; taking back more than is held is refused in words.
+    - The month answers money in and out with sources and dates and has no left to spend without a plan; closing a month needs confirmation.
+    - Another person sees and answers none of it; migration 004 is plain and the day modules create no table and move no money.
+    prerequisites:
+    - runner:node-test
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      cleanup: Each case creates its own uniquely named database on the loopback test server named by OSHAL_TEST_POSTGRES and drops it when the case ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: day-corrections
+    name: What VER2 saw on the test slot, each as a guard, and the deletes
+    purpose: >-
+      Drive the compiled ledger, bills and goals routes on a disposable database for the three things the 1.7.0
+      acceptance check saw and for deleting an ended bill or a closed goal.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/day-corrections.test.cjs
+    expected:
+    - Undo of a statement puts back to due every due date its payments had paid by matching; a due date the person marked paid keeps the mark without the payment's amount.
+    - A second preview of the same file is not listed among the statements brought in, and is still read by its id.
+    - An ended bill is deleted only with confirm true, its due dates go, and a bill found in payments is not proposed again from the same charges; a typed bill is removed outright.
+    - A closed goal is deleted with what was set aside for it; an open goal is refused in words; another person can delete nothing.
+    prerequisites:
+    - runner:node-test
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      cleanup: Each case creates its own uniquely named database on the loopback test server named by OSHAL_TEST_POSTGRES and drops it when the case ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: mail-parse
+    name: Reading one mail message for a bill
+    purpose: Read synthetic Gmail messages (format=full) for a bill through the compiled finance-mail-parse module, by fixed patterns.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/mail-parse.test.cjs
+    expected:
+    - A utility bill, a card statement and an HTML invoice give the payee, the amount due (the whole balance, not the minimum payment) and the due date.
+    - A payment receipt, mail with no amount due and mail with no due date give no bill; a due date far from the mail is not believed.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: mail-bills
+    name: Bills from a made-up person's mail, against a stand-in Gmail server
+    purpose: >-
+      Drive the compiled mail and bills routes on a disposable database against a stand-in Gmail API on loopback, the
+      kernel's egress stood in by a fetch that sends Finance's requests to it unchanged.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/mail-bills.test.cjs
+      - tests/mail-stand-in.fixture.cjs
+    expected:
+    - The mail check is off until the person turns it on with a yes; while it is off no request reaches the mailbox.
+    - A check sends one search for bill-like mail of the last 45 days and reads each message once, GET only and with no credential of Finance's own; no message text is stored.
+    - Add with a yes makes a bill or brings the person's bill for that payee up to date; Not a bill keeps that payee from being proposed again.
+    - A check reads at most 20 messages and the next continues; no connection, an expired one and a refused permission are said in words; another person sees and answers nothing.
+    - Migration 005 is plain and the mail module creates no table, sends no mail and moves no money.
+    prerequisites:
+    - runner:node-test
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      - tests/mail-stand-in.fixture.cjs
+      cleanup: Each case creates its own uniquely named database on the loopback test server named by OSHAL_TEST_POSTGRES and drops it when the case ends; each stand-in mail server listens on a loopback port of its own and is closed when the case ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: recurring
+    name: Every payment that repeats, what it costs a year, and the person's answer
+    purpose: >-
+      Drive the compiled recurring and bills routes on a disposable database after a synthetic statement with a
+      streaming service, a gym whose price went up and a utility is applied through the ledger routes.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/recurring.test.cjs
+    expected:
+    - Every monthly charge is listed with what it costs a year as an estimate with its source and date; a price that went up says so; a GET writes nothing.
+    - Keep is recorded; Track as a bill needs confirm true and makes it a bill; Mark to cancel says Finance cancels nothing and leaves it out of the totals; Review again takes the answer back.
+    - A payment marked to cancel that is charged again says so; another person sees and answers nothing; migration 006 is plain and the module creates no table and moves no money.
+    prerequisites:
+    - runner:node-test
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      cleanup: Each case creates its own uniquely named database on the loopback test server named by OSHAL_TEST_POSTGRES and drops it when the case ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: record-pages
+    name: The record pages and the route that serves them
+    purpose: Read the five record pages and their shared files from the package and serve them through the compiled page route.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/record-pages.test.cjs
+    expected:
+    - The route serves Accounts, Transactions, Bills, Spending and Goals and their two shared files, and refuses any other name or a path outside tools.
+    - Each page carries its manifest label in its title and heading, has one filled button, and reaches only Finance's record routes, never a pay, transfer, order, sync or bank-link route.
+    - An unknown amount reads Not known yet, a figure names its source and date, and typed amounts are read as whole cents.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: mail-bills-browser
+    name: A person finds bills in their mail on Bills, in a browser
+    purpose: >-
+      Chromium against the real compiled mail, bills and page routes over a disposable database and a stand-in Gmail API on
+      loopback, a made-up person signed in, desktop 1280 x 900 and phone 390 x 844.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/browser/mail-bills.browser.test.cjs
+    expected:
+    - No mail is read before the person presses Look for bills in my mail; the press turns the check on and the two bills found show with who, the amount, the due date and the mail's date.
+    - Add to Bills makes one a bill and says it does not pay the bill; Not a bill turns the other down; Stop looking in my mail turns the check off.
+    - With no Gmail connected the page says so and Open Connections goes to the connections page; on a phone nothing scrolls sideways and every button is at least 44 px tall.
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      - tests/mail-stand-in.fixture.cjs
+      cleanup: Each case creates its own uniquely named database and stand-in mail server and removes both when the case ends.
+    limits:
+      timeoutMs: 180000
+    installation: never
+  - id: record-pages-browser
+    name: A person brings in a statement and works the money day in a browser
+    purpose: >-
+      Chromium against the real compiled record routes over a disposable database, a made-up person signed in, desktop
+      1280 x 900 and phone 390 x 844.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/browser/record-pages.browser.test.cjs
+    expected:
+    - On Accounts a statement file is previewed with nothing added, then added; the account and its dated balance show and the same file again would add nothing.
+    - Bills proposes the utility charged every month; Add to Bills keeps it and Mark paid says it does not pay the bill.
+    - Spending shows the month's money out with its source; a goal is added and Set aside says no money moved; a transaction is marked looked at; Undo takes the statement out.
+    - Recurring lists the utility with what it costs a year and that it is in Bills; Mark to cancel says Finance cancels nothing; Review again and Keep answer it.
+    - A second preview of the same file is not listed among the statements brought in; a closed goal is deleted from Closed goals; after Undo Paid lists no matching payment, and the bill is stopped with No longer due and deleted from Ended, each asked twice.
+    - On a phone no record page scrolls sideways and every button is at least 44 px tall.
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    - fixture:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/ledger.fixture.cjs
+      cleanup: Each case drops its own database and closes its loopback server and browser.
+    limits:
+      timeoutMs: 180000
+    installation: never

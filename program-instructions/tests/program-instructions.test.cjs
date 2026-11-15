@@ -19,6 +19,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane BL1): the manifest's version is 0.1.6, the version that writes for Blender on the blender bridge; the committed bridge verbs come from four sheets, the Blender sheet last, and name the blender bridge after windows-uia.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane VS1): the committed bridge verbs carry a fifth provenance entry, last, the package's own inputs/vscode-bridge-facts.json (the vscode bridge).
  * 16 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7 (Lane BL2): the manifest's version is 0.1.7, the version with the game-asset families of Orbit's Blender add-on 1.1.0.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8 (@lane-excel-instructions): the manifest's version is 0.1.8, the version with Excel's W15 power-user verbs and modeling guidance on Windows, so any Excel text an older writer version published is claimed and rewritten once more.
  */
 'use strict';
 const test = require('node:test');
@@ -587,7 +588,7 @@ test('the manifest and the persona declare what the kernel\'s side names, with n
   const manifest = read('oshal-app.yaml');
   const persona = read('personas/instruction-writer.yaml');
   assert.match(manifest, /^name: program-instructions$/m);
-  assert.match(manifest, /^version: 0\.1\.7$/m);
+  assert.match(manifest, /^version: 0\.1\.8$/m);
   assert.match(manifest, /^runtime: process$/m);
   const uses = /^uses:\n((?:  - .*\n)+)/m.exec(manifest)[1].split('\n').filter(Boolean).map((line) => line.replace(/^  - /, '').replace(/\s+#.*$/, ''));
   assert.deepEqual(uses, ['app-dependencies', 'test-catalog', 'intent.run', 'application-profiles.write']);

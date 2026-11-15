@@ -22,6 +22,9 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: UX audit sweep (calendar--calendar-review, D1=glass, D2=c). Drop manifest hardcoded theme: light-blue so portal theme selection applies by default, load surface-glass.css while keeping dialogs and menus opaque via data-no-glass, align badge/dot/handle radii to the token scale, and split Meeting briefs into its own second tile (calendar-briefs at /api/calendar/review?view=briefs).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: Jarvis routing words (backlog P4-16m): calendar-concierge adds 'meeting' and 'prepare'. "Prepare me for my 10am meeting with the Hendersons" scored here but claimed nothing and now reaches Calendar; "Schedule a meeting with Karen tomorrow" stays with Intelligent Communication. No route, tool or permission changed.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: add single and repeating events to the person's own primary Google Calendar. Production, 2026-11-13: "a new appointment at 6:00 p.m. to 7:00 p.m. every Friday ... add that to my Google calendar" was handed here; the app answered that it could not write Google Calendar or repeat an event, and "make the event for 20 weeks" became one OSHAL card dated Friday, February 5, 2027. routes/google-events.js at /api/calendar/google-events and the approval-held calendar-add-google-event tool write one event or one RRULE series (every day, week on named weekdays, month or year; ending after a count or on a last date) through the declared www.googleapis.com egress, where the kernel places the caller's own google-calendar grant. No connection, an expired one or a read-only grant answers in words what to connect. The OSHAL-only add refuses a repeat instead of saving its first date. The description says plainly that the app adds single and repeating events to Google Calendar.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: change and cancel meetings. Roger, 2026-11-14: "the calendar aplication can't change a meeting it can only create new ones ... can't cancel or modify existing meeting". routes/meetings.js at /api/calendar/meetings: calendar-find-events lists the person's meetings in a range of days (their Google Calendar read live, and the events added in OSHAL) by words in a title, place or a guest's name, each with the revision a card names it by; the approval-held calendar-change-google-event, calendar-cancel-google-event and calendar-decline-google-event change only the fields a card names, cancel one the person organizes or decline one they were invited to, for one occurrence or the whole series, telling the guests unless the card says not; calendar-change-event changes an event added in OSHAL (PATCH /api/calendar/events/{id}, migration 006 adds the revision a change is bound to); calendar-remove-event's card names the event by title and start. A meeting changed elsewhere after it was read is refused, never overwritten. The description says plainly that the app changes and cancels meetings. No new Google permission, host or method: the connection already asks for calendar.events, and the declared www.googleapis.com egress carries PATCH and DELETE.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: what a person reads or hears names the product Open Swarm (Roger, 2026-11-13: the UI says "Open Swarm"; technical identifiers keep oshal). 1.4.0 answered "That event is no longer on your OSHAL calendar. Nothing was changed.", its cards read "Changes this event on your OSHAL calendar ..." and Jarvis repeated "only events added here in OSHAL are listed". The route answers and refusals, the screen, the Home summary tile, the tool names, descriptions, card sentences and usage instructions and the persona now say "your Open Swarm calendar" and "events added in Open Swarm"; My OSHAL Events is My Open Swarm Events. Unchanged identifiers: the route path /api/calendar/meetings/oshal/{id}, the "source" value "oshal" the tools list (the persona says it is a label to read, never a word to say) and this file's name. Words only; no route, schema or binding change. Guarded by calendar/tests/product-name-events.test.cjs.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Home shows Google Calendar as it is now, combined with the events added in Open Swarm. Roger, 2026-11-15: "I put a calendar event on my Google calendar and its not showing on the landing home ... i would think it would have a combination of calendars". The Home card (GET /api/calendar/home-summary, also the concierge's calendar-upcoming) and the Calendar screen with Home's "Your calendar" frame (GET /api/calendar/events/agenda) showed only the copy saved by the last press of Sync, primary calendar only. Both now read the person's Google calendars live (routes/google-live.js): the primary one and up to nine more they show in Google Calendar (the calendar list's selected calendars), one request each, one after another inside one 5-second budget, and list them with the events added in Open Swarm by start, each marked Google Calendar, Google Calendar: <its name> or added in Open Swarm. A GET writes nothing. The saved copy is shown only when Google did not answer, with "Showing your last synced copy from <time>: Google did not answer."; without a connection the card says to connect Google and no longer to sync. No new Google permission, host or method: the calendar list is read on the declared www.googleapis.com egress under the connection's calendar.readonly grant, and a grant that may not list calendars reads the primary one only and says so. Sync stays: it saves the copy meeting briefs read and the fallback shows.
 name: calendar
 suite: ai-home
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -35,8 +38,8 @@ rating:
       generation: none
       degrade: disable
 displayName: Calendar Preparation
-description: Add single and repeating events to your Google Calendar once you approve them, sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.3.0
+description: Add, change and cancel meetings on your Google Calendar or in this app once you approve each one, single or repeating; see your upcoming Google Calendar events live, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
+version: 1.5.0
 status: active
 scope: person
 source:
@@ -44,7 +47,7 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: calendar
   ref: main
-# Calendar Preparation's own concierge reads the synced snapshot and briefs through the tools below.
+# Calendar Preparation's own concierge reads the person's calendars (Google read live) and briefs through the tools below.
 chatBot: calendar-concierge
 dependencies:
   required:
@@ -110,10 +113,10 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# Outbound hosts (native kernel): the sandbox has no network, so the explicit sync reads the primary
-# calendar, and an approved Google add writes it, through the kernel's fenced egress, which applies the
-# caller's own Google grant (the google-calendar connector) as the Authorization header. This package
-# never holds the token.
+# Outbound hosts (native kernel): the sandbox has no network, so the live reads (the calendar list and each
+# shown calendar's events), the explicit sync and an approved Google add or change all go through the
+# kernel's fenced egress, which applies the caller's own Google grant (the google-calendar connector) as
+# the Authorization header. This package never holds the token.
 bots:
   - agentId: ca1e0000-0000-0000-0000-000000000001
     name: calendar-concierge
@@ -126,94 +129,6 @@ bots:
 
 # Route-backed tools for calendar-concierge (native kernel: executorType api, inside this package's mounts).
 tools:
-  - name: calendar-upcoming
-    displayName: Upcoming Events
-    type: api
-    category: productivity
-    description: The synced calendar snapshot as the home summary - saved event counts for 5 and 30 days, the upcoming events with start times, and a note when nothing is synced or Google is not connected.
-    executor: { executorType: api, apiEndpoint: "GET /api/calendar/home-summary" }
-    defaultAuthMode: auto
-    requiresApproval: false
-    inputSchema: { type: object, properties: {} }
-    usageInstructions: Call with {} before naming any event. "Not synced" means there is no snapshot yet; the item text says what to do.
-    tags: [calendar, route-backed]
-  - name: calendar-briefs
-    displayName: Meeting Briefs
-    type: api
-    category: productivity
-    description: The meeting briefs already delivered, each exactly as it was sent.
-    executor: { executorType: api, apiEndpoint: "GET /api/calendar/meeting-briefs" }
-    defaultAuthMode: auto
-    requiresApproval: false
-    inputSchema: { type: object, properties: {} }
-    usageInstructions: Call with {} when the person asks about a brief. Quote only what is returned.
-    tags: [calendar, route-backed]
-  - name: calendar-sync
-    displayName: Sync Calendar
-    type: api
-    category: productivity
-    description: Refresh the snapshot from the person's primary Google Calendar for the next 30 days. Held for the person's approval.
-    cardText: Refreshes this app's copy of your Google Calendar for the next 30 days. Nothing is written to Google.
-    executor: { executorType: api, apiEndpoint: "POST /api/calendar/sync" }
-    defaultAuthMode: auto
-    requiresApproval: true
-    inputSchema:
-      type: object
-      properties:
-        confirm: { type: boolean, const: true }
-      required: [confirm]
-    usageInstructions: Send {"confirm":true} only when the person asks to sync or refresh their Google Calendar. Never call it as a step of adding, finding or removing an event added in OSHAL (calendar-my-events lists those without a sync). A 409 answer means Google Calendar is not connected; relay its text.
-    tags: [calendar, route-backed]
-  - name: calendar-my-events
-    displayName: My OSHAL Events
-    type: api
-    category: productivity
-    description: The events the person added in OSHAL (not Google), from today on, soonest first, each with its id.
-    executor: { executorType: api, apiEndpoint: "GET /api/calendar/events" }
-    defaultAuthMode: auto
-    requiresApproval: false
-    inputSchema: { type: object, properties: {} }
-    usageInstructions: Call with {} to list what the person added here, or to find an event's id before removing it.
-    tags: [calendar, route-backed]
-  - name: calendar-add-event
-    displayName: Add Event
-    type: api
-    category: productivity
-    description: Put an event on the person's OSHAL calendar in this app (not Google Calendar). Held for the person's approval.
-    cardText: Adds this event to your OSHAL calendar. It is not added to Google Calendar.
-    executor: { executorType: api, apiEndpoint: "POST /api/calendar/events" }
-    defaultAuthMode: auto
-    requiresApproval: true
-    inputSchema:
-      type: object
-      properties:
-        title: { type: string, minLength: 1, maxLength: 120 }
-        start: { type: string, description: "A date (2026-11-07) for an all-day event, or the person's local date-time (2026-11-06T18:00) with timeZone. A date-time with its own UTC offset (2026-11-06T18:00:00-06:00) is also accepted." }
-        end: { type: string, description: "When the event ends, in the same form as start and not before it. Send it whenever the person said when it ends (until 3 PM, to Sunday at 3 PM, for two hours): a trip from Friday 6 PM to Sunday 3 PM is ONE event with that start and this end, never a start-only event. Leave it out only when they gave no end or length." }
-        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn. Required for a local date-time start." }
-        allDay: { type: boolean }
-        location: { type: string, maxLength: 200 }
-        notes: { type: string, maxLength: 2000, description: "Optional. Only a note the person asked to keep on this event, in their own words (bring the tickets). Leave it out when they gave none. Never your own explanation, a sync or connection status, or instructions about what to do if the add fails: the note is saved on the person's event as written." }
-        confirm: { type: boolean, const: true }
-      required: [title, start, confirm]
-    usageInstructions: Call once per event the person asked to add, with {"confirm":true}. For a timed event send the local date-time the person said (2026-11-06T18:00) and "timeZone", the IANA zone on this turn's Current time line; ask only when no zone is given there. Never call it again for an event the conversation shows was already proposed or saved, and never because the person said yes, confirm or save it - the approval card is their confirmation. Each call makes one card for one event, so in the reply name only the events you called it for in that reply, with their count, and never say you proposed, added or saved any other event. After an approval, say an event is saved only when its result or calendar-my-events shows it. A 409 answer means it is already on their calendar; say so. A 400 answer says what to fix; relay it.
-    tags: [calendar, route-backed]
-  - name: calendar-remove-event
-    displayName: Remove Event
-    type: api
-    category: productivity
-    description: Remove one event the person added in OSHAL. Held for the person's approval.
-    cardText: Removes this event from your OSHAL calendar.
-    executor: { executorType: api, apiEndpoint: "DELETE /api/calendar/events/{input.id}" }
-    defaultAuthMode: auto
-    requiresApproval: true
-    inputSchema:
-      type: object
-      properties:
-        id: { type: string, format: uuid, description: "Call calendar-my-events first: this is the event's id exactly as it lists it (a uuid such as 3f2b6c1e-8d4a-4f0e-9b1c-2a7d5e6f8a90), never its title." }
-      required: [id]
-    usageInstructions: Read calendar-my-events first and send the id of the event the person named. Synced Google events cannot be removed here.
-    tags: [calendar, route-backed]
   - name: calendar-add-google-event
     displayName: Add to Google Calendar
     type: api
@@ -244,6 +159,221 @@ tools:
         confirm: { type: boolean, const: true }
       required: [title, start, confirm]
     usageInstructions: Call once per event or series the person asked to put on their Google Calendar, with {"confirm":true}. A repeating event is ONE call with "repeat", never one call per occurrence and never a single event in its place. "start" is the first occurrence, the first matching day on or after the day it begins (today when today matches and the time is still ahead), taken from the CURRENT TIME list; never the last date, and never a date worked out from the number of weeks, which goes in "times". When the person gave no end for a series, ask how many times or until when before calling. Never call it again for an event the conversation shows was already proposed or added; the approval card is their confirmation. A 409 answer says Google Calendar is not connected, the connection may only read it, or the event is already there; relay its words. A 400 answer says what to fix; relay it.
+    tags: [calendar, route-backed]
+  - name: calendar-change-google-event
+    displayName: Change Google Calendar Meeting
+    type: api
+    category: productivity
+    description: Change the title, time, length, place, notes or guests of one meeting on the person's Google Calendar, or of its whole series; everything not named stays as it is. Held for the person's approval.
+    cardText: Changes this meeting on your Google Calendar; only the rows marked New change, and the rest stays as it is. Nothing is written to Google until you approve.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/calendar/meetings/google" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        revision: { type: string, maxLength: 1500, pattern: "^g[.][A-Za-z0-9_]+[.][A-Za-z0-9]+([.][A-Za-z0-9]+)?$", description: "The meeting's revision exactly as calendar-find-events lists it. A meeting changed elsewhere since it was read is refused, never overwritten." }
+        title: { type: string, minLength: 1, maxLength: 120, description: "The meeting's title as it is now, exactly as calendar-find-events lists it. It names the meeting on the card; a card naming another meeting changes nothing." }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The meeting's start as it is now, exactly as listed (for a repeating meeting, the occurrence the person named)." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn." }
+        end: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "Only when you change the end or length: its end as it is now, exactly as listed, so the card shows it before and after." }
+        location: { type: string, maxLength: 200, description: "Only when you change the place: its place as it is now, exactly as listed." }
+        notes: { type: string, maxLength: 2000, description: "Only when you change the notes: its notes as they are now, exactly as listed." }
+        newTitle: { type: string, minLength: 1, maxLength: 120, description: "The new title, only when the person asked to rename it." }
+        newStart: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The new start: a date (2026-11-20) for an all-day event, or the person's local date-time (2026-11-20T14:00) with timeZone, taken from the CURRENT TIME list. Without newEnd it keeps its length." }
+        newEnd: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The new end, in the same form as newStart, only when the person gave a new end or length (for two hours)." }
+        newLocation: { type: string, minLength: 1, maxLength: 200, description: "The new place, as the person said it." }
+        newNotes: { type: string, minLength: 1, maxLength: 2000, description: "New notes, only in the person's own words; never your own explanation or a status." }
+        addGuests: { type: array, maxItems: 20, uniqueItems: true, items: { type: string, pattern: "^[^@ ]+@[^@ ]+$" }, description: "Email addresses of guests to invite." }
+        removeGuests: { type: array, maxItems: 20, uniqueItems: true, items: { type: string, pattern: "^[^@ ]+@[^@ ]+$" }, description: "Email addresses of listed guests to take off it." }
+        appliesTo: { type: string, enum: [This one only, The whole series], description: "Only for a meeting that repeats: this one only, or every meeting in its series. Ask the person when they did not say." }
+        guests: { type: string, enum: [Will be told, Will not be told, None], description: "Whether its guests are told of the change: Will be told unless the person said not to tell them; None only when the meeting lists no guests." }
+        confirm: { type: boolean, const: true }
+      required: [revision, title, start, guests, confirm]
+    usageInstructions: >-
+      Call calendar-find-events first and use the meeting the person named; when two fit, ask which before calling. Send "revision", "title" and "start" exactly as listed and only the new values the person asked for; for each field you change, also send its value as it is now ("end", "location" or "notes") so the card shows it before and after. A new start goes in "newStart" as the local date-time with "timeZone"; without "newEnd" the meeting keeps its length. For a meeting that repeats, send "appliesTo"; when the person did not say, ask "just this one, or every meeting in the series?" before calling. "guests" is "Will be told" unless the person said not to tell them, "None" only when it lists no guests. When "you" is "invited" and "canChange" is false, do not call it: offer to decline, or say they can propose a new time in Google Calendar. Never call it again for a change the conversation shows was already proposed; the approval card is their confirmation. To undo an approved change, read the meeting again and propose the old values the earlier card showed as the new ones. A 409 answer says the meeting changed elsewhere, is not the one named, or that Google needs reconnecting; relay its words.
+    tags: [calendar, route-backed]
+  - name: calendar-cancel-google-event
+    displayName: Cancel Google Calendar Meeting
+    type: api
+    category: productivity
+    description: Cancel one meeting the person organizes on their Google Calendar, or its whole series, for everyone on it. Held for the person's approval.
+    cardText: Cancels this meeting on your Google Calendar for everyone on it. Nothing is cancelled until you approve.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/meetings/google/cancel" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        revision: { type: string, maxLength: 1500, pattern: "^g[.][A-Za-z0-9_]+[.][A-Za-z0-9]+([.][A-Za-z0-9]+)?$", description: "The meeting's revision exactly as calendar-find-events lists it." }
+        title: { type: string, minLength: 1, maxLength: 120, description: "The meeting's title as it is now, exactly as calendar-find-events lists it. It names the meeting on the card; a card naming another meeting changes nothing." }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The meeting's start as it is now, exactly as listed (for a repeating meeting, the occurrence the person named)." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn." }
+        appliesTo: { type: string, enum: [This one only, The whole series], description: "Only for a meeting that repeats: this one only, or every meeting in its series. Ask the person when they did not say." }
+        guests: { type: string, enum: [Will be told, Will not be told, None], description: "Whether its guests are told it is cancelled: Will be told unless the person said not to tell them; None only when the meeting lists no guests." }
+        confirm: { type: boolean, const: true }
+      required: [revision, title, start, guests, confirm]
+    usageInstructions: Call calendar-find-events first and use the meeting the person named; when two fit, ask which before calling. Send "revision", "title" and "start" exactly as listed. Only for a meeting whose "you" is "organizer"; for one they were invited to, use calendar-decline-google-event and say it is declined, not cancelled. For a meeting that repeats, send "appliesTo"; ask when the person did not say. "guests" is "Will be told" unless they said not to tell them, "None" only when it lists no guests. Never call it twice for one meeting.
+    tags: [calendar, route-backed]
+  - name: calendar-find-events
+    displayName: Find Meetings
+    type: api
+    category: productivity
+    description: The person's meetings in a range of days, from their Google Calendar (read now) and the events added in Open Swarm, matching words in a title, place, notes or a guest's name. Each is listed with its day and time in words, its guests, whether the person organizes it, how it repeats, and the revision a change or cancel card names it by.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/meetings?from={input.from}&to={input.to}&words={input.words}&timeZone={input.timeZone}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        from: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "The first day to read (2026-11-17), taken from the CURRENT TIME list. Today when left out." }
+        to: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "The last day to read, at most 92 days after from. Thirty days after from when left out." }
+        words: { type: string, maxLength: 100, description: "Words the meeting holds: part of its title, its place, or a guest's name (Dana, dentist). Leave it out to list every meeting in those days." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn." }
+    usageInstructions: Call it first whenever the person asks to change, move, rename, cancel or decline a meeting, with the days they named (tomorrow, Thursday, next week) and a word from what they said (a name, a title word, a place). When more than one listed meeting fits what they said, ask which one, naming each with its day and time from "local", and propose nothing until they answer; never choose one yourself. A meeting with source "google" is changed with calendar-change-google-event and cancelled with calendar-cancel-google-event, or declined with calendar-decline-google-event when "you" is "invited"; one with source "oshal" is changed with calendar-change-event and removed with calendar-remove-event. Send its "revision", "title" and "start" exactly as listed.
+    tags: [calendar, route-backed]
+  - name: calendar-upcoming
+    displayName: Upcoming Events
+    type: api
+    category: productivity
+    description: The person's upcoming events as the app's home summary - their Google calendars read now (the primary one and the others they show in Google Calendar) with the events added in Open Swarm, as one list by start; event counts for 5 and 30 days; and a note saying what was read, or that Google is not connected.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/home-summary" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming any event and whenever the person asks what is on their calendar. Each event says where it lives (Google Calendar, Google Calendar with the calendar's name, or added in Open Swarm); say it the same way. A tile reading "Not connected" or "Reconnect" means Google Calendar was not read; repeat the note's own words. When the note says it is showing the last synced copy, say Google did not answer and the events may be out of date.
+    tags: [calendar, route-backed]
+  - name: calendar-briefs
+    displayName: Meeting Briefs
+    type: api
+    category: productivity
+    description: The meeting briefs already delivered, each exactly as it was sent.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/meeting-briefs" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks about a brief. Quote only what is returned.
+    tags: [calendar, route-backed]
+  - name: calendar-add-event
+    displayName: Add Event
+    type: api
+    category: productivity
+    description: Put an event on the person's Open Swarm calendar in this app (not Google Calendar). Held for the person's approval.
+    cardText: Adds this event to your Open Swarm calendar. It is not added to Google Calendar.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/events" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 120 }
+        start: { type: string, description: "A date (2026-11-07) for an all-day event, or the person's local date-time (2026-11-06T18:00) with timeZone. A date-time with its own UTC offset (2026-11-06T18:00:00-06:00) is also accepted." }
+        end: { type: string, description: "When the event ends, in the same form as start and not before it. Send it whenever the person said when it ends (until 3 PM, to Sunday at 3 PM, for two hours): a trip from Friday 6 PM to Sunday 3 PM is ONE event with that start and this end, never a start-only event. Leave it out only when they gave no end or length." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn. Required for a local date-time start." }
+        allDay: { type: boolean }
+        location: { type: string, maxLength: 200 }
+        notes: { type: string, maxLength: 2000, description: "Optional. Only a note the person asked to keep on this event, in their own words (bring the tickets). Leave it out when they gave none. Never your own explanation, a sync or connection status, or instructions about what to do if the add fails: the note is saved on the person's event as written." }
+        confirm: { type: boolean, const: true }
+      required: [title, start, confirm]
+    usageInstructions: Call once per event the person asked to add, with {"confirm":true}. For a timed event send the local date-time the person said (2026-11-06T18:00) and "timeZone", the IANA zone on this turn's Current time line; ask only when no zone is given there. Never call it again for an event the conversation shows was already proposed or saved, and never because the person said yes, confirm or save it - the approval card is their confirmation. Each call makes one card for one event, so in the reply name only the events you called it for in that reply, with their count, and never say you proposed, added or saved any other event. After an approval, say an event is saved only when its result or calendar-my-events shows it. A 409 answer means it is already on their calendar; say so. A 400 answer says what to fix; relay it.
+    tags: [calendar, route-backed]
+  - name: calendar-change-event
+    displayName: Change Event
+    type: api
+    category: productivity
+    description: Change the title, time, length, place or notes of one event the person added in Open Swarm; everything not named stays as it is. Held for the person's approval.
+    cardText: Changes this event on your Open Swarm calendar; only the rows marked New change, and the rest stays as it is.
+    executor: { executorType: api, apiEndpoint: "PATCH /api/calendar/meetings/oshal/{input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "The event's id exactly as calendar-find-events or calendar-my-events lists it, never its title." }
+        revision: { type: string, maxLength: 64, pattern: "^o[.][A-Za-z0-9]+$", description: "The event's revision exactly as listed. An event changed since it was read is refused." }
+        title: { type: string, minLength: 1, maxLength: 120, description: "The event's title as it is now, exactly as listed. It names the event on the card; a card naming another event changes nothing." }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The event's start as it is now, exactly as listed." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn." }
+        end: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "Only when you change the end or length: its end as it is now, exactly as listed, so the card shows it before and after." }
+        location: { type: string, maxLength: 200, description: "Only when you change the place: its place as it is now, exactly as listed." }
+        notes: { type: string, maxLength: 2000, description: "Only when you change the notes: its notes as they are now, exactly as listed." }
+        newTitle: { type: string, minLength: 1, maxLength: 120, description: "The new title, only when the person asked to rename it." }
+        newStart: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The new start: a date (2026-11-20) for an all-day event, or the person's local date-time (2026-11-20T14:00) with timeZone, taken from the CURRENT TIME list. Without newEnd it keeps its length." }
+        newEnd: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The new end, in the same form as newStart, only when the person gave a new end or length (for two hours)." }
+        newLocation: { type: string, minLength: 1, maxLength: 200, description: "The new place, as the person said it." }
+        newNotes: { type: string, minLength: 1, maxLength: 2000, description: "New notes, only in the person's own words; never your own explanation or a status." }
+        confirm: { type: boolean, const: true }
+      required: [id, revision, title, start, confirm]
+    usageInstructions: >-
+      For an event calendar-find-events lists with source "oshal". Send "id", "revision", "title" and "start" exactly as listed and only the new values the person asked for; for each field you change, also send its value as it is now ("end", "location" or "notes"). These events are single events: there is no series to change, so say so when asked for every week.
+    tags: [calendar, route-backed]
+  - name: calendar-remove-event
+    displayName: Remove Event
+    type: api
+    category: productivity
+    description: Remove one event the person added in Open Swarm. Held for the person's approval.
+    cardText: Removes this event from your Open Swarm calendar.
+    executor: { executorType: api, apiEndpoint: "DELETE /api/calendar/meetings/oshal/{input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: "Call calendar-my-events first: this is the event's id exactly as it lists it (a uuid such as 3f2b6c1e-8d4a-4f0e-9b1c-2a7d5e6f8a90), never its title." }
+        title: { type: string, minLength: 1, maxLength: 120, description: "The event's title as it is now, exactly as listed, so the card names it. A card whose title or start is not the event's removes nothing." }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The event's start as it is now, exactly as listed." }
+        timeZone: { type: string, description: "The event's timeZone as listed." }
+      required: [id]
+    usageInstructions: Read calendar-my-events or calendar-find-events first and send the id of the event the person named, with its title, start and timeZone exactly as listed, so the card says which event and when. To cancel a Google Calendar meeting use calendar-cancel-google-event instead.
+    tags: [calendar, route-backed]
+  - name: calendar-decline-google-event
+    displayName: Decline Google Calendar Invitation
+    type: api
+    category: productivity
+    description: Decline one meeting the person was invited to on their Google Calendar, or its whole series; it stays on its organizer's calendar. Held for the person's approval.
+    cardText: Declines this invitation on your Google Calendar; the meeting stays on its organizer's calendar. Nothing is sent until you approve.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/meetings/google/decline" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        revision: { type: string, maxLength: 1500, pattern: "^g[.][A-Za-z0-9_]+[.][A-Za-z0-9]+([.][A-Za-z0-9]+)?$", description: "The meeting's revision exactly as calendar-find-events lists it." }
+        title: { type: string, minLength: 1, maxLength: 120, description: "The meeting's title as it is now, exactly as calendar-find-events lists it. It names the meeting on the card; a card naming another meeting changes nothing." }
+        start: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}", description: "The meeting's start as it is now, exactly as listed (for a repeating meeting, the occurrence the person named)." }
+        timeZone: { type: string, description: "The person's IANA time zone (America/Chicago), as named on the Current time line of this turn." }
+        appliesTo: { type: string, enum: [This one only, The whole series], description: "Only for a meeting that repeats: this one only, or every meeting in its series." }
+        organizer: { type: string, enum: [Will be told, Will not be told], description: "Whether its organizer is told: Will be told unless the person said not to tell them." }
+        confirm: { type: boolean, const: true }
+      required: [revision, title, start, organizer, confirm]
+    usageInstructions: For a meeting calendar-find-events lists with "you" "invited", when the person asks to cancel it, decline it or say they will not go. Send "revision", "title" and "start" exactly as listed; say plainly that it is declined, not cancelled, and stays on the organizer's calendar.
+    tags: [calendar, route-backed]
+  - name: calendar-sync
+    displayName: Sync Calendar
+    type: api
+    category: productivity
+    description: Save a copy of the person's primary Google Calendar for the next 30 days, which meeting briefs read and the calendar shows when Google does not answer. Held for the person's approval.
+    cardText: Saves this app's copy of your Google Calendar for the next 30 days. The calendar already reads Google live; nothing is written to Google.
+    executor: { executorType: api, apiEndpoint: "POST /api/calendar/sync" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        confirm: { type: boolean, const: true }
+      required: [confirm]
+    usageInstructions: Send {"confirm":true} only when the person asks to sync or refresh their Google Calendar. Never call it to see a new or changed event; calendar-upcoming and calendar-find-events read Google Calendar live. Never call it as a step of adding, finding or removing an event added in Open Swarm (calendar-my-events lists those without a sync). A 409 answer means Google Calendar is not connected; relay its text.
+    tags: [calendar, route-backed]
+  - name: calendar-my-events
+    displayName: My Open Swarm Events
+    type: api
+    category: productivity
+    description: The events the person added in Open Swarm (not Google), from today on, soonest first, each with its id.
+    executor: { executorType: api, apiEndpoint: "GET /api/calendar/events" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} to list what the person added here, or to find an event's id before removing it.
     tags: [calendar, route-backed]
 
 egress:
@@ -281,6 +411,13 @@ routes:
   - module: routes/google-events.js
     factory: createGoogleEventsRoutes
     mountPath: /api/calendar/google-events
+    auth: oidc
+    requiresContext: true
+    requiresAuth: true
+    requiresAi: false
+  - module: routes/meetings.js
+    factory: createMeetingsRoutes
+    mountPath: /api/calendar/meetings
     auth: oidc
     requiresContext: true
     requiresAuth: true
@@ -355,6 +492,7 @@ migrations:
   - migrations/003-calendar-own-events.sql
   - migrations/004-calendar-own-events-rls.sql
   - migrations/005-calendar-own-events-zone.sql
+  - migrations/006-calendar-own-events-revision.sql
 # The native kernel applies the native file above in place of 001 and 002, whose pg_policies-guarded DO blocks are PostgreSQL-only.
 nativeMigrations:
   - id: migrations/001-calendar-preparation.sql

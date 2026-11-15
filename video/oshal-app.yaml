@@ -49,6 +49,7 @@
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.13.1: put Video editor first in ui.static, withhold Video Studio's render form behind an Open Video editor card when rendering is unconfigured, step Video Studio 1-2-3-4 with Cancel, draft persistence and 44px controls when configured, and offer Generate a clip inside Video editor's Add sheet only when a Vids worker is online.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0: ship RP-VID-01..10 vertical slices — per-clip speed (0.25x-4x) with pitch-preserving atempo, acoustic auto-captions, procedural CC0 stickers, named color looks, chroma key, foreground background matting, libflite TTS voice clips, 3-level stabilization, 720p/1080p/4K 30/60fps exports, and CC0-1.0 procedural music & sound-effects library.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | 1.14.1 (RP-ALL-01): remove the duplicate greyed Summarize planned chip from the Video Concierge panel so only the kernel's live Summarize and Suggest improvements prompt chips appear.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: person-facing and model-facing product references name Open Swarm; technical identifiers remain unchanged. Guard: tests/product-name.test.js.
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -78,7 +79,7 @@ rating:
       degrade: disable
 displayName: Video Studio
 description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
-version: 1.14.1
+version: 1.14.2
 status: active
 lastingStorage: true
 chatBot: video-editor

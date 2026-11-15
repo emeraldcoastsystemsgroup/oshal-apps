@@ -2,6 +2,7 @@
 # OSHAL application GROUP — Intelligent Sports (ADR-141)
 # 1.0.0 | maintainer@emeraldcoastsystemsgroup.com | Initial — the operator's Q4 decision on ADR-146 (2026-09-27): fantasy-football and sports-edge ship as two packages bundled by this group. Metadata only: every tile is borrowed from a member by app + surface name; no route, bot, tool or migration of its own.
 # 1.0.3 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant Concierge (F22): bind the group concierge to fantasy-quant (the canonical concierge of default member fantasy-football) now that both members own specialist concierges instead of general-bot.
+# 1.0.4 | maintainer@emeraldcoastsystemsgroup.com | The description says what this group is and gives each act to the member that does it. It described Sports Edge's odds maker as its own ("follow a team's next game with an odds maker that is graded on closing-line value"), so asked how picks hold up against the closing line Jarvis asked "Intelligent Sports or Sports Edge?" (routing scoreboard, test installation, 2026-11-14) though a group carries no code and holds no picks. No toolbar, member or connector change.
 #
 # A group carries NO code. It binds two installed applications into one front door:
 #   fantasy-football  manage your own fantasy team: the lineup that beats this week's opponent
@@ -24,10 +25,11 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Intelligent Sports
 description: >-
-  One front door for sport: manage your own fantasy football team, and follow a team's next game
-  with an odds maker that is graded on closing-line value before it may stake anything. Each
-  destination remains owned by its member app.
-version: 1.0.3
+  One front door for sport. Intelligent Sports is a group with no work of its own: one toolbar
+  that opens its two member applications' screens. Fantasy Football manages your own fantasy
+  football team, and Sports Edge follows a team's next game with an odds maker that is graded on
+  closing-line value before it may stake anything. Each does its own work and keeps its own data.
+version: 1.0.4
 status: active
 scope: public
 theme: light-blue

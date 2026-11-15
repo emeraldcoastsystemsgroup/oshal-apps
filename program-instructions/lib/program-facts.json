@@ -8,8 +8,8 @@
     },
     {
       "inputs": "inputs/windows-pack-inputs.json",
-      "written_at": "2026-11-13T20:01:49Z",
-      "kernel_commit": "06f12f46"
+      "written_at": "2026-11-15T06:31:00Z",
+      "kernel_commit": "5233d37d"
     },
     {
       "inputs": "inputs/godot-pack-inputs.json",
@@ -931,27 +931,27 @@
       "program": "microsoft.office.excel.exe.15",
       "bridge": "windows-uia",
       "facts": [
-        "Excel declares the spreadsheet verbs read-range, set-cells, format-cells, find-replace, sort-range, filter-range, manage-sheet, create-pivot-table and add-chart, each run with \"action\": \"invoke\" and the same inputs as in LibreOffice Calc. Orbit runs each through Excel's own object model; Excel is not brought to the front and no key is sent.",
-        "Read cells with read-range: each cell of a range on the sheet in front, or on one named, with what it shows and its formula, at most 2,000 cells at once (\"that range holds <n> cells; read at most 2000 at once\"). A sheet that is not there is refused (\"there is no sheet named <name>\").",
-        "Write cells with set-cells, by address: a text that starts with = is a formula, one that reads as a number is a number, an empty one clears the cell, and anything else stays text (1/2 and TRUE stay texts). A formula Excel does not take is refused, and the cells written before it are put back.",
-        "format-cells sets bold, italic, underline, a font size, a number format (currency, percent or a pattern), fill and font colour, and a column width or auto-fit. find-replace changes every match on the sheet in any case and answers how many; a text that is nowhere is refused (\"could not find '<text>' in sheet <name>\").",
-        "sort-range orders a range's rows by one column (a header, column letters or a number) and keeps the header row; filter-range shows or hides the rows below the first by one column's cell, and \"clear\": true shows every row; manage-sheet adds, renames, shows or deletes a sheet, and deletes only a sheet that holds nothing.",
-        "create-pivot-table makes a native PivotTable from `sourceRange` (default A1:D13; its first row names the fields) at `targetCell` (default F1) on `targetSheet` (else `sheet`): `rowFields` down the rows (default the first column), optional `columnFields` across, `dataFields` by header, and `function` SUM, AVERAGE, COUNT, MAX or MIN (any other is SUM). Its name is `name`, else JarvisPivot, then JarvisPivot2 and on.",
-        "A pivot table is never moved or written over anything: Orbit lays it out on a sheet it adds and deletes again, then builds it only where every cell it covered on the way is empty and off its own source (an empty table covers 18 rows by 3 columns, so F1 needs F1:H18 empty). Refused in words, leaving nothing behind: a place inside its source or over cells that hold something (the answer names the cells), a name the sheet already has, a source column without a header, a sheet that is not there.",
-        "A pivot table is made only while the bound workbook is the one in front in Excel. Otherwise it is refused with `not-active` before anything changes, and the person clicks that workbook's window in Excel and asks again; Orbit does not switch Excel's workbooks.",
-        "add-chart inserts a native chart over `sourceRange` (or `range`; default A1:D13) on `sheet`: the first row names the series and the first column holds the categories. `chartType` is column (the default), bar, line, pie, area or scatter, and any other is drawn as column; it has a title only when `title` is given; its name is `name`, else JarvisChart or the next free name. A range of only a header row is refused, and so is a name the sheet already has.",
-        "Every written cell, pivot table and chart is read back from Excel, and the answer carries `verified`; when verified is false, read the range again before anything else.",
-        "An edit is undone with \"action\": \"undo\" naming the answer's undo `how` and `group`: Orbit puts back what its cells held only while every one still holds what the edit left, and deletes a pivot table or chart it made only while that still reads exactly as made (one changed in Excel is kept and the undo refused). Otherwise nothing is put back. Excel's own Undo does not take these edits back, and a format-cells is not undone in place.",
-        "Opening or saving workbooks are not Excel verbs: invoke answers \"I can't do <verb> in Excel yet.\" A protected sheet is refused, and so is a busy Excel (a cell being edited, or a dialog open). Typing into the grid with \"action\": \"type\" was not measured; cells are written with set-cells."
+        "Excel declares seventeen spreadsheet verbs run via \"action\": \"invoke\" through Excel's COM object model (never bringing Excel to the front or sending keys). Check the window's declared actions in snapshot / ATTACHED DOCUMENT first: if an older Orbit lists only the nine starter verbs (read-range, set-cells, format-cells, find-replace, sort-range, filter-range, manage-sheet, create-pivot-table, add-chart), invoke only those declared verbs.",
+        "Inspect first with workbook-schema before blind read-range paging on unfamiliar or multi-sheet workbooks: it maps sheets, UsedRange bounds, ListObjects Tables (name, range, headers, row count, ShowTotals), Workbook.Names, PivotTables, ChartObjects, Workbook.Queries (names/refresh state only; credentials omitted), and formula error counts (#REF!, #N/A, #VALUE!, #NAME?, #SPILL!). Use read-range for slices up to 2,000 cells (\"that range holds <n> cells; read at most 2000 at once\"); missing sheets are refused (\"there is no sheet named <name>\").",
+        "On database sheets (> 500 rows, up to 200k rows via 2D SAFEARRAY Value2), prefer summarize-range (in-helper filter, group-by, and sum/count/avg/min/max with bounded rows) or create-pivot-table / refresh-pivot instead of paging raw read-range cells into chat.",
+        "Convert tabular datasets into named ListObjects Tables with manage-table (create over headers, resize, ShowTotals/totals functions, and structured-reference columns like =[@Qty]*[@UnitPrice]) so formulas, charts, and PivotTables auto-expand as rows are added.",
+        "Write contiguous 2D blocks in one set-cells call: set-cells and read-range use Range.Formula2 (Formula fallback) over 2D SAFEARRAY I/O so dynamic arrays avoid implicit @. Prefer XLOOKUP (with if_not_found), FILTER, UNIQUE, SORT, SORTBY, SEQUENCE, SUMIFS/COUNTIFS, INDEX/MATCH, and LET over brittle VLOOKUP, volatile OFFSET/INDIRECT, or nested IFs, leaving spill room to avoid #SPILL!. Values starting with = are formulas, numbers stay numeric, empty clears, others stay text; bad formulas roll back that call.",
+        "Separate Inputs / Assumptions, Data / Model, and Summary / Output: drive formulas from named cells/ranges and LAMBDA definitions via manage-names instead of magic numbers; guard inputs with data-validation; highlight exceptions with conditional-format; use single- or multi-key sort-range (keeping headers), filter-range (\"clear\": true resets), manage-sheet (deletes empty sheets only), and refresh-queries on existing Workbook.Queries / connections (never adding external URLs or running VBA).",
+        "format-cells sets bold, italic, underline, font size, number format (currency, percent or pattern), fill/font colour, and column width or auto-fit; find-replace replaces case-insensitively on the sheet and returns the count, refusing when absent (\"could not find '<text>' in sheet <name>\").",
+        "create-pivot-table builds a native PivotTable from sourceRange (default A1:D13; row 1 headers) at targetCell (default F1) on targetSheet/sheet with rowFields, columnFields, dataFields (shared or per-field sum, count, average, min, max), and name (default JarvisPivot), measured on a scratch sheet first and built only when the bound workbook is active in Excel (else refused not-active) and target cells are empty and off sourceRange. refresh-pivot refreshes, re-sources, or adds calculated fields.",
+        "add-chart inserts a native chart over sourceRange (or range; default A1:D13) on sheet (row 1 series, col 1 categories): chartType is column (default), bar, line, pie, area or scatter, titled only when title is given, named name or JarvisChart; header-only ranges or duplicate names are refused.",
+        "Every edit returns verified after read-back (if false, read again first) and snapshots a live backup via Workbook.SaveCopyAs without changing path or saved state. \"action\": \"undo\" (how/group) restores set-cells, format-cells (Bold, Italic, Underline, NumberFormat), manage-table, manage-names, data-validation, or deletes a created PivotTable/chart only while Excel holds what that edit left; Excel's own Undo does not undo COM edits.",
+        "Opening or saving workbooks are not Excel verbs: invoke answers \"I can't do <verb> in Excel yet.\" and the person opens/saves files in Excel. Protected sheets, busy Excel (editing a cell or dialog open), and administrator windows are refused; write grid cells with set-cells, not \"action\": \"type\"."
       ],
       "never": [
-        "A menu path, a ribbon button, a key or a key combination as something Jarvis does (no Ctrl+Z).",
+        "A menu path, ribbon button, or key combination as something Jarvis does (no Ctrl+Z, no Ctrl+T).",
         "That Jarvis opens, saves or exports a workbook, or any file verb for Excel.",
+        "That Jarvis adds external connection URLs or runs VBA macros.",
         "That Excel's own Undo takes back an edit Jarvis made.",
-        "That a pivot table is moved or placed over cells that hold something, or that a pivot table or chart replaces one of the same name.",
-        "That Jarvis switches Excel's workbooks or brings Excel to the front to make a pivot table.",
+        "That a pivot table or chart overwrites occupied cells, source cells, or an existing name.",
+        "That Jarvis switches Excel's workbooks or brings Excel to the front.",
         "A chart type other than column, bar, line, pie, area or scatter.",
-        "That a text-document verb (insert-paragraph, format-text and the rest) works in Excel.",
+        "That a Word or PowerPoint verb (insert-paragraph, format-text, add-slide) works in Excel.",
         "Any tool other than computer.app and computer.open."
       ],
       "contains": [
@@ -960,12 +960,24 @@
         "set-cells",
         "create-pivot-table",
         "add-chart",
+        "workbook-schema",
+        "summarize-range",
+        "manage-table",
+        "Formula2",
+        "XLOOKUP",
+        "refresh-pivot",
+        "manage-names",
+        "data-validation",
+        "conditional-format",
+        "refresh-queries",
         "verified",
         "\"action\": \"undo\""
       ],
       "absent": [
         "Ctrl+",
         "insert-paragraph",
+        "save-document",
+        "open-document",
         "screen.read"
       ]
     },

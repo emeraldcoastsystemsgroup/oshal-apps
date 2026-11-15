@@ -10,9 +10,14 @@
   8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled and headed My jobs (was Job Board), and its own link says the same. Words only. Guard: tests/career-page-names.test.mjs.
   9 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9 (see career-job-lists.js 7): a job Career picked carries its mark above its title; a job a person has applied to carries one status line; one quiet link under the stage row opens the activity page while something is being sent or did not go through; the line that says a job moved stays in view above the phone's bottom bar instead of sitting under the last row. The page loads career-status-line.js for those words and career-submit.js to read what is being sent.
   10 | maintainer@emeraldcoastsystemsgroup.com | The list's Search button is outlined: on My jobs and Applications the filled button is the next thing to do on a job, and Search sat filled above every one of them.
-  11 | maintainer@emeraldcoastsystemsgroup.com | Keep phone match actions above the bottom bar with status above the buttons, put match search/views in Filters, and wrap every stage into reachable 44 px targets. -->
+  11 | maintainer@emeraldcoastsystemsgroup.com | Keep phone match actions above the bottom bar with status above the buttons, put match search/views in Filters, and wrap every stage into reachable 44 px targets.
+  12 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (see career-job-lists.js 22): the warning on a job Career could not read takes its own line under the job's facts, in the warning colour, and its Open the posting link is a 44px target on its own line on a phone. -->
 <html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script><link rel="stylesheet" href="/api/career-hunter/static/career-journey.css"><link rel="stylesheet" href="/api/career-hunter/static/career-kit.css"><style>
+.details-needed-label{font-weight:700;color:var(--ds-warn-ink,var(--status-warning,#8a5a00))}
+.details-needed{flex-basis:100%;margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--ds-ink-2,var(--text));max-width:70ch}
+.details-needed a{white-space:nowrap;font-weight:600}
+@media(pointer:coarse),(max-width:640px){.details-needed a{display:flex;width:fit-content;align-items:center;min-height:44px}}
 html,body{overscroll-behavior:contain}
 html.in-shell #pageTitle{display:none}
 .btn.primary{color:var(--ds-on-accent,var(--text-on-accent,#fff))}

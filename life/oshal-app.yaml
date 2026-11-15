@@ -11,6 +11,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: declare a Home summary (routes/home-summary.js) naming which parts work without a connection and what the rest need; the concierge on the Movies tab said no part of Life was usable. Version unchanged.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.2 (concierge audit T15, the store's PENDING list): the launcher's concierge is jarvis's oshal-assistant, the platform assistant that routes a request to the application that owns it and hands off to that application's own concierge (Movies, Music, Order Food, Get a Ride, Shopping, Travel and Bake-Off each have one), instead of the platform general-bot, which holds none of Life's data. borrowed by name exactly as the general-bot reference it replaces: the shell resolves a chatBot the package does not declare the way /api/swarm/bots/{selector}/ask does (kernel ui_applications.rs borrowed_concierge), so no dependency is added. A Jarvis request that names this application now stays with the assistant (kernel jarvis_routing.rs owner_of keeps a request whose application's concierge is the assistant) instead of going to general-bot. No route, member or dependency change.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Declare test-catalog in uses so older cores fail closed instead of ignoring tests/test-lab.yaml.
 
 name: life
 suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
@@ -103,6 +104,7 @@ dependencies:
 # required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
+  - test-catalog
 
 # The launcher owns no runtime or data. Its surfaces route to the installed apps.
 ui:

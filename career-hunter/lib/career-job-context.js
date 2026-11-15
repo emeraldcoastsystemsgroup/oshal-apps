@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read only exact original-owner employer context bound to the current posting, so document and interview views retain details fetched against a read-only shared corpus.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Honor expiry, complete listing bindings and authoritative replacements with the same Unicode/source-size checks as the Python hydrator.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A saved copy no longer expires after a day, as in the Python hydrator: the job page had fallen back to the short listing text 24 hours after the details were read.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0: a copy the person pasted from the posting (basis person-pasted, job_context.remember_pasted) is read like an employer copy, with the same checks, and keeps its basis so the page can say whose text it is.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -35,7 +36,7 @@ function applyJobContext(dir,row){
   if(!value.snapshot||typeof value.snapshot!=='object'||Array.isArray(value.snapshot)
     ||!hasText(value.description)||chars>64000
     ||value.description!==Buffer.from(value.description,'utf8').toString('utf8')
-    ||value.descriptionSha256!==hash(value.description)||value.basis!=='employer-detail'
+    ||value.descriptionSha256!==hash(value.description)||!['employer-detail','person-pasted'].includes(value.basis)
     ||value.truncated!==false||!Number.isInteger(value.sourceChars)||value.sourceChars!==chars
     ||!Number.isInteger(value.sourceBytes)||value.sourceBytes!==Buffer.byteLength(value.description,'utf8'))throw Error('job_context_unavailable');
   const expected=snapshot(row),context=row.description_context;

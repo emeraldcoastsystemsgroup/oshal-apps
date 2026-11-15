@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 4 | maintainer@emeraldcoastsystemsgroup.com | A scoring call may ask for an answer with no text (the rail's `empty-answer` detail) to be one unanswered run (EmptyAnswer) instead of ending the run; only the settled nightly pass asks, every other call trips the rail as before.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve guarded native scoring identity before cache selection and carry actual completion attribution per result while preserving legacy completion callers.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
@@ -40,6 +41,14 @@ _RAIL_FAILURE = None
 # "POST|<path>|<unix seconds>|<nonce>|<hex sha256(body)>"), sent as five headers.
 _RAIL_GRANT_RE = re.compile(r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$", re.I)
 _RAIL_KEY_DOMAIN = b"oshal-career-rail-grant-v1:"
+
+
+class EmptyAnswer(Exception):
+    """The kernel refused one completion because the model's answer had no text (rail detail `empty-answer`).
+
+    Raised only to a caller that asked for it (complete_scoring(..., empty_is_unanswered=True), the settled nightly
+    pass): that one run is unanswered and the process keeps its rail. Every other caller trips the rail as before.
+    """
 
 
 class CareerWorkerUnavailable(RuntimeError):
@@ -176,7 +185,7 @@ def resolve_scoring_identity(model=None) -> ScoringIdentity:
                            primary['provider'], value['identity'])
 
 
-def _rail_completion(system, prompt, max_tokens, json_mode, identity=None):
+def _rail_completion(system, prompt, max_tokens, json_mode, identity=None, empty_is_unanswered=False):
     """One completion on the dedicated Career bot through the package's worker rail."""
     if _RAIL_FAILURE is not None:
         raise CareerWorkerUnavailable(_RAIL_FAILURE.reason, _RAIL_FAILURE.status)
@@ -198,6 +207,8 @@ def _rail_completion(system, prompt, max_tokens, json_mode, identity=None):
             _rail_trip('model-identity-unavailable', status)
         return payload
     error = payload.get("error")
+    if empty_is_unanswered and status == 503 and payload.get("detail") == "empty-answer":
+        raise EmptyAnswer("the model's answer had no text")
     _rail_trip(error if isinstance(error, str) and error else f"http-{status}", status or None)
     return ""  # unreachable: _rail_trip always raises
 
@@ -206,11 +217,15 @@ def _complete_rail(system, prompt, max_tokens, json_mode) -> str:
     return _rail_completion(system, prompt, max_tokens, json_mode)['text']
 
 
-def complete_scoring(system, prompt, *, max_tokens, model, identity: ScoringIdentity) -> ScoringAnswer:
-    """Keep attribution local to this completion; concurrent workers share no last-model state."""
+def complete_scoring(system, prompt, *, max_tokens, model, identity: ScoringIdentity,
+                     empty_is_unanswered=False) -> ScoringAnswer:
+    """Keep attribution local to this completion; concurrent workers share no last-model state.
+
+    With empty_is_unanswered, a native answer with no text raises EmptyAnswer instead of ending the run.
+    """
     if identity.expected is None:
         return ScoringAnswer(complete(system, prompt, max_tokens=max_tokens, model=model), identity.model)
-    payload = _rail_completion(system, prompt, max_tokens, True, identity)
+    payload = _rail_completion(system, prompt, max_tokens, True, identity, empty_is_unanswered)
     return ScoringAnswer(payload['text'], payload['model'], payload['provider'], payload['fallback'])
 
 SYSTEM = (

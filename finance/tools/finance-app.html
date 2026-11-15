@@ -4,6 +4,9 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience ... the api and endpoints create processes and the detached ux gives the flexibility to make it look smooth and styled"). This page is the application: its own top bar and phone bar, the sections of Finance's own menu (each shown inside this page), and a Home built from the work that runs for the person: every finance job with what it does, when it last ran, how that went and when it runs next, and each finance application's saved summary. It hides the cockpit's frame when it is opened inside the cockpit, as Little Monsters does. It reads only; nothing is traded, moved or switched on here.
   2 | maintainer@emeraldcoastsystemsgroup.com | Lead with dated bank snapshots and a clear trading-account entry, put secondary activity under disclosure, prioritize the admitted Bank accounts and Trades sections, keep More visible and scope cockpit styling to Finance's own iframe.
   3 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: inside the cockpit the chat panel is hidden only while closed, so the Concierge button opens Finance's concierge beside the page (on a phone, over it); hiding it outright made the button do nothing (judge defect 3, as Career's 1.57.1).
+  4 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (Lane FINH1b, 2026-11-14): the record pages join the bar after Home (Accounts, Transactions, Bills, Spending, Goals, then Trades; the rest under More, Bank accounts among them); a phone's bar holds Accounts, Bills and Spending. Home opens with Where you stand, from the person's own records (GET /api/finance/day): on a first run three steps (bring in a statement, confirm your bills, see your month); otherwise cash, what is owed and net worth with the oldest date among them, bills overdue and due in the next seven days with their total, the month's money out, and the new transactions to look at, each button opening its page. The cards that were there stay below. The page still only reads.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (Lane FINH2, 2026-11-14): Where you stand is read again each time Home is shown, not once per load, so a statement brought in, a bill added or a goal set on another page shows when the person comes back to Home (VER2 on the test slot: Home kept the first-run steps until a reload). Still one GET; the rest of Home is read once as before.
+  6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Recurring joins the bar after Bills (on a phone it is under More).
 
   What it reads (all the caller's own, all GET):
     /api/ui/profile?name=finance        the sections the person may open (the server filters them)
@@ -11,6 +14,7 @@
     /api/<app>/home-summary             each finance application's saved summary (finance, trading, kalshi, daily-trade-recap)
     /api/swarm/roles/me                 the person's name for the chip
     /api/finance/status, /summary       saved institution links and dated bank snapshot
+    /api/finance/day                    where the person stands, from their own records (1.7.0)
 -->
 <html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
@@ -82,6 +86,15 @@
   .fx-card .fx-balance { display:block; font-size:32px; font-weight:700; margin:14px 0 4px; font-variant-numeric:tabular-nums; }
   .fx-card small { display:block; color:var(--text-secondary,#a9b6cc); overflow-wrap:anywhere; }
   .fx-kicker { color:var(--accent-primary,#2dd4bf); font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+  .fx-stand { margin-bottom: 18px; }
+  .fx-stand-body { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+  .fx-stand-body .fx-card { padding:16px; }
+  .fx-stand-body .fx-card strong { display:block; font-size:22px; font-variant-numeric:tabular-nums; margin:4px 0; }
+  .fx-steps { margin:0; padding-left:20px; }
+  .fx-steps li { margin:6px 0; }
+  .fx-btn-filled { background: var(--accent-primary, #2dd4bf); border-color: var(--accent-primary, #2dd4bf); color: var(--text-on-accent, #04201c); }
+  @media (max-width: 900px) { .fx-stand-body { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width: 560px) { .fx-stand-body { grid-template-columns:minmax(0,1fr); } }
   .fx-details { border:1px solid var(--border-color,#22304a); border-radius:14px; padding:0 16px; }
   .fx-details>summary { min-height:48px; display:flex; align-items:center; cursor:pointer; font-weight:600; }
   .fx-details section { margin:16px 0 22px; }
@@ -157,6 +170,7 @@
         <div><h1>Bank accounts and trading</h1><p class="fx-sub" id="fxAsOf">Reading saved information…</p></div>
         <button class="fx-btn" id="fxRefresh" type="button">Refresh view</button>
       </div>
+      <section class="fx-stand" id="fxStand" aria-labelledby="fxStandH" hidden><h2 class="fx-h" id="fxStandH">Where you stand</h2><div class="fx-stand-body" id="fxStandBody"></div></section>
       <section class="fx-journey" id="fxJourney" aria-label="Bank accounts and trading"><div class="fx-card fx-skel"></div></section>
       <details class="fx-details" id="fxMoreActivity"><summary>More activity</summary>
       <section aria-labelledby="fxTilesH"><h2 class="fx-h" id="fxTilesH">Saved activity</h2><div class="fx-tiles" id="fxTiles"><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div></div></section>
@@ -223,13 +237,16 @@
     } catch (_) { /* a host on another origin keeps its own frame */ }
   }
 
+  /** The sections in the bar itself (1.7.0), in this order; the rest are under More. A phone's bar holds the three in PHONE. */
+  var MAIN = ['finance-accounts', 'finance-transactions', 'finance-bills', 'finance-recurring', 'finance-spending', 'finance-goals', 'finance-trading'];
+  var PHONE = ['finance-accounts', 'finance-bills', 'finance-spending'];
   /** The sections the person may open, from Finance's own menu as the server filtered it. */
   function sectionsOf(answer) {
     var items = answer && answer.profile && answer.profile.ribbon && Array.isArray(answer.profile.ribbon.items) ? answer.profile.ribbon.items : [];
     return items.map(function (item) {
       var name = String(item.id || '').replace(/^tool-/, '');
       var url = item.toolUi && typeof item.toolUi.iframeUrl === 'string' ? item.toolUi.iframeUrl : '';
-      return { name: name, label: SHORT[name] || String(item.label || name), full: String(item.label || name), url: name === 'finance-trading' && url === '/api/trading/' ? url + '?view=accounts' : url, more: name !== 'finance-home' && name !== 'finance-trading' };
+      return { name: name, label: SHORT[name] || String(item.label || name), full: String(item.label || name), url: name === 'finance-trading' && url === '/api/trading/' ? url + '?view=accounts' : url, more: MAIN.indexOf(name) === -1, phone: PHONE.indexOf(name) !== -1 };
     }).filter(function (s) { return s.url && s.name !== SELF && /^\/[^/]/.test(s.url) && !/[\\\u0000-\u0020]/.test(s.url); });
   }
 
@@ -252,7 +269,7 @@
     var home = { name: 'home', label: 'Home', full: 'Finance home' };
     var main = state.sections.filter(function (s) { return !s.more; }), rest = state.sections.filter(function (s) { return s.more; });
     byId('fxNav').replaceChildren.apply(byId('fxNav'), [tab(home)].concat(main.map(function (s) { return tab(s); })).concat([moreMenu(rest)]).filter(Boolean));
-    var phoneMain = main.slice(0, 3), phoneRest = main.slice(3).concat(rest);
+    var phoneMain = main.filter(function (s) { return s.phone; }), phoneRest = main.filter(function (s) { return !s.phone; }).concat(rest);
     byId('fxBottom').replaceChildren.apply(byId('fxBottom'), [tab(home)].concat(phoneMain.map(function (s) { return tab(s); })).concat([moreMenu(phoneRest)]).filter(Boolean));
   }
 
@@ -270,7 +287,7 @@
       frame.hidden = false; byId('fxHome').hidden = true;
     } else {
       frame.hidden = true; byId('fxHome').hidden = false;
-      if (!state.loaded) loadHome();
+      if (!state.loaded) loadHome(); else loadStand();
     }
     document.title = section ? section.full + ' · Finance' : 'Finance';
     if (!quiet) { try { var next = section ? '#/' + section.name : '#/home'; if (location.hash !== next) history.pushState(null, '', next); } catch (_) { /* a sandboxed frame keeps its address */ } }
@@ -281,6 +298,39 @@
   function money(n, currency = 'USD') { return Number.isFinite(n) ? new Intl.NumberFormat(undefined, { style: 'currency', currency: /^[A-Z]{3}$/.test(currency) ? currency : 'USD', maximumFractionDigits: 0 }).format(n).replace(/^-/, '−') : 'Unknown'; }
   function savedWhen(value) { var d = value ? new Date(value) : null; return d && Number.isFinite(d.getTime()) ? d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Date unknown'; }
   function sourceName(value) { return value === 'sandbox' ? 'Test bank data' : value === 'sample' ? 'Sample data' : value === 'production' ? 'Bank data' : 'Source unknown'; }
+  /** An amount from Finance's own records with its source and date, or "Not known yet". */
+  function recordMoney(f) { return f && typeof f.cents === 'number' ? money(f.cents / 100, f.currency) : 'Not known yet'; }
+  function recordSource(f) { return f && f.source ? f.source + (f.asOf ? ', to ' + f.asOf : '') : ''; }
+  function standCard(title, figureOrText, note, button) {
+    return el('article', { class: 'fx-card' }, [el('span', { class: 'fx-kicker', text: title }), el('strong', { text: typeof figureOrText === 'string' ? figureOrText : recordMoney(figureOrText) }),
+      el('small', { text: note || (typeof figureOrText === 'string' ? '' : recordSource(figureOrText)) }), button ? el('p', {}, [button]) : null]);
+  }
+  function goButton(text, name, filled) { return el('button', { type: 'button', class: 'fx-btn' + (filled ? ' fx-btn-filled' : ''), text: text, on: { click: function () { open(name); } } }); }
+  /** Where you stand, from the person's own records (GET /api/finance/day). Shown only when the record pages are on the bar. */
+  function paintStand(day) {
+    var known = state.sections.map(function (s) { return s.name; });
+    byId('fxStand').hidden = !day || known.indexOf('finance-accounts') === -1;
+    if (byId('fxStand').hidden) return;
+    var body = byId('fxStandBody');
+    if (day.firstRun) {
+      body.replaceChildren(el('article', { class: 'fx-card', style: 'grid-column:1/-1' }, [
+        el('p', { text: 'Bring your money into Finance without linking a bank: download a statement file from your bank\'s website and give it to Finance.' }),
+        el('ol', { class: 'fx-steps' }, [el('li', { text: 'Bring in a statement (CSV, OFX or QFX) on Accounts.' }), el('li', { text: 'Confirm the bills Finance finds in your payments.' }), el('li', { text: 'See your month on Spending.' })]),
+        el('p', {}, [goButton('Add your first account', 'finance-accounts', true)])]));
+      return;
+    }
+    var worth = day.netWorth || {}, bills = day.bills || {}, soon = (bills.overdue || []).concat(bills.week || []);
+    var soonCents = soon.reduce(function (sum, d) { return sum + (d.amount && typeof d.amount.cents === 'number' ? d.amount.cents : 0); }, 0);
+    var fresh = day.newTransactions, month = day.month || {};
+    var first = fresh && fresh.count ? goButton('Look at ' + fresh.count + ' new transaction' + (fresh.count === 1 ? '' : 's'), 'finance-transactions', true)
+      : soon.length ? goButton('Open Bills', 'finance-bills', true) : null;
+    body.replaceChildren(
+      standCard('Net worth', worth.net || null, worth.note || null, null),
+      standCard('Bills due', soon.length ? money(soonCents / 100, (soon[0].amount && soon[0].amount.currency) || 'USD') : 'Nothing due', soon.length ? soon.length + ' overdue or due in the next 7 days' : 'In the next 7 days', soon.length && !(fresh && fresh.count) ? first : goButton('Open Bills', 'finance-bills')),
+      standCard('This month out', month.out || null, month.label || '', goButton('Open Spending', 'finance-spending')),
+      standCard('New to look at', fresh && fresh.count ? String(fresh.count) : 'None', fresh && fresh.count ? 'Since ' + fresh.since : 'Everything is looked at', fresh && fresh.count ? first : goButton('Open Transactions', 'finance-transactions')));
+  }
+
   function paintJourney(status, summary) {
     var snapshot = summary && summary.aggregate, cards = [], known = state.sections.map(function (s) { return s.name; });
     if (known.indexOf('finance-home') !== -1) {
@@ -393,11 +443,17 @@
     notes.sort(function (a, b) { return a.rank - b.rank; });
     notesBox.replaceChildren.apply(notesBox, notes.length ? notes.map(function (n) { return n.node; }) : [el('div', { class: 'fx-empty', text: 'Nothing needs your attention.' })]);
   }
+  /** Where you stand, read again each time Home is shown: the record pages change it while Home is hidden. */
+  function loadStand() {
+    var local = new Date(), todayText = local.getFullYear() + '-' + String(local.getMonth() + 1).padStart(2, '0') + '-' + String(local.getDate()).padStart(2, '0');
+    return getJson('/api/finance/day?today=' + todayText).then(paintStand);
+  }
   function loadHome() {
     state.loaded = true;
     byId('fxAsOf').textContent = 'Reading saved information…';
     var known = state.sections.map(function (s) { return s.name; });
     var families = APPS.filter(function (f) { return f.app === 'finance' || known.indexOf(f.section) !== -1; });
+    loadStand();
     return Promise.all([getJson('/api/v1/agent/schedules'), getJson('/api/finance/status'), getJson('/api/finance/summary')].concat(families.map(function (f) { return getJson(f.summary).then(function (data) { return { family: f, data: data }; }); })))
       .then(function (all) {
         paintJobs(all[0]);

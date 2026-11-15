@@ -28,6 +28,9 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register the closed native relay mounted-HTTP contract and follow package1.17.0 readiness.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.18.0: readiness 1.18.0; phone-control-fire-tv-guide registers the Fire TV phone-app guide suite (tests/remote-guides.test.cjs): the mounted read-only route over real HTTP and SQLite, with a native-intent fixture that fails the case if the guide ever calls an action.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | 1.19.0: readiness 1.19.0; phone-control-device-path registers the check of the Fire TV guide's devicePath declaration (tests/phone-control-device-path.test.cjs, which the gate job's own glob runs).
+# 30 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0 (Lane TV1): readiness 1.20.0; phone-control-front registers the Roku and Samsung application suite (tests/phone-control-front.test.mjs, which the gate job's own glob runs).
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: readiness 1.20.1 (refusal sentences; their guard is tests/phone-control-routes.test.cjs, already registered).
+# 32 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (remove unsupported regressionTests blocks, quote colon-containing expectations, set closed sideEffects/cleanup on disposable external suites, and bound timeoutMs to 300000).
 version: 1
 cases:
   - id: package-readiness
@@ -38,7 +41,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.19.0 with its store open.
+      - The installed phone-control package answers its identity and version 1.20.1 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -70,8 +73,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-routes.test.cjs }
 
   - id: phone-control-honesty
     name: Honesty guard against fakes returning
@@ -94,8 +95,6 @@ cases:
     limits:
       timeoutMs: 20000
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/phone-control-honesty.test.cjs }
 
   - id: phone-control-module-names
     name: Every name a browser module uses resolves
@@ -119,8 +118,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/phone-control-module-names.test.cjs }
 
   - id: phone-control-home-tree
     name: The first screen as a tree with details, rename, and Add a device buttons that fit
@@ -145,8 +142,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/phone-control-home-tree.test.mjs }
   - id: phone-control-ux-batch7
     name: Merged Connect sheet, full-frame session sheet UX, and real UxPlay mirroring guard
     purpose: Verify single ui.static tile, Connect sheet ordering and 5s/2m auto-poll, full-frame session with 48px Session sheet handle, RP-PHC-01..13 backlog controls, real Start mirroring replacing RP-PHC-14, explicit Bluetooth peripheral pairing guidance, and lowercase oshal Node.
@@ -167,8 +162,6 @@ cases:
     limits:
       timeoutMs: 20000
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/phone-control-ux-batch7.test.cjs }
 
   - id: phone-control-native-relay
     name: Saved native phone-to-TV connections and Open Orbit
@@ -194,8 +187,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/native-relay.test.cjs }
 
   - id: phone-control-fire-tv-guide
     name: Fire TV phone-app guide (read only)
@@ -221,8 +212,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/remote-guides.test.cjs }
 
   - id: phone-control-device-path
     name: The Fire TV guide declares a way the kernel's path planner can offer
@@ -247,8 +236,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/phone-control-device-path.test.cjs }
 
   - id: phone-control-rp-features
     name: Session preferences, captures, transfers, chat, whiteboard, and concierge turn planner
@@ -269,8 +256,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-rp-features.test.cjs }
 
   - id: phone-control-rp-browser
     name: Chromium proof for RP-PHC-01..13, Phone & TV Concierge, Fire TV 1-step loader, and RDP setup
@@ -295,8 +280,6 @@ cases:
     limits:
       timeoutMs: 60000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/phone-control-rp-browser.test.cjs }
 
   - id: phone-control-141
     name: Studio workspace, BLE sync & swipe, Fire TV DRM notice, gated RDP, and guided Android pairing
@@ -321,8 +304,6 @@ cases:
     limits:
       timeoutMs: 60000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/phone-control-141.test.cjs }
 
   - id: phone-control-link
     name: Computer link commands run by real bash and python3
@@ -345,8 +326,6 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-link.test.mjs }
 
   - id: phone-control-bridge
     name: The bridge on a computer with no Bluetooth
@@ -368,8 +347,6 @@ cases:
     limits:
       timeoutMs: 60000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-bridge.test.mjs }
 
   - id: phone-control-play
     name: A show plays by its name on a Fire TV, against a scripted TV
@@ -413,6 +390,34 @@ cases:
     isolation: { mode: disposable, cleanup: "A scripted TV in memory; no adb, network or device is contacted." }
     limits: { timeoutMs: 120000, maxMemoryMb: 256 }
     installation: never
+  - id: phone-control-front
+    name: An application opened, listed and read in front on a Roku or a Samsung TV, against stand-ins
+    purpose: Prove the bridge's lan-control launch_app, list_apps and active_app (bridge/oshal_phone_front.py) send only fixed paths with checked ids to a stand-in Roku ECP server and a stand-in Samsung TV on 127.0.0.1, and answer what the TV itself reported afterwards (Lane TV1; Roger, 2026-11-13, asked that Jarvis open an application such as Netflix on his Roku and Samsung TVs and know where it is).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-front.test.mjs
+    expected:
+      - A Roku opens an installed application with POST /launch/<digits> after reading /query/apps, and the answer reads /query/active-app until that application is in front; one that stays behind is said, not assumed.
+      - A Roku title is sent as contentId and mediaType in the launch path; a web address, a space, a separator, an unknown media type or a media type with no content id sends nothing.
+      - A Roku's active_app names the application in front, the home screen, a screensaver over it and its player's state from two reads; list_apps answers the applications with digit ids and only counts a TV input.
+      - A Samsung TV opens an application with POST /api/v2/applications/<id> and answers running and visible from GET; when that POST is refused it sends ed.apps.launch on the paired remote channel, after Allow, and the pairing token never appears in an answer.
+      - A Samsung TV's active_app reads one named application and asks nothing when none is named; list_apps answers what ed.installedApp.get lists and says so when the TV lists nothing; a title on a Samsung TV is refused in words.
+      - An id outside its closed shape reaches no TV; an application the TV does not have answers app_not_installed; a Roku that refuses network control answers roku_control_off in words; an Android TV answers roku_samsung_only and no adb command runs.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+      - runtime:openssl
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The throwaway home, token folder, certificate and loopback stand-ins are removed when the suite ends; no TV, adb or network beyond 127.0.0.1 is contacted.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 256
+    installation: never
   - id: phone-control-inventory
     name: What a TV can play, kept in the person's device inventory
     purpose: Prove POST /devices/:id/apps/record (routes/phone-control-inventory.js) checks the one JSON line the TV's computer printed for What a TV can play, records it against the TV, and hands the kernel's device.inventory.record, as the person, the TV, its ADB route through its own computer, its applications with the services they reach, what was looked for and the others counted (T79, the device inventory).
@@ -434,6 +439,7 @@ cases:
     limits: { timeoutMs: 60000, maxMemoryMb: 256 }
     installation: never
   - id: phone-control-own-devices
+    # Also proven against a running installation by tests/live/isolation-proof.cjs (case phone-control-isolation below).
     name: Every person uses their own devices; nothing reaches beyond them
     purpose: Prove, with the permission catalog deciding each request in front of the package's real routes and store, that a person who is not an administrator (the operator or the editor role) adds a TV on their own computer, renames it, presses it, writes history, reads the bridge files and removes it; that another person's device, history and computer stay out of reach; that a page-only account (viewer, reader) reads the page and is refused every device feature; and that the catalog keeps both resources at the own scope.
     level: integration
@@ -454,10 +460,8 @@ cases:
     isolation: { mode: disposable, cleanup: "The package's own store in a throwaway folder; the catalog is read from the package; no device or kernel is contacted." }
     limits: { timeoutMs: 60000, maxMemoryMb: 256 }
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-own-devices.test.cjs }
-      - { level: integration, file: tests/live/isolation-proof.cjs }
   - id: phone-control-installation-address
+    # Also proven against a running installation by tests/live/isolation-proof.cjs (case phone-control-isolation below).
     name: A device is told the installation it is on, never a fixed one
     purpose: Prove over the real routes and real HTTP, with the headers the kernel hands a package, that POST /provision without a serverUrl plans the public origin the kernel declares for this installation, else the public host name the request arrived on as https whatever the request's protocol says, and otherwise answers server_required in words and plans nothing; that the page's four pushes of the oshal app send the page's own origin; and that no file the package runs names an installation.
     level: integration
@@ -478,9 +482,6 @@ cases:
     isolation: { mode: disposable, cleanup: "The package's own store in a throwaway folder and a loopback server; no device or kernel is contacted." }
     limits: { timeoutMs: 60000, maxMemoryMb: 256 }
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-installation-address.test.cjs }
-      - { level: integration, file: tests/live/isolation-proof.cjs }
   - id: phone-control-lan
     name: TVs and streaming sticks on the home network, against protocol fakes
     purpose: Prove the bridge's lan-discover and lan-control verbs (bridge/oshal_phone_lan.py) refuse any address that is not a private home-network address and any action outside the closed list, send the exact Wake-on-LAN bytes only to the MACs named, read a Samsung, Roku or Cast device read-only, press keys on a fake Roku ECP server and a fake Samsung TLS WebSocket TV, keep the Samsung pairing token 0600 on the computer, and find two fake TVs without running adb or installing anything.
@@ -509,8 +510,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-lan.test.mjs }
 
   - id: phone-control-ble-pairing
     name: Bluetooth pairing asks first and trusts only what the person allowed
@@ -538,8 +537,6 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/phone-control-ble-pairing.test.mjs }
 
   - id: phone-control-runner
     name: Under the kernel's real package runner
@@ -562,8 +559,6 @@ cases:
     limits:
       timeoutMs: 60000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/live/phone-control-runner.test.cjs }
 
   - id: phone-control-connect-ui
     name: Every Connect press answers, non-admin card, and TV remote in Chromium
@@ -587,8 +582,6 @@ cases:
     limits:
       timeoutMs: 60000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/phone-control-connect-ui.test.cjs }
 
   - id: phone-control-isolation
     name: Every person's own devices, and nobody else's, on a disposable kernel
@@ -603,20 +596,19 @@ cases:
     expected:
       - Person B (not an administrator) gets empty lists and 404 on Person A's TV and mirrored iPhone, history, reports, computer run, mirror-frame and screen, with zero commands delivered to Person A's computer.
       - Person B then adds a TV on their own computer without naming one, presses it, and the kernel delivers that one command to Person B's computer and none to Person A's; Person A reads 404 on Person B's TV.
-      - Person B is refused (403) when previewing or applying a role for themselves: giving access stays with the installation's administrators.
+      - "Person B is refused (403) when previewing or applying a role for themselves: giving access stays with the installation's administrators."
       - Person C (page only) gets 200 on /api/phone-control/ui with the Not available on your account card, and 403 on listing, adding and the bridge files.
       - POST /api/phone-control/provision without serverUrl answers server_required on the kernel's loopback address, also when the caller sends a public-origin header of its own; arriving on a public host name it plans https at that host; a named serverUrl is used as given.
     prerequisites:
       - service:docker
       - fixture:oshald-binary
-    sideEffects: disposable
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Stop the disposable oshald and PostgreSQL container and remove temporary directories.
     limits:
       timeoutMs: 300000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/live/isolation-proof.cjs }
 
   - id: phone-control-delivery-carry
     name: A delivery of 1.14.0 keeps the access people hold, and new permissions wait
@@ -636,14 +628,13 @@ cases:
     prerequisites:
       - service:docker
       - fixture:oshald-binary
-    sideEffects: disposable
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Stop the disposable oshald and PostgreSQL container and remove temporary directories.
     limits:
       timeoutMs: 300000
     installation: never
-    regressionTests:
-      - { level: integration, file: tests/live/delivery-carry-proof.cjs }
 
   - id: phone-control-adb-host
     name: Real adb on a Linux computer, no root and no phone
@@ -662,6 +653,7 @@ cases:
     sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Stop the private-port adb server and remove the throwaway home directory.
     limits:
       timeoutMs: 300000
     installation: never
@@ -687,11 +679,12 @@ cases:
       - runtime:chromium
       - fixture:oshald-binary
       - fixture:oshal-node-appimage
-    sideEffects: disposable
+    sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Stop the disposable containers, browser and oshald instance and remove temporary directories.
     limits:
-      timeoutMs: 900000
+      timeoutMs: 300000
     installation: never
 
   - id: phone-control-live-installation
@@ -704,9 +697,9 @@ cases:
       files:
         - tests/live/production-proof.cjs
     expected:
-      - Phase empty: no element says connected, no 1.0.0 starter device or fake text, every removed route answers as a route that never existed, no removed route requested, no console error, nothing scrolls sideways, every control at least 44 px on the phone.
-      - Phase computer: after Replace the earlier test keyboard the setup table reads the iPhone keyboard On as OSHAL-KB from the bridge's own keyboard; Pair at a dead address says the phone did not answer.
-      - Phase offline: with that computer's app closed its row reads Not connected and Use this computer is disabled.
+      - "Phase empty: no element says connected, no 1.0.0 starter device or fake text, every removed route answers as a route that never existed, no removed route requested, no console error, nothing scrolls sideways, every control at least 44 px on the phone."
+      - "Phase computer: after Replace the earlier test keyboard the setup table reads the iPhone keyboard On as OSHAL-KB from the bridge's own keyboard; Pair at a dead address says the phone did not answer."
+      - "Phase offline: with that computer's app closed its row reads Not connected and Use this computer is disabled."
     prerequisites:
       - runtime:chromium
       - fixture:live-installation
@@ -715,10 +708,8 @@ cases:
     isolation:
       mode: live
     limits:
-      timeoutMs: 900000
+      timeoutMs: 300000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/live/production-proof.cjs }
 
   - id: phone-control-ble-takeover
     name: The iPhone keyboard takes over on the operator's computer
@@ -784,7 +775,3 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/phone-control-home-tree.test.mjs }
-      - { level: browser, file: tests/phone-control-connect-ui.test.cjs }
-      - { level: unit, file: tests/phone-control-ux-batch7.test.cjs }

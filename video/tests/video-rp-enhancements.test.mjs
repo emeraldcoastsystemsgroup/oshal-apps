@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | End-to-end verification for Video 1.14.0 Reference-Product enhancements (RP-VID-01..10) using real FFmpeg/ffprobe speech synthesis, acoustic auto-caption detection, CC0 procedural sound library, 1080p60/4K multitrack export with speed/atempo/looks/chroma-key/remove-bg/stabilize/stickers, and headless Chromium UI.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: SOUND_LIBRARY attribution check updated to Open Swarm Procedural.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,7 +64,7 @@ test('RP-VID-02, RP-VID-07, RP-VID-10: real voice TTS, CC0 sound library and aco
   const lib = await api.call('/editor/sound-library');
   assert.equal(lib.status, 200);
   assert.equal(lib.body.items.length, 8);
-  assert.ok(lib.body.items.every(item => item.license === 'CC0-1.0' && item.attribution === 'OSHAL-Procedural'));
+  assert.ok(lib.body.items.every(item => item.license === 'CC0-1.0' && item.attribution === 'Open Swarm Procedural'));
 
   const preview = await api.call('/editor/sound-library/chime-ding/preview');
   assert.equal(preview.status, 200);

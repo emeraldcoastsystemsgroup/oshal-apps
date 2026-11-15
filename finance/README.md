@@ -17,7 +17,12 @@ package installed, `swarm-apps/` in the framework repo carries no Wave-1 applica
 | `src-routes/finance-routes.ts` | The controller: Plaid link/exchange/sandbox, sync→aggregate, brief (bot reasoning), pay/pay-status/payments, unlink, lazy `ensureFinanceSchema`. |
 | `src-routes/finance-plaid.ts` | Self-contained Plaid client + aggregate builder (zero imports). |
 | `src-routes/finance-analysis.ts` | A requested analysis that runs after the press has answered (1.6.5): the kernel's background-run port, the caller's one request row and what it reads as. |
-| `migrations/` | The stores the routes also create lazily: 001 the three finance stores, 002 the caller's latest analysis request. |
+| `migrations/` | 001 the three finance stores and 002 the caller's latest analysis request (the routes also create these lazily); 003 the person's own records (accounts, transactions, imports, rules, documents) and 004 the money day (bills and due dates, goals and amounts set aside, the month's plan, closed months), migration only (1.7.0). |
+| `src-routes/finance-ledger*.ts`, `finance-parse-*.ts`, `finance-aggregate.ts`, `finance-sample.ts` | The person's own records and statement import (1.7.0): accounts, transactions, CSV/OFX/QFX/text readers, preview, apply and undo, the snapshot rules, the demo's sample household as records. |
+| `src-routes/finance-bills.ts`, `finance-goals.ts`, `finance-month.ts`, `finance-day*.ts` | The money day over those records (1.7.0): bills, goals, the month and where the person stands. |
+| `src-routes/finance-mail.ts`, `finance-mail-parse.ts`, `migrations/005-mail.sql` | Bills from the person's own Gmail (1.8.0): off until the person presses **Look for bills in my mail** on Bills; a check (the button, or the job `finance-mail-bills` every three hours as the person) searches bill-like mail of the last 45 days through the declared `gmail.googleapis.com` egress, where the kernel adds the caller's own `gmail` connection, reads at most 20 messages in 45 s and continues next time. Each bill found (payee, amount due, due date, by fixed patterns; no model) waits under **Found in your mail** for **Add to Bills** or **Not a bill**. Kept of a message: id, sender, subject, date. Nothing is paid, sent or changed in the mailbox. Needs the Google permission `gmail.readonly`, which the installation's Google connection already asks for. |
+| `src-routes/finance-recurring.ts`, `tools/finance-recurring.html`, `migrations/006-recurring.sql` | Recurring (1.8.0): every charge that repeats in the person's own transactions of the last seven months, what it costs each time and a year (an estimate from the last charge), New and Price went up, the totals a month and a year; each reviewed once (**Keep**, **Track as a bill**, **Mark to cancel**: Finance cancels nothing and says when it is charged again), **Review again** takes the answer back. Only the answers are stored. |
+| `src-routes/finance-pages.ts`, `tools/finance-{accounts,transactions,bills,recurring,spending,goals}.html`, `tools/finance-records.{js,css}` | The record pages and the route that serves them at `/api/finance/p/<name>` (1.7.0). |
 | `routes/*.js` | **Compiled JS** the loader mounts (`oshal-app build` output). |
 | `tools/finance.html` | The surface (link + dashboard + brief + send-money panel), served from this package dir. |
 | `tools/finance-app.html` | Finance as its own application (1.5.0): the page the menu opens first. See below. |
@@ -70,6 +75,43 @@ should be copied into a token or configuration field.
 | `tests/session-crypto.test.mjs` | unit | Isolated Node runner; synthetic data only |
 
 These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
+
+## Your own records, no bank connection needed (1.7.0)
+
+Slice 1 of the holistic Finance (design: Lane FINH1's Finance design of 2026-11-14). A person gets
+real numbers into Finance by downloading a statement file from their bank's website and giving it to Finance.
+
+- **Accounts** (`/api/finance/p/accounts`): Bring in a statement. Choose the CSV, OFX or QFX file (or paste the
+  statement's text), pick the account or name a new one, press **Preview**: nothing is added yet; it says how many lines
+  are new, how many are already in Finance and which could not be read. **Add N transactions** adds them (in parts of
+  at most 1,500 a call, so every call ends well inside the kernel's 60 s), the same file twice adds nothing, and
+  **Undo** takes a statement back out. Finance keeps the file's name, a fingerprint and the transactions; of an account
+  number only the last four digits. **Add an account** types one with its balance and date.
+- **Transactions**: a month of lines, new ones first: category (optionally for every line from that merchant), Looked
+  at, Not mine, add one by hand.
+- **Bills**: a charge repeating monthly is proposed under Found in your payments when records change (never on a GET)
+  and becomes a bill only on **Add to Bills**; Overdue, This week, Later, Paid; **Mark paid** marks it paid in Finance
+  and does not pay the bill.
+- **Spending**: money in, money out, and left to spend once a plan is set; categories against the plan.
+- **Goals**: **Set aside** and **Take back** are recorded in Finance; no money moves.
+- **Home** opens with **Where you stand** (`GET /api/finance/day`): three steps on a first run, otherwise net worth,
+  bills due, the month's money out and the new transactions.
+- The bar: Home, Accounts, Transactions, Bills, Spending, Goals, Trades, More (Bank accounts, Connections, World,
+  Markets, Recap). Trades and every earlier screen are unchanged.
+- Twenty-two concierge tools, one for each screen action: six reads (`finance-day`, `finance-accounts`,
+  `finance-transactions`, `finance-bills`, `finance-month`, `finance-goals`) and sixteen changes that ask the person
+  first. Each is the route the screen's button uses.
+- The saved snapshot every older reader uses: a person with a linked bank keeps the one the sync wrote (no import or
+  typed entry rewrites it, nor its analysis); without a link it is built from the records with balancesComplete and
+  transactionsComplete false, so the facts and the brief withhold spending totals rather than treat a statement's
+  days as the whole window. Sync and Request analysis are unchanged. Demo data (`FINANCE_DEMO_DATA`) also writes its
+  sample household as records, marked Sample data.
+
+Tests: `tests/ledger-*.test.cjs`, `tests/sample-ledger.test.cjs`, `tests/day-records.test.cjs` (a disposable PostgreSQL
+named by `OSHAL_TEST_POSTGRES`), `tests/record-pages.test.cjs`, and `tests/browser/record-pages.browser.test.cjs`
+(Chromium against the real compiled routes over that database: a statement in, preview, add, a bill proposed and
+kept, Mark paid, the month, a goal, Undo, a phone's width). Not yet proven against a running kernel: that check is
+done on the test slot before delivery.
 
 ## Finance as its own application (1.5.0)
 

@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Keep selected employer descriptions in the original owner's private generation when the shared corpus is read-only, bound to the exact listing and reused by scoring, documents and interview preparation.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Expire and revalidate bounded employer evidence, bind all relevant listing facts, and retain authoritative complete replacements without silent clipping.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | A saved copy no longer expires after a day: it stays until the pull sees the listing change, so scoring re-reads only what changed. A person's action still rechecks an old copy once, and keeps it when the employer refuses.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | saved_ids: the postings that have a saved copy, from file names alone, so the native nightly selection keeps a job whose only details are its saved copy.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): a person can give a job's description themselves. remember_pasted keeps it as this owner's copy (basis person-pasted, 200 to 20,000 characters), bound to the listing like an employer copy, never written to the shared corpus. Scoring and generation use it with no request, a recheck never replaces it, and a full store never reclaims it.
 """Owner-private employer context; never writes or substitutes a shared posting."""
 from __future__ import annotations
 import datetime
@@ -20,6 +22,10 @@ MAX_CHARS = 64000
 MAX_ENTRIES = 1000
 TTL_SECONDS = 24 * 60 * 60
 VERSION = 2
+# A description the person pasted from the posting: shorter is not a description, longer is not one job's.
+PASTED_MIN = 200
+PASTED_MAX = 20000
+BASES = ('employer-detail', 'person-pasted')
 _LOCK = threading.Lock()
 
 
@@ -101,7 +107,7 @@ def _load(path):
                 or value.get('descriptionSha256') != _hash(description)):
             raise ValueError('job_context_unavailable')
         if value.get('version') == VERSION and (not isinstance(value.get('snapshot'), dict)
-                or value.get('basis') != 'employer-detail'
+                or value.get('basis') not in BASES
                 or value.get('truncated') is not False or type(value.get('sourceChars')) is not int
                 or value['sourceChars'] != len(description) or type(value.get('sourceBytes')) is not int
                 or value['sourceBytes'] != len(description.encode('utf-8'))):
@@ -132,6 +138,18 @@ def read(row):
     return value
 
 
+def saved_ids():
+    """Posting ids that have a saved copy in this owner's directory, from file names only; no copy is opened.
+
+    A name is not proof the copy is valid for the current listing; callers use this only to keep a job a candidate.
+    """
+    directory = config.DATA_DIR / 'job-context'
+    if directory.is_symlink() or not directory.is_dir():
+        return []
+    return sorted(int(path.stem) for path in directory.glob('*.json')
+                  if path.stem.isascii() and path.stem.isdigit() and 0 < int(path.stem) <= 999999999999999)
+
+
 def needs_refresh(row):
     """An existing legacy or changed-listing cache must be revalidated.
 
@@ -149,7 +167,8 @@ def _reclaim(directory):
             continue
         try:
             value = _load(path)
-            if value and value.get('version') in (1, VERSION) and not _fresh(value):
+            # A description the person pasted is their own record, not a cache: it is never reclaimed.
+            if value and value.get('version') in (1, VERSION) and value.get('basis') != 'person-pasted' and not _fresh(value):
                 path.unlink()
         except (OSError, ValueError):
             continue
@@ -161,21 +180,59 @@ def remember(row, fetched):
         return None
     if len(description) > MAX_CHARS:
         raise ValueError('job_context_too_large')
+    return _write(row, description, 'employer-detail')
+
+
+def pasted_text(text):
+    """The person's pasted description as it is kept, or None when it is not one job's description.
+
+    Line breaks are kept, other control characters removed; the length is counted after trimming.
+    @param text: What the person pasted.
+    @returns The text to keep, or None.
+    """
+    if not isinstance(text, str):
+        return None
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text.replace('\r\n', '\n').replace('\r', '\n')).strip()
+    return text if PASTED_MIN <= len(text) <= PASTED_MAX else None
+
+
+def remember_pasted(row, text):
+    """Keep the description the person pasted from the posting as this owner's copy of this exact listing.
+
+    It replaces any earlier copy of the listing (the person's own or an employer read), is untrusted text like an
+    employer's page (it reaches the model only where an employer description does), and stays out of the shared corpus.
+    @param row: The posting row, as job_context.snapshot reads it.
+    @param text: What the person pasted.
+    @returns The saved copy.
+    @raises ValueError('pasted_details_invalid') when the text is not 200 to 20,000 characters.
+    """
+    description = pasted_text(text)
+    if description is None:
+        raise ValueError('pasted_details_invalid')
+    return _write(row, description, 'person-pasted')
+
+
+def _write(row, description, basis):
     digest = _hash(description)
     path = _path(row)
     path.parent.mkdir(mode=0o700, exist_ok=True)
     if not path.parent.is_dir() or path.parent.is_symlink():
         raise ValueError('job_context_unavailable')
     with _LOCK:
-        old = _load(path)
+        try:
+            old = _load(path)
+        except ValueError:
+            if basis != 'person-pasted':
+                raise
+            old = None  # the person's own text replaces a copy that can no longer be verified
         value = {'version': VERSION, 'snapshot': _bound_snapshot(row, old), 'description': description,
                  'descriptionSha256': digest, 'retrievedAt': _now().isoformat().replace('+00:00', 'Z'),
-                 'basis': 'employer-detail', 'sourceChars': len(description),
+                 'basis': basis, 'sourceChars': len(description),
                  'sourceBytes': len(description.encode('utf-8')), 'truncated': False}
         rendered = json.dumps(value, ensure_ascii=False)
         if len(rendered.encode('utf-8')) > LIMIT:
             raise ValueError('job_context_too_large')
-        if old is None and sum(1 for _ in path.parent.glob('*.json')) >= MAX_ENTRIES:
+        if old is None and not path.exists() and sum(1 for _ in path.parent.glob('*.json')) >= MAX_ENTRIES:
             _reclaim(path.parent)
             if sum(1 for _ in path.parent.glob('*.json')) >= MAX_ENTRIES:
                 raise ValueError('job_context_limit_reached')
@@ -219,7 +276,8 @@ def hydrate(row, company=None, *, recheck=False):
     resolved = _apply(row, saved)
     path = _path(row)
     due = saved is None and (path.exists() or path.is_symlink())
-    if saved and not (recheck and not _fresh(saved)):
+    # The person's pasted description is never rechecked against the employer: it stands until they replace it.
+    if saved and (saved.get('basis') == 'person-pasted' or not (recheck and not _fresh(saved))):
         return resolved, None
     if not saved and not due and len(resolved.get('description') or '') >= 1000:
         return resolved, None

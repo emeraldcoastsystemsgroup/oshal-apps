@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width proof for the third sweep's layout and hand-off defects (2026-10-11), in headless Chromium against the real page files with synthetic read answers and no provider call. In the cockpit's application frame (392 x 641): the Aero Lab, Drone and Sat Ops hand-off panels sit in the page flow (elementFromPoint at every slider / the Fleet panel finds that control, not the panel). Sat Ops primary buttons stay light on their navy fill under a dark host --text-primary, and Remove (tap twice) sends DELETE /api/sat/catalog/:id and drops the row. Drone's Save as timeline is off with the geofence reason. Calendar's sync refusal is on screen beside its button. The D&D table title keeps its width and the "Previously on…" banner clears Timeline and Party. Feeds' Sync now names the missing Slack connection and the closed settings drawer is hidden with no shadow band.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | dnd-table follows the table's one-row HUD (UX audit 2026-11-06): Games, Party, Roll, DM & Story and More; Timeline, DM Settings and Full screen moved into More. The banner still must not cover any of them.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Calendar 1.2.0 (design standard): Sync is driven through the calendar row's More and its in-page ask; the calendar module is served from the package.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Calendar 1.4.0: the calendar screen's files include the event view module the workspace imports (Edit and Cancel meeting).
  * -----------------------------------------------------------------------------
  *
  * Usage: node scripts/phone-handoffs.browser.cjs              (every screen)
@@ -95,7 +96,7 @@ const SCREENS = [
       await docked(page, 'evidenceReview', 'sat-ops');
     } },
   { name: 'calendar', url: '/api/calendar/review', file: 'calendar/tools/review.html', view: PHONE, modules: MODULES,
-    files: { '/api/calendar/review/calendar-workspace.mjs': 'calendar/tools/calendar-workspace.mjs', '/api/calendar/review/calendar-workspace.css': 'calendar/tools/calendar-workspace.css' },
+    files: { '/api/calendar/review/calendar-workspace.mjs': 'calendar/tools/calendar-workspace.mjs', '/api/calendar/review/calendar-event-view.mjs': 'calendar/tools/calendar-event-view.mjs', '/api/calendar/review/calendar-workspace.css': 'calendar/tools/calendar-workspace.css' },
     reads: { '/api/calendar/home-summary': { metrics: [], items: [] }, '/api/calendar/meeting-briefs': { briefs: [] }, '/api/calendar/events': { events: [] },
       '/api/calendar/events/agenda': { events: [], partial: false, warnings: [], snapshot: { state: 'missing' } } },
     posts: { '/api/calendar/sync': { status: 409, body: { error: 'Connect Google in Identity with Calendar read access, then retry.' } } },

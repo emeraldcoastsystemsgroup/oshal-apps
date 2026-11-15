@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: owner-scoped session routes under /api/phone-control/sessions for preferences (pointer mode, quality, lock-on-end, active monitor), chat messages, whiteboard strokes, saved screenshots/recordings, and file transfer records.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: a capture or transfer that is not the person's own is refused with a sentence beside its code (lib/refusals.js).
  */
 
 'use strict';
@@ -16,6 +17,7 @@ try {
 } catch {
   createRouter = require('../lib/router.js').createRouter;
 }
+const { captureNotFound, transferNotFound } = require('../lib/refusals.js');
 
 function refuse(res, error) {
   if (!error.status) throw error;
@@ -111,7 +113,7 @@ function mountCapturesRoutes(router, sessionStore, db) {
   });
   router.get('/captures/:id', (req, res) => {
     const found = sessionStore.readCaptureBytes(db, req.owner, req.params.id);
-    if (!found) return res.status(404).json({ error: 'capture_not_found' });
+    if (!found) return captureNotFound(res);
     res.setHeader('Content-Type', found.capture.mime);
     res.setHeader('Content-Disposition', `attachment; filename="${found.capture.fileName}"`);
     res.setHeader('Cache-Control', 'no-store');
@@ -119,7 +121,7 @@ function mountCapturesRoutes(router, sessionStore, db) {
   });
   router.delete('/captures/:id', (req, res) => (sessionStore.deleteCapture(db, req.owner, req.params.id)
     ? res.status(204).end()
-    : res.status(404).json({ error: 'capture_not_found' })));
+    : captureNotFound(res)));
 }
 
 function mountTransfersRoutes(router, sessionStore, db) {
@@ -139,7 +141,7 @@ function mountTransfersRoutes(router, sessionStore, db) {
   });
   router.get('/transfers/:id', (req, res) => {
     const found = sessionStore.readTransferBytes(db, req.owner, req.params.id);
-    if (!found) return res.status(404).json({ error: 'transfer_not_found' });
+    if (!found) return transferNotFound(res);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${found.transfer.fileName}"`);
     res.setHeader('Cache-Control', 'no-store');
@@ -147,7 +149,7 @@ function mountTransfersRoutes(router, sessionStore, db) {
   });
   router.delete('/transfers/:id', (req, res) => (sessionStore.deleteTransfer(db, req.owner, req.params.id)
     ? res.status(204).end()
-    : res.status(404).json({ error: 'transfer_not_found' })));
+    : transferNotFound(res)));
 }
 
 function createPhoneControlSessionRoutes(ctx) {

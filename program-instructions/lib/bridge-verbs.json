@@ -9,8 +9,8 @@
     },
     {
       "sheet": "inputs/windows-bridge-facts.json",
-      "generated_at": "2026-11-13T20:00:24Z",
-      "kernel_commit": "06f12f46",
+      "generated_at": "2026-11-15T06:31:00Z",
+      "kernel_commit": "5233d37d",
       "generator": "program-instructions/inputs/windows-bridge-facts.json, written from Orbit's code and the Windows PC's proofs"
     },
     {
@@ -153,7 +153,15 @@
           "filter-range",
           "manage-sheet",
           "create-pivot-table",
-          "add-chart"
+          "add-chart",
+          "workbook-schema",
+          "manage-table",
+          "refresh-pivot",
+          "summarize-range",
+          "manage-names",
+          "data-validation",
+          "conditional-format",
+          "refresh-queries"
         ],
         "presentation (Microsoft PowerPoint)": [
           "add-slide",

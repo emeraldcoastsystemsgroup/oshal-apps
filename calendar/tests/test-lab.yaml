@@ -10,10 +10,34 @@
 # CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | own-events also expects a card named by its event, never by its place (sweep 13); the span expectation is quoted, since its unquoted colon made it a map the kernel loader refuses.
 # CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Register the design-standard layout case; Remove asks in the page now (the local-time expectation follows).
 # CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register google-events (single and repeating events written to the person's own Google Calendar through the declared egress, every refusal, the 20-weeks defect) and google-events-card (the card the kernel's own card code renders for it).
+# CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register product-name (what a person reads or hears from Calendar names the product Open Swarm, never OSHAL), and say Open Swarm in the case names and expectations that named the product.
+# CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register home-summary-live (Home and the agenda read Google Calendar live, combined with the events added in Open Swarm, under a read-only admission; the saved copy only when Google did not answer). The kernel-egress case now proves the live summary read instead of connected-not-synced, and the audience-view and design-standard cases follow the live summary.
 version: 1
 cases:
+  - id: home-summary-live
+    name: Home shows Google Calendar as it is now, with the events added in Open Swarm
+    purpose: >-
+      Drive the compiled Home summary and agenda routes over the package's real manifest egress, the stand-in kernel egress
+      and a stand-in Google Calendar API (the calendar list, other calendars, a calendar that never answers), with a pool under
+      a read-only SQL admission that refuses any write. Roger, 2026-11-15: "I put a calendar event on my Google calendar and
+      its not showing on the landing home ... i would think it would have a combination of calendars". Seam: the signed-in caller.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/home-summary-live-events.test.cjs] }
+    expected:
+      - A Google event the saved copy does not hold shows on the next read, marked Google Calendar, in one list by start with an event added in Open Swarm.
+      - A second calendar the person shows in Google Calendar is included and named; one they hide or do not show is not; at most ten calendars are read and the rest are named.
+      - A grant that may not list calendars (calendar.events alone) reads the primary calendar only and says so.
+      - Both GETs run only SELECTs pinned to the caller, attempt no write and leave the saved copy unchanged; Google is sent only GETs.
+      - "A Google that does not answer within the budget shows the saved copy with: Showing your last synced copy from <time>: Google did not answer.; no read is started after the budget."
+      - Without a connection the card says to connect Google on the Connections page and nothing says sync; an expired grant says to reconnect.
+      - The agenda lists each Google event with the calendar it is on, says nothing in its status line on a fine read, and asks Google for the window's days in the viewer's zone.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
   - id: own-events
-    name: Events the person adds in OSHAL
+    name: Events the person adds in Open Swarm
     purpose: Drive the compiled own-events and home-summary handlers over a recording pool that keeps rows per owner.
     level: unit
     runner: { kind: node-test, scope: package, files: [tests/own-events.test.cjs] }
@@ -21,11 +45,11 @@ cases:
       - "The persona names a card by the event it holds, never by where it sits or when it appeared (sweep 13)."
       - Adding needs confirm, a title and a real start; a date is all day and a timed start must carry its UTC offset.
       - Every statement is pinned to the verified caller; another person neither sees nor removes the event; a full calendar answers 409 without a write.
-      - The Home summary lists added events marked added in OSHAL with an Added in OSHAL tile, and is unchanged when there are none.
+      - The Home summary lists added events marked added in Open Swarm with an Added in Open Swarm tile, and is unchanged when there are none.
       - The manifest mounts /api/calendar/events, applies migration 003 and holds calendar-add-event and calendar-remove-event for approval.
       - A local start with the person's IANA timeZone is saved as that zone's instant and listed with its local words; an unknown zone or a start with neither is refused naming timeZone.
       - An event identical to a saved one (title, start, all-day) answers 409 and writes no second row.
-      - The add tool declares timeZone, migration 005 is declared, and the persona never asks for a UTC offset, never re-proposes an approved event and never says an OSHAL event appears in Google.
+      - The add tool declares timeZone, migration 005 is declared, and the persona never asks for a UTC offset, never re-proposes an approved event and never says an Open Swarm event appears in Google.
       - The remove tool's id is format uuid and its id field says to read calendar-my-events first and never send a title; a title answers 400 and removes nothing; the listed id removes the event; the persona reads calendar-my-events before removing, never proposes a card for a question and never guesses CST or CDT.
       - Every approval-held tool's description, which the kernel shows as the approval card's sentence, is person-facing with no tool name, id or call instruction.
       - "A span the person gave is one event with its end: the add tool's end field and the persona say so, and the route saves a local Friday-to-Sunday span with its end in the person's zone."
@@ -35,15 +59,15 @@ cases:
     limits: { timeoutMs: 20000 }
     installation: never
   - id: kernel-egress-sync
-    name: Native kernel sync through the declared egress
-    purpose: Drive the compiled sync and Home summary handlers with OSHAL_EGRESS=kernel, a recording fetch and synthetic connection metadata.
+    name: Native kernel sync and Home summary through the declared egress
+    purpose: Drive the compiled sync and Home summary handlers with OSHAL_EGRESS=kernel and a recording fetch.
     level: unit
     runner: { kind: node-test, scope: package, files: [tests/kernel-egress.test.cjs] }
     expected:
       - The sync request goes to www.googleapis.com primary events with fixed bounds and no Authorization header.
       - The stored rows carry only id, title, start, end, all-day and link; description and attendees are dropped.
       - A kernel "not connected" refusal, a 401 or a 403 answers 409 and keeps the previous snapshot.
-      - With no snapshot the Home summary says connected-not-synced, not connected or reconnect from the caller's connections.
+      - The Home summary reads the calendar list and the primary calendar live from the same host with no Authorization header, asks for no connection metadata and writes nothing; a kernel "not connected" refusal says to connect Google and a 401 to reconnect, never to sync.
       - The legacy connector broker and Calendar service are never loaded under the kernel.
     prerequisites: [runner:node-test]
     sideEffects: none
@@ -117,7 +141,8 @@ cases:
       Verify the page provides its company (Business shells) and family (Jarvis shell) audience views through the
       shared kit: kit loaded after the theme bootstrap, boot with this application's own name and exactly its
       audiences, full-page start gated on the kit's decision, head block parses and reads only this package's own
-      routes; the family view also runs over the package's real home-summary and meeting-brief handlers.
+      routes; the family view also runs over the package's real home-summary and meeting-brief handlers, the summary
+      reading the stand-in Google Calendar through the stand-in kernel egress.
     level: unit
     runner:
       kind: node-test
@@ -129,18 +154,20 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
-      - On open the company view reads only GET /home-summary and GET /meeting-briefs; it never POSTs /sync (the one write on this page, which asks Google) and never fetches connected-actions offers.
-      - The stats are the route's own saved-event tiles plus the last sync; the events table names each saved event's day and its clock time or all day from the route's detail string; the briefs list names the meeting, its time and whether it was cited, newest first as the route orders them, capped at ten.
-      - Not synced, an empty snapshot, no delivered brief, a 401, a 403, a failed summary read and a failed briefs read each read as what they are, and a failed briefs read never hides the calendar.
-      - On open the family view reads only GET /home-summary and GET /meeting-briefs, and over the real handlers those routes run only SELECTs pinned to the caller; it never POSTs /sync.
-      - The family view lists "Coming up" in plain words, an all-day start as its calendar day and a timed start as a local date, clock and relative time, says when only the next few of the saved events are shown, and names the briefs plainly, capped at five.
-      - In the family view not synced ("Nothing on the calendar yet", with the full page's own Google link in a new tab), an empty snapshot, nothing in five days, no brief, a 401, a 403, a failed summary read and a failed briefs read each read as what they are.
+      - On open the company view reads only GET /home-summary and GET /meeting-briefs; it never POSTs /sync (the one write on this page, which saves a copy of Google Calendar) and never fetches connected-actions offers.
+      - The stats are the route's own event tiles plus when Google Calendar was read (or the saved copy shown because Google did not answer); the events table names each event's day, its clock time or all day, and the calendar it is on; the briefs list names the meeting, its time and whether it was cited, newest first as the route orders them, capped at ten.
+      - Not connected (with Manage Google connection), the saved copy, an empty calendar, no delivered brief, a 401, a 403, a failed summary read and a failed briefs read each read as what they are, nothing says sync, and a failed briefs read never hides the calendar.
+      - On open the family view reads only GET /home-summary and GET /meeting-briefs, and over the real handlers those routes run only SELECTs pinned to the caller while the summary reads Google live; it never POSTs /sync.
+      - The family view lists "Coming up" in plain words with the calendar each event is on, an all-day start as its calendar day and a timed start as a local date, clock and relative time, says when only the next few events are shown, and names the briefs plainly, capped at five.
+      - In the family view not connected ("Nothing on the calendar yet", with the full page's own Google link in a new tab), Google not answering (the saved copy and when it was saved), an empty calendar, nothing in five days, no brief, a 401, a 403, a failed own-events read, a failed summary read and a failed briefs read each read as what they are.
       - Under an audience view the page's module script mounts no connected actions and reads nothing; without the audience it still runs every start step.
     prerequisites:
       - runner:node-test
+      - dependency:js-yaml
     sideEffects: none
     isolation:
-      mode: none
+      mode: disposable
+      cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored.
     limits:
       timeoutMs: 15000
     installation: never
@@ -187,7 +214,7 @@ cases:
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/local-time.test.cjs] }
     expected:
-      - The Added in OSHAL list and the Recorded work list show 'Fri, Nov 6, 2099, 6:00 PM CST', never a raw UTC instant.
+      - The Added in Open Swarm list and the Recorded work list show 'Fri, Nov 6, 2099, 6:00 PM CST', never a raw UTC instant.
       - Remove asks first, in the page; Cancel removes nothing; Remove sends DELETE and the event leaves the list and the summary.
       - Nothing is wider than the 412-pixel screen.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
@@ -237,15 +264,15 @@ cases:
     name: The design standard on the full Calendar page
     purpose: >-
       Real Chromium over the real owner-scoped PostgreSQL routes (named OIDC and session fixture seams): the declared contract,
-      one New event primary whose dialog the browser's Back closes, a save that refreshes Added in OSHAL at once, in-page asks
+      one New event primary whose dialog the browser's Back closes, a save that refreshes Added in Open Swarm at once, in-page asks
       for Remove and Sync, Sync as one item of More, and on a phone inside a frame the grid within 120px with day dots.
     level: integration
     runner: { kind: external, scope: package, files: [tests/personal-calendar-layout-browser.test.mjs] }
     expected:
       - The page declares category collection and first action tap, and the month grid is inside data-ds-work.
-      - New event opens a modal add form that Back closes; a save appears in the grid and in Added in OSHAL in the same step.
+      - New event opens a modal add form that Back closes; a save appears in the grid and in Added in Open Swarm in the same step.
       - Remove and Sync confirm in the page; Cancel changes nothing and sends no sync; no native dialog opens.
-      - Framed at 412x743 the name is not repeated, the work starts within 120px, days show dots and nothing is wider than the screen.
+      - Framed at 412x743 (Google read live through the stand-in kernel egress) the name is not repeated, the status line says nothing, the work starts within 120px, days show dots and nothing is wider than the screen.
     prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
@@ -266,7 +293,7 @@ cases:
       - Without a connection nothing reaches Google and the answer says to connect Google with event access; a read-only grant (403 insufficient scopes) and a refused credential (401) answer 409 in words and add nothing.
       - The same series approved twice is added once (Google refuses the client-chosen id); a series removed in Google is restored when asked again.
       - No caller, no confirmation, a timed start without a zone, a series without an end or with both, an unknown frequency, weekdays on a non-weekly series, a first date off its weekday (naming the first matching date) and an end before the start each answer 400 and reach nothing.
-      - "The manifest mounts /api/calendar/google-events and holds calendar-add-google-event for approval with its cardText; the OSHAL-only add refuses a repeat instead of saving one event (the 20-weeks defect), and the persona sends a series as one call whose start is its first date."
+      - "The manifest mounts /api/calendar/google-events and holds calendar-add-google-event for approval with its cardText; the add that keeps an event in Open Swarm refuses a repeat instead of saving one event (the 20-weeks defect), and the persona sends a series as one call whose start is its first date."
     prerequisites: [runner:node-test, dependency:js-yaml]
     sideEffects: none
     isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
@@ -287,4 +314,107 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: google-meetings
+    name: Finding, changing, cancelling and declining Google Calendar meetings
+    purpose: >-
+      Drive the compiled meetings routes over a stand-in for the kernel's package egress (declared host only, the headers a
+      package may set, the caller's own google-calendar credential placed by the kernel) in front of a stand-in Google
+      Calendar v3 events API on loopback that keeps single meetings and weekly series with etags, guests and organizers.
+      Seams: the signed-in caller, a recording pool, the stand-in egress and the stand-in Google. Made-up people only.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/google-meetings.test.cjs] }
+    expected:
+      - The finder lists meetings in a window by a guest's name with a revision each, and says to ask which when two match.
+      - A change sends only the named field (PATCH), keeps the meeting's length when only its start moves, and tells the guests unless the card says not (sendUpdates all or none); its undo puts the old value back.
+      - A meeting changed elsewhere after it was read, a card naming another meeting, a time in the past and a None guests choice for a meeting with guests are refused and write nothing; a second Approve does nothing twice.
+      - Cancel deletes a meeting the person organizes and tells its guests; an invited guest is refused a cancel or a move and declines instead.
+      - A repeating meeting changes or cancels this one only or the whole series, as the card says (the series moves its weekdays with it), and is refused when the card does not say.
+      - No connection, a read-only grant and a refused credential answer in words what to reconnect, and nothing is written.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: own-event-changes
+    name: Changing and removing an event added in Open Swarm
+    purpose: >-
+      Drive the compiled meetings and own-event-changes routes over a recording pool that keeps calendar_own_events rows per
+      owner and answers exactly the statements they send. Seam: the signed-in caller.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/own-event-changes.test.cjs] }
+    expected:
+      - A change replaces only the named fields, is bound to the revision the card was read with, and its undo puts it back; a new start keeps the length.
+      - A change made elsewhere meanwhile, a card naming another event, a past time, an end before the start, a series and another person's event are refused in words.
+      - A removal is held to the title and start its card shows, names the event and carries the add that puts it back.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: product-name
+    name: Calendar names the product Open Swarm
+    purpose: >-
+      Drive the compiled own-event, meetings and Home summary routes through their refusals and success lines over a
+      recording pool and the stand-in Google behind the stand-in kernel egress, and read the manifest, the persona and the
+      shipped route and screen files, for any place a person would read or hear OSHAL. Seam: the signed-in caller.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/product-name-events.test.cjs] }
+    expected:
+      - Adding, finding, changing and removing an event kept in the app, refused or done, says your Open Swarm calendar or events added in Open Swarm, never OSHAL.
+      - A decline and the refusals around it, and the Home summary's tile and mark for an added event, never name OSHAL.
+      - Every string of the manifest and the persona that the kernel hands a card or the model names Open Swarm; the persona says the source value is a label to read, never a word to say.
+      - The shipped routes and screen name Open Swarm outside their comments; only the listed identifier forms keep oshal.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: meeting-cards
+    name: Change, cancel and decline cards as the kernel renders them
+    purpose: >-
+      Render the cards the assistant proposes for meetings the finder really listed, and the line after Approve, with the
+      kernel's own card code (platform/src/api/jarvis-package-tools.js from OSHAL_KERNEL_PLATFORM), through a stand-in for
+      the kernel's route tools (schema check, rendering, single-use held proposals).
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/meeting-cards.test.cjs] }
+    expected:
+      - A card names the meeting by title, day and time, shows each changed field before and after, and says whether the guests are told; it never shows the revision or a bare reference.
+      - Nothing reaches Google before Approve; after Approve the line names the meeting as it is now; a second Approve runs nothing.
+    prerequisites: [runner:node-test, dependency:js-yaml, harness:kernel-platform-export]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: meeting-conversation
+    name: "\"Move my 3 PM with Dana to Thursday at 2\" with two that fit"
+    purpose: >-
+      A two-step conversation with the concierge in which only the model is scripted, each of its answers built from the real
+      observations of the declared tools, the cards rendered by the kernel's own card code.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/meeting-conversation.test.cjs] }
+    expected:
+      - It finds, sees two 3 PM meetings with Dana and asks which, naming each with its day and time; no card and no write.
+      - Told "the budget review", it proposes one change card naming that meeting before and after; Approve moves it, keeping its hour; a second Approve does nothing.
+    prerequisites: [runner:node-test, dependency:js-yaml, harness:kernel-platform-export]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The loopback stand-in Google closes and the global fetch and OSHAL_EGRESS are restored. }
+    limits: { timeoutMs: 20000 }
+    installation: never
+  - id: personal-calendar-meetings
+    name: Edit and Cancel meeting on the Calendar screen
+    purpose: >-
+      Real headless Chromium over the real owner-scoped PostgreSQL routes of the personal-calendar fixture, with the stand-in
+      kernel egress and Google Calendar API for the Google meeting, at desktop and phone width.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/personal-calendar-meetings-browser.test.mjs] }
+    expected:
+      - An event opens its view; Edit opens the New event form filled in and Save changes changes only what changed, with Undo.
+      - Cancel meeting asks in the page (Keep it or Cancel meeting) and offers Undo for an Open Swarm event.
+      - A Google meeting is read fresh with its guests; its change and its cancellation ask whether to tell them, and the screen follows.
+      - No native dialog, no page error, and nothing is wider than the screen at 390 or 1280 pixels.
+    prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
+    limits: { timeoutMs: 120000 }
     installation: never

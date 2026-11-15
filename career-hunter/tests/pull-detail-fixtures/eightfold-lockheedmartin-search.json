@@ -1,0 +1,67 @@
+{
+ "status": 200,
+ "error": {
+  "message": "",
+  "body": ""
+ },
+ "data": {
+  "positions": [
+   {
+    "id": 996477886618,
+    "displayJobId": "22504",
+    "name": "Systems Integration/Test Engineering Asc Mgr - L4",
+    "locations": [
+     "Littleton, CO"
+    ],
+    "standardizedLocations": [
+     "Littleton, CO, US"
+    ],
+    "postedTs": 1794668504,
+    "department": "Space",
+    "creationTs": 1793012973,
+    "workLocationOption": "onsite",
+    "locationFlexibility": "not_flexible",
+    "atsJobId": "22504",
+    "positionUrl": "/careers/job/996477886618"
+   },
+   {
+    "id": 996477000001,
+    "displayJobId": "22504",
+    "name": "Software Engineer Senior",
+    "locations": [
+     "Fort Worth, TX"
+    ],
+    "standardizedLocations": [
+     "Fort Worth, TX, US"
+    ],
+    "postedTs": 1794668504,
+    "department": "Space",
+    "creationTs": 1793012973,
+    "workLocationOption": "onsite",
+    "locationFlexibility": "not_flexible",
+    "atsJobId": "22504",
+    "positionUrl": "/careers/job/996477000001"
+   },
+   {
+    "id": 996477000002,
+    "displayJobId": "22504",
+    "name": "Cafeteria Cashier",
+    "locations": [
+     "Orlando, FL"
+    ],
+    "standardizedLocations": [
+     "Orlando, FL, US"
+    ],
+    "postedTs": 1794668504,
+    "department": "Space",
+    "creationTs": 1793012973,
+    "workLocationOption": "onsite",
+    "locationFlexibility": "not_flexible",
+    "atsJobId": "22504",
+    "positionUrl": "/careers/job/996477000002"
+   }
+  ],
+  "count": 3
+ },
+ "metadata": null
+}

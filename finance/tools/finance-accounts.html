@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Accounts, how money data gets into Finance with no bank connection. Net worth with what you have and what you owe, each account with its balance, the date it is true for and where it came from, and every statement brought in with Undo. "Bring in a statement": choose the CSV, OFX or QFX file downloaded from the bank's website (or paste the statement's text), pick the account or name a new one, and Preview shows what would be added (how many are new, how many are already in Finance, which lines could not be read) before anything is; "Add N transactions" adds them (in parts while there are more), and the same file twice adds nothing. "Add an account" types an account and its balance. Linked banks stay under More. Reads /api/finance/ledger only; nothing here moves money or links a bank.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accounts · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1>Accounts</h1><p class="fr-sub">What you have and what you owe, from your statements and the balances you type.</p></div>
+    <div class="fr-actions"><button type="button" class="fr-primary" id="frImportOpen">Bring in a statement</button><button type="button" id="frAddOpen">Add an account</button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+
+  <section class="fr-card" id="frImport" hidden aria-labelledby="frImportH">
+    <h2 id="frImportH">Bring in a statement</h2>
+    <p class="fr-sub">On your bank's website, download the account's activity as a CSV, OFX or QFX file (often under Statements or Download), then choose it here. Finance reads the file and keeps the transactions, the file's name and the last four digits of the account number; the file itself is not kept.</p>
+    <div class="fr-form">
+      <label>Statement file<input type="file" id="frFile" accept=".csv,.ofx,.qfx,.txt,text/csv,text/plain"></label>
+      <label>Which account<select id="frImportAccount"></select></label>
+      <label id="frNewNameL">New account's name<input id="frNewName" placeholder="Everyday Checking"></label>
+      <label id="frNewBankL">Bank<input id="frNewBank" placeholder="Harbor Bank"></label>
+    </div>
+    <label style="margin-top:10px">Or paste the statement's text<textarea id="frText" placeholder="Date, description, amount: one transaction a line"></textarea></label>
+    <div class="fr-actions" style="margin-top:10px"><button type="button" id="frPreview">Preview</button></div>
+    <div id="frColumns" hidden></div>
+    <div id="frPreviewBox" hidden></div>
+  </section>
+
+  <section class="fr-card" id="frAdd" hidden aria-labelledby="frAddH">
+    <h2 id="frAddH">Add an account</h2>
+    <div class="fr-form">
+      <label>Name<input id="frAccName" placeholder="Rainy-day Savings"></label>
+      <label>Bank<input id="frAccBank"></label>
+      <label>Kind<select id="frAccType"><option value="depository">Checking or savings</option><option value="credit">Credit card</option><option value="loan">Loan</option><option value="investment">Investment</option><option value="other">Other</option></select></label>
+      <label>Balance (optional)<input id="frAccBalance" inputmode="decimal" placeholder="1,250.00"></label>
+      <label>Balance on<input id="frAccDate" type="date"></label>
+      <button type="button" id="frAccSave">Save the account</button>
+    </div>
+  </section>
+
+  <section class="fr-card fr-big" aria-labelledby="frWorthH">
+    <h2 id="frWorthH">Net worth</h2>
+    <div class="fr-grid" id="frWorth"><p class="fr-empty">Reading your accounts…</p></div>
+    <p class="fr-sub" id="frWorthNote" hidden></p>
+  </section>
+  <section class="fr-card" aria-labelledby="frListH"><h2 id="frListH">Your accounts</h2><ul class="fr-list" id="frList"></ul></section>
+  <section class="fr-card" aria-labelledby="frImportsH"><h2 id="frImportsH">Statements brought in</h2><ul class="fr-list" id="frImports"></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+  var state = { accounts: [], preview: null, input: null };
+
+  function paintWorth(worth) {
+    var cells = [['What you have', worth && worth.assets], ['What you owe', worth && worth.liabilities], ['Net worth', worth && worth.net]];
+    $('frWorth').replaceChildren.apply($('frWorth'), cells.map(function (c) { return el('div', {}, [el('small', { text: c[0] }), el('div', {}, [F.figure(c[1])])]); }));
+    $('frWorthNote').textContent = worth && worth.note || ''; $('frWorthNote').hidden = !(worth && worth.note);
+  }
+
+  function updateForm(account) {
+    var amount = el('input', { inputmode: 'decimal', 'aria-label': 'New balance for ' + account.name, placeholder: 'New balance' });
+    var date = el('input', { type: 'date', 'aria-label': 'Balance date', value: F.today() });
+    var save = el('button', { type: 'button', text: 'Save balance' });
+    save.addEventListener('click', function () {
+      F.press(save, function () {
+        var cents = F.centsOf(amount.value);
+        if (cents === null) throw new Error('Type the balance as an amount, for example 1,250.00.');
+        return F.api('/ledger/accounts', { accountId: account.id, balanceCents: cents, balanceAsOf: date.value }).then(function () { F.say(account.name + ': balance saved.'); return load(); });
+      });
+    });
+    return el('div', { class: 'fr-form' }, [amount, date, save]);
+  }
+
+  function paintAccounts(list) {
+    state.accounts = list;
+    var rows = list.map(function (a) {
+      var open = el('button', { type: 'button', text: 'Update' });
+      var row = el('li', { class: 'fr-row' }, [
+        el('div', { class: 'fr-main' }, [el('strong', { text: a.name }), el('div', { class: 'fr-sub', text: [a.institution, a.last4 ? '··' + a.last4 : '', a.owed ? 'owed' : ''].filter(Boolean).join(' · ') })]),
+        a.balance ? F.figure(a.balance) : el('span', { class: 'fr-sub', text: a.balanceNote || 'Not known yet' }), open,
+      ]);
+      open.addEventListener('click', function () { if (!row.querySelector('.fr-form')) row.append(updateForm(a)); });
+      return row;
+    });
+    $('frList').replaceChildren.apply($('frList'), rows.length ? rows : [el('li', { class: 'fr-empty', text: 'No account yet. Bring in a statement, or add an account and type its balance.' })]);
+    var choose = [el('option', { value: '', text: 'A new account' })].concat(list.filter(function (a) { return a.state === 'open'; }).map(function (a) { return el('option', { value: a.id, text: a.name + (a.institution ? ' · ' + a.institution : '') }); }));
+    $('frImportAccount').replaceChildren.apply($('frImportAccount'), choose);
+    showNewFields();
+  }
+
+  function paintImports(list) {
+    var rows = list.map(function (i) {
+      var undo = i.canUndo && i.state === 'applied' ? el('button', { type: 'button', text: 'Undo' }) : null;
+      if (undo) undo.addEventListener('click', function () {
+        if (undo.dataset.ask !== '1') { undo.dataset.ask = '1'; undo.textContent = 'Take its ' + i.counts.added + ' transactions out?'; return; }
+        F.press(undo, function () { return F.api('/ledger/imports/' + encodeURIComponent(i.id) + '/undo', { confirm: true, today: F.today() }).then(function (r) { F.say('Undone: ' + r.removed + ' transactions taken out.'); return load(); }); });
+      });
+      var period = i.period ? F.dateWords(i.period.start) + ' to ' + F.dateWords(i.period.end) : '';
+      return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: i.fileName || i.kind }), el('div', { class: 'fr-sub', text: [i.account, period, i.state === 'undone' ? 'undone' : i.counts.added + ' added', i.counts.duplicate ? i.counts.duplicate + ' already in Finance' : ''].filter(Boolean).join(' · ') })]), undo]);
+    });
+    $('frImports').replaceChildren.apply($('frImports'), rows.length ? rows : [el('li', { class: 'fr-empty', text: 'No statement brought in yet.' })]);
+  }
+
+  function load() {
+    return Promise.all([F.api('/ledger/accounts'), F.api('/ledger/imports')]).then(function (both) {
+      paintWorth(both[0].netWorth); paintAccounts(both[0].accounts || []); paintImports(both[1].imports || []);
+    }).catch(function (err) { F.say(err.message, true); });
+  }
+
+  function showNewFields() { var isNew = !$('frImportAccount').value; $('frNewNameL').hidden = !isNew; $('frNewBankL').hidden = !isNew; }
+
+  function readFile() {
+    var file = $('frFile').files && $('frFile').files[0];
+    if (!file) return Promise.resolve({ text: $('frText').value, fileName: 'Pasted statement' });
+    if (/\.pdf$/i.test(file.name)) return Promise.reject(new Error('Finance reads CSV, OFX and QFX files. On your bank\'s website choose to download the activity as CSV, OFX or QFX (sometimes called Quicken or Money).'));
+    if (file.size > 2 * 1024 * 1024) return Promise.reject(new Error('This file is larger than 2 MB. Download a shorter date range and bring in each part.'));
+    return file.text().then(function (text) { return { text: text, fileName: file.name }; });
+  }
+
+  function previewInput(read) {
+    var input = { text: read.text, fileName: read.fileName, today: F.today() };
+    if ($('frImportAccount').value) input.accountId = $('frImportAccount').value;
+    else if ($('frNewName').value.trim()) input.newAccount = { name: $('frNewName').value.trim(), institution: $('frNewBank').value.trim() };
+    return input;
+  }
+
+  function askColumns(answer) {
+    var keys = [['date', 'Date'], ['description', 'Description'], ['amount', 'Amount']];
+    var selects = keys.map(function (k) { return el('label', {}, [k[1] + ' column', el('select', { 'data-key': k[0] }, (answer.header || []).map(function (h, i) { return el('option', { value: String(i), text: h || ('Column ' + (i + 1)) }); }))]); });
+    var again = el('button', { type: 'button', text: 'Preview with these columns' });
+    again.addEventListener('click', function () {
+      var map = {}; Array.prototype.forEach.call($('frColumns').querySelectorAll('select'), function (s) { map[s.dataset.key] = Number(s.value); });
+      state.input.columnMap = map; runPreview(again, state.input);
+    });
+    $('frColumns').replaceChildren(el('p', { text: 'Finance could not tell which column holds what. Choose them once; Finance remembers them for this account.' }), el('div', { class: 'fr-form' }, selects.concat([again])));
+    $('frColumns').hidden = false;
+  }
+
+  function paintBill(answer) {
+    var b = answer.bill, add = el('button', { type: 'button', class: 'fr-primary', text: 'Add to Bills' });
+    add.addEventListener('click', function () {
+      F.press(add, function () { return F.api('/bills', { payee: b.payee, amountCents: b.amountDue ? b.amountDue.cents : null, nextDue: b.dueDate, cadence: 'monthly', today: F.today() }).then(function () { F.say(b.payee + ' is in your Bills.'); }); });
+    });
+    $('frPreviewBox').replaceChildren(el('p', { text: 'This reads as a bill, not a statement: ' + b.payee + ', due ' + F.dateWords(b.dueDate) + '.' }), F.figure(b.amountDue), el('div', { class: 'fr-actions' }, [add]));
+    $('frPreviewBox').hidden = false;
+  }
+
+  function paintPreview(p) {
+    state.preview = p;
+    var c = p.counts, add = el('button', { type: 'button', class: 'fr-primary', text: p.button });
+    add.disabled = p.needsAccount || !c.toAdd;
+    add.addEventListener('click', function () { apply(add, p); });
+    var lines = (p.rows || []).map(function (r) { return el('tr', {}, [el('td', { text: F.dateWords(r.date) }), el('td', { text: r.description }), el('td', { text: (r.direction === 'in' ? '+' : '−') + F.money(r.amount) }), el('td', { text: r.status === 'new' ? 'New' : r.status === 'duplicate' ? 'Already in Finance' : r.status === 'closed' ? 'In a closed month' : r.status })]); });
+    $('frPreviewBox').replaceChildren(
+      el('h2', { text: 'Preview: nothing is added yet' }),
+      el('p', { text: [p.account ? p.account.name + (p.account.isNew ? ' (a new account)' : '') : 'Choose the account above', p.period ? F.dateWords(p.period.start) + ' to ' + F.dateWords(p.period.end) : ''].filter(Boolean).join(' · ') }),
+      el('p', { text: c.toAdd + ' new · ' + c.duplicate + ' already in Finance' + (c.closedMonth ? ' · ' + c.closedMonth + ' in a closed month' : '') + (c.unreadable ? ' · ' + c.unreadable + ' lines could not be read' : '') }),
+      p.closingBalance ? el('p', {}, ['Closing balance: ', F.figure(p.closingBalance, 'fr-left')]) : null,
+      (p.unreadable || []).length ? el('p', { class: 'fr-sub', text: 'Not read: ' + p.unreadable.slice(0, 5).map(function (u) { return 'line ' + u.line + ' (' + u.reason + ')'; }).join('; ') }) : null,
+      el('table', {}, [el('tbody', {}, lines)]),
+      el('div', { class: 'fr-actions', style: 'margin-top:10px' }, [add]));
+    $('frPreviewBox').hidden = false;
+  }
+
+  function runPreview(button, input) {
+    state.input = input;
+    return F.press(button, function () {
+      return F.api('/ledger/imports/preview', input).then(function (answer) {
+        $('frColumns').hidden = true;
+        if (answer.needsColumns) return askColumns(answer);
+        if (answer.kind === 'bill') return paintBill(answer);
+        paintPreview(answer);
+      });
+    });
+  }
+
+  function apply(button, p) {
+    var added = 0, body = { confirm: true, today: F.today() };
+    if (!p.account && state.input.newAccount) body.newAccount = state.input.newAccount;
+    function step() {
+      return F.api('/ledger/imports/' + encodeURIComponent(p.importId) + '/apply', body).then(function (r) {
+        added += r.added || 0;
+        if (r.remaining > 0) { F.say('Added ' + added + ' so far…'); return step(); }
+        var found = r.bills && r.bills.proposed ? ' Finance found ' + r.bills.proposed + ' repeating charge' + (r.bills.proposed === 1 ? '' : 's') + ' that may be a bill: see Bills.' : '';
+        F.say('Added ' + added + ' transaction' + (added === 1 ? '' : 's') + '. ' + (r.duplicate ? r.duplicate + ' were already in Finance.' : '') + found);
+        $('frPreviewBox').hidden = true; $('frFile').value = ''; $('frText').value = '';
+        return load();
+      });
+    }
+    return F.press(button, step);
+  }
+
+  $('frImportOpen').addEventListener('click', function () { $('frImport').hidden = !$('frImport').hidden; });
+  $('frAddOpen').addEventListener('click', function () { $('frAdd').hidden = !$('frAdd').hidden; });
+  $('frImportAccount').addEventListener('change', showNewFields);
+  $('frPreview').addEventListener('click', function () {
+    var button = $('frPreview');
+    F.press(button, function () { return readFile().then(function (read) { if (!read.text.trim()) throw new Error('Choose a statement file, or paste the statement\'s text.'); return runPreview(button, previewInput(read)); }); });
+  });
+  $('frAccDate').value = F.today();
+  $('frAccSave').addEventListener('click', function () {
+    var button = $('frAccSave');
+    F.press(button, function () {
+      var name = $('frAccName').value.trim(); if (!name) throw new Error('Give the account a name.');
+      var body = { name: name, institution: $('frAccBank').value.trim(), type: $('frAccType').value };
+      if ($('frAccBalance').value.trim()) { body.balanceCents = F.centsOf($('frAccBalance').value); if (body.balanceCents === null) throw new Error('Type the balance as an amount, for example 1,250.00.'); body.balanceAsOf = $('frAccDate').value; }
+      return F.api('/ledger/accounts', body).then(function () { F.say(name + ' is added.'); $('frAdd').hidden = true; $('frAccName').value = ''; $('frAccBalance').value = ''; return load(); });
+    });
+  });
+  if (/[?&]import=1/.test(location.search)) $('frImport').hidden = false;
+  load();
+})();
+</script>
+</body>
+</html>

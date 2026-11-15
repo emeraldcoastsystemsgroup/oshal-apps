@@ -25,6 +25,8 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: the refrigerator lists nothing until its inside has really been read. Every person was shown one fixed set of shelf items, changes since "last week", orders, a grocery list and five meals as their own refrigerator, and the assistant read them out. They are gone from the source; the page and the three tools say that nothing has been read yet; a person's own list, logged orders and meals are kept, also from a state saved before; the description and the tools say what they do. No route or permission change.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.7.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): on an Android or Fire TV, home-lan-control also plans now_playing (what is playing and in which app) and play, pause, next, previous and stop, which reach the app playing even behind another app (Phone & Device Control's bridge 1.8.0, which Smart Home installs on the computer when it is older); home-lan-record's answer says what is playing after the press, and the TV's card shows a media row and a Now playing line. A Roku or Samsung TV refuses them in words. No route, permission or egress changed.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.0 (Roger, 2026-11-14, asked for one grocery list that "order the groceries" is made from): Smart Home keeps no grocery list. It kept one of its own beside Shopping's and could not order from it; on the test installation "add eggs, bread and bananas to my grocery list" was written here while Shopping's list stayed empty, and "order the groceries" then started this list and logged the three items as ordered, which nothing had been. The description no longer says it keeps a grocery list and says the list is Shopping's (Jarvis picks an application from its description). home-fridge-meal-cart takes no grocery action (meals, items the person says they bought, the weekly check's time); an older caller's grocery action answers 409 kept_by_shopping. The refrigerator page shows Shopping's list in place of its own and adds to it through Shopping's routes; items a person had on the refrigerator's own list are moved to Shopping when the page opens. The four grocery routing words are withdrawn.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.1 (Lane TV1; Roger, 2026-11-13, asked that Jarvis open an application such as Netflix on his Roku and Samsung TVs and know where it is; neither TV can run the Android app): on a Roku or a Samsung TV, home-lan-control also plans launch_app (open one application by its id, or by its name once the TV's applications were read; on a Roku a title too, by the application's own content id and media type, never a web address), list_apps (the TV's applications with their ids, which the TV's record then keeps and home-lan-devices shows) and active_app (a Roku names the application in front, a screensaver over it and its player's state; a Samsung TV says whether the one application named is running and in front). They run through the same closed lan-control verb on the person's own computer (Phone & Device Control's bridge 1.20.0), so no computerPlan, route, permission or egress changed. The recorded answer says only what the TV reported in front after the press. The description, the tool and the persona say what each kind of TV can do: a Roku and a Samsung TV are buttons only, with no screenshot and no on-screen text, and an Android or Fire TV that runs Orbit shows its screen through the person's computer tools, not through Smart Home. A title on a Samsung TV is refused in words (see BACKLOG); an Android or Fire TV refuses the three in words. No routing word was added. Guards: tests/home-lan-direct.test.cjs, tests/home-lan-devices.test.cjs.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.2: person-facing and model-facing product references name Open Swarm; technical identifiers and component names (oshal TV app, oshal Node) remain unchanged. Guard: tests/product-name.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -79,8 +81,12 @@ description: >-
   (weather.gov): today, tonight and the coming days. It finds the TVs and
   streaming sticks on your home network through your own computer (Samsung,
   Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off,
-  volume, mute, arrows, OK, Home, Back, and opening oshal on the TV.
-version: 1.9.0
+  volume, mute, arrows, OK, Home, Back, and opening Open Swarm on the TV. On a Roku or
+  a Samsung TV it also opens an application, lists the applications and says
+  which one is in front (on a Roku a title too, by the application's own id for
+  it). It cannot see a Roku's or a Samsung TV's screen: no screenshot and no
+  on-screen text.
+version: 1.9.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -218,7 +224,7 @@ bots:
       - volume up
       - volume down
       - mute the tv
-      - open oshal on
+      - open open swarm on
       - lock
       - door
 
@@ -434,7 +440,7 @@ tools:
     displayName: TVs and Streaming Sticks
     type: api
     category: smart-home
-    description: The TVs and streaming sticks saved in Smart Home - name, kind (Samsung, Roku, Android TV, Google Cast), address, room, the person's computer that found them, power when that computer last read it, and the last answer from that computer. Read-only.
+    description: The TVs and streaming sticks saved in Smart Home - name, kind (Samsung, Roku, Android TV, Google Cast), address, room, the person's computer that found them, power when that computer last read it, the last answer from that computer and, for a Roku or a Samsung TV, the applications it listed and what it last reported in front. Read-only.
     executor: { executorType: api, apiEndpoint: "GET /api/home/lan/devices" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -476,10 +482,17 @@ tools:
     category: smart-home
     description: >-
       Press one button on one saved TV or streaming stick - wake, turn off, volume up or down, mute, the arrows, OK,
-      Home, Back, play or pause, open oshal on the TV, open the oshal TV app (Android), or pair (Samsung) - with the
+      Home, Back, play or pause, open Open Swarm on the TV, open the oshal TV app (Android), or pair (Samsung) - with the
       person's own computer. On an Android or Fire TV it also reads what is playing and in which app (now_playing), and
       sends play, pause, next, previous or stop to the app playing even when another app is in front; the recorded
-      answer says what is playing after the press. Its answer is a plan: nothing has happened on the TV when it answers. When
+      answer says what is playing after the press. On a Roku or a Samsung TV it also opens one application directly
+      (launch_app, with app as the application's id or its name once list_apps has read them; on a Roku also a title,
+      by contentId and mediaType), lists the TV's applications with their ids (list_apps) and says what is in front
+      (active_app: a Roku names the application in front and its player's state; a Samsung TV says whether the one
+      application named is running and in front). A Roku and a Samsung TV are buttons only: nothing reads their
+      screen, so there is no screenshot and no on-screen text of them, and where a press landed is known only as far
+      as active_app shows. An Android or Fire TV that runs Orbit shows its screen through the person's computer
+      tools, not through Smart Home. Its answer is a plan: nothing has happened on the TV when it answers. When
       computer.run_plan is offered to you, the press runs at once on the person's own computer: pass the planId from
       this tool's answer to computer.run_plan, then record the computer's answer with home-lan-record (op control, the
       device id and action the plan returned, and the one JSON line the computer printed as reply) and say what
@@ -493,8 +506,11 @@ tools:
       type: object
       properties:
         device: { type: string, minLength: 1, maxLength: 120, description: "The TV as home-lan-devices names it: its id, its name or part of it (\"the Samsung\", \"guest room Roku\")." }
-        action: { type: string, enum: [wake, off, volume_up, volume_down, mute, up, down, left, right, select, home, back, play_pause, launch_url, open_app, pair, now_playing, play, pause, next, previous, stop] }
+        action: { type: string, enum: [wake, off, volume_up, volume_down, mute, up, down, left, right, select, home, back, play_pause, launch_url, open_app, pair, now_playing, play, pause, next, previous, stop, launch_app, list_apps, active_app] }
         url: { type: string, maxLength: 256, description: "For launch_url only: the https page to open; leave out to open this installation." }
+        app: { type: string, maxLength: 120, description: "For launch_app, and for active_app on a Samsung TV: the application's id (a Roku id is digits; a Samsung id is digits or a dotted name), or its name once list_apps has read that TV's applications." }
+        contentId: { type: string, maxLength: 255, description: "For launch_app on a Roku only: the application's own id for one title (letters, digits and . _ ~ : -), never a web address and never made up. Leave it out to open the application itself." }
+        mediaType: { type: string, enum: [movie, episode, season, series, shortFormVideo, tvSpecial, livefeed, sportsevent], description: "With contentId: the kind of title." }
       required: [device, action]
     usageInstructions: >-
       This only plans the press: say it is planned, never that it happened, until home-lan-record answers. When
@@ -502,13 +518,17 @@ tools:
       home-lan-record with {"op": "control", "device": "<the returned device id>", "action": "<the action>", "reply":
       "<the one JSON line the computer printed>"} and say what home-lan-record answers. A Samsung TV may answer "Press
       Allow on the TV, then Retry": tell the person exactly that. Without computer.run_plan or a planId, say the press
-      is planned and that the TV's card under TVs and streaming sticks on the Smart Home screen presses it.
+      is planned and that the TV's card under TVs and streaming sticks on the Smart Home screen presses it. To open an
+      application on a Roku or a Samsung TV: when home-lan-devices shows no applications for that TV, plan and record
+      list_apps first, then launch_app with app. After launch_app or active_app say only what home-lan-record
+      answers: which application the TV reported in front. Never say what a Roku's or a Samsung TV's screen shows,
+      and never offer a screenshot of one.
     tags: [home, tv, route-backed]
   - name: home-lan-record
     displayName: Record What the Computer Answered
     type: api
     category: smart-home
-    description: Record the answer the person's computer printed for a planned TV scan or button press, so Smart Home saves the TVs found and each press's result. A TV's on or off state changes only when that answer says the press worked.
+    description: Record the answer the person's computer printed for a planned TV scan or button press, so Smart Home saves the TVs found, each press's result, the applications a Roku or a Samsung TV listed and what it reported in front. A TV's on or off state changes only when that answer says the press worked.
     executor: { executorType: api, apiEndpoint: "POST /api/home/lan/record" }
     defaultAuthMode: auto
     requiresApproval: false

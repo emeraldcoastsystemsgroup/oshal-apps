@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (J-4 / Defect 7): Add schema-bounded storage-upload-file operation (POST /api/storage/files/upload, held for approval) backed by kernel storage.save so files and device captures can be uploaded to a person's connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local storage with an optional provider/folder override and exact destination reporting. Guarded by storage/tests/notes.test.cjs.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: an upload to a provider the person has not connected answers 409 naming the provider ("Dropbox is not connected. Connect it under Connections, then upload again."); it answered 503 "Try again".
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo; it answered 503 "Try again".
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: person-facing copy in the manifest, persona, routes and surfaces names the product Open Swarm while keeping technical oshal-local identifiers. Guarded by storage/tests/product-name.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — storage (Storage hub: targets + assistant)
@@ -43,11 +44,11 @@ rating:
       degrade: disable
 displayName: Storage
 description: >-
-  Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
-  OSHAL-local), upload files to your connected cloud storage (Dropbox, Google Drive,
-  OneDrive, GitHub, or OSHAL-local), and browse your files. Generators (e.g. Presentations)
+  Your storage hub: choose where Open Swarm saves generated code vs files (GitHub / Dropbox /
+  Open Swarm local), upload files to your connected cloud storage (Dropbox, Google Drive,
+  OneDrive, GitHub, or Open Swarm local), and browse your files. Generators (e.g. Presentations)
   save to the target you set here.
-version: 1.4.2
+version: 1.4.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -130,10 +131,10 @@ tools:
     usageInstructions: Call with {} before describing where anything saves. "connected" lists the usable storage connections; an empty list means none is connected.
     tags: [storage, route-backed]
   - name: storage-local-files
-    displayName: OSHAL-local Files
+    displayName: Open Swarm Local Files
     type: api
     category: storage
-    description: The files saved in the person's OSHAL-local store.
+    description: The files saved in the person's Open Swarm local store.
     executor: { executorType: api, apiEndpoint: "GET /api/storage/local/list" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -175,10 +176,10 @@ tools:
     tags: [storage, route-backed]
   - name: storage-save-note
     displayName: Save Note
-    cardText: Saves this note as a file in your OSHAL storage.
+    cardText: Saves this note as a file in your Open Swarm storage.
     type: api
     category: storage
-    description: Save a text note as a .txt or .md file in the person's OSHAL-local store, where Storage lists it. Held for the person's approval.
+    description: Save a text note as a .txt or .md file in the person's Open Swarm local store, where Storage lists it. Held for the person's approval.
     executor: { executorType: api, apiEndpoint: "POST /api/storage/local/save" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -196,7 +197,7 @@ tools:
     displayName: Read Note
     type: api
     category: storage
-    description: Read a saved .txt or .md note from the person's OSHAL-local store as text.
+    description: Read a saved .txt or .md note from the person's Open Swarm local store as text.
     executor: { executorType: api, apiEndpoint: "GET /api/storage/local/read?name={input.name}" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -209,10 +210,10 @@ tools:
     tags: [storage, route-backed]
   - name: storage-delete-note
     displayName: Remove Note
-    cardText: Deletes this note from your OSHAL storage.
+    cardText: Deletes this note from your Open Swarm storage.
     type: api
     category: storage
-    description: Remove a saved .txt or .md note from the person's OSHAL-local store. Held for the person's approval.
+    description: Remove a saved .txt or .md note from the person's Open Swarm local store. Held for the person's approval.
     executor: { executorType: api, apiEndpoint: "DELETE /api/storage/local/note?name={input.name}" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -225,10 +226,10 @@ tools:
     tags: [storage, route-backed]
   - name: storage-upload-file
     displayName: Upload File to Storage
-    cardText: Uploads this file to your OSHAL storage or connected cloud drive.
+    cardText: Uploads this file to your Open Swarm storage or connected cloud drive.
     type: api
     category: storage
-    description: Upload a text or base64-encoded file to the person's configured FILES target or a specified connected provider (Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local) and folder. Held for the person's approval.
+    description: Upload a text or base64-encoded file to the person's configured FILES target or a specified connected provider (Dropbox, Google Drive, OneDrive, GitHub, or Open Swarm local) and folder. Held for the person's approval.
     executor: { executorType: api, apiEndpoint: "POST /api/storage/files/upload" }
     defaultAuthMode: auto
     requiresApproval: true
@@ -246,7 +247,7 @@ tools:
       required: [name, confirm]
     usageInstructions: >-
       Send {"name", "contentBase64" (or "text"), "confirm": true} and optional {"provider", "folder"} when the person
-      asks to upload a file to Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local. Report the exact provider and
+      asks to upload a file to Dropbox, Google Drive, OneDrive, GitHub, or Open Swarm local. Report the exact provider and
       location returned by the route only after it answers ok.
     tags: [storage, upload, route-backed]
 
@@ -330,7 +331,7 @@ artifacts:
     - label: GitHub
       types: ["*/*"]
       list: /api/storage/sources/github
-    - label: OSHAL-local files
+    - label: Open Swarm local files
       types: ["*/*"]
       list: /api/storage/sources/local
 

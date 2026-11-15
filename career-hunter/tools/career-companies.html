@@ -14,6 +14,7 @@
   7 | maintainer@emeraldcoastsystemsgroup.com | Source maintenance in the Source health view, above the nightly review. "Needs you" lists each source Career could not connect, with what was tried, and Archive (the existing Remove) or Keep trying; a press is saved for the next nightly pull and the line says so. "For a developer" lists each open repair brief with Copy brief and Download. "New sources found" lists the employers connected to a job site last night and the suggestions, which take the existing Accept. Employer and board text is escaped. Guard: tests/browser/career-source-maintenance-page-proof.mjs.
   9 | maintainer@emeraldcoastsystemsgroup.com | Answer the same original-owner native decision ticket through explicit human confirmation and show queued/applied outcomes only after authoritative reconciliation.
   8 | maintainer@emeraldcoastsystemsgroup.com | "Suggested, not connected" lists every open suggestion the engine keeps, with the date it was found, in place of last night's only: a suggestion left the page after one night while the runbook does not return to an employer for weeks. A search that was stopped says it did not finish, and the count of employers reads right for one.
+  11 | maintainer@emeraldcoastsystemsgroup.com | A description setting sent through Resolve (setting:descriptions=off, ...) says what the pull did with it: saved, with its name and value, or not a setting the pull knows.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="companies-admin">
@@ -290,6 +291,8 @@ function changeText(change) {
     case 'duplicate': return d.board
       ? (adding ? 'Added, but ' + d.owner + ' already uses ' + d.board + ', so it reads nothing yet.' : 'Not applied: ' + d.owner + ' already uses ' + d.board + '.')
       : 'Not added: ' + d.owner + ' is already listed.';
+    case 'setting_saved': return 'Description setting saved: ' + d.setting + ' = ' + d.value + '. The pull follows it from now on.';
+    case 'bad_setting': return 'Not applied: that is not a description setting the pull knows.';
     case 'unknown_company': return 'Not applied: that company is no longer listed.';
     case 'bad_target': return adding ? 'Not added: the name or the link could not be used.' : 'Not applied: that is not a job board link.';
     case 'unsafe': return 'Not applied: that link leads to a private address.';

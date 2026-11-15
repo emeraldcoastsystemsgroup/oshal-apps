@@ -1,3 +1,4 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 401 refusal expectation names Open Swarm. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the card opens from its Connections & access row, and the app row's one refresh reloads it (no Refresh my computers). */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Your computers on the Connections page (kernel ADR-206) in a real browser against a fixture kernel: each of the person's computers shows with whether Jarvis can use it, only a usable one offers Work on it, which goes to the kernel's own page for that computer in the top window; a refusal clears the rows and says the way back; nothing but /api/computers is asked for the card. */
 'use strict';
@@ -58,7 +59,7 @@ test('a refusal clears the rows and names the way back',async()=>{
  const f=await fixture();try{
   f.deny(401);
   await f.page.getByRole('button',{name:'Refresh records',exact:true}).click();
-  await f.page.getByText('Sign in through OSHAL to continue',{exact:false}).waitFor();
+  await f.page.getByText('Sign in through Open Swarm to continue',{exact:false}).waitFor();
   assert.equal(await f.page.locator('#computers-list tr').count(),0,'nothing of the earlier read stays on screen');
   f.deny(403);
   await f.page.getByRole('button',{name:'Refresh records',exact:true}).click();

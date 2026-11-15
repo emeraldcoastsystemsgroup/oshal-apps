@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Storage Assistant — oshal</title>
+<title>Storage Assistant — Open Swarm</title>
 <!-- CHANGE LOG
      1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (storage--storage-assistant MERGE): starter prompts
        are <button> controls, one greeting replaces the triple prompt repetition, subtitle links directly to /api/files and
-       Storage Settings, and user bubble + Send button use solid --ds-accent with --ds-on-accent ink (Graphite-safe). -->
+       Storage Settings, and user bubble + Send button use solid --ds-accent with --ds-on-accent ink (Graphite-safe).
+     2 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.3: name the product Open Swarm in the page title and audience-view copy. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colours at all. -->
@@ -27,7 +28,7 @@
   var A = window.AppView; if (!A) return;
   var SHOWN = 12;
   // Display names for the providers the routes answer with; anything else (Automatic, Unavailable) is shown as sent.
-  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'oshal local' };
+  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'Open Swarm local' };
   // The stores this package lists as optional connectors, keyed as oshal_connections names them (Google Drive connects as google).
   var STORES = [{ conn: 'github', provider: 'github' }, { conn: 'dropbox', provider: 'dropbox' }, { conn: 'google', provider: 'google-drive' }];
   function call(path) {
@@ -76,9 +77,9 @@
   function filesSection(local) {
     var files = local.ok ? (local.body.files || []).slice() : [];
     files.sort(function (a, b) { return String(a.name).toLowerCase() < String(b.name).toLowerCase() ? -1 : 1; });
-    return { kind: 'table', id: 'local-files', title: 'oshal local store', columns: ['File', { label: 'Size', align: 'right' }],
-      note: 'Files at the top of your oshal local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
-      empty: local.ok ? 'No files in the oshal local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
+    return { kind: 'table', id: 'local-files', title: 'Open Swarm local store', columns: ['File', { label: 'Size', align: 'right' }],
+      note: 'Files at the top of your Open Swarm local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
+      empty: local.ok ? 'No files in the Open Swarm local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
       rows: files.slice(0, SHOWN).map(function (f) { return [String(f.name || ''), { text: size(f.size) }]; }) };
   }
   // A partial summary means its one source failed, so whether anything is saved is unknown: never say "no target saved" then.
@@ -106,7 +107,7 @@
           targetStat('code', 'Code target', code, s.code, prefs), targetStat('files', 'Files target', files, s.files, prefs),
           { id: 'connected', label: 'Connected stores', value: connected ? connected.length : 'Unavailable', tone: !connected || !connected.length ? 'warn' : null,
             hint: !connected ? 'Could not be read (HTTP ' + prefs.status + ')' : connected.length ? connected.map(function (c) { return storeName(STORES.filter(function (x) { return x.conn === c; })[0].provider); }).join(', ') : 'Connect GitHub, Dropbox or Google Drive in Identity' },
-          { id: 'local', label: 'Files in oshal local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
+          { id: 'local', label: 'Files in Open Swarm local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
         ],
         sections: [filesSection(local), storesSection(prefs, code, files)]
       };

@@ -406,11 +406,11 @@ A release that needs no re-approval keeps the schedule running.
 Open Swarm hand-off.
 
 - **Let another swarm send you work.** Issue a peer token for it, with its name and an expiry,
-  and give it the token at once; it is not shown again. Its people save it as their OSHAL peer
+  and give it the token at once; it is not shown again. Its people save it as their Open Swarm peer
   connection. Revoke the token to stop deliveries.
 - **Send a response plan.** Your administrator selects the peer installation's HTTPS origin for
-  the OSHAL peer installation service. Save the token that installation gave you as your own
-  OSHAL peer connection. Then choose the plan, your peer connection and what the other swarm
+  the Open Swarm peer installation service. Save the token that installation gave you as your own
+  Open Swarm peer connection. Then choose the plan, your peer connection and what the other swarm
   should look at, and Send to peer swarm. The reply is the peer's receipt; nothing runs there
   until its people decide.
 - **Received work.** It appears under Received from other swarms. Inspect shows it as data.

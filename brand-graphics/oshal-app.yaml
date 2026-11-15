@@ -28,6 +28,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the Saved pane is 180px beside an open concierge and under 1100px, narrower than "Refresh evidence" at 15px, so a page button now ends in an ellipsis instead of running past the pane (found on the trial at 1440x900 with the concierge open: the button ran over the pane's edge). The browser case at 1080x800 guards it.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (open-work audit 2026-11-10, RP-BRG-01..07): the seven greyed "Not available yet" controls work. Templates opens six prefilled briefs with storyboards as a new editable source. Brand kit writes the person's Create brand kit into the brief the render reads (create becomes an optional dependency; without Create the control is not shown). Comment keeps threads with replies and Resolve inside the owner-scoped source revisions (new typed operations, no new table, route or permission). Download links a finished build's file from Vids (home-summary now carries each build's job id and status). Resize keeps 16:9 here and hands 9:16 or 1:1 to Video Studio. Schedule or post hands the brief to Switchboard Compose (new offer prepare-post), which posts now or on its calendar after a confirmation. A scene's Edit on canvas opens it on AI Office's canvas. authorization.yaml is unchanged.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Release 1.4.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: what a person reads or hears in Brand Graphics names the product Open Swarm and retires the Oh-shal pronunciation rule; technical identifiers keep their forms.
 name: brand-graphics
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -42,7 +43,7 @@ rating:
       degrade: disable
 displayName: Brand Graphics
 description: "Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing."
-version: 1.4.1
+version: 1.4.2
 authorization:
   version: 1
   catalog: authorization.yaml
@@ -223,12 +224,12 @@ tools:
     usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
     routingTags: [creative, editing, storyboard, source]
   - name: brand_graphic
-    displayName: Make an OSHAL brand graphic
+    displayName: Make an Open Swarm brand graphic
     type: cli
     category: media
     description: >-
-      Create an on-brand OSHAL motion graphic / intro clip from a short brief
-      (e.g. "intro for daily trade recap"). Produces the validated electric-"oshal"
+      Create an on-brand Open Swarm motion graphic / intro clip from a short brief
+      (e.g. "intro for daily trade recap"). Produces the validated electric brand
       look in Google Vids — graphic, optional Tyra voiceover, optional serious
       evening-news music — and returns the project URL. Runs on the remote Vids
       worker machine's signed-in Chrome.
@@ -243,7 +244,7 @@ tools:
       properties:
         brief: { type: string, description: "Short brief, e.g. 'intro for daily trade recap'" }
         subject: { type: string, description: "What the graphic is for (flavors the mood; defaults to the brief)" }
-        voiceover: { type: string, description: "Spoken line; if set, the Tyra voiceover is added ('oshal' is spoken 'Oh-shal')" }
+        voiceover: { type: string, description: "Spoken line; if set, the Tyra voiceover is added" }
         music: { type: boolean, description: "Add the serious evening-news music bed (default true for an intro)" }
       required: [brief]
     usageInstructions: >-

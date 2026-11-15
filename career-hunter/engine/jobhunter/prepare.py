@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): a preparation may carry the description the person pasted from the posting. It is kept as their own copy of this listing before scoring (job_context.remember_pasted), the nightly "details needed" mark is cleared, and scoring and generation read it like an employer's text. Text outside 200 to 20,000 characters is refused as pasted_details_invalid before any model call.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve explicit additional experience revisions before scoring or generation and retain per-job selection receipts.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Explain unavailable or changed scoring configuration through bounded terminal receipts without replacing existing fits.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact employer-detail size, verification and storage refusals in preparation receipts for actionable user feedback.
@@ -45,7 +46,7 @@ def _receipt(posting_id, **patch):
     return state['jobs'][key]
 
 
-def prepare_job(posting_id: int, documents=True, include_oshal=False, request_id='', guidance='', experience_ids=None, experience_revision=''):
+def prepare_job(posting_id: int, documents=True, include_oshal=False, request_id='', guidance='', experience_ids=None, experience_revision='', pasted_description=''):
     if isinstance(posting_id, bool) or not isinstance(posting_id, int) or posting_id <= 0:
         raise ValueError('invalid posting')
     _, previous = _state()
@@ -73,6 +74,10 @@ def prepare_job(posting_id: int, documents=True, include_oshal=False, request_id
         selection_patch={'experienceIds':experience_ids or [],'experienceRevision':experience_revision} if documents else {}
         _receipt(posting_id, favorite=True, savedAt=prior.get('savedAt') or now(), requestId=request_id,
                  phase='scoring', requestedAt=now(), completedAt=None, error=None, **selection_patch)
+        if pasted_description:
+            job_context.remember_pasted(row, pasted_description)
+            with db.connect() as conn:
+                score.clear_needs_details(conn, row)
         row = job_context.ensure(row)
         scored = score._score_one(row, profile.scoring_context(include_oshal=True))
         fit = (scored.get('data') or {}).get('fit_score')
@@ -89,6 +94,6 @@ def prepare_job(posting_id: int, documents=True, include_oshal=False, request_id
     except Exception as error:
         failure = (error.reason.replace('-', '_') if isinstance(error, enrich.CareerWorkerUnavailable)
                    and error.reason in ('model-identity-unavailable', 'model-identity-mismatch') else str(error))
-        reason = failure if failure in ('resume_required','posting_not_found','score_unavailable','already_submitted','renderer_unavailable','job_details_unavailable','profile_too_large_for_scoring','job_context_too_large','job_context_unavailable','job_context_limit_reached','model_identity_unavailable','model_identity_mismatch','experience_selection_invalid','experience_selection_changed','experience_unavailable') else 'preparation_failed'
+        reason = failure if failure in ('resume_required','posting_not_found','score_unavailable','already_submitted','renderer_unavailable','job_details_unavailable','profile_too_large_for_scoring','job_context_too_large','job_context_unavailable','job_context_limit_reached','model_identity_unavailable','model_identity_mismatch','experience_selection_invalid','experience_selection_changed','experience_unavailable','pasted_details_invalid') else 'preparation_failed'
         _receipt(posting_id, requestId=request_id, phase='failed', completedAt=now(), error=reason)
         return {'ok':False,'postingId':posting_id,'phase':'failed','error':reason}

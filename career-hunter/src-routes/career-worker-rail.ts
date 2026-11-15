@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | A completion the kernel refuses because the model's answer had no text answers the same 503 career-worker-unavailable as before, with `detail: "empty-answer"`, so a settled nightly pass can count that one run as unanswered and go on; every other caller reads it as before.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Read fixed original-owner native scoring identity without inference and forward guarded turns with validated per-completion routing attribution.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Let the same signed original-owner run read anonymous structured employer details through declared kernel egress; keep model accounting and external networking separate.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve the engine output budget through native completions with a validated 8192-token ceiling.
@@ -273,6 +274,12 @@ function failureOf(err: unknown): RailOutcome {
   }
   if (e?.code === 'NO_HOSTED_BRAIN') return { status: 424, body: { ok: false, error: 'no-configured-brain' } };
   if (e?.statusCode === 403) return { status: 403, body: { ok: false, error: 'not-entitled' } };
+  // The kernel refuses a model answer with no text ("returned an empty completion", "inference returned an empty
+  // answer") as unavailable. Same status and code as before, so every engine reads it as it did; the detail lets a
+  // settled nightly pass count that one run as unanswered instead of ending the whole pass.
+  if (typeof e?.message === 'string' && /\bempty (?:answer|completion)\b/i.test(e.message)) {
+    return { status: 503, body: { ok: false, error: 'career-worker-unavailable', detail: 'empty-answer' } };
+  }
   return { status: 503, body: { ok: false, error: 'career-worker-unavailable' } };
 }
 

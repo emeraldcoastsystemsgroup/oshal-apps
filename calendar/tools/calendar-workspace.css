@@ -6,6 +6,8 @@
  *   sheet on a phone and a dialog on a desktop, and an opaque More menu in the top layer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The calendar fills the first screen on the full page, so preparation starts below it (DS-31: its words were counted before the work).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Align day badge, dot and sheet-handle radii to the design standard scale (DS-05) and ensure backdrop-filter is off on dialogs and menus under glass card mode (D1=glass).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: an agenda event is one button that opens its view (Edit, Cancel meeting); the view and the asks use the in-page
+ *   dialog's look; Undo sits beside the status line; the view's actions wrap on a phone, so nothing runs off the side.
  */
 .calendar-workspace,.calendar-confirm,.calendar-menu{--cal-ink:var(--ds-ink,var(--text-primary,#16202e));--cal-ink-2:var(--ds-ink-2,var(--text-secondary,#4b5563));--cal-page:var(--ds-page,var(--bg-primary,#fff));--cal-surface:var(--ds-surface,var(--bg-primary,#fff));--cal-surface-2:var(--ds-surface-2,#f1f3f6);--cal-surface-3:var(--ds-surface-3,#e3e7ec);--cal-line:var(--ds-line-control,#6b7280);--cal-edge:var(--ds-edge,#d5d9e0);--cal-hairline:var(--ds-hairline,#dde1e6);--cal-accent:var(--ds-accent,var(--accent-primary,#2563eb));--cal-on-accent:var(--ds-on-accent,var(--text-on-accent,#fff));--cal-bad:var(--ds-bad,var(--status-error,#b91c1c))}
 .calendar-workspace{max-width:1180px;margin:auto;min-width:0;color:var(--cal-ink);font:400 16px/24px system-ui,sans-serif}
@@ -50,6 +52,22 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-event-text{flex:1;min-width:0}
 .calendar-event-text strong{display:block;font-weight:600}
 .calendar-event-text p{font-size:14px;line-height:20px;margin:4px 0 0;color:var(--cal-ink-2)}
+.calendar-workspace .calendar-event-open{display:block;width:100%;min-height:44px;padding:4px 0;border:0;border-radius:var(--ds-radius-s,6px);background:transparent;color:var(--cal-ink);text-align:left;font-weight:400}
+.calendar-workspace .calendar-event-open:hover{background:var(--cal-surface-2)}
+.calendar-event-line{display:block;font-size:14px;line-height:20px;margin:4px 0 0;color:var(--cal-ink-2)}
+.calendar-event{flex-wrap:wrap}
+.calendar-event>a{font-size:14px;color:var(--ds-accent-ink,var(--cal-accent));text-decoration:underline}
+.calendar-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calendar-notice .calendar-status{flex:1;min-width:0}
+.calendar-notice .calendar-undo[hidden]{display:none}
+.calendar-view{width:min(520px,calc(100% - 32px))}
+.calendar-view .calendar-sheet-head{min-height:44px}
+.calendar-view .calendar-sheet-head h2{flex:1;min-width:0;overflow-wrap:anywhere}
+.calendar-view .calendar-view-when{font-weight:600}
+.calendar-view p{overflow-wrap:anywhere}
+.calendar-view .calendar-view-notes{white-space:pre-wrap;color:var(--cal-ink-2)}
+.calendar-view .calendar-meta{font-size:14px;line-height:20px;color:var(--cal-ink-2)}
+.calendar-confirm-actions{flex-wrap:wrap}
 .calendar-event-text a{display:inline-block;margin-top:4px;font-size:14px;color:var(--ds-accent-ink,var(--cal-accent));text-decoration:underline}
 .calendar-new{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;min-height:52px!important;padding:0 20px!important}
 .calendar-new[hidden]{display:none}

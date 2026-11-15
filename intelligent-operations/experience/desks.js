@@ -1,3 +1,4 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 401/403 desk and notification refusal copy names the product Open Swarm. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | A desk reads through its own fetch and only the newest load of a desk may render, refuse or clear: the shared request helper cleared every view on any 403, so a stale refusal from a duplicate boot load (navigate and refresh both load the open desk) blanked the next desk's page under load (the store gate's one failure on the first push). Loads of one desk are deduplicated while in flight, and the catalog, the topic seeding, the token read and the desk read run together. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | The four desk tabs (App Ops, Sec Ops, Platform Ops, Dev Ops; spec lanes/monitoring-four-desks-spec-2026-11-08.md), one module, five panels each over the desk's own read: Firing now (symptoms newest first, each opening its investigation), Sources (last heard, standing, the heartbeat's checks and readings), Rules (on and capture per rule, Save needs the desk's write permission, Restore defaults), Runbooks (the owner's runbooks for the desk's alert types), Settings (topic and its channel from the kernel's own notification preferences with the way to the Notifications page, source, ingest route, producer tokens from the kernel, and the host threshold file shown as the path plus the last snapshot a heartbeat carried; the package reads no host file). On mount it seeds the four topics as channel none through POST /api/notify/prefs when they are missing, so a person finds them on Notifications and picks the channel there. Phone first, the person's theme only, every control a native button, link or checkbox. */
 (function(root){'use strict';
@@ -25,7 +26,7 @@ function mount({onRefused}){
  let catalog=FALLBACK,current=0,prefs=null,tokens=null,topicsSeeded=null;
  const summaries=new Map(),dirty=new Map(),inflight=new Map();
  /** The desk routes, read with the person's session. A refusal is thrown to the one load that asked, never broadcast: only the newest load of a desk may clear the page. */
- async function api(path,body){const r=await fetch(API+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});const b=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(r.status===401?'Sign in through OSHAL to continue.':r.status===403?'Your current OSHAL role does not permit this operation.':b.error||'Request unavailable (HTTP '+r.status+').'),{status:r.status});return b;}
+ async function api(path,body){const r=await fetch(API+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});const b=await r.json().catch(()=>({}));if(!r.ok)throw Object.assign(Error(r.status===401?'Sign in through Open Swarm to continue.':r.status===403?'Your current Open Swarm role does not permit this operation.':b.error||'Request unavailable (HTTP '+r.status+').'),{status:r.status});return b;}
  const desk=id=>catalog.find(d=>d.id===id)||FALLBACK.find(d=>d.id===id);
  const has=id=>sections.has(id);
  /** The kernel's own routes, read with the person's session; a refusal here never clears the desk, it only leaves that line unknown. */
@@ -33,7 +34,7 @@ function mount({onRefused}){
  /** @description The four topics exist for this person after the first open: each missing one is saved with channel none, so the Notifications page lists it and the person picks the channel there. Nothing is sent. */
  async function ensureTopics(){
   const want=catalog.map(d=>d.topic).filter(Boolean);if(!want.length)return;
-  const read=await kernel(NOTIFY_PREFS);if(!read.ok){topicsSeeded={error:read.status===401?'Sign in through OSHAL to register the desk topics.':'The notification preferences could not be read (HTTP '+read.status+').'};return;}
+  const read=await kernel(NOTIFY_PREFS);if(!read.ok){topicsSeeded={error:read.status===401?'Sign in through Open Swarm to register the desk topics.':'The notification preferences could not be read (HTTP '+read.status+').'};return;}
   prefs=read.body;const have=new Set((prefs.prefs||[]).map(p=>p.topic)),added=[],failed=[];
   for(const topic of want.filter(t=>!have.has(t))){const saved=await kernel(NOTIFY_PREFS,{method:'POST',body:JSON.stringify({topic,channel:'none',enabled:true})});if(saved.ok){added.push(topic);prefs=saved.body.prefs?{...prefs,prefs:saved.body.prefs}:prefs;}else failed.push(topic+' (HTTP '+saved.status+')');}
   topicsSeeded={added,failed};
@@ -142,7 +143,7 @@ function mount({onRefused}){
   }catch(e){
    if(mine!==current)return;
    const named=desk(id)||d;
-   if([401,403].includes(e.status)){clear();onRefused?.();status(id,e.status===401?'Sign in through OSHAL to continue.':'Your role does not include '+named.label+'. Ask an administrator for the '+(named.role||'desk')+' role.','bad');return;}
+   if([401,403].includes(e.status)){clear();onRefused?.();status(id,e.status===401?'Sign in through Open Swarm to continue.':'Your role does not include '+named.label+'. Ask an administrator for the '+(named.role||'desk')+' role.','bad');return;}
    status(id,e.message,'bad');}
  }
  function clear(){summaries.clear();dirty.clear();for(const [id,section]of sections){for(const key of ['firing','sources','rules','runbooks','settings'])document.getElementById(id+'-'+key+'-body')?.replaceChildren();status(id,'Reconnect and load '+(desk(id)?.label||id)+'.');void section;}}

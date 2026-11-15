@@ -1,5 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "there is no point having the career hunter bot .. every time i ask him to do something with my resume he cant ... i want one concierge for the entire app that can do everything that needs to be done in the app"). The manifest, the catalog and the personas as the kernel reads them: one bot answers a person and the worker is declared as the engine's worker, its persona text unchanged to the byte (the kernel hashes it into the scoring model identity); the concierge carries a tool for everything a person does in Career, each one calling a route the package serves and bound to exactly that route's permission (the kernel's own rule: it withholds a tool bound differently); the tool list fits the kernel's limits (64 route tools, eight names in Jarvis's catalog, one answer under 64 KiB); the concierge's persona names every tool, never sends the person to another assistant or another page, and is told that My résumé shows the main résumé. The administrator's employer search is checked through the shipped route. Made-up data only.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (Lane JH1's store line): the two workers carry conversation: false, which a kernel with 210edbc7 reads to leave them out of Jarvis's catalog and the bot list and to answer a person's message to them with the concierge; the concierge, the application's chatBot, carries no mark (a marked chatBot fails the load there).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the persona says each of two cards is its own call, the second written after the first's answer (the kernel runs the first tool call of a model reply).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: what the kernel shows a turn of career_resume_patch (its description and input schema; usageInstructions is never read) says a month is written YYYY-MM. On blue, Jarvis's hand-off on Gemini wrote "January 2025" and the card was refused at Approve.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,6 +75,24 @@ test('one bot answers a person, and the worker is declared as the engine\'s work
   const pane = read('tools', 'career-concierge.mjs');
   assert.match(pane, /bot:'career-concierge'/);
   assert.doesNotMatch(pane, /bot:'career-hunter'/);
+});
+
+test('what the kernel shows of career_resume_patch says a month is written YYYY-MM', () => {
+  // The native kernel reads a tool's description and inputSchema only (never usageInstructions). On blue, 2026-11-14, a
+  // hand-off from Jarvis wrote a start month as "January 2025" and Approve answered "must be a year, or a year and month".
+  const patch = tools.find(tool => tool.name === 'career_resume_patch'), edit = patch.inputSchema.properties.edits.items.properties;
+  assert.match(patch.description, /Months are written YYYY-MM \(January 2025 is\s+2025-01\)/, 'the description names the month format');
+  assert.match(edit.value.description, /YYYY-MM/, 'the value a start or end month is set to names the format');
+  assert.match(edit.value.description, /end '' (?:is|for) present/i, 'and how a current job reads');
+});
+
+test('the two workers are marked conversation: false and the concierge is not', () => {
+  const [front, worker, browser] = ['career-concierge', 'career-hunter', 'career-submission-browser'].map(name => manifest.bots.find(bot => bot.name === name));
+  assert.equal(worker.conversation, false, 'the engine worker is not offered for conversation');
+  assert.equal(browser.conversation, false, 'the browser worker is not offered for conversation');
+  assert.equal(front.conversation, undefined, 'the chatBot carries no mark');
+  assert.deepEqual(manifest.bots.filter(bot => 'conversation' in bot).map(bot => [bot.name, bot.conversation]),
+    [['career-hunter', false], ['career-submission-browser', false]], 'no other bot is marked, and the mark is the boolean false');
 });
 
 test('the worker\'s persona text is unchanged to the byte: it is part of the scoring model identity', () => {
@@ -193,6 +214,9 @@ test('the concierge names every tool, does the work itself and knows My résumé
   assert.doesNotMatch(said, /Hand off to career-hunter/);
   assert.match(said, /what you read with career_resume_section is what My résumé shows/);
   assert.match(said, /two cards from one reading/);
+  // The kernel runs the first tool call of a model reply (crates/oshald/src/turn_runner.rs, extract_tool_call): a second card
+  // written in the same message is never made (Sonnet on blue, 2026-11-14: "You asked for two separate cards, but only one was made").
+  assert.match(said, /each card is its own call: write the first card's call alone, wait for its answer, then write\s+the second card's call in your next message/);
   assert.match(said, /read again and propose a corrected card rather than giving up/);
   assert.doesNotMatch(said, /separate (AI Office )?document/);
   // What the résumé status tool tells it about the document.

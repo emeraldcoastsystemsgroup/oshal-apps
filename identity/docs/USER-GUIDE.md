@@ -85,7 +85,8 @@ Under the pill, each connected account gets a line. Three markers can appear on 
 ## Card buttons
 
 Which buttons a card shows depends on the provider's state. Every one of them opens a new browser tab
-— a consent flow cannot run inside the embedded page.
+— a consent flow cannot run inside the embedded page. Where no second window can open, Reconnect and
+Connect take the whole window to the sign-in instead and bring you back to Identity Hub afterwards.
 
 | Button | When it appears | What it does |
 |---|---|---|
@@ -113,8 +114,14 @@ nothing along.
 **Reconnect a login that has lapsed.** Find the provider, click **Reconnect**, and complete the
 provider's consent screen in the tab that opens. On a Google or Microsoft sign-in that screen starts
 with the account chooser — pick the account you are refreshing, or you end up with a second account
-on that card. Come back to the hub tab and reload it — the grid is drawn once at load and does not
-refresh itself while you are away.
+on that card. While you sign in, the hub reads *Waiting for <provider>. Finish signing in in the
+window that opened.*; if no window opened, click **No window? Open it again.** When the sign-in
+finishes, its tab says so and closes itself, the hub says *<provider> is connected.* and the card
+reads **Connected** without a reload. If the sign-in is refused, the hub says why in one line, and
+**Reconnect** can be clicked again. In the Open Swarm Android app another site's page opens in the
+phone's browser, so the provider's sign-in appears there; when it finishes, come back to the app. The
+hub reads the list again when it is shown again; if the card still reads Reconnect, use the reload
+button in the app's header.
 
 **Connect something new.** Click **Connect** on any card showing *Not connected*, and approve the
 consent screen. The hub cannot give the new account a nickname — it arrives labelled with its own
@@ -178,8 +185,9 @@ card is flagged.
 without signing in. Sign in and reload. Everything on this screen is scoped to your own account.
 
 **I clicked Connect (or Reconnect) and the card still says the old thing.** The consent flow runs in
-the new tab it opened; the hub does not poll for the result. Finish in that tab, then reload the hub.
-If the tab never opened, your browser blocked the popup — allow popups for this site.
+the new tab it opened. The hub updates the card when that tab reports the sign-in finished, or when
+you come back to the hub; until then it reads *Waiting for <provider>*. If the tab never opened,
+click **No window? Open it again.**, or allow popups for this site.
 
 **"Couldn't load connections: …" or "Review failed: …".** The first means the connection list did not
 come back — reload, and check you are still signed in. The second is the review specifically: the

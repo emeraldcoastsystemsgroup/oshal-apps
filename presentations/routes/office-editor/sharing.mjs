@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-07): document sharing (`view`, `comment`, `edit`), collaborator edit enforcement, immutable access auditing, and cross-person native sandbox mirror when `OSHAL_PACKAGE_DATA_DIR` is mounted.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.5: keep GET read paths side-effect free by overlaying collaborator mirror revisions in memory without SQL writes, writable transactions, read-time access audit inserts, or mirror directory creation.
  */
 import{randomUUID}from'node:crypto';
 import{existsSync,mkdirSync,readFileSync,readdirSync,renameSync,rmSync,writeFileSync}from'node:fs';
@@ -13,31 +14,66 @@ const COMMENT_OPS=new Set(['add-comment','reply-comment','resolve-comment','prop
 const UUID_RE=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const validId=id=>{if(typeof id!=='string'||!UUID_RE.test(id))fail('office_invalid_id','Choose a valid identity.');return id;};
 
-function mirrorDir(){
+function mirrorDir(create=false){
  const root=process.env.OSHAL_PACKAGE_DATA_DIR;
  if(!root)return null;
  const dir=join(root,'office-shares');
- mkdirSync(dir,{recursive:true,mode:0o700});
- return dir;
+ if(create){mkdirSync(dir,{recursive:true,mode:0o700});return dir;}
+ return existsSync(dir)?dir:null;
 }
 
 function readMirror(docId){
- const dir=mirrorDir();if(!dir)return null;
+ const dir=mirrorDir(false);if(!dir)return null;
  const path=join(dir,docId+'.json');
  if(!existsSync(path))return null;
  try{return JSON.parse(readFileSync(path,'utf8'));}catch{return null;}
 }
 
 function writeMirror(docId,record){
- const dir=mirrorDir();if(!dir)return;
+ const dir=mirrorDir(true);if(!dir)return;
  const tmp=join(dir,`${docId}.${randomUUID()}.tmp`),dest=join(dir,docId+'.json');
  writeFileSync(tmp,JSON.stringify(record),{mode:0o600});
  renameSync(tmp,dest);
 }
 
 export function removeMirror(docId){
- const dir=mirrorDir();if(!dir)return;
+ const dir=mirrorDir(false);if(!dir)return;
  rmSync(join(dir,docId+'.json'),{force:true});
+}
+
+export function overlayOwnedSummaries(store,owned){
+ return owned.map(item=>{
+  const mirror=readMirror(item.id);
+  if(!mirror||mirror.ownerKey!==store.owner||mirror.head.current_revision<=item.revision)return item;
+  return{...item,title:mirror.head.title,revision:mirror.head.current_revision,updatedAt:mirror.head.updated_at};
+ });
+}
+
+export async function readOwnedWithMirror(store,client,id,revision){
+ validId(id);
+ const head=(await client.query('SELECT * FROM office_editor_documents WHERE owner_key=$1 AND id=$2',[store.owner,id])).rows[0];
+ if(!head)return null;
+ const mirror=readMirror(id),useMirror=Boolean(mirror&&mirror.ownerKey===store.owner&&mirror.head.current_revision>head.current_revision);
+ const currentRev=useMirror?mirror.head.current_revision:head.current_revision,updatedAt=useMirror?mirror.head.updated_at:head.updated_at;
+ const targetRev=revision??currentRev;
+ let saved=(await client.query('SELECT * FROM office_editor_revisions WHERE owner_key=$1 AND document_id=$2 AND revision=$3',[store.owner,id,targetRev])).rows[0];
+ if(!saved&&useMirror)saved=mirror.revisions.find(r=>r.revision===targetRev);
+ if(!saved)fail('office_revision_missing','This saved revision is unavailable.',404);
+ const model=typeof saved.model==='string'?JSON.parse(saved.model):saved.model;
+ if(sha(Buffer.from(stableJSON(model)))!==saved.sha256)fail('office_revision_corrupt','The saved document failed its integrity check.',503);
+ const dbHistory=(await client.query('SELECT revision,created_at FROM office_editor_revisions WHERE owner_key=$1 AND document_id=$2 ORDER BY revision DESC',[store.owner,id])).rows;
+ const extra=useMirror?mirror.revisions.filter(r=>r.revision>head.current_revision).map(r=>({revision:r.revision,created_at:r.created_at})):[];
+ const history=[...extra.reverse(),...dbHistory].sort((a,b)=>b.revision-a.revision);
+ return{history,document:{id:head.id,title:model.title,kind:model.kind,revision:saved.revision,currentRevision:currentRev,updatedAt,sha256:saved.sha256,model,original:head.original_id?{id:head.original_id,name:head.original_name,sha256:head.original_sha256}:null}};
+}
+
+export function hasOwnedMirrorModelHash(store,modelSha256){
+ const dir=mirrorDir(false);if(!dir)return false;
+ for(const file of readdirSync(dir).filter(f=>f.endsWith('.json'))){
+  const mirror=readMirror(file.slice(0,-5));
+  if(mirror&&mirror.ownerKey===store.owner&&mirror.revisions?.some(r=>r.sha256===modelSha256))return true;
+ }
+ return false;
 }
 
 export async function auditAccess(store,{ownerKey,documentId,action,role,detail=''}){
@@ -73,7 +109,7 @@ export async function syncOwnerFromMirror(store,client,docId){
 }
 
 export async function refreshOwnerMirror(store,client,docId){
- if(!mirrorDir())return;
+ if(!process.env.OSHAL_PACKAGE_DATA_DIR)return;
  const shares=(await client.query('SELECT * FROM office_editor_shares WHERE owner_key=$1 AND document_id=$2',[store.owner,docId])).rows;
  const existing=readMirror(docId);
  if(!shares.length&&!existing){return;}
@@ -190,10 +226,9 @@ export async function saveSharedDocument(store,id,input,imageValidation){
 
 export async function listDocumentShares(store,id){
  validId(id);
- return store.tx('read',true,async client=>{
-  await syncOwnerFromMirror(store,client,id);
+ return store.tx('read',false,async client=>{
   const head=(await client.query('SELECT id FROM office_editor_documents WHERE owner_key=$1 AND id=$2',[store.owner,id])).rows[0];
-  if(!head){await auditAccess(store,{ownerKey:store.owner,documentId:id,action:'denied',role:'none',detail:'list_shares'});fail('office_share_owner_only','Only the document owner can view or manage sharing.',403);}
+  if(!head)fail('office_share_owner_only','Only the document owner can view or manage sharing.',403);
   const shares=(await client.query('SELECT id,grantee_issuer,grantee_sub,role,created_at,updated_at FROM office_editor_shares WHERE owner_key=$1 AND document_id=$2 ORDER BY created_at ASC',[store.owner,id])).rows.map(r=>({id:r.id,granteeIssuer:r.grantee_issuer,granteeSub:r.grantee_sub,role:r.role,createdAt:r.created_at,updatedAt:r.updated_at}));
   const dbAudit=(await client.query('SELECT id,actor_sub,action,role,detail,created_at FROM office_editor_share_audit WHERE owner_key=$1 AND document_id=$2 ORDER BY created_at DESC LIMIT 50',[store.owner,id])).rows.map(a=>({id:a.id,actorSub:a.actor_sub,action:a.action,role:a.role,detail:a.detail,createdAt:a.created_at}));
   const mirrorAudit=(readMirror(id)?.audit??[]).map(a=>({id:a.id,actorSub:a.actorSub,action:a.action,role:a.role,detail:a.detail,createdAt:a.createdAt}));

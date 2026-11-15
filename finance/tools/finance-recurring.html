@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.8.0 (Lane FINH2, the design's slice 3): Recurring. Every payment that repeats in the person's own records, with what it costs each time and a year (an estimate from the last charge, with its source and date), when it was last charged and is next expected, New and Price went up marks, and the totals a month and a year. Each is reviewed once: Keep, Track as a bill (it becomes a bill as Add to Bills makes one; hidden when it already is one) or Mark to cancel, which records it and says Finance cancels nothing; a payment marked to cancel that is charged again says so. Review again takes the answer back. The filled button goes to the first payment not reviewed yet.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recurring · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1>Recurring</h1><p class="fr-sub" id="frSub">Every payment that repeats in your records, and what it costs a year.</p></div>
+    <div class="fr-actions"><button type="button" class="fr-primary" id="frFirst" hidden></button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frTotalsCard" hidden aria-labelledby="frTotalsH"><h2 id="frTotalsH">What repeats costs you</h2><div class="fr-actions" id="frTotals"></div></section>
+  <section class="fr-card"><ul class="fr-list" id="frList"><li class="fr-empty">Reading your records…</li></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+  var WORDS = { keep: 'Keeping it', bill: 'Tracked as a bill', cancel: 'You mean to cancel it' };
+
+  function answer(item, body, button) {
+    return F.press(button, function () {
+      return F.api('/recurring/' + encodeURIComponent(item.seriesId) + '/answer', Object.assign({ today: F.today() }, body)).then(function (r) { F.say(r.words); return load(); });
+    });
+  }
+
+  function row(item) {
+    var marks = [item.isNew ? el('span', { class: 'fr-pill', text: 'New' }) : null, item.priceWentUp ? el('span', { class: 'fr-pill', text: 'Price went up' }) : null];
+    var sub = (item.cadence === 'monthly' ? 'Every month' : item.cadence) + ' · last charged ' + F.dateWords(item.lastDate) + ' · next ' + F.dateWords(item.nextDate)
+      + (item.earlierAmount ? ' · was ' + F.money(item.earlierAmount) : '') + (item.hasBill ? ' · in your Bills' : '');
+    var buttons = [], note = null;
+    if (!item.review) {
+      var keep = el('button', { type: 'button', text: 'Keep' }), bill = item.hasBill ? null : el('button', { type: 'button', text: 'Track as a bill' }), cancel = el('button', { type: 'button', text: 'Mark to cancel' });
+      keep.addEventListener('click', function () { answer(item, { answer: 'keep' }, keep); });
+      if (bill) bill.addEventListener('click', function () { answer(item, { answer: 'bill', confirm: true }, bill); });
+      cancel.addEventListener('click', function () { answer(item, { answer: 'cancel' }, cancel); });
+      buttons = [keep, bill, cancel];
+    } else {
+      var again = el('button', { type: 'button', text: 'Review again' });
+      again.addEventListener('click', function () {
+        F.press(again, function () { return F.api('/recurring/' + encodeURIComponent(item.seriesId) + '/clear', {}).then(function () { F.say(item.payee + ' is waiting for your review again.'); return load(); }); });
+      });
+      buttons = [again];
+      note = el('div', { class: 'fr-sub', text: WORDS[item.review.answer] + ' (' + F.dateWords(item.review.answeredOn) + ')' + (item.chargedAgain ? '. Charged again ' + F.dateWords(item.chargedAgain) + ' after you marked it.' : '') });
+    }
+    var cost = el('span', { class: 'fr-figure' }, [F.figure(item.amount), item.perYear ? el('small', { class: 'fr-source', text: F.money(item.perYear) + ' a year' }) : null]);
+    return el('li', { class: 'fr-row', id: 'r-' + item.seriesId }, [el('div', { class: 'fr-main' }, [el('strong', { text: item.payee })].concat(marks).concat([el('div', { class: 'fr-sub', text: sub }), note])), cost, el('div', { class: 'fr-actions' }, buttons)]);
+  }
+
+  function load() {
+    return F.api('/recurring?today=' + F.today()).then(function (r) {
+      var items = r.items || [];
+      $('frList').replaceChildren.apply($('frList'), items.length ? items.map(row) : [el('li', { class: 'fr-empty', text: 'Nothing repeats in your records yet. Bring in two or three months of statements on Accounts and Finance finds what repeats.' })]);
+      $('frTotalsCard').hidden = !r.totals;
+      if (r.totals) $('frTotals').replaceChildren(el('div', {}, [el('small', { text: 'A month' }), F.figure(r.totals.monthly, 'fr-big')]), el('div', {}, [el('small', { text: 'A year' }), F.figure(r.totals.yearly, 'fr-big')]));
+      $('frSub').textContent = 'Every payment that repeats in your records, and what it costs a year. ' + (r.toReview ? r.toReview + ' to review.' : items.length ? 'Each one is reviewed.' : '');
+      var first = items.filter(function (i) { return !i.review; })[0], button = $('frFirst');
+      if (first) { button.textContent = 'Review ' + first.payee; button.hidden = false; button.onclick = function () { var at = document.getElementById('r-' + first.seriesId); if (at) { at.scrollIntoView({ block: 'center' }); var b = at.querySelector('button'); if (b) b.focus(); } }; }
+      else button.hidden = true;
+    }).catch(function (err) { F.say(err.message, true); });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

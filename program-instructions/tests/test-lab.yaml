@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane BL1): Blender on Linux through the blender bridge. The case blender-program (tests/blender-program.test.cjs, in the store job's glob) proves Blender's sixteen verbs and no other program's, its request with its measured facts and room to be asked once more, the committed entries equal to the package's own Blender inputs, a Blender text published or reported, and the distillers' order; the case blender-sources (tests/sheet/blender-sources.test.cjs) holds the Blender sheet to BLENDER_ACTIONS in Orbit's code and every Orbit file a fact names to the kernel checkout.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane VS1): VS Code on the vscode bridge (Orbit's VS Code extension, kernel 7ed028e0). The case vscode-programs (tests/vscode-programs.test.cjs, in the store job's glob) proves VS Code's facts and the extension's twelve verbs, that a text may name them on vscode only and no LibreOffice verb, that the committed entries are what the package's own VS Code inputs give, and that a text without the run gate's words is reported; the case vscode-sources holds those inputs to Orbit's VSCODE_ACTIONS and to the real-VS Code suite and commits they cite.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.1.7 (Lane BL2): Orbit's Blender add-on 1.1.0 declares thirty verbs, its game-asset families. blender-program proves the thirty and no other program's, the new facts in the request with room to be asked once more (edit-mesh's operation and faces, decimate to a budget, the character's order through make-action, export-glb's animations, import and bake, the Python gate's second switch), and that a text must hold edit-mesh and make-action and never the input name op; blender-sources holds the thirty to BLENDER_ACTIONS at kernel 4692a724 and the facts that cite test-blender-game-asset.cjs to the kernel checkout.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8 (@lane-excel-instructions): Excel's seventeen spreadsheet verbs (adding workbook-schema, manage-table, refresh-pivot, summarize-range, manage-names, data-validation, conditional-format and refresh-queries) and power-user modeling facts (.Formula2 dynamic arrays, ListObjects Tables, summarize-range, Inputs/Model/Summary architecture, checked format-cells undo, SaveCopyAs live copy, and graceful fallback when an older Orbit window declares only the nine starter verbs). windows-programs proves all seventeen verbs, reports an older 0.1.5 Excel text lacking the W15 words, and publishes an upgraded 0.1.8 text; windows-sources holds the seventeen Excel verbs and their source lines against the kernel checkout.
 version: 1
 cases:
   - id: package-readiness
@@ -205,9 +206,9 @@ cases:
       files:
         - tests/windows-programs.test.cjs
     expected:
-      - Word's six edit verbs and Excel's nine spreadsheet verbs pass; a file verb or another program's verb is refused in the windows-uia words; Notepad names none.
-      - Excel's create-pivot-table and add-chart pass with no alias (insert-chart, create-chart, pivot-table refused) and Word, PowerPoint and Notepad name neither; Excel's facts require both words, forbid neither and no longer say pivot tables and charts are not Excel verbs, while its file verbs stay refused.
-      - A text 0.1.4's facts held Excel 16.0.20527.20196 to is reported invalid-output for lacking create-pivot-table and add-chart; one naming them is published unchanged.
+      - Word's six edit verbs and Excel's seventeen spreadsheet verbs pass; a file verb or another program's verb is refused in the windows-uia words; Notepad names none.
+      - Excel's create-pivot-table, add-chart and eight W15 power-user verbs pass with no alias and Word, PowerPoint and Notepad name none of them; Excel's facts require the W15 power-user words and graceful starter-verb fallback while its file verbs stay refused.
+      - Excel texts held to 0.1.4's or 0.1.5's facts for Excel 16.0.20527.20196 are reported invalid-output for lacking the W15 power-user words; an upgraded 0.1.8 text naming them is published unchanged.
       - PowerPoint's six slide verbs pass; new-slide, insert-slide, a file verb or a Word or Excel verb is refused, and Word, Excel and Notepad name no slide verb.
       - Each Windows request lists its verbs (or says none are known) and every fact, never-line and word, and a second request still fits under 8 KiB.
       - The committed Windows entries equal what the package's own inputs give, and every fact's evidence names a receipt or an Orbit source.
@@ -235,7 +236,7 @@ cases:
       files:
         - tests/sheet/windows-sources.test.cjs
     expected:
-      - The Word, Excel and PowerPoint verb lists equal Orbit's WORD_VERBS, EXCEL_VERBS (create-pivot-table and add-chart included) and POWERPOINT_VERBS and each named source line holds its verb.
+      - The Word, Excel and PowerPoint verb lists equal Orbit's WORD_VERBS, EXCEL_VERBS plus Excel's eight W15 power-user verbs (seventeen spreadsheet verbs in all), and POWERPOINT_VERBS, and each named source line holds its verb.
       - Every windows/proofs receipt and desktop/oshal-node file (.ts, .rs or .cjs) a fact names exists, and every windows/FROM-WINDOWS.md entry a fact names is the Windows PC's entry of that time.
     prerequisites:
       - runner:node-test

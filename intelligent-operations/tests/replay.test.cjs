@@ -1,3 +1,4 @@
+// CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 403 refusal assertion names Open Swarm.
 // CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Prove isolated recorded-window replay (RP-OPS-01), uploaded CloudEvents and OTLP batch replay (RP-OPS-02), mapping refusals, zero live side effects, and sandbox run clean-up.
 // CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 regression: the sample replay is all or nothing; failed runs remove created sources and telemetry, and only synthetic replay sources can be discarded.
 // CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Retained context is one table: count each bank's meter across the stream rows.
@@ -57,7 +58,7 @@ test('the shipped Scenario lab runs real filtering and renders retained context 
   assert.equal(await page.locator('#anomaly-warmupSamples').isVisible(),false,'warm-up, window and seasonal bucket sit under a closed Advanced');
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(errors,[]);
   await page.route('**/api/intelligent-operations/telemetry',route=>route.fulfill({status:403,contentType:'application/json',body:'{"error":"role withdrawn"}'}));
-  await page.getByRole('button',{name:'Refresh telemetry banks',exact:true}).click();await page.getByText('Your current OSHAL role does not permit this operation.',{exact:false}).first().waitFor();assert.equal(await page.locator('#telemetry-banks [role=meter]').count(),0);assert.equal(await page.locator('#replay-results details').count(),0);
+  await page.getByRole('button',{name:'Refresh telemetry banks',exact:true}).click();await page.getByText('Your current Open Swarm role does not permit this operation.',{exact:false}).first().waitFor();assert.equal(await page.locator('#telemetry-banks [role=meter]').count(),0);assert.equal(await page.locator('#replay-results details').count(),0);
  }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));await engine.close();await f.close();for(const index of indexes){const r=await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'});assert.ok(r.ok||r.status===404);}}
 });
 

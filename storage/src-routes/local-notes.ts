@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A .txt note is saved as plain text: chat Markdown (bold and italic markers, # headings, * bullets, inline code ticks, links) is taken out before saving (sweep 10: a saved budget note read "**Sweep10 Budget Note**" and "*   **Rent:** $1,800"). A .md note keeps its Markdown.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: the clean-up changed real content after the person approved the card ("from pkg import __init__ as x" lost its dunder, "rm *.txt,*.md" became "rm .txt,.md", a "# install" shell comment lost its "#", "Use `--force` flag" lost its ticks). A .txt note now loses only chat bold, a "**" pair around words that opens after a space or punctuation and closes before one (x**2 + y**2 and f(**a,**b) stay); everything else is saved exactly as sent.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.0 (J-4 / Defect 7): add schema-bounded connected cloud storage upload operation (`uploadFile` / `POST /api/storage/files/upload` / `storage-upload-file`) supporting UTF-8 or base64 files (.xlsx, .docx, .pdf, .csv, .txt, .md, etc.) up to 10 MiB to connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local via `storage.save`.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.3: name the product Open Swarm in note save/read/remove and upload location answers.
  */
 /** Text notes and connected cloud file uploads in the caller's storage. */
 import * as fs from 'fs';
@@ -19,7 +20,7 @@ export const MAX_NOTE_BYTES = 256 * 1024;
 /** The largest file uploaded via storage-upload-file (matches kernel MAX_SAVE_BYTES = 10 MiB). */
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 /** Where a saved note is found again, said in every save answer. */
-export const WHERE = 'Saved in Storage, in your OSHAL-local store. Ask Storage to list your files or read it back.';
+export const WHERE = 'Saved in Storage, in your Open Swarm local store. Ask Storage to list your files or read it back.';
 const LOCAL = { provider: 'oshal-local' };
 const TEXT = /\.(txt|md)$/i;
 const UPLOAD_EXT = /\.(txt|md|csv|tsv|json|yaml|yml|xml|html|pdf|xlsx|xls|docx|doc|pptx|ppt|ods|odt|odp|rtf|png|jpg|jpeg|webp|svg|zip)$/i;
@@ -135,12 +136,12 @@ export async function readNote(ctx: AppContext, sub: string, raw: unknown, legac
   const name = noteName(raw);
   let bytes: Buffer;
   if (nativeStore(ctx)) {
-    if (!(await listLocal(ctx, sub, legacyDir)).some((f) => f.name === name)) throw new NoteError(404, `No file named ${name} in your OSHAL-local store.`);
+    if (!(await listLocal(ctx, sub, legacyDir)).some((f) => f.name === name)) throw new NoteError(404, `No file named ${name} in your Open Swarm local store.`);
     const read = await intent(ctx, 'storage.read', sub, { path: name, provider: 'oshal-local' });
     bytes = Buffer.from(String(read?.content || ''), 'base64');
   } else {
     const file = path.join(legacyDir(sub), name);
-    if (!fs.existsSync(file)) throw new NoteError(404, `No file named ${name} in your OSHAL-local store.`);
+    if (!fs.existsSync(file)) throw new NoteError(404, `No file named ${name} in your Open Swarm local store.`);
     bytes = fs.readFileSync(file);
   }
   if (bytes.length > MAX_NOTE_BYTES) throw new NoteError(413, 'That file is larger than 256 KB; open it from Files instead.');
@@ -157,7 +158,7 @@ export async function readNote(ctx: AppContext, sub: string, raw: unknown, legac
  */
 export async function removeNote(ctx: AppContext, sub: string, raw: unknown, legacyDir: LegacyDir): Promise<{ name: string }> {
   const name = noteName(raw);
-  if (!(await listLocal(ctx, sub, legacyDir)).some((f) => f.name === name)) throw new NoteError(404, `No file named ${name} in your OSHAL-local store.`);
+  if (!(await listLocal(ctx, sub, legacyDir)).some((f) => f.name === name)) throw new NoteError(404, `No file named ${name} in your Open Swarm local store.`);
   if (nativeStore(ctx)) await intent(ctx, 'storage.delete', sub, { kind: 'files', name, override: LOCAL });
   else fs.unlinkSync(path.join(legacyDir(sub), name));
   return { name };
@@ -193,7 +194,7 @@ function describeUploadLocation(provider: string, location: string): string {
     'google-drive': 'Google Drive',
     onedrive: 'OneDrive',
     github: 'GitHub',
-    'oshal-local': 'OSHAL-local storage',
+    'oshal-local': 'Open Swarm local storage',
   };
   const label = labels[provider] || provider;
   return `Saved to ${label} (${location}).`;

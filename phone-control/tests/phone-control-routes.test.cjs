@@ -32,6 +32,8 @@
  * 27 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata1.17.0 while preserving byte, compression, history and owner-isolation guards.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.18.0, the release that adds the Fire TV phone-app guide; every byte, compression, history and owner-isolation guard is unchanged.
  * 29 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.19.0 (the guide declares devicePath); every other guard is unchanged.
+ * 30 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.20.0 and oshal_phone_front.py among the served bridge files (an application opened, listed and read in front on a Roku or a Samsung TV); every other guard is unchanged.
+ * 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: every not-found answer of the package says in words what is missing beside its code: each device route with a device nobody saved (the TV apps route behind phone-control-tv-apps answered only {"error":"device_not_found"} on blue, 2026-11-14) and with another person's device, which reads the same; a capture, a transfer, a bridge file and a page file that are not there. Bridge metadata 1.20.1.
  */
 'use strict';
 
@@ -248,9 +250,9 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.19.0');
+  assert.equal(manifest.version, '1.20.1');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
-    'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
+    'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_front.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);
   for (const file of manifest.files) {
     const plain = await call('GET', `/bridge/files/${file.name}`);
@@ -492,4 +494,31 @@ test('TV link and show plans name exactly the saved host for the closed plan run
   await call('POST', `/devices/${tv.id}`, {body:{controlEnabled:false}});
   assert.equal((await call('POST', `/devices/${tv.id}/play`, {body:{title:'Example show'}})).status, 409);
   assert.equal((await call('POST', `/devices/${tv.id}/open-link`, {body:{url:'https://www.netflix.com/watch/80000000'}})).status, 409);
+});
+
+test('every not-found answer says in words what is missing, never only its code', async () => {
+  // Blue acceptance 2026-11-14 (lane-ver2-blue-acceptance line 105): tool phone-control-tv-apps on a made-up device
+  // answered 404 {"error":"device_not_found"} with no sentence.
+  const said = (id) => `No saved device is called "${id}". List your devices first (phone-control-list-devices).`;
+  const tv = (await call('POST', '/devices', { body: { name: 'Words Test TV', platform: 'android', form: 'tv', computerNodeId: NODE, address: '192.168.1.77:5555' } })).json.device;
+  for (const [id, person] of [['ver2-made-up-device-0000', 'alice'], [tv.id, 'bob']]) {
+    for (const [method, route, body] of [['POST', '/apps', {}], ['GET', ''], ['POST', '/command-plan', {}], ['POST', '/execute', {}],
+      ['POST', '/open-link', {}], ['POST', '/play', {}], ['POST', '', { controlEnabled: true }], ['DELETE', ''], ['POST', '/apps/record', {}]]) {
+      const answer = await call(method, `/devices/${id}${route}`, { person, body });
+      assert.equal(answer.status, 404, `${person} ${method} /devices/${id}${route}`);
+      assert.deepEqual(answer.json, { error: 'device_not_found', message: said(id) }, `${person} ${method} ${route}: another person's device reads as one nobody saved`);
+    }
+  }
+  for (const [method, route, error, message] of [
+    ['GET', '/sessions/captures/none', 'capture_not_found', 'No saved capture has that id. List your captures first (phone-control-list-captures).'],
+    ['DELETE', '/sessions/captures/none', 'capture_not_found', 'No saved capture has that id. List your captures first (phone-control-list-captures).'],
+    ['GET', '/sessions/transfers/none', 'transfer_not_found', 'No staged transfer has that id. List your transfers first (phone-control-list-transfers).'],
+    ['DELETE', '/sessions/transfers/none', 'transfer_not_found', 'No staged transfer has that id. List your transfers first (phone-control-list-transfers).'],
+    ['GET', '/bridge/files/none.py', 'bridge_file_not_found', 'The phone bridge has no file called "none.py".'],
+    ['GET', '/ui/none.js', 'asset_not_found', 'Phone & Device Control has no page file called "none.js".']]) {
+    const answer = await call(method, route);
+    assert.equal(answer.status, 404, `${method} ${route}`);
+    assert.deepEqual(answer.json, { error, message }, `${method} ${route}`);
+  }
+  assert.equal((await call('DELETE', `/devices/${tv.id}`)).status, 204);
 });

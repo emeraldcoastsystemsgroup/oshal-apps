@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): unit, OOXML round-trip, multipage PDF/plain-text export, and two-person forced-RLS sharing behaviour and refusal tests.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.5: assert share access audit records mutating share/collaboration events without recording read-time view or export stamps.
  */
 import{test}from'node:test';
 import assert from'node:assert/strict';
@@ -220,5 +221,6 @@ test('RP-OFF-07: two-person forced-RLS sharing enforces view, comment and edit r
  const sharesAndAudit=await asActor('alice').listShares(docId);
  assert.equal(sharesAndAudit.shares.length,0);
  const actions=new Set(sharesAndAudit.audit.map(a=>a.action));
- for(const expected of ['share_grant','view','export','denied','comment','edit','share_revoke'])assert.ok(actions.has(expected),`audit contains ${expected}`);
+ for(const expected of ['share_grant','denied','comment','edit','share_revoke'])assert.ok(actions.has(expected),`audit contains ${expected}`);
+ for(const readStamp of ['view','export'])assert.equal(actions.has(readStamp),false,`reads do not write ${readStamp} audit rows`);
 });

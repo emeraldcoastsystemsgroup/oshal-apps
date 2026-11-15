@@ -13,6 +13,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Under the native kernel the OSHAL-local store is the kernel's personal file store: list_files and /local/list
  *   read it through the storage.list intent (OSHAL local forced, the caller as subject) and never the sandbox directory, which answered
  *   empty on the live kernel; the legacy framework still lists its per-user directory.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: default GitHub repository description and local-store assistant replies name the product Open Swarm while
+ *   keeping User-Agent: OSHAL and provider: oshal-local unchanged.
  */
 'use strict';
 const test = require('node:test');
@@ -116,7 +118,7 @@ test('kernel GitHub repo list and create use the declared host with no auth head
     assert.deepEqual(out.body, { ok: true, name: 'new-app', fullName: 'alice/new-app', url: 'https://github.com/alice/new-app' });
     assertKernelRequest(calls[0], 'POST', 'api.github.com', '/user/repos');
     assert.deepEqual(calls[0].init.headers, { Accept: 'application/vnd.github+json', 'User-Agent': 'OSHAL', 'Content-Type': 'application/json' });
-    assert.deepEqual(JSON.parse(calls[0].init.body), { name: 'new-app', private: true, description: 'Created by OSHAL', auto_init: true });
+    assert.deepEqual(JSON.parse(calls[0].init.body), { name: 'new-app', private: true, description: 'Created by Open Swarm', auto_init: true });
   });
   assert.equal(intents.length, 2);
   assert.deepEqual(brokerCalls, [], 'the legacy broker is never asked under the kernel');
@@ -260,7 +262,7 @@ test('list_files lists the store the Files bucket points at, and OSHAL local nev
   await withFetch(true, new Error('no provider call expected'), async (calls) => {
     const empty = res();
     await r['POST /assistant'](req({ message: 'List my files' }), empty);
-    assert.deepEqual(empty.body, { reply: 'Your files save to OSHAL local, and there are no files there yet.', data: { provider: 'oshal-local', files: [] } });
+    assert.deepEqual(empty.body, { reply: 'Your files save to Open Swarm local, and there are no files there yet.', data: { provider: 'oshal-local', files: [] } });
     // A file in the sandbox directory is not in the kernel's store: under the kernel it is never listed.
     fs.mkdirSync(path.join(store, 'nested'), { recursive: true });
     fs.writeFileSync(path.join(store, 'sandbox-only.txt'), 'z');
@@ -268,7 +270,7 @@ test('list_files lists the store the Files bucket points at, and OSHAL local nev
     const listed = res();
     await r['POST /assistant'](req({ message: 'List my files' }), listed);
     assert.deepEqual(listed.body.data, { provider: 'oshal-local', files: ['deck.pptx', 'notes.md'] });
-    assert.equal(listed.body.reply, 'Your files save to OSHAL local. You have 2 file(s) there: deck.pptx, notes.md.');
+    assert.equal(listed.body.reply, 'Your files save to Open Swarm local. You have 2 file(s) there: deck.pptx, notes.md.');
     assert.doesNotMatch(listed.body.reply, /Dropbox/);
     const route = res();
     await r['GET /local/list'](req(), route);

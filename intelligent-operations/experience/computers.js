@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 401/403 refusal copy names the product Open Swarm; OSHAL Node component wording stays unchanged. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Your computers on the Connections page (kernel ADR-206): the signed-in person's own computers from the kernel's /api/computers, each with whether Jarvis can use it now, and Work on it, which opens the kernel's own page for that computer (Jarvis on it, its screen beside, a command line) in the top window. Operations holds no computer, no device token and no picture: the kernel does, for the owner alone. */
 'use strict';
 (function(){
@@ -30,7 +31,7 @@
     const r=await fetch('/api/computers',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
     const body=await r.json().catch(()=>({}));
     if(mine!==generation)return;
-    if(r.status===401||r.status===403){clear();onRefused();say(r.status===401?'Sign in through OSHAL to continue, then press Refresh.':'Your current OSHAL role does not permit this operation.');return;}
+    if(r.status===401||r.status===403){clear();onRefused();say(r.status===401?'Sign in through Open Swarm to continue, then press Refresh.':'Your current Open Swarm role does not permit this operation.');return;}
     if(!r.ok)throw new Error(typeof body.detail==='string'?body.detail:'Refused (HTTP '+r.status+').');
     render(Array.isArray(body.computers)?body.computers:[]);
    }catch(error){if(mine===generation){$('computers-list').replaceChildren();say('Your computers could not be read: '+error.message);}}

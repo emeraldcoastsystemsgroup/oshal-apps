@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (T45 part 4): oshal_phone_links.py gains what is playing and the media keys, and the six sources with the wrapper are 208,098 bytes, over the 200 KiB budget; raise it to 240 KiB. What binds is still the one install command: it is ~81 KB (gzip level 9, then base64), and tests/phone-control-honesty.test.cjs still refuses one over 100 KiB, under Linux's 128 KiB single-argument cap.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): ship oshal_phone_play.py (a show or film played by its name on an Android or Fire TV).
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): ship oshal_phone_apps.py (which streaming apps an Android or Fire TV has, read without pressing anything).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0 (Lane TV1): ship oshal_phone_front.py (an application opened, listed and read in front on a Roku or a Samsung TV). The nine sources with the wrapper are 242,544 bytes of the 245,760 (240 KiB) budget, and the one install command is 99,026 bytes of the 102,400 (100 KiB) that tests/phone-control-honesty.test.cjs and tests/phone-control-link.test.mjs allow: 3,374 bytes of room remain there.
  */
 
 'use strict';
@@ -38,6 +39,7 @@ const BRIDGE_FILES = Object.freeze([
   { name: 'oshal_phone_links.py', mode: 0o644 },
   { name: 'oshal_phone_play.py', mode: 0o644 },
   { name: 'oshal_phone_apps.py', mode: 0o644 },
+  { name: 'oshal_phone_front.py', mode: 0o644 },
   { name: 'oshal-phone-bridge', mode: 0o755, text: WRAPPER }
 ]);
 const MAX_SOURCE_BYTES = 240 * 1024;

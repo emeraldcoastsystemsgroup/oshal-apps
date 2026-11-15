@@ -34,6 +34,14 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createReviewRoutes = createReviewRoutes;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: serve the event view module (tools/calendar-event-view.mjs) beside the workspace, with the
+ *   same query and caching rules: the Calendar's Edit and Cancel meeting live in it.
+ */
 const express_1 = require("express");
 const path = __importStar(require("path"));
 function createReviewRoutes(ctx) {
@@ -42,7 +50,7 @@ function createReviewRoutes(ctx) {
         res.setHeader('Cache-Control', 'no-store');
         res.sendFile(path.join(ctx.appPackageDir, 'tools/review.html'));
     });
-    for (const name of ['calendar-workspace.mjs', 'calendar-workspace.css'])
+    for (const name of ['calendar-workspace.mjs', 'calendar-event-view.mjs', 'calendar-workspace.css'])
         router.get('/' + name, (req, res) => {
             if (Object.keys(req.query).some(k => k !== 'v') || (req.query.v != null && (typeof req.query.v !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(req.query.v)))) {
                 res.status(400).json({ error: 'invalid_asset_query' });

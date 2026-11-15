@@ -8,6 +8,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A person whose app list says Phone & Device Control changed and waits for re-approval (bare-metal blue's admin persona on 2026-11-08) reads exactly that, the page requests nothing from Phone & Device Control (no console error), Scan is off, and the saved TVs are still listed, without buttons.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | home 1.7.0 (T45 part 4): an Android TV's card has Previous, Pause, Play, Next and What's playing, each at least 44 x 44 at 412 x 915; Pause sends one closed lan-control pause and the card says what is playing behind another app, then shows it on the Now playing line; What's playing reads it again; a Samsung TV and a Roku have no media row.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | A connected computer prevents the whole-home empty state; its catalogue waits for device selection before offering a contextual primary action, while all TV scan and control checks stay intact.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | home 1.9.2: Roku button check updated from Open oshal to Show Open Swarm.
  */
 'use strict';
 const test = require('node:test');
@@ -166,7 +167,7 @@ test('Scan installs the bridge when it is not phone-control\'s, saves the TVs, a
     assert.ok(await page.locator('[data-tv="tv-02005e102030"] .tv-result button', { hasText: 'Retry' }).isVisible());
     assert.equal(await page.locator('[data-tv="tv-02005e102030"] .pill.on').textContent(), 'On', 'a refused wake left the power as the scan read it');
     const roku = page.locator('[data-tv="tv-02005e405060"]');
-    assert.equal(await roku.getByRole('button', { name: /Open oshal/ }).count(), 0, 'a Roku cannot open a page');
+    assert.equal(await roku.getByRole('button', { name: /Show Open Swarm/ }).count(), 0, 'a Roku cannot open a page');
     assert.match(await page.locator('[data-tv="tv-ip-10-20-30-43"]').textContent(), /A Google Cast device: your computer cannot press its buttons\./);
     assert.equal(await page.locator('[data-tv="tv-ip-10-20-30-42"]').getByRole('button', { name: 'Install the TV app on Shed TV' }).count(), 1);
     const fit = await overflow(page);

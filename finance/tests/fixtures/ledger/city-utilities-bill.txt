@@ -1,0 +1,9 @@
+City Utilities
+Account ending 0044
+Billing date: November 5, 2026
+
+Service from 10/05/2026 to 11/04/2026
+Electric and water                                $112.40
+
+Amount due: $112.40
+Due date: November 21, 2026

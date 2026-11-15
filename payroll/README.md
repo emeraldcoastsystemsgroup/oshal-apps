@@ -3,6 +3,7 @@ SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (2.3.1).
 2 | maintainer@emeraldcoastsystemsgroup.com | Point every backlog reference at the package-owned queue in BACKLOG.md, which core handed over, and name the guard that keeps the two honest.
 3 | maintainer@emeraldcoastsystemsgroup.com | Record the 2.3.5 schema-bootstrap advisory lock, why it exists and the guard that keeps it.
+4 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: person-facing text in Payroll names the product Open Swarm; technical identifiers keep their forms.
 -->
 # payroll — run payroll for your team, ADP-style
 
@@ -12,7 +13,7 @@ An installable OSHAL app package (ADR-085; design in [ADR-123](https://github.co
 One OIDC sub = one company: your roster, pay runs, stubs, and reports are yours alone (owner-scoped
 tables, tier-1 RLS applied at table creation, `guestTier: blocked`).
 
-> **oshal computes payroll and produces the artifacts; your bank and the tax agencies execute
+> **Open Swarm computes payroll and produces the artifacts; your bank and the tax agencies execute
 > them.** It holds no funds, and it **transmits nothing** — no e-file, no EFTPS, no upload happens
 > from here. You get the ACH file, the checks, the 941/940/RT-6 worksheets, the W-2s and the SSA
 > EFW2 submission, and you send them.
@@ -167,8 +168,8 @@ paragraph here mentions the queue without linking to it.
 
 ## v2.1 — pay and file
 
-The direction here is deliberate: **oshal computes payroll and produces the artifacts; your bank and
-EFTPS execute them.** No money moves through oshal, no third-party payroll provider runs your
+The direction here is deliberate: **Open Swarm computes payroll and produces the artifacts; your bank and
+EFTPS execute them.** No money moves through Open Swarm, no third-party payroll provider runs your
 payroll, and there is nothing to sign up for. The alternative — delegating to an embedded provider —
 would mean *their* engine computes withholding and this one becomes decorative.
 

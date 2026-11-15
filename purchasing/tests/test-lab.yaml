@@ -16,6 +16,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add-many: several free-text items behind one approval card through the compiled route.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-rows (UX audit 2026-11-05): the List screen's Add an item field, row tick-off and quantity, and List as the one tile.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.0: register shopping-order (the order made from the list, on the compiled routes, with the native kernel's Walmart answer and with a rail; the grocery chain through the tools' own endpoints) and shopping-order-browser (Order on the List screen in Chromium at 412x915).
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Add explicit installation: never on shopping-order and align shopping-order-browser sideEffects/cleanup with the kernel catalog loader contract.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -367,6 +368,7 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
   - id: shopping-order-browser
     name: Order on the List screen in Chromium
     purpose: Open the List page as the compiled router serves it, at 412x915, over the route's own SQL on the package test pool and a Walmart rail that answers as the native kernel does.
@@ -386,9 +388,10 @@ cases:
       - runner:playwright
       - browser:chromium
       - fixture:store-toolchain
-    sideEffects: synthetic browser fixtures only; no installation, account, store or provider is contacted
+    sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Close the browser and loopback server; synthetic browser fixtures only.
     limits:
       timeoutMs: 120000
     installation: never

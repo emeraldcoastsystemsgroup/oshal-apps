@@ -8,6 +8,19 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A body that carries a repeat (or a recurrence) is refused with 400 and nothing saved. Production,
  *   2026-11-13: "make the event for 20 weeks" after a weekly Friday request reached only this single-event add and became one event
  *   on Friday, February 5, 2027; a repeating event is the Google add's one series (google-events.ts).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: every saved row carries a revision (migration 006; null for a row saved before it,
+ *   read as 'o.original'), which a change of the event is bound to (own-event-changes.ts, Roger 2026-11-14: "can't cancel or
+ *   modify existing meeting"); the agenda's OSHAL events carry it, so the Calendar screen's Edit names the version it read. The
+ *   column list, the revision and the day and time parsers are exported for the changes.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: the answers say "your Open Swarm calendar" where they said OSHAL (Roger, 2026-11-13: what a person
+ *   sees names the product Open Swarm; technical identifiers keep oshal, so the agenda's "source" value stays). Words only.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the agenda (the Calendar screen, and the "Your calendar" frame on Home) reads
+ *   Google Calendar live (Roger, 2026-11-15: "I put a calendar event on my Google calendar and its not showing on the landing
+ *   home ... i would think it would have a combination of calendars"): the primary calendar and up to nine more the person
+ *   shows in Google Calendar for the month window (routes/google-live.js), each event keeping the calendar it is on. The saved
+ *   copy is used only when Google did not answer, with the warning "Showing your last synced copy from <time>: Google did not
+ *   answer."; a calendar that did not answer in time, an expired connection and a full calendar are warnings, the calendars
+ *   read are the answer's `google.note`. The GET still writes nothing.
  */
 /** Events a person adds in OSHAL: the caller's own rows, never written to Google Calendar. */
 import { Router } from 'express';
@@ -15,20 +28,27 @@ import { randomUUID } from 'crypto';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
 import { hasOffset, localLabel, offsetOf, validZone, wallToInstant } from './event-time';
+import { copyNote, GOOGLE_NOTE, liveGaps, readGoogleLive, readWords, type GoogleLive } from './google-live';
 
 const log = createChildLogger({ module: 'calendar.own-events' });
 
 /** The most events one person keeps here; a full calendar answers 409 instead of growing without bound. */
 export const MAX_OWN_EVENTS = 500;
 /** Where a saved event lives, said in every answer so nobody reads it as a Google write. */
-export const WHERE = 'Saved to your OSHAL calendar in Calendar Preparation. It is not added to Google Calendar.';
+export const WHERE = 'Saved to your Open Swarm calendar in Calendar Preparation. It is not added to Google Calendar.';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** A repeat sent to this single-event store is refused, never saved as its first date alone (the 20-weeks defect). */
-const REPEATS_ELSEWHERE = 'This OSHAL calendar keeps single events only, so nothing was saved. A repeating event is added to Google Calendar as one series.';
+const REPEATS_ELSEWHERE = 'Your Open Swarm calendar keeps single events only, so nothing was saved. A repeating event is added to Google Calendar as one series.';
 const NEEDS_ZONE = 'A start time needs the person\'s time zone: send "timeZone" (the IANA zone named on the Current time line, like America/Chicago) with a local start like 2026-11-06T18:00, or a start with its UTC offset like 2026-11-06T18:00:00-06:00.';
 
 /** One saved event as the routes answer it. */
-export interface OwnEvent { id: string; title: string; start: string; end: string | null; allDay: boolean; timeZone: string | null; local: string; location: string | null; notes: string | null; createdAt: string }
+export interface OwnEvent { id: string; revision: string; title: string; start: string; end: string | null; allDay: boolean; timeZone: string | null; local: string; location: string | null; notes: string | null; createdAt: string }
+/** The revision a row saved before revisions existed answers with (migration 006 adds the column, null for older rows). */
+export const ORIGINAL = 'o.original';
+/** The columns every read of an own event selects. */
+export const COLUMNS = 'id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at,revision';
+/** A fresh revision for a saved or changed row. */
+export const freshRevision = () => `o.${randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
 /** A validated new event, or the reason it was refused. */
 export type Parsed = { ok: true; title: string; startsAt: string; endsAt: string | null; allDay: boolean; zone: string | null; location: string | null; notes: string | null } | { ok: false; error: string };
@@ -38,7 +58,7 @@ export type Parsed = { ok: true; title: string; startsAt: string; endsAt: string
  * @param text - A 'YYYY-MM-DD' day.
  * @returns The instant, or null.
  */
-function dayInstant(text: string): string | null {
+export function dayInstant(text: string): string | null {
   if (!DAY.test(text)) return null;
   const at = new Date(`${text}T00:00:00.000Z`);
   return !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === text ? at.toISOString() : null;
@@ -52,7 +72,7 @@ function dayInstant(text: string): string | null {
  * @param zone - The person's valid IANA zone, or null.
  * @returns The instant, or null.
  */
-function timedInstant(text: string, zone: string | null): string | null {
+export function timedInstant(text: string, zone: string | null): string | null {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return null;
   if (!hasOffset(text)) return zone ? wallToInstant(text, zone) : null;
   const at = Date.parse(text);
@@ -104,7 +124,7 @@ export function ownEvent(row: any): OwnEvent {
   const iso = (value: any) => (value == null ? null : new Date(value).toISOString());
   const start = iso(row.starts_at) as string, end = iso(row.ends_at), allDay = row.all_day === true;
   const shown = allDay ? start.slice(0, 10) : start, timeZone = typeof row.time_zone === 'string' && row.time_zone ? row.time_zone : null;
-  return { id: String(row.id), title: String(row.title), start: shown, end: end && allDay ? end.slice(0, 10) : end,
+  return { id: String(row.id), revision: typeof row.revision === 'string' && row.revision ? row.revision : ORIGINAL, title: String(row.title), start: shown, end: end && allDay ? end.slice(0, 10) : end,
     allDay, timeZone, local: localLabel(shown, allDay, timeZone), location: row.location ?? null, notes: row.notes ?? null, createdAt: iso(row.created_at) as string };
 }
 
@@ -117,7 +137,7 @@ export function ownEvent(row: any): OwnEvent {
  */
 export async function readOwnEvents(ctx: AppContext, sub: string, now = new Date()): Promise<OwnEvent[]> {
   const from = `${now.toISOString().slice(0, 10)}T00:00:00.000Z`;
-  const q = await ctx.pool.query({ text: 'SELECT id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at FROM calendar_own_events WHERE user_sub = $1 AND starts_at >= $2 ORDER BY starts_at ASC LIMIT 100', values: [sub, from], query_timeout: 1800 } as any);
+  const q = await ctx.pool.query({ text: `SELECT ${COLUMNS} FROM calendar_own_events WHERE user_sub = $1 AND starts_at >= $2 ORDER BY starts_at ASC LIMIT 100`, values: [sub, from], query_timeout: 1800 } as any);
   return q.rows.map(ownEvent);
 }
 
@@ -135,7 +155,8 @@ function civilDay(value: number, zone: string): string {
   const field = (type: string) => parts.find(p => p.type === type)!.value;
   return `${field('year')}-${field('month')}-${field('day')}`;
 }
-/** Exclusive event ends never spill into the next civil day. All-day dates never shift zones. */
+/** Exclusive event ends never spill into the next civil day. All-day dates never shift zones. A Google event keeps the name of
+ * the calendar it is on (null for the primary one). */
 export function agendaEvent(event: any, source: 'oshal' | 'google', zone: string, index = 0): any {
   if (!event || typeof event.title !== 'string' || typeof event.start !== 'string') throw new Error('invalid_saved_event');
   const allDay = event.allDay === true;
@@ -148,18 +169,49 @@ export function agendaEvent(event: any, source: 'oshal' | 'google', zone: string
   return { id: String(event.id || ''), key: `${source}:${event.id || index}`, source, title: event.title.slice(0, 120),
     start: event.start, end: event.end ?? null, allDay, timeZone: event.timeZone ?? null,
     firstDay: allDay ? event.start : civilDay(startMs, zone), lastDay: allDay ? new Date(last).toISOString().slice(0, 10) : civilDay(last, zone),
-    location: source === 'oshal' ? event.location ?? null : null, notes: source === 'oshal' ? event.notes ?? null : null,
-    url: source === 'google' && typeof event.url === 'string' ? event.url : null };
+    location: source === 'oshal' ? event.location ?? null : null, notes: source === 'oshal' ? event.notes ?? null : null, revision: source === 'oshal' ? event.revision ?? null : null,
+    url: source === 'google' && typeof event.url === 'string' ? event.url : null, calendar: source === 'google' && typeof event.calendar === 'string' ? event.calendar : null };
 }
-/** Read the complete bounded owned calendar, including history and events already underway. */
-export async function readAgenda(ctx: AppContext, sub: string, window: { from: string; to: string; tz: string }): Promise<any> {
-  const own = await ctx.pool.query({ text: 'SELECT id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at FROM calendar_own_events WHERE user_sub = $1 ORDER BY starts_at ASC LIMIT 501', values: [sub], query_timeout: 1800 } as any);
+
+/** The window's civil days in the viewer's zone as the instants Google is asked for (to's day included). */
+function windowInstants(window: { from: string; to: string; tz: string }): { timeMin: string; timeMax: string } {
+  const after = new Date(Date.parse(`${window.to}T00:00:00.000Z`) + 86400000).toISOString().slice(0, 10);
+  return { timeMin: wallToInstant(`${window.from}T00:00`, window.tz) as string, timeMax: wallToInstant(`${after}T00:00`, window.tz) as string };
+}
+
+/**
+ * @description The Google events of the agenda: read live; only when Google did not answer, the saved copy (more than 250
+ * saved entries still refuses the read). What the screen must say rides in warnings (a gap in what is shown) or the note.
+ * @param live - The live read.
+ * @param row - The caller's saved snapshot row, or undefined.
+ * @returns The events, warnings, the note and the `google` block.
+ */
+function agendaGoogle(live: GoogleLive, row: any): { rows: any[]; warnings: string[]; google: any } {
+  const block = { state: live.state as string, readAt: null as string | null, syncedAt: null as string | null, calendars: [] as string[], unread: [] as string[], primaryOnly: null as boolean | null, note: '' };
+  if (live.state === 'live') {
+    const gaps = liveGaps(live), steady = live.unlisted === 'not-allowed' ? gaps.slice(0, 1) : [];
+    Object.assign(block, { readAt: live.readAt, calendars: ['primary', ...live.read], unread: live.unread, primaryOnly: !live.listed, note: [readWords(live), ...gaps].join(' ') });
+    return { rows: live.events, warnings: gaps.filter((g) => !steady.includes(g)), google: block };
+  }
+  if (live.state === 'no-answer' && row) {
+    if (!Array.isArray(row.events) || row.events.length > 250) throw new Error('calendar_snapshot_invalid_or_overflow');
+    const note = copyNote(new Date(row.synced_at));
+    Object.assign(block, { state: 'saved-copy', syncedAt: new Date(row.synced_at).toISOString(), note });
+    return { rows: row.events, warnings: [note], google: block };
+  }
+  block.note = GOOGLE_NOTE[live.state];
+  return { rows: [], warnings: live.state === 'not-connected' ? [] : [block.note], google: block };
+}
+
+/** Read the complete bounded owned calendar, including history and events already underway, and Google Calendar live. */
+export async function readAgenda(ctx: AppContext, sub: string, window: { from: string; to: string; tz: string }, budgetMs?: number): Promise<any> {
+  const own = await ctx.pool.query({ text: `SELECT ${COLUMNS} FROM calendar_own_events WHERE user_sub = $1 ORDER BY starts_at ASC LIMIT 501`, values: [sub], query_timeout: 1800 } as any);
   if (own.rows.length > MAX_OWN_EVENTS) throw new Error('calendar_capacity_exceeded');
   const saved = await ctx.pool.query({ text: 'SELECT events,synced_at FROM calendar_preparation_snapshots WHERE user_sub = $1', values: [sub], query_timeout: 1800 } as any);
-  const row = saved.rows[0], google = row ? row.events : [];
-  if (!Array.isArray(google) || google.length > 250) throw new Error('calendar_snapshot_invalid_or_overflow');
-  const warnings: string[] = [], events: any[] = [];
-  for (const [source, rows] of [['oshal', own.rows.map(ownEvent)], ['google', google]] as any) {
+  const row = saved.rows[0], live = await readGoogleLive(ctx, sub, windowInstants(window), budgetMs);
+  const google = agendaGoogle(live, row);
+  const warnings: string[] = [...google.warnings], events: any[] = [];
+  for (const [source, rows] of [['oshal', own.rows.map(ownEvent)], ['google', google.rows]] as any) {
     rows.forEach((event: any, index: number) => {
       try { const item = agendaEvent(event, source, window.tz, index); if (item.firstDay <= window.to && item.lastDay >= window.from) events.push(item); }
       catch (_) { warnings.push(`An invalid saved ${source} event could not be displayed.`); }
@@ -167,7 +219,7 @@ export async function readAgenda(ctx: AppContext, sub: string, window: { from: s
   }
   const syncedAt = row ? new Date(row.synced_at).toISOString() : null;
   events.sort((a, b) => a.firstDay.localeCompare(b.firstDay) || Number(b.allDay) - Number(a.allDay) || Date.parse(a.start) - Date.parse(b.start) || a.key.localeCompare(b.key));
-  return { window, events, partial: warnings.length > 0, warnings,
+  return { window, events, partial: warnings.length > 0, warnings, google: google.google,
     snapshot: { state: row ? 'saved' : 'missing', syncedAt, coverageFrom: syncedAt, coverageTo: syncedAt ? new Date(Date.parse(syncedAt) + 30 * 86400000).toISOString() : null, primaryOnly: true, maxEvents: 250, complete: false } };
 }
 
@@ -194,16 +246,16 @@ async function addEvent(ctx: AppContext, sub: string, body: any): Promise<{ stat
   const parsed = parseEvent(body);
   if (!parsed.ok) return { status: 400, body: { error: parsed.error } };
   const count = await ctx.pool.query({ text: 'SELECT COUNT(*) AS n FROM calendar_own_events WHERE user_sub = $1', values: [sub], query_timeout: 1800 } as any);
-  if (Number(count.rows[0]?.n || 0) >= MAX_OWN_EVENTS) return { status: 409, body: { error: `Your OSHAL calendar already holds ${MAX_OWN_EVENTS} events. Remove some before adding more.` } };
-  const same = await ctx.pool.query({ text: 'SELECT id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at FROM calendar_own_events WHERE user_sub = $1 AND title = $2 AND starts_at = $3 AND all_day = $4 LIMIT 1', values: [sub, parsed.title, parsed.startsAt, parsed.allDay], query_timeout: 1800 } as any);
+  if (Number(count.rows[0]?.n || 0) >= MAX_OWN_EVENTS) return { status: 409, body: { error: `Your Open Swarm calendar already holds ${MAX_OWN_EVENTS} events. Remove some before adding more.` } };
+  const same = await ctx.pool.query({ text: `SELECT ${COLUMNS} FROM calendar_own_events WHERE user_sub = $1 AND title = $2 AND starts_at = $3 AND all_day = $4 LIMIT 1`, values: [sub, parsed.title, parsed.startsAt, parsed.allDay], query_timeout: 1800 } as any);
   if (same.rows.length) {
     const saved = ownEvent(same.rows[0]);
-    return { status: 409, body: { error: `"${saved.title}" on ${saved.local} is already on your OSHAL calendar; nothing was added.`, duplicate: true, event: saved, where: WHERE } };
+    return { status: 409, body: { error: `"${saved.title}" on ${saved.local} is already on your Open Swarm calendar; nothing was added.`, duplicate: true, event: saved, where: WHERE } };
   }
-  const id = randomUUID(), createdAt = new Date().toISOString();
-  await ctx.pool.query('INSERT INTO calendar_own_events(user_sub,id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-    [sub, id, parsed.title, parsed.startsAt, parsed.endsAt, parsed.allDay, parsed.zone, parsed.location, parsed.notes, createdAt]);
-  const event = ownEvent({ id, title: parsed.title, starts_at: parsed.startsAt, ends_at: parsed.endsAt, all_day: parsed.allDay, time_zone: parsed.zone, location: parsed.location, notes: parsed.notes, created_at: createdAt });
+  const id = randomUUID(), createdAt = new Date().toISOString(), revision = freshRevision();
+  await ctx.pool.query('INSERT INTO calendar_own_events(user_sub,id,title,starts_at,ends_at,all_day,time_zone,location,notes,created_at,revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+    [sub, id, parsed.title, parsed.startsAt, parsed.endsAt, parsed.allDay, parsed.zone, parsed.location, parsed.notes, createdAt, revision]);
+  const event = ownEvent({ id, title: parsed.title, starts_at: parsed.startsAt, ends_at: parsed.endsAt, all_day: parsed.allDay, time_zone: parsed.zone, location: parsed.location, notes: parsed.notes, created_at: createdAt, revision });
   return { status: 201, body: { ok: true, event, where: WHERE } };
 }
 
@@ -217,12 +269,18 @@ async function addEvent(ctx: AppContext, sub: string, body: any): Promise<{ stat
 async function removeEvent(ctx: AppContext, sub: string, id: string): Promise<{ status: number; body: any }> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { status: 400, body: { error: 'An event id is required.' } };
   const gone = await ctx.pool.query('DELETE FROM calendar_own_events WHERE user_sub = $1 AND id = $2', [sub, id]);
-  if (!gone.rowCount) return { status: 404, body: { error: 'No such event in your OSHAL calendar.' } };
+  if (!gone.rowCount) return { status: 404, body: { error: 'No such event in your Open Swarm calendar.' } };
   return { status: 200, body: { ok: true, removed: id } };
 }
 
-/** Mounted at /api/calendar/events: the caller's own events, never another person's and never Google's. */
-export function createOwnEventsRoutes(ctx: AppContext) {
+/**
+ * @description Mounted at /api/calendar/events: the caller's own events, never another person's, and the agenda that lists them
+ * with the caller's Google calendars read live. Every GET only reads.
+ * @param ctx - The application context.
+ * @param options - `liveBudgetMs` shortens the agenda's Google budget for a test; the kernel mounts the factory with the context alone.
+ * @returns The router.
+ */
+export function createOwnEventsRoutes(ctx: AppContext, options: { liveBudgetMs?: number } = {}) {
   const r = Router();
   r.get('/agenda', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -231,7 +289,7 @@ export function createOwnEventsRoutes(ctx: AppContext) {
     if (['x-oshal-tenant-id', 'x-tenant-id', 'x-oshal-owner', 'x-oshal-principal-id'].some(k => req.headers[k] != null)) { res.status(400).json({ error: 'caller_override_refused' }); return; }
     let window;
     try { window = agendaWindow(req.query); } catch (_) { res.status(400).json({ error: 'invalid_calendar_window' }); return; }
-    try { res.json(await readAgenda(ctx, sub, window)); }
+    try { res.json(await readAgenda(ctx, sub, window, options.liveBudgetMs)); }
     catch (err) { log.error({ err }, 'Personal calendar read failed'); res.status(503).json({ error: err instanceof Error && /^calendar_/.test(err.message) ? err.message : 'calendar_read_unavailable' }); }
   });
   r.get('/', async (req, res) => {

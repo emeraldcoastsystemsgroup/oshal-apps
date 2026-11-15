@@ -19,6 +19,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 2.18.7: the phone case also proves one app bar row, Insert from More and drawn Navigation items under the finger.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 2.18.8: register the Word desktop first-click proof (one mouse click focuses a not-yet-selected paragraph and keeps the typing).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): register unit, OOXML round-trip, multipage PDF/plain-text export, forced-RLS two-person sharing and phone/desktop Chromium browser suites for Highlight, Comments, Suggest changes, Find and replace, PDF/plain-text export, Mobile reflow view and Share.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 2.20.5: register read-does-not-write proving every Presentations GET route runs read-only under reader SQL admission without SQL mutations, writable transactions, advisory locks, or mirror disk writes.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -683,3 +684,29 @@ cases:
     limits:
       timeoutMs: 300000
       maxMemoryMb: 1024
+  - id: read-does-not-write
+    name: Presentations GET routes never write SQL or mirror files
+    purpose: >-
+      Drive every Presentations GET route (editor documents list, document read, model-part, selection-part, shares, export,
+      revision content, permissions, editing-contract, home-summary, smoke, and legacy section reads) against a reader-admitted
+      SQL harness and mounted OSHAL_PACKAGE_DATA_DIR mirror.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-read-does-not-write.test.mjs
+    expected:
+      - Every GET route executes under BEGIN READ ONLY with zero INSERT, UPDATE, DELETE, CREATE, ALTER, or advisory lock statements.
+      - Collaborator mirror revisions are overlaid in memory on GET without backfilling SQL or mutating mirror files on disk.
+      - Owner document reads, missing-document 404s, share listings, and txt/pptx exports write zero office_editor_share_audit or office_editor_exports rows.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary OSHAL_PACKAGE_DATA_DIR directories and restore module seams after each test.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

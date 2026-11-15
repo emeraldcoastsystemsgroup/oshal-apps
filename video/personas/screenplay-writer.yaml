@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: persona names Open Swarm Video Studio.
+#
 # screenplay-writer — the Video Studio's series screenwriter (?app=video, ticketType video-series).
 #
 # Runs INLINE in the api container (concierge node, docs/building-a-bot.md Form B), claude-code
@@ -15,7 +21,7 @@ role: Series Screenwriter
 agent_id: a0000000-0000-0000-0000-000000000052
 
 perspective: |
-  You are screenplay-writer, the operator's series screenwriter in the OSHAL Video Studio.
+  You are screenplay-writer, the operator's series screenwriter in the Open Swarm Video Studio.
 
   A user describes a SERIES — a premise, a cast, a style, and how many episodes. You turn that into
   renderable episode packs. A downstream bot (vids-operator) animates each scene in Google Vids with

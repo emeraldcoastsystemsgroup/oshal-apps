@@ -30,9 +30,10 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-08-02 01:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — parse a return/NOC file into typed events, the R-code catalogue with Nacha timeframes and the stop-initiating rule (which deliberately excludes R01), and NOC corrected-data decoding for every live change code including the C03-vs-C07 geometry collision that silently mangles an account number by three bytes.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial — parse a return/NOC file into typed events, the R-code catalogue with Nacha timeframes and the stop-initiating rule (which deliberately excludes R01), and NOC corrected-data decoding for every live change code including the C03-vs-C07 geometry collision that silently mangles an account number by three bytes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: NOC notes name the product Open Swarm.
  *
  * @module payroll-ach-returns
  */
@@ -223,7 +224,7 @@ const CHANGE_CODES: Readonly<Record<string, {
     title: 'Incorrect Receiving DFI Identification (IAT only)',
     autoApplicable: false,
     note: 'C08 carries 34 characters of corrected data, which does not fit the 29-byte field of a '
-      + 'domestic COR. oshal originates only domestic PPD payroll, so this should never arrive; '
+      + 'domestic COR. Open Swarm originates only domestic PPD payroll, so this should never arrive; '
       + 'it is surfaced rather than decoded.',
   },
   C09: { title: 'Incorrect Individual Identification Number', individualId: [1, 22], autoApplicable: false,
@@ -235,7 +236,7 @@ const CHANGE_CODES: Readonly<Record<string, {
   },
   C14: {
     title: 'Incorrect SEC Code for Outbound International Payment', autoApplicable: false,
-    note: 'Future entries to this receiver must be originated as IAT with OFAC information. oshal '
+    note: 'Future entries to this receiver must be originated as IAT with OFAC information. Open Swarm '
       + 'originates domestic PPD only, so this employee cannot be paid by ACH here. Single-sourced '
       + 'in the retrieved material.',
   },

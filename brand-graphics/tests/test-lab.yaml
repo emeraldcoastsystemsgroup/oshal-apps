@@ -6,6 +6,7 @@
 # 2   | maintainer@emeraldcoastsystemsgroup.com     | Register the design-standard browser case (contract, one primary, Back closes layers, in-page asks, planned controls).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The design-standard browser case also measures the buttons (Roger F14, 2026-11-06): one-line labels they hug, 44px and 16px on a phone, a 36px toolbar and 15px on a desktop, icon buttons with no fill or edge, saved projects as list rows.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (open-work audit 2026-11-10, RP-BRG-01..07): the design-standard case asserts working Templates, Brand kit, Comment, Download, Resize, Schedule or post and Edit on canvas instead of greyed planned controls; the source-handoff case covers the three hand-offs; the durable-source case covers comment threads through real SQL; the contract case covers the comment operations.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: register product-name guard (tests/product-name.test.cjs) over the manifest, persona, routes, TypeScript route sources and tools.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -153,4 +154,25 @@ cases:
       mode: disposable
       cleanup: Close the exact owned browser and loopback fixture. Only synthetic data is used.
     limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+  - id: product-name
+    name: Person-facing Brand Graphics text names the product Open Swarm
+    purpose: Check the manifest tool labels, persona role and naming rules, routes, TypeScript route sources and tools outside comments.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/product-name.test.cjs
+    expected:
+      - Manifest tool labels and descriptions name Open Swarm and retire the Oh-shal pronunciation rule.
+      - The persona role, look, naming section and routing keywords name Open Swarm and carry no Oh-shal rule.
+      - Shipped manifest, persona, routes, TypeScript route sources and tools files contain no product-name OSHAL or oshal outside comments.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

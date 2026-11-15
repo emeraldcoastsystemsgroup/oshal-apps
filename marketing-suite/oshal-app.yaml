@@ -2,6 +2,7 @@
 # OSHAL application GROUP — Marketing (ADR-141)
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: the Social Signals tile is merged into Social's Workspace · Engage (UX audit 2026-11-06, social--social-signals): its tile is removed here and the signals setup step opens the Workspace.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.4: the description says what this group is and gives each act to the member that does it. It listed the members' work as its own ("the compose desk and scheduled calendar, your social presence"), so asked to draft a LinkedIn post Jarvis asked "Social or Marketing?" (routing scoreboard, test installation, 2026-11-14) though a group carries no code and drafts nothing. No toolbar, setup, member or connector change.
 #
 # A group carries NO code. It binds the installed applications a launch actually
 # uses into one front door with one toolbar and a setup dashboard:
@@ -39,12 +40,14 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Marketing
 description: >-
-  One front door for taking a product to market: the campaign board with its
-  consent gates and weekly scorecard, the compose desk and scheduled calendar,
-  your social presence and the signals you follow, and the graphics, decks and
-  clips a launch needs — with a setup page that shows what is armed and what
-  still needs you.
-version: 1.1.3
+  One front door for taking a product to market. Marketing is a group with no
+  work of its own: one toolbar that opens its member applications' screens, and
+  a setup page that shows what is armed and what still needs you. Each member
+  does its own work: Marketing Engine the campaign board with its consent gates
+  and weekly scorecard, Switchboard the compose desk and scheduled calendar,
+  Social your social presence and the signals you follow, and Brand Graphics,
+  AI Office and Video Studio the graphics, decks and clips a launch needs.
+version: 1.1.4
 status: active
 scope: public
 theme: light-blue

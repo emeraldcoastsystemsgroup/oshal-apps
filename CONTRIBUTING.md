@@ -38,6 +38,79 @@ bash scripts/store-ci-local.sh
 
 `.githooks/pre-push` runs this for you. Run it by hand whenever you want the answer sooner.
 
+### Scoped by default, the whole suite on a schedule
+
+A push does not run every package's suites. The gate (`scripts/store-ci-scope.mjs` decides) runs:
+
+- **always**: the publish wall (attribution and house identifiers, the public snapshot cut) and every
+  structural rule: the jobs in `ALWAYS_JOBS` (test discovery, catalog parity with its mutation tests,
+  role-template coverage, concierge coverage, dependency declarations and group concierge, service
+  activations, engine container pattern, forced row security, app scopes, test catalogs, store bots,
+  Home summaries, the ADR-160 contracts, this gate's own contracts), and any step a package job runs
+  from the root through a `scripts/` check (repository separation, for example);
+- **the changed packages**: every job with a step inside a package folder the change touches (measured
+  from the merge base with `origin/main` to the working tree, uncommitted and untracked files
+  included). A catalog or audit change counts for the package its entry names;
+- **what they reach**: packages that require a changed package (through the whole chain), packages
+  that optionally use it (one hop), and packages whose tests read it by path (one hop).
+
+**Anything it cannot place runs everything**: a change under `scripts/`, `.github/` or `.githooks/`, a
+root file other than `marketplace.json` and Markdown, a folder that is not a package, an unreadable
+dependency declaration, no `origin/main`, or a store-ci job that is neither in a package folder nor in
+`ALWAYS_JOBS`. It may run more than it had to, never less.
+
+Before it starts it prints what runs and what it leaves to the scheduled run. **Its last line says
+`SCOPED`** with the counts. For career-hunter 1.61.3 (`a4e560cd`, measured 2026-11-14) it was
+`store-ci-local SCOPED PASSED — scoped, not the full suite: 21 of 61 jobs run (74 of 139 checks), 40 left to the scheduled full run; changed packages: career-hunter.`,
+in 192 s of gate time against about 656 s of check time for the whole suite.
+`store-ci-local PASSED.` is printed by a full run only. The hook's own last line repeats the mode:
+`✓ store CI gate passed (scoped: 21 of 61 jobs, 74 of 139 checks; 40 jobs left to the scheduled full run)`
+or `✓ store CI gate passed (full suite: 139 of 139 checks)`.
+
+```bash
+bash scripts/store-ci-local.sh --plan            # print the plan, run nothing
+bash scripts/store-ci-local.sh --full            # every job, whatever changed
+bash scripts/store-ci-local.sh --base <commit>   # measure the change from another commit
+OSHAL_STORE_CI_FULL=1 git push ...               # the hook runs every job
+OSHAL_STORE_CI_FULL=1 bash scripts/store-push.sh "<title>" "<body>"
+```
+
+`scripts/store-push.sh` asks for the plan first and starts only the test services it names. When the
+first push fails it tries once more with `STORE_CI_RETRY_FROM`, which reruns only the jobs that failed,
+plus the publish wall, and only when the tree is unchanged and every failure was a package suite that
+ran and went red. A structural failure, a missing service or a changed tree runs the whole plan again.
+`OSHAL_STORE_CI_LOCAL=0` skips the store CI gate as before; the attribution checks run regardless.
+
+### The scheduled full run
+
+`bash scripts/store-full-run.sh` runs every store-ci job on a clean checkout of `origin/main` (it
+fetches first; your working tree is never tested), under `flock /tmp/oshal-coordination-heavy.lock`,
+starts every test service, reruns failed package jobs once, and exits non-zero when the suite is red.
+It writes `~/.local/state/oshal-store-gate/full-runs/<UTC stamp>-<commit>.json` (the gate's result:
+verdict, every failed test, the first run's failures) beside the `.log`, and copies the newest to
+`latest.json`. Exit 75 means the lock stayed busy for four hours and nothing ran.
+
+The systemd user units are in `scripts/systemd/` (daily at 09:30 UTC). To install, once, on the gate
+machine:
+
+```bash
+git clone https://github.com/emeraldcoastsystemsgroup/oshal-apps.git ~/oshal-work/store-full-run
+git -C ~/oshal-work/store-full-run config core.hooksPath .githooks
+mkdir -p ~/.config/oshal-store-gate ~/.config/systemd/user
+cp ~/oshal-work/store-full-run/scripts/systemd/full-run.env.example ~/.config/oshal-store-gate/full-run.env
+#   edit full-run.env: USER, and the core-<sha8> / kernel-platform-<sha8> exports a push uses
+ln -sf ~/oshal-work/store-full-run/scripts/systemd/oshal-store-full-run.service ~/.config/systemd/user/
+ln -sf ~/oshal-work/store-full-run/scripts/systemd/oshal-store-full-run.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now oshal-store-full-run.timer
+systemctl --user list-timers oshal-store-full-run.timer      # the next run
+systemctl --user start oshal-store-full-run.service          # one run now
+journalctl --user -u oshal-store-full-run.service -n 20      # its last lines
+```
+
+The run uses that clone's `scripts/store-full-run.sh` as committed there; `git -C ~/oshal-work/store-full-run pull --ff-only`
+picks up a newer one (the run itself always tests `origin/main`).
+
 **This is the gate.** `store-ci` no longer runs on `pull_request`, because this repository is
 **private** and every Actions minute is billed. The workflow fans out to ~30 jobs and GitHub bills
 **each job rounded up to a whole minute**, so a run with a few minutes of real work is billed at

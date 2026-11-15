@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.3: Jarvis presses TV buttons through computer.run_plan. home-lan-discover and home-lan-control must declare exactly computerPlan {program: phone-bridge, verbs: [lan-discover]} and {program: phone-bridge, verbs: [lan-control]} (no other tool plans), and every command the compiled scan and press plan routes answer must fit the kernel's grammar exactly, mirrored from oshal-kernel crates/oshald/src/computer_plans.rs (declared, PlanShape::fits, argument): the bridge prefix, the tool's own declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB. Negative controls prove the mirror refuses what the kernel refuses. Removing a declaration or drifting the command turns this red; a plan that does not fit is never kept, so Jarvis could press nothing. The descriptions, the plans' next step and the persona name computer.run_plan and the planId, and no longer computer.run.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): on an Android TV, now_playing, play, pause, next, previous and stop are planned with bridge 1.8.0, a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it, also across a new scan; the card has the media row and the Now playing line only on an Android TV.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise the generated overview asset handlers with exact contained paths and actual MIME/cache headers; retain every device-plan, ownership and result assertion.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.1 (Lane TV1): every plan carries bridge 1.20.0, the one that has every press (launch_app, list_apps and active_app came with it), and the old-bridge hint names it. The grammar check also plans the three on a Samsung TV and a Roku, the Roku launch with the longest content id a plan can carry, so 56 presses fit the kernel grammar (18 on the Samsung, 16 on the Roku, 22 on the Android TV, which refuses the three).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.2: routingKeyword assertion updated from open oshal on to open open swarm on.
  */
 'use strict';
 const test = require('node:test');
@@ -79,7 +81,7 @@ test('a refused or unreadable scan answer is said in words', () => {
   const old = lan.recordAnswer('person-c', { op: 'discover', computer: PC, reply: '{"ok":false,"error":"unknown_verb","message":"There is no \'lan-discover\' here."}' });
   assert.equal(old.status, 200);
   assert.deepEqual([old.body.ok, old.body.recorded, old.body.error], [false, true, 'unknown_verb']);
-  assert.match(old.body.hint, /older than 1\.8\.0.*Scan for TVs/);
+  assert.match(old.body.hint, /older than 1\.20\.0.*Scan for TVs/);
   assert.equal(lan.readLan('person-c').lastScan.ok, false);
   assert.equal(lan.recordAnswer('person-c', { op: 'discover', reply: 'not json' }).body.error, 'reply_unreadable');
   assert.equal(lan.recordAnswer('person-c', { op: 'discover', reply: { ok: true, verb: 'lan-control' } }).body.error, 'wrong_reply');
@@ -138,7 +140,7 @@ test('1.7.0: on an Android TV, what is playing and the media keys are planned, r
     assert.equal(plan.status, 200, action);
     assert.match(plan.body.command, COMMAND);
     assert.deepEqual(decode(plan.body.command), { kind: 'android-tv', address: '10.20.30.42', action });
-    assert.equal(plan.body.bridgeVersion, '1.8.0', 'the media presses need bridge 1.8.0');
+    assert.equal(plan.body.bridgeVersion, '1.20.0', 'every plan names the bridge that has every press');
   }
   for (const name of ['Den TV', 'Guest room stick']) {
     const refused = lan.planControl('person-m', { device: name, action: 'pause' });
@@ -227,7 +229,7 @@ test('the manifest declares the four TV tools inside /api/home, TV routing words
   assert.deepEqual(tools['home-lan-control'].inputSchema.properties.action.enum, [...lan.LAN_ACTIONS]);
   for (const name of ['home-lan-discover', 'home-lan-control']) assert.match(tools[name].usageInstructions, /planned, never that it/);
   for (const tool of m.tools) assert.doesNotMatch(tool.executor.apiEndpoint, /\/api\/computers|\/api\/nodes/, `${tool.name} stays inside the package`);
-  for (const word of ['tv', 'tvs', 'roku', 'scan my network', 'volume down', 'open oshal on']) assert.ok(m.bots[0].routingKeywords.includes(word), word);
+  for (const word of ['tv', 'tvs', 'roku', 'scan my network', 'volume down', 'open open swarm on']) assert.ok(m.bots[0].routingKeywords.includes(word), word);
   assert.match(m.description, /TVs and streaming sticks/);
   assert.deepEqual(m.egress.map((e) => e.host), ['nominatim.openstreetmap.org', 'api.weather.gov', 'api.smartthings.com']);
   const persona = yaml.load(fs.readFileSync(path.join(ROOT, 'personas', 'home-bot.yaml'), 'utf8'));
@@ -315,7 +317,9 @@ test('the scan and press tools declare their computer plans exactly, and every p
   for (const device of ['Den TV', 'Guest room stick', 'Shed TV']) {
     for (const action of lan.LAN_ACTIONS) {
       const url = action === 'launch_url' ? `https://home.test/${'a'.repeat(230)}` : undefined;
-      const plan = lan.planControl('person-g', { device, action, url }, 'home.test');
+      const app = device === 'Den TV' ? '3201907018807' : '12';
+      const title = action === 'launch_app' && device === 'Guest room stick' ? { contentId: 'x'.repeat(255), mediaType: 'shortFormVideo' } : {};
+      const plan = lan.planControl('person-g', { device, action, url, app, ...title }, 'home.test');
       if (plan.body.error === 'not_for_this_tv') continue;
       const command = plannedOk(plan);
       assert.equal(kernelFits(press, command), 'lan-control', `${device} ${action}`);
@@ -323,7 +327,7 @@ test('the scan and press tools declare their computer plans exactly, and every p
       presses += 1;
     }
   }
-  assert.equal(presses, 50, 'every press a saved TV takes: 15 on the Samsung, 13 on the Roku, 22 on the Android TV (16 and the six media presses of 1.7.0)');
+  assert.equal(presses, 56, 'every press a saved TV takes: 18 on the Samsung and 16 on the Roku (15 and 13, and the three application presses of 1.9.1), 22 on the Android TV (16 and the six media presses of 1.7.0)');
 
   const good = plannedOk(lan.planControl('person-g', { device: 'Den TV', action: 'mute' }));
   const head = good.slice(0, good.indexOf(' --b64 '));

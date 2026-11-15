@@ -14,8 +14,8 @@
   OSHAL never shows or hands back a password — this only launches/relinks authorized accounts.
   The native kernel answers the same list with its own connector kinds (oauth, personal_token,
   api_key) and a per-provider liveness `status` instead of per-account rows; both shapes render.
-  Connect/Reconnect start consent at /api/connect/{id}/start, and fall back to the kernel's JSON
-  /connectors/{id}/authorize answer when that route is not served.
+  Connect/Reconnect open the kernel's /api/connect/{id}/start in a new window inside the click, with no
+  request first; the kernel's connect window (/utilities?connected={id}&window=connect) says how it went.
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (identity--identity-home, SPLIT): two views, one job
     each. Your accounts (the default) lists only granted and needs-attention accounts, the attention item first, with
@@ -24,6 +24,18 @@
     with no configured sign-in hidden by default), 48 cards per page with Show more, and Other last. An unconnected
     card loses its pill and its "Not connected yet." line and reads Set up; Open is no longer a second primary. One
     label set: Needs attention, Available. Desktop: a tab row; phone: a bottom bar. No request or flow changed.
+  2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.8 (Roger, 2026-11-15, Android phone, SmartThings, Reconnect: "Could not
+    start the connection: Failed to set the 'href' property on 'Location': The current window does not have permission
+    to navigate the target frame to 'https://oshal.agenticfederal.us/api/connect/smar…"; "I had a similar issue
+    yesterday on the desktop app"). Connect and Reconnect opened an empty window in the click and pointed it at the
+    sign-in after two requests. The shell frames this page in a sandbox that may steer another window only while the
+    click's activation lasts, and opening a window spends it; on the phone app the web view has no second windows, so
+    window.open handed back the top window itself and the late navigation was refused. The click now opens the kernel's
+    /api/connect/{id}/start directly, with nothing awaited first, and returns to the kernel's connect window, which says
+    how it went on the oshal-connections channel and closes; the hub then reads the list again (also when it is shown
+    again). With no second window, the whole window goes to the sign-in, still inside the click, and returns here. A
+    refusal is said in the kernel's words. The JSON /connectors/{id}/authorize fallback is gone: every kernel since
+    2026-10-10 serves the start route.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -130,11 +142,13 @@
   .review ul { margin:5px 0; padding-left:20px; }
   .review li { font-size:13px; line-height:1.6; margin:3px 0; }
   .review p { font-size:13px; line-height:1.6; color:#d6e6f5; }
+  .review a { color:var(--accent2); }
   .review strong { color:var(--text); }
   .spin { color:var(--muted); font-size:14px; padding:28px 0; text-align:center; }
   .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
   @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
   .err { color:var(--danger); }
+  .done { color:var(--ok); }
   .foot { color:var(--muted); font-size:11px; margin-top:18px; line-height:1.5; }
 
   @media (max-width: 640px) {
@@ -735,38 +749,101 @@ function lapsed(p) { return !p.connected && (p.status === 'expired' || p.status 
 /** Has this provider ever been granted - connected now, or lapsed and waiting for a reconnect? */
 function granted(p) { return !!p.connected || lapsed(p); }
 
-/** A navigable consent URL from a JSON answer: the kernel's `authorize_url`, or a plain `url`. */
-function consentUrl(body) {
-  const url = body && (body.authorize_url || body.url);
-  return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null;
+/** The channel the kernel's connect window (/utilities?connected={id}&window=connect) says how a sign-in went on. */
+const CONNECT_CHANNEL = 'oshal-connections';
+/** The sign-in being waited for: { id, label, channel }, or null. */
+let waiting = null;
+
+/**
+ * A same-origin path the kernel's callback may send the browser back to, else '': the kernel's own
+ * safe_return rule (one leading slash, no backslash or control character, at most 512 characters).
+ */
+function returnPath(path) {
+  const p = String(path || '');
+  return p.length <= 512 && /^\/(?![/\\])/.test(p) && !/[\\\u0000-\u001f\u007f]/.test(p) ? p : '';
+}
+
+/** Where the person is: the shell's address when it frames this page, else this page's own. */
+function hereAddress() {
+  try {
+    const own = window.location, top = window.top.location;
+    return returnPath(top.origin === own.origin ? top.pathname + top.search : own.pathname + own.search);
+  } catch (_) {
+    try { return returnPath(window.location.pathname + window.location.search); } catch (__) { return ''; }
+  }
 }
 
 /**
- * Start consent for one provider in a new top-level tab (OAuth cannot run in an iframe). The tab is
- * opened inside the click so it is not blocked, then pointed at the first route that answers:
- * /api/connect/{id}/start (a redirect to the provider, or JSON naming it), else the kernel's
- * /connectors/{id}/authorize JSON. When neither answers, the tab closes and the reason is shown.
+ * The kernel's browser entry for one provider's consent: a navigation there goes to the provider's sign-in
+ * (or to Connections with the kernel's reason when it refuses), and the callback returns to `back`.
  */
-async function startConsent(id) {
-  const tab = window.open('', '_blank');
-  if (tab) tab.opener = null;
-  const go = (url) => { if (tab) tab.location.href = url; else openTop(url); };
-  const startUrl = '/api/connect/' + encodeURIComponent(id) + '/start';
-  try {
-    const start = await fetch(startUrl, { credentials: 'include', redirect: 'manual', headers: { Accept: 'application/json' } });
-    if (start.type === 'opaqueredirect' || (start.status >= 300 && start.status < 400)) { go(startUrl); return; }
-    if (start.status === 401) throw new Error('Please sign in first.');
-    if (start.ok) { const url = consentUrl(await start.json().catch(() => null)); if (url) { go(url); return; } }
-    const authorize = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize', { credentials: 'include', headers: { Accept: 'application/json' } });
-    const body = await authorize.json().catch(() => null);
-    const url = authorize.ok ? consentUrl(body) : null;
-    if (url) { go(url); return; }
-    throw new Error((body && (body.detail || body.message || body.error)) || ('HTTP ' + authorize.status));
-  } catch (e) {
-    if (tab) tab.close();
-    $('review').innerHTML = `<div class="panel review"><span class="err">Could not start the connection: ${esc(e.message)}</span></div>`;
-  }
+function startAddress(id, back) {
+  return '/api/connect/' + encodeURIComponent(id) + '/start' + (back ? '?return=' + encodeURIComponent(back) : '');
 }
+
+/**
+ * Start consent for one provider (a provider's sign-in refuses to run in a frame). Everything happens
+ * in the click, with nothing awaited first: the shell's sandbox lets this page steer another window
+ * only while the click's activation lasts, opening a window spends it, and a phone app's web view
+ * without windows hands window.open the top window itself (Roger, 2026-11-15: "does not have
+ * permission to navigate the target frame"). The new window goes straight to the kernel's start and
+ * returns to the kernel's connect window, which says how it went and closes. With no second window,
+ * this whole window goes, still inside the click, and comes back here.
+ */
+function startConsent(id) {
+  const provider = allProviders.find((p) => p.id === id);
+  const label = (provider && provider.label) || id;
+  const inWindow = startAddress(id, '/utilities?connected=' + encodeURIComponent(id) + '&window=connect');
+  const tab = window.open(inWindow, '_blank');
+  if (tab) {
+    try { tab.opener = null; } catch (_) { /* nothing to cut: the window never had a handle on this page */ }
+  } else {
+    try { (window.top || window).location.href = startAddress(id, hereAddress()); } catch (e) { console.warn('identity: the sign-in could not open here', e); }
+  }
+  waitFor(id, label, inWindow);
+}
+
+/** Say what is happening and listen for the connect window's answer; the buttons stay usable. */
+function waitFor(id, label, url) {
+  stopWaiting();
+  waiting = { id, label, channel: null };
+  try {
+    waiting.channel = new BroadcastChannel(CONNECT_CHANNEL);
+    waiting.channel.onmessage = (event) => heard(event.data);
+  } catch (_) { /* no channel here: the list is read again when the page is shown again */ }
+  $('review').innerHTML = `<div class="panel review" role="status"><span>Waiting for ${esc(label)}. Finish signing in in the window that opened. </span><a href="${esc(url)}" target="_blank" rel="noopener">No window? Open it again.</a></div>`;
+}
+
+/** Stop listening for a sign-in. */
+function stopWaiting() {
+  if (waiting && waiting.channel) { try { waiting.channel.close(); } catch (_) { /* already closed */ } }
+  waiting = null;
+}
+
+/** Show a sign-in's outcome in one line. */
+function showOutcome(ok, text) {
+  $('review').innerHTML = `<div class="panel review" role="${ok ? 'status' : 'alert'}"><span class="${ok ? 'done' : 'err'}">${esc(text)}</span></div>`;
+}
+
+/** The connect window's answer, in the kernel's own words: say it and read the list again. */
+function heard(message) {
+  if (!waiting || !message || message.type !== 'connect-outcome' || message.connector !== waiting.id) return;
+  const label = waiting.label;
+  const ok = message.ok === true;
+  stopWaiting();
+  showOutcome(ok, String(message.text || (ok ? label + ' is connected.' : label + ' was not connected.')));
+  load();
+}
+
+/** Shown again (back from the sign-in, or from another app): read the list again; a now-connected card ends the wait. */
+async function refreshAfterSignIn() {
+  if (!waiting || (typeof document.visibilityState === 'string' && document.visibilityState !== 'visible')) return;
+  const { id, label } = waiting;
+  await load();
+  const p = allProviders.find((x) => x.id === id);
+  if (waiting && waiting.id === id && p && p.connected && !needsAttention(p)) { stopWaiting(); showOutcome(true, label + ' is connected.'); }
+}
+if (typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', refreshAfterSignIn);
 
 /** Render the action buttons for one provider card. */
 function actionsFor(p) {

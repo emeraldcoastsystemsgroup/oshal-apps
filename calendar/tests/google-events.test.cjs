@@ -14,6 +14,8 @@
  *   google-calendar credential placed by the kernel, "not connected" when the caller has none) in front of a stand-in Google
  *   Calendar v3 events API on a loopback HTTP server that checks the bearer's scopes and the event as Google does.
  *   Named seams: the in-memory caller (OIDC) and the stand-in egress and Google; no real Google account is touched.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: own-events loads the live Google reader (routes/google-live.js) for its agenda, so the
+ *   20-weeks case loads it with its declared imports.
  */
 'use strict';
 const test = require('node:test');
@@ -305,7 +307,9 @@ test('the manifest mounts the route and holds the Google add for the person\'s a
 });
 
 test('a repeat sent to the OSHAL-only add is refused instead of saved as one event (the 20-weeks defect)', async () => {
-  const own = load('own-events.js', { express: { Router: router }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time });
+  const sync = load('sync.js', { express: { Router: router }, '@/shared/logger': logger });
+  const live = load('google-live.js', { '@/shared/logger': logger, './google-events': google(), './event-time': time, './sync': sync });
+  const own = load('own-events.js', { express: { Router: router }, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time, './google-live': live });
   const parsed = own.parseEvent({ title: "Gabriel's music lessons", start: '2027-02-05T18:00', end: '2027-02-05T19:00', timeZone: 'America/Chicago', repeat: { every: 'week', times: 20 } });
   assert.equal(parsed.ok, false);
   assert.match(parsed.error, /keeps single events only/);

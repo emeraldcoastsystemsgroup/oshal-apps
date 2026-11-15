@@ -1,0 +1,16 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | Run the full store gate once a day, at 09:30 UTC (03:30 US Central): outside US market hours and the Quant desk's evening window, after the 01:00 pull. Persistent, so a day the machine was off runs at the next start.
+[Unit]
+Description=oshal store gate: full suite on origin/main, daily
+
+[Timer]
+OnCalendar=*-*-* 09:30:00 UTC
+Persistent=true
+RandomizedDelaySec=10m
+Unit=oshal-store-full-run.service
+
+[Install]
+WantedBy=timers.target

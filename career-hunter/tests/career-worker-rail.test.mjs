@@ -8,6 +8,9 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The signed rail (1.25.1): every admitted call is signed with the runner-minted per-run grant, and the refusals are the ones the kernel's signed-package-callbacks rail answers before package code — unsigned, the retired 1.24.0 service-secret-plus-subject-plus-token contract, a browser cookie, a tampered body, a replayed request, a foreign owner, a wrong method, a settled or cancelled run, a run without a recorded owner issuer, an owner the directory no longer holds and an owner without the bound permission all fail with no bot call; the route alone refuses a request the verifier never admitted and one whose kernel identity is not the run owner. The body's content type and ceiling are now verifier refusals (the signature covers the bytes), so they answer as the kernel does; JSON and document validation still answer 400 from the handler.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve signed-rail version/catalog checks for the composite-bearing authorization block.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel (OSHAL_EGRESS=kernel) the legacy node/heartbeat preflight does not apply: with no dedicated node and no heartbeat registry the admitted completion still reaches the accounted bot call once, as the run owner.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Through the signed rail route, an Oracle Recruiting Cloud requisition-details read is fetched as the same credential-free GET with no redirect followed; its other paths, another host in the query, a method or a header in the body, and a revoked run are refused with no request.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The same route also reads a SmartRecruiters posting as that GET, and refuses the list, another host in the query, traversal and a look-alike host.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | A completion the kernel refuses because the model's answer had no text keeps 503 career-worker-unavailable with detail empty-answer; other failures carry no detail.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -210,6 +213,32 @@ test('signed employer detail reads use only anonymous structured Workday GETs an
   }finally{delete harness.ctx.http;}
 });
 
+test('signed employer detail reads of an Oracle requisition or a SmartRecruiters posting are the same anonymous GET, and nothing else on those hosts is fetched',async()=>{
+  const calls=[],run=newRun('user-a'),before=state.calls.length;
+  harness.ctx.http={fetch:async(url,options)=>{calls.push({url,options});return new Response('{"items":[{"Id":1}]}',{headers:{'content-type':'application/json'}});}};
+  const oracle='https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&finder=ById;Id=%22346395%22,siteNumber=CX_45001';
+  const sr='https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000161629479';
+  try{
+    for(const url of [oracle,sr]){
+      const good=await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url}});
+      assert.equal(good.status,200);assert.equal(good.body.status,200);
+    }
+    assert.deepEqual(calls,[oracle,sr].map(url=>({url,options:{method:'GET',redirect:'manual',headers:{Accept:'application/json'}}})));
+    for(const bad of [oracle.replace('recruitingCEJobRequisitionDetails','recruitingCECandidates'),oracle+'&expand=all',oracle+'&next=https://evil.test/',
+      oracle.replace('fa.us2','fa.em2'),'https://api.smartrecruiters.com/v1/companies/BoschGroup/postings',sr+'?host=evil.test',sr+'/../../candidates',
+      sr.replace('api.smartrecruiters.com','api.smartrecruiters.com.evil.test')]){
+      assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url:bad}})).status,400,bad);
+    }
+    for(const extra of [{method:'POST'},{headers:{Authorization:'foreign'}}]){
+      assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url:sr,...extra}})).status,400);
+    }
+    assert.equal(calls.length,2);assert.equal(state.calls.length,before,'a detail read spends no model tokens');
+    runs.settleEngineRun(run.runId,{code:0});
+    assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url:oracle}})).status,401);
+    assert.equal(calls.length,2,'a revoked run cannot fetch employer data');
+  }finally{delete harness.ctx.http;}
+});
+
 test('no dedicated node, a missing, offline or stale heartbeat, or a heartbeat read failure answers 503 and fails the run', async () => {
   const cases = [
     ['no-dedicated-node', () => { state.hasEndpoint = false; }],
@@ -277,6 +306,24 @@ test('budget, brain and bot-side failures keep their own codes', async () => {
   const run = newRun('user-a');
   const response = await postCompletion(server.url, auth(run));
   assert.deepEqual([response.status, response.body.error], [502, 'career-worker-error']);
+  runs.settleEngineRun(run.runId, { code: 1 });
+});
+
+test('a model answer the kernel refuses for having no text keeps 503 career-worker-unavailable and says empty-answer', async () => {
+  for (const message of ['unavailable: http://127.0.0.1:8000/v1/chat/completions returned an empty completion',
+    'unavailable: inference returned an empty answer']) {
+    healthyWorker();
+    state.behavior = async () => { throw new Error(message); };
+    const run = newRun('user-a');
+    const response = await postCompletion(server.url, auth(run));
+    assert.deepEqual([response.status, response.body], [503, { ok: false, error: 'career-worker-unavailable', detail: 'empty-answer' }], message);
+    assert.equal(runs.settleEngineRun(run.runId, { code: 1 }).reason, 'career-worker-unavailable', 'the run records what it always did');
+  }
+  healthyWorker();
+  state.behavior = async () => { throw new Error('connect ECONNREFUSED career-bot:5000'); };
+  const run = newRun('user-a');
+  const response = await postCompletion(server.url, auth(run));
+  assert.deepEqual(response.body, { ok: false, error: 'career-worker-unavailable' }, 'any other failure carries no detail');
   runs.settleEngineRun(run.runId, { code: 1 });
 });
 

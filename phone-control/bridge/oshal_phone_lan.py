@@ -9,12 +9,14 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | OK on an Android or Fire TV sends KEYCODE_ENTER (66): on a Fire TV the centre key (23) left a focused button unpressed in the oshal app (measured 2026-11-12).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.11.0 (T80): play_title on an Android or Fire TV plays a show or film by its name (oshal_phone_play.py).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): tv_apps on an Android or Fire TV says which streaming apps it has (oshal_phone_apps.py), from one read of its package list, pressing nothing; other kinds refuse it in words.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: launch_app, list_apps and active_app on a Roku or Samsung TV go to oshal_phone_front.py.
 """TVs and streaming sticks on this computer's home network: lan-discover and lan-control for oshal_phone_bridge.py."""
 
 from concurrent.futures import ThreadPoolExecutor
 import base64, hashlib, http.client, json, os, re, shutil, socket, ssl, struct, subprocess, time
 from xml.etree import ElementTree
 import oshal_phone_apps
+import oshal_phone_front
 import oshal_phone_links
 import oshal_phone_play
 
@@ -33,7 +35,8 @@ SSDP_SEARCH = (b'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp
 AVAHI_TYPES = ('_googlecast._tcp', '_adb-tls-connect._tcp', '_androidtvremote2._tcp')
 KINDS = ('android-tv', 'samsung-tizen', 'roku')
 ACTIONS = ('wake', 'off', 'volume_up', 'volume_down', 'mute', 'up', 'down', 'left', 'right', 'select', 'home',
-           'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'play_title', 'tv_apps') + oshal_phone_links.MEDIA_ACTIONS
+           'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'play_title', 'tv_apps') + oshal_phone_links.MEDIA_ACTIONS \
+    + oshal_phone_front.ACTIONS
 ANDROID_KEYCODES = {'wake': 224, 'off': 223, 'volume_up': 24, 'volume_down': 25, 'mute': 164, 'up': 19, 'down': 20,
                     'left': 21, 'right': 22, 'select': 66, 'home': 3, 'back': 4, 'play_pause': 85}
 SAMSUNG_KEYS = {'off': 'KEY_POWER', 'volume_up': 'KEY_VOLUP', 'volume_down': 'KEY_VOLDOWN', 'mute': 'KEY_MUTE',
@@ -952,9 +955,7 @@ def roku_keypress(ctx, address, key):
     finally:
         conn.close()
     if status == 403:
-        raise ctx.Refusal('roku_control_off', 'This Roku does not take commands from the network. On the Roku open '
-                          'Settings, System, Advanced system settings, Control by mobile apps, and set Network access '
-                          'to Default.')
+        raise ctx.Refusal('roku_control_off', oshal_phone_front.ROKU_CONTROL_OFF)
     if status != 200:
         raise ctx.Refusal('roku_failed', f'The Roku answered HTTP {status} to {key}.')
 
@@ -1041,6 +1042,8 @@ def verb_lan_control(ctx, args):
     elif kind == 'android-tv' and action == 'tv_apps':
         serial = android_connect(ctx, address)
         result = dict(oshal_phone_apps.tv_apps(ctx, lambda command: android_shell(ctx, serial, command)), serial=serial)
+    elif action in oshal_phone_front.ACTIONS:
+        result = oshal_phone_front.control(ctx, kind, address, mac, action, args)
     elif kind == 'android-tv' and action in oshal_phone_links.MEDIA_ACTIONS:
         serial = android_connect(ctx, address)
         result = dict(oshal_phone_links.media(ctx, action, lambda command: android_shell(ctx, serial, command)), serial=serial)

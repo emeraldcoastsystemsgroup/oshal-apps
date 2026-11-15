@@ -7,6 +7,7 @@ exports.countNewMatches = countNewMatches;
 exports.fetchBoardPage = fetchBoardPage;
 /**
  * CHANGE LOG
+ * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): New matches also lists the jobs the nightly pass marked "details needed" (no AI fit; ai_model starts {"needsDetails":), in the order the person chose (by date under Date posted, after every AI fit under Best AI fit), and counts them. They are read through the partial index idx_user_needs_details (migrations/sqlite/002) and only when this owner generation has it; a ranked rung adds them only when it holds every scored match, so no deeper scored match can be passed over. Saved, preparation and application views are unchanged.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Use migrated relationship ordering indexes for exact pipeline pages, with old-generation read fallback.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | Share one actionable personal-match predicate between pages and exact counts while preserving separate saved and application feeds.
  * 24 | maintainer@emeraldcoastsystemsgroup.com | Pin explicit starred active openings ahead of ranked matches before pagination, retaining pending scores and preventing duplicate page membership.
@@ -93,6 +94,9 @@ const ALIGNED_SORTS = new Set(Object.keys(POOL_ORDER));
  * sorts use the complete scored set and retain signal-first primary-key corpus lookups.
  */
 const POOL_STEPS = [4000, 25000];
+/** The jobs the nightly pass could not read carry this mark in ai_model and no AI fit; the literal matches the index. */
+const NEEDS_DETAILS = `s.ai_fit_score IS NULL AND s.ai_model GLOB '{"needsDetails":*'`;
+const NEEDS_DETAILS_INDEX = 'idx_user_needs_details';
 /** Signal columns the CTE must carry so the outer SELECT and the scoring expressions still work. */
 const CAND_COLS = 'posting_id, fit_score, ai_fit_score, ai_fit_rationale, ai_scored_at, ai_model, ai_input_fingerprint, status, applied_at, '
     + 'promoted_at, generated_at, notes, resume_path, cover_path, confirmation_path, '
@@ -263,12 +267,32 @@ function feedFilters(query, scope, exclusions, favorites = []) {
 /** @description Count the exact actionable match set, separately from saved, pipeline and dated scoring activity. @param db Owner SQLite connection. @param query Match filters. @param scope Saved area. @param favorites Saved IDs. @param exclusions Owner feedback. @returns Exact eligible count. */
 function countNewMatches(db, query, scope, favorites = [], exclusions) {
     const matched = { ...query, status: '', matches: '1' }, saved = savedIds(favorites), expression = (0, career_browse_feed_1.ftsExpressionFor)({ q: param(query, 'q') });
+    const unread = hasNeedsDetailsIndex(db);
     if (expression && (0, career_browse_feed_1.hasFullText)(db)) {
         const parts = feedFilters({ ...matched, q: '' }, scope, exclusions, saved);
-        const row = db.prepare(keywordSelection(parts, false, null, 'COUNT(*) AS n')).get(expression, '%' + param(query, 'q') + '%', ...parts.scoredArgs, ...parts.corpArgs);
+        const row = db.prepare(keywordSelection(parts, false, null, 'COUNT(*) AS n', unread)).get(expression, '%' + param(query, 'q') + '%', ...parts.scoredArgs, ...parts.corpArgs);
         return row?.n ?? 0;
     }
-    return countScored(db, feedFilters(matched, scope, exclusions, saved));
+    const parts = feedFilters(matched, scope, exclusions, saved);
+    return countScored(db, parts) + (unread ? countNeedsDetails(db, parts) : 0);
+}
+/** @description Whether this owner generation has the index New matches reads its details-needed jobs through. @param db Owner database. @returns True when idx_user_needs_details exists. */
+function hasNeedsDetailsIndex(db) {
+    const found = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name=?").get(NEEDS_DETAILS_INDEX);
+    return !!found;
+}
+/** @description Count the details-needed jobs a New matches page would list. @param db Owner database. @param parts Match eligibility. @returns Their number. */
+function countNeedsDetails(db, parts) {
+    const sql = `WITH cand AS (
+        SELECT posting_id FROM user_signals s INDEXED BY ${NEEDS_DETAILS_INDEX}
+         WHERE ${NEEDS_DETAILS} AND ${parts.scoredWhere})
+      SELECT COUNT(*) AS n
+        FROM cand s
+        CROSS JOIN corpus.postings_corpus p ON p.id = s.posting_id
+        CROSS JOIN corpus.companies c ON c.id = p.company_id
+       WHERE ${parts.corpWhere}`;
+    const row = db.prepare(sql).get(...parts.scoredArgs, ...parts.corpArgs);
+    return row?.n ?? 0;
 }
 /**
  * @description Runs one rung of the candidate-pool plan: a bounded, ordered walk of the user's
@@ -283,10 +307,19 @@ function runPooled(db, parts, plan) {
     // Keep private signals outermost even after escalation. An ordinary join on a deep
     // or exhausted page can scan the entire description-heavy corpus through its active index.
     const join = 'CROSS JOIN';
-    const sql = `WITH cand AS (
+    // New matches: the details-needed jobs join the scored pool, read through their own small index.
+    const cte = plan.unread ? `WITH scored AS (
         SELECT ${CAND_COLS} FROM user_signals s
          WHERE s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
-         ORDER BY ${plan.poolOrder} ${bound})
+         ORDER BY ${plan.poolOrder} ${bound}),
+      unread AS (
+        SELECT ${CAND_COLS} FROM user_signals s INDEXED BY ${NEEDS_DETAILS_INDEX}
+         WHERE ${NEEDS_DETAILS} AND ${parts.scoredWhere}),
+      cand AS (SELECT * FROM scored UNION ALL SELECT * FROM unread)` : `WITH cand AS (
+        SELECT ${CAND_COLS} FROM user_signals s
+         WHERE s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
+         ORDER BY ${plan.poolOrder} ${bound})`;
+    const sql = `${cte}
       SELECT ${SELECT_COLS}
         FROM cand s
         ${join} corpus.postings_corpus p ON p.id = s.posting_id
@@ -294,7 +327,7 @@ function runPooled(db, parts, plan) {
        WHERE ${parts.corpWhere}
        ORDER BY ${plan.order}
        LIMIT ? OFFSET ?`;
-    return db.prepare(sql).all(...parts.scoredArgs, ...parts.corpArgs, plan.limit, plan.offset);
+    return db.prepare(sql).all(...parts.scoredArgs, ...(plan.unread ? parts.scoredArgs : []), ...parts.corpArgs, plan.limit, plan.offset);
 }
 /**
  * @description Fetches unscored postings to backfill a short page. The previous board query
@@ -373,7 +406,7 @@ function countScored(db, parts) {
  * @param offset - Page offset.
  * @returns The exact scored rows matching the posted-date window.
  */
-function runDateBounded(db, parts, order, per, offset, days) {
+function runDateBounded(db, parts, order, per, offset, days, unread = false) {
     // The geographic OR and active predicate can make SQLite choose idx_corpus_geo's active
     // prefix over the dates, scanning every active posting. Keep the disjoint dated/undated
     // ranges materialized and outermost, then probe the full posting and original owner's score.
@@ -388,7 +421,7 @@ function runDateBounded(db, parts, order, per, offset, days) {
         CROSS JOIN corpus.postings_corpus p ON p.id = r.id
         CROSS JOIN user_signals s ON s.posting_id = p.id
         CROSS JOIN corpus.companies c ON c.id = p.company_id
-       WHERE ${parts.corpWhere} AND s.ai_fit_score IS NOT NULL AND ${parts.scoredWhere}
+       WHERE ${parts.corpWhere} AND ${unread ? `(s.ai_fit_score IS NOT NULL OR (${NEEDS_DETAILS}))` : 's.ai_fit_score IS NOT NULL'} AND ${parts.scoredWhere}
        ORDER BY ${order}
        LIMIT ? OFFSET ?`;
     return db.prepare(sql).all(`-${days} days`, `-${days} days`, ...parts.corpArgs, ...parts.scoredArgs, per, offset);
@@ -429,7 +462,7 @@ function fetchBoardPage(db, query, scope, selectedIds, exclusions, favoriteIds =
     return result;
 }
 /** @description The exact indexed keyword set shared by page selection and counting. @param parts Eligibility. @param workflow Whether this is named history. @param selected Explicit selected IDs. @param columns Selected columns. @returns Unordered keyword SQL. */
-function keywordSelection(parts, workflow, selected, columns) {
+function keywordSelection(parts, workflow, selected, columns, unread = false) {
     const selectedSql = selected ? ` AND s.posting_id IN (${selected.map(() => '?').join(',')})` : '';
     return `WITH keywords AS MATERIALIZED (
         SELECT rowid AS posting_id FROM corpus.${career_browse_feed_1.FTS_TABLE} WHERE ${career_browse_feed_1.FTS_TABLE} MATCH ? UNION SELECT p.id FROM corpus.companies c CROSS JOIN corpus.postings_corpus p ON p.company_id=c.id WHERE c.name LIKE ?)
@@ -438,12 +471,12 @@ function keywordSelection(parts, workflow, selected, columns) {
         CROSS JOIN user_signals s ON s.posting_id = k.posting_id
         CROSS JOIN corpus.postings_corpus p ON p.id = s.posting_id
         CROSS JOIN corpus.companies c ON c.id = p.company_id
-       WHERE ${workflow ? '1=1' : 's.ai_fit_score IS NOT NULL'} AND ${parts.scoredWhere} AND ${parts.corpWhere}${selectedSql}`;
+       WHERE ${workflow ? '1=1' : unread ? `(s.ai_fit_score IS NOT NULL OR (${NEEDS_DETAILS}))` : 's.ai_fit_score IS NOT NULL'} AND ${parts.scoredWhere} AND ${parts.corpWhere}${selectedSql}`;
 }
 /** @description Execute the indexed keyword strategy using the composed feed eligibility. @param db Owner database. @param parts Eligibility. @param plan Page geometry. @param expression Full-text query. @param keyword Original text. @returns Exact keyword page. */
 function keywordPage(db, parts, plan, expression, keyword) {
-    const { workflow, selected, order, per, page, offset } = plan;
-    const sql = keywordSelection(parts, workflow, selected, SELECT_COLS) + ` ORDER BY ${order} LIMIT ? OFFSET ?`;
+    const { workflow, selected, order, per, page, offset, unread } = plan;
+    const sql = keywordSelection(parts, workflow, selected, SELECT_COLS, unread) + ` ORDER BY ${order} LIMIT ? OFFSET ?`;
     const jobs = db.prepare(sql).all(expression, '%' + keyword + '%', ...parts.scoredArgs, ...parts.corpArgs, ...(selected || []), per, offset);
     return { jobs, page, per, poolSize: null, exhausted: jobs.length < per, pooled: false, scoredOnly: !workflow };
 }
@@ -481,8 +514,10 @@ function rankedPage(db, parts, plan) {
     let jobs = [], poolSize = ladder[0];
     for (const poolN of ladder) {
         poolSize = poolN;
-        jobs = runPooled(db, parts, { order, poolOrder, poolN, limit: per, offset });
-        if (jobs.length >= per || poolN === null || !poolSaturated(db, parts, poolN))
+        // Details-needed jobs join only a rung that holds every scored match, so none can stand in for a deeper one.
+        const whole = plan.unread && (poolN === null || !poolSaturated(db, parts, poolN));
+        jobs = runPooled(db, parts, { order, poolOrder, poolN, limit: per, offset, unread: whole });
+        if (jobs.length >= per || poolN === null || (plan.unread ? whole : !poolSaturated(db, parts, poolN)))
             break;
     }
     const exhausted = jobs.length < per;
@@ -509,7 +544,8 @@ function fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, window, fa
         parts.tailArgs.push(...window.exclude);
     }
     const workflow = !!param(query, 'status'), selected = selectedIds === undefined ? null : savedIds(selectedIds);
-    const plan = { sort, order, poolOrder, per, page, offset, includeUnscored, selected, workflow };
+    const unread = actionableMatches(query) && selected === null && hasNeedsDetailsIndex(db);
+    const plan = { sort, order, poolOrder, per, page, offset, includeUnscored, selected, workflow, unread };
     if (selected && selected.length === 0)
         return { jobs: [], page, per, poolSize: null, exhausted: true, pooled: false, scoredOnly: false };
     if (indexedKeywords)
@@ -518,7 +554,7 @@ function fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, window, fa
         return workflowPage(db, parts, plan);
     const days = parseInt(param(query, 'days'), 10);
     if (days > 0 && !includeUnscored) {
-        const jobs = runDateBounded(db, parts, order, per, offset, days);
+        const jobs = runDateBounded(db, parts, order, per, offset, days, unread);
         return { jobs, page, per, poolSize: null, exhausted: jobs.length < per, pooled: false, scoredOnly: true };
     }
     return rankedPage(db, parts, plan);

@@ -1,0 +1,21 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com   | The scheduled full store gate run (scripts/store-full-run.sh): every store-ci job on a clean checkout of origin/main, under the coordination heavy lock, with a dated receipt. A systemd USER unit, started by oshal-store-full-run.timer. Install steps: CONTRIBUTING.md, "The scheduled full run".
+#
+# %h is the home directory. STORE_CLONE in the environment file names the store clone whose
+# scripts/store-full-run.sh runs; the run fetches origin there and tests origin/main, never its tree.
+[Unit]
+Description=oshal store gate: full suite on origin/main (scheduled)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/oshal-store-gate/full-run.env
+ExecStart=/usr/bin/env bash -c 'exec bash "$STORE_CLONE/scripts/store-full-run.sh"'
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=6h
+# 75 = the heavy lock stayed busy; the next timer tick tries again.
+SuccessExitStatus=75

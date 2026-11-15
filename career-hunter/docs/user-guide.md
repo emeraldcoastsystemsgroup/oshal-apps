@@ -155,6 +155,21 @@ when you want documents with saved-job preparation off:
 
 1. **Tailor** — review the main résumé, add notes and select relevant Other
    experience. Choose **Generate résumé & cover letter** when ready.
+   For a job with no description, this step starts with the box **Paste the job
+   description from the posting** and **Open the posting** beside it. Open the
+   employer's posting, copy the whole job description and paste it in the box.
+   When Career knows it cannot read the job (it says **Job details needed**, also
+   after a preparation that stopped because Career could not read the job),
+   **Generate résumé & cover letter** (or **Retry generation**) is greyed out and
+   stays off until you have pasted at least 200 characters; the line under the box
+   counts them and says why. Career keeps what you paste as
+   your own copy of that job's description, for you only (up to 20,000 characters),
+   and uses it to check your fit and write your résumé and cover letter. To change
+   it later, open **Replace the description you pasted** in the same step, paste
+   the new description and generate again. Jarvis and the Concierge cannot prepare
+   such a job until its description is pasted here; they tell you so, in the same
+   words: open **Prepare application**, step **1 · Tailor**, paste the job
+   description from the posting and generate there.
 2. **Review documents** — read the actual generated documents and download or
    edit them as needed. If the résumé, tailoring or selected experience changes,
    generate a current packet before sending it.
@@ -333,6 +348,41 @@ which takes them out of Saved while keeping them in Applications.
 Nightly matching works through jobs that have not yet been scored, including jobs
 missed by an earlier failed pass. Existing matches stay available while it runs.
 Use **Check my fit** when you want a new assessment of a particular job.
+A job whose listing has no description, and whose employer page Career cannot read
+on this installation, is left without a match score and does not hold up the others.
+Since 1.66.0 such a job still reaches **New matches** when one of your saved job titles
+is in its title, with what Career knows: title, employer, location, posted date and a
+link to the employer's posting. It reads **Details needed** where its fit would be,
+with "Career could not read this job's details. Open the posting and paste its
+description in Prepare application to get your fit and a tailored résumé." and
+**Open the posting**. It has no match score until you give its description, and
+**Check my fit** is not offered for it. Under **Best AI fit** these jobs come after
+every scored match; under **Date posted** they sit by date among the others. The
+nightly pass lists up to 200 new ones a night, those most like your saved titles and
+your résumé's keywords first.
+Career reads the full description of Workday, Oracle and SmartRecruiters jobs, so
+those are scored. Since 1.64.0 the nightly job search also keeps the description of
+new jobs from Google, Eightfold, Experis, Radancy, SuccessFactors, iCIMS, Avature and
+most employers' own career sites when it finds them, so those are scored too: a new
+job usually has its description by the next morning, and since 1.64.1 the jobs found in
+the days before are caught up within about three nights. Some employers' sites do not let
+Career read a job's page (for example Jacobs, CBRE and Delta); their jobs stay without a
+match score.
+
+Where your installation has turned on **settled scoring**, the nightly pass scores many more
+jobs each night (its administrator sets how many and for how long). Each job is asked three
+times; a score is kept only when the three answers agree which side of 70 the job is on and
+are not close to 70. The jobs most like your saved titles go first. In **My jobs**:
+
+- **Not scored yet**: the pass has not reached the job yet. It is not a low score; the job
+  is scored on a later night, first among the jobs left.
+- **Close call, not settled yet**: the three answers disagreed, or landed close to 70.
+  The job is not counted as a strong match. It is asked again the next night; **Check my
+  fit** settles it now.
+
+**Settings → Nightly résumé matches** says what the last night did: how many jobs were scored,
+how many close calls are not settled yet, how many could not be read, and how many were
+not reached yet.
 
 <!-- CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Explain immediate Remove, refusal recovery and new-entry-only nightly matching in 1.60.7. -->
 
@@ -343,3 +393,17 @@ Use **Check my fit** when you want a new assessment of a particular job.
 <!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Describe approved four-button sequences, each press’s evidence and reinstalling the 1.60.10 helper. -->
 
 <!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: one Concierge on every page, in one conversation, for everything in Career; the main résumé, Work history and the My résumé document are one record; two cards approved in turn both apply. -->
+
+<!-- CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | 1.62.3: a job Career cannot read the details of is left unscored and no longer holds up nightly matching. -->
+
+<!-- CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | 1.63.0: Oracle and SmartRecruiters jobs are scored too, from their full descriptions. -->
+
+<!-- CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | 1.64.0: the nightly job search keeps the description of new jobs from most other job sites, so they are scored too. -->
+
+<!-- CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | 1.64.1: the nightly job search reads more job pages a night, so earlier jobs are caught up within about three nights. -->
+
+<!-- CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | 1.65.0: settled scoring (an installation setting, off by default): three answers a job, close calls shown as Close call, not settled yet, a job not reached as Not scored yet, and the Settings line. -->
+
+<!-- CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning and make the user get the position details and paste them before generating the resume"): a job Career cannot read reaches New matches as Details needed, and step 1 · Tailor takes its pasted description before generating. -->
+
+<!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1: step 1 · Tailor's off Generate (or Retry generation) is greyed out, and a job whose preparation stopped because Career could not read it is a Job details needed job too; Jarvis and the Concierge say to paste the description in Prepare application, step 1 · Tailor, and generate there. -->

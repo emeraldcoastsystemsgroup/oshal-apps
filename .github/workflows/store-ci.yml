@@ -99,6 +99,9 @@
 # 89 | maintainer@emeraldcoastsystemsgroup.com | Job `lists` (1.0.0): the Lists application. The rules of a list, every route through the real router over a memory pool that refuses a write during a GET, the same route scenarios on a real PostgreSQL with the package's migration applied (a database of its own on the gate's disposable PostgreSQL, created and dropped), the declarations (every concierge tool is a route of the screen, exactly three changes are cards, no name in an address) and the screen in Chromium with Shopping's own compiled routes behind the grocery list.
 # 90 | maintainer@emeraldcoastsystemsgroup.com | Job `purchasing` (1.5.0) provisions the pinned toolchain and Chromium before its suites: the same glob now also runs the order made from the list (tests/shopping-order.test.js: POST /order on the compiled routes with the native kernel's Walmart answer and with a rail, and the grocery chain through the tools' own endpoints) and Order on the List screen in Chromium (tests/shopping-order-browser.test.js). The job's other suites already read js-yaml from that toolchain.
 # 91 | maintainer@emeraldcoastsystemsgroup.com | Run scripts/role-template-coverage.test.mjs in `catalog-parity`: a role template must map its own application and every required application, as the kernel requires to load the package (crates/packages/src/experience.rs validate_members). Career Coaching 0.1.1 required career-hunter, mapped it in neither template, passed every store check and was refused by the kernel at its first load.
+# 92 | maintainer@emeraldcoastsystemsgroup.com | The local gate is scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"): scripts/store-ci-local.mjs runs the publish wall and every structural job on every push, plus the jobs of the packages a change touches or reaches (scripts/store-ci-scope.mjs; anything it cannot place runs everything), and scripts/store-full-run.sh runs this whole file on a clean checkout of origin/main on a schedule. Job `store-ci-local` runs both contracts: scripts/store-ci-scope.test.mjs (what a change selects, when everything runs, the scoped last line, the rerun of failed jobs, the always-set mutation) and scripts/store-gate-wrappers.test.mjs (the full run's checkout, receipt, retry and lock; the hook's mode line). A job added to this file must be either inside a package folder or listed in ALWAYS_JOBS, or every push runs the whole suite until it is.
+# 93 | maintainer@emeraldcoastsystemsgroup.com | Job `calendar` (1.4.0) also runs the meeting change and cancel suites: the Google meeting routes over a stand-in kernel egress and Google API, the OSHAL event changes, the change, cancel and decline cards as the kernel's own card code renders them and the ask-which conversation (tests/*meeting*.test.cjs and tests/own-event-changes.test.cjs, with OSHAL_KERNEL_PLATFORM). The screen's Edit and Cancel meeting browser suite is named personal-calendar-meetings-browser so the existing PostgreSQL and browser step runs it.
+# 94 | maintainer@emeraldcoastsystemsgroup.com | Job `identity` (1.2.8): Identity Hub had no job, so no gate ran its suites. Roger, 2026-11-15: Reconnect on the phone said "The current window does not have permission to navigate the target frame". The job runs the package's node suites (the consent start, the list contract, the views, search rank, the audience view and the kernel access review) and Reconnect in Chromium at phone and desktop sizes, framed with the cockpit's package sandbox and on its own (tests/connect-from-frame.browser.cjs).
 
 name: store-ci
 
@@ -513,6 +516,15 @@ jobs:
       # stand-in engine: left-over indices go, a running gate's stay, and a refusing engine is named.
       - name: Sweep what killed runs left in the shared test search
         run: node --test scripts/sweep-test-search.test.mjs
+      # The gate is scoped to the change by default. These cases hold what a change selects, when the
+      # whole suite runs instead, that a scoped pass never ends on the full-pass line, that a rerun is
+      # bound to the same tree, and (by mutation) that every job in the always set is load-bearing.
+      - name: Pin the scoped gate's selection and its fallback to the full suite
+        run: node --test scripts/store-ci-scope.test.mjs
+      # The scheduled full run tests a clean checkout of origin/main and writes a receipt; the hook's
+      # last line names the mode that ran.
+      - name: Pin the scheduled full run and the hook's mode line
+        run: node --test scripts/store-gate-wrappers.test.mjs
 
   little-monsters:
     name: little-monsters security suites
@@ -1183,6 +1195,19 @@ jobs:
         env:
           OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test tests/google-events-card.test.cjs
+      # Calendar 1.4.0 changes, cancels and declines meetings. The route suites drive the compiled routes over a stand-in kernel
+      # egress and Google API (no account is touched); the card and conversation suites render the cards with the kernel's own
+      # card code and script only the model, so the meeting a person approves is the one that changes.
+      - name: Run calendar meeting change and cancel suites
+        working-directory: calendar
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test "tests/*meeting*.test.cjs"
+      - name: Run calendar own-event change suite
+        working-directory: calendar
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test tests/own-event-changes.test.cjs
 
   scan-to-print:
     name: scan-to-print package suites
@@ -1626,6 +1651,29 @@ jobs:
       - name: Run the Smart Home phone-width page suites in Chromium
         working-directory: home
         run: node --test "tests/browser/*.test.cjs"
+
+  identity:
+    name: Identity Hub consent start, connection list, views and Reconnect in Chromium
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Run the Identity Hub consent start, list contract and kernel list suites
+        working-directory: identity
+        run: node --test "tests/*.test.js"
+      - name: Run the Identity Hub views, search, audience and access review suites
+        working-directory: identity
+        run: node --test "tests/*.test.cjs"
+      - name: Provide the Identity Hub browser runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run Reconnect from the shell's frame in Chromium
+        working-directory: identity
+        run: node --test tests/connect-from-frame.browser.cjs
 
   finance:
     name: Finance pages and routes, and Finance as its own application in Chromium

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Bills. "Found in your payments": a charge repeating monthly in the person's own records, proposed until they answer Add to Bills (with confirm: true) or Not a bill. Then Overdue, This week, Later and Paid this month, each due date with its expected amount (an estimate from the last charge, or what the person typed). Mark paid says what it does: it marks the bill paid in Finance and does not pay it. Add a bill types one. Reads and writes /api/finance/bills only; nothing here pays, moves or schedules money.
+ 2 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.8.0 (Lane FINH2): Your bills lists each bill with its next due date and No longer due (asked twice: it ends the bill and removes its unpaid due dates ahead); Ended lists the bills that ended, each with Delete (asked twice: the bill and its due dates go). VER2 on the test slot: Finance had no way to delete an ended bill.
+ 3 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.8.0 (Lane FINH2): Found in your mail. Off until the person presses Look for bills in my mail (it says what Finance reads and keeps first); then Check my mail now and Stop looking in my mail. Each bill found shows who it is from, the amount and the due date with the mail's date, and whether it updates a bill the person has; Add to Bills (with confirm: true) or Not a bill. With no Gmail connected, or without read permission, the words say so and Open Connections opens the connections page. Nothing is paid or sent.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bills · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1>Bills</h1><p class="fr-sub">Marks it paid in Finance. It does not pay the bill.</p></div>
+    <div class="fr-actions"><button type="button" class="fr-primary" id="frFirst" hidden></button><button type="button" id="frAddOpen">Add a bill</button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frAdd" hidden aria-labelledby="frAddH">
+    <h2 id="frAddH">Add a bill</h2>
+    <div class="fr-form">
+      <label>Who it is to<input id="frPayee" placeholder="City Utilities"></label>
+      <label>Amount (optional)<input id="frAmount" inputmode="decimal" placeholder="112.40"></label>
+      <label>Next due<input type="date" id="frDue"></label>
+      <label>How often<select id="frCadence"><option value="monthly">Every month</option><option value="quarterly">Every three months</option><option value="yearly">Every year</option><option value="weekly">Every week</option></select></label>
+      <button type="button" id="frSave">Add the bill</button>
+    </div>
+  </section>
+  <section class="fr-card" id="frMail" aria-labelledby="frMailH"><h2 id="frMailH">Found in your mail</h2><p class="fr-sub" id="frMailWords">Reading…</p><div class="fr-actions" id="frMailActions"></div><ul class="fr-list" id="frMailList"></ul></section>
+  <section class="fr-card" id="frProposals" hidden aria-labelledby="frPropH"><h2 id="frPropH">Found in your payments</h2><ul class="fr-list" id="frPropList"></ul></section>
+  <section class="fr-card" aria-labelledby="frOverH"><h2 id="frOverH">Overdue</h2><ul class="fr-list" id="frOverdue"></ul></section>
+  <section class="fr-card" aria-labelledby="frWeekH"><h2 id="frWeekH">This week</h2><ul class="fr-list" id="frWeek"></ul></section>
+  <section class="fr-card" aria-labelledby="frLaterH"><h2 id="frLaterH">Later</h2><ul class="fr-list" id="frLater"></ul></section>
+  <section class="fr-card" aria-labelledby="frPaidH"><h2 id="frPaidH">Paid this month</h2><ul class="fr-list" id="frPaid"></ul></section>
+  <section class="fr-card" id="frYours" hidden aria-labelledby="frYoursH"><h2 id="frYoursH">Your bills</h2><ul class="fr-list" id="frBills"></ul></section>
+  <section class="fr-card" id="frEndedCard" hidden aria-labelledby="frEndedH"><h2 id="frEndedH">Ended</h2><ul class="fr-list" id="frEnded"></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+
+  function post(path, body, button, words) {
+    return F.press(button, function () { return F.api('/bills' + path, Object.assign({ today: F.today() }, body || {})).then(function () { F.say(words); return load(); }); });
+  }
+
+  function proposal(b) {
+    var yes = el('button', { type: 'button', class: 'fr-primary', text: 'Add to Bills' }), no = el('button', { type: 'button', text: 'Not a bill' });
+    yes.addEventListener('click', function () { post('/' + encodeURIComponent(b.billId) + '/confirm', { confirm: true }, yes, b.payee + ' is in your Bills.'); });
+    no.addEventListener('click', function () { post('/' + encodeURIComponent(b.billId) + '/dismiss', {}, no, b.payee + ' will not be proposed again.'); });
+    var seen = (b.evidence || []).map(function (e) { return F.dateWords(e.date); }).join(', ');
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: b.payee }), el('div', { class: 'fr-sub', text: 'Charged ' + (b.cadence === 'monthly' ? 'every month' : b.cadence) + (seen ? ': ' + seen : '') + (b.nextDue ? ' · next ' + F.dateWords(b.nextDue) : '') })]), F.figure(b.amount), el('div', { class: 'fr-actions' }, [yes, no])]);
+  }
+
+  function due(d, paid) {
+    var buttons = [];
+    if (!paid) {
+      var mark = el('button', { type: 'button', text: 'Mark paid' }), skip = el('button', { type: 'button', text: 'Skip this one' });
+      mark.addEventListener('click', function () { post('/events/' + encodeURIComponent(d.eventId) + '/paid', {}, mark, d.payee + ' marked paid in Finance. It does not pay the bill.'); });
+      skip.addEventListener('click', function () { post('/events/' + encodeURIComponent(d.eventId) + '/skip', {}, skip, d.payee + ': this due date is skipped.'); });
+      buttons = [mark, skip];
+    } else if (d.paidBy === 'marked') {
+      var undo = el('button', { type: 'button', text: 'Not paid after all' });
+      undo.addEventListener('click', function () { post('/events/' + encodeURIComponent(d.eventId) + '/unpaid', {}, undo, d.payee + ' is due again.'); });
+      buttons = [undo];
+    }
+    var when = paid ? 'Paid ' + F.dateWords(d.paidOn) + (d.paidBy === 'marked' ? ' (marked by you)' : ' (a matching payment in your records)') : (d.daysUntil < 0 ? 'Was due ' : 'Due ') + F.dateWords(d.due);
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: d.payee }), el('div', { class: 'fr-sub', text: when })]), F.figure(d.amount), el('div', { class: 'fr-actions' }, buttons)]);
+  }
+
+  /** A button that asks once more before it acts: the first press says what will happen, the second does it. */
+  function twice(text, ask, run) {
+    var b = el('button', { type: 'button', text: text });
+    b.addEventListener('click', function () {
+      if (b.dataset.ask !== '1') { b.dataset.ask = '1'; b.textContent = ask; return; }
+      run(b);
+    });
+    return b;
+  }
+
+  function yours(b) {
+    var end = twice('No longer due', 'Stop ' + b.payee + '? Its unpaid due dates ahead go.', function (button) { post('/' + encodeURIComponent(b.billId) + '/end', {}, button, b.payee + ' is no longer due. It is under Ended.'); });
+    var when = (b.cadence === 'monthly' ? 'Every month' : b.cadence === 'quarterly' ? 'Every three months' : b.cadence === 'yearly' ? 'Every year' : b.cadence === 'weekly' ? 'Every week' : b.cadence) + (b.nextDue ? ' · next ' + F.dateWords(b.nextDue) : '');
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: b.payee }), el('div', { class: 'fr-sub', text: when })]), F.figure(b.amount), el('div', { class: 'fr-actions' }, [end])]);
+  }
+
+  function ended(b) {
+    var del = twice('Delete', 'Delete ' + b.payee + ' and its due dates?', function (button) { post('/' + encodeURIComponent(b.billId) + '/delete', { confirm: true }, button, b.payee + ' is deleted from Finance.'); });
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: b.payee }), el('div', { class: 'fr-sub', text: 'Ended' })]), el('div', { class: 'fr-actions' }, [del])]);
+  }
+
+  function mailPost(path, body, button, done) {
+    return F.press(button, function () { return F.api('/mail' + path, Object.assign({ today: F.today() }, body || {})).then(function (r) { done(r); return load(); }); });
+  }
+
+  function mailFind(m) {
+    var yes = el('button', { type: 'button', class: 'fr-primary', text: 'Add to Bills' }), no = el('button', { type: 'button', text: 'Not a bill' });
+    yes.addEventListener('click', function () { mailPost('/finds/' + encodeURIComponent(m.findId) + '/add', { confirm: true }, yes, function (r) { F.say(m.payee + (r.updated ? ': your bill is brought up to date.' : ' is in your Bills.') + ' It does not pay the bill.'); }); });
+    no.addEventListener('click', function () { mailPost('/finds/' + encodeURIComponent(m.findId) + '/dismiss', {}, no, function () { F.say(m.payee + ' will not be proposed again.'); }); });
+    var sub = 'Due ' + F.dateWords(m.dueDate) + ' · from your mail of ' + F.dateWords(m.mailDate) + (m.knownBill ? ' · updates your bill' : '') + (m.subject ? ' · "' + m.subject + '"' : '');
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: m.payee }), el('div', { class: 'fr-sub', text: sub })]), F.figure(m.amount), el('div', { class: 'fr-actions' }, [yes, no])]);
+  }
+
+  function checkNow(button) {
+    F.say('Looking through your mail…');
+    return mailPost('/check', {}, button, function (r) {
+      F.say(r.words ? r.words : r.found ? 'Finance found ' + r.found + ' bill' + (r.found === 1 ? '' : 's') + ' in your mail. Each waits for your yes.' : 'No new bill in your mail.' + (r.more ? ' Finance reads more at the next check.' : ''), Boolean(r.words) && r.status !== 'connected');
+    });
+  }
+
+  function paintMail(m) {
+    var actions = [];
+    if (!m.on) {
+      $('frMailWords').textContent = 'Finance can look through your Gmail for bills: who each is from, the amount due and the due date. ' + m.note;
+      var on = el('button', { type: 'button', text: 'Look for bills in my mail' });
+      on.addEventListener('click', function () { mailPost('/switch', { on: true, confirm: true }, on, function () {}).then(function () { return checkNow(on); }); });
+      actions = [on];
+    } else {
+      var when = m.lastCheckedAt ? 'Last looked ' + new Date(m.lastCheckedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' : '';
+      $('frMailWords').textContent = (m.words || when) + (m.more ? ' There is more mail to read; Finance continues at the next check.' : '');
+      var now = el('button', { type: 'button', text: 'Check my mail now' }), off = el('button', { type: 'button', text: 'Stop looking in my mail' });
+      now.addEventListener('click', function () { checkNow(now); });
+      off.addEventListener('click', function () { mailPost('/switch', { on: false }, off, function () { F.say('Finance no longer looks in your mail. The bills you added stay.'); }); });
+      actions = [now, off];
+      if (['not-connected', 'no-permission', 'reconnect'].indexOf(m.status) !== -1) actions.unshift(el('a', { class: 'fr-primary fr-link', href: '/utilities', target: '_top', text: 'Open Connections' }));
+    }
+    $('frMailActions').replaceChildren.apply($('frMailActions'), actions);
+    fill('frMailList', (m.proposals || []).map(mailFind), m.on ? 'No bill from your mail is waiting.' : '');
+  }
+
+  function fill(id, rows, empty) { $(id).replaceChildren.apply($(id), rows.length ? rows : empty ? [el('li', { class: 'fr-empty', text: empty })] : []); }
+
+  function load() {
+    F.api('/mail').then(paintMail).catch(function () { $('frMailWords').textContent = 'Finance could not read where the mail check stands just now.'; });
+    return F.api('/bills?today=' + F.today()).then(function (r) {
+      var proposals = r.proposals || [];
+      $('frProposals').hidden = !proposals.length;
+      fill('frPropList', proposals.map(proposal), '');
+      fill('frOverdue', (r.overdue || []).map(function (d) { return due(d, false); }), 'Nothing overdue.');
+      fill('frWeek', (r.week || []).map(function (d) { return due(d, false); }), 'Nothing due in the next seven days.');
+      fill('frLater', (r.later || []).map(function (d) { return due(d, false); }), (r.bills || []).length ? 'Nothing else due in the next five weeks.' : 'No bills yet. Add one, or bring in a statement on Accounts and Finance proposes the charges that repeat.');
+      fill('frPaid', (r.paid || []).map(function (d) { return due(d, true); }), 'Nothing marked paid this month.');
+      $('frYours').hidden = !(r.bills || []).length; fill('frBills', (r.bills || []).map(yours), '');
+      $('frEndedCard').hidden = !(r.ended || []).length; fill('frEnded', (r.ended || []).map(ended), '');
+      var first = (r.overdue || [])[0] || (r.week || [])[0];
+      var button = $('frFirst');
+      if (first) { button.textContent = 'Mark ' + first.payee + ' paid'; button.hidden = false; button.onclick = function () { post('/events/' + encodeURIComponent(first.eventId) + '/paid', {}, button, first.payee + ' marked paid in Finance. It does not pay the bill.'); }; }
+      else button.hidden = true;
+    }).catch(function (err) { F.say(err.message, true); });
+  }
+
+  $('frAddOpen').addEventListener('click', function () { $('frAdd').hidden = !$('frAdd').hidden; });
+  $('frSave').addEventListener('click', function () {
+    var button = $('frSave');
+    var payee = $('frPayee').value.trim();
+    if (!payee) { F.say('Name who the bill is to.', true); return; }
+    var body = { payee: payee, nextDue: $('frDue').value, cadence: $('frCadence').value };
+    if ($('frAmount').value.trim()) { body.amountCents = F.centsOf($('frAmount').value); if (body.amountCents === null) { F.say('Type the amount, for example 112.40.', true); return; } }
+    post('', body, button, payee + ' is in your Bills.').then(function () { $('frPayee').value = ''; $('frAmount').value = ''; });
+  });
+  $('frDue').value = F.today();
+  load();
+})();
+</script>
+</body>
+</html>

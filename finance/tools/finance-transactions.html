@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Transactions, every line of the person's own records for a month, the new ones (not yet looked at) first. Per line: change its category (and, if they want, for every line from that merchant), mark it looked at, say "Not mine"; a line can be typed by hand. The month picker lists the months the records cover. Reads and writes /api/finance/ledger only; nothing here moves money.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transactions · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1>Transactions</h1><p class="fr-sub" id="frCounts">Reading your records…</p></div>
+    <div class="fr-actions"><label>Month<select id="frMonth"></select></label><button type="button" class="fr-primary" id="frReviewAll" hidden>Mark all as looked at</button><button type="button" id="frAddOpen">Add one by hand</button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frAdd" hidden aria-labelledby="frAddH">
+    <h2 id="frAddH">Add a transaction</h2>
+    <div class="fr-form">
+      <label>Account<select id="frAddAccount"></select></label>
+      <label>Date<input type="date" id="frAddDate"></label>
+      <label>Description<input id="frAddDesc" placeholder="Farm stand"></label>
+      <label>Amount<input id="frAddAmount" inputmode="decimal" placeholder="12.50"></label>
+      <label>Money<select id="frAddDir"><option value="out">Went out</option><option value="in">Came in</option></select></label>
+      <label>Category<input id="frAddCat" placeholder="Groceries"></label>
+      <button type="button" id="frAddSave">Add it</button>
+    </div>
+  </section>
+  <section class="fr-card"><ul class="fr-list" id="frList"><li class="fr-empty">Reading your records…</li></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+  var state = { month: '', fresh: [] };
+
+  function change(t, body, button, words) {
+    return F.press(button, function () { return F.api('/ledger/transactions/' + encodeURIComponent(t.id), Object.assign({ today: F.today() }, body)).then(function () { F.say(words); return load(state.month); }); });
+  }
+
+  function row(t) {
+    var cat = el('input', { value: t.category || '', 'aria-label': 'Category for ' + t.description, list: 'frCats' });
+    var keep = el('button', { type: 'button', text: 'Save category' });
+    var remember = el('label', { style: 'flex-direction:row;align-items:center' }, [el('input', { type: 'checkbox', style: 'min-height:24px' }), ' For every ' + (t.merchant || t.description)]);
+    keep.addEventListener('click', function () { change(t, { category: cat.value, remember: remember.querySelector('input').checked }, keep, 'Category saved.'); });
+    var looked = t.review === 'new' ? el('button', { type: 'button', text: 'Looked at' }) : null;
+    if (looked) looked.addEventListener('click', function () { change(t, { reviewed: true }, looked, 'Marked as looked at.'); });
+    var mine = (t.flags || []).indexOf('not-mine') !== -1;
+    var notMine = el('button', { type: 'button', text: mine ? 'It is mine' : 'Not mine' });
+    notMine.addEventListener('click', function () { change(t, { notMine: !mine }, notMine, mine ? 'Marked as yours.' : 'Marked as not yours.'); });
+    return el('li', { class: 'fr-row' }, [
+      el('div', { class: 'fr-main' }, [el('strong', { text: t.description }), t.review === 'new' ? el('span', { class: 'fr-pill', text: 'New' }) : null, mine ? el('span', { class: 'fr-pill', text: 'Not mine' }) : null,
+        el('div', { class: 'fr-sub', text: [F.dateWords(t.date), t.account, t.category].filter(Boolean).join(' · ') })]),
+      el('span', {}, [t.direction === 'in' ? '+' : '−', F.figure(t.amount)]),
+      el('div', { class: 'fr-actions' }, [cat, keep, remember, looked, notMine]),
+    ]);
+  }
+
+  function load(month) {
+    return F.api('/ledger/transactions' + (month ? '?month=' + encodeURIComponent(month) : '')).then(function (r) {
+      state.month = r.month;
+      var months = [], m = r.months;
+      if (m && m.first && m.last) { for (var at = m.first; at <= m.last; at = next(at)) months.unshift(at); }
+      if (months.indexOf(r.month) === -1) months.unshift(r.month);
+      $('frMonth').replaceChildren.apply($('frMonth'), months.map(function (x) { return el('option', { value: x, text: F.monthWords(x), selected: x === r.month }); }));
+      var list = (r.transactions || []).slice().sort(function (a, b) { return (a.review === 'new' ? 0 : 1) - (b.review === 'new' ? 0 : 1) || String(b.date).localeCompare(String(a.date)); });
+      state.fresh = list.filter(function (t) { return t.review === 'new'; });
+      $('frCounts').textContent = F.monthWords(r.month) + ': ' + r.counts.total + ' transactions, ' + r.counts.toReview + ' new to look at.';
+      $('frReviewAll').hidden = !state.fresh.length;
+      $('frList').replaceChildren.apply($('frList'), list.length ? list.map(row) : [el('li', { class: 'fr-empty', text: 'No transactions this month. Bring in a statement on Accounts.' })]);
+    }).catch(function (err) { F.say(err.message, true); });
+  }
+  function next(month) { var y = Number(month.slice(0, 4)), mo = Number(month.slice(5, 7)) + 1; if (mo > 12) { mo = 1; y += 1; } return y + '-' + String(mo).padStart(2, '0'); }
+
+  function loadAccounts() {
+    return F.api('/ledger/accounts').then(function (r) {
+      $('frAddAccount').replaceChildren.apply($('frAddAccount'), (r.accounts || []).filter(function (a) { return a.state === 'open'; }).map(function (a) { return el('option', { value: a.id, text: a.name }); }));
+    }).catch(function () { /* the form says so when it is used */ });
+  }
+
+  $('frMonth').addEventListener('change', function () { load($('frMonth').value); });
+  $('frAddOpen').addEventListener('click', function () { $('frAdd').hidden = !$('frAdd').hidden; });
+  $('frReviewAll').addEventListener('click', function () {
+    var button = $('frReviewAll');
+    F.press(button, function () {
+      return state.fresh.reduce(function (p, t) { return p.then(function () { return F.api('/ledger/transactions/' + encodeURIComponent(t.id), { reviewed: true }); }); }, Promise.resolve())
+        .then(function () { F.say('All marked as looked at.'); return load(state.month); });
+    });
+  });
+  $('frAddDate').value = F.today();
+  $('frAddSave').addEventListener('click', function () {
+    var button = $('frAddSave');
+    F.press(button, function () {
+      if (!$('frAddAccount').value) throw new Error('Add an account on Accounts first.');
+      var cents = F.centsOf($('frAddAmount').value); if (cents === null || cents <= 0) throw new Error('Type the amount, for example 12.50.');
+      return F.api('/ledger/transactions', { accountId: $('frAddAccount').value, date: $('frAddDate').value, description: $('frAddDesc').value.trim(), amountCents: cents, direction: $('frAddDir').value, category: $('frAddCat').value.trim(), today: F.today() })
+        .then(function () { F.say('Added.'); $('frAddDesc').value = ''; $('frAddAmount').value = ''; return load($('frAddDate').value.slice(0, 7)); });
+    });
+  });
+  document.body.append(el('datalist', { id: 'frCats' }, ['Groceries', 'Dining out', 'Utilities', 'Rent', 'Transport', 'Gas', 'Shopping', 'Health', 'Subscriptions', 'Income', 'Transfer', 'Other'].map(function (c) { return el('option', { value: c }); })));
+  loadAccounts(); load('');
+})();
+</script>
+</body>
+</html>

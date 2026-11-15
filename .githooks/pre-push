@@ -8,6 +8,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | Scan the tracked tree at push time as well (SCAN_TREE now defaults to 1). Entry 1 shipped with the tree check off because this repo still carried 165 attributed lines and a hook that refused every push over content it did not introduce would have halted all work. Those lines are gone in this same change - the COLLABORATE.md bylines name the lane and the four Change Log AUTHOR cells name the house identity - so the hook now holds the tree clean instead of waiting for CI to notice. It runs the SPEC rather than the scanner, so one command proves both halves: every rule still red on its fixture, and this tree green.
 # 3 | maintainer@emeraldcoastsystemsgroup.com   | Run the store CI gate here too. store-ci.yml just lost its `pull_request:` trigger (PRIVATE repo, billed minutes) and security.yml was already workflow_dispatch-only, so that trigger was the LAST automatic gate in this repository: there is no root package.json, required status checks are unavailable on this plan, and nothing but prose referenced scripts/store-ci-local.sh. Replacing an enforced gate with a documented habit is strictly worse than what it replaced, so the habit gets teeth here. Note the hook itself is opt-in per clone (`git config core.hooksPath .githooks`) and was NOT configured on the operator's checkout when this landed - the attribution gate above was inert there too.
 # 4 | maintainer@emeraldcoastsystemsgroup.com   | The store CI gate brings its own toolchain (`npm ci --prefix scripts/toolchain`) and no longer resolves the old TypeScript platform checkout, so the skip list below names the toolchain and the LEGACY checks instead of "no kernel checkout". OSHAL_ROOT / OSHAL_FRAMEWORK / NODE_PATH on the push command line are now ignored by the gate.
+# 5 | maintainer@emeraldcoastsystemsgroup.com   | The store CI gate is scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"): the publish wall and every structural rule, plus the suites of the packages this branch changes or reaches; anything the gate cannot place runs everything. OSHAL_STORE_CI_FULL=1 runs every job. STORE_CI_RETRY_FROM names a first run's result so a second try reruns only the jobs that failed (store-push.sh sets it). The hook's own last line names the mode, so a scoped pass never reads as a full one. The attribution checks above run on every push whatever the mode, and OSHAL_STORE_CI_LOCAL=0 still skips only the store CI gate.
 # =============================================================================
 set -uo pipefail
 
@@ -121,8 +122,20 @@ fi
 # root package.json, no required status check on this plan, and nothing else invokes
 # scripts/store-ci-local.sh. A documented habit is not a gate; this line is what makes it one.
 #
-#   OSHAL_STORE_CI_LOCAL=0        skip it entirely. An emergency valve, not a workflow. Same
-#                                 idiom as OSHAL_ATTRIBUTION_SCAN_TREE above.
+# SCOPED BY DEFAULT. The gate runs the publish wall (attribution, house identifiers, the public
+# snapshot cut) and every structural rule on every push, plus the suites of the packages this branch
+# changes since its merge base with origin/main and the packages that require, optionally use or read
+# them. A change under scripts/, .github/ or .githooks/, a shared root file, an unknown folder or a job
+# the mapper cannot place runs everything. The whole suite runs on a schedule
+# (scripts/store-full-run.sh) and whenever it is asked for here.
+#
+#   OSHAL_STORE_CI_FULL=1         run every store-ci job, whatever changed.
+#   STORE_CI_RETRY_FROM=<file>    a first run's result (STORE_CI_RESULT_FILE): rerun only the jobs that
+#                                 failed there, plus the publish wall, when the tree is the same and the
+#                                 failures were package suites. Otherwise the whole plan runs again.
+#   OSHAL_STORE_CI_LOCAL=0        skip the store CI gate entirely. An emergency valve, not a workflow.
+#                                 The attribution checks above run regardless. Same idiom as
+#                                 OSHAL_ATTRIBUTION_SCAN_TREE above.
 #   OSHAL_STORE_CI_ALLOW_SKIPS=1  accept checks that cannot run on this box (toolchain not installed
 #                                 - `npm ci --prefix scripts/toolchain` -, no disposable PostgreSQL, no symlink
 #                                 privilege). They are still printed. Without it, a check that did not
@@ -131,23 +144,43 @@ fi
 RUN_STORE_CI=${OSHAL_STORE_CI_LOCAL:-1}
 GATE="$(git rev-parse --show-toplevel)/scripts/store-ci-local.sh"
 if [ "$RUN_STORE_CI" = "1" ]; then
-  say "store CI gate: every store-ci job, against this working tree (~2 min)"
   if [ ! -f "$GATE" ]; then
     say "  ✗ the store CI gate is missing ($GATE) - refusing rather than pushing unchecked"
     exit 1
   fi
-  GATE_ARGS=""
-  [ "${OSHAL_STORE_CI_ALLOW_SKIPS:-0}" = "1" ] && GATE_ARGS="--allow-skips"
-  if bash "$GATE" $GATE_ARGS >&2; then
-    say "  ✓ store CI gate passed"
+  GATE_ARGS=()
+  [ "${OSHAL_STORE_CI_ALLOW_SKIPS:-0}" = "1" ] && GATE_ARGS+=(--allow-skips)
+  if [ "${OSHAL_STORE_CI_FULL:-0}" = "1" ]; then
+    GATE_ARGS+=(--full)
+    say "store CI gate: every store-ci job (OSHAL_STORE_CI_FULL=1), against this working tree"
+  else
+    say "store CI gate: scoped to this change, against this working tree (OSHAL_STORE_CI_FULL=1 runs every job)"
+  fi
+  [ -n "${STORE_CI_RETRY_FROM:-}" ] && GATE_ARGS+=(--retry-from "$STORE_CI_RETRY_FROM")
+  RESULT_FILE=${STORE_CI_RESULT_FILE:-}
+  OWN_RESULT=""
+  if [ -z "$RESULT_FILE" ]; then
+    RESULT_FILE="$(mktemp "${TMPDIR:-/tmp}/store-ci-result.XXXXXX")" && OWN_RESULT="$RESULT_FILE"
+  fi
+  STORE_CI_RESULT_FILE="$RESULT_FILE" bash "$GATE" "${GATE_ARGS[@]}" >&2
+  GATE_STATUS=$?
+  # The mode and the counts come from the gate's own result, not from what was asked for: a scoped
+  # request the mapper could not place ran everything, and the line below says which one ran.
+  MODE_LINE="$(node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+    process.stdout.write(r.mode==="scoped"
+      ? `scoped: ${r.jobs.run.length} of ${r.jobs.total} jobs, ${r.checks.run} of ${r.checks.total} checks; ${r.jobs.left.length} jobs left to the scheduled full run`
+      : `full suite: ${r.checks.run} of ${r.checks.total} checks`)' "$RESULT_FILE" 2>/dev/null || true)"
+  [ -n "$OWN_RESULT" ] && rm -f "$OWN_RESULT"
+  if [ "$GATE_STATUS" -eq 0 ]; then
+    say "  ✓ store CI gate passed (${MODE_LINE:-mode unknown: read the last line of the gate above})"
   else
     say ""
-    say "STORE CI GATE FAILED. Fix it, or re-run with the prerequisite it named."
+    say "STORE CI GATE FAILED${MODE_LINE:+ ($MODE_LINE)}. Fix it, or re-run with the prerequisite it named."
     say "Never push with --no-verify: with store-ci.yml on workflow_dispatch, nothing else checks this."
     exit 1
   fi
 else
-  say "store CI gate: SKIPPED by OSHAL_STORE_CI_LOCAL=0 - nothing checked this push"
+  say "store CI gate: SKIPPED by OSHAL_STORE_CI_LOCAL=0 - nothing checked this push beyond the attribution gate"
 fi
 
 exit 0

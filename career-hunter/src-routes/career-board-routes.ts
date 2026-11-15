@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 35 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15 on the test server, 2026-11-15: the Concierge, asked to draft a job the nightly pass had not marked, said "The draft stopped … the job details are unavailable" and never where to paste them): GET /jobs/:id carries details_needed, the words "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js notice), when the job has no description and the nightly pass marked it or its last preparation stopped for missing details (job_details_unavailable or job_context_unavailable). career_job is what the Concierge and Jarvis read after career_draft, so their reply carries the words; the application page decides the same. The generate route, its refusal and when the engine tries the employer page are unchanged. Guard: tests/career-paste-details-unmarked.test.mjs.
+ * 34 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): POST /jobs/:id/generate takes jobDescription, the description the person pasted from the posting (200 to 20,000 characters, lib/career-pasted-details.js), and hands it to the engine as CH_JOB_DESCRIPTION; it is never logged. A job the nightly pass marked "details needed" that still has no description is refused before the engine starts (409 job_details_needed) with words that say to paste it in Prepare application, step 1 · Tailor; the page, the Concierge and Jarvis's career_draft all start preparation here.
  * 33 | maintainer@emeraldcoastsystemsgroup.com | Persist removal as one relationship tombstone and derive saved membership from that status without rewriting board receipts.
  * 32 | maintainer@emeraldcoastsystemsgroup.com | Apply default-off owner preparation choices in the real save writer and accept exact-document review without marking submission.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | Forward optional 7d/30d/90d period window query (?days=) to readAnalytics on GET /analytics.
@@ -66,6 +68,7 @@ import {registerCareerProgressRoutes} from './career-progress';
 const pay = require('../lib/career-pay');
 const fit = require('../lib/career-fit');
 const emailUpdates = require('../lib/career-email-updates');
+const pastedDetails = require('../lib/career-pasted-details');
 
 const logger = createChildLogger({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
@@ -364,7 +367,10 @@ async function getJob(req: Request, res: Response): Promise<void> {
     res.setHeader('Cache-Control','private, no-store');
     const application=applicationDraft.view(userPaths(userSub).userDir,postingId,row);
     delete row.resume_path;delete row.cover_path;
-    res.json({ job: {...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))),application},
+    const job={...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))),application};
+    // The words to say when the job cannot be prepared until the person pastes its description.
+    const detailsNeeded=pastedDetails.notice(job);
+    res.json({ job: detailsNeeded?{...job,details_needed:detailsNeeded}:job,
       processing: !!(await nativeRunInProgress()) });
   } catch (err) {
     logger.error({ err, userSub, postingId }, 'career job detail failed');
@@ -386,9 +392,13 @@ async function generatePacket(ctx: AppContext, req: Request, res: Response): Pro
   if(guidance.length>2000){res.status(400).json({error:'Keep application guidance within 2,000 characters.'});return;}
   const requestId = typeof req.body?.requestId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(req.body.requestId) ? req.body.requestId : randomUUID();
   const documents=req.body?.documents!==false;
+  // The person's own text from the posting: untrusted, private, never logged.
+  const pasted=pastedDetails.read(req.body?.jobDescription);
+  if(pasted.error){res.status(400).json({error:pasted.error,code:'pasted_details_invalid'});return;}
   try{
     const db=openUserDb(userSub);if(!db){res.status(404).json({error:'Upload a résumé first.'});return;}
-    let job;try{job=db.prepare('SELECT status,resume_path,cover_path,CASE WHEN resume_path IS NOT NULL AND resume_path<>\'\' THEN 1 ELSE 0 END AS has_resume,CASE WHEN cover_path IS NOT NULL AND cover_path<>\'\' THEN 1 ELSE 0 END AS has_cover FROM user_signals WHERE posting_id=?').get(postingId)||{};}finally{db.close();}
+    let job,needed=false;try{job=db.prepare('SELECT status,resume_path,cover_path,CASE WHEN resume_path IS NOT NULL AND resume_path<>\'\' THEN 1 ELSE 0 END AS has_resume,CASE WHEN cover_path IS NOT NULL AND cover_path<>\'\' THEN 1 ELSE 0 END AS has_cover FROM user_signals WHERE posting_id=?').get(postingId)||{};needed=!pasted.text&&pastedDetails.needed(db,userPaths(userSub).userDir,postingId);}finally{db.close();}
+    if(needed){res.status(409).json({error:pastedDetails.NEEDED,code:'job_details_needed'});return;}
     applicationDraft.begin(userPaths(userSub).userDir,postingId,job,{revision:req.body?.draftRevision,guidance,experienceIds,experienceRevision:bank.revision},requestId,documents);
   }catch(error){res.status((error as {status?:number}).status||503).json({error:(error as Error).message});return;}
   const started = await runCareerCliAsync(ctx.pool, userSub, ['prepare-job'], {
@@ -399,6 +409,7 @@ async function generatePacket(ctx: AppContext, req: Request, res: Response): Pro
     CH_GUIDANCE: guidance,
     CH_DOCUMENTS: req.body?.documents === false ? '0' : '1',
     CH_REQUEST_ID: requestId,
+    ...(pasted.text ? { CH_JOB_DESCRIPTION: pasted.text } : {}),
   });
   if(!started.started&&documents)applicationDraft.refused(userPaths(userSub).userDir,postingId,requestId);
   if (rejectEngineStart(res, started, 'tailor')) return;

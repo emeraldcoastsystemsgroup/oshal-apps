@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Keep the existing custom readers in a bounded provider module; ats retains their registry and public names.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The Google reader keeps each job's description from the results page it already reads: the page's own job data (ds:1) carries every listed job's qualifications, About the job and Responsibilities, which were thrown away. A page whose data cannot be read gives its jobs as before, with no description.
 from __future__ import annotations
 import re
 from datetime import datetime
@@ -8,6 +9,7 @@ from .ats_common import _strip_html, _jsonld_description
 from .work_arrangement import looks_remote as _looks_remote, remote_location
 from .salary_text import parse_salary as _parse_salary
 from .listed_boards import listed_place
+from .posting_page import detail_text as _page_text
 
 class Amazon:
     NAME = "amazon"
@@ -392,6 +394,31 @@ class Phenom:
 class Google:
     NAME = "google"
     _BASE = "https://www.google.com/about/careers/applications/"
+    _DATA = re.compile(r"AF_initDataCallback\(\{key: 'ds:1', hash: '[^']*', data:(.*?), sideChannel: ", re.S)
+
+    @classmethod
+    def descriptions(cls, html):
+        """{job id: description} from the results page's own job data, the same text the job's page shows: its
+        qualifications, About the job and Responsibilities. Empty when the page carries no data it can read."""
+        import json
+        match = cls._DATA.search(html or "")
+        try:
+            jobs = json.loads(match.group(1))[0] if match else []
+        except (ValueError, IndexError, TypeError):
+            return {}
+        def part(job, at):
+            value = job[at] if len(job) > at else None
+            return value[1] if isinstance(value, list) and len(value) > 1 and isinstance(value[1], str) else None
+        out = {}
+        for job in jobs if isinstance(jobs, list) else []:
+            if not isinstance(job, list) or not job or not isinstance(job[0], str):
+                continue
+            about, duties = part(job, 10), part(job, 3)
+            text = _page_text(part(job, 4), about and "<h3>About the job</h3>" + about,
+                              duties and "<h3>Responsibilities</h3>" + duties)
+            if text:
+                out[job[0]] = text
+        return out
 
     @classmethod
     def fetch(cls, token="google"):
@@ -402,6 +429,7 @@ class Google:
             if not r.ok:
                 break
             soup = BeautifulSoup(r.text, "lxml")
+            texts = cls.descriptions(r.text)
             cards = soup.find_all("h3", class_="QJPWVe")
             if not cards:
                 break
@@ -431,7 +459,7 @@ class Google:
                 url = href if href.startswith("http") else cls._BASE + href.lstrip("/")
                 out.append({"ats_job_id": jid, "title": t.get_text(strip=True), "location": loc,
                             "remote": _looks_remote(loc, t.get_text()), "department": None,
-                            "url": url, "description": None, "posted_at": None})
+                            "url": url, "description": texts.get(jid), "posted_at": None})
             if not new:
                 break
             page += 1

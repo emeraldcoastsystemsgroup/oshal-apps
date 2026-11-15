@@ -33,9 +33,10 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                      | DESCRIPTION
+ * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-08-02 02:35:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — RT-6 lines 2 through 9b from the ledger with per-employee year-to-date excess wages, the 2026 rate bounds checked rather than assumed, $25-per-30-days late penalty and the 11% daily-factor interest, the RT-6A employee wage detail with Florida's own SSN validity rules, the e-file threshold, and a reconciliation against SUTA accrued.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial — RT-6 lines 2 through 9b from the ledger with per-employee year-to-date excess wages, the 2026 rate bounds checked rather than assumed, $25-per-30-days late penalty and the 11% daily-factor interest, the RT-6A employee wage detail with Florida's own SSN validity rules, the e-file threshold, and a reconciliation against SUTA accrued.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: RT-6 worksheet caveat names the product Open Swarm.
  *
  * @module payroll-rt6
  */
@@ -349,7 +350,7 @@ export async function formRt6(
         + 'means the rate changed mid-quarter, or a run was approved under a different wage base. '
         + 'Reconcile before filing.',
     caveat:
-      'This is a worksheet, not a filed return. oshal does not transmit to the Florida Department '
+      'This is a worksheet, not a filed return. Open Swarm does not transmit to the Florida Department '
       + 'of Revenue, and it deliberately does NOT generate the payment coupon\'s OCR scanline — no '
       + 'published document describes that string\'s structure, and a wrong one misroutes a payment.',
   };

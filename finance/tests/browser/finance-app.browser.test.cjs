@@ -13,6 +13,9 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Bank/trading journey leads with dated saved bank data, filtered navigation and accessible More; secondary activity is disclosed; leaving Finance restores host chrome and opening Home issues reads only.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep declared withheld bank totals Unknown on Home while retaining a reported zero.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: in a page with the cockpit's own layout rules, the Concierge's chat panel is hidden only while closed and opens beside Finance on a computer and as a sheet on a phone (judge defect 3).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the bar holds Home, Accounts, Transactions, Bills, Spending, Goals and Trades with the rest under More (Bank accounts among them), a phone's bar Home, Accounts, Bills and Spending; Home opens with Where you stand: three steps and Add your first account on a first run, otherwise net worth, bills due, the month's money out and the new transactions, each amount with its source and date, its button opening that page.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Where you stand is read again when the person comes back to Home from a record page, so a statement brought in there shows without a reload (VER2 on the test slot saw the first-run steps until a reload).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Recurring is in the bar after Bills.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -33,7 +36,10 @@ function playwright() {
 
 const item = (id, label, iframeUrl, section = 'top') => ({ id: `tool-${id}`, label, section, toolUi: { iframeUrl } });
 const PROFILE = { profile: { ribbon: { items: [
-  item('finance-app', 'Finance', '/api/finance/app'), item('finance-home', 'Money', '/api/finance/'),
+  item('finance-app', 'Finance', '/api/finance/app'),
+  item('finance-accounts', 'Accounts', '/api/finance/p/accounts'), item('finance-transactions', 'Transactions', '/api/finance/p/transactions'),
+  item('finance-bills', 'Bills', '/api/finance/p/bills'), item('finance-recurring', 'Recurring', '/api/finance/p/recurring'), item('finance-spending', 'Spending', '/api/finance/p/spending'), item('finance-goals', 'Goals', '/api/finance/p/goals'),
+  item('finance-home', 'Money', '/api/finance/'),
   item('finance-banks', 'Linked banks', '/api/finance/?view=banks', 'bottom'), item('finance-trading', 'Intelligent Trades', '/api/trading/'),
   item('finance-world', 'World Intelligence', '/api/world/app'), item('finance-kalshi', 'Kalshi Edge', '/api/kalshi/'),
   item('finance-recap', 'Daily recap', '/api/daily-trade-recap/review'),
@@ -72,6 +78,9 @@ const COCKPIT = '<!doctype html><html><head><meta name="viewport" content="width
   + '<div class="panel-resize-handle"></div><aside class="chat-panel collapsed" id="chatPanel"><p>Finance analyst</p></aside></div></body></html>';
 
 /** Open the page at a viewport with only stand-in answers; every request is recorded. */
+/** What GET /api/finance/day answers in a test; none (404) leaves Where you stand hidden, as on an installation without records. */
+const DAY = { answer: null };
+
 async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, failing = '', profile = PROFILE, snapshot = BANK_SNAPSHOT) {
   const phone = viewport.width < 700;
   const context = await browser.newContext({ viewport, isMobile: phone, hasTouch: phone, deviceScaleFactor: 2, timezoneId: 'America/Chicago', locale: 'en-US' });
@@ -87,6 +96,7 @@ async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, fai
     if (u.pathname === '/api/ui/profile') return json(profile);
     if (failing && u.pathname === failing) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"fixture: this summary does not answer"}' });
     if (u.pathname === '/api/finance/status') return json(BANK_STATUS);
+    if (u.pathname === '/api/finance/day') return DAY.answer ? json(DAY.answer) : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
     if (u.pathname === '/api/finance/summary') return json(snapshot);
     if (u.pathname === '/api/v1/agent/schedules') return json(JOBS);
     if (u.pathname === '/api/swarm/roles/me') return json({ displayName: 'Rita Example', email: 'rita@example.test' });
@@ -116,7 +126,7 @@ test('Home leads with dated bank context and a trading review, with other saved 
   const { page, context, requests, errors } = await openApp(browser, { width: 1280, height: 900 });
   try {
     await page.locator('#fxJourney [data-journey="banks"]').waitFor();
-    assert.deepEqual(await texts(page, '#fxNav > .fx-tab, #fxNav > details > summary'), ['Home', 'Bank accounts', 'Trades', 'More']);
+    assert.deepEqual(await texts(page, '#fxNav > .fx-tab, #fxNav > details > summary'), ['Home', 'Accounts', 'Transactions', 'Bills', 'Recurring', 'Spending', 'Goals', 'Trades', 'More']);
     assert.match(await page.locator('[data-journey="banks"]').innerText(), /Test bank data[\s\S]*\$1,400[\s\S]*Snapshot saved Nov 10, 2026/i);
     assert.equal(await page.getByRole('button', { name: 'Review trading accounts', exact: true }).isVisible(), true);
     assert.equal(await page.locator('#fxJobs').isVisible(), false, 'technical activity does not overwhelm the entry');
@@ -158,7 +168,7 @@ test('a section opens inside the application, More holds the rest, and a reload 
     assert.match(await page.frameLocator('#fxFrame').locator('body').textContent(), /The page of \/api\/trading\//);
     await shot(page, 'finance-app-section-desktop');
     await page.locator('#fxNav details > summary').click();
-    assert.deepEqual(await texts(page, '#fxNav .fx-menu .fx-tab'), ['Connections', 'World', 'Markets', 'Recap']);
+    assert.deepEqual(await texts(page, '#fxNav .fx-menu .fx-tab'), ['Bank accounts', 'Connections', 'World', 'Markets', 'Recap']);
     await page.locator('#fxNav .fx-menu .fx-tab', { hasText: 'Connections' }).click();
     assert.equal(await page.locator('#fxFrame').getAttribute('src'), '/api/finance/?view=banks');
     await page.reload({ waitUntil: 'load' });
@@ -176,7 +186,7 @@ test('a phone gets a bottom bar, rows that stack, targets large enough to press 
   try {
     await showActivity(page);
     assert.equal(await page.locator('#fxNav').isVisible(), false, 'the top sections give way to the bottom bar');
-    assert.deepEqual(await texts(page, '#fxBottom > .fx-tab, #fxBottom > details > summary'), ['Home', 'Bank accounts', 'Trades', 'More']);
+    assert.deepEqual(await texts(page, '#fxBottom > .fx-tab, #fxBottom > details > summary'), ['Home', 'Accounts', 'Bills', 'Spending', 'More']);
     const sizes = await page.locator('#fxBottom > .fx-tab, #fxBottom > details > summary, #fxRefresh').evaluateAll((nodes) => nodes.map((n) => { const r = n.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
     assert.ok(sizes.every(([w, h]) => w >= 44 && h >= 44), `every control is at least 44 x 44: ${JSON.stringify(sizes)}`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'no sideways scroll');
@@ -184,7 +194,7 @@ test('a phone gets a bottom bar, rows that stack, targets large enough to press 
     assert.ok(row.width <= 390, 'a job row fits the screen');
     await shot(page, 'finance-app-home-phone');
     await page.locator('#fxBottom details > summary').click();
-    assert.deepEqual(await texts(page, '#fxBottom .fx-menu .fx-tab'), ['Connections', 'World', 'Markets', 'Recap']);
+    assert.deepEqual(await texts(page, '#fxBottom .fx-menu .fx-tab'), ['Transactions', 'Recurring', 'Goals', 'Trades', 'Bank accounts', 'Connections', 'World', 'Markets', 'Recap']);
     await page.locator('#fxBottom .fx-menu .fx-tab', { hasText: 'Markets' }).click();
     assert.equal(await page.locator('#fxFrame').getAttribute('src'), '/api/kalshi/');
     const frame = await page.locator('#fxFrame').boundingBox(), bar = await page.locator('#fxBottom').boundingBox();
@@ -293,7 +303,7 @@ test('browser Back returns to the previous admitted Finance section', async () =
   const f = await openApp(browser, { width: 1280, height: 900 });
   try {
     await f.page.locator('#fxNav .fx-tab', { hasText: 'Trades' }).click();
-    await f.page.locator('#fxNav .fx-tab', { hasText: 'Bank accounts' }).click();
+    await f.page.locator('#fxNav > .fx-tab', { hasText: 'Accounts' }).click();
     await f.page.frameLocator('#fxFrame').locator('body').waitFor();
     await f.page.goBack({ waitUntil: 'commit' });
     await f.page.waitForFunction(() => document.getElementById('fxFrame').getAttribute('src') === '/api/trading/?view=accounts');
@@ -312,4 +322,49 @@ test('declared withheld bank totals stay Unknown on Home and a reported zero sta
       assert.deepEqual(f.requests.filter(r => !r.startsWith('GET ')), []);
     } finally { await f.context.close(); }
   }
+});
+
+test('1.7.0: Home opens with Where you stand: three steps on a first run, otherwise the day from the person\'s own records', async () => {
+  DAY.answer = { firstRun: true, accounts: 0 };
+  let f = await openApp(browser, { width: 1280, height: 900 });
+  try {
+    await f.page.waitForSelector('#fxStand:not([hidden])');
+    assert.deepEqual(await texts(f.page, '#fxStand .fx-steps li'), ['Bring in a statement (CSV, OFX or QFX) on Accounts.', 'Confirm the bills Finance finds in your payments.', 'See your month on Spending.']);
+    await f.page.locator('#fxStand button', { hasText: 'Add your first account' }).click();
+    await f.page.waitForFunction(() => document.getElementById('fxFrame').getAttribute('src') === '/api/finance/p/accounts');
+    assert.ok(f.requests.includes('GET /api/finance/day?today=2026-11-11'), 'the day is asked for the person\'s own date');
+    assert.deepEqual(f.errors, []);
+  } finally { await f.context.close(); }
+  const fig = (cents, source, asOf) => ({ cents, currency: 'USD', source, sourceKind: 'import', asOf, posture: '' });
+  DAY.answer = { firstRun: false, accounts: 2, netWorth: { net: fig(2378044, 'Harbor Bank statement', '2026-11-09'), note: null },
+    bills: { overdue: [{ eventId: 'e1', payee: 'City Utilities', due: '2026-11-08', amount: fig(11240, 'Harbor Bank statement', '2026-10-09') }], week: [], later: [] },
+    month: { label: 'November 2026', out: fig(48231, 'Harbor Bank statement', '2026-11-09') }, newTransactions: { count: 6, since: '2026-11-02' } };
+  f = await openApp(browser, { width: 1280, height: 900 });
+  try {
+    await f.page.waitForSelector('#fxStand:not([hidden])');
+    assert.deepEqual(await texts(f.page, '#fxStand .fx-card strong'), ['$23,780', '$112', '$482', '6']);
+    assert.match(await f.page.locator('#fxStand').textContent(), /Harbor Bank statement, to 2026-11-09/, 'an amount names its source and date');
+    await f.page.locator('#fxStand button', { hasText: 'Look at 6 new transactions' }).click();
+    await f.page.waitForFunction(() => document.getElementById('fxFrame').getAttribute('src') === '/api/finance/p/transactions');
+    assert.deepEqual(f.errors, []);
+  } finally { await f.context.close(); DAY.answer = null; }
+});
+
+test('1.8.0: coming back to Home reads Where you stand again, so a statement brought in on Accounts shows without a reload', async () => {
+  DAY.answer = { firstRun: true, accounts: 0 };
+  const f = await openApp(browser, { width: 1280, height: 900 });
+  try {
+    await f.page.waitForSelector('#fxStand .fx-steps');
+    await f.page.locator('#fxNav > .fx-tab', { hasText: 'Accounts' }).click();
+    await f.page.waitForFunction(() => document.getElementById('fxFrame').getAttribute('src') === '/api/finance/p/accounts');
+    const fig = (cents, asOf) => ({ cents, currency: 'USD', source: 'Lantern Ridge Credit Union statement', sourceKind: 'import', asOf, posture: '' });
+    DAY.answer = { firstRun: false, accounts: 1, netWorth: { net: fig(241055, '2026-11-10'), note: null }, bills: { overdue: [], week: [], later: [] },
+      month: { label: 'November 2026', out: fig(11232, '2026-11-10') }, newTransactions: { count: 8, since: '2026-09-04' } };
+    await f.page.locator('#fxNav > .fx-tab', { hasText: 'Home' }).click();
+    await f.page.waitForFunction(() => /\$2,411/.test(document.getElementById('fxStand').textContent));
+    assert.deepEqual(await texts(f.page, '#fxStand .fx-card strong'), ['$2,411', 'Nothing due', '$112', '8']);
+    assert.equal(f.requests.filter((r) => r.startsWith('GET /api/finance/day')).length, 2, 'one read when the page opened, one when Home was shown again');
+    assert.deepEqual(f.requests.filter((r) => !r.startsWith('GET ')), [], 'Home only reads');
+    assert.deepEqual(f.errors, []);
+  } finally { await f.context.close(); DAY.answer = null; }
 });

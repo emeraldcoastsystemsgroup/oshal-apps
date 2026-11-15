@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register search-rank: a search lists the best name and id matches first ("google" finds the Google sign-in connector before the Google Cloud APIs).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The list contract case also proves providers sharing a label read apart by their id (sweep 8: three identical 'Account API' cards).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register hub-views (UX audit 2026-11-06 split): Your accounts by default with the attention item first, the Connector catalog hiding unconfigured stubs and paging at 48.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.2.8 (Roger, 2026-11-15: Reconnect on the phone said "does not have permission to navigate the target frame"): kernel-list-shape now expects the start opened in the click and the connect window's answer; register connect-from-frame, Reconnect in Chromium framed with the shell's sandbox and on its own, at phone and desktop sizes.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -39,7 +40,7 @@ cases:
     name: Native kernel connection list and consent start
     purpose: >-
       Run the shipped surface over the native kernel's /api/connect/list shape and drive Connect/Reconnect
-      over a scripted fetch and a recording window.open.
+      over a scripted fetch, a recording window.open and a stand-in BroadcastChannel.
     level: unit
     runner:
       kind: node-test
@@ -49,9 +50,10 @@ cases:
     expected:
       - oauth providers offer Connect/Reconnect; personal_token and api_key providers are set up on /utilities.
       - An expired or revoked native grant shows the Reconnect pill and counts as needing attention.
-      - Consent follows /api/connect/{id}/start when it redirects and never asks the kernel route then.
-      - Without the start route, the kernel's JSON authorize_url (or url) opens in the consent tab.
-      - A failed start closes the tab and names the reason; a non-https answer is never followed.
+      - Connect/Reconnect open /api/connect/{id}/start in the click with nothing requested first, returning to the kernel's connect window.
+      - A web view that hands back its top window gets the start in that one call and is never steered afterwards.
+      - With no second window the page itself goes to the start and returns where the person was.
+      - The connect window's answer is said in the kernel's words and the list is read again, also when the page is shown again.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -200,4 +202,33 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: connect-from-frame
+    name: Reconnect from the shell's frame in Chromium
+    purpose: >-
+      Drive Reconnect in Chromium at 412x915 and 1280x900, framed with the cockpit's package sandbox and on its own, over a
+      loopback fixture with a made-up provider, the kernel's start and callback, and a stand-in connect window.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/connect-from-frame.browser.cjs
+    expected:
+      - Reconnect opens the provider's sign-in in its own window with one start and no request first; the hub says Waiting.
+      - When the sign-in finishes, the connect window closes and the hub says connected and the card reads Connected.
+      - In a web view without windows, the same click takes the whole window to the sign-in, with no permission error.
+      - With pop-ups blocked, the click takes the whole window to the sign-in and the callback returns to the shell.
+      - A refused start is said in the kernel's words and Reconnect can be pressed again.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - fixture:store-toolchain
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the browser contexts and the loopback fixture servers; a made-up provider and person only.
+    limits:
+      timeoutMs: 180000
     installation: never

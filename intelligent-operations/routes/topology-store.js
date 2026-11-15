@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.saveScan = saveScan;
 exports.readGraph = readGraph;
 exports.correlateDeliveries = correlateDeliveries;
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: caller refusal names the product Open Swarm. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Lane M2 (1.8.1): readGraph accepts removed source ids/URIs and filters out topology scans whose sourceId or source_uri is removed so removed sources do not leave stale or unknown assets in systemsSummary. */
 /** CHANGE LOG: bounded history | maintainer@emeraldcoastsystemsgroup.com | Reconstruct from each collection's scans since its latest complete scan, so periodic live discovery cannot outgrow the 200-scan budget (it would have within a day at five-minute intervals). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Journal immutable topology scans and persist correlation against exact event-time observations. */
@@ -10,7 +11,7 @@ exports.correlateDeliveries = correlateDeliveries;
 const intake_1 = require("./intake");
 const topology_model_1 = require("./topology-model");
 const ownerRequired = owner => { if (!(0, topology_model_1.clean)(owner))
-    (0, topology_model_1.fail)(401, 'A verified OSHAL caller is required.'); };
+    (0, topology_model_1.fail)(401, 'A verified Open Swarm caller is required.'); };
 const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped collection revision/.test(e.message);
 async function transaction(pool, run) { for (let i = 0; i < 8; i++) {
     const c = await pool.connect();

@@ -17,6 +17,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register the phone first-step proof (Add a clip from the empty project, one-row app bar, no forced theme) with real touch.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | The phone case also proves no band above the app bar and content within 74 px of the frame.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard: register video-editor-design (tests/video-editor-design.test.mjs) at 412x743 with touch and 1440x900, and update the phone case: Add a clip in the empty timeline as the one primary, Export as the one primary with a clip, one tool row ending in More with greyed inert planned controls and the clip tools, sheets the browser's Back closes, an in-page delete confirm and the graphite dark category look.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: register product-name guard (tests/product-name.test.js) in the plain-Node video job.
 version: 1
 cases:
   - id: package-readiness
@@ -653,3 +654,24 @@ cases:
     limits:
       timeoutMs: 240000
       maxMemoryMb: 1024
+  - id: product-name
+    name: Person-facing Video Studio text names the product Open Swarm
+    purpose: Check SOUND_LIBRARY and STICKER_CATALOG attributions, the surface title, the manifest and personas, and all shipped routes, TypeScript route sources and tools files outside comments.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/product-name.test.js
+    expected:
+      - SOUND_LIBRARY items name Open Swarm Procedural and STICKER_CATALOG items name Open Swarm Original Sticker.
+      - The Video Studio HTML title and both personas name Open Swarm.
+      - Shipped routes, TypeScript route sources and tools files contain no product-name OSHAL or oshal outside comments.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never

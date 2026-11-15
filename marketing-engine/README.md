@@ -2,12 +2,13 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (0.4.2).
 2 | maintainer@emeraldcoastsystemsgroup.com | Point to the marketing suite spec, its market scan, and this package's BACKLOG.md (the end-to-end suite work with done-when criteria).
+3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: person-facing product references and brand rule name Open Swarm.
 -->
-# Marketing Engine (marketing-engine) — OSHAL app package
+# Marketing Engine (marketing-engine) — Open Swarm app package
 
 0.5.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
-Takes a built oshal product to traffic, users, and revenue — without ever acting on
+Takes a built Open Swarm product to traffic, users, and revenue — without ever acting on
 its own. A campaign board with stage-gated intake (no spend before validation), a
 per-channel consent model that defaults OFF, UTM-tagged links, a deterministic
 weekly scorecard that says **NO DATA** instead of inventing a number, an ICE-scored
@@ -76,7 +77,7 @@ Open work, with a done-when on every item: [BACKLOG.md](BACKLOG.md).
 
 All four personas embed the honesty doctrine (cite provided data only, no invented
 metrics or quotes, no competitive absolutes, say NO DATA), the brand rule
-(lowercase "oshal"), and the consent rule (never publish, never spend).
+("Open Swarm"), and the consent rule (never publish, never spend).
 
 ## The surface — `/cockpit/?app=marketing-engine`
 

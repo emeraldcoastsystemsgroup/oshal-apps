@@ -26,6 +26,22 @@ The guide route is covered by integration tests over the mounted route (`tests/r
 
 Version 1.19 adds one declaration on that tool, `devicePath`. It tells the kernel's path planner (`device.path`) that this way exists: an Android phone or tablet with the Amazon Fire TV app reaches a Fire TV with the remote's keys, for waking it and carrying on with what was on. It grants nothing and runs nothing. The planner offers the way only for your own phone, only while **Let Jarvis control this device** is on there, and says to read this guide first. The declaration is checked by `tests/phone-control-device-path.test.cjs`; the kernel reading it from this installed package has not been tested yet.
 
+## Roku and Samsung TVs
+
+The bridge's `lan-control` verb is what Smart Home's TV tools run on your computer. Version 1.20 adds three actions to it for a Roku and a Samsung TV (`bridge/oshal_phone_front.py`); this package gains no tool or route for them.
+
+| Action | Roku (ECP, port 8060) | Samsung TV (port 8001, remote channel on 8002) |
+|---|---|---|
+| `launch_app` | `POST /launch/<digit id>` after `GET /query/apps` confirms the application; a title is sent as `contentId` and `mediaType` | `POST /api/v2/applications/<id>`; when the TV refuses it, `ed.apps.launch` on the paired remote channel. A title is refused in words |
+| `list_apps` | `GET /query/apps`: applications with digit ids; TV inputs are only counted | `ed.installedApp.get` on the paired remote channel; a TV that does not answer it is said in words |
+| `active_app` | `GET /query/active-app` and `/query/media-player`: the application in front, the home screen, a screensaver over it, the player's state | `GET /api/v2/applications/<id>`: running and visible for the one application named |
+
+After a launch the answer reads the TV again and says what it reported in front. Neither kind of TV gives a picture or the text on its screen, so nothing here does. Every id and content id is checked against a closed shape before anything is sent, and only a private home-network address is accepted. These actions are tested against stand-in TVs on `127.0.0.1` (`tests/phone-control-front.test.mjs`); they have not been run against a real Roku or Samsung TV yet. An Android or Fire TV refuses them in words and keeps its own tools above.
+
+## When something is not there
+
+Version 1.20.1 says it in words. A device you have not saved, or one that is not yours, is answered `404` with `{"error":"device_not_found","message":"No saved device is called \"<what you asked for>\". List your devices first (phone-control-list-devices)."}` on every device route, including **List TV Apps** (`phone-control-tv-apps`); a capture, a transfer, a bridge file and a page file that are not there have their own sentence beside their code (`lib/refusals.js`, checked by `tests/phone-control-routes.test.cjs`).
+
 ## How it works
 
 The page sends each command to a computer of yours that runs oshal Node with **Let Jarvis control this computer**

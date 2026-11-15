@@ -67,6 +67,9 @@ The access review runs on the identity-advisor (inline, cost lands in
 | --- | --- | --- |
 | `tests/identity-list-contract.test.js` | unit | Isolated Node runner; synthetic data only |
 | `tests/home-summary.integration.cjs` | browser | Pending: standalone Node harness, matching core checkout, disposable PostgreSQL and Chromium |
+| `tests/connect-from-frame.browser.cjs` | browser | Node runner with the store toolchain's Playwright and Chromium; loopback fixture with a made-up provider |
+
+Identity Hub 1.2.8: Connect and Reconnect open the kernel's `/api/connect/{id}/start` in a new window inside the click, with nothing awaited first, and return to the kernel's connect window, which reports the outcome on the `oshal-connections` channel; with no second window, the whole window goes and comes back. Run `npm ci --prefix scripts/toolchain` once from the store checkout, then `node --test identity/tests/connect-from-frame.browser.cjs` (set `OSHAL_KERNEL_PLATFORM` to the kernel's `platform` folder to also check the shell's sandbox string; `IDENTITY_CONNECT_SHOTS` keeps screenshots). Locally tested in headless Chromium only; not yet proven on a phone or in the desktop app against a live installation.
 
 The browser harness is deliberately not eligible for the isolated Node runner. Set `HOME_TEST_CORE` to the matching core checkout and `HOME_TEST_DATABASE_URL` to a dedicated localhost database named `home_summary_test`, then run `node identity/tests/home-summary.integration.cjs` from the store checkout. It creates and removes a random schema and role; screenshots remain in the core `output/home-summary-acceptance` directory. This registration does not report that fixture as executed.
 

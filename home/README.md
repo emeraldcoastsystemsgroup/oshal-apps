@@ -1,4 +1,4 @@
-# Smart Home (home) — OSHAL app package
+# Smart Home (home) — Open Swarm app package
 
 1.9.0: **Smart Home keeps no grocery list.** It kept one of its own beside Shopping's and could not order from it, so "add eggs to my grocery list" and "order the groceries" went to two places and nothing was ordered. Shopping keeps a person's one grocery list and makes the order from it. The refrigerator page's **Grocery list** card shows that list, adds to it and ticks an item off through Shopping's own routes in the person's session, and has **Open Shopping**; items a person had put on the refrigerator's own list are moved to Shopping when the page opens (and stay, shown, when Shopping does not answer for that account). `home-fridge-meal-cart` takes no grocery action: it adds a meal, notes an item the person says they already bought, or sets the weekly check; a grocery action from an older caller answers 409 `kept_by_shopping`. The description says the grocery list is kept by Shopping, which is what Jarvis reads to choose an application.
 
@@ -75,11 +75,11 @@ person's, through the kernel's `/api/computers/<id>/run`.
   with oshal Node signed in and control allowed is chosen first) and press **Scan for TVs**. The page updates the
   bridge on that computer when it is not Phone & Device Control's own, runs the scan and saves what it found. Each TV
   gets a card with **Wake**, **Turn off**, **Vol −/+**, **Mute**, the arrows and **OK**, **Home**, **Back**,
-  **Play/Pause**, **Open oshal on this TV** (Samsung: its browser; Android: the oshal TV app when it is installed),
+  **Play/Pause**, **Show Open Swarm on this TV** (Samsung: its browser; Android: the oshal TV app when it is installed),
   **Pair** for a Samsung, **Connect** for an Android TV this computer has not used yet, and **Install the TV app**
   (asks once more, then installs the signed oshal TV app on that one Android TV). A Roku cannot open a web page, so
-  its card has no Open oshal. Each card says what the computer answered, for example "Press Allow on the TV, then
-  Retry." while a Samsung TV asks whether to allow oshal.
+  its card has no Show Open Swarm. Each card says what the computer answered, for example "Press Allow on the TV, then
+  Retry." while a Samsung TV asks whether to allow Open Swarm.
 - **What the scan does**: reads the computer's neighbor table on its real network interfaces (private addresses only;
   container, VPN and tunnel interfaces are skipped), asks SSDP and avahi who is there, probes the TV ports and reads
   what each device says about itself (Samsung `/api/v2/`, Roku `/query/device-info`, Google Cast, adb state). It never
@@ -102,6 +102,32 @@ person's, through the kernel's `/api/computers/<id>/run`.
   answers `409 tv_needs_computer` and the device grid points to the TV section instead of showing a switch.
 - **Tests**: `tests/home-lan-devices.test.cjs`, `tests/browser/home-tvs.test.cjs` (store-ci job `home`), and the
   bridge's own suite in `phone-control/tests/phone-control-lan.test.mjs`. No test presses a real TV.
+
+### Applications on a Roku or a Samsung TV (1.9.1)
+
+Neither a Roku nor a Samsung TV runs the oshal TV app, so Jarvis reaches them with three more actions of
+`home-lan-control`, planned and recorded like every other press (Phone & Device Control's bridge 1.20.0):
+
+| Action | Roku | Samsung TV |
+|---|---|---|
+| `launch_app` | opens one application by its id (digits) or by its name once its applications were read; a title too, with `contentId` (the application's own id for it, never a web address) and `mediaType` | opens one application by its id (digits or a dotted name) or its name; a title is refused in words |
+| `list_apps` | the applications with their ids | the applications with their ids, when the TV lists them; said in words when it does not |
+| `active_app` | the application in front, the home screen, a screensaver over it and its player's state | whether the one application named is running and in front |
+
+- **What the record keeps:** the applications a TV listed (`apps`, at most a hundred) and what it last reported in
+  front (`front`), per person, shown by `home-lan-devices`. A new scan keeps both.
+- **What an answer says:** only what the TV itself reported after the press, for example "Netflix is in front on
+  Bedroom Roku." or "Open an application was sent to Bedroom Roku, but Netflix was not in front when the Roku was
+  read: its home screen was." A Roku does not say which title is showing, and the answer says so.
+- **What neither kind can do:** show its screen. There is no screenshot and no on-screen text of a Roku or a Samsung
+  TV, so after an application opens, moving inside it is the arrows and OK, unseen. The tool, the application's
+  description and the persona say so. An Android or Fire TV that runs Orbit shows its screen through the person's
+  computer tools, not through Smart Home, and refuses these three actions in words.
+- **An older bridge** on the computer answers `bad_action`; the recorded answer then says to open Smart Home, TVs
+  and streaming sticks, and press **Scan for TVs** once, which updates it.
+- **Tests**: `tests/home-lan-direct.test.cjs`, and the bridge's stand-in suite
+  `phone-control/tests/phone-control-front.test.mjs`. Locally tested against stand-ins only: these actions have not
+  been run against a real Roku or Samsung TV, and the Smart Home screen has no button for them yet (see BACKLOG).
 
 <!-- oshal-rating:start -->
 ## Models and requirements

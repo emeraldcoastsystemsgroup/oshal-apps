@@ -21,6 +21,7 @@
   30 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: on the phone "everything is too bunched up to use the concierge", and on the computer the concierge "said that it couldnt change my dates and i needed to go to career profile"). Career's concierge is this page's one assistant (the Concierge button in Career's bar; AI Office's editor opens with assistant=host, so its own is off). Before each turn the page saves the document into the main résumé as before; the concierge proposes a change as an approval card, and once approved the page puts it into the document at once and shows it with Undo (POST /resume/master-undo through career-change-bar.js). A document whose jobs are behind Work history is brought up to date when nothing typed would be lost, or says so with a Use my work history button. On a phone the page is one column: the résumé picker, Save and More on one row with the status one line under it, and the document edge to edge down to Career's bottom bar.
   31 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"). The document follows the main résumé: opening it, the save before a concierge turn, an approved change and Undo all go through the document host's one settle (tools/career-resume-office.js), so a job or bullet added on Work history or by a card anywhere is in the document with no press, typed text is saved into the main résumé and never replaced, and a document that is only behind is never saved back. Only a document Career cannot place (it differs and names no version) shows the note with Use my work history; the save before a concierge turn leaves it alone.
   29 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled My résumé (was Resume Studio). The picker, the Save button and every status line say main résumé, the words the page already used when it opened it (was master résumé); the More menu says Download my data and Other experience, and the empty line says My jobs. The value the picker and the routes carry is still `master`. Guard: tests/career-page-names.test.mjs.
+  32 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1 (Roger, from his phone, 2026-11-14: "in edit and then concierge the screen is putting the text box at the top above the thread"). The résumé editor's conversation reads as every chat does: its heading, the thread filling the panel and scrolling, and the text box with Send last, under the newest message. Entry 3 had put the text box beside the heading, above the thread. On a phone the editor is a sheet between Career's bars (the frame's two measures), no longer one that began under the row of tabs and hid its own heading there; Close the editor is in the sheet's heading, where this page's other sheet has its close, and the Edit with AI bar is away while the sheet is open, so the text box rests on Career's bottom bar. The thread shows the newest message when the sheet opens, after Send, when a reply arrives and when the window changes height (a phone keyboard, a turned screen), unless the person has scrolled up to read. Guard: tests/career-resume-editor-composer.test.mjs.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -46,7 +47,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 14px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  .wrap { display: grid; grid-template-columns: 1fr 380px; height: 100dvh; }
+  /* One row, the window's height: the résumé and the editor's thread each scroll inside it, so the editor's text box stays at its foot. */
+  .wrap { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: minmax(0, 1fr); height: 100dvh; }
   /* minmax(0, …) and the select's max-width keep a long resume name from widening the page past a phone's edge
      (the select ran to 487 px in a 412 px viewport); the composer grows to show its two-line placeholder whole. */
   @media (max-width: 880px) {
@@ -86,12 +88,13 @@
   .chat { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
   .chat header { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 600; display: flex; gap: 8px; align-items: center; }
   .chat header small { color: var(--muted); font-weight: 400; }
+  #aiClose { display: none; } /* Close the editor belongs to the phone's sheet */
   .log { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; }
   .msg.you { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
   .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); }
   .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
-  .composer { padding: 12px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  .composer { padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
   .composer textarea { flex: 1; resize: none; height: 66px; background: var(--card); color: var(--text);
     border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; }
   .cover-preview { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
@@ -121,9 +124,15 @@
   #officeFrame { display: block; width: 100%; height: 100%; border: 0; }
   @media (max-width: 880px) {
     .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100dvh - 64px); }
-    .chat { position: fixed; left: 0; right: 0; bottom: 64px; top: 12dvh; z-index: 20; border: 1px solid var(--ds-edge);
+    /* The editor is a sheet between Career's bars (the frame's two measures; neither without the frame): its heading and
+       Close the editor, the thread filling it, the text box last. No height is fixed, so a shorter window (a keyboard) keeps the text box. */
+    .chat { position: fixed; left: 0; right: 0; bottom: var(--cf-bottom, 0px); top: max(12dvh, var(--cf-top, 0px)); z-index: 20; border: 1px solid var(--ds-edge);
       border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-surface); box-shadow: var(--ds-elev-float); }
     .chat:not(.open) { display: none; }
+    .chat header { min-height: 56px; padding: 6px 8px 6px 16px; }
+    .chat header small { display: none; }
+    #aiClose { display: inline-flex; margin-left: auto; }
+    body:has(.chat.open) #aiBar { display: none; }
     #aiBar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; height: 64px; padding: 10px 12px; gap: 8px; z-index: 21;
       background: var(--ds-page); border-top: 1px solid var(--ds-hairline); }
     #aiBar .ck-btn { flex: 1; }
@@ -184,12 +193,12 @@
       watch it update.</div>
   </div>
   <div class="chat">
-    <header>Résumé editor <small>· tell it what to change</small></header>
+    <header>Résumé editor <small>· tell it what to change</small><button type="button" class="ck-btn" id="aiClose">Close the editor</button></header>
+    <div id="log" class="log"></div>
     <div class="composer">
       <textarea id="msg" placeholder="e.g. put my team-lead work first; shorten the second bullet" disabled></textarea>
       <button id="send" disabled>Send</button>
     </div>
-    <div id="log" class="log"></div>
   </div>
 </div>
 <div id="aiBar"><button type="button" class="ck-btn" id="aiOpen" aria-expanded="false">Edit with AI</button></div>
@@ -328,7 +337,14 @@ async function fetchDoc(id){
   if (!res.ok) throw new Error('This résumé could not be read (HTTP ' + res.status + ').');
   return res.json();
 }
-function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight; }
+/* The newest message stays in view when the thread's box changes height (the sheet opening, a phone keyboard or a turned
+   screen resizing the window). A person who has scrolled up to read is left where they are: atNewest follows their own
+   scrolling, and a scroll event that arrives after the box has changed, before it is measured again, says nothing about it. */
+let atNewest = true, threadHeight = 0;
+function toNewest(){ const log = $('log'); log.scrollTop = log.scrollHeight; atNewest = true; }
+function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); toNewest(); }
+$('log').addEventListener('scroll', () => { const log = $('log'); if (log.clientHeight === threadHeight) atNewest = log.scrollHeight - log.scrollTop - log.clientHeight < 8; });
+if (typeof ResizeObserver === 'function') new ResizeObserver(() => { threadHeight = $('log').clientHeight; if (atNewest) toNewest(); }).observe($('log'));
 
 // One document owns each in-flight read/edit/save; a loading picker may move on,
 // while an edit or save keeps the current selection until its reply settles.
@@ -784,10 +800,16 @@ $('resumeFile').addEventListener('change', async (event) => {
     showError('Couldn\u2019t upload your résumé: ' + e.message + '. Choose a PDF or DOCX and try again.');
   } finally { $('uploadBtn').disabled = false; $('uploadBtn').textContent = 'Upload your résumé (PDF or DOCX)'; event.target.value = ''; }
 });
-$('aiOpen').addEventListener('click', () => {
-  const open = document.querySelector('.chat').classList.toggle('open');
-  $('aiOpen').setAttribute('aria-expanded', String(open)); $('aiOpen').textContent = open ? 'Close the editor' : 'Edit with AI';
-});
+/* The phone's editor sheet. Edit with AI opens it on the newest message; Close the editor, in its heading, closes it.
+   The bar is away while the sheet is open, so focus goes to the sheet's close, and back to the bar's button after. */
+function showEditor(open){
+  document.querySelector('.chat').classList.toggle('open', open);
+  $('aiOpen').setAttribute('aria-expanded', String(open));
+  if (open) toNewest();
+  $(open ? 'aiClose' : 'aiOpen').focus();
+}
+$('aiOpen').addEventListener('click', () => showEditor(true));
+$('aiClose').addEventListener('click', () => showEditor(false));
 (function wireMaterialsSheet(){
   const sheet = $('materialsSheet'), openBtn = $('openMaterials'), fileIn = $('matFiles'), dropLabel = $('matDropLabel'), out = $('matOut');
   if (!sheet || !openBtn || typeof sheet.showModal !== 'function') return;

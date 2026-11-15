@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 regression guard for storage--storage-assistant (MERGE) and storage--storage-settings (FIX-LAYOUT): chatBot is storage-assistant, ribbon.defaultView is storage-files, storage-assistant leaves ui.static with zero cross-store experience surface references, assistant chips are <button> controls with one greeting and Graphite-safe on-accent ink, unconnected backends are disabled <option> elements with a Connections link beneath the select, changing a select sends PUT /api/storage/prefs immediately and displays Saved (or role="alert" on failure), and local usage / 250 MB limit sits in the help text with lowercase oshal copy.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.3: Storage Settings copy and option labels name the product Open Swarm ("Storage Settings — Open Swarm", "Choose where Open Swarm saves...", "Open Swarm (local)").
  * -----------------------------------------------------------------------------
  * @module storage-ux-batch7.test
  */
@@ -94,16 +95,16 @@ test('storage--storage-assistant: manifest sets chatBot and defaultView, removes
   assert.match(assistant, /\.bar button\s*\{[^}]*color:var\(--on-accent\)/);
 });
 
-test('storage--storage-settings: static structure removes Save bar and opacity:.5, uses lowercase oshal, and gates on AppView', () => {
+test('storage--storage-settings: static structure removes Save bar and opacity:.5, names the product Open Swarm, and gates on AppView', () => {
   const html = fs.readFileSync(path.join(PKG, 'tools', 'storage-settings.html'), 'utf8');
   assert.doesNotMatch(html, /id="saveBtn"/, 'Save bar button removed');
   assert.doesNotMatch(html, /opacity\s*:\s*\.5/, 'no opacity:.5 disabled styling');
   assert.match(html, /\.btn:disabled\s*\{[^}]*opacity:1/);
   assert.match(html, /\.btn\.primary\s*\{[^}]*color:var\(--on-accent\)/);
-  assert.match(html, /<title>Storage Settings — oshal<\/title>/);
-  assert.match(html, /Choose where oshal saves what it generates/);
+  assert.match(html, /<title>Storage Settings — Open Swarm<\/title>/);
+  assert.match(html, /Choose where Open Swarm saves what it generates/);
   assert.match(html, /href="\/api\/files"/);
-  assert.doesNotMatch(html, /OSHAL/, 'copy uses lowercase oshal');
+  assert.doesNotMatch(html, /OSHAL/, 'copy names the product Open Swarm');
   assert.match(html, /if \(!window\.AppView \|\| !AppView\.active\(\)\) load\(\);/);
 });
 
@@ -134,7 +135,7 @@ test('storage--storage-settings: unconnected options are disabled, local usage r
   await new Promise((r) => setImmediate(r));
 
   const bodyHtml = getEl('body').innerHTML;
-  assert.match(bodyHtml, /<option value="oshal-local" selected>oshal \(local\)<\/option>/);
+  assert.match(bodyHtml, /<option value="oshal-local" selected>Open Swarm \(local\)<\/option>/);
   assert.doesNotMatch(bodyHtml, /<option[^>]*250 MB/, '250 MB limit is not inside option labels');
   assert.match(bodyHtml, /<option value="dropbox" disabled>Dropbox \(not connected\)<\/option>/);
   assert.match(bodyHtml, /<option value="github">GitHub<\/option>/);

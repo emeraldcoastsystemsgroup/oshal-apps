@@ -1,9 +1,11 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep explicit preparation consent in each owner's records and bind readiness/review to current inputs and exact packet bytes; preparation never authorizes employer submission.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): a saved-job preparation that stopped because Career had no description of the job (job_details_unavailable or job_context_unavailable, the job still has none) says what to do in the words the application page uses, "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js NEEDED), not "Preparation stopped: job details unavailable." Every other reason reads as before. Guard: tests/career-paste-details-unmarked.test.mjs.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const board=require('./career-board-state');
+const pasted=require('./career-pasted-details');
 const FILE='application-workflow.json',OFF={enabled:false,mode:'review'};
 function fail(message,status=409){const e=Error(message);e.status=status;throw e;}
 function validate(value){
@@ -35,6 +37,7 @@ function view(dir,id,job,application){
  const held=reason=>({state:'stuck',ready:false,reason,proof:null});
  if(job.active===0)return held('The employer posting is no longer available. Check the original posting.');
  if(!address(job.url))return held('The employer form link is unavailable. Open the application and check the posting.');
+ if((state.phase==='failed'||application.failed)&&pasted.stoppedForDetails(state.error,job.description))return held(pasted.NEEDED);
  if(state.phase==='failed'||application.failed)return held(state.error==='resume_required'?'Upload your résumé, then retry preparation.':'Preparation stopped: '+String(state.error||'generation failed').replaceAll('_',' ')+'. Open the application to review and retry.');
  if(state.phase!=='ready')return {state:'preparing',ready:false,proof:null,reason:'Preparation is pending. Refresh progress; if it was interrupted, open the application and retry generation.'};
  const proof=packetProof(dir,id,job,application);

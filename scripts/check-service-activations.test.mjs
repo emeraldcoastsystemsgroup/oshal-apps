@@ -39,6 +39,7 @@ const DECLARED = [
   ['email-summarizer', 'mail-copy', 'user'],
   ['email-summarizer', 'social-publish', 'user'],
   ['email-summarizer', 'mail-watches', 'user'],
+  ['finance', 'finance-mail-bills', 'user'],
   ['intelligent-operations', 'operations-process-recorded-alerts', 'user'],
   ['kalshi', 'background-scan', 'user'],
   ['lora', 'lora-autonomous-overnight', 'system'],

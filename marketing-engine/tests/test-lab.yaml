@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register record-fields: the campaign card shows its ICP card and message map as labelled fields, not JSON, and Draft content starts from the campaign brief.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | home-summary also proves each recent campaign's real draft count and time (sweep 11: the concierge invented draft times).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The home-summary case also expects RFC 3339 draft times and the persona's no-unlisted-campaigns and no-conversion rules (sweep 13).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: register product-name guard (tests/product-name.test.mjs) in the plain-Node marketing-engine job.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -188,6 +189,27 @@ cases:
     expected:
       - An empty form names url, campaign, source and medium; a full one passes.
       - No refreshBtn; utmCard is inside pane-channels.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: product-name
+    name: Person-facing Marketing Engine text names the product Open Swarm
+    purpose: Check the HTML surface, email fallback subject, bot honesty rules, manifest, all four personas, routes and TypeScript route sources outside comments.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/product-name.test.mjs
+    expected:
+      - The surface title, campaign product placeholder, email fallback subject and bot honesty rules name Open Swarm while preserving URL placeholders.
+      - The manifest and all four personas name Open Swarm and carry no retired lowercase-oshal brand rule.
+      - Shipped routes, TypeScript route sources and tools files contain no product-name OSHAL or oshal outside comments.
     prerequisites:
       - runner:node-test
     sideEffects: none

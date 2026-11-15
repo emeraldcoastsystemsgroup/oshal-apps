@@ -3,6 +3,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve launcher failure/order controls with the explicit new-only nightly selectors.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise durable nightly idempotency, failure/retry, owner isolation and the real launcher matching-before-scoring contract without model calls.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify distinct owner-only matching and mailbox activations, update-review wording and failed-control recovery.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.62.2: a pull at 01:00 (CAREER_INGEST_CRON) starts a new cycle at 01:00, so the morning publication is matched; same-cycle catch-up still waits; no or an unreadable schedule keeps 18:00.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0: the launcher lists the person's unreadable jobs (score.mark_unreadable) after matching and before scoring, with the person's titles and remote preference, and its count line still reads as a completed night.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -148,15 +150,18 @@ test('the real launcher runs matching before scoring and cannot emit success aft
   writeFileSync(join(module, '__init__.py'), '');
   writeFileSync(join(module, 'db.py'), 'def init_db(): pass\n');
   writeFileSync(join(module, 'match.py'), 'import os\ndef rescore_new():\n if os.environ.get("FIXTURE_FAIL"): raise RuntimeError("fixture failure")\n print("matched-before-score",flush=True)\n return 8\n');
-  writeFileSync(join(module, 'score.py'), 'def score_batch(**kw):\n assert kw["limit"]==50 and kw["fresh_days"]==7 and kw["recent_first"] is True and kw["new_only"] is True\n assert kw["title_any"]==["Developer","Adjunct"]\n print("scored-after-match",flush=True)\n return 2,0\n');
+  writeFileSync(join(module, 'score.py'), 'def score_batch(**kw):\n assert kw["limit"]==50 and kw["fresh_days"]==7 and kw["recent_first"] is True and kw["new_only"] is True\n assert kw["title_any"]==["Developer","Adjunct"]\n print("scored-after-match",flush=True)\n return 2,0\n'
+    + 'def mark_unreadable(terms, remote_only):\n assert terms==["Developer","Adjunct"] and remote_only is False\n print("listed-after-match",flush=True)\n return 4\n');
   const env = { ...process.env, PYTHONPATH: fixture, CH_NIGHTLY_MATCH: '1', CH_TITLES: 'Developer\nAdjunct', CH_LIMIT: '50', CH_FRESH_DAYS: '7' };
   const run = extra => spawnSync('python3', ['-c', code], { encoding: 'utf8', env: { ...env, ...extra } });
   const ok = run({}); assert.equal(ok.status, 0, ok.stderr);
   assert.ok(ok.stdout.indexOf('matched-before-score') < ok.stdout.indexOf('scored-after-match'));
+  assert.ok(ok.stdout.indexOf('matched-before-score') < ok.stdout.indexOf('listed-after-match') && ok.stdout.indexOf('listed-after-match') < ok.stdout.indexOf('scored-after-match'));
+  assert.equal(JSON.parse(ok.stdout.trim().split('\n').pop()).needsDetails, 4);
   assert.equal(nightly.nightlyMatchVerdict(ok.stdout).keywordMatched, 8);
   const failed = run({ FIXTURE_FAIL: '1' }); assert.equal(failed.status, 1);
   assert.equal(nightly.nightlyMatchVerdict(failed.stdout), null);
-  assert.doesNotMatch(failed.stdout, /scored-after-match/);
+  assert.doesNotMatch(failed.stdout, /scored-after-match|listed-after-match/);
   const unbounded = run({ CH_LIMIT: '0' }); assert.equal(unbounded.status, 1);
   assert.doesNotMatch(unbounded.stdout, /matched-before-score/);
 });
@@ -231,4 +236,72 @@ test('settings activates only the declared owner job and surfaces failed platfor
   await api.changeMailJob('activate');
   assert.match($('#mailJobState').textContent, /not registered/);
   assert.equal(calls.some(c => c.options?.method === 'POST'), false);
+});
+
+/** A made-up receipt for a made-up corpus published at `publishedIso`; the returned function republishes it at each instant and decides. */
+function cycleDecision(name, publishedIso) {
+  const dir = join(root, name); mkdirSync(dir);
+  const corpus = join(root, `${name}.db`);
+  writeFileSync(corpus, 'fixture corpus for a pull-cycle case');
+  const published = new Date(publishedIso);
+  utimesSync(corpus, published, published);
+  const stat = statSync(corpus);
+  writeFileSync(join(dir, nightly.NIGHTLY_MATCH_FILE), JSON.stringify({ version: 1, matchContract: nightly.NIGHTLY_MATCH_CONTRACT,
+    corpusVersion: `${Math.trunc(stat.mtimeMs)}:${stat.size}`, completedAt: new Date(Date.now() - 60_000).toISOString(),
+    limit: 50, keywordMatched: 4, scored: 2, skipped: 0 }));
+  return nowList => nowList.map(iso => { const at = new Date(iso); utimesSync(corpus, at, at); return nightly.nightlyMatchDecision(dir, corpus).reason; });
+}
+
+/** Run `fn` with the installation's pull schedule set as the per-package setting delivers it. */
+function withSchedule(schedule, fn) {
+  const prior = process.env.CAREER_INGEST_CRON;
+  if (schedule === undefined) delete process.env.CAREER_INGEST_CRON; else process.env.CAREER_INGEST_CRON = schedule;
+  try { return fn(); } finally {
+    if (prior === undefined) delete process.env.CAREER_INGEST_CRON; else process.env.CAREER_INGEST_CRON = prior;
+  }
+}
+
+test('with the pull at 01:00, the morning publication after an evening receipt is a new cycle, not a cooldown', () => {
+  // Receipt: a publication at 22:36 Central on 2026-11-13. Corpus: published at 06:01 Central on 2026-11-14.
+  const decide = cycleDecision('pull-at-one', '2026-11-14T04:36:00Z');
+  withSchedule('0 1 * * *', () => assert.deepEqual(decide(['2026-11-14T12:01:19Z']), [null]));
+});
+
+test('with the pull at 01:00, a 13:00 catch-up after the 06:01 publication is the same cycle and the next pull is not consumed', () => {
+  const decide = cycleDecision('pull-at-one-catch-up', '2026-11-14T12:01:00Z');
+  withSchedule('0 1 * * *', () => {
+    assert.deepEqual(decide(['2026-11-14T19:00:00Z', '2026-11-15T06:59:00Z']), ['daily-cooldown', 'daily-cooldown'],
+      'a catch-up at 13:00 and anything before 01:00 belong to the 06:01 publication\'s cycle');
+    assert.deepEqual(decide(['2026-11-15T07:00:00Z', '2026-11-15T12:05:00Z']), [null, null], 'the next 01:00 pull is due');
+  });
+});
+
+test('with no pull schedule, cycles keep the 18:00 Chicago boundary', () => {
+  const decide = cycleDecision('no-schedule', '2026-11-14T04:36:00Z');
+  withSchedule(undefined, () => {
+    assert.deepEqual(decide(['2026-11-14T12:01:19Z', '2026-11-14T23:59:00Z', '2026-11-15T00:00:00Z']), ['daily-cooldown', 'daily-cooldown', null]);
+    assert.deepEqual(nightly.nightlyPullBoundary(), { hour: 18, minute: 0 });
+  });
+});
+
+test('only a plain daily "minute hour * * *" schedule moves the boundary; anything else falls back to 18:00', () => {
+  for (const schedule of ['', 'off', '0 1 * * 1', '*/30 * * * *', '0 1,13 * * *', '0 */6 * * *', '60 1 * * *', '0 24 * * *',
+    '0 1 * *', '0 1 * * * *', 'a b * * *', '-1 1 * * *', '0 1 1 * *']) {
+    assert.deepEqual(nightly.nightlyPullBoundary(schedule), { hour: 18, minute: 0 }, schedule);
+  }
+  assert.deepEqual(nightly.nightlyPullBoundary(' 30  0 * * * '), { hour: 0, minute: 30 });
+  assert.deepEqual(nightly.nightlyPullBoundary('0 1 * * *'), { hour: 1, minute: 0 });
+  const decide = cycleDecision('unreadable-schedule', '2026-11-14T04:36:00Z');
+  withSchedule('every night at one', () => assert.deepEqual(decide(['2026-11-14T12:01:19Z']), ['daily-cooldown']));
+});
+
+test('a pull boundary keeps its minute and its Chicago wall clock across daylight saving changes', () => {
+  const cycle = (iso, boundary) => nightly.nightlyPublicationCycle(Date.parse(iso), boundary);
+  const one = { hour: 1, minute: 0 }, half = { hour: 0, minute: 30 };
+  assert.equal(cycle('2026-11-14T06:59:00Z', one), '2026-11-13');
+  assert.equal(cycle('2026-11-14T07:00:00Z', one), '2026-11-14');
+  assert.equal(cycle('2026-10-26T05:59:00Z', one), '2026-10-25');
+  assert.equal(cycle('2026-10-26T06:00:00Z', one), '2026-10-26');
+  assert.equal(cycle('2026-11-14T06:29:00Z', half), '2026-11-13');
+  assert.equal(cycle('2026-11-14T06:30:00Z', half), '2026-11-14');
 });

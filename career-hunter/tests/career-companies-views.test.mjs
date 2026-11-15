@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Companies, grade C). The real tools/career-companies.html in Chromium over a synthetic administrator list: the Companies view shows search, chips and the table at once with no nightly review or pull telemetry between them; Source health shows the review and the failed/partial line without the table and is addressable as ?view=health; Jobs sorts descending then ascending; the in-page Job Board and Cockpit links are gone; chips and the attention checkbox are 44px.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.52.6: the Removed chip shows only when an employer is removed, so the 44px check measures the chips on screen, and there are four of them here.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.64.0: a description setting sent through Resolve says what the pull did with it, in Source changes and on its row.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -51,5 +52,22 @@ test('phone: ?view=health opens Source health; chips and the attention checkbox 
     assert.equal(chips.length, 4, 'All, Active ATS, Needs URL, Unconfirmed pulls; Removed only when one is removed');
     for (const chip of chips) assert.ok((await chip.boundingBox()).height >= 44);
     assert.ok((await page.locator('label.chk').boundingBox()).height >= 44);
+  } finally { await context.close(); }
+});
+
+test('a description setting sent through Resolve says what the pull did with it', async () => {
+  const sourceChanges = [
+    { id: 'a1', companyId: 1, target: 'setting:descriptions=off', state: 'setting_saved', detail: { setting: 'descriptions', value: 'off' } },
+    { id: 'b2', companyId: 3, target: 'setting:descriptions=maybe', state: 'bad_setting', detail: {} },
+  ];
+  const withSettings = ({ url }) => (url.pathname === '/api/career-hunter/companies-admin/list'
+    ? { json: { companies, admin: true, sourceHealth: { available: true }, sourceReview, sourceChanges } } : null);
+  const { page, context } = await openScreen(browser, 'career-companies.html', withSettings, DESKTOP);
+  try {
+    await page.locator('#sourceChanges li').nth(1).waitFor();
+    const said = await page.locator('#sourceChanges').innerText();
+    assert.match(said, /Description setting saved: descriptions = off\. The pull follows it from now on\./);
+    assert.match(said, /Not applied: that is not a description setting the pull knows\./);
+    assert.doesNotMatch(said, /the pull could not read it/);
   } finally { await context.close(); }
 });

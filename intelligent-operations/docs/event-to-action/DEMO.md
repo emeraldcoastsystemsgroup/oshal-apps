@@ -1,7 +1,7 @@
 # TriageNorth demonstration path
 
 A sixteen-minute walk through the installed application on the owned lab, in the order a judge
-should see it. Every step uses the native OSHAL sign-in and the signed-in person's own
+should see it. Every step uses the native Open Swarm sign-in and the signed-in person's own
 authority; every number on screen comes from a stored record or a live read, and each step
 names the receipt that proves it. Open the portal at http://127.0.0.1:38081 and choose
 Operations.
@@ -63,5 +63,5 @@ paths rather than the fixtures:
 | Azure reads | Administrator, then you | Register `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET` (Microsoft identity platform, Resource Manager `user_impersonation`); select the Azure service; you connect your Microsoft account |
 | Git promotion and provisioning | You | GitHub is enabled on the lab (`https://api.github.com`). Create a fine-grained personal access token on GitHub for one test repository (Contents, Pull requests and Actions: read and write) and paste it in a promotion panel's "Your own access token" field; it goes straight to the kernel vault |
 | SSH host commands | Administrator, then you | Select hosts in `OSHAL_SSH_SERVICE` (name, literal address, port, pinned SHA-256 host key); you save your own username and ed25519 key as your SSH connection |
-| Sending to another swarm | The other swarm's owner, then you | They issue a peer token on Swarm hand-off; an administrator selects their HTTPS origin for the OSHAL peer installation service; you save the token as your peer connection |
+| Sending to another swarm | The other swarm's owner, then you | They issue a peer token on Swarm hand-off; an administrator selects their HTTPS origin for the Open Swarm peer installation service; you save the token as your peer connection |
 GitHub/GitLab promotion needs the service selected by an administrator and your account connected.

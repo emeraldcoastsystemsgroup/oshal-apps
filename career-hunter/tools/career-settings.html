@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  26 | maintainer@emeraldcoastsystemsgroup.com | The nightly matching line reads a settled night's receipt (version 2) in words: scored on three runs each, close calls not settled yet, could not be read, no usable answer, not reached yet, and whether tonight's pass continues. A version-1 receipt reads as before.
   25 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3 (Roger, 2026-11-14: "the jobs run needs to be moved back to 1AM"): the line about when new matches come names no hour. The pull starts when the installation says (OSHAL_CAREER_INGEST_CRON), so "After each evening's job refresh" reads "After each job refresh". Words only.
   24 | maintainer@emeraldcoastsystemsgroup.com | Offer default-off saved-job preparation with per-packet review or automatic readiness, explicitly stopping before submission.
   -----------------------------------------------------------------------------
@@ -292,7 +293,7 @@ input[type=checkbox]{width:22px;height:22px}
     </div>
     <div id="scopeOut" class="hint" role="status"></div>
     <h3>Nightly résumé matches</h3>
-    <p class="hint">After each job refresh, this job matches recent openings to your résumé, then scores up to 50 new or changed jobs using your titles and matching area. It checks for published results every 30 minutes and runs once per evening refresh cycle. Enable, pause or run it below.</p>
+    <p class="hint">After each job refresh, this job matches recent openings to your résumé, then scores up to 50 new or changed jobs using your titles and matching area (more where your installation turns on settled scoring; the line below says what the last night did). It checks for published results every 30 minutes and runs once per evening refresh cycle, continuing at the next checks when settled scoring allows a longer night. Enable, pause or run it below.</p>
     <div id="nightlyMatchOut" class="hint" role="status"></div>
     <div id="nightlyJobState" class="hint" role="status">Checking scheduled job…</div>
     <div class="row">
@@ -525,9 +526,14 @@ async function refreshTitles(){
     : '○ No target titles yet — add some below, or upload a résumé first';
   const scope = s.searchScope;
   const nightly = s.nightlyMatching;
-  $('#nightlyMatchOut').textContent = nightly
-    ? 'Last completed '+new Date(nightly.completedAt).toLocaleString()+': '+nightly.keywordMatched+' keyword matches updated, '+nightly.scored+' AI-scored, '+nightly.skipped+' skipped.'
-    : 'No completed nightly matching pass recorded yet. The line below says whether it is turned on.';
+  $('#nightlyMatchOut').textContent = !nightly
+    ? 'No completed nightly matching pass recorded yet. The line below says whether it is turned on.'
+    : nightly.version===2
+    ? 'Last completed '+new Date(nightly.completedAt).toLocaleString()+': '+nightly.keywordMatched+' keyword matches updated, '+nightly.scored+' AI-scored (each job asked three times), '
+      +nightly.undecided+' close calls not settled yet (asked again the next night; Check my fit on a saved job settles one now), '
+      +nightly.unreadable+' could not be read, '+nightly.failed+' got no usable answer, '+nightly.notReached+' not reached yet'
+      +(nightly.continues?' (tonight\'s pass continues at the next half-hourly check).':' (scored first on the next night).')
+    : 'Last completed '+new Date(nightly.completedAt).toLocaleString()+': '+nightly.keywordMatched+' keyword matches updated, '+nightly.scored+' AI-scored, '+nightly.skipped+' skipped.';
   if (scope) {
     if (document.activeElement !== $('#scopeNear')) $('#scopeNear').value = scope.near;
     if (document.activeElement !== $('#scopeRadius')) $('#scopeRadius').value = scope.radiusMiles;

@@ -20,6 +20,7 @@
  * 15 | maintainer@emeraldcoastsystemsgroup.com | TV link/show plans name their saved computer for the existing closed one-use runner; planning alone remains unexecuted.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Mount closed native saved-relay routes behind the existing verified-owner middleware, separately from Linux bridge plans.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Mount the read-only remote-app operating packet behind the same verified-owner middleware.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: a device, page file or bridge file that is not there is refused with a sentence beside its code (lib/refusals.js), never the bare code; the TV apps route behind phone-control-tv-apps answered only {"error":"device_not_found"}.
  */
 
 'use strict';
@@ -33,6 +34,7 @@ try {
 } catch {
   createRouter = require('../lib/router.js').createRouter;
 }
+const { deviceNotFound, bridgeFileNotFound, assetNotFound } = require('../lib/refusals.js');
 
 const ASSETS = Object.freeze({
   'phone-control.css': 'text/css; charset=utf-8',
@@ -76,7 +78,7 @@ function mountPages(router, toolsDir) {
   router.get('/ui', (req, res) => res.sendFile(path.join(toolsDir, 'phone-control.html')));
   router.get('/ui/:asset', (req, res) => {
     const type = ASSETS[req.params.asset];
-    if (!type) return res.status(404).json({ error: 'asset_not_found' });
+    if (!type) return assetNotFound(res, req.params.asset);
     res.setHeader('Content-Type', type);
     res.setHeader('Cache-Control', 'no-cache');
     return res.sendFile(path.join(toolsDir, req.params.asset));
@@ -458,32 +460,32 @@ function mountPhones(router, store, db) {
   });
   router.get('/devices/:id', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     return res.json({ device, history: store.listHistory(db, req.owner, { phoneId: device.id, limit: 25 }) });
   });
   router.post('/devices/:id/command-plan', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try { return res.json(buildDeviceCommandPlan(store, device, req.body || {})); } catch (error) { return refuse(res, error); }
   });
   router.post('/devices/:id/execute', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try { return res.json(executeDeviceSteps(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
   });
   router.post('/devices/:id/open-link', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try { return res.json(openLinkPlan(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
   });
   router.post('/devices/:id/play', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try { return res.json(playShowPlan(store, db, req.owner, device, req.body || {})); } catch (error) { return refuse(res, error); }
   });
   router.post('/devices/:id/apps', (req, res) => {
     const device = resolveDevice(store, db, req.owner, req.params.id);
-    if (!device) return res.status(404).json({ error: 'device_not_found' });
+    if (!device) return deviceNotFound(res, req.params.id);
     try { return res.json(tvAppsPlan(store, db, req.owner, device)); } catch (error) { return refuse(res, error); }
   });
   router.post('/rdp/command-plan', (req, res) => {
@@ -496,12 +498,12 @@ function mountPhones(router, store, db) {
     const target = resolveDevice(store, db, req.owner, req.params.id);
     try {
       const device = store.updatePhone(db, req.owner, target?.id || req.params.id, req.body || {});
-      return device ? res.json({ device }) : res.status(404).json({ error: 'device_not_found' });
+      return device ? res.json({ device }) : deviceNotFound(res, req.params.id);
     } catch (error) { return refuse(res, error); }
   });
   router.delete('/devices/:id', (req, res) => (store.deletePhone(db, req.owner, req.params.id)
     ? res.status(204).end()
-    : res.status(404).json({ error: 'device_not_found' })));
+    : deviceNotFound(res, req.params.id)));
 }
 
 /**
@@ -546,7 +548,7 @@ function mountBridge(router, files, pkgDir) {
   });
   router.get('/bridge/files/:file', (req, res) => {
     const bytes = files.bridgeFile(pkgDir, req.params.file);
-    if (!bytes) return res.status(404).json({ error: 'bridge_file_not_found' });
+    if (!bytes) return bridgeFileNotFound(res, req.params.file);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(bytes.toString('utf8'));
   });

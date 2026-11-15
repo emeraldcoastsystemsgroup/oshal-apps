@@ -266,7 +266,7 @@ cases:
       - Generate is drawn, on screen and uncovered at Step 3 for everyone; without the create permission or without an image model it is disabled with one line beside it saying why and what makes it work (Roger, 2026-11-06, F15).
       - The stepper is numbered circles with the current step filled; Step 1 names the next two steps; each step bar is marked data-ef-floating; the native kernel's asleep answer shows the line beside Generate.
       - A press whose first answer only woke the image model waits for it and sends the same portrait once more, removing the empty record the wake left.
-      - Uploading landscape or tall portrait photos keeps Step 1's crop canvas bounded (<=460x340px) with Next: Style on screen, and Step 3 pairs a live cropped/generated preview beside a two-column minor-adjustment grid with Generate on screen.
+      - "Uploading landscape or tall portrait photos keeps Step 1's crop canvas bounded (<=460x340px) with Next: Style on screen, and Step 3 pairs a live cropped/generated preview beside a two-column minor-adjustment grid with Generate on screen."
     prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
     sideEffects: none
     isolation:

@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the schema-lock guard (2.3.5): the compiled bootstrap hands the kernel the stable package advisory-lock key.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 2.3.6: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): register payroll-ux-batch7 covering keyboard role="tab" switching, phone 4+More navigation, and the 4-step Add employee dialog/sheet.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: register product-name guard (tests/product-name.test.mjs) in the plain-Node payroll job.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -414,6 +415,26 @@ cases:
       - Phone (<600px) moves module navigation to Employees, Run payroll, Pay stubs, Reports, and More (Pay & file, Settlement, Settings).
       - Work state offers the verified payroll-state-tax supportedStates() options, W-4 checkboxes render as 44px switches, and Termination date is withheld on new hires.
       - The 4-step Add employee sheet/dialog checks required fields on blur and saves an employee from step 4.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: product-name
+    name: Person-facing Payroll text names the product Open Swarm
+    purpose: Check the compiled RT-6 worksheet caveat, ACH NOC notes, HTML surface, manifest, routes and TypeScript route sources outside comments.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/product-name.test.mjs
+    expected:
+      - The RT-6 worksheet caveat, ACH NOC notes, Payroll surface lede, notices, stub footer and confirm prompts name Open Swarm.
+      - Shipped manifest, routes, TypeScript route sources and tools files contain no product-name OSHAL or oshal outside comments.
     prerequisites:
       - runner:node-test
     sideEffects: none

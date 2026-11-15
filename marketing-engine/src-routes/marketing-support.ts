@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Shared marketing-engine route support, moved verbatim out of marketing-routes.ts when that module crossed the 800-line decomposition threshold: the pool type, the shared child logger (still named marketing-routes so no log line changes), the manifest inline-bot ids, the channel/status/regex/transition/constraint constants, the lazy-DDL mirror of migrations/001-marketing-core.sql with ensureSchema, the RailResult shape, and the auth/query/prompt-bounding/spec-loading/campaign-loading helpers every marketing route module uses. Logic, SQL, gate order, status codes, log lines and messages are unchanged.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.9: HONESTY_RULES names the product Open Swarm.
  *
  * @module marketing-support
  */
@@ -67,7 +68,7 @@ export const CHANNEL_CONSTRAINTS: Record<string, string> = {
 
 /** @description The honesty rules appended to every bot prompt. */
 export const HONESTY_RULES = 'Rules: use ONLY the data provided above — never invent metrics, quotes, customer names, or reviews. '
-  + 'No competitive absolutes ("only", "no one else", "unique"). The product name is lowercase "oshal".';
+  + 'No competitive absolutes ("only", "no one else", "unique"). The product name is "Open Swarm".';
 
 /** @description JSONB campaign columns (patched values are stringified + cast). */
 export const JSONB_COLS = new Set(['icp', 'message_map', 'channels']);

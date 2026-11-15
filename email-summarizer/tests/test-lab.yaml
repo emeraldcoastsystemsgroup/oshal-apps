@@ -24,6 +24,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.10 (UX audit 2026-11-06, little-monsters--lm-email): mail-store-browser and surface-provider expect #storeLine, #provider, #refresh and #storeSearch to stay hidden with no mailbox connected and show once linked; mailbox-connect and mail-store-browser expect OAuth authorize from Little Monsters Email to carry ?return=/cockpit/?app=little-monsters&screen=lm-email.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Go Live planned stream editing: social-store, social-rules and social-desk-browser verify PUT /api/email-social/events/:id, prefilled Edit in Go Live, preserved sent announcements, shifted unsent announcements and the started-stream time refusal.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register mail-watches: deterministic Gmail mailbox watches (including the TotalConnect security monitor preset), category classification, forced-RLS cross-user isolation on disposable PostgreSQL, hit_key deduplication (quiet second check emits empty report), live Gmail warming + offline fallback, and Home summary active-watch tiles.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Quote colon-containing mail-store expectations and use lowercase fixture:postgres-35689 prerequisite IDs on social-store and mail-watches.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -129,10 +130,10 @@ cases:
       - A pass that reaches its deadline keeps what it stored; the next pass asks Gmail only for mail newer and older than the copy, never the stored range again; a state left by passes that did not resume picks up from its last run.
       - A copy still filling answers only a window it reaches; a longer search reads Gmail live.
       - A failed Gmail read keeps the stored mail, records the failure on the state and is reported.
-      - A search matches words at word starts (prep finds preparation, act is not found inside contact), honours OR, from: and newer_than:, and lists the closest matches marked matchedAll false when no message holds every word.
+      - "A search matches words at word starts (prep finds preparation, act is not found inside contact), honours OR, from: and newer_than:, and lists the closest matches marked matchedAll false when no message holds every word."
       - Under forced row security one person never reads, describes or writes another person's copy.
       - The store SQL has no ON CONFLICT, ORDER BY, DISTINCT or OFFSET.
-      - listStored pages the inbox newest first by keyset: a tie across a page boundary is listed once on each side, mail outside the inbox is left out, the last page reports the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail; with no copy it reads Gmail live with Gmail's own page token and refuses a cursor of another shape (400 invalid_page).
+      - "listStored pages the inbox newest first by keyset: a tie across a page boundary is listed once on each side, mail outside the inbox is left out, the last page reports the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail; with no copy it reads Gmail live with Gmail's own page token and refuses a cursor of another shape (400 invalid_page)."
       - GET /messages reads Gmail live until a pass has run and when the copy is over 30 minutes old, and answers from the copy (source stored, up to 180 days, no Gmail request) once POST /sync has stored it; GET /sync/status reports the copy and the mail-copy schedule.
     prerequisites: [runner:node-test, fixture:postgres-35689]
     sideEffects: fixture-write
@@ -332,7 +333,7 @@ cases:
       - A post is stored, listed in send order, read by key, edited, found by the due read only when scheduled and due, and deleted; one person never reads, edits or deletes another's.
       - Settings default, save, keep the fields not given, and a row stored between the read and the insert is updated rather than an error.
       - Deleting an event removes its unsent announcements and keeps the sent ones; readEvent and updateEvent enforce owner row security.
-    prerequisites: [runner:node-test, env:OSHAL_TEST_POSTGRES]
+    prerequisites: [runner:node-test, fixture:postgres-35689]
     sideEffects: none
     isolation:
       mode: disposable
@@ -380,7 +381,7 @@ cases:
       - POST /api/email-watches/check warms live Gmail metadata into oshal_email_messages, deduplicates matched messages via hit_key so an immediate second check emits newHits 0 and an empty report array, and falls back cleanly to oshal_email_messages when live Gmail is unreachable.
       - GET /api/email-summarizer/home-summary surfaces active mailbox watches with monitored account, last check age and latest alert summary.
       - GET /api/email-watches is strictly read-only (SELECT only, even with EMAIL_DEFAULT_WATCHES set, and returns an empty 200 response before migration 005 is provisioned), while POST /api/email-watches/check seeds EMAIL_DEFAULT_WATCHES once and preserves user-disabled watches.
-    prerequisites: [runner:node-test, env:OSHAL_TEST_POSTGRES]
+    prerequisites: [runner:node-test, fixture:postgres-35689]
     sideEffects: none
     isolation:
       mode: disposable

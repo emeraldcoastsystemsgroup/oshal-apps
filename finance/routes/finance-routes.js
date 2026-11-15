@@ -48,6 +48,7 @@
  * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis runs after the press has answered, on a kernel that can (Roger, 2026-11-14: "yes background analysis"). One turn of a slow model takes longer than the 60 s a package request may last, so the 45 s path often could not finish. POST /brief/refresh records the request as working with the exact snapshot it reads, asks the kernel for one background turn of the analyst and answers 202; the kernel hands the answer to POST /brief/analysis-result as the same person, which saves the analysis over that snapshot or records in words why nothing was saved; GET /brief/analysis and GET /brief say working, done or failed. The earlier analysis is untouched until the new one is saved, one request runs at a time, and nothing asks the analyst inside the hand-over (a turn there would outlast the request). Without the kernel's port, or when it cannot start the turn, the 45 s path below runs as before.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | The cached saved read (GET /brief) answers exactly as before whenever the request's state cannot be read, for any reason. The store gate's home-summary job (scripts/business-home.test.cjs) loads these routes with the request's module replaced by a stub, and the read answered 502 where it must answer a plain 404: the request's state was read inside the brief's own answer and only a rejected promise was caught. It is now read apart (analysisOnBrief), any failure is logged and leaves it out, and the read still initialises, executes and updates nothing.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis answers within a 45 s budget, inside the native kernel's 60 s package call (the judge read "HTTP 503" after 60 s on blue, twice). A silent analyst gives 504 analysis_timeout, a refused one 502 analyst_unavailable, both in words with nothing saved; the rewrite is asked only while 15 s of the budget is left, otherwise unmatched sentences are left out as before.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: POST /demo-data still writes the same saved sample snapshot and now also writes the same household into Finance's own records, marked as sample (finance-sample.ts), so the new Accounts, Transactions, Bills, Spending and Goals screens have it to show; a records failure is logged and the snapshot stands. The sample paycheck names a made-up employer. Sync, Request analysis and every other route are unchanged.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -102,6 +103,7 @@ const finance_values_1 = require("./finance-values");
 const finance_facts_1 = require("./finance-facts");
 const finance_brief_1 = require("./finance-brief");
 const finance_analysis_1 = require("./finance-analysis");
+const finance_sample_1 = require("./finance-sample");
 const logger = (0, logger_1.createChildLogger)({ module: 'finance-routes' });
 /** Package install dir — set by the loader on the context; env fallback for tool-style callers. */
 let packageDir = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -573,7 +575,7 @@ function sampleAggregate() {
             { date: day(1), name: 'Harbor Market', amount: 84.31, category: 'Groceries' },
             { date: day(2), name: 'City Utilities', amount: 112.40, category: 'Utilities' },
             { date: day(3), name: 'Corner Trattoria', amount: 52.80, category: 'Dining out' },
-            { date: day(5), name: 'Paycheck — Emerald Systems', amount: -3200.00, category: 'Income' },
+            { date: day(5), name: 'Paycheck — Lakeside Design Co', amount: -3200.00, category: 'Income' },
             { date: day(6), name: 'Shell Station', amount: 38.55, category: 'Gas' },
             { date: day(8), name: 'Streaming Plus', amount: 13.99, category: 'Streaming' },
             { date: day(9), name: 'Harbor Market', amount: 96.12, category: 'Groceries' },
@@ -582,6 +584,20 @@ function sampleAggregate() {
         transactionWindowDays: TXN_WINDOW_DAYS,
         notes: ['Sample data for this demo installation. Link a real account to replace it.'],
     };
+}
+/**
+ * The demo's household as Finance's own records too, marked as sample, so Accounts, Transactions,
+ * Bills, Spending and Goals have the same household to show. The saved snapshot written above stands;
+ * a records failure is logged and leaves it standing.
+ */
+async function sampleIntoRecords(pool, sub) {
+    try {
+        return (await (0, finance_sample_1.loadSample)(pool, sub)).transactions.length;
+    }
+    catch (err) {
+        logger.error({ err }, 'finance demo records failed');
+        return null;
+    }
 }
 /** The aggregate of no readable connection: nothing invented, the notes say why. */
 function emptyAggregate(windowDays) {
@@ -808,7 +824,8 @@ function createFinanceRoutes(ctx) {
             await ctx.pool.query(`INSERT INTO oshal_finance_data (user_sub, aggregate, brief, synced_at, brief_at)
            VALUES ($1, $2, NULL, now(), NULL)
          ON CONFLICT (user_sub) DO UPDATE SET aggregate = EXCLUDED.aggregate, brief = NULL, synced_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg)]);
-            res.json({ ok: true, netWorth: agg.netWorth, accounts: agg.accounts.length, holdings: agg.holdings.length });
+            const transactions = await sampleIntoRecords(ctx.pool, sub);
+            res.json({ ok: true, netWorth: agg.netWorth, accounts: agg.accounts.length, holdings: agg.holdings.length, transactions });
         }
         catch (err) {
             logger.error({ err }, 'finance demo data failed');

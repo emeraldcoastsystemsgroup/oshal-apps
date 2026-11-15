@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | detail: one requisition's description from the candidate site's requisition details (the documented ById finder), one read through the Career rail on the native kernel, for hosts the rail admits; the listing carries no description, so these jobs could never be scored there.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Partition a capped Oracle board through its own filters, use the actual 200-row page ceiling, and verify source changes promptly without settling their full pull.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Read counted Oracle boards beyond the old 12,000-job ceiling, retain partial results on refused requests, and link to the actual candidate site. Resolve embedded host/site pairs together.
 """The anonymous Oracle candidate site's counted requisition listing."""
@@ -9,7 +10,7 @@ from collections import Counter
 from urllib.parse import urlsplit
 
 from . import http
-from .ats_common import _strip_html
+from .ats_common import _strip_html, detail_text
 from .source_memory import Feed
 from .work_arrangement import looks_remote
 
@@ -32,6 +33,23 @@ def board_token(url):
         return f"{host}|{match[1]}|{host}"
     except ValueError:
         return None
+
+
+# The hosts lib/career-employer-detail.js admits, which the package's egress block declares one by one.
+DETAIL_HOST = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.fa(?:\.us2|\.us6|\.ocs)?\.oraclecloud\.com")
+DETAIL_FIELDS = ("ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr",
+                 "OrganizationDescriptionStr", "CorporateDescriptionStr")
+
+
+def detail_url(token, job_id):
+    """The one requisition-details address for this board and requisition, or None when the rail would refuse it."""
+    backend, site, *_ = (str(token or "") + "||").split("|")
+    job_id = str(job_id or "")
+    if (not DETAIL_HOST.fullmatch(backend) or not re.fullmatch(r"[A-Za-z0-9_-]{1,255}", site)
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id)):
+        return None
+    return (f"https://{backend}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+            f"?onlyData=true&finder=ById;Id=%22{job_id}%22,siteNumber={site}")
 
 
 def _row(job, backend, site):
@@ -141,6 +159,26 @@ class OracleORC:
         feed = Feed((row for row in rows if row), reason=walk.reason or "completion_unverified")
         feed.preview = True
         return feed
+
+    @classmethod
+    def detail(cls, token, job_id, url=None):
+        """One requisition's description, which the listing leaves out.
+
+        REST API for Oracle Fusion Cloud HCM, "Get all job requisition details in preview mode"
+        (GET /hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails, finder ById with Id and siteNumber),
+        granted to the Anonymous User role in Oracle's HCM REST security guide (Recruiting CE Job Requisition Details).
+        One read; an empty answer (a closed requisition), another requisition or anything but a 200 marks nothing.
+        """
+        address = detail_url(token, job_id)
+        data = http.detail_json(address) if address else None
+        items = data.get("items") if isinstance(data, dict) else None
+        item = items[0] if isinstance(items, list) and len(items) == 1 and isinstance(items[0], dict) else None
+        if not item or str(item.get("Id")) != str(job_id):
+            return {}
+        sections = [item.get(field) for field in DETAIL_FIELDS]
+        if not any(isinstance(section, str) and section.strip() for section in sections):
+            sections = [item.get("ShortDescriptionStr")]  # Only when the requisition has nothing longer.
+        return {"description": detail_text(*sections)}
 
     @classmethod
     def detect(cls, url):

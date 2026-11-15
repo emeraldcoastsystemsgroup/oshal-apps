@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Procedural CC0-1.0 stereo WAV music/SFX generator, libflite/formant TTS synthesizer, and 16 kHz PCM acoustic speech-band segmenter for auto-captions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: SOUND_LIBRARY attribution names Open Swarm Procedural.
  */
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -14,7 +15,7 @@ import { join } from 'node:path';
 export interface VoiceOption { id: string; label: string; style: string }
 export interface SoundLibraryItem {
   id: string; title: string; category: 'music' | 'sfx'; durationSeconds: number;
-  license: 'CC0-1.0'; attribution: 'OSHAL-Procedural'; description: string;
+  license: 'CC0-1.0'; attribution: 'Open Swarm Procedural'; description: string;
 }
 export interface SpeechSegment { startSec: number; endSec: number; syllables: number }
 
@@ -26,14 +27,14 @@ export const VOICES: ReadonlyArray<VoiceOption> = Object.freeze([
 ]);
 
 export const SOUND_LIBRARY: ReadonlyArray<SoundLibraryItem> = Object.freeze([
-  { id: 'ambient-dawn', title: 'Ambient Dawn', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Warm major-seventh synth pad bed' },
-  { id: 'upbeat-pulse', title: 'Upbeat Pulse', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Rhythmic 120 BPM electronic arpeggio' },
-  { id: 'cinema-drone', title: 'Cinema Horizon', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Deep orchestral bass swell' },
-  { id: 'acoustic-warmth', title: 'Acoustic Warmth', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Plucked harmonic chord progression' },
-  { id: 'whoosh-transition', title: 'Whoosh Transition', category: 'sfx', durationSeconds: 1.2, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Swept air cut transition' },
-  { id: 'chime-ding', title: 'Bright Chime', category: 'sfx', durationSeconds: 1.5, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Clean harmonic bell accent' },
-  { id: 'pop-accent', title: 'Pop Accent', category: 'sfx', durationSeconds: 0.6, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Crisp title pop' },
-  { id: 'riser-swell', title: 'Tension Riser', category: 'sfx', durationSeconds: 2.5, license: 'CC0-1.0', attribution: 'OSHAL-Procedural', description: 'Rising pitch reveal' },
+  { id: 'ambient-dawn', title: 'Ambient Dawn', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Warm major-seventh synth pad bed' },
+  { id: 'upbeat-pulse', title: 'Upbeat Pulse', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Rhythmic 120 BPM electronic arpeggio' },
+  { id: 'cinema-drone', title: 'Cinema Horizon', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Deep orchestral bass swell' },
+  { id: 'acoustic-warmth', title: 'Acoustic Warmth', category: 'music', durationSeconds: 6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Plucked harmonic chord progression' },
+  { id: 'whoosh-transition', title: 'Whoosh Transition', category: 'sfx', durationSeconds: 1.2, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Swept air cut transition' },
+  { id: 'chime-ding', title: 'Bright Chime', category: 'sfx', durationSeconds: 1.5, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Clean harmonic bell accent' },
+  { id: 'pop-accent', title: 'Pop Accent', category: 'sfx', durationSeconds: 0.6, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Crisp title pop' },
+  { id: 'riser-swell', title: 'Tension Riser', category: 'sfx', durationSeconds: 2.5, license: 'CC0-1.0', attribution: 'Open Swarm Procedural', description: 'Rising pitch reveal' },
 ]);
 
 const SAMPLE_RATE = 48000;

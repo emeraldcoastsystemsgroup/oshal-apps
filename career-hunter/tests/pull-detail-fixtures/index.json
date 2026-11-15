@@ -1,0 +1,247 @@
+{
+ "note": "Real public posting pages read 2026-11-14 with the package user agent, one GET each, no sign-in, trimmed to the parts the readers use (the page's title, its JSON-LD or the description markup); contact mailboxes and phone numbers replaced. A list response keeps the real reader's response shape with the ids and titles of the saved pages' jobs.",
+ "fixtures": [
+  {
+   "file": "eightfold-lockheedmartin-996477886618.html",
+   "kind": "eightfold",
+   "token": "lockheedmartin.eightfold.ai|lockheedmartin.com",
+   "url": "https://lockheedmartin.eightfold.ai/careers?pid=996477886618&domain=lockheedmartin.com",
+   "jobId": "996477886618",
+   "title": "Systems Integration/Test Engineering Asc Mgr - L4",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "Manages the integration and testing of in-house developed",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "eightfold-northropgrumman-1340075143180.html",
+   "kind": "eightfold",
+   "token": "jobs.northropgrumman.com|ngc.com",
+   "url": "https://jobs.northropgrumman.com/careers?pid=1340075143180&domain=ngc.com",
+   "jobId": "1340075143180",
+   "title": "Energetics Manufacturing Engineer - Level 3 or 4",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "CLEARANCE TYPE: Secret",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "htmllist-experis-411481.html",
+   "kind": "htmllist",
+   "token": "https://www.experis.com/en/all-jobs",
+   "url": "https://www.experis.com/en/job/411481/javagenesys-ccaas-developer",
+   "jobId": "411481",
+   "title": "Java/Genesys CCaaS Developer",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "Deliver complex Voice and Chat/messaging solutions",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "radancy-boeing-103277809520.html",
+   "kind": "radancy",
+   "token": "jobs.boeing.com",
+   "url": "https://jobs.boeing.com/job/wichita/mid-level-it-core-infrastructure-lead/185/103277809520",
+   "jobId": "103277809520",
+   "title": "Mid-Level IT Core Infrastructure Lead",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "This role is at Spirit AeroSystems",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "radancy-citi-103267196912.html",
+   "kind": "radancy",
+   "token": "jobs.citi.com",
+   "url": "https://jobs.citi.com/job/new-york/banker-vice-president-multinationals/287/103267196912",
+   "jobId": "103267196912",
+   "title": "Banker, Vice President - Multinationals",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "leads coverage of a portfolio of multinational clients",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "successfactors-nttdata-1450079500.html",
+   "kind": "successfactors",
+   "token": "careers-inc.nttdata.com",
+   "url": "https://careers-inc.nttdata.com/job/Bangalore-Data-Engineer-Senior-Consultant-KA/1450079500/",
+   "jobId": "/job/Bangalore-Data-Engineer-Senior-Consultant-KA/1450079500/",
+   "title": "Data Engineer Senior Consultant",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "We are currently seeking a Data Engineer Senior Consultant",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "successfactors-corning-1450526900.html",
+   "kind": "successfactors",
+   "token": "corningjobs.corning.com",
+   "url": "https://corningjobs.corning.com/job/Hickory-Automation-Process-Engineer-NC-28601/1450526900/",
+   "jobId": "/job/Hickory-Automation-Process-Engineer-NC-28601/1450526900/",
+   "title": "Automation Process Engineer",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "Requisition Number: 79673",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "successfactors-aflac-closed.html",
+   "kind": "successfactors",
+   "token": "careers.aflac.com",
+   "url": "https://careers.aflac.com/job/Technology-Program-Manager-III-GA-31999/1450631700/",
+   "jobId": "/job/Technology-Program-Manager-III-GA-31999/1450631700/",
+   "title": "Technology Program Manager III",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "outcome": "not_named",
+   "note": "The listing was still in the corpus; the page says the position has been filled.",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "icims-schwab-130014.html",
+   "kind": "icims",
+   "token": "career-schwab.icims.com",
+   "url": "https://career-schwab.icims.com/jobs/130014/software-development-engineer-in-test/job",
+   "jobId": "130014",
+   "title": "Software Development Engineer in Test",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "At Schwab, you’re empowered to make an impact on your career",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "icims-peraton-173390.html",
+   "kind": "icims",
+   "token": "careers-peraton.icims.com",
+   "url": "https://careers-peraton.icims.com/jobs/173390/senior-information-systems-security-engineer---security-control-assessor-%28sca%29/job",
+   "jobId": "173390",
+   "title": "Senior Information Systems Security Engineer - Security Control Assessor (SCA)",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "Peraton is a next-generation national security company",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "avature-deloitte-368491.html",
+   "kind": "avature",
+   "token": "apply.deloitte.com",
+   "url": "https://apply.deloitte.com/en_US/careers/JobDetail/Lead-Solution-Architect-with-Financial-Services-Experience/368491",
+   "jobId": "368491",
+   "title": "Lead Solution Architect with Financial Services Experience",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "Join our AI & Engineering team in transforming technology platforms",
+   "retrieved": "2026-11-14",
+   "note": "Two JSON-LD JobPostings for the same job; the one whose identifier is the job's id is kept."
+  },
+  {
+   "file": "webflow-parsons-188287.html",
+   "kind": "webflow",
+   "token": "https://jobs.parsons.com/career-search|428a8687",
+   "url": "https://jobs.parsons.com/jobs/mechanical-design-engineer-r-188287-jobs--engineering--",
+   "jobId": "188287",
+   "title": "Mechanical Design Engineer",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "At Parsons, you can imagine a career where you thrive",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "web-teradata-220757.html",
+   "kind": "web",
+   "token": "https://careers.teradata.com/jobs",
+   "url": "https://careers.teradata.com/jobs/220757/staff-global-program-manager?j_idx=0",
+   "jobId": "/jobs/220757/staff-global-program-manager?j_idx=0",
+   "title": "Staff Global Program Manager - 220757",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "Teradata's AI Studio product capabilities",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "web-chiptonross-220556.html",
+   "kind": "web",
+   "token": "https://www.chiptonross.com/jobs",
+   "url": "https://www.chiptonross.com/job/220556",
+   "jobId": "/job/220556",
+   "title": "FMLA Administrator",
+   "status": 200,
+   "contentType": "text/html; charset=UTF-8",
+   "expect": "Chipton-Ross is seeking an FMLA Administrator",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "web-caci-1443154399272.html",
+   "kind": "web",
+   "token": "https://searchcareers.caci.com/careers?start=0&pid=1443148813518&sort_by=relevance",
+   "url": "https://searchcareers.caci.com/careers/job/1443154399272",
+   "jobId": "/careers/job/1443154399272",
+   "title": "Information Technology Manager Omaha, NE, US Hybrid",
+   "status": 200,
+   "contentType": "text/html; charset=utf-8",
+   "expect": "Job Title: Information Technology Manager",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "web-ea-216540.html",
+   "kind": "web",
+   "token": "https://jobs.ea.com/en_US/careers",
+   "url": "https://jobs.ea.com/en_US/careers/JobDetail/Systems-Software-Engineer-EA-SPORTS-FC/216540",
+   "jobId": "/en_US/careers/JobDetail/Systems-Software-Engineer-EA-SPORTS-FC/216540",
+   "title": "Systems Software Engineer - EA SPORTS FC",
+   "status": 200,
+   "contentType": "text/html;charset=UTF-8",
+   "expect": "Electronic Arts creates next-level entertainment experiences",
+   "retrieved": "2026-11-14",
+   "note": "No JSON-LD; the Avature details article is the description."
+  },
+  {
+   "file": "web-cbre-refused.html",
+   "kind": "web",
+   "token": "https://careers.cbre.com/en_US/careers/SearchJobs/?listFilterMode=1",
+   "url": "https://careers.cbre.com/en_US/careers/JobDetail/Maintenance-Technician-Data-Center-Facility-Non-IT-Piscataway-NJ/289141",
+   "jobId": "/en_US/careers/JobDetail/Maintenance-Technician-Data-Center-Facility-Non-IT-Piscataway-NJ/289141",
+   "title": "Maintenance Technician - Data Center Facility/Non-IT - Piscataway, NJ",
+   "status": 202,
+   "contentType": "text/html; charset=UTF-8",
+   "outcome": "refused",
+   "note": "An AWS browser check answers a plain read with 202 and no body.",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "web-verizon-refused.html",
+   "kind": "web",
+   "token": "https://mycareer.verizon.com/jobs/",
+   "url": "https://mycareer.verizon.com/jobs/r-1103837/distinguished-architect-sales-engineer/",
+   "jobId": "/jobs/r-1103837/distinguished-architect-sales-engineer/",
+   "title": "Distinguished Architect - Sales Engineer",
+   "status": 403,
+   "contentType": "text/html; charset=UTF-8",
+   "outcome": "refused",
+   "note": "A Cloudflare check answers a plain read with 403.",
+   "retrieved": "2026-11-14"
+  }
+ ],
+ "lists": [
+  {
+   "file": "eightfold-lockheedmartin-search.json",
+   "kind": "eightfold",
+   "token": "lockheedmartin.eightfold.ai|lockheedmartin.com",
+   "url": "https://lockheedmartin.eightfold.ai/api/pcsx/search",
+   "retrieved": "2026-11-14"
+  },
+  {
+   "file": "google-results-page-1.html",
+   "kind": "google",
+   "token": "google",
+   "url": "https://www.google.com/about/careers/applications/jobs/results/?page=1",
+   "jobIds": [
+    "86136593793852102",
+    "123675243616051910"
+   ],
+   "note": "The first results page with its first two job cards and its job data cut to those two jobs.",
+   "retrieved": "2026-11-14"
+  }
+ ]
+}

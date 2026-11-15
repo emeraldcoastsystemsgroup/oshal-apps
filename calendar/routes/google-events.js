@@ -1,8 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RECONNECT = exports.READ_ONLY = exports.NOT_CONNECTED = void 0;
+exports.addDays = exports.RECONNECT = exports.READ_ONLY = exports.NOT_CONNECTED = void 0;
 exports.dayWords = dayWords;
+exports.when = when;
 exports.parseGoogleEvent = parseGoogleEvent;
+exports.send = send;
 exports.createGoogleEventsRoutes = createGoogleEventsRoutes;
 /**
  * CHANGE LOG
@@ -18,6 +20,8 @@ exports.createGoogleEventsRoutes = createGoogleEventsRoutes;
  *   the kernel places the caller's own google-calendar grant. No connection, an expired one, or a grant that may only read the
  *   calendar answers 409 in words saying what to connect; nothing is written to Google before the approval, and a second approval
  *   of the same series is refused by Google itself through a client-chosen event id (one removed in Google is restored).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the time parser, the day arithmetic and the one Calendar API request are exported
+ *   for the meeting changes and cancellations (google-meetings.ts), so a changed meeting's times are read exactly as an added one's.
  */
 /** Events the person adds to their own primary Google Calendar, one event or one repeating series per approved card. */
 const express_1 = require("express");
@@ -53,7 +57,9 @@ function realDay(text) {
     const at = new Date(`${text}T00:00:00.000Z`);
     return DAY.test(text) && !Number.isNaN(at.getTime()) && at.toISOString().slice(0, 10) === text;
 }
+/** A calendar date moved by whole days. */
 const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10);
+exports.addDays = addDays;
 const weekday = (date) => new Date(`${date}T00:00:00.000Z`).getUTCDay();
 /** A date in the words people read: 'Fri, Nov 13, 2026'. */
 function dayWords(date) {
@@ -95,7 +101,7 @@ function when(text, zone, allDay) {
 function endOf(body, start, zone, allDay) {
     const text = typeof body?.end === 'string' ? body.end.trim() : '';
     if (!text && allDay)
-        return { ok: true, value: { ...start, google: { date: addDays(start.date, 1) } } };
+        return { ok: true, value: { ...start, google: { date: (0, exports.addDays)(start.date, 1) } } };
     if (!text) {
         const instant = new Date(Date.parse(start.instant) + HOUR).toISOString();
         const shifted = start.google.timeZone && WALL.test(String(start.google.dateTime))
@@ -107,7 +113,7 @@ function endOf(body, start, zone, allDay) {
         return fail(allDay ? 'An all-day end is the last date it covers, like 2026-11-22.' : 'An end time is the same form as the start, like 2026-11-13T19:00 with the timeZone.');
     if (Date.parse(end.instant) < Date.parse(start.instant))
         return fail('The end is before the start.');
-    return { ok: true, value: allDay ? { ...end, google: { date: addDays(end.date, 1) } } : end };
+    return { ok: true, value: allDay ? { ...end, google: { date: (0, exports.addDays)(end.date, 1) } } : end };
 }
 /** The weekday names a weekly series repeats on, in the person's words, or the refusal. */
 function weekdaysOf(raw) {
@@ -160,7 +166,7 @@ function endingOf(raw, start, zone) {
         return fail('"until" is the last date it may happen, like 2027-04-02.');
     if (until < start.date)
         return fail('The last date is before its first.');
-    if (until > addDays(start.date, MAX_SPAN_DAYS))
+    if (until > (0, exports.addDays)(start.date, MAX_SPAN_DAYS))
         return fail('The last date is more than ten years after the first.');
     const stamp = zone ? (0, event_time_1.wallToInstant)(`${until}T23:59:59`, zone).replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z') : until.replace(/-/g, '');
     return { ok: true, value: { part: `UNTIL=${stamp}`, words: `until ${dayWords(until)}` } };
@@ -194,7 +200,7 @@ function repeatOf(raw, start, zone, allDay) {
         if (!days.includes(weekday(start.date))) {
             let first = start.date;
             while (!days.includes(weekday(first)))
-                first = addDays(first, 1);
+                first = (0, exports.addDays)(first, 1);
             return fail(`The first date, ${dayWords(start.date)}, is not a ${named(days, 'or')}. The first ${named(days, 'or')} on or after it is ${dayWords(first)}.`);
         }
     }

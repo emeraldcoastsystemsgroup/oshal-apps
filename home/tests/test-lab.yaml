@@ -21,6 +21,9 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register home-tv-plans: Jarvis presses TV buttons through the kernel's computer.run_plan. The two plan tools' computerPlan declarations are pinned exactly and every command the compiled plan routes answer is checked against the kernel's plan grammar (mirrored from oshal-kernel computer_plans.rs, with negative controls); the descriptions, the next step and the persona name computer.run_plan and the planId. A real press still needs the person's own session and computer: no test sends one.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (T45 part 4): home-tv-plans and home-tvs expect what is playing and the media presses on an Android TV's card and in Jarvis's TV tool.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: home-device-inspect-and-guide and home-empty-state expect no grocery list of Smart Home's own: the grocery actions are refused with where the list lives, the refrigerator page shows and changes Shopping's list, and items a person had on the refrigerator's own list are moved there or stay when Shopping does not answer.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1 (Lane TV1): register home-tv-direct (tests/home-lan-direct.test.cjs, which the home job's own glob runs): launch_app, list_apps and active_app on a Roku or a Samsung TV, planned, recorded and described. home-tv-plans expects 56 presses in the kernel grammar and bridge 1.20.0 on every plan. No test presses a real TV.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Remove unsupported regressionTests keys from TV/storage/tile cases and quote the comma-containing cleanup string on home-tv-direct.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name guard (tests/product-name.test.cjs) and align Show Open Swarm wording on home-lan-devices and home-tvs.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -160,7 +163,7 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/home-lan-devices.test.cjs] }
     expected:
       - A scan and a press answer planned (never executed) with the closed phone-control bridge command; saved TVs are woken only when asked.
-      - A press plan is built per kind with the closed action list; a Roku refuses Open oshal and Pair, a Samsung refuses the Android app, a Cast device refuses every press, in words.
+      - A press plan is built per kind with the closed action list; a Roku refuses Show Open Swarm and Pair, a Samsung refuses the Android app, a Cast device refuses every press, in words.
       - A scan answer saves private-address TVs for that person only (a public address is dropped), merged by hardware address, and lists the Android TVs for Phone & Device Control.
       - A TV's power changes only when its own answer says the press worked; an answer for another TV or another press is refused.
       - POST /control answers a network TV 409 tv_needs_computer and leaves its saved switch as it was; the routes answer 401 without a person.
@@ -170,8 +173,6 @@ cases:
     isolation: { mode: disposable, cleanup: The temporary data folder is removed and the module resolver is restored. }
     limits: { timeoutMs: 30000 }
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/home-lan-devices.test.cjs }
   - id: home-tv-plans
     name: Jarvis presses TV buttons through computer.run_plan
     purpose: Pin the computerPlan declarations the kernel reads and check every command the compiled scan and press plan routes answer against the kernel's plan grammar (oshal-kernel crates/oshald/src/computer_plans.rs), so the kernel keeps the plan and computer.run_plan can run it.
@@ -180,16 +181,32 @@ cases:
     expected:
       - home-lan-discover declares exactly {program phone-bridge, verbs [lan-discover]} and home-lan-control exactly {program phone-bridge, verbs [lan-control]}; no other tool declares a plan.
       - Every scan and press plan answers 200 with the bridge prefix, its own tool's declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB, and a computer the kernel can read; a scan never fits the press declaration, nor a press the scan one.
+      - 1.9.1 The 56 presses the three saved TVs take all fit the grammar, launch_app, list_apps and active_app on the Samsung TV and the Roku among them, the Roku launch with a 255-character content id.
       - The grammar check refuses a second command, a redirection, another prefix or flag, an undeclared verb, unpadded or URL-safe base64, a JSON array or string and an oversized argument; the declaration check refuses another program, no verbs, an unknown verb and an extra key.
-      - 1.7.0 On an Android TV, now_playing, play, pause, next, previous and stop are planned with bridge 1.8.0, a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it across a new scan.
+      - 1.7.0 On an Android TV, now_playing, play, pause, next, previous and stop are planned (every plan names bridge 1.20.0 since 1.9.1), a Samsung TV and a Roku refuse them in words, the recorded answer says what is playing (behind another app or not) and the TV keeps it across a new scan.
       - Both tool descriptions, the plans' next step and the persona say to pass the planId to computer.run_plan, then record the computer's answer with home-lan-record, and otherwise to say it is planned and point to the Smart Home TV buttons; none names computer.run or computer.list.
     prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
     sideEffects: none
     isolation: { mode: disposable, cleanup: The temporary data folder is removed and the module resolver is restored. }
     limits: { timeoutMs: 30000 }
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/home-lan-devices.test.cjs }
+  - id: home-tv-direct
+    name: An application opened, listed and read in front on a Roku or a Samsung TV
+    purpose: Drive the compiled home-lan-devices module with a temporary data folder and read the manifest and the persona, for the three application presses Jarvis plans on a Roku or a Samsung TV (Lane TV1; Roger, 2026-11-13, asked that Jarvis open an application such as Netflix on those TVs and know where it is).
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/home-lan-direct.test.cjs] }
+    expected:
+      - launch_app is planned as the closed lan-control command with the application's checked id, a Roku title as contentId and mediaType, and bridge 1.20.0; list_apps and active_app carry no free text.
+      - A missing or unknown application, an id or content id outside its closed shape (a web address, a space, a separator), an unknown media type, a title on a Samsung TV, active_app on a Samsung TV with no application named, an Android TV and a Cast device plan nothing and are refused in words.
+      - The applications a TV listed are kept on that TV for that person only, at most a hundred, across a new scan; an application is then planned by its name, a name that fits two is asked about, and a refused read leaves the saved list as it was.
+      - A recorded answer says only what the TV reported, in front, not in front with what was, running but not in front, not running, or not said; a Roku title is said as asked for, never as showing; what was in front is kept on the TV.
+      - A refusal is said in the TV's words; a computer whose bridge answers bad_action is told to press Scan for TVs once; an answer for another TV or press is refused; a Samsung TV counts as paired only after its remote channel was used.
+      - The tool, the application's description and the persona say a Roku and a Samsung TV are buttons only, with no screenshot and no on-screen text, that an Android or Fire TV that runs Orbit shows its screen through the person's computer tools, and no routing word or egress was added.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: "The temporary data folder is removed. No TV, computer or network is contacted." }
+    limits: { timeoutMs: 30000 }
+    installation: never
   - id: home-tvs
     name: TVs and streaming sticks on the Smart Home screen, in Chromium
     purpose: The real page and its module at 412 x 915 with phone-control's real computer link, the compiled package routes for every write, and the person's computer played by the test.
@@ -200,15 +217,13 @@ cases:
       - The section shows with one Scan for TVs button that says what it does; the empty screen keeps one primary; opening the page writes nothing; no console error.
       - With no computer it says what to do and Scan is off.
       - Scan replaces an old bridge with phone-control's real install command, runs the planned scan, saves the TVs and adds the Android TV to Phone & Device Control.
-      - A press says what the computer answered; a waiting Samsung reads "Press Allow on the TV, then Retry." with Retry, and its power stays as read; a Roku has no Open oshal.
+      - A press says what the computer answered; a waiting Samsung reads "Press Allow on the TV, then Retry." with Retry, and its power stays as read; a Roku has no Show Open Swarm.
       - A person whose Phone & Device Control access waits for re-approval reads that, Scan is off, nothing is requested from Phone & Device Control, and the saved TVs are listed without buttons.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Each case closes its browser context and the temporary data folder is removed; nothing leaves the browser. }
     limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/browser/home-tvs.test.cjs }
   - id: home-per-person-storage
     name: Smart Home files stay in each person's own folder
     purpose: The compiled storage helpers against a real temporary store folder; the 1.4.1 regression guard for the shared store-root copy that let one person read another's SmartThings token.
@@ -224,8 +239,6 @@ cases:
     isolation: { mode: disposable, cleanup: The temporary data folder is removed. }
     limits: { timeoutMs: 30000 }
     installation: never
-    regressionTests:
-      - { level: unit, file: tests/home-per-person-storage.test.cjs }
   - id: home-tiles
     name: Home is tiles in groups, with the person's connected devices
     purpose: Open tools/home.html in Chromium at 412 px against scripted reads and drive Home, a tile's page and Back - no hub, computer or TV is contacted.
@@ -240,8 +253,6 @@ cases:
     isolation: { mode: disposable, cleanup: Each case closes its browser context; nothing leaves the browser. }
     limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
     installation: never
-    regressionTests:
-      - { level: browser, file: tests/browser/home-tiles.test.cjs }
   - id: home-overview
     name: Searchable Smart Home overview and reported device controls
     purpose: Exercise the shipped overview and extracted assets at desktop, phone and framed-phone sizes with synthetic reads and controlled refusal
@@ -268,3 +279,17 @@ cases:
     - Search, room groups and selected-device detail preserve existing actions and connection setup.
     - Missing switch or brightness stays unknown; refused brightness restores the last reported value.
     - Scenes use keyboard-accessible controls; phone controls fit and unsupported actions are not invented.
+  - id: product-name
+    name: Person-facing Smart Home text names the product Open Swarm
+    purpose: Drive compiled TV action labels, refusals and card buttons, inspect the manifest and persona, and scan routes, TypeScript sources and tools outside comments.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/product-name.test.cjs] }
+    expected:
+      - Action labels, Samsung open_app refusals and TV card buttons say Open Swarm while preserving oshal TV app and oshal Node component wording.
+      - The manifest, tool descriptions, routingKeywords and home-bot persona name Open Swarm in person-facing and model-facing copy.
+      - Shipped routes, TypeScript route sources and tools files contain no product-name OSHAL or oshal outside comments.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary data directory is removed. }
+    limits: { timeoutMs: 20000 }
+    installation: never

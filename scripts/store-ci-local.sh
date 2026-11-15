@@ -8,6 +8,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | Document the --allow-skips opt-out and the pre-push hook that actually runs this. Entry 1 shipped a gate nothing invoked: with store-ci.yml on workflow_dispatch and security.yml already there, the repository had no automatic check of any kind, and every reference to this script outside itself was prose.
 # 3 | maintainer@emeraldcoastsystemsgroup.com   | The gate's toolchain is its own: scripts/toolchain (pinned package.json + package-lock.json, `npm ci --prefix scripts/toolchain`), not an OSHAL_ROOT or sibling ../oshal checkout. The old TypeScript platform checkout is never resolved; inherited OSHAL_* / NODE_PATH variables are ignored, and a check that needs that platform's source reports SKIPPED naming it.
 # 4 | maintainer@emeraldcoastsystemsgroup.com   | LEGACY checks and the live Embodied suites no longer block a push; see store-ci-local.mjs. Any other skip still does.
+# 5 | maintainer@emeraldcoastsystemsgroup.com   | Scoped by default (Roger, 2026-11-14): the publish wall and every structural job, plus the jobs of the packages the change touches or reaches; anything the mapper cannot place runs everything. --full, --plan, --base and --retry-from documented here; the whole suite runs on a schedule through scripts/store-full-run.sh.
 # =============================================================================
 #
 # store-ci-local.sh — run every store-ci check locally, as a pre-push habit.
@@ -41,7 +42,21 @@
 #   Two kinds never block and are always printed: LEGACY checks, which test the retired TypeScript
 #   platform, and the live Embodied suites, which need a running engine.
 #
-# Usage:  bash scripts/store-ci-local.sh [--allow-skips]
+# SCOPED BY DEFAULT
+#   A run does the publish wall and every structural job, plus the jobs of the packages changed since
+#   the merge base with origin/main (working tree included) and the packages that require, optionally
+#   use or read them (scripts/store-ci-scope.mjs). A change under scripts/, .github/ or .githooks/, a
+#   shared root file, an unknown folder or a job the mapper cannot place runs everything. It prints the
+#   plan first, and its last line says SCOPED with the counts; "store-ci-local PASSED." is a full run's.
+#   The whole suite runs on a schedule: scripts/store-full-run.sh (CONTRIBUTING.md has the timer).
+#
+# Usage:  bash scripts/store-ci-local.sh [--allow-skips] [--full] [--plan] [--base <commit>] [--retry-from <result>]
+#           --full           every job, whatever changed (the hook passes it for OSHAL_STORE_CI_FULL=1)
+#           --plan           print what would run and what is left, and run nothing
+#           --base <commit>  measure the change from this commit instead of the merge base with origin/main
+#           --retry-from <f> a first run's result: rerun only its failed jobs, plus the publish wall, when
+#                            the tree is the same and every failure was a package suite; else run the plan
+#         STORE_CI_RESULT_FILE   write this run's result (mode, verdict, counts, failed tests) as JSON
 # Setup:  npm ci --prefix scripts/toolchain
 #                                 The gate's own pinned dev toolchain (TypeScript, Vitest, Playwright,
 #                                 Express, Multer, pg, better-sqlite3, js-yaml). node_modules is
@@ -63,7 +78,7 @@
 #                                 contract creates and drops databases. store-ci DOES run this half
 #                                 with a service container, so skipping it locally is a real loss of
 #                                 coverage; CONTRIBUTING.md carries a throwaway `docker run` recipe.
-# Exit:   0 = every mirrored check ran and passed
+# Exit:   0 = every check this run selected ran and passed (the last line says scoped or full)
 #         1 = a check failed, a check could not run, or the runner drifted from store-ci.yml
 # =============================================================================
 set -euo pipefail

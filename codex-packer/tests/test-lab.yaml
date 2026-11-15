@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness, package contract, persona template, and 1-click caller-scoped Inject suites for Bot Forge.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Set forge-one-click-inject level to browser to satisfy the closed Test Lab level enum.
 version: 1
 cases:
   - id: package-readiness
@@ -44,7 +45,7 @@ cases:
   - id: forge-one-click-inject
     name: Bot Forge 1-click Inject Permission Preview and caller-scoped publication
     purpose: Verify draft compilation, mandatory Permission Preview dialog, live publish_authored confirmation, and structured refusal handling in unit and Chromium acceptance tests.
-    level: e2e
+    level: browser
     runner:
       kind: node-test
       scope: package

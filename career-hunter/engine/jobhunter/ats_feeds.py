@@ -1,10 +1,11 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Keep the existing feeds readers in a bounded provider module; ats retains their registry and public names.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | SmartRecruiters detail reads one posting once through http.detail_json (on the native kernel the Career rail now admits the Posting API's exact shape), checks the answer is that posting, and keeps text whole or not at all.
 from __future__ import annotations
 import re
 from datetime import datetime
 from . import http
-from .ats_common import _strip_html, _jsonld_description
+from .ats_common import _strip_html, _jsonld_description, detail_text
 from .work_arrangement import looks_remote as _looks_remote, remote_location
 from .salary_text import parse_salary as _parse_salary
 from .listed_boards import listed_place
@@ -170,17 +171,27 @@ class SmartRecruiters:
         d = http.get_json(f"https://api.smartrecruiters.com/v1/companies/{slug}/postings?limit=1")
         return slug if d and d.get("content") else None
 
+    _ID = re.compile(r"[A-Za-z0-9_-]{1,100}")
+    _POSTING = re.compile(r"[0-9]{1,20}")
+
     @classmethod
     def detail(cls, token, job_id, url=None):
-        """Fetch the full job-ad text for one posting (SmartRecruiters omits it from the list)."""
-        d = http.get_json(f"https://api.smartrecruiters.com/v1/companies/{token}/postings/{job_id}")
-        if not d:
+        """The full job-ad text of one posting (SmartRecruiters omits it from the list), from the Posting API.
+
+        developers.smartrecruiters.com/docs/endpoints: GET /v1/companies/{companyIdentifier}/postings/{postingId},
+        open without authentication (docs/customer-overview). The exact shape lib/career-employer-detail.js admits;
+        one read, and anything but this posting's 200 marks nothing.
+        """
+        token, job_id = str(token or ""), str(job_id or "")
+        if not cls._ID.fullmatch(token) or not cls._POSTING.fullmatch(job_id):
+            return {}
+        d = http.detail_json(f"https://api.smartrecruiters.com/v1/companies/{token}/postings/{job_id}")
+        if not isinstance(d, dict) or str(d.get("id")) != job_id:
             return {}
         sections = ((d.get("jobAd") or {}).get("sections") or {})
         parts = [(sections.get(k) or {}).get("text") for k in
                  ("jobDescription", "qualifications", "additionalInformation", "companyDescription")]
-        desc = _strip_html("\n\n".join(p for p in parts if p))
-        return {"description": desc or None}
+        return {"description": detail_text(*parts)}
 
 
 

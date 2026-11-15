@@ -2,6 +2,7 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read the authorized incident projection and render local source-format checks without writes or stored credentials.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Normalize explicit adapter mapping drafts locally and invalidate stale identity previews on edits.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: 403 ticket refusal names the product Open Swarm.
  */
 (function () {
   'use strict';
@@ -55,7 +56,7 @@
       const response=await fetch('/api/tickets',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
       if(request !== generation)return;
       if(!response.ok) {
-        unavailable(response.status===401 ? 'Sign in to read incident tickets.' : response.status===403 ? 'Your session cannot read these tickets. Access is checked by OSHAL.' : `Incident tickets could not be read (HTTP ${response.status}).`);return;
+        unavailable(response.status===401 ? 'Sign in to read incident tickets.' : response.status===403 ? 'Your session cannot read these tickets. Access is checked by Open Swarm.' : `Incident tickets could not be read (HTTP ${response.status}).`);return;
       }
       const body=await response.json();
       if(request !== generation)return;

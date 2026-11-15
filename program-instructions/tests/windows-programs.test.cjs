@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane GD1): both distillers' default sources end with the package's own Godot inputs (inputs/godot-bridge-facts.json, inputs/godot-pack-inputs.json).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane BL1): both distillers take the Windows files second, then Godot's, then Blender's (tests/blender-program.test.cjs holds the whole order).
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.1.6 (Lane VS1): the default sources of both distillers end with the package's own VS Code files (inputs/vscode-bridge-facts.json, inputs/vscode-pack-inputs.json).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.8 (@lane-excel-instructions): Excel's W15 power-user verbs and modeling guidance (workbook-schema, manage-table, refresh-pivot, summarize-range, manage-names, data-validation, conditional-format, refresh-queries, .Formula2 dynamic arrays, checked format-cells undo, SaveCopyAs live copy, and graceful starter-verb window fallback when an older Orbit lists only the nine starter Excel verbs). These cases prove that Excel declares all seventeen spreadsheet verbs with no alias and no other Windows program naming them, that an Excel text from 0.1.5 lacking the W15 power-user words is reported invalid-output while an upgraded text holding them is published, and that Excel's request plus retry still fits under 8 KiB.
  */
 'use strict';
 const test = require('node:test');
@@ -38,9 +39,11 @@ const WORD = claimed('microsoft.office.winword.exe.15', '16.0.18227.20162', 'fil
 const EXCEL = claimed('microsoft.office.excel.exe.15', '16.0.18227.20162', 'file');
 /** PowerPoint's row, at the build the W10 receipt reads on the Windows PC (oshal-collab windows/proofs/w10-powerpoint-2026-11-13.md). */
 const POWERPOINT = claimed('microsoft.office.powerpnt.exe.15', '16.0.20527.20196', 'file');
-/** The verbs Orbit's Windows bridge declares (desktop/oshal-node/src/main/windows-word.ts WORD_VERBS, windows-excel.ts EXCEL_VERBS). */
+/** The verbs Orbit's Windows bridge declares (desktop/oshal-node/src/main/windows-word.ts WORD_VERBS, windows-excel.ts EXCEL_VERBS + W15 spreadsheet verbs). */
 const WORD_VERBS = ['insert-paragraph', 'add-section', 'replace-text', 'delete-paragraph', 'format-text', 'find-replace'];
-const EXCEL_VERBS = ['read-range', 'set-cells', 'format-cells', 'find-replace', 'sort-range', 'filter-range', 'manage-sheet', 'create-pivot-table', 'add-chart'];
+const EXCEL_STARTER_VERBS = ['read-range', 'set-cells', 'format-cells', 'find-replace', 'sort-range', 'filter-range', 'manage-sheet', 'create-pivot-table', 'add-chart'];
+const EXCEL_POWER_VERBS = ['workbook-schema', 'manage-table', 'refresh-pivot', 'summarize-range', 'manage-names', 'data-validation', 'conditional-format', 'refresh-queries'];
+const EXCEL_VERBS = [...EXCEL_STARTER_VERBS, ...EXCEL_POWER_VERBS];
 /** Excel at the build the Windows PC reads (oshal-collab windows/STATE.md, W7: 16.0.20527.20196). */
 const EXCEL_PC = claimed('microsoft.office.excel.exe.15', '16.0.20527.20196', 'file');
 /** PowerPoint's (desktop/oshal-node/src/main/windows-powerpoint.ts POWERPOINT_VERBS). */
@@ -192,21 +195,64 @@ test('Excel names create-pivot-table and add-chart, with no alias, and no other 
   assert.ok(facts.never.some((line) => /opens, saves or exports a workbook/.test(line)), 'and saying Jarvis opens or saves one is still forbidden');
 });
 
-test('a text 0.1.4\'s facts held Excel to is now reported for lacking the two verbs, and one naming them is published', async () => {
+test('Excel names all seventeen spreadsheet verbs (including W15 power-user verbs), refuses aliases and file verbs, and keeps graceful starter-verb fallback', () => {
+  for (const id of EXCEL_POWER_VERBS) assert.equal(pack.checkBody(declared(id), CONTRACT, 'windows-uia', EXCEL_PC.program), null, `Excel ${id}`);
+  const refused = [
+    [EXCEL_PC, 'query-range'], [EXCEL_PC, 'summarize-table'], [EXCEL_PC, 'create-table'], [EXCEL_PC, 'pivot-refresh'],
+    [EXCEL_PC, 'refresh-data'], [EXCEL_PC, 'open-workbook'], [EXCEL_PC, 'save-workbook'], [EXCEL_PC, 'save-document'],
+    ...EXCEL_POWER_VERBS.flatMap((id) => [[WORD, id], [POWERPOINT, id], [NOTEPAD, id]])
+  ];
+  for (const [row, id] of refused) {
+    assert.equal(pack.checkBody(declared(id), CONTRACT, 'windows-uia', row.program),
+      `the text names the declared verb "${id}", and the windows-uia bridge does not list it for this program`, `${row.program} ${id}`);
+  }
+  const facts = pack.factsFor(EXCEL_PC);
+  const requiredPowerWords = [...EXCEL_POWER_VERBS, 'Formula2', 'XLOOKUP'];
+  for (const word of requiredPowerWords) {
+    assert.ok(facts.contains.includes(word), `Excel's text must name ${word}`);
+    assert.ok(!facts.absent.includes(word), `Excel's text may name ${word}`);
+  }
+  assert.ok(facts.facts.some((fact) => fact.includes('workbook-schema') && fact.includes('ListObjects') && fact.includes('#SPILL!')),
+    'Excel facts require workbook-schema inspection first');
+  assert.ok(facts.facts.some((fact) => fact.includes('summarize-range') && fact.includes('500')),
+    'Excel facts prefer summarize-range on large database sheets');
+  assert.ok(facts.facts.some((fact) => fact.includes('manage-table') && fact.includes('[@Qty]*[@UnitPrice]')),
+    'Excel facts teach structured ListObjects Tables and structured references');
+  assert.ok(facts.facts.some((fact) => fact.includes('Formula2') && fact.includes('XLOOKUP') && fact.includes('LET')),
+    'Excel facts teach modern .Formula2 dynamic-array formulas');
+  assert.ok(facts.facts.some((fact) => fact.includes('Inputs') && fact.includes('manage-names') && fact.includes('data-validation') && fact.includes('conditional-format')),
+    'Excel facts teach Inputs/Model/Summary architecture, named ranges, validation and conditional formatting');
+  assert.ok(facts.facts.some((fact) => fact.includes('SaveCopyAs') && fact.includes('format-cells')),
+    'Excel facts record checked format-cells undo and SaveCopyAs live backup');
+  assert.ok(facts.facts.some((fact) => EXCEL_STARTER_VERBS.every((id) => fact.includes(id)) && /older Orbit|nine starter/i.test(fact)),
+    'Excel facts include graceful compatibility when an older Orbit window declares only the 9 starter verbs');
+});
+
+test('Excel texts from 0.1.4 and 0.1.5 are reported for lacking W15 power-user words, and an upgraded 0.1.8 text is published', async () => {
   const { runInstructionTick } = await loadRoutes();
   const head = '# Excel 16.0.20527.20196 on Windows (fixture text for a test, not documentation)\n\n';
   const common = 'Read cells with {"action": "invoke", "declared": "read-range"} and write them with set-cells. Every answer carries verified.\n'
     + 'Take an edit back with {"action": "undo"}.\n';
-  const old = `${head}${common}Pivot tables and charts are not Excel verbs yet, and the person opens and saves workbooks in Excel.\n`;
-  assert.equal(pack.checkBody(old, CONTRACT, 'windows-uia', EXCEL_PC.program), null, 'every rule but the measured words passes');
-  assert.equal(pack.acceptanceProblem(old, EXCEL_PC), 'the text lacks what the measured facts require: create-pivot-table, add-chart');
+  const old014 = `${head}${common}Pivot tables and charts are not Excel verbs yet, and the person opens and saves workbooks in Excel.\n`;
+  assert.equal(pack.checkBody(old014, CONTRACT, 'windows-uia', EXCEL_PC.program), null, 'every rule but the measured words passes');
+  assert.match(pack.acceptanceProblem(old014, EXCEL_PC) || '', /^the text lacks what the measured facts require: .*create-pivot-table.*add-chart/);
+  const old015 = `${head}${common}Make a pivot table with {"action": "invoke", "declared": "create-pivot-table"} and a chart with\n`
+    + '{"action": "invoke", "declared": "add-chart"}. The person opens and saves workbooks in Excel.';
+  assert.equal(pack.checkBody(old015, CONTRACT, 'windows-uia', EXCEL_PC.program), null);
+  const expectedMissing = 'the text lacks what the measured facts require: workbook-schema, summarize-range, manage-table, Formula2, XLOOKUP, refresh-pivot, manage-names, data-validation, conditional-format, refresh-queries';
+  assert.equal(pack.acceptanceProblem(old015, EXCEL_PC), expectedMissing);
   const reported = standInKernel({
-    'application_profiles.claim': { requests: [EXCEL_PC] }, bot: { response: old }, 'application_profiles.fail': { status: 'pending' }
+    'application_profiles.claim': { requests: [EXCEL_PC] }, bot: { response: old015 }, 'application_profiles.fail': { status: 'pending' }
   });
   assert.deepEqual(await runInstructionTick(reported.ctx), { status: 200, body: { claimed: 1, published: 0, failed: 1 } });
-  assert.equal(reported.calls.at(-1).input.detail, 'the text lacks what the measured facts require: create-pivot-table, add-chart');
-  const holding = `${head}${common}Make a pivot table with {"action": "invoke", "declared": "create-pivot-table"} and a chart with\n`
-    + '{"action": "invoke", "declared": "add-chart"}. The person opens and saves workbooks in Excel.';
+  assert.equal(reported.calls.at(-1).input.detail, expectedMissing);
+  const holding = `${head}Inspect structure first with {"action": "invoke", "declared": "workbook-schema"}, summarize large sheets with `
+    + '"declared": "summarize-range", and convert datasets into Tables with "declared": "manage-table" before bounded read-range calls.\n'
+    + 'Write contiguous dynamic-array blocks via set-cells (.Formula2: XLOOKUP, FILTER, UNIQUE, SORT, SORTBY, SEQUENCE, SUMIFS, LET), '
+    + 'drive assumptions with "declared": "manage-names", guard inputs with "declared": "data-validation", highlight exceptions with '
+    + '"declared": "conditional-format", build or update pivots and charts with "declared": "create-pivot-table", "declared": "refresh-pivot" '
+    + 'and "declared": "add-chart", and refresh connections with "declared": "refresh-queries". Every edit carries verified and can be taken '
+    + 'back with {"action": "undo"}. If an older Orbit window only lists the nine starter declared verbs, invoke only those declared verbs.';
   assert.equal(pack.checkBody(holding, CONTRACT, 'windows-uia', EXCEL_PC.program), null);
   assert.equal(pack.acceptanceProblem(holding, EXCEL_PC), null, `holds ${pack.factsFor(EXCEL_PC).contains.join(', ')}`);
   const published = standInKernel({

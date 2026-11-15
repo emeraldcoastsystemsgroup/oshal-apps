@@ -11,6 +11,7 @@ CHANGE LOG
 3 | maintainer@emeraldcoastsystemsgroup.com | A person's answer to a source maintenance decision travels the same way: `keep:employer` marks the open decision kept and stops it being raised again for a while, and an applied `remove:employer` marks it archived.
 4 | maintainer@emeraldcoastsystemsgroup.com | Apply only the exact confirmed source decision in one writer transaction; stale or recovered decisions do nothing, and generic remove or keep cannot answer an open decision.
 5 | maintainer@emeraldcoastsystemsgroup.com | Verify explicit Oracle source changes with three actual jobs; the same pull still enumerates the changed board in full rather than timing out while resolving it.
+6 | maintainer@emeraldcoastsystemsgroup.com | `setting:<name>=<value>` under any listed employer's id changes the pull's description stage for this and every later pull (pull_details.apply_setting), so an administrator turns it off or changes its caps without a release.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit
 
-from . import ats, config, db, http, resolve, source_review as review
+from . import ats, config, db, http, pull_details, resolve, source_review as review
 from . import source_memory as memory
 
 # A change the pull keeps stopping on is given up, so it cannot hold back the rest of the night. The person is told.
@@ -343,6 +344,8 @@ def _restore(company):
 
 
 def _apply(change, pull):
+    if change["target"].startswith(pull_details.SETTING):
+        return pull_details.apply_setting(change["target"])
     if change["target"].startswith(DECISION):
         return _apply_decision(change)
     if change["target"].startswith(ADD):

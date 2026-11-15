@@ -13,6 +13,12 @@
  *   needs attention, and a renewable (renewed-by-the-kernel) grant reads Connected.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit split: the count reads 'Needs attention' and 'Available', and a connector with no configured sign-in
  *   is hidden from the catalog until 'Show unavailable' is on.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.8 (Roger, 2026-11-15: "...does not have permission to navigate the target frame"): the
+ *   consent cases follow the new start. Connect/Reconnect open the kernel's /api/connect/{id}/start in the click, with no
+ *   request first, returning to the kernel's connect window; a web view that hands back its top window is never steered
+ *   afterwards; with no second window the page itself goes, returning where the person was; the connect window's answer
+ *   is said in the kernel's words and reloads the list; a return path keeps only the kernel's safe_return shape. The
+ *   JSON /connectors/{id}/authorize fallback cases are gone with the fallback.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -35,31 +41,55 @@ function stubElement() {
 }
 
 /**
- * Run the surface script in a vm with a stub DOM, a scripted fetch and a recording window.open.
- * @param providers - the /api/connect/list payload.
+ * Run the surface script in a vm with a stub DOM, a scripted fetch, a recording window.open and BroadcastChannel.
+ * @param providers - the /api/connect/list payload (an array, or a function answering the current one).
  * @param routes - extra fetch answers keyed by URL prefix: a function (init) => response-like.
+ * @param options - `open(url, target)` replaces the recording window.open; `framed` puts the page in the shell at
+ *   /cockpit/?app=identity; `noChannel` leaves BroadcastChannel out.
  */
-async function surface(providers, routes = {}) {
+async function surface(providers, routes = {}, options = {}) {
   const nodes = new Map();
   const requested = [];
   const tabs = [];
-  const document = { getElementById(id) { if (!nodes.has(id)) nodes.set(id, stubElement()); return nodes.get(id); } };
+  const channels = [];
+  const listeners = {};
+  const document = {
+    visibilityState: 'visible',
+    getElementById(id) { if (!nodes.has(id)) nodes.set(id, stubElement()); return nodes.get(id); },
+    addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+  };
+  const list = () => (typeof providers === 'function' ? providers() : providers);
   const fetchStub = async (url, init) => {
     requested.push({ url, init });
-    if (url.startsWith('/api/connect/list')) return { ok: true, status: 200, json: async () => ({ providers, available: true }) };
+    if (url.startsWith('/api/connect/list')) return { ok: true, status: 200, json: async () => ({ providers: list(), available: true }) };
     if (url.startsWith('/api/connect/liveness')) return { ok: false, status: 404, json: async () => ({}) };
     const route = Object.keys(routes).find((prefix) => url.startsWith(prefix));
     if (route) return routes[route](init);
     return { ok: false, status: 404, type: 'basic', json: async () => { throw new Error('not json'); } };
   };
-  const window = { open(url, target) { const tab = { url, target, opener: 'parent', closed: false, location: { href: '' }, close() { this.closed = true; } }; tabs.push(tab); return tab; } };
+  const own = { origin: 'https://swarm.example', pathname: '/api/identity/', search: '', href: '' };
+  const window = {
+    location: own,
+    open: options.open || ((url, target) => { const tab = { url, target, opener: 'parent', closed: false, location: { href: '' }, close() { this.closed = true; } }; tabs.push(tab); return tab; }),
+  };
+  window.top = options.framed ? { location: { origin: own.origin, pathname: '/cockpit/', search: '?app=identity', href: '' } } : window;
+  class Channel {
+    constructor(name) { this.name = name; this.closed = false; this.onmessage = null; channels.push(this); }
+    close() { this.closed = true; }
+  }
   const sandbox = { document, window, fetch: fetchStub, console: { warn() {}, error() {}, log() {} }, setTimeout, clearTimeout };
+  if (!options.noChannel) sandbox.BroadcastChannel = Channel;
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(`${script}\n;globalThis.__surface = { load, startConsent, showAll: () => { showUnavailable = true; renderProviders(); } };`, sandbox, { filename: 'identity.html' });
+  vm.runInContext(`${script}\n;globalThis.__surface = { load, startConsent, returnPath, waiting: () => waiting, showAll: () => { showUnavailable = true; renderProviders(); } };`, sandbox, { filename: 'identity.html' });
   await sandbox.__surface.load();
-  return { nodes, requested, tabs, surface: sandbox.__surface };
+  return { nodes, requested, tabs, channels, listeners, window, surface: sandbox.__surface };
 }
+
+/** Let the page's pending promises settle. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** The address a Connect/Reconnect press opens: the kernel's start, returning to the kernel's connect window. */
+const startInWindow = (id) => `/api/connect/${id}/start?return=${encodeURIComponent(`/utilities?connected=${id}&window=connect`)}`;
 
 /** One card's HTML by its display label. */
 function card(main, label) {
@@ -106,60 +136,92 @@ test('native connector kinds and liveness render the right actions and attention
   assert.match(metrics, /Available<\/span><strong>6</);
 });
 
-test('consent follows the start route when it redirects, without asking the kernel route', async () => {
-  const { surface: s, tabs, requested } = await surface([native('google', 'oauth', 'not_connected')], {
-    '/api/connect/google/start': (init) => { assert.equal(init.redirect, 'manual'); return { type: 'opaqueredirect', status: 0, ok: false, json: async () => ({}) }; },
-  });
-  await s.startConsent('google');
+test('Reconnect opens the kernel start in the click: nothing requested first, the connect window as the return', async () => {
+  const { surface: s, tabs, requested, nodes } = await surface([native('google', 'oauth', 'expired', { label: 'Google' })], {}, { framed: true });
+  const before = requested.length;
+  const answer = s.startConsent('google');
+  assert.equal(answer, undefined, 'nothing is awaited: the whole start happens in the click');
   assert.equal(tabs.length, 1);
-  assert.equal(tabs[0].opener, null, 'the consent tab cannot reach back into the hub');
-  assert.equal(tabs[0].location.href, '/api/connect/google/start');
-  assert.ok(!requested.some((r) => r.url.startsWith('/connectors/')));
+  assert.equal(tabs[0].url, startInWindow('google'));
+  assert.equal(tabs[0].target, '_blank');
+  assert.equal(tabs[0].opener, null, 'the sign-in window cannot reach back into the hub');
+  await settle();
+  assert.equal(requested.length, before, 'no request to the start or the kernel authorize route');
+  assert.equal(tabs[0].location.href, '', 'the window is never steered afterwards');
+  const review = nodes.get('review').innerHTML;
+  assert.match(review, /Waiting for Google\. Finish signing in in the window that opened\./);
+  assert.ok(review.includes(`<a href="${startInWindow('google').replace(/&/g, '&amp;')}" target="_blank" rel="noopener">No window? Open it again.</a>`));
 });
 
-test('consent falls back to the kernel JSON authorize answer, authorize_url or url', async () => {
-  for (const body of [{ authorize_url: 'https://accounts.google.com/o/oauth2/v2/auth?state=a' }, { url: 'https://accounts.google.com/o/oauth2/v2/auth?state=b' }]) {
-    const { surface: s, tabs } = await surface([native('google-calendar', 'oauth', 'not_connected')], {
-      '/connectors/google-calendar/authorize': () => ({ ok: true, status: 200, json: async () => body }),
-    });
-    await s.startConsent('google-calendar');
-    assert.equal(tabs[0].location.href, body.authorize_url || body.url);
-    assert.equal(tabs[0].closed, false);
+test('a web view that hands back its top window gets the start in the same call and is never steered afterwards', async () => {
+  // The Android app's WebView has no second windows: window.open navigates the top window to the address it was given
+  // and returns it (content/browser RenderFrameHostImpl::CreateNewWindow kReuse), after spending the click's activation.
+  let top;
+  const opened = [];
+  const run = await surface([native('smartthings', 'oauth', 'expired', { label: 'SmartThings' })], {}, {
+    framed: true,
+    open: (url, target) => { opened.push([url, target]); return top; },
+  });
+  top = run.window.top;
+  run.surface.startConsent('smartthings');
+  await settle();
+  assert.deepEqual(opened, [[startInWindow('smartthings'), '_blank']], 'the address goes with the one call the web view honours');
+  assert.equal(top.location.href, '', 'no later navigation of the window it handed back');
+  assert.equal(top.opener, null);
+});
+
+test('with no second window the page itself goes to the start, inside the click, and comes back where the person was', async () => {
+  const framed = await surface([native('smartthings', 'oauth', 'expired')], {}, { framed: true, open: () => null });
+  framed.surface.startConsent('smartthings');
+  assert.equal(framed.window.top.location.href, `/api/connect/smartthings/start?return=${encodeURIComponent('/cockpit/?app=identity')}`, 'the shell goes, and comes back to Identity Hub in the shell');
+  const own = await surface([native('smartthings', 'oauth', 'expired')], {}, { open: () => null });
+  own.surface.startConsent('smartthings');
+  assert.equal(own.window.location.href, `/api/connect/smartthings/start?return=${encodeURIComponent('/api/identity/')}`);
+});
+
+test('the connect window\'s answer is said in the kernel\'s words and the list is read again', async () => {
+  let connected = false;
+  const words = 'Google was not connected. This installation has no public web address yet, so Google cannot be connected here.';
+  const run = await surface(() => [native('google', 'oauth', connected ? 'connected' : 'expired', { label: 'Google' })]);
+  run.surface.startConsent('google');
+  const [channel] = run.channels;
+  assert.equal(channel.name, 'oshal-connections');
+  channel.onmessage({ data: { type: 'connect-outcome', connector: 'slack', ok: true, text: 'Slack is connected.' } });
+  assert.match(run.nodes.get('review').innerHTML, /Waiting for Google/, 'another connector\'s answer is not this one');
+  channel.onmessage({ data: { type: 'connect-outcome', connector: 'google', ok: false, text: words } });
+  assert.match(run.nodes.get('review').innerHTML, new RegExp(`role="alert"><span class="err">${words.replace(/\./g, '\\.')}</span>`));
+  assert.doesNotMatch(run.nodes.get('review').innerHTML, /HTTP 400|invalid_request/);
+  assert.equal(channel.closed, true, 'the wait ends');
+  assert.equal(run.surface.waiting(), null);
+  run.surface.startConsent('google');
+  connected = true;
+  const lists = run.requested.filter((r) => r.url.startsWith('/api/connect/list')).length;
+  run.channels[1].onmessage({ data: { type: 'connect-outcome', connector: 'google', ok: true, text: 'Google is connected.' } });
+  await settle();
+  assert.match(run.nodes.get('review').innerHTML, /<span class="done">Google is connected\.<\/span>/);
+  assert.equal(run.requested.filter((r) => r.url.startsWith('/api/connect/list')).length, lists + 1, 'the list is read again');
+  assert.match(card(run.nodes.get('accounts').innerHTML, 'Google'), /pill ok">Connected/);
+});
+
+test('shown again after a sign-in in another app, a now-connected card ends the wait; without a channel too', async () => {
+  let connected = false;
+  const run = await surface(() => [native('smartthings', 'oauth', connected ? 'connected' : 'expired', { label: 'SmartThings' })], {}, { noChannel: true });
+  run.surface.startConsent('smartthings');
+  const [shown] = run.listeners.visibilitychange;
+  await shown();
+  assert.match(run.nodes.get('review').innerHTML, /Waiting for SmartThings/, 'still waiting while the grant is lapsed');
+  connected = true;
+  await shown();
+  assert.match(run.nodes.get('review').innerHTML, /<span class="done">SmartThings is connected\.<\/span>/);
+  assert.equal(run.surface.waiting(), null);
+});
+
+test('a return path keeps only the kernel\'s safe_return shape', async () => {
+  const { surface: s } = await surface([]);
+  assert.equal(s.returnPath('/cockpit/?app=identity'), '/cockpit/?app=identity');
+  for (const hostile of ['//evil.example/x', '/\\evil.example', 'https://evil.example/', 'identity', '/a\r\nb', '', '/' + 'a'.repeat(600)]) {
+    assert.equal(s.returnPath(hostile), '', JSON.stringify(hostile));
   }
-  // A start route that answers JSON naming the provider is followed too.
-  const { surface: s, tabs } = await surface([native('gmail', 'oauth', 'not_connected')], {
-    '/api/connect/gmail/start': () => ({ type: 'basic', ok: true, status: 200, json: async () => ({ url: 'https://accounts.google.com/x' }) }),
-  });
-  await s.startConsent('gmail');
-  assert.equal(tabs[0].location.href, 'https://accounts.google.com/x');
-});
-
-test('consent that no route can start closes the tab and says why; a non-https answer is never followed', async () => {
-  const { surface: s, tabs, nodes } = await surface([native('google', 'oauth', 'not_connected')], {
-    '/connectors/google/authorize': () => ({ ok: false, status: 409, json: async () => ({ error: 'google is not configured' }) }),
-  });
-  await s.startConsent('google');
-  assert.equal(tabs[0].closed, true);
-  assert.equal(tabs[0].location.href, '');
-  assert.match(nodes.get('review').innerHTML, /Could not start the connection: google is not configured/);
-  const hostile = await surface([native('google', 'oauth', 'not_connected')], {
-    '/connectors/google/authorize': () => ({ ok: true, status: 200, json: async () => ({ url: 'javascript:alert(1)' }) }),
-  });
-  await hostile.surface.startConsent('google');
-  assert.equal(hostile.tabs[0].closed, true);
-  assert.equal(hostile.tabs[0].location.href, '');
-});
-
-test('a kernel refusal is shown in its own words, never a bare status', async () => {
-  const words = 'This installation has no public web address yet, so Google cannot be connected here.';
-  const refused = () => ({ ok: false, status: 400, json: async () => ({ detail: words, refused: 'invalid_request' }) });
-  const { surface: s, tabs, nodes } = await surface([native('google', 'oauth', 'not_connected')], {
-    '/api/connect/google/start': refused, '/connectors/google/authorize': refused,
-  });
-  await s.startConsent('google');
-  assert.equal(tabs[0].closed, true);
-  assert.match(nodes.get('review').innerHTML, new RegExp(`Could not start the connection: ${words.replace(/\./g, '\\.')}`));
-  assert.doesNotMatch(nodes.get('review').innerHTML, /HTTP 400|invalid_request/);
 });
 
 test('a lapsed native grant listed with its account row reads Reconnect, as Settings reads it', async () => {

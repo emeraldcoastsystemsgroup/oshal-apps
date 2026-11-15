@@ -4,19 +4,20 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Licensed built-in sticker catalog, keyframed sticker overlay validation, DOM SVG data-URI preview and analytical RGBA rasterizer for FFmpeg overlay export.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: STICKER_CATALOG attribution names Open Swarm Original Sticker.
  */
 
 export const STICKER_LIMIT = 16;
 
 export const STICKER_CATALOG = Object.freeze([
-  Object.freeze({ id: 'star', label: 'Gold Star', glyph: '★', fill: '#facc15', stroke: '#ca8a04', accent: '#fef08a', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'heart', label: 'Ruby Heart', glyph: '♥', fill: '#f43f5e', stroke: '#be123c', accent: '#fda4af', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'sparkle', label: 'Sparkle', glyph: '✦', fill: '#38bdf8', stroke: '#0284c7', accent: '#e0f2fe', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'fire', label: 'Flame', glyph: '🔥', fill: '#fb923c', stroke: '#ea580c', accent: '#fde047', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'check', label: 'Verified', glyph: '✓', fill: '#22c55e', stroke: '#15803d', accent: '#ffffff', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'arrow', label: 'Pointer', glyph: '➜', fill: '#a855f7', stroke: '#7e22ce', accent: '#f3e8ff', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'speech', label: 'Pop Bubble', glyph: '💬', fill: '#f8fafc', stroke: '#334155', accent: '#0ea5e9', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
-  Object.freeze({ id: 'clap', label: 'Applause', glyph: '👏', fill: '#f472b6', stroke: '#db2777', accent: '#fce7f3', license: 'CC0-1.0', attribution: 'OSHAL Original Sticker' }),
+  Object.freeze({ id: 'star', label: 'Gold Star', glyph: '★', fill: '#facc15', stroke: '#ca8a04', accent: '#fef08a', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'heart', label: 'Ruby Heart', glyph: '♥', fill: '#f43f5e', stroke: '#be123c', accent: '#fda4af', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'sparkle', label: 'Sparkle', glyph: '✦', fill: '#38bdf8', stroke: '#0284c7', accent: '#e0f2fe', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'fire', label: 'Flame', glyph: '🔥', fill: '#fb923c', stroke: '#ea580c', accent: '#fde047', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'check', label: 'Verified', glyph: '✓', fill: '#22c55e', stroke: '#15803d', accent: '#ffffff', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'arrow', label: 'Pointer', glyph: '➜', fill: '#a855f7', stroke: '#7e22ce', accent: '#f3e8ff', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'speech', label: 'Pop Bubble', glyph: '💬', fill: '#f8fafc', stroke: '#334155', accent: '#0ea5e9', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
+  Object.freeze({ id: 'clap', label: 'Applause', glyph: '👏', fill: '#f472b6', stroke: '#db2777', accent: '#fce7f3', license: 'CC0-1.0', attribution: 'Open Swarm Original Sticker' }),
 ]);
 export const STICKER_BY_ID = new Map(STICKER_CATALOG.map(item => [item.id, item]));
 

@@ -70,6 +70,7 @@
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.19.1: the Video clip template says what the clip is instead of "rendered on your own desktop worker" (set-up wording; the trial sweep).
 # 37 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: Rename, Duplicate and Delete on Home work cards (RP-CRE-01), Custom size 16–8192 px in the Blank row (RP-CRE-02), and Import a file for PDF, Office, SVG and raster images (RP-CRE-03); home-actions.mjs served through the existing editor asset allowlist with no permission or catalog change.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: region-edit image spend is attributed to create-editor, the concierge this package declares (chatBot), instead of the platform general-bot's core registry id a0...0099, which Create neither declares nor imports (scripts/check-store-bots.mjs PENDING). Attribution only: no route, permission, migration or catalog change.
+# 39 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: the description leads with what Create makes itself (a picture from a sentence, or one drawn in editable layers) and gives each studio's work to that studio. It opened "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, ...", so asked for a pet portrait Jarvis asked "Portrait Studio or Create?" (routing scoreboard, test installation, 2026-11-14) though Create's home page only opens those studios. Wording only: no route, permission, migration or catalog change.
 name: create
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -94,12 +95,14 @@ rating:
       degrade: disable
 displayName: Create
 description: >-
-  One studio for everything you make: decks, documents and workbooks from AI
-  Office, portraits, short videos, story episodes, LoRA characters, 3D scans and
-  brand intro clips —
-  a single home page that shows what you were working on and one tap to pick up
-  where you left off, in every studio you already have. Generate a picture from a sentence, or draw one in editable layers.
-version: 1.20.1
+  Generate a picture from a sentence, or draw one in editable layers. Create is
+  also the front door to the studios you already have: a single home page that
+  shows what you were working on and one tap to pick up where you left off in
+  each. The studios do their own work, not Create: AI Office makes decks,
+  documents and workbooks, Portrait Studio portraits from your photos, Video
+  Studio short videos, Creative Studio story episodes, LoRA Studio LoRA
+  characters, Scan to Print 3D scans and Brand Graphics brand intro clips.
+version: 1.20.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml

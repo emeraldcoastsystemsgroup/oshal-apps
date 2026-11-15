@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Spending, the month. Money in, money out and, once the person has set a plan, what is left to spend; spending by category as bars against the planned amount; a month picker. "Set this month's plan" takes the expected income and what is planned for everything else; a month with no plan shows no "left to spend", never a guess. Each amount names its source and date. Reads and writes /api/finance/month only; nothing here moves money.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spending · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1 id="frTitle">Spending</h1><p class="fr-sub">From your own records. A month with no plan has no "left to spend".</p></div>
+    <div class="fr-actions"><label>Month<input type="month" id="frMonth"></label><button type="button" class="fr-primary" id="frPlanOpen">Set this month's plan</button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frPlan" hidden aria-labelledby="frPlanH">
+    <h2 id="frPlanH">This month's plan</h2>
+    <div class="fr-form">
+      <label>Income you expect<input id="frIncome" inputmode="decimal" placeholder="6,400.00"></label>
+      <label>Planned for everything else<input id="frElse" inputmode="decimal" placeholder="2,000.00"></label>
+      <button type="button" id="frPlanSave">Save the plan</button>
+    </div>
+  </section>
+  <section class="fr-card fr-big" aria-label="The month"><div class="fr-grid" id="frTotals"><p class="fr-empty">Reading the month…</p></div></section>
+  <section class="fr-card" aria-labelledby="frCatH"><h2 id="frCatH">By category</h2><ul class="fr-list" id="frCats"></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+
+  function paint(view) {
+    $('frTitle').textContent = 'Spending · ' + (view.label || F.monthWords(view.month));
+    var cells = [['Money in', view.in], ['Money out', view.out], ['Left to spend', view.left]];
+    $('frTotals').replaceChildren.apply($('frTotals'), cells.map(function (c) {
+      return el('div', {}, [el('small', { text: c[0] }), el('div', {}, [c[0] === 'Left to spend' && !view.hasPlan ? el('span', { class: 'fr-sub', text: 'Set a plan to see it' }) : F.figure(c[1])])]);
+    }));
+    var cats = (view.categories || []).slice().sort(function (a, b) { return ((b.amount && b.amount.cents) || 0) - ((a.amount && a.amount.cents) || 0); });
+    var top = cats.reduce(function (m, c) { return Math.max(m, (c.amount && c.amount.cents) || 0, (c.planned && c.planned.cents) || 0); }, 1);
+    $('frCats').replaceChildren.apply($('frCats'), cats.length ? cats.map(function (c) {
+      var spent = (c.amount && c.amount.cents) || 0, planned = c.planned && c.planned.cents;
+      var bar = el('div', { class: 'fr-bar' + (planned && spent > planned ? ' fr-over' : '') }, [el('span', { style: 'width:' + Math.round((spent / top) * 100) + '%' })]);
+      return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: c.category || 'Other' }), el('div', { class: 'fr-sub', text: c.count + ' transaction' + (c.count === 1 ? '' : 's') + (planned ? ' · planned ' + F.money(c.planned) : '') }), bar]), F.figure(c.amount)]);
+    }) : [el('li', { class: 'fr-empty', text: 'Nothing spent this month in your records yet. Bring in a statement on Accounts.' })]);
+  }
+
+  function load() {
+    return F.api('/month?month=' + encodeURIComponent($('frMonth').value) + '&today=' + F.today()).then(function (r) { paint(r.month); })
+      .catch(function (err) { F.say(err.message, true); });
+  }
+
+  $('frMonth').value = F.today().slice(0, 7);
+  $('frMonth').addEventListener('change', load);
+  $('frPlanOpen').addEventListener('click', function () { $('frPlan').hidden = !$('frPlan').hidden; });
+  $('frPlanSave').addEventListener('click', function () {
+    var button = $('frPlanSave');
+    F.press(button, function () {
+      var income = F.centsOf($('frIncome').value), rest = F.centsOf($('frElse').value);
+      if (income === null && rest === null) throw new Error('Type the income you expect, what you plan for everything else, or both.');
+      var body = { month: $('frMonth').value, today: F.today() };
+      if (income !== null) body.incomeCents = income;
+      if (rest !== null) body.everythingElseCents = rest;
+      return F.api('/month/plan', body).then(function (r) { F.say('Plan saved.'); $('frPlan').hidden = true; paint(r.month); });
+    });
+  });
+  load();
+})();
+</script>
+</body>
+</html>

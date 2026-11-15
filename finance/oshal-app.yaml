@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.1 (VER4 acceptance on the test slot, 2026-11-14): after Look for bills in my mail with no Google connection, Bills said "Connect your mail to find bills: connect Gmail in Connections." and also "There is more mail to read; Finance continues at the next check." though no mail was read (the check answered read: 0, status: not-connected, more: true). The mail check's `more` now says there is more mail only after a check that reached the mailbox stopped with its window still open (routes/finance-mail.js readMail); no connection, an expired one, a refused permission, a mailbox that could not be read and a check that is off never say so. No tool, route, permission, grant, egress or migration changed. Guard: tests/mail-bills.test.cjs.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 also brings Recurring (the design's slice 3; Roger, 2026-11-14: "reviews bank accounts for recurring payments"): a screen after Bills and the routes at /api/finance/recurring list every charge that repeats in the person's own transactions with what it costs a year, New and Price went up, and the totals; each is reviewed once (Keep, Track as a bill, Mark to cancel; Finance cancels nothing) and a payment marked to cancel that is charged again says so. Migration 006 keeps only the answers. Three more concierge tools.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.0, slice 2 of the holistic Finance (Roger, 2026-11-14: "pulls your bills from emails"): bills found in the person's own mail. The Gmail host with the caller's own gmail connection (the kernel adds it; the package never holds a token), google under optional connectors, migration 005 (the person's mail check and the bills found), the routes at /api/finance/mail and the job finance-mail-bills (POST /api/finance/mail/check every three hours as the person; it starts itself once Google is connected and reads no mail until the person turns the mail check on in Bills). Each bill found is a proposal under Found in your mail until the person adds it or says it is not a bill; nothing is paid, sent or changed in the mailbox, and no message text is kept. Also: an ended bill and a closed goal can be deleted, Home's Where you stand is read again on coming back to Home, Undo puts back to due what its payments had paid, and a preview nobody added is not a statement brought in (VER2 on the test slot). Nine new concierge tools, one per new screen action.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Release 1.7.0, slice 1 of the holistic Finance (Roger, 2026-11-14: "a new holistic finance skin ... i dont want to lose what we have"): a person gets real numbers into Finance with no bank connection. Their own records (migration 003: accounts, transactions, imports, rules, documents; migration 004: bills and due dates, goals and amounts set aside, the month's plan, closed months), one private copy per person. Statement import at /api/finance/ledger (CSV, OFX, QFX or pasted text; a preview first, no duplicates, undo); bills (/api/finance/bills: a charge repeating monthly is proposed when records change and becomes a bill only on the person's yes; Mark paid pays nothing), goals (/api/finance/goals: Set aside moves no money), the month (/api/finance/month) and where the person stands (/api/finance/day). Five screens after Home (Accounts, Transactions, Bills, Spending, Goals, served by routes/finance-pages.js), Home opens with Where you stand, and Finance's bar shows them with Trades, the rest under More. Twenty-two concierge tools, one per screen action (six reads, sixteen changes that ask first), authorized on finance-analyst. A linked bank's saved snapshot is never rewritten by the records; without a link the snapshot is the records' own with the 1.6 completeness marks. Sync, Request analysis, Trades and every earlier screen are unchanged. The description says what Finance now answers. Nothing here moves money or places an order.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.5: Request analysis is answered at once and the analyst works after the press, on a kernel that can run a turn in the background (Roger, 2026-11-14: "yes background analysis"); the page says working, then shows the new analysis, or the reason in words. Migration 002 holds the caller's latest request. Without that kernel ability the 45 s path of 1.6.4 answers as before.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.4: Request analysis answers within 45 s in words (the kernel ends a package request at 60 s), the Concierge button opens Finance's concierge inside the cockpit, and spending categories read as words.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.3: carry partial and unknown transaction-window coverage through bank views, saved summaries, new analysis and specialist facts.
@@ -77,12 +81,16 @@ rating:
       degrade: disable
 displayName: Finance
 description: >-
-  Your household money in one place. Link your banks and brokerages (via Plaid — OSHAL
-  never sees your bank password) to see balances, net worth and spending by category and
-  month, with a plain-English brief; brokerage holdings count toward net worth as they
-  stood at the last sync, and how investments performed over time is not tracked here.
-  Read-only — nothing is traded or moved. No crypto.
-version: 1.6.5
+  Your household money in one place. Bring in the statement files your bank lets you
+  download (CSV, OFX or QFX), or link your banks and brokerages (via Plaid — OSHAL never sees
+  your bank password), to see balances, net worth, the bills coming due (found in your
+  repeating payments or, when you turn it on, in your own Gmail, kept once you confirm them),
+  every payment that repeats with what it costs a year (keep it, track it as a bill or mark
+  it to cancel), spending by category and month against
+  your own plan, and what you are saving for, with a plain-English brief; brokerage holdings
+  count toward net worth as they stood at the last sync, and how investments performed over
+  time is not tracked here. Finance pays no bill; nothing is traded or moved. No crypto.
+version: 1.8.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -126,7 +134,9 @@ dependencies:
   optional:
     apps: [intelligent-trades, world, kalshi, daily-trade-recap]   # four sections FRAME these apps' own surfaces and Home reads their summaries; absent, that section is empty and the rest of finance works
     tools: []
-    connectors: []
+    # 1.8.0: the person's own Google connection, for bills found in their Gmail (routes/finance-mail.js). Without it
+    # Bills says "Connect your mail to find bills" and the rest of Finance works.
+    connectors: [google]
 
 # Kernel skills this app CALLS (ADR-090 uses: contract, fail-closed at load).
 uses:
@@ -178,6 +188,518 @@ tools:
     routingTags: [finance, spending, transactions]
     tags: [finance]
 
+  # 1.7.0: the money day over the person's own records. Each tool is the route the screen's button uses, so the concierge
+  # and the screen never disagree. The reads need no approval; every change asks the person first. None moves money.
+
+  - name: finance-day
+    displayName: Where I Stand
+    type: api
+    category: finance
+    description: >-
+      Where the caller stands from their own Finance records: net worth with its oldest date, bills overdue and due soon, the month's money in and out, new transactions to look at, goals, and whether this is the first run. Read-only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/day" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, bills, spending]
+    tags: [finance]
+
+  - name: finance-accounts
+    displayName: Finance Accounts
+    type: api
+    category: finance
+    description: >-
+      The caller's own accounts in Finance (from statements and typed balances) with each balance, its date and source, net worth, and the statements brought in. Read-only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/ledger/accounts" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, accounts, net-worth]
+    tags: [finance]
+
+  - name: finance-transactions
+    displayName: Finance Transactions
+    type: api
+    category: finance
+    description: >-
+      One month of the caller's own transactions in Finance, new ones marked. Read-only. Input: { month: YYYY-MM } (the newest month with records when omitted).
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/ledger/transactions?month={input.month}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: { month: { type: string, description: "YYYY-MM" } }
+    routingTags: [finance, transactions]
+    tags: [finance]
+
+  - name: finance-bills
+    displayName: Finance Bills
+    type: api
+    category: finance
+    description: >-
+      The caller's bills: proposals found in their repeating payments, what is overdue, due this week, due later and paid this month, each expected amount with its source. Read-only; Finance pays nothing. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/bills" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, bills]
+    tags: [finance]
+
+  - name: finance-month
+    displayName: Finance Month
+    type: api
+    category: finance
+    description: >-
+      One month from the caller's own records: money in, money out, spending by category, the plan and what is left to spend when a plan is set. Read-only. Input: { month: YYYY-MM } (this month when omitted).
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/month?month={input.month}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: { month: { type: string, description: "YYYY-MM" } }
+    routingTags: [finance, spending, budget]
+    tags: [finance]
+
+  - name: finance-goals
+    displayName: Finance Goals
+    type: api
+    category: finance
+    description: >-
+      The caller's goals: what is set aside against each target and date. Read-only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/goals" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, goals]
+    tags: [finance]
+
+  - name: finance-add-account
+    displayName: Add or Update an Account
+    type: api
+    category: finance
+    description: >-
+      Add an account to the caller's Finance records with a typed balance and its date, or (with accountId) rename it or type a new balance. Links no bank and moves no money.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/accounts" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { accountId: { type: string }, name: { type: string }, institution: { type: string }, type: { type: string, enum: [depository, credit, loan, investment, other] }, balanceCents: { type: integer, description: "Whole cents" }, balanceAsOf: { type: string, description: "YYYY-MM-DD" } }
+    tags: [finance]
+
+  - name: finance-add-transaction
+    displayName: Add a Transaction
+    type: api
+    category: finance
+    description: >-
+      Add one transaction the caller states to one of their Finance accounts. Bookkeeping only; nothing is paid.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/transactions" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { accountId: { type: string }, date: { type: string, description: "YYYY-MM-DD" }, description: { type: string }, amountCents: { type: integer }, direction: { type: string, enum: ["in", "out"] }, category: { type: string } }
+      required: [accountId, date, description, amountCents, direction]
+    tags: [finance]
+
+  - name: finance-change-transaction
+    displayName: Change a Transaction
+    type: api
+    category: finance
+    description: >-
+      Set a transaction's category (remember: true applies it to that merchant from now on), mark it looked at, note it, or say it is not the caller's.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/transactions/{input.transactionId}" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { transactionId: { type: string }, category: { type: string }, remember: { type: boolean }, reviewed: { type: boolean }, note: { type: string }, notMine: { type: boolean } }
+      required: [transactionId]
+    tags: [finance]
+
+  - name: finance-statement-preview
+    displayName: Read a Statement
+    type: api
+    category: finance
+    description: >-
+      Read statement text the caller pasted (CSV, OFX, QFX or lines of date, description and amount) into a preview of what would be added. Adds nothing.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/imports/preview" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { text: { type: string }, fileName: { type: string }, accountId: { type: string }, newAccount: { type: object, properties: { name: { type: string }, institution: { type: string } } } }
+      required: [text]
+    tags: [finance]
+
+  - name: finance-statement-add
+    displayName: Add a Statement
+    type: api
+    category: finance
+    description: >-
+      Add the new transactions of a previewed statement to the caller's records (confirm: true); call again while remaining is above zero. Duplicates are skipped.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/imports/{input.importId}/apply" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { importId: { type: string }, confirm: { type: boolean, const: true } }
+      required: [importId, confirm]
+    tags: [finance]
+
+  - name: finance-statement-undo
+    displayName: Undo a Statement
+    type: api
+    category: finance
+    description: >-
+      Take an added statement's transactions back out of the caller's records (confirm: true).
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/ledger/imports/{input.importId}/undo" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { importId: { type: string }, confirm: { type: boolean, const: true } }
+      required: [importId, confirm]
+    tags: [finance]
+
+  - name: finance-add-bill
+    displayName: Add a Bill
+    type: api
+    category: finance
+    description: >-
+      Add a bill the caller names, with its next due date and, when known, its amount. Finance pays nothing.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { payee: { type: string }, nextDue: { type: string, description: "YYYY-MM-DD" }, amountCents: { type: integer }, cadence: { type: string, enum: [weekly, every-two-weeks, monthly, quarterly, yearly] } }
+      required: [payee, nextDue]
+    tags: [finance]
+
+  - name: finance-confirm-bill
+    displayName: Add a Found Bill
+    type: api
+    category: finance
+    description: >-
+      Turn a bill Finance found in the caller's repeating payments into a bill (confirm: true).
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/{input.billId}/confirm" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { billId: { type: string }, confirm: { type: boolean, const: true } }
+      required: [billId, confirm]
+    tags: [finance]
+
+  - name: finance-dismiss-bill
+    displayName: Turn Down a Found Bill
+    type: api
+    category: finance
+    description: >-
+      Say a bill Finance found in the caller's payments is not a bill; it is not proposed again.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/{input.billId}/dismiss" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { billId: { type: string } }
+      required: [billId]
+    tags: [finance]
+
+  - name: finance-bill-paid
+    displayName: Mark a Bill Paid
+    type: api
+    category: finance
+    description: >-
+      Mark one due date of the caller's bill paid in Finance. It does not pay the bill.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/events/{input.eventId}/paid" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { eventId: { type: string }, paidOn: { type: string, description: "YYYY-MM-DD" }, amountCents: { type: integer } }
+      required: [eventId]
+    tags: [finance]
+
+  - name: finance-bill-skip
+    displayName: Skip a Bill Due Date
+    type: api
+    category: finance
+    description: >-
+      Say one due date of the caller's bill does not come due this time.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/events/{input.eventId}/skip" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { eventId: { type: string } }
+      required: [eventId]
+    tags: [finance]
+
+  - name: finance-bill-unpaid
+    displayName: Bill Not Paid After All
+    type: api
+    category: finance
+    description: >-
+      Put a due date the caller marked paid back to due.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/events/{input.eventId}/unpaid" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { eventId: { type: string } }
+      required: [eventId]
+    tags: [finance]
+
+  - name: finance-set-plan
+    displayName: Set a Month's Plan
+    type: api
+    category: finance
+    description: >-
+      Set the income the caller expects and what they plan for everything else in a month.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/month/plan" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { month: { type: string, description: "YYYY-MM" }, incomeCents: { type: integer }, everythingElseCents: { type: integer } }
+    tags: [finance]
+
+  - name: finance-add-goal
+    displayName: Add a Goal
+    type: api
+    category: finance
+    description: >-
+      Add something the caller is saving for, with a target and a date when they have them.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/goals" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { name: { type: string }, targetCents: { type: integer }, targetDate: { type: string, description: "YYYY-MM-DD" }, monthlyCents: { type: integer } }
+      required: [name]
+    tags: [finance]
+
+  - name: finance-set-aside
+    displayName: Set Aside for a Goal
+    type: api
+    category: finance
+    description: >-
+      Record an amount the caller set aside for a goal. Recorded in Finance; no money moves.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/goals/{input.goalId}/set-aside" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { goalId: { type: string }, amountCents: { type: integer } }
+      required: [goalId, amountCents]
+    tags: [finance]
+
+  - name: finance-take-back
+    displayName: Take Back from a Goal
+    type: api
+    category: finance
+    description: >-
+      Record an amount the caller took back from a goal. Recorded in Finance; no money moves.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/goals/{input.goalId}/take-back" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { goalId: { type: string }, amountCents: { type: integer } }
+      required: [goalId, amountCents]
+    tags: [finance]
+
+  # 1.8.0: bills found in the person's own mail, and ending or deleting a bill or a goal. Each is the route the screen's button uses.
+  - name: finance-mail
+    displayName: Finance Bills From Mail
+    type: api
+    category: finance
+    description: >-
+      Whether the caller's mail check is on and how it stands, and the bills found in their own Gmail waiting for an answer: who, the amount due (from the mail, with its date), the due date and whether it updates a bill they have. Read-only; it reads no mail itself. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/mail" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, bills, mail]
+    tags: [finance]
+
+  - name: finance-mail-switch
+    displayName: Turn the Mail Check On or Off
+    type: api
+    category: finance
+    description: >-
+      Turn on (on: true, confirm: true) or off (on: false) the caller's mail check, which looks through their own Gmail for bills. Turning it on reads no mail yet; it sends nothing and changes nothing in the mailbox.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/mail/switch" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { on: { type: boolean }, confirm: { type: boolean } }
+      required: [on]
+    tags: [finance]
+
+  - name: finance-mail-check
+    displayName: Look for Bills in Mail Now
+    type: api
+    category: finance
+    description: >-
+      Look through the caller's bill-like Gmail now (at most 20 messages; the next check continues). Each bill found waits for the caller's yes. Nothing while the mail check is off. Sends nothing and changes no mail.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/mail/check" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: {}
+    tags: [finance]
+
+  - name: finance-mail-add
+    displayName: Add a Bill Found in Mail
+    type: api
+    category: finance
+    description: >-
+      Make a bill found in the caller's mail a bill, or bring their bill for that payee up to date with its amount and due date (confirm: true). Payee, amount, due date and how often may be corrected. It does not pay the bill.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/mail/finds/{input.findId}/add" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { findId: { type: string }, confirm: { type: boolean, const: true }, payee: { type: string }, amountCents: { type: integer }, dueDate: { type: string, description: "YYYY-MM-DD" }, cadence: { type: string, enum: [weekly, every-two-weeks, monthly, quarterly, yearly] } }
+      required: [findId, confirm]
+    tags: [finance]
+
+  - name: finance-mail-dismiss
+    displayName: Turn Down a Bill Found in Mail
+    type: api
+    category: finance
+    description: >-
+      Say a bill found in the caller's mail is not a bill; mail from that payee is not proposed again.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/mail/finds/{input.findId}/dismiss" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { findId: { type: string } }
+      required: [findId]
+    tags: [finance]
+
+  - name: finance-end-bill
+    displayName: Stop a Bill
+    type: api
+    category: finance
+    description: >-
+      Say one of the caller's bills is no longer due; its unpaid due dates ahead are removed and it is listed under Ended.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/{input.billId}/end" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { billId: { type: string } }
+      required: [billId]
+    tags: [finance]
+
+  - name: finance-delete-bill
+    displayName: Delete an Ended Bill
+    type: api
+    category: finance
+    description: >-
+      Delete one of the caller's bills that has ended, with its due dates (confirm: true). A bill found in their payments is not proposed again from the same charges.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/bills/{input.billId}/delete" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { billId: { type: string }, confirm: { type: boolean, const: true } }
+      required: [billId, confirm]
+    tags: [finance]
+
+  - name: finance-change-goal
+    displayName: Change, Close or Reopen a Goal
+    type: api
+    category: finance
+    description: >-
+      Change one of the caller's goals: its name, target, date or monthly amount, or close it (state: closed) or open it again (state: open). Recorded in Finance; no money moves.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/goals/{input.goalId}" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { goalId: { type: string }, name: { type: string }, targetCents: { type: integer }, targetDate: { type: string, description: "YYYY-MM-DD" }, monthlyCents: { type: integer }, state: { type: string, enum: [open, closed] } }
+      required: [goalId]
+    tags: [finance]
+
+  - name: finance-delete-goal
+    displayName: Delete a Closed Goal
+    type: api
+    category: finance
+    description: >-
+      Delete one of the caller's closed goals with what was recorded for it (confirm: true). Recorded in Finance only; no money moves.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/goals/{input.goalId}/delete" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { goalId: { type: string }, confirm: { type: boolean, const: true } }
+      required: [goalId, confirm]
+    tags: [finance]
+
+  # 1.8.0: Recurring. Each is the route the screen's button uses.
+  - name: finance-recurring
+    displayName: Finance Recurring Payments
+    type: api
+    category: finance
+    description: >-
+      Every charge that repeats in the caller's own transactions: who, how often, the last charge and what it costs a year (an estimate from the last charge, with its source and date), when it was last charged and is next expected, whether it is new or its price went up, the caller's answer, and the totals a month and a year. Read-only; Finance cancels nothing. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/finance/recurring" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    routingTags: [finance, subscriptions, recurring]
+    tags: [finance]
+
+  - name: finance-recurring-answer
+    displayName: Answer a Recurring Payment
+    type: api
+    category: finance
+    description: >-
+      Record the caller's answer to one repeating payment: keep, bill (track it as a bill; confirm: true) or cancel (the caller means to cancel it themselves; Finance cancels nothing and shows if it is charged again).
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/recurring/{input.seriesId}/answer" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { seriesId: { type: string }, answer: { type: string, enum: [keep, bill, cancel] }, confirm: { type: boolean } }
+      required: [seriesId, answer]
+    tags: [finance]
+
+  - name: finance-recurring-clear
+    displayName: Review a Recurring Payment Again
+    type: api
+    category: finance
+    description: >-
+      Take back the caller's answer to one repeating payment, so it waits for a review again.
+    executor: { executorType: api, apiEndpoint: "POST /api/finance/recurring/{input.seriesId}/clear" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: { seriesId: { type: string } }
+      required: [seriesId]
+    tags: [finance]
+
 ticketType: finance-brief
 
 workflow:
@@ -195,6 +717,82 @@ routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
     mountPath: /api/finance/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  # Finance's own records: accounts, transactions and statement imports. Every GET only reads; applying
+  # and undoing an import need confirm: true. Listed before the /api/finance mount so it is matched first.
+  - module: routes/finance-ledger.js
+    factory: createFinanceLedgerRoutes
+    mountPath: /api/finance/ledger
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  # 1.7.0: the money day over Finance's own records. Bills (proposals from repeating charges become bills only on the
+  # person's yes; Mark paid marks it in Finance and pays nothing), goals (Set aside is bookkeeping: no money moves), the
+  # month against its plan, and the day (GET only reads). Listed before the /api/finance mount so each is matched first.
+  - module: routes/finance-bills.js
+    factory: createFinanceBillsRoutes
+    mountPath: /api/finance/bills
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  # 1.8.0: bills from the person's own mail. Off until the person turns it on (POST /switch with confirm: true); a check
+  # reads at most 20 bill-like messages in 45 s through the Gmail host below and keeps each bill found as a proposal; Add
+  # needs confirm: true. Nothing is paid, sent or changed in the mailbox. The GET only reads.
+  - module: routes/finance-mail.js
+    factory: createFinanceMailRoutes
+    mountPath: /api/finance/mail
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  # 1.8.0: Recurring, every charge that repeats in the person's own records with what it costs a year. Answering one
+  # records Keep, Track as a bill (confirm: true) or Mark to cancel; Finance cancels nothing. The GET only reads.
+  - module: routes/finance-recurring.js
+    factory: createFinanceRecurringRoutes
+    mountPath: /api/finance/recurring
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/finance-goals.js
+    factory: createFinanceGoalsRoutes
+    mountPath: /api/finance/goals
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/finance-month.js
+    factory: createFinanceMonthRoutes
+    mountPath: /api/finance/month
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/finance-day.js
+    factory: createFinanceDayRoutes
+    mountPath: /api/finance/day
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  # 1.7.0: Finance's record pages by name (GET /api/finance/p/<name> answers tools/finance-<name>.html) and the two
+  # files they share (GET /api/finance/p/static/<file>). It reads no person's data and writes nothing.
+  - module: routes/finance-pages.js
+    factory: createFinancePagesRoutes
+    mountPath: /api/finance/p
     auth: oidc
     requiresAuth: true
     requiresContext: true
@@ -221,6 +819,58 @@ migrations:
   - migrations/001-finance-stores.sql
   # 1.6.5: the caller's latest analysis request (working, done or failed in words), one row a person.
   - migrations/002-finance-analysis.sql
+  # Finance's own records (accounts, transactions, imports, rules, documents). Migration only: no route creates
+  # or alters these tables.
+  - migrations/003-ledger.sql
+  # 1.7.0: bills and their due dates, goals and what was set aside, the month's plan and closed months. Migration
+  # only: no route creates or alters these tables.
+  - migrations/004-day.sql
+  # 1.8.0: the person's mail check and the bills found in their mail. Migration only.
+  - migrations/005-mail.sql
+  # 1.8.0: the person's answer to each repeating payment (the payments themselves are worked out from the transactions).
+  - migrations/006-recurring.sql
+
+# 1.8.0: the person's own Gmail, for bills found in their mail. The kernel adds the caller's own gmail connection on the
+# way out; the package never sees a token. Finance only searches and reads (users.messages.list and .get): it sends no
+# mail and changes no label.
+egress:
+  - host: gmail.googleapis.com
+    credential: { connector: gmail, header: authorization, prefix: "Bearer " }
+
+# 1.8.0: the mail check, as the person, every three hours. It starts itself once the person uses Finance with Google
+# connected, and reads no mail until they turn the mail check on in Bills; each run does at most 45 s of work and the
+# next continues where it stopped. It spends nothing: bills are read by fixed patterns, no model is asked.
+schedules:
+  - id: finance-mail-bills
+    startsItself: true
+    startsWhenConnected: google
+    cron: "17 */3 * * *"
+    runsAs: user
+    target: service-route
+    route: /api/finance/mail/check
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Look through your Gmail for new bills (the biller, the amount due and the due date) once you turn the mail check on in Finance, Bills. It sends no mail, changes nothing in your mailbox and pays nothing; each bill found waits for your yes.
+    offer: Look through my mail for new bills, once I turn the mail check on in Finance.
+
+# "Send to..." destination (ADR-139): a statement saved as CSV, OFX, QFX or plain text becomes an import preview
+# in Finance. Nothing joins the person's records until they press the preview's button. A PDF is not listed: the
+# kernel turns a PDF into text for a page, not for a package's server, so a PDF is added from Finance's own sheet.
+artifacts:
+  accepts:
+    - id: statement
+      label: File in Finance
+      icon: 🧾
+      types:
+        - text/*
+        - application/csv
+        - application/x-ofx
+        - application/ofx
+        - application/vnd.intu.qfx
+        - application/x-qfx
+      mode: post
+      endpoint: /api/finance/ledger/imports/artifact
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the Finance page (served by
@@ -235,6 +885,38 @@ ui:
       label: Finance
       icon: codicon codicon-home
       iframeUrl: /api/finance/app
+      section: top
+    # 1.7.0: the record pages (Finance's own records, no bank connection needed). Finance's bar shows them in this
+    # order after Home; each page's short name is its toolName without "finance-" (GET /api/finance/p/<name>).
+    - toolName: finance-accounts
+      label: Accounts
+      icon: codicon codicon-library
+      iframeUrl: /api/finance/p/accounts
+      section: top
+    - toolName: finance-transactions
+      label: Transactions
+      icon: codicon codicon-list-unordered
+      iframeUrl: /api/finance/p/transactions
+      section: top
+    - toolName: finance-bills
+      label: Bills
+      icon: codicon codicon-calendar
+      iframeUrl: /api/finance/p/bills
+      section: top
+    - toolName: finance-recurring
+      label: Recurring
+      icon: codicon codicon-sync
+      iframeUrl: /api/finance/p/recurring
+      section: top
+    - toolName: finance-spending
+      label: Spending
+      icon: codicon codicon-pie-chart
+      iframeUrl: /api/finance/p/spending
+      section: top
+    - toolName: finance-goals
+      label: Goals
+      icon: codicon codicon-target
+      iframeUrl: /api/finance/p/goals
       section: top
     - toolName: finance-home
       label: Money

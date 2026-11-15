@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: the TVs and streaming sticks section of the Smart Home screen. The person picks one of their own computers (the kernel's /api/computers, an online one first) and presses Scan for TVs: the page installs or updates Phone & Device Control's bridge on that computer when it is not 1.5.0 (the same verified install that page runs), asks Smart Home for the closed scan command, runs it on that computer, and records the answer; Android TVs found are also added to Phone & Device Control. Each TV card's buttons run one planned press the same way and say what the computer answered ("Press Allow on the TV, then Retry." while a Samsung waits). Installing the oshal TV app is one explicit press for one Android TV this computer already has permission to use. Nothing is scanned or installed when the page opens. When the person's app list says they cannot open Phone & Device Control (not installed, not theirs, or changed and waiting for re-approval), the section says which, requests nothing from it, and still lists the saved TVs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): an Android or Fire TV's card gains a row for the app playing on it, in front or not: Previous, Pause, Play, Next and What's playing (Phone & Device Control's bridge 1.8.0), and a Now playing line with the app, the title, its state and whether it is behind another app, from the TV's last answer.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.2: Open on this TV button labels and launch_url action word name the product Open Swarm; oshal TV app and oshal Node component wording stay unchanged.
  */
 
 const LINK = '/api/phone-control/ui/computer-link.js';
@@ -26,7 +27,7 @@ export const WAITING_WORDS = Object.freeze({
 
 const PRESS_WORDS = Object.freeze({ wake: 'Wake', off: 'Turn off', volume_up: 'Volume up', volume_down: 'Volume down', mute: 'Mute',
   up: 'Up', down: 'Down', left: 'Left', right: 'Right', select: 'OK', home: 'Home', back: 'Back', play_pause: 'Play or pause',
-  launch_url: 'Open oshal', open_app: 'Open the oshal TV app', pair: 'Pair',
+  launch_url: 'Show Open Swarm', open_app: 'Open the oshal TV app', pair: 'Pair',
   now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop' });
 const MOVES = [['up', '▲', 'Up'], ['left', '◀', 'Left'], ['select', 'OK', 'OK'], ['right', '▶', 'Right'], ['down', '▼', 'Down']];
 
@@ -48,14 +49,14 @@ export function tvButtons(tv) {
     extra: []
   };
   if (tv.kind === 'samsung-tizen') {
-    rows.extra.push(b('launch_url', 'Open oshal on this TV'));
+    rows.extra.push(b('launch_url', 'Show Open Swarm on this TV'));
     if (!tv.samsung?.paired) rows.extra.push(b('pair', 'Pair'));
   }
   if (tv.kind === 'android-tv') {
     rows.media.push(b('previous', '⏮', 'Previous'), b('pause', '⏸', 'Pause'), b('play', '▶', 'Play'), b('next', '⏭', 'Next'),
       b('now_playing', 'What\'s playing', 'What is playing'));
     const adb = tv.adb?.state || 'off';
-    rows.extra.push(tv.adb?.appInstalled ? b('open_app', 'Open oshal on this TV') : b('launch_url', 'Open oshal on this TV'));
+    rows.extra.push(tv.adb?.appInstalled ? b('open_app', 'Show Open Swarm on this TV') : b('launch_url', 'Show Open Swarm on this TV'));
     if (adb === 'device') rows.extra.push(b('install_app', 'Install the TV app'));
     if (adb === 'not-connected' || adb === 'unauthorized') rows.extra.push(b('pair', 'Connect'));
   }

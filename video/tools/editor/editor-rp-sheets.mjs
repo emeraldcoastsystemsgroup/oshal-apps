@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Reference-product tool sheets and controls for Video 1.14.0 (RP-VID-01..10): clip speed, auto captions, stickers, color looks, chroma key, background matting, voice synthesis, stabilization, export resolution/fps and CC0 sound library.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: Stickers sheet help text names Open Swarm Original SVG stickers.
  */
 import * as timeline from './timeline-model.mjs';
 import { applyMultitrack, migrateMultitrack } from './multitrack-model.mjs';
@@ -205,7 +206,7 @@ function renderPlacedStickers(env, host) {
 
 function openStickersSheet(env) {
   const { domDoc, adapter, layers, make, act } = env, layer = layers.create('Stickers', 'ds-sheet'), grid = make('div', 'rp-grid');
-  const status = make('p', 'video-help', 'Built-in OSHAL Original SVG stickers (CC0-1.0). Tap to add onto the timeline.');
+  const status = make('p', 'video-help', 'Built-in Open Swarm Original SVG stickers (CC0-1.0). Tap to add onto the timeline.');
   const placed = make('ul', 'rp-cue-list'); placed.dataset.placedStickers = '';
   for (const item of STICKER_CATALOG) {
     const card = make('button', 'rp-sticker-card'), img = domDoc.createElement('img');

@@ -4,6 +4,7 @@ exports.hash = void 0;
 exports.canonical = canonical;
 exports.admit = admit;
 exports.intakeRecords = intakeRecords;
+/** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: caller refusals name the product Open Swarm. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | admit takes sameOccurrence for a producer that repeats one event with text that moves: Alertmanager's DiskHigh repeat carries a new percentage under the same occurrence, and that is a retry, not a conflict. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Admit source deliveries, attempts and pending processing atomically under the native caller. */
 // @ts-nocheck
@@ -25,7 +26,7 @@ const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped co
 /** The caller is supplied by OSHAL, never by a payload. Commit precedes every acknowledgement. */
 async function admit(pool, owner, source, raw, options = {}) {
     if (!identified(owner))
-        fail(401, 'A verified OSHAL caller is required.');
+        fail(401, 'A verified Open Swarm caller is required.');
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         fail(400, 'One alert object is required.');
     if (Buffer.byteLength(JSON.stringify(raw)) > 65536)
@@ -78,7 +79,7 @@ async function admit(pool, owner, source, raw, options = {}) {
 /** Reads retain bounded pages and caller scope; old manual-import records remain separately identifiable. */
 async function intakeRecords(pool, owner) {
     if (!identified(owner))
-        fail(401, 'A verified OSHAL caller is required.');
+        fail(401, 'A verified Open Swarm caller is required.');
     const read = async (table) => (await pool.query(`SELECT record FROM ${table} WHERE user_sub=$1 ORDER BY received_at DESC LIMIT 200`, [owner])).rows.map(r => r.record);
     const [events, attempts, processing] = await Promise.all([read('operations_deliveries'), read('operations_delivery_attempts'),
         pool.query('SELECT id, delivery_id, state, revision, created_at FROM operations_processing WHERE user_sub=$1 ORDER BY created_at DESC LIMIT 200', [owner]).then(r => r.rows)]);

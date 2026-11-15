@@ -7,6 +7,7 @@
  *   switch by keyboard arrows/Home/End, phone (<600px) 4+More bottom bar and sheet, single-sentence scope lede, 44px W-4
  *   switch rows, supported-state select matching the compiled tax engine, blur validation, hidden Termination date on new
  *   hires, and 4-step Add employee sheet/dialog saving an employee.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: scope lede names the product Open Swarm.
  */
 
 import { test } from 'node:test';
@@ -174,7 +175,7 @@ function bootPayroll({ initialEmployees = [] } = {}) {
 const settle = () => new Promise((r) => setImmediate(r));
 
 test('payroll: static structure has semantic tablist, phone 4+More bar, 44px W-4 switches, engine states, and 1-sentence lede', () => {
-  assert.match(HTML, /<p class="sub" id="payrollLede">oshal records payroll from the <span id="taxYear">2026<\/span> tax engine; it never moves money or files returns\.<\/p>/);
+  assert.match(HTML, /<p class="sub" id="payrollLede">Open Swarm records payroll from the <span id="taxYear">2026<\/span> tax engine; it never moves money or files returns\.<\/p>/);
   assert.match(HTML, /<div class="tabs" id="moduleTabs" role="tablist" aria-label="Payroll modules">/);
   const tabButtons = [...HTML.matchAll(/<button type="button" class="tab[^"]*" role="tab"[^>]*data-tab="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(tabButtons, ['employees', 'runs', 'stubs', 'reports', 'filing', 'settle', 'settings']);

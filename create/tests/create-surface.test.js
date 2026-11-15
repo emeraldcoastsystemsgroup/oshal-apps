@@ -17,6 +17,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Permit the inline editing concierge while preserving no generation schedules/workflow; show its Concierge control.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New is Home's sheet, so Home leads the rail and no create-new tile exists; the Blank row and templates replace the quick-start list and name catalog studios; the boot gate is applyAccess → artifact → profile → summaries; the hero, section pills, quick-start grid and studios grid are gone and one New button opens the sheet.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | The access probe waits ACCESS_TIMEOUT_MS (10 s, sixteen studios answered in turn) instead of 3 s.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: the catalog description leads with what Create makes itself and gives each studio's work to that studio by name. It opened "One studio for everything you make: decks, ... portraits, ...", and Jarvis, which names an application from its description, asked "Portrait Studio or Create?" for a portrait only Portrait Studio makes.
  */
 'use strict';
 const test = require('node:test');
@@ -259,4 +260,19 @@ test('Home is your work with one New: no hero, no section pills, no quick-start 
   assert.match(source, /<dialog class="sheet" id="newSheet"/, 'New opens a top-layer sheet/dialog');
   assert.match(source, /document\.getElementById\('newBtn'\)\.addEventListener\('click', function \(\) \{ openNew\(\{\}\); \}\);/);
   assert.doesNotMatch(source, /tool: 'create-new'|go\('create-new'/, 'Home never navigates to a create-new tile');
+});
+
+test('the description leads with what Create makes itself and gives each studio\'s work to that studio', () => {
+  const block = manifest().match(/^description: >-\n((?:  .*\n)+)/m);
+  assert.ok(block, 'the manifest declares a folded description');
+  const text = block[1].split(/\s+/).filter(Boolean).join(' ');
+  assert.match(text, /^Generate a picture from a sentence, or draw one in editable layers\. Create is also the front door to the studios you already have:/, text);
+  assert.match(text, /a single home page that shows what you were working on and one tap to pick up where you left off in each\./, text);
+  assert.match(text, /The studios do their own work, not Create:/, text);
+  // Each kind of work is said of the studio the Home page opens for it, never of Create.
+  for (const owned of ['AI Office makes decks, documents and workbooks', 'Portrait Studio portraits from your photos',
+    'Video Studio short videos', 'Creative Studio story episodes', 'LoRA Studio LoRA characters', 'Scan to Print 3D scans',
+    'Brand Graphics brand intro clips']) assert.ok(text.includes(owned), owned);
+  assert.doesNotMatch(text, /One studio for everything you make/, 'Create no longer lists the studios\' work as its own');
+  assert.ok(text.split(/\s+/).length <= 100, 'a product description, not a word list');
 });

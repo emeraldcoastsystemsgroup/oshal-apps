@@ -4,7 +4,8 @@
     "1 | maintainer@emeraldcoastsystemsgroup.com | Register the Career real-browser sender proof in the reviewed command list.",
     "2 | maintainer@emeraldcoastsystemsgroup.com | Register Career Coaching's package suites and its Chromium page proof.",
     "3 | maintainer@emeraldcoastsystemsgroup.com | Register Calendar 1.3.0's own and Google event suites and its Add to Google Calendar card suite.",
-    "4 | maintainer@emeraldcoastsystemsgroup.com | Register the role template coverage rule (a template maps its own application and every required application)."
+    "4 | maintainer@emeraldcoastsystemsgroup.com | Register the role template coverage rule (a template maps its own application and every required application).",
+    "5 | maintainer@emeraldcoastsystemsgroup.com | Register Calendar 1.4.0's meeting change and cancel suites (routes, cards, the ask-which conversation)."
   ],
   "commands": [
     ".|node --test scripts/check-catalog.test.mjs",
@@ -30,6 +31,8 @@
     ".|node --test scripts/store-ci-local.test.mjs",
     ".|node --test scripts/revert-guard.test.mjs",
     ".|node --test scripts/sweep-test-search.test.mjs",
+    ".|node --test scripts/store-ci-scope.test.mjs",
+    ".|node --test scripts/store-gate-wrappers.test.mjs",
     ".|node --test scripts/run-trading-specs.test.mjs",
     "animatronics|node --test \"tests/*-*.test.js\"",
     "audio|node --test \"tests/*.test.cjs\"",
@@ -39,6 +42,8 @@
     "calendar|node --test \"tests/personal-calendar*.test.*js\"",
     "calendar|node --test \"tests/*-events.test.cjs\"",
     "calendar|node --test tests/google-events-card.test.cjs",
+    "calendar|node --test \"tests/*meeting*.test.cjs\"",
+    "calendar|node --test tests/own-event-changes.test.cjs",
     "career-hunter|node --test \"tests/*.test.mjs\"",
     "career-hunter|node --test \"tests/browser/career-submission-browser-proof.mjs\"",
     "circuit-lab|node --test \"tests/*-*.test.js\"",
@@ -117,6 +122,9 @@
     "kalshi|node --test tests/audience-view.test.cjs",
     "kalshi|node --test tests/browser/kalshi-phone-layout.test.cjs",
     "kalshi|node --test tests/browser/kalshi-scorecard-grading.test.cjs",
-    "embodied|node --test tests/audience-view.test.cjs"
+    "embodied|node --test tests/audience-view.test.cjs",
+    "identity|node --test \"tests/*.test.js\"",
+    "identity|node --test \"tests/*.test.cjs\"",
+    "identity|node --test tests/connect-from-frame.browser.cjs"
   ]
 }

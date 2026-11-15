@@ -5,6 +5,7 @@
   SEQ | AUTHOR                                  | DESCRIPTION
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): semantic role="tab" module buttons with arrow-key navigation, phone (<600px) 4+More bottom bar and sheet, 4-step Add employee dialog/sheet with blur validation and supported-state select, 44px W-4 switch rows, and single-sentence scope lede.
+  2   | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: surface lede, notices, pay stub footer and confirmation prompts name the product Open Swarm.
   -----------------------------------------------------------------------------
   Payroll surface — run an ADP-style payroll over your own roster. Self-contained
   iframe page served by createPayrollRoutes at /api/payroll/. All work is
@@ -273,7 +274,7 @@
       <div class="muted" style="font-size:12px" id="hdrCompany">&nbsp;</div>
     </div>
   </div>
-  <p class="sub" id="payrollLede">oshal records payroll from the <span id="taxYear">2026</span> tax engine; it never moves money or files returns.</p>
+  <p class="sub" id="payrollLede">Open Swarm records payroll from the <span id="taxYear">2026</span> tax engine; it never moves money or files returns.</p>
 
   <div class="tabs" id="moduleTabs" role="tablist" aria-label="Payroll modules">
     <button type="button" class="tab active" role="tab" id="tab-employees" aria-selected="true" aria-controls="view-employees" tabindex="0" data-tab="employees"><i class="codicon codicon-account" aria-hidden="true"></i> Employees</button>
@@ -466,8 +467,8 @@
   <div class="view" id="view-filing" role="tabpanel" aria-labelledby="tab-filing" style="display:none">
     <div class="panel">
       <h2>Direct deposit (ACH)</h2>
-      <div class="notice">oshal generates the NACHA file; <b>your own bank executes it</b>. No money moves
-        through oshal and no third party is involved. Send a zero-dollar <b>prenote</b> first if your bank
+      <div class="notice">Open Swarm generates the NACHA file; <b>your own bank executes it</b>. No money moves
+        through Open Swarm and no third party is involved. Send a zero-dollar <b>prenote</b> first if your bank
         wants accounts validated before a live run.</div>
       <div class="row" style="margin-top:10px">
         <label class="field" style="min-width:280px"><span>Paid run</span><select id="achRun"></select></label>
@@ -478,7 +479,7 @@
     </div>
     <div class="panel">
       <h2>Tax forms</h2>
-      <div class="notice">Worksheets carrying the exact numbered line values. oshal does <b>not</b> transmit
+      <div class="notice">Worksheets carrying the exact numbered line values. Open Swarm does <b>not</b> transmit
         to the IRS or SSA — you or your filing service transcribe these onto the return.</div>
       <div class="row" style="margin-top:10px">
         <label class="field" style="width:110px"><span>Year</span><input id="fYear" type="number" /></label>
@@ -1139,7 +1140,7 @@ async function openRun(id) {
           <tr><td>Employer taxes (FICA match, FUTA, SUTA)</td><td class="num">${fmt$(employer)}</td></tr>
           <tr><td><b>Total cash required on payday</b></td><td class="num"><b>${fmt$(net + employeeTax + employer)}</b></td></tr>
         </tbody></table>
-        <div class="notice">Cash required = net pay to employees + the taxes you must remit. oshal does not move
+        <div class="notice">Cash required = net pay to employees + the taxes you must remit. Open Swarm does not move
           any of it — this is the figure to have in the account and to deposit on the schedule your depositor
           status requires.</div>
       </div>`;
@@ -1173,7 +1174,7 @@ async function approveRunInner(id) {
     + `Net to employees: ${fmt$(net)}\n`
     + `Taxes to remit: ${fmt$(tax + er)}\n`
     + `TOTAL CASH REQUIRED: ${fmt$(net + tax + er)}\n\n`
-    + `The run becomes immutable — a mistake is corrected by voiding it. oshal does not move funds.`;
+    + `The run becomes immutable — a mistake is corrected by voiding it. Open Swarm does not move funds.`;
   if (!window.confirm(summary)) return;
   try {
     await api(`/runs/${id}/approve`, { method:'POST', body: JSON.stringify({ confirm: true }) });
@@ -1253,7 +1254,7 @@ async function loadStub() {
           <td class="num">${fmt$(Number(s.ytd.fit) + Number(s.ytd.ss) + Number(s.ytd.medicare) + Number(s.ytd.state))}</td>
           <td class="num">${fmt$(s.ytd.pretax)}</td><td class="num">${fmt$(s.ytd.posttax)}</td><td class="num">${fmt$(s.ytd.net)}</td></tr>
       </tbody></table>
-      <div class="small" style="margin-top:12px">Computed by the oshal payroll engine (deterministic, tax year ${esc(String($('taxYear').textContent))}).
+      <div class="small" style="margin-top:12px">Computed by the Open Swarm payroll engine (deterministic, tax year ${esc(String($('taxYear').textContent))}).
         This document records payroll; it is not proof of funds movement.</div>
     </div>`;
   } catch (e) { msg(e.message, true); }
@@ -1316,7 +1317,7 @@ async function buildAch(prenote, btn) {
     $('achOut').innerHTML = '';
     const label = prenote
       ? 'Send a zero-dollar PRENOTE file to your bank to validate accounts?'
-      : 'Generate the ACH file for this run?\n\nThis file instructs YOUR BANK to move money. oshal does not send it — you upload it.';
+      : 'Generate the ACH file for this run?\n\nThis file instructs YOUR BANK to move money. Open Swarm does not send it — you upload it.';
     if (!window.confirm(label)) return;
     try {
       const r = await fetch(`/api/payroll/runs/${runId}/ach`, {

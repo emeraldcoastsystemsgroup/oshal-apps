@@ -1,4 +1,6 @@
-# brand-graphics — an OSHAL app package
+# brand-graphics — Brand Graphics
+
+1.4.2 updates person-facing tool labels and the Brand Graphics persona to name the product Open Swarm and retires the legacy voiceover pronunciation note; technical identifiers keep their forms.
 
 1.4.0 makes the seven reference functions work (they were greyed "Not available yet" controls):
 
@@ -17,8 +19,8 @@
 
 1.1.2 adds the family audience view (ADR-164 D6): the Home shell (Jarvis) opens this package's first surface, `GET /api/brand-graphics/review`, with `?audience=family`; the shared kit paints a card from the package's own home-summary (read-only, owner-scoped) with the cockpit escape and an in-frame link to the full page, refusals said and never filled in; without the audience the page runs unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`.
 
-On-brand OSHAL motion graphics: a specialist bot turns a short brief ("intro for
-daily trade recap") into the validated electric-"oshal" intro look by driving
+On-brand Open Swarm motion graphics: a specialist bot turns a short brief ("intro for
+daily trade recap") into the validated electric brand intro look by driving
 Google Vids (Veo + Voiceover + Music) on the operator's signed-in remote Chrome,
 and returns the project URL.
 

@@ -5,6 +5,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Publish rails and channel consent for the marketing-engine API, moved verbatim out of marketing-routes.ts at the 800-line decomposition threshold: the LinkedIn/Mastodon/Bluesky/email rails and the shared connector-action invocation behind them, the rail dispatcher, the consent→cap→confirm gate with its run-ledger outcome mapping, and the 428-gated per-channel consent PUT. Gate order, status codes, error codes and hints are unchanged.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.9: default email fallback subject names Open Swarm update.
  *
  * @module marketing-publish
  */
@@ -72,7 +73,7 @@ async function publishEmail(ctx, sub, item, body) {
     if (!spec || !(0, marketing_support_1.specHasAction)(spec, 'send-email')) {
         return { ok: false, status: 503, error: 'channel_unavailable', hint: 'core connector spec missing send-email' };
     }
-    const subject = String(item.title || '').trim() || 'oshal update';
+    const subject = String(item.title || '').trim() || 'Open Swarm update';
     return runSpecAction(ctx, sub, spec, 'send-email', { from, to, subject, text: String(item.body) }, 'email_rejected');
 }
 /** Shared connector-action invocation → RailResult (confirm:true only ever passed post-gate). */

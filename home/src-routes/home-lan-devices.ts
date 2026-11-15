@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: TVs and streaming sticks on the person's home network. This package never reaches a network (its sandbox has none): its routes build the closed phone-control bridge command (lan-discover, lan-control) that the Smart Home page or Jarvis runs on the person's own computer through the kernel's /api/computers, and they record what that computer answered: the TVs found (Samsung Tizen, Roku, Android TV, Google Cast) and each press's result. A plan always says planned, never done; a TV's on/off state changes only when the computer's answer for that TV said the press worked. Stored per person in lan-tvs.json under the package's lasting folder.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.3: a plan's next step says how Jarvis carries it out. home-lan-discover and home-lan-control declare a computerPlan, so the kernel offers home-bot computer.run_plan and attaches a planId to this answer: pass that planId to computer.run_plan, which runs exactly this command once on the person's own computer, then record the computer's answer with home-lan-record. Without computer.run_plan or a planId nothing ran: say it is planned and name the Smart Home TV button that runs it. The command is unchanged and still fits the kernel's plan grammar (tests/home-lan-devices.test.cjs).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4; Roger, 2026-11-10: "a way to control an app that is running in the background"): on an Android or Fire TV, now_playing reads what is playing and in which app, and play, pause, next, previous and stop reach the app playing it even when another app is in front (Phone & Device Control's bridge 1.8.0). The TV keeps what was last read as nowPlaying, and the answer says it in words; a Roku or Samsung TV refuses them in words.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.1 (Lane TV1; Roger, 2026-11-13, asked that Jarvis open an application such as Netflix on his Roku and Samsung TVs and know where it is): on a Roku or a Samsung TV, launch_app plans opening one application by its checked id (or by its name once the TV's applications were read), on a Roku also a title by the application's own content id and media type, never a web address; list_apps plans reading the TV's applications, which the TV then keeps; active_app plans reading what is in front (a Samsung TV answers about one named application). The recorded answer says what the TV itself reported in front after the press and nothing more: neither kind shows its screen. An Android or Fire TV refuses the three in words, a title on a Samsung TV is refused in words, and a computer whose bridge answers bad_action is told how to update it (Phone & Device Control's bridge 1.20.0).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.2: launch_url action label and Samsung open_app refusal name the product Open Swarm; oshal TV app component wording stays unchanged.
  */
 
 import fs from 'node:fs';
@@ -17,21 +19,27 @@ export const LAN_KINDS = ['android-tv', 'samsung-tizen', 'roku'] as const;
 type LanKind = (typeof LAN_KINDS)[number] | 'cast';
 /** @description The closed list of presses a plan can carry; the bridge refuses anything else on its own too. */
 export const LAN_ACTIONS = ['wake', 'off', 'volume_up', 'volume_down', 'mute', 'up', 'down', 'left', 'right', 'select',
-  'home', 'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'now_playing', 'play', 'pause', 'next', 'previous', 'stop'] as const;
+  'home', 'back', 'play_pause', 'launch_url', 'open_app', 'pair', 'now_playing', 'play', 'pause', 'next', 'previous', 'stop',
+  'launch_app', 'list_apps', 'active_app'] as const;
 /** @description The presses that read or steer the app playing on an Android or Fire TV, in front or not (bridge 1.8.0). */
 export const MEDIA_ACTIONS = ['now_playing', 'play', 'pause', 'next', 'previous', 'stop'] as const;
+/** @description On a Roku or a Samsung TV: open one application, list the applications, say what is in front (bridge 1.20.0). */
+export const FRONT_ACTIONS = ['launch_app', 'list_apps', 'active_app'] as const;
+/** @description The kinds of title a Roku application opens by its content id (Roku's deep-link media types). */
+export const MEDIA_TYPES = ['movie', 'episode', 'season', 'series', 'shortFormVideo', 'tvSpecial', 'livefeed', 'sportsevent'] as const;
 /** @description What each press is called on the page and in an answer. */
 export const ACTION_WORDS: Record<string, string> = {
   wake: 'Wake', off: 'Turn off', volume_up: 'Volume up', volume_down: 'Volume down', mute: 'Mute', up: 'Up',
   down: 'Down', left: 'Left', right: 'Right', select: 'OK', home: 'Home', back: 'Back', play_pause: 'Play or pause',
-  launch_url: 'Open oshal', open_app: 'Open the oshal TV app', pair: 'Pair', install_app: 'Install the TV app',
+  launch_url: 'Show Open Swarm', open_app: 'Open the oshal TV app', pair: 'Pair', install_app: 'Install the TV app',
   now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop',
+  launch_app: 'Open an application', list_apps: 'List the applications', active_app: 'What\'s in front',
 };
 const NOT_FOR: Record<string, readonly string[]> = {
-  'android-tv': [], 'samsung-tizen': ['open_app', ...MEDIA_ACTIONS], roku: ['launch_url', 'open_app', 'pair', ...MEDIA_ACTIONS],
+  'android-tv': [...FRONT_ACTIONS], 'samsung-tizen': ['open_app', ...MEDIA_ACTIONS], roku: ['launch_url', 'open_app', 'pair', ...MEDIA_ACTIONS],
 };
-/** @description The phone-control bridge version that has every TV press here (the media ones came in 1.8.0). */
-export const BRIDGE_VERSION = '1.8.0';
+/** @description The phone-control bridge version that has every TV press here (the application ones came in 1.20.0). */
+export const BRIDGE_VERSION = '1.20.0';
 const BRIDGE_SCRIPT = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
 const STORE_FILE = 'lan-tvs.json';
 const MAX_TVS = 48;
@@ -40,7 +48,14 @@ const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
 const MAC = /^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$/;
 const SAFE_URL = /^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?(?:\/[A-Za-z0-9._~!$&()*+,;=:@%/?#-]*)?$/;
 const NODE_ID = /^[0-9A-Fa-f-]{8,64}$/;
-const OLD_BRIDGE = new Set(['unknown_verb', 'bridge_not_installed']);
+// A press this package planned is always one the current bridge knows, so bad_action from a computer means an older bridge.
+const OLD_BRIDGE = new Set(['unknown_verb', 'bridge_not_installed', 'bad_action']);
+const ROKU_APP = /^\d{1,10}$/;
+const SAMSUNG_APP = /^(?:\d{1,20}|[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)$/;
+const CONTENT_ID = /^[A-Za-z0-9_.~:-]{1,255}$/;
+const MAX_APP_ID = 80;
+const MAX_APPS = 100;
+const PLAYER_WORDS: Record<string, string> = { play: 'playing', pause: 'paused', buffer: 'buffering', stop: 'stopped', startup: 'starting', open: 'opening' };
 
 /** @description What the computer answered for one press, in words, with when. */
 export interface LanResult { action: string; ok: boolean; error: string | null; message: string; at: string }
@@ -52,8 +67,12 @@ export interface LanTv {
   os: string | null; room: string | null; controllable: boolean; power: 'on' | 'off' | null;
   computer: LanComputer | null; adb: { state: string; appVersionCode: number | null; appInstalled: boolean } | null;
   samsung: { paired: boolean } | null; steps: string | null; lastSeenAt: string; lastResult: LanResult | null;
-  nowPlaying?: NowPlaying | null;
+  nowPlaying?: NowPlaying | null; apps?: TvApp[] | null; appsAt?: string | null; front?: FrontApp | null;
 }
+/** @description One application a Roku or a Samsung TV listed: the id it opens by and its name. */
+export interface TvApp { id: string; name: string }
+/** @description What a Roku or a Samsung TV last reported about an application: in front or not, running or not, when. */
+export interface FrontApp { id: string | null; name: string; inFront: boolean | null; running: boolean | null; screensaver: string | null; player: string | null; at: string }
 /** @description What the TV said was playing when it was last asked: the app, the title, its state, whether it was in front. */
 export interface NowPlaying { app: string; title: string | null; state: string; inFront: boolean; at: string }
 interface LanScan { at: string; ok: boolean; found: number; computer: LanComputer | null; error: string | null; message: string }
@@ -212,7 +231,7 @@ function urlFor(body: Body, host: string): string | null {
  * @description The plan for one press on one saved TV, refused in words when it cannot be done.
  * @param sub The signed-in person's subject.
  * @param body { device, action, url?, computer? }.
- * @param host The request's host, for the page Open oshal opens when no url is given.
+ * @param host The request's host, for the page Show Open Swarm opens when no url is given.
  * @returns 200 with the planned command, or a refusal.
  */
 export function planControl(sub: string, body: Body, host = ''): Answer {
@@ -230,6 +249,11 @@ export function planControl(sub: string, body: Body, host = ''): Answer {
   if (NOT_FOR[tv.kind]?.includes(action)) return refusal(400, 'not_for_this_tv', notForWords(tv, action));
   const args: Record<string, unknown> = { kind: tv.kind, address: tv.address, action };
   if (tv.mac) args.mac = tv.mac;
+  if ((FRONT_ACTIONS as readonly string[]).includes(action)) {
+    const extra = frontArgs(tv, action, body);
+    if (extra.refused) return extra.refused;
+    Object.assign(args, extra.args);
+  }
   if (action === 'launch_url') {
     const url = urlFor(body, host);
     if (!url) return refusal(400, 'url_required', 'Say which https page to open on the TV (at most 256 characters).');
@@ -244,11 +268,61 @@ export function planControl(sub: string, body: Body, host = ''): Answer {
   } };
 }
 
+/**
+ * @description The id of the application a request names on a Roku or a Samsung TV: a name the TV listed, or an id in
+ *   the one shape that kind of TV uses. Nothing else reaches a plan.
+ * @param tv The saved TV.
+ * @param value The id or the name.
+ * @returns The id, or the refusal.
+ */
+export function appIdOf(tv: LanTv, value: unknown): { id?: string; refused?: Answer } {
+  const text = clip(value, 120);
+  if (!text) return { refused: refusal(400, 'app_required', `Say which application on ${tv.name}: its id, or its name once its applications have been read (action list_apps).`) };
+  const apps = tv.apps || [];
+  const want = text.toLowerCase();
+  const exact = apps.filter((app) => app.name.toLowerCase() === want);
+  if (exact.length === 1) return { id: exact[0].id };
+  if (tv.kind === 'roku' ? ROKU_APP.test(text) : text.length <= MAX_APP_ID && SAMSUNG_APP.test(text)) return { id: text };
+  const fits = exact.length ? exact : apps.filter((app) => app.name.toLowerCase().includes(want));
+  if (fits.length === 1) return { id: fits[0].id };
+  if (fits.length > 1) return { refused: refusal(409, 'which_app', `More than one application on ${tv.name} fits "${text}": say which.`, { candidates: fits.slice(0, 12).map((app) => `${app.name} (${app.id})`) }) };
+  return { refused: refusal(400, 'app_unknown', apps.length
+    ? `${tv.name} listed no application called "${text}". Name one it listed (home-lan-devices shows them) or give its id.`
+    : `No application list is saved for ${tv.name} yet. Read its applications first (action list_apps), then name one or give its id.`) };
+}
+
+/**
+ * @description What a launch_app, list_apps or active_app plan carries besides the TV: the application's id and, on a
+ *   Roku, a title's content id and media type, each checked against its closed shape.
+ * @param tv The saved Roku or Samsung TV.
+ * @param action The press.
+ * @param body { app?, contentId?, mediaType? }.
+ * @returns The arguments, or the refusal.
+ */
+export function frontArgs(tv: LanTv, action: string, body: Body): { args?: Record<string, unknown>; refused?: Answer } {
+  const roku = tv.kind === 'roku';
+  if (action === 'list_apps' || (action === 'active_app' && roku)) return { args: {} };
+  if (action === 'active_app' && !clip(body.app, 120)) {
+    return { refused: refusal(400, 'app_required', `${tv.name} is a Samsung TV, which answers about one application at a time: say which application (its id, or its name once list_apps has read them), and it says whether that one is running and in front.`) };
+  }
+  const app = appIdOf(tv, body.app);
+  if (!app.id) return { refused: app.refused };
+  const content = clip(body.contentId, 300);
+  const media = clip(body.mediaType, 40);
+  if (action === 'active_app' || (!content && !media)) return { args: { app: app.id } };
+  if (!roku) return { refused: refusal(400, 'title_not_on_samsung', `A title cannot be opened directly on ${tv.name}, a Samsung TV: only the application. Leave contentId out.`) };
+  if (!CONTENT_ID.test(content)) return { refused: refusal(400, 'bad_content', "contentId is the application's own id for the title (letters, digits and . _ ~ : - only, at most 255 characters), never a web address.") };
+  const mediaType = MEDIA_TYPES.find((name) => name.toLowerCase() === media.toLowerCase());
+  if (media && !mediaType) return { refused: refusal(400, 'bad_media_type', `mediaType is one of ${MEDIA_TYPES.join(', ')}.`) };
+  return { args: { app: app.id, contentId: content, ...(mediaType ? { mediaType } : {}) } };
+}
+
 function notForWords(tv: LanTv, action: string): string {
+  if ((FRONT_ACTIONS as readonly string[]).includes(action)) return `${tv.name} is an Android or Fire TV: its applications are listed and opened through Phone & Device Control, and now_playing here says what is playing. This press is for a Roku or a Samsung TV.`;
   if ((MEDIA_ACTIONS as readonly string[]).includes(action)) return `What is playing, and play, pause, next and previous for the app playing it, work on Android and Fire TVs. On ${tv.name} use Play/Pause.`;
   if (tv.kind === 'roku' && action === 'launch_url') return `${tv.name} is a Roku, which cannot open a web page.`;
   if (tv.kind === 'roku' && action === 'pair') return `${tv.name} is a Roku: it needs no pairing.`;
-  return `${tv.name} is not an Android TV, so the oshal TV app cannot run on it. Use Open oshal instead.`;
+  return `${tv.name} is not an Android TV, so the oshal TV app cannot run on it. Use Show Open Swarm instead.`;
 }
 
 /**
@@ -326,7 +400,8 @@ export function mergeFound(store: LanStore, found: LanTv[]): { added: number; up
       continue;
     }
     const old = store.tvs[at];
-    store.tvs[at] = { ...tv, id: old.id, lastResult: old.lastResult, nowPlaying: old.nowPlaying ?? null, samsung: tv.samsung ? { paired: tv.samsung.paired || Boolean(old.samsung?.paired) } : old.samsung };
+    store.tvs[at] = { ...tv, id: old.id, lastResult: old.lastResult, nowPlaying: old.nowPlaying ?? null, samsung: tv.samsung ? { paired: tv.samsung.paired || Boolean(old.samsung?.paired) } : old.samsung,
+      ...(old.apps ? { apps: old.apps, appsAt: old.appsAt ?? null } : {}), ...(old.front ? { front: old.front } : {}) };
     updated += 1;
   }
   store.tvs.sort((a, b) => a.name.localeCompare(b.name));
@@ -378,12 +453,16 @@ export function applyControl(tv: LanTv, action: string, reply: Body, now: string
   const ok = reply.ok === true;
   const media = ok && (MEDIA_ACTIONS as readonly string[]).includes(action);
   if (media) tv.nowPlaying = nowPlayingOf(reply.now, now);
+  const front = ok && (FRONT_ACTIONS as readonly string[]).includes(action);
+  if (front && action === 'list_apps') Object.assign(tv, { apps: appsOf(reply.apps), appsAt: now });
+  if (front && action !== 'list_apps') tv.front = frontOf(reply, now);
   const result: LanResult = { action, ok, error: ok ? null : clip(reply.error, 40) || 'failed',
-    message: media ? playingWords(tv, action, tv.nowPlaying ?? null)
+    message: media ? playingWords(tv, action, tv.nowPlaying ?? null) : front ? frontWords(tv, action, reply)
       : ok ? `${ACTION_WORDS[action] || action}: done on ${tv.name}.` : clip(reply.message, 400) || 'The computer did not do it.', at: now };
   tv.lastResult = result;
   if (ok && (reply.power === 'on' || reply.power === 'off')) tv.power = reply.power;
-  if (tv.kind === 'samsung-tizen' && ok) tv.samsung = { paired: true };
+  // A Samsung TV's REST port (an application opened or read there) needs no pairing, so only its remote channel proves one.
+  if (tv.kind === 'samsung-tizen' && ok && (!front || action === 'list_apps' || reply.via === 'remote-channel')) tv.samsung = { paired: true };
   if (tv.kind === 'samsung-tizen' && reply.error === 'samsung_allow_on_tv') tv.samsung = { paired: false };
   if (action === 'install_app' && ok) tv.adb = { state: 'device', appVersionCode: tv.adb?.appVersionCode ?? null, appInstalled: true };
   return result;
@@ -409,6 +488,75 @@ export function playingWords(tv: LanTv, action: string, playing: NowPlaying | nu
   const where = playing.inFront ? '' : ' (behind another app)';
   const state = playing.state === 'none' ? 'idle' : playing.state;
   return action === 'now_playing' ? `On ${tv.name}, ${what} is ${state}${where}.` : `${ACTION_WORDS[action]} sent on ${tv.name}; ${what} is now ${state}${where}.`;
+}
+
+const part = (value: unknown): Body | null => (value && typeof value === 'object' && !Array.isArray(value) ? value as Body : null);
+const flag = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null);
+
+/**
+ * @description The applications a TV listed, checked and bounded: an id that is one plain token and a name. Pure.
+ * @param value The bridge's apps. @returns At most a hundred applications.
+ */
+export function appsOf(value: unknown): TvApp[] {
+  return (Array.isArray(value) ? value : []).map((item) => ({ id: clip(part(item)?.id, 120), name: clip(part(item)?.name, 60) }))
+    .filter((app) => app.name && app.id.length <= MAX_APP_ID && (ROKU_APP.test(app.id) || SAMSUNG_APP.test(app.id))).slice(0, MAX_APPS);
+}
+
+/**
+ * @description What the TV reported about an application after launch_app or active_app, kept short: a Roku's answer
+ *   names what is in front; a Samsung TV's says whether the one application asked about is running and visible. Pure.
+ * @param reply The bridge's answer. @param at When it was read. @returns The record to keep, or null.
+ */
+export function frontOf(reply: Body, at: string): FrontApp | null {
+  const seen = part(reply.front);
+  const asked = part(reply.app);
+  if (seen) {
+    return { id: clip(seen.id, MAX_APP_ID) || null, name: seen.home === true ? 'Home screen' : clip(seen.name, 60) || 'An application', inFront: true, running: true,
+      screensaver: clip(seen.screensaver, 60) || null, player: clip(part(reply.player)?.state, 20) || null, at };
+  }
+  if (!asked) return null;
+  return { id: clip(asked.id, MAX_APP_ID) || null, name: clip(asked.name, 60) || 'An application', inFront: flag(reply.visible), running: flag(reply.running), screensaver: null, player: null, at };
+}
+
+function rokuWords(tv: LanTv, action: string, name: string, reply: Body): string {
+  const seen = part(reply.front);
+  const home = seen?.home === true;
+  const frontName = clip(seen?.name, 60) || 'another application';
+  if (action === 'launch_app') {
+    if (reply.inFront === true) return `${name} is in front on ${tv.name}.${reply.contentId ? ' The title was asked for by its id; a Roku does not say which title is showing.' : ''}`;
+    return seen ? `Open an application was sent to ${tv.name}, but ${name} was not in front when the Roku was read: ${home ? 'its home screen' : frontName} was.`
+      : `Open an application was sent to ${tv.name}; the Roku did not say what is in front.`;
+  }
+  if (!seen) return `${tv.name} did not say what is in front.`;
+  const saver = clip(seen.screensaver, 60);
+  const playing = home ? '' : PLAYER_WORDS[clip(part(reply.player)?.state, 20)];
+  return `On ${tv.name}, ${home ? 'the home screen' : frontName} is in front${playing ? `, its player ${playing}` : ''}${saver ? `, with the screensaver ${saver} showing` : ''}.`;
+}
+
+function samsungWords(tv: LanTv, action: string, name: string, reply: Body): string {
+  const running = flag(reply.running);
+  const visible = flag(reply.visible);
+  const sent = action === 'launch_app';
+  if (visible === true) return sent ? `${name} is running and in front on ${tv.name}.` : `On ${tv.name}, ${name} is running and in front.`;
+  if (running === true) return sent ? `${name} is running on ${tv.name} but is not in front.` : `On ${tv.name}, ${name} is running but is not in front.`;
+  if (running === false) return sent ? `Open an application was sent to ${tv.name}, but the TV says ${name} is not running.` : `On ${tv.name}, ${name} is not running.`;
+  return sent ? `Open an application was sent to ${tv.name}; the TV did not say whether ${name} is running.` : `${tv.name} did not say whether ${name} is running.`;
+}
+
+/**
+ * @description A launch_app, list_apps or active_app answer in words: only what the TV itself reported. Neither a Roku
+ *   nor a Samsung TV shows its screen, so the words never go past the application in front. Pure.
+ * @param tv The TV, after its record was updated. @param action The press. @param reply The bridge's answer. @returns One or two sentences.
+ */
+export function frontWords(tv: LanTv, action: string, reply: Body): string {
+  if (action === 'list_apps') {
+    const apps = tv.apps || [];
+    if (!apps.length) return `${tv.name} listed no applications.`;
+    return `${tv.name} has ${apps.length} application${apps.length === 1 ? '' : 's'}: ${apps.slice(0, 40).map((app) => `${app.name} (${app.id})`).join(', ')}${apps.length > 40 ? ', and more' : ''}.`;
+  }
+  const asked = part(reply.app);
+  const name = clip(asked?.name, 60) || clip(asked?.id, MAX_APP_ID) || 'The application';
+  return tv.kind === 'roku' ? rokuWords(tv, action, name, reply) : samsungWords(tv, action, name, reply);
 }
 
 function replyMatches(tv: LanTv, action: string, reply: Body): boolean {

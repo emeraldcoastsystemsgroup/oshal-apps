@@ -129,20 +129,68 @@ an explicit failed receipt; a completed engine process alone never means documen
 
 The native `career-nightly-matches` owner schedule checks every 30 minutes in America/Chicago.
 Enable or pause it in Career Settings. It runs against the published shared corpus, after the
-installation's separate 18:00 Central pull succeeds. The ingest's private working copy is never read.
+installation's separate shared pull succeeds. The ingest's private working copy is never read.
 
 One kept owner run keyword-matches the recent 14-day window to the saved resume, then AI-scores
 up to 50 previously unscored target-title jobs posted in the last seven days (first-seen fallback
 for undated jobs). The saved local-radius/remote preference applies to AI selection. Matching and
 scoring share the owner's existing score lease. The job creates no application submissions.
 
+On the native kernel the AI selection leaves out a job nothing there can describe (1.62.3): no
+listing text, no saved private copy, and no posting the Career rail can read through the kernel's
+egress. Such a job could only be skipped, and because the nightly pass takes pending jobs newest
+first, it took one of the 50 slots again every night ahead of jobs that could be scored. The rail
+reads a Workday posting, and since 1.63.0 an Oracle Recruiting Cloud requisition (on the
+candidate-site hosts `*.fa.oraclecloud.com`, `*.fa.us2.oraclecloud.com`, `*.fa.us6.oraclecloud.com`
+and `*.fa.ocs.oraclecloud.com`) and a SmartRecruiters posting (`api.smartrecruiters.com`), each by
+one documented anonymous GET (`lib/career-employer-detail.js`). A job whose read is refused, for
+example by Workday's maintenance redirect (`303`) or a closed posting, is skipped after that one
+read and tried again the next night.
+
+Since 1.64.0 most other jobs are selected and scored too, with no request at scoring time: the
+full pull keeps their descriptions in the corpus's listing text. Google's results page already
+carries every job's description; for Eightfold, Experis and other listed boards, Radancy,
+SuccessFactors, iCIMS, Avature, Webflow and employers' own sites, a description stage after every
+list is read fetches the job's own page on the list's site, under caps an administrator can change
+or turn off without a release (`engine/jobhunter/pull_details.py`; see the operations guide,
+"Descriptions the pull keeps"). Sites behind a browser check (Jacobs, CBRE, Delta, Regeneron, SAIC,
+Verizon) are not read.
+
 `nightly-match-success.json` is private to the owner and publishes with their scores only after
 the child succeeds. The published corpus version prevents repeating a finished pass; each corpus
-belongs to the most recent 18:00 America/Chicago refresh cycle, with one successful pass per cycle.
-A midday catch-up therefore cannot consume the coming evening's new publication. Failed runs remain eligible
-at a later check. The native job receipt records dispatch; Career Settings separately shows the
+belongs to the pull cycle that began at the most recent pull time in America/Chicago, with one successful
+pass per cycle. A catch-up publication inside the same cycle therefore cannot consume the next pull's
+publication. The pull time comes from the per-package setting `CAREER_INGEST_CRON`, which the operator sets
+to the same plain daily `minute hour * * *` cadence as `OSHAL_CAREER_INGEST_CRON` (in `oshald.env`, as
+`OSHAL_PACKAGE_ENV_CAREER_HUNTER__CAREER_INGEST_CRON`): the kernel clears the package's environment, so the
+pull's own variable never reaches the route. With no setting, or any other shape, cycles begin at 18:00.
+Failed runs remain eligible at a later check. The native job receipt records dispatch; Career Settings separately shows the
 completed keyword/scoring counts. Enabling the schedule does not enable auto-submit or change
 draft generation settings.
+
+**Settled nightly scoring (1.65.0, off unless the installation sets `CAREER_NIGHTLY_SETTLE=1`).** Each job is
+asked three times on byte-identical input and keeps the median only when all three runs share one side of 70
+and the median is outside 64 to 75; a close call is left undecided (no score, asked again the next night once,
+then left to Check my fit), because a package cannot send one call of a kept scheduled run to a stronger model
+order. Fewer than two valid runs score nothing (Not scored yet, pending); an answer with no text is one unanswered
+try and never ends the pass. Up to `CAREER_NIGHTLY_LIMIT` (400) jobs a night, best candidates first (saved titles in the title, the
+keyword match, the newest), at most three calls at once, in kept runs of at most 20 minutes continued by the next
+half-hourly checks until `CAREER_NIGHTLY_BUDGET_MINUTES` (60) is spent. Its receipt is version 2 (scored,
+undecided, unreadable, failed, not reached). Off, the pass, its inputs and its receipt are 1.63.0's. Settings,
+what the kernel would need for close calls, and how to switch it: [docs/operations.md](docs/operations.md);
+the measurement: [docs/settled-scoring-measurement.md](docs/settled-scoring-measurement.md).
+
+**Jobs Career cannot read still reach New matches (1.66.0).** A job of the person's nightly selection whose
+description cannot be had is marked "details needed" in their store (no score, no model call): on the native
+kernel the jobs no reader there can describe, with no read, best title and keyword matches first, at most 200 a
+night; a job whose one read is refused, after that read. New matches lists them as **Details needed** with the
+warning and **Open the posting**. In **Prepare application**, step **1 · Tailor** takes the description the
+person pastes from the posting (200 to 20,000 characters), kept as their own copy of that job (never the shared
+corpus) and used for **Check my fit** and generation; **Generate résumé & cover letter** waits for it, and
+`POST /jobs/:id/generate` refuses such a job with nothing pasted (`job_details_needed`), so Jarvis and the
+Concierge say where to paste it. Since 1.66.1 a job the nightly pass did not mark whose preparation stopped for
+missing details reads the same: `GET /jobs/:id` carries `details_needed` with those words, and the off
+**Generate** is drawn off (greyed, `aria-disabled`). Details: [docs/operations.md](docs/operations.md), "Jobs listed without a description".
 
 ## Nightly source review (1.47.6)
 
@@ -1170,8 +1218,17 @@ its tool is for; the first eight display names are what Jarvis's catalog lists f
 `career-hunter` is the engine's worker: it ranks and classifies jobs and drafts an application's documents inside
 Career's runs and tickets. Its persona `perspective` is not edited, not even for wording: the kernel hashes that text
 into the scoring model identity, and a change makes every saved fit score read as another configuration's
-(`tests/career-concierge-tools.test.mjs` holds its digest). The native kernel has no switch that keeps a declared bot out
-of conversation while it runs the package's own turns, so the manifest's `role` says what each bot is.
+(`tests/career-concierge-tools.test.mjs` holds its digest). The manifest's `role` says what each bot is, and since 1.62.1
+`career-hunter` and `career-submission-browser` carry `conversation: false`: a kernel with `210edbc7` leaves a marked bot
+out of Jarvis's catalog and the bot list and answers a person's message to it with `career-concierge`, while the
+package's own turns still run on it. An earlier kernel ignores the key.
+
+**The live walk.** `tests/career-one-concierge-live-proof.mjs` waits for each whole concierge turn on its loopback base
+(no `Prefer: respond-async`): a turn answered pending is saved without its tool trace, and the walk grades by that trace.
+Two cards from one reading are two calls, the second written after the first's answer: the kernel runs the first tool
+call of a model reply, so the persona says so.
+`career_resume_patch`'s description and its `value` field say a month is written `YYYY-MM`: the kernel shows a turn a
+tool's description and input schema, never its `usageInstructions`.
 
 **One résumé.** The main résumé (`career_db.json`) is the source of truth. The Word document on My résumé is a view of
 it: its first page's id names the main résumé revision it was made from, and `CareerResumeOffice.settle()`
@@ -1187,3 +1244,11 @@ title and employer, a bullet by its whole text, a removed job whole, a moved job
 applies it all or nothing with a note; otherwise the refusal names the change and the job (409).
 
 <!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.0: one concierge with every tool, the one-résumé rule and the card applied on the current revision. -->
+<!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.1: the two workers' conversation: false, the live walk's whole-turn wait, one call per card and the month format. -->
+<!-- CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.2: a nightly match cycle begins at the installation's pull time (CAREER_INGEST_CRON), else 18:00. -->
+<!-- CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.3: on the native kernel the nightly AI selection leaves out a job no reader there can describe; a Workday redirect is tried again the next night. -->
+<!-- CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Document 1.63.0: the native rail also reads Oracle Recruiting Cloud requisitions and SmartRecruiters postings, so their jobs are scored. -->
+<!-- CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Document 1.64.0: the full pull keeps the descriptions most job lists leave out, so those jobs are scored with no request at scoring time. -->
+<!-- CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Document 1.65.0: settled nightly scoring, off unless the installation turns it on. -->
+<!-- CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.0: jobs Career cannot read reach New matches as Details needed, and a pasted description prepares them. -->
+<!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.1: an unmarked job whose preparation stopped for missing details carries details_needed; the off Generate is drawn off. -->

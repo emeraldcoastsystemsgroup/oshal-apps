@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The person's role in Career sits beside their name as one pill ("Ada · Job seeker"), and under the name in the phone's top-bar menu (judge's report 2026-11-11, change 11). The name keeps its own element, so the pill is drawn by the two together.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Give phone section links 44 px targets and wrap the row so every page stays reachable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the changed-with-Undo bar Work history and My résumé show after a change (career-change-bar.js), above the phone's bottom bar and clear of the docked concierge. On a phone My résumé's Word document now reaches the bottom bar: the 64 px kept for the old Edit with AI bar is kept only in the classic view that still has it (before, an empty band sat under the document).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1: My résumé's editor sheet on a phone is placed by the page itself, between this frame's two measures (--cf-top and --cf-bottom), so the rule that rested the sheet 64 px above the bottom bar is gone: the Edit with AI bar it left room for is away while the sheet is open.
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
@@ -187,7 +188,6 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .wrap { height: calc(100dvh - 64px - var(--cf-top) - var(--cf-bottom)); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar[data-view=office] .wrap { height: calc(100dvh - var(--cf-top) - var(--cf-bottom)); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar #aiBar { bottom: var(--cf-bottom); }
-  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .chat { bottom: calc(64px + var(--cf-bottom)); }
 }
 /* ── 6. The changed-with-Undo bar (career-change-bar.js) ───────────────────── */
 .cf-change-bar {

@@ -8,6 +8,10 @@
  *   without a write; the Home summary distinguishes connected-not-synced, not connected and reconnect from connection metadata.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The kernel carries a person's connector credential only for a package that lists that connector in
  *   dependencies.connectors: every egress credential connector this manifest declares is in its (generated) catalog entry.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the Home summary reads Google Calendar live through the same declared host with no
+ *   Authorization header (the calendar list, then the primary calendar), never asks the kernel for connection metadata and writes
+ *   nothing; a kernel "not connected" refusal says to connect Google and a 401 to reconnect. It replaces the case that named
+ *   "connected, not synced yet" from connectors.metadata: nothing has to be synced for Home any more.
  */
 'use strict';
 const test = require('node:test');
@@ -27,7 +31,7 @@ Module._load = function (request, ...rest) {
   return original.call(this, request, ...rest);
 };
 const { createCalendarSyncRoutes } = require('../routes/sync.js');
-const { createHomeSummaryRoutes, googleState } = require('../routes/home-summary.js');
+const { createHomeSummaryRoutes } = require('../routes/home-summary.js');
 test.after(() => { Module._load = original; });
 
 const req = (body) => ({ oidc: { user: { sub: 'alice' }, isAuthenticated: () => true }, body });
@@ -96,39 +100,45 @@ test('kernel sync answers 409 without a write when Google is not connected or re
   assert.deepEqual(attempted, []);
 });
 
-test('the Home summary names the actual state when nothing is synced', async () => {
-  const now = Date.now();
-  const variants = [
-    [{ connections: [{ provider: 'google', revoked: false, expires_at_ms: now - 1000, renewable: true }] }, /Google is connected, but no calendar is synced yet/],
-    [{ connections: [{ provider: 'google-calendar', revoked: false, expires_at_ms: null, renewable: false }] }, /Google is connected/],
-    [{ connections: [{ provider: 'tmdb', revoked: false }] }, /^Connect Google in Identity/],
-    [{ connections: [{ provider: 'gmail', revoked: false, expires_at_ms: now - 1000, renewable: false }] }, /Reconnect Google in Identity/],
-    [{ connections: [{ provider: 'google', revoked: true }] }, /Reconnect Google in Identity/],
-  ];
-  for (const [meta, message] of variants) {
-    const intents = [];
-    const ctx = { pool: { query: async () => ({ rows: [] }) }, intent: async (name, input) => { intents.push([name, input]); return meta; } };
-    const { get } = createHomeSummaryRoutes(ctx).routes;
+test('the Home summary reads Google Calendar live from the declared host with no auth header, and names a missing or refused connection', async () => {
+  const soon = new Date(Date.now() + 2 * 3600e3).toISOString();
+  const answers = {
+    '/calendar/v3/users/me/calendarList': { items: [{ id: 'you@example.com', summary: 'you@example.com', primary: true, selected: true, accessRole: 'owner' }] },
+    '/calendar/v3/calendars/primary/events': { timeZone: 'America/Chicago', items: [{ id: 'g1', summary: 'Synthetic call', start: { dateTime: soon }, end: { dateTime: soon }, description: 'PRIVATE', attendees: [{ email: 'PRIVATE' }] }] },
+  };
+  const calls = [], saved = globalThis.fetch;
+  process.env.OSHAL_EGRESS = 'kernel';
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    const body = answers[new URL(url).pathname];
+    return new Response(JSON.stringify(body || {}), { status: body ? 200 : 404, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const sql = [], ctx = { pool: { query: async (q) => { sql.push(q.text || q); return { rows: [] }; } }, intent: async () => assert.fail('no connection metadata is read') };
     const r = res();
-    await get(req(), r);
+    await createHomeSummaryRoutes(ctx).routes.get(req(), r);
     assert.equal(r.statusCode, 200);
-    assert.deepEqual(intents, [['connectors.metadata', {}]]);
-    assert.match(r.body.items.at(-1).text, message);
-    assert.equal(r.body.metrics[0].value, 'Not synced');
+    assert.deepEqual(calls.map((c) => `${new URL(c.url).host}${new URL(c.url).pathname}`), ['www.googleapis.com/calendar/v3/users/me/calendarList', 'www.googleapis.com/calendar/v3/calendars/primary/events']);
+    for (const c of calls) assert.deepEqual(Object.keys(c.init.headers).map((h) => h.toLowerCase()), ['accept'], 'the kernel applies the credential, the package sends none');
+    assert.equal(r.body.items[0].text, 'Synthetic call');
+    assert.ok(!JSON.stringify(r.body).includes('PRIVATE'), 'attendees and descriptions never reach the summary');
+    assert.ok(sql.every((text) => /^SELECT /.test(text)), 'a read writes nothing');
+  } finally { globalThis.fetch = saved; delete process.env.OSHAL_EGRESS; }
+  const refusals = [
+    [Object.assign(new Error('google-calendar is not connected: connect it on Utilities or set OSHAL_CONNECTOR_SECRET_GOOGLE_CALENDAR for the installation'), { code: 'native_executor_unavailable' }), /^Connect Google on the Connections page \(\/utilities\) to see your Google Calendar here\./, 'Not connected'],
+    [{ status: 401, body: { error: { message: 'Invalid Credentials' } } }, /^Your Google connection is no longer accepted\. Reconnect Google/, 'Reconnect'],
+  ];
+  for (const [reply, message, tile] of refusals) {
+    await withKernelFetch(reply, async () => {
+      const r = res();
+      await createHomeSummaryRoutes({ pool: { query: async () => ({ rows: [] }) } }).routes.get(req(), r);
+      assert.equal(r.statusCode, 200);
+      assert.match(r.body.items.at(-1).text, message);
+      assert.equal(r.body.metrics[0].value, tile);
+      assert.ok(!/sync/i.test(r.body.items.at(-1).text), 'nothing asks the person to sync');
+    });
   }
-  // Without the intent (the legacy framework) or with a refused intent, the original guidance stays.
-  for (const ctx of [{ pool: { query: async () => ({ rows: [] }) } }, { pool: { query: async () => ({ rows: [] }) }, intent: async () => { throw new Error('refused'); } }]) {
-    const { get } = createHomeSummaryRoutes(ctx).routes;
-    const r = res();
-    await get(req(), r);
-    assert.equal(r.body.items.at(-1).text, 'Connect Google in Identity, then open Calendar and sync upcoming events.');
-  }
-  // A saved snapshot never asks for connection metadata.
-  const ctx = { pool: { query: async () => ({ rows: [{ synced_at: new Date(now - 1000), events: [] }] }) }, intent: async () => assert.fail('no metadata read') };
-  const r = res();
-  await createHomeSummaryRoutes(ctx).routes.get(req(), r);
-  assert.match(r.body.items.at(-1).text, /^Saved primary-calendar snapshot/);
-  assert.equal(googleState({}), 'unknown');
+  assert.deepEqual(attempted, [], 'the legacy broker is never loaded under the kernel');
 });
 
 test('the manifest declares the Calendar host with the google-calendar Bearer credential', () => {

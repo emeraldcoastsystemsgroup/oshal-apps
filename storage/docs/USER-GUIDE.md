@@ -119,22 +119,22 @@ framework and is always there once you sign in, but Storage Settings only exists
 is installed on your box. Install it from the app store if it isn't on your ribbon.
 
 Storage Settings keeps two buckets — **💻 Generated code** and **📄 Generated files** — and one
-backend per bucket. The **Backend** picker offers **OSHAL (local, limited 250 MB)**, **Dropbox** and
+backend per bucket. The **Backend** picker offers **Open Swarm (local)**, **Dropbox** and
 **GitHub**, and marks anything you have not connected as *(not connected)*. Choose Dropbox and you
 pick the destination from a dropdown of folders that already exist in your Dropbox (you don't type a
 name); choose GitHub and you pick the repo from a dropdown — with a **+ New repo** button that
-creates one on the spot — plus an optional **Folder in repo** you do type. Press **Save** and the
-next thing an app generates follows the new setting.
+creates one on the spot — plus an optional **Folder in repo** you do type. Changing a picker saves
+immediately, and the next thing an app generates follows the new setting.
 
 Until you set one, a sensible default applies from what you have connected: generated code goes to
 GitHub when GitHub is connected, generated files go to Dropbox when Dropbox is connected and to Google
-Drive when Google is, and otherwise both fall back to OSHAL Storage.
+Drive when Google is, and otherwise both fall back to Open Swarm local storage.
 
 **Google Drive can be a default but is not one of the three choices.** If your Files bucket is
-defaulting to Google Drive, the picker cannot show it and falls back to displaying **OSHAL (local,
-limited 250 MB)** — so pressing **Save** on that screen turns the displayed value into your real
-setting and moves generated files to OSHAL Storage. If you want the Drive default to stand, don't
-save over it.
+defaulting to Google Drive, the picker cannot show it and falls back to displaying **Open Swarm
+(local)** — so changing the picker on that screen turns the displayed value into your real
+setting and moves generated files to Open Swarm local storage. If you want the Drive default to stand,
+don't change it.
 
 Two consequences worth knowing:
 

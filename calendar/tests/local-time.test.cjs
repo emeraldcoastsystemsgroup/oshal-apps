@@ -12,6 +12,8 @@
  *   PostgreSQL in own-events-postgres.test.cjs), a signed-in caller stub for OIDC, and empty stand-ins for the shell's shared
  *   theme scripts and connected-action modules the page imports. Needs the store toolchain (express, playwright, chromium).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The design standard (DS-30): Remove asks in the page, not with window.confirm; Cancel removes nothing.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the page's assets include the event view module (tools/calendar-event-view.mjs) that the workspace imports, as routes/review.js serves it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: own-events and the Home summary load the live Google reader (routes/google-live.js) with its declared imports.
  */
 'use strict';
 const test = require('node:test');
@@ -35,8 +37,11 @@ function load(file, deps) {
 }
 const logger = { createChildLogger: () => ({ error() {}, info() {}, warn() {} }) };
 const time = load('event-time.js', {});
-const own = load('own-events.js', { express, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time });
-const summary = load('home-summary.js', { express, '@/shared/logger': logger, './own-events': own });
+const sync = load('sync.js', { express, '@/shared/logger': logger });
+const google = load('google-events.js', { express, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time });
+const live = load('google-live.js', { '@/shared/logger': logger, './google-events': google, './event-time': time, './sync': sync });
+const own = load('own-events.js', { express, crypto: require('node:crypto'), '@/shared/logger': logger, './event-time': time, './google-live': live });
+const summary = load('home-summary.js', { express, '@/shared/logger': logger, './own-events': own, './google-live': live, './event-time': time });
 
 /** One person's calendar_own_events rows, answering exactly the statements the routes send. */
 function pool() {
@@ -67,7 +72,7 @@ async function serve(p) {
   app.use(express.json());
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'sweep10-person' }, isAuthenticated: () => true }; next(); });
   app.get('/api/calendar/review', (_req, res) => res.sendFile(path.join(ROOT, 'tools', 'review.html')));
-  app.get(['/api/calendar/review/calendar-workspace.mjs', '/api/calendar/review/calendar-workspace.css'], (req, res) => res.sendFile(path.join(ROOT, 'tools', path.basename(req.path))));
+  app.get(['/api/calendar/review/calendar-workspace.mjs', '/api/calendar/review/calendar-event-view.mjs', '/api/calendar/review/calendar-workspace.css'], (req, res) => res.sendFile(path.join(ROOT, 'tools', path.basename(req.path))));
   app.use('/api/calendar/events', own.createOwnEventsRoutes({ pool: p }));
   app.use('/api/calendar/home-summary', summary.createHomeSummaryRoutes({ pool: p }));
   app.get('/api/calendar/meeting-briefs', (_req, res) => res.json({ briefs: [] }));
@@ -92,9 +97,9 @@ test('an added event reads in its own zone and Remove asks first, then takes it 
   await own.getByText('sweep10 Denver drive').waitFor();
   assert.match(await own.innerText(), /Fri, Nov 6, 2099, 6:00 PM CST/);
   const records = await page.locator('#records').innerText();
-  assert.match(records, /Fri, Nov 6, 2099, 6:00 PM CST \/ added in OSHAL/);
+  assert.match(records, /Fri, Nov 6, 2099, 6:00 PM CST \/ added in Open Swarm/);
   assert.doesNotMatch(records + (await own.innerText()), /T\d{2}:\d{2}:\d{2}\.\d{3}Z/, 'no raw UTC instant on the page');
-  const remove = own.getByRole('button', { name: 'Remove sweep10 Denver drive from your OSHAL calendar' });
+  const remove = own.getByRole('button', { name: 'Remove sweep10 Denver drive from your Open Swarm calendar' });
   // Remove asks in the page (never window.confirm), naming the event and its time in its own zone.
   page.on('dialog', (d) => { assert.fail('native dialog: ' + d.message()); });
   await remove.click();

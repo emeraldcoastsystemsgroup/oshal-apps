@@ -22,6 +22,7 @@
  * 11  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0 (J-4 / Defect 7): Add schema-bounded POST /files/upload (storage-upload-file, held for the person's approval) backed by the kernel's storage.save intent so files and device captures can be uploaded to a person's connected Dropbox, Google Drive, OneDrive, GitHub, or OSHAL-local storage with an optional provider/folder override. Guard: tests/notes.test.cjs.
  * 12  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.1: an upload to a provider the person has not connected answers 409 naming the provider. It answered 503 "Try again", which cannot help, because the kernel's storage.save refusal ("selected provider connection is not visible to this caller") was not recognized.
  * 13  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.2: a GitHub upload with no repository answers 400 and says to name one as owner/repo. It answered 503 "Try again", which cannot help, because the kernel's refusal ("GitHub storage requires a selected repository", read on a running kernel) was not recognized.
+ * 14  | maintainer@emeraldcoastsystemsgroup.com   | 1.4.3: what a person reads or hears names the product Open Swarm; technical provider identifiers (oshal-local) and User-Agent headers stay unchanged.
  *
  * @module storage-routes
  */
@@ -74,7 +75,7 @@ async function createGithubRepo(ctx: AppContext, sub: string, name: string, isPr
     r = await fetch('https://api.github.com/user/repos', {
       method: 'POST',
       headers: authHeaders(tok, { ...GITHUB_HEADERS, 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ name: safe, private: isPrivate, description: 'Created by OSHAL', auto_init: true }),
+      body: JSON.stringify({ name: safe, private: isPrivate, description: 'Created by Open Swarm', auto_init: true }),
     });
   } catch (err) {
     if (isNotConnected(err)) throw new Error('GitHub not connected — connect it at /utilities first.');
@@ -159,7 +160,7 @@ function shareLocalFile(sub: string, name: string, dir?: string): { path: string
 function descTarget(t: StorageTarget): string {
   if (t.provider === 'github') return `GitHub (${t.repo || 'pick a repo'}${t.folder ? '/' + t.folder : ''})`;
   if (t.provider === 'dropbox') return `Dropbox (${t.folder || '/'})`;
-  return 'OSHAL local';
+  return 'Open Swarm local';
 }
 
 /** Execute one parsed storage action (the controller acts with the user's token — ADR-036). */
@@ -174,7 +175,7 @@ async function executeStorageAction(ctx: AppContext, sub: string, intent: { acti
   if (action === 'set_target') {
     const bucket = args.bucket === 'code' ? 'code' : 'files';
     const provider = String(args.provider || '');
-    if (!['github', 'dropbox', 'oshal-local'].includes(provider)) return { reply: 'Which backend — GitHub, Dropbox, or OSHAL local?' };
+    if (!['github', 'dropbox', 'oshal-local'].includes(provider)) return { reply: 'Which backend — GitHub, Dropbox, or Open Swarm local?' };
     const p = await getStoragePrefs(ctx, sub);
     p[bucket] = { provider: provider as StorageTarget['provider'], repo: args.repo ? String(args.repo) : undefined, folder: args.folder ? String(args.folder) : undefined };
     await setStoragePrefs(ctx, sub, p);
@@ -198,15 +199,15 @@ async function executeStorageAction(ctx: AppContext, sub: string, intent: { acti
   if (action === 'list_files') return listBucketFiles(ctx, sub);
   if (action === 'usage') {
     const usage = localUsage(await listLocalFiles(ctx, sub));
-    return { reply: `Your OSHAL-local store holds ${usage.files} file(s) using ${usage.used}. ${usage.scope}`, data: usage };
+    return { reply: `Your Open Swarm local store holds ${usage.files} file(s) using ${usage.used}. ${usage.scope}`, data: usage };
   }
   return { reply: baseReply || 'I can create a GitHub repo, set where your code/files save, or list your files. What would you like?' };
 }
 
-/** The OSHAL-local limit Storage Settings names ("OSHAL (local, limited 250 MB)"), in bytes. */
+/** The local-store limit Storage Settings names (250 MB), in bytes. */
 export const LOCAL_LIMIT_BYTES = 250 * 1024 * 1024;
 /** What the usage figure covers, said with it so a top-level total is never read as the whole store. */
-const USAGE_SCOPE = 'Counts the files at the top of your OSHAL-local store; files moved into folders are not counted here.';
+const USAGE_SCOPE = 'Counts the files at the top of your Open Swarm local store; files moved into folders are not counted here.';
 
 /**
  * @description Bytes as the short words a person reads (512 B, 1.5 KB, 3.2 MB).
@@ -259,8 +260,8 @@ async function listBucketFiles(ctx: AppContext, sub: string): Promise<{ reply: s
   }
   const names = (await listLocalFiles(ctx, sub)).map((f) => f.name);
   const reply = names.length
-    ? `Your files save to OSHAL local. You have ${names.length} file(s) there: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '…' : ''}.`
-    : 'Your files save to OSHAL local, and there are no files there yet.';
+    ? `Your files save to Open Swarm local. You have ${names.length} file(s) there: ${names.slice(0, 15).join(', ')}${names.length > 15 ? '…' : ''}.`
+    : 'Your files save to Open Swarm local, and there are no files there yet.';
   return { reply, data: { provider: 'oshal-local', files: names } };
 }
 
@@ -330,16 +331,16 @@ export function createStorageRoutes(ctx: AppContext): Router {
     if (!message) { res.status(400).json({ error: 'message required' }); return; }
     try {
       const prompt = [
-        "You are OSHAL's Storage Assistant. Turn the user's request into ONE action.",
+        "You are Open Swarm's Storage Assistant. Turn the user's request into ONE action.",
         'Respond with ONLY a JSON object (no prose, no code fences): {"action":"...","args":{...},"reply":"a short friendly confirmation"}.',
         'Actions:',
         '- get_prefs (args {}) — show where code/files currently save',
         '- set_target (args {bucket:"code"|"files", provider:"github"|"dropbox"|"oshal-local", repo?, folder?}) — change where a bucket saves',
         '- create_repo (args {name, private?:true}) — create a new GitHub repo',
-        '- move (args {name, toName?, fromDir?, toDir?}) — move/rename a file in the user\'s OSHAL-local store',
-        '- share (args {name, dir?}) — get an authed download link to a file in the user\'s OSHAL-local store',
+        '- move (args {name, toName?, fromDir?, toDir?}) — move/rename a file in the user\'s Open Swarm local store',
+        '- share (args {name, dir?}) — get an authed download link to a file in the user\'s Open Swarm local store',
         '- list_files (args {}) — list the user\'s files',
-        '- usage (args {}) — how much space their OSHAL-local files use, against its 250 MB limit',
+        '- usage (args {}) — how much space their Open Swarm local files use, against its 250 MB limit',
         '- none (args {}) — no tool needed; just answer in "reply"',
         `User: ${message}`,
       ].join('\n');
@@ -415,7 +416,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       const r = await fetch('https://api.github.com/user/repos', {
         method: 'POST',
         headers: authHeaders(tok, { ...GITHUB_HEADERS, 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name, private: body.private !== false, description: (body.description || 'Created by OSHAL').slice(0, 300), auto_init: true }),
+        body: JSON.stringify({ name, private: body.private !== false, description: (body.description || 'Created by Open Swarm').slice(0, 300), auto_init: true }),
       });
       const j = (await r.json()) as { full_name?: string; html_url?: string; name?: string; message?: string };
       if (!r.ok) { res.status(r.status === 422 ? 409 : 502).json({ error: j.message || `github ${r.status}` }); return; }
@@ -453,7 +454,7 @@ export function createStorageRoutes(ctx: AppContext): Router {
       res.json({ files, usage: localUsage(files) });
     } catch (err) {
       logger.error({ err }, 'list local store failed');
-      res.status(503).json({ error: 'Your OSHAL-local files cannot be listed right now.' });
+      res.status(503).json({ error: 'Your Open Swarm local files cannot be listed right now.' });
     }
   });
 

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!--
+ CHANGE LOG
+ -----------------------------------------------------------------------------
+ SEQ | AUTHOR | DESCRIPTION
+ -----------------------------------------------------------------------------
+ 1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Goals, what the person is saving for. Each goal with what is set aside, its target and date, and how far along it is. Set aside and Take back record an amount against a goal and say what they are: "Recorded in Finance. No money moved." Add a goal names one with a target and a date when there is one. Reads and writes /api/finance/goals only; nothing here moves money or asks a bank for a transfer.
+ 2 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.8.0 (Lane FINH2): an open goal has Close goal; Closed goals lists the closed ones, each with Open again and Delete (asked twice: the goal and what was recorded for it go; no money moves). VER2 on the test slot: a closed goal was listed nowhere and could not be deleted.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goals · Finance</title>
+<link rel="stylesheet" href="/api/finance/p/static/finance-records.css">
+</head>
+<body>
+<main>
+  <div class="fr-head">
+    <div><h1>Goals</h1><p class="fr-sub">Recorded in Finance. No money moved.</p></div>
+    <div class="fr-actions"><button type="button" class="fr-primary" id="frAddOpen">Add a goal</button></div>
+  </div>
+  <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frAdd" hidden aria-labelledby="frAddH">
+    <h2 id="frAddH">Add a goal</h2>
+    <div class="fr-form">
+      <label>What it is for<input id="frName" placeholder="Emergency fund"></label>
+      <label>Target (optional)<input id="frTarget" inputmode="decimal" placeholder="6,000.00"></label>
+      <label>By (optional)<input type="date" id="frBy"></label>
+      <label>Each month (optional)<input id="frMonthly" inputmode="decimal" placeholder="250.00"></label>
+      <button type="button" id="frSave">Add the goal</button>
+    </div>
+  </section>
+  <section class="fr-card"><ul class="fr-list" id="frList"><li class="fr-empty">Reading your goals…</li></ul></section>
+  <section class="fr-card" id="frClosedCard" hidden aria-labelledby="frClosedH"><h2 id="frClosedH">Closed goals</h2><ul class="fr-list" id="frClosed"></ul></section>
+</main>
+<script src="/api/finance/p/static/finance-records.js"></script>
+<script>
+(function () {
+  'use strict';
+  var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
+
+  function moveForm(g) {
+    var amount = el('input', { inputmode: 'decimal', placeholder: '100.00', 'aria-label': 'Amount for ' + g.name });
+    var put = el('button', { type: 'button', text: 'Set aside' }), take = el('button', { type: 'button', text: 'Take back' });
+    function move(kind, button) {
+      F.press(button, function () {
+        var cents = F.centsOf(amount.value); if (cents === null || cents <= 0) throw new Error('Type the amount, for example 100.00.');
+        return F.api('/goals/' + encodeURIComponent(g.goalId) + '/' + kind, { amountCents: cents, today: F.today() }).then(function () { F.say(g.name + ': recorded in Finance. No money moved.'); return load(); });
+      });
+    }
+    put.addEventListener('click', function () { move('set-aside', put); });
+    take.addEventListener('click', function () { move('take-back', take); });
+    return el('div', { class: 'fr-actions' }, [amount, put, take]);
+  }
+
+  /** A button that asks once more before it acts: the first press says what will happen, the second does it. */
+  function twice(text, ask, run) {
+    var b = el('button', { type: 'button', text: text });
+    b.addEventListener('click', function () {
+      if (b.dataset.ask !== '1') { b.dataset.ask = '1'; b.textContent = ask; return; }
+      run(b);
+    });
+    return b;
+  }
+
+  function change(g, body, button, words) {
+    return F.press(button, function () { return F.api('/goals/' + encodeURIComponent(g.goalId) + body.path, Object.assign({ today: F.today() }, body.send)).then(function () { F.say(words); return load(); }); });
+  }
+
+  function closedRow(g) {
+    var again = el('button', { type: 'button', text: 'Open again' });
+    again.addEventListener('click', function () { change(g, { path: '', send: { state: 'open' } }, again, g.name + ' is open again.'); });
+    var del = twice('Delete', 'Delete ' + g.name + ' and what was recorded for it?', function (button) { change(g, { path: '/delete', send: { confirm: true } }, button, g.name + ' is deleted from Finance. No money moved.'); });
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: g.name }), el('div', { class: 'fr-sub', text: 'Closed' })]), F.figure(g.saved), el('div', { class: 'fr-actions' }, [again, del])]);
+  }
+
+  function row(g) {
+    var pct = typeof g.percent === 'number' ? Math.max(0, Math.min(100, g.percent)) : null;
+    return el('li', { class: 'fr-row' }, [
+      el('div', { class: 'fr-main' }, [el('strong', { text: g.name }), g.done ? el('span', { class: 'fr-pill', text: 'Reached' }) : null,
+        el('div', { class: 'fr-sub', text: [g.target ? 'Target ' + F.money(g.target) : 'No target', g.targetDate ? 'by ' + F.dateWords(g.targetDate) : '', pct !== null ? pct + '%' : ''].filter(Boolean).join(' · ') }),
+        pct !== null ? el('div', { class: 'fr-bar' }, [el('span', { style: 'width:' + pct + '%' })]) : null]),
+      F.figure(g.saved), moveForm(g),
+      el('div', { class: 'fr-actions' }, [twice('Close goal', 'Close ' + g.name + '?', function (button) { change(g, { path: '', send: { state: 'closed' } }, button, g.name + ' is closed. It is under Closed goals.'); })]),
+    ]);
+  }
+
+  function load() {
+    return F.api('/goals?today=' + F.today()).then(function (r) {
+      var goals = (r.goals || []).filter(function (g) { return g.state === 'open'; }), closed = (r.goals || []).filter(function (g) { return g.state === 'closed'; });
+      $('frList').replaceChildren.apply($('frList'), goals.length ? goals.map(row) : [el('li', { class: 'fr-empty', text: 'No goal yet. Add what you are saving for.' })]);
+      $('frClosedCard').hidden = !closed.length;
+      $('frClosed').replaceChildren.apply($('frClosed'), closed.map(closedRow));
+    }).catch(function (err) { F.say(err.message, true); });
+  }
+
+  $('frAddOpen').addEventListener('click', function () { $('frAdd').hidden = !$('frAdd').hidden; });
+  $('frSave').addEventListener('click', function () {
+    var button = $('frSave');
+    F.press(button, function () {
+      var name = $('frName').value.trim(); if (!name) throw new Error('Give the goal a name.');
+      var body = { name: name, today: F.today() };
+      if ($('frTarget').value.trim()) { body.targetCents = F.centsOf($('frTarget').value); if (body.targetCents === null) throw new Error('Type the target as an amount, for example 6,000.00.'); }
+      if ($('frBy').value) body.targetDate = $('frBy').value;
+      if ($('frMonthly').value.trim()) { body.monthlyCents = F.centsOf($('frMonthly').value); if (body.monthlyCents === null) throw new Error('Type the monthly amount, for example 250.00.'); }
+      return F.api('/goals', body).then(function () { F.say(name + ' is added.'); $('frAdd').hidden = true; $('frName').value = ''; $('frTarget').value = ''; return load(); });
+    });
+  });
+  load();
+})();
+</script>
+</body>
+</html>

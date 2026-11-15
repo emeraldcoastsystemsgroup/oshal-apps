@@ -7,15 +7,16 @@
  * CAREER_LIVE_ENV names the slot's environment file (its OSHAL_ADMIN_TOKEN signs in the operator test persona through
  * /api/auth/switch), or CAREER_LIVE_SESSION_FILE names a 0600 file holding a test person's own session token. It
  * refuses any base that is not a loopback address, and refuses a Career older than 1.62.0.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (its first run on blue, 2026-11-14, refused "it read the main résumé first (used nothing)" while the concierge had read the résumé with career_resume_read and career_resume_section and written the right card: the turn took more than the kernel's 80-second inline wait, so the Prefer: respond-async ask was answered 202, and the answer read later at /api/jarvis/ask/result is the saved turn, which keeps no toolsUsed and no bot). The walk runs only on a loopback address, where no proxy cuts a long request, so it asks without that preference and waits for the whole turn, which carries the tool trace (node:http, no client timeout). A turn answered as pending is refused in words. A refusal about the tools names the tools the turn was offered too.
  */
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 
 const BASE = (process.env.CAREER_LIVE_BASE || '').replace(/\/+$/, ''), CAREER = '/api/career-hunter';
 const JOB = { title: 'IL6 Platform Engineer', org: 'Demo Defense Cloud', start: '2025-06' };
 const BULLETS = ['Stood up the IL6 enclave for a made-up program', 'Wrote the accreditation package for a made-up program'];
 const THIRD = 'Passed a made-up first audit with no findings';
-const sleep = ms => new Promise(done => setTimeout(done, ms));
 const lines = [], receipt = { base: BASE, steps: [] };
 const say = text => { lines.push(text); console.log(text); };
 
@@ -54,20 +55,30 @@ function context(surface, title, revision, count) {
       tools: 'career_resume_section career_resume_patch career_resume_read career_resume_undo',
       everywhere: 'The same concierge answers on every Career page and can read or change anything in Career from here.' } };
 }
-/** One turn with the real concierge, as the pane sends it; waits for a long answer the way the pane does. */
+/** POST one concierge turn and wait for all of it, however long the model takes (no client timeout on a loopback base). */
+function postWhole(path, body) {
+  return new Promise((done, fail) => {
+    const request = http.request(BASE + path, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + session } }, response => {
+      let text = ''; response.setEncoding('utf8');
+      response.on('data', chunk => { text += chunk; });
+      response.on('end', () => { let json = null; try { json = JSON.parse(text); } catch { /* not JSON */ } done({ status: response.statusCode, json }); });
+    });
+    request.on('error', error => fail(new Error(`POST ${path} did not answer: ${error.code || error.name}`)));
+    request.end(JSON.stringify(body));
+  });
+}
+/** One turn with the real concierge, with the context the pane sends. It asks without Prefer: respond-async, because
+ * the saved answer a pending turn becomes keeps no tool trace, and the walk grades by the tool trace. */
 async function ask(text, page) {
   const message = text + '\nCurrent saved document and selection: ' + JSON.stringify(page);
-  let result = (await call('/api/swarm/bots/career-concierge/ask', { method: 'POST', headers: { prefer: 'respond-async' },
-    body: { message, context: page, sessionId: 'doc:career-hunter:master' } })).json;
-  for (let waited = 0; result?.status === 'pending' && result.jobId && waited < 600; waited += 2) {
-    await sleep(2000);
-    const later = (await call('/api/jarvis/ask/result?jobId=' + encodeURIComponent(result.jobId))).json;
-    if (later?.status !== 'pending') result = later;
-  }
-  const used = (result?.toolsUsed || result?.tool_executions || []).map(item => item.tool || item.name).filter(Boolean);
+  const answer = await postWhole('/api/swarm/bots/career-concierge/ask', { message, context: page, sessionId: 'doc:career-hunter:master' });
+  const result = answer.json;
+  if (answer.status >= 400) throw new Error(`the concierge refused the turn (HTTP ${answer.status}): ${String(result?.error || result?.detail || '').slice(0, 200)}`);
+  if (result?.status === 'pending') throw new Error('the concierge answered later (pending), and a saved answer keeps no tool trace to grade');
+  const names = list => (Array.isArray(list) ? list : []).map(item => (typeof item === 'string' ? item : item.tool || item.name)).filter(Boolean);
   const cards = (Array.isArray(result?.packageToolProposals) ? result.packageToolProposals : [result?.packageToolProposal]).filter(Boolean)
     .map(item => (typeof item === 'string' ? item : item.id ?? item.proposalId));
-  return { reply: String(result?.reply ?? result?.answer ?? ''), used, cards, bot: result?.bot };
+  return { reply: String(result?.reply ?? result?.answer ?? ''), used: names(result?.toolsUsed || result?.tool_executions), offered: names(result?.toolsOffered), cards, bot: result?.bot };
 }
 async function card(id) { const loaded = (await call('/api/jarvis/package-tools/proposals/' + encodeURIComponent(id))).json; return loaded?.proposal ?? loaded; }
 async function approve(id) {
@@ -82,7 +93,7 @@ async function walk(start) {
   let doc = await master(), turn = await ask(`Add a job to my work history: ${JOB.title} at ${JOB.org}, started June 2025 and still there, with two bullets: "${BULLETS[0]}" and "${BULLETS[1]}".`,
     context('resume-studio', 'Main résumé', doc.revision, jobs(doc).length));
   if (turn.bot) assert.equal(turn.bot, 'career-concierge', 'the one concierge answers');
-  assert.ok(turn.used.some(name => name === 'career_resume_section' || name === 'career_resume_read'), `it read the main résumé first (used ${turn.used.join(', ') || 'nothing'})`);
+  assert.ok(turn.used.some(name => name === 'career_resume_section' || name === 'career_resume_read'), `it read the main résumé first (used ${turn.used.join(', ') || 'nothing'}; offered ${turn.offered.join(', ') || 'nothing'})`);
   assert.equal(turn.cards.length, 1, 'one card for the whole change');
   const first = await card(turn.cards[0]);
   assert.equal(first.toolName ?? first.tool, 'career_resume_patch');

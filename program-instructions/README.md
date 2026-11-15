@@ -72,7 +72,7 @@ names and its declared verb ids by kind of document, with the provenance of each
 distilled, never typed, from three sheets: Lane G's bridge fact sheet for the Linux bridges (`bridge-facts.json`,
 written from Orbit's compiled code by `make-bridge-facts.cjs`), this package's own
 `inputs/windows-bridge-facts.json` for `windows-uia`, the bridge of every Windows program (Word's six edit verbs,
-Excel's spreadsheet verbs (nine since 0.1.5, with create-pivot-table and add-chart) and, since 0.1.4, PowerPoint's six slide verbs, each naming the line of Orbit's code it
+Excel's spreadsheet verbs (seventeen since 0.1.8: the nine starter verbs plus W15's workbook-schema, manage-table, refresh-pivot, summarize-range, manage-names, data-validation, conditional-format and refresh-queries) and, since 0.1.4, PowerPoint's six slide verbs, each naming the line of Orbit's code or spreadsheet skill specification it
 is read from, and none for any other window), and, since 0.1.6, its own `inputs/godot-bridge-facts.json` for
 `godot`, the bridge of the Godot 4 editor with Orbit's add-on in the project (its seventeen verbs, each naming the
 line of `bridges/godot-actions.ts` it is declared on; the facts are in `inputs/godot-pack-inputs.json`, each naming

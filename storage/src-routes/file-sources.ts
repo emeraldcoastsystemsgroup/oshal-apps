@@ -13,6 +13,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: Dropbox, Google Drive, GitHub and OSHAL-local picker sources with folder browsing, a `q` search (Dropbox inside the open folder, Drive by name, GitHub repository names at the top and every path inside a repository, OSHAL-local by name) and read-only file routes capped at the kernel's 4 MiB handle limit; a Dropbox file is read through its temporary link, because the person's Dropbox credential goes only to api.dropboxapi.com. Jarvis's "+ Add" opens the picker over these (operator, 2026-10-29: "+files should bring up our swarm file selector ... across connected folder shares").
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | storage 1.4.3: name the product Open Swarm in the empty-store and refusal messages of the local file picker source.
  *
  * @module file-sources
  */
@@ -369,7 +370,7 @@ async function localPage(ctx: AppContext, sub: string, q: string): Promise<Sourc
   const files = await listLocal(ctx, sub, legacyLocalDir);
   const items = files.filter((f) => named(f.name, q)).slice(0, PAGE)
     .map((f) => item(f.name, f.size, fileSource('local', { name: f.name })));
-  return { items, folders: [], nextCursor: null, ...(!items.length ? { emptyMessage: q ? 'No matching saved file.' : 'Nothing is saved in your OSHAL-local store yet.' } : {}) };
+  return { items, folders: [], nextCursor: null, ...(!items.length ? { emptyMessage: q ? 'No matching saved file.' : 'Nothing is saved in your Open Swarm local store yet.' } : {}) };
 }
 
 /** One OSHAL-local file's bytes and type, read through the kernel's file store for this person. */
@@ -439,7 +440,7 @@ export function createFileSourceRoutes(ctx: AppContext): Router {
     const sub = callerSub(req);
     if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try { res.set('Cache-Control', 'private, no-store').json(await localPage(ctx, sub, searchWords(req))); }
-    catch (err) { refuse(res, err, 'OSHAL-local', true); }
+    catch (err) { refuse(res, err, 'Open Swarm local', true); }
   });
   router.get('/local/file', async (req: Request, res: Response) => {
     const sub = callerSub(req);
@@ -447,7 +448,7 @@ export function createFileSourceRoutes(ctx: AppContext): Router {
     try {
       const { bytes, type } = await localFile(ctx, sub, req);
       res.set('Cache-Control', 'private, no-store').set('Content-Type', type).send(bytes);
-    } catch (err) { refuse(res, err, 'OSHAL-local', false); }
+    } catch (err) { refuse(res, err, 'Open Swarm local', false); }
   });
   return router;
 }
