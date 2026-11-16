@@ -1,3 +1,5 @@
+# 99 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1: register package-smoke-manifest-budget so oshal-app.yaml stays within a 112 KiB budget (>= 16 KiB margin under package-smoke's 128 KiB ceiling) and createPackageSmokeRoutes answers 200 ready.
+# 98 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: register company-sent-and-age and long-bullets-and-banner: per-employer confirmed-sent counts and deterministic 30-day age fields across routes, native readers and desktop/phone screens, plus untruncated 1,900+ character work-history bullets, inline-glyph splitting and My résumé Main vs Tailored header clarity.
 # 97 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1: register paste-words-unmarked and paste-disabled-phone: a job the nightly pass did not mark whose preparation stopped for missing details reads with the paste words the Concierge and Jarvis say, and Generate is drawn off until 200 characters are pasted.
 # 96 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0: register unread-jobs-flow-in, pasted-details and paste-details-phone: a job Career cannot read reaches New matches as Details needed with no read or model call, and its pasted description is kept for that person only and prepares it.
 # 95 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1: register resume-editor-composer: on My résumé the résumé editor's text box and Send are under the thread at 412x915 and at 1440x900, Close the editor is in the phone sheet's heading, nothing is behind Career's bottom bar, and the newest message is in view after Send, after a reply, when the sheet opens and when the window gets shorter.
@@ -3196,4 +3198,61 @@ cases:
     sideEffects: none
     isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
     limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: company-sent-and-age
+    name: Confirmed-sent employer count badge and 30-day tracked-application age truth
+    purpose: >-
+      Verify per-company confirmed-sent counts and deterministic tracked-application day ages across Career's compiled
+      routes, native readers and headless Chromium screens at 1440x900 and 412x915 over isolated synthetic owner stores.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-company-sent-and-age.test.mjs]
+    expected:
+      - Only applications recorded as sent (applied, interview, offer, rejected, or archived rows retaining a valid non-future applied_at receipt) count toward companySentCount, normalized across employer legal suffixes and isolated per owner; unapplied saved, generated and dismissed rows count as 0.
+      - Job and tracked-application reads carry asOfDate plus integer daysSinceSent, daysSinceApplied and ageDays and boolean olderThan30Days, reporting > 140 days and olderThan30Days true for June dates read in November.
+      - My jobs desktop rows, phone match cards, the posting detail sheet and Prepare application render the accessible mark beside the employer name when companySentCount >= 1 and hide it when 0, with zero phone overflow.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser and remove the synthetic owner stores and corpus."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: long-bullets-and-banner
+    name: Full-length work-history bullets, inline-glyph splitting and My résumé Main vs Tailored banner
+    purpose: >-
+      Verify untruncated 1,900+ character work-history bullets, multi-bullet additions on 0-bullet roles and inline
+      bullet glyph splitting through the real Python engine and compiled studio routes, and verify Main vs Tailored
+      header clarity on My résumé in Chromium at 1440x900 and 412x915.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-long-bullets-and-banner.test.mjs]
+    expected:
+      - Long bullets exceeding 1,850 characters save on a 0-bullet job alongside sibling bullets and read back whole via master-section, base and base-save, and inline bullet glyphs split cleanly into individual bullets without losing tail words.
+      - My résumé displays Main résumé with its Work history sync note and short revision on master, displays Tailored résumé with Role · Company and a 44px Back to main résumé button on a job packet, switches back in one press, and stays hidden before a résumé exists.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser and remove the temporary profile stores."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: package-smoke-manifest-budget
+    name: Runtime manifest stays within the 112 KiB budget and package-smoke answers 200 ready
+    purpose: >-
+      Guard career-hunter/oshal-app.yaml within a 112 KiB budget (>= 16 KiB margin below package-smoke's 128 KiB
+      ceiling) and verify createPackageSmokeRoutes returns 200 ready on mock and loopback requests while failing closed
+      with 503 on oversized manifests.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-package-smoke.test.mjs]
+    expected:
+      - oshal-app.yaml is at most 112 KiB on disk and CHANGELOG.md retains the archived manifest release notes.
+      - createPackageSmokeRoutes answers 200 ready with the verified package name and version on mock Express req/res and loopback HTTP, and answers 503 package_integrity_failed when a manifest exceeds 128 KiB.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the loopback server and remove the temporary oversized-manifest directory."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
     installation: never

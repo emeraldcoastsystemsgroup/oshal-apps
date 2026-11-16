@@ -11,6 +11,7 @@
  *   package may set, the caller's own credential placed by the kernel, "not connected" without one) in front of a stand-in
  *   Google Calendar v3 events API on loopback (tests/fixtures/google-calendar-standin.cjs). Named seams: the in-memory caller
  *   (OIDC), a recording pool for the snapshot and the OSHAL events, the stand-in egress and Google. Made-up people only.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Fix Sunday wall-clock failure where nextWeekday(2, 3) skipped the upcoming Tuesday (2 days ahead on Sundays) to 9 days ahead, placing the second weekly occurrence 16 days out past the 14-day search window.
  */
 'use strict';
 const test = require('node:test');
@@ -24,7 +25,7 @@ const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(ROOT, '..
 const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
 const m = modules();
 const ZONE = 'America/Chicago';
-const TUE = nextWeekday(2, 3), WED = nextWeekday(3, 4), THU = nextWeekday(4, 5);
+const TUE = nextWeekday(2, 1), WED = nextWeekday(3, 2), THU = nextWeekday(4, 3);
 const at = (day, time) => ({ dateTime: `${day}T${time}:00`, timeZone: ZONE });
 const you = { email: 'you@example.com', displayName: 'You', self: true, responseStatus: 'accepted' };
 const dana = { email: 'dana@example.com', displayName: 'Dana Reyes', responseStatus: 'accepted' };
@@ -63,7 +64,7 @@ async function withGoogle(connection, run, snapshot = null) {
   try { await run({ api, ids, routes: m.meetings.createMeetingsRoutes({ pool: p }).routes, sent: egress.sent, pool: p }); }
   finally { egress.restore(); await api.close(); }
 }
-const find = (routes, query) => call(routes, 'GET /', { query: { timeZone: ZONE, from: dayAhead(0), to: dayAhead(14), ...query } });
+const find = (routes, query) => call(routes, 'GET /', { query: { timeZone: ZONE, from: dayAhead(0), to: dayAhead(15), ...query } });
 const named = (found, title) => found.body.meetings.find((x) => x.title === title);
 /** The card the assistant proposes for a listed meeting. */
 const card = (meeting, extra) => ({ revision: meeting.revision, title: meeting.title, start: meeting.start, timeZone: ZONE, guests: 'Will be told', confirm: true, ...extra });

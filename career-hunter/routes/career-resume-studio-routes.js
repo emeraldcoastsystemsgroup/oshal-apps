@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Raise guided-edit bullet, summary and resume prompt bounds to 4,096 / 4,000 / 32,000 characters and up to 24 bullets per role so long work-history drafts are never truncated during guided edits.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Bounded concierge status reads the same owner profile as automatic facts, without an engine launch or full résumé text.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Carry selected additional experience metadata into document review and regeneration choices.
  * -----------------------------------------------------------------------------
@@ -249,8 +250,8 @@ function guidePrompt(message, resume, cover, meta, history) {
         'that built", "led the effort"), never "I built X" as if solo. First person implied, no third-person pronoun or name.',
         'NEVER use em or en dashes. Keep bullets to 1-2 lines, strong past-tense lead verbs, outcome first.',
         '',
-        'CURRENT RESUME (JSON):', JSON.stringify(resume).slice(0, 12000),
-        ...(master ? [] : ['CURRENT COVER (JSON):', JSON.stringify(cover).slice(0, 4000)]),
+        'CURRENT RESUME (JSON):', JSON.stringify(resume).slice(0, 32000),
+        ...(master ? [] : ['CURRENT COVER (JSON):', JSON.stringify(cover).slice(0, 8000)]),
         history ? `\nCONVERSATION SO FAR:\n${history}` : '',
         `\nUSER: ${message}`,
         '',
@@ -285,7 +286,7 @@ function toStrings(value, count = 24) {
         return [];
     return value
         .slice(0, count)
-        .map((item) => String(item ?? '').slice(0, 600))
+        .map((item) => String(item ?? '').slice(0, 4096))
         .filter(Boolean);
 }
 function experienceAction(raw, master) {
@@ -304,7 +305,7 @@ function experienceAction(raw, master) {
     if (raw.span && !master)
         action.span = String(raw.span).slice(0, 60);
     if (raw.bullets)
-        action.bullets = toStrings(raw.bullets, 8);
+        action.bullets = toStrings(raw.bullets, 24);
     return action;
 }
 function cleanAction(raw, master) {
@@ -313,7 +314,7 @@ function cleanAction(raw, master) {
     if (op === 'set_headline')
         return { op, text: text(400) };
     if (op === 'set_summary')
-        return { op, text: text(1600) };
+        return { op, text: text(4000) };
     if (op === 'set_clearance')
         return { op, text: text(200) };
     if (op === 'set_competencies')

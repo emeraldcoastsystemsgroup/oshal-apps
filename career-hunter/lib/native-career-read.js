@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Expose asOfDate, companySentCount, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on career_database snapshots.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Preserve saved résumé presence without a corpus and share the bounded owner-profile reader with the concierge status tool.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.57.2, T72: the facts' sample count starts from the person's own scored signals (CROSS JOIN, idx_user_scored) instead of walking every active posting of the 7.4 GB shared corpus. Measured on the test slot's corpus: 1,374 ms warm for a person with 7 signals and none scored, now under 1 ms; 179 ms for 5,000 signals with 2,000 scored, now 12 ms; 4 ms for 300,000 with 60,000 scored, now 18 ms. Cold, the old walk passed the kernel's 30 s deadline, so the first concierge question after each Career reload refused.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: the facts carry jobs.saved, the jobs the person saved (Home's Saved card, the board state's favourites). Asked on production "How many jobs have I saved", the concierge said none while Home showed 1 saved: no fact held that count. A saved-job file that cannot be read gives null (unknown), never 0, and never refuses the other facts.
@@ -27,6 +28,7 @@ const {readResumeSource} = require('./career-resume-source');
 const {readRemoteOnly} = require('../routes/career-match-prefs');
 const {assessment} = require('./career-fit');
 const {readBoardState, favoriteIds} = require('./career-board-state');
+const companySent = require('./career-company-sent');
 const AGENT = 'cb000000-0000-0000-0000-000000000001';
 /** Career's front-desk concierge (1.57.0, T9): the bot that answers in the app reads the same facts as the worker. */
 const CONCIERGE = 'cb000000-0000-0000-0000-000000000005';
@@ -75,7 +77,8 @@ function savedJobs(userDir) {
 
 /** The honest answer for a person with nothing saved yet: zero counts and what to do next. */
 function emptySnapshot(reason, corpusStat) {
-  return {asOf:new Date().toISOString(), source:{kind:'none', reason,
+  const nowMs = Date.now();
+  return {asOf:new Date(nowMs).toISOString(), asOfDate:companySent.asOfDateString(nowMs), source:{kind:'none', reason,
     corpusModifiedAt:corpusStat ? corpusStat.mtime.toISOString() : null, ownerModifiedAt:null, profileModifiedAt:null},
     notice:reason === 'no_corpus' ? NO_CORPUS : NO_RESUME,
     profile:{present:false, roles:[], skills:[]}, freshHighFit:{days:3,minFit:70,count:0,kind:'ai',basis:'first-seen'},
@@ -147,10 +150,13 @@ function readOwnerRows(db, corpus, factsOnly = false, scope = null, remoteOnly =
     const sampled = db.prepare(sampledMatchesSql(parts)).get(...parts.scoredArgs, ...parts.corpArgs);
     return {...ownerCounts(db), sampleCount:Number(sampled.n)};
   }
+  const nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
   const board = fetchBoardPage(db, {...query, sort:'ai', per:'10', page:'1'}, scope, undefined, exclusions);
   const project = r => ({postingId:Number(r.id), title:clip(r.title), company:clip(r.company),
+    companySentCount:companySent.countForCompany(sentCounts, r.company),
     fit:number(r.ai_fit_score ?? r.fit_score), status:clip(r.status, 64), salaryMax:number(r.salary_max),
     posted:clip(r.posted_date, 80), firstSeen:clip(r.first_seen_at, 80), appliedAt:clip(r.applied_at, 80),
+    ...companySent.applicationAgeFields(r.applied_at, nowMs),
     fitAssessment:assessment(r)});
   const recentApplied = db.prepare(`SELECT p.id,p.title,c.name AS company,s.fit_score,s.ai_fit_score,
     s.ai_scored_at,s.ai_model,s.ai_input_fingerprint,s.status,p.salary_max,p.posted_date,p.first_seen_at,s.applied_at FROM
@@ -224,8 +230,8 @@ function readCareerSnapshot(principal, root = '/career', {factsOnly = false, rem
   if (factsOnly) return {source:{corpusModifiedAt:corpusStat.mtime.toISOString(), ownerModifiedAt:ownerStat.mtime.toISOString()},
     profile:{present:Boolean(profileStat), roles, skills}, matchesSampleCount:rows.sampleCount, signalsTotal:rows.total, pipeline:rows.pipeline,
     savedCount:savedJobs(layout.userDir)};
-  const {board} = rows;
-  return {asOf:new Date().toISOString(), source:{kind:'retained_owner_sqlite', corpusModifiedAt:corpusStat.mtime.toISOString(),
+  const {board} = rows, nowMs = Date.now();
+  return {asOf:new Date(nowMs).toISOString(), asOfDate:companySent.asOfDateString(nowMs), source:{kind:'retained_owner_sqlite', corpusModifiedAt:corpusStat.mtime.toISOString(),
     ownerModifiedAt:ownerStat.mtime.toISOString(),
     // Published/exported file mtimes can change without any résumé content change.
     // Keep this legacy revision field unknown rather than exposing a false edit date.

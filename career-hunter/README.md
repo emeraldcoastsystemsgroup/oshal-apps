@@ -1243,6 +1243,19 @@ version it read to learn which job and item each change names, finds each in the
 title and employer, a bullet by its whole text, a removed job whole, a moved job or bullet in the order read) and
 applies it all or nothing with a note; otherwise the refusal names the change and the job (409).
 
+**Confirmed applications, age truth and long bullets (1.67.0).** Every job and application read (`GET /jobs`, `GET /jobs/:id`,
+`GET /applications`, `GET /submission-queue`, `career_database`) carries `companySentCount` — the owner's distinct applications
+recorded as sent for that normalized company, including applications later archived after sending and excluding unapplied drafts or
+removed jobs — rendered as `✓ N sent` beside the employer name on **My jobs**, the posting sheet and **Prepare application** when
+`N >= 1`. Responses also carry `asOfDate` (`YYYY-MM-DD`) and per-application `daysSinceSent`, `daysSinceApplied`, `ageDays` and
+`olderThan30Days` so the concierge never estimates calendar age across months. Main-résumé and guided-edit bullet limits allow up to
+`4,096` characters per bullet (and inline bullet-glyph splitting on pasted single-line drafts), and **My résumé** displays an active
+document banner distinguishing **Main résumé** (`Synced with Work history · revision …`) from a **Tailored résumé** (`Back to main résumé`).
+
+**Manifest readiness budget (1.67.1).** Historical manifest release notes and architectural commentary live verbatim in
+[`CHANGELOG.md`](CHANGELOG.md) so `oshal-app.yaml` stays well within the `128 KiB` (`131,072`-byte) `package-smoke` readiness ceiling,
+guarded by `tests/career-package-smoke.test.mjs`.
+
 <!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.0: one concierge with every tool, the one-résumé rule and the card applied on the current revision. -->
 <!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.1: the two workers' conversation: false, the live walk's whole-turn wait, one call per card and the month format. -->
 <!-- CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.2: a nightly match cycle begins at the installation's pull time (CAREER_INGEST_CRON), else 18:00. -->
@@ -1252,3 +1265,5 @@ applies it all or nothing with a note; otherwise the refusal names the change an
 <!-- CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Document 1.65.0: settled nightly scoring, off unless the installation turns it on. -->
 <!-- CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.0: jobs Career cannot read reach New matches as Details needed, and a pasted description prepares them. -->
 <!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.1: an unmarked job whose preparation stopped for missing details carries details_needed; the off Generate is drawn off. -->
+<!-- CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.0: per-company confirmed-sent counts and badge, deterministic application age fields, 4,096-character bullet preservation and Main vs Tailored résumé banner. -->
+<!-- CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.1: historical manifest release notes moved verbatim to CHANGELOG.md to keep oshal-app.yaml within the 128 KiB package-smoke ceiling. -->

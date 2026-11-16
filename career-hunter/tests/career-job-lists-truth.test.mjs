@@ -8,6 +8,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | On a phone the fit link has its own line under a job's facts: it sat beside the place and pushed the posted date out of line.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 9: a move is said in one line that names the job, so Unsave reads "Unsaved: Office Manager 1 at Example Co."
  * 4 | maintainer@emeraldcoastsystemsgroup.com | An unscored job says Not scored yet while retaining résumé guidance, saved controls and truthful replies.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Wait for the Remove status response to settle after optimistic row removal before asserting #actionState.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -157,7 +158,7 @@ test('one word for saving: Remove on the saved list, no star and no shortlist an
     assert.match(await page.locator('#pageDescription').innerText(), /^Your saved jobs\./);
     assert.doesNotMatch(await page.locator('body').innerText(), /★|\bstar\b|shortlist|Save to Job Board/i);
     await page.locator('.job-row[data-job-id="1"]').getByRole('button', { name: 'Remove', exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll('.job-row').length === 1);
+    await page.waitForFunction(() => document.querySelectorAll('.job-row').length === 1 && document.getElementById('actionState')?.textContent !== 'Removing Office Manager 1…');
     assert.deepEqual(state.writes, [{ path: '/api/career-hunter/jobs/1/status', body: { status: 'dismissed', favorite: false } }]);
     assert.equal(await page.locator('#actionState').innerText(), 'Removed: Office Manager 1 at Example Co.');
   } finally { await context.close(); }

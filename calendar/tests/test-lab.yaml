@@ -12,6 +12,8 @@
 # CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register google-events (single and repeating events written to the person's own Google Calendar through the declared egress, every refusal, the 20-weeks defect) and google-events-card (the card the kernel's own card code renders for it).
 # CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register product-name (what a person reads or hears from Calendar names the product Open Swarm, never OSHAL), and say Open Swarm in the case names and expectations that named the product.
 # CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register home-summary-live (Home and the agenda read Google Calendar live, combined with the events added in Open Swarm, under a read-only admission; the saved copy only when Google did not answer). The kernel-egress case now proves the live summary read instead of connected-not-synced, and the audience-view and design-standard cases follow the live summary.
+# CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | The design-standard case picks its days for the moment it runs: it added its event on the 15th, which Added in Open Swarm (events from today in UTC) no longer lists from the 16th, so it failed from the 16th to the end of every month. Its new expectation names the fixed-moment proof.
+# CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | The compact Chromium case reads the grid's month in the browser's zone: it took the month from the test process's own zone (UTC on the gate host), a month ahead of the grid from 00:00Z to 06:00Z on the 1st, so it failed then every month. Its new expectation names the month-boundary proof.
 version: 1
 cases:
   - id: home-summary-live
@@ -255,6 +257,7 @@ cases:
     expected:
       - Month and selected-day agenda show real own events and saved Google data, with no implicit write or sync.
       - Human save, reload, removal, DST-gap refusal and phone layout pass; refused reads are never presented as an empty calendar.
+      - The month it reads is the grid's month in the browser's zone at any moment, proved at month-boundary moments (a month's last local evening, the 1st in UTC, the 1st in both, a leap February), where the process's own zone (UTC on the gate host) is a month ahead from 00:00Z to 06:00Z on the 1st.
     prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
@@ -273,6 +276,7 @@ cases:
       - New event opens a modal add form that Back closes; a save appears in the grid and in Added in Open Swarm in the same step.
       - Remove and Sync confirm in the page; Cancel changes nothing and sends no sync; no native dialog opens.
       - Framed at 412x743 (Google read live through the stand-in kernel egress) the name is not repeated, the status line says nothing, the work starts within 120px, days show dots and nothing is wider than the screen.
+      - Each case uses a day its page shows whenever it runs, proved at fixed moments against the route's real list bound. The event is added on today in UTC as it will be when the case's budget runs out, which Added in Open Swarm lists, and on a month's last local evening (UTC already on the 1st) Next month first moves the grid there; the framed case's 10th is of the month in the browser's zone.
     prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }

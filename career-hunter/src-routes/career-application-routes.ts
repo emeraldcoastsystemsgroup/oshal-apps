@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Make manual application assertions upgrade unverified history while preserving stronger worker or confirmation-backed provenance.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Persist the authenticated manual completion in the authoritative Apply V2 ledger before updating its Career projections.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Export the deterministic ticket key and the one-application creator (1.27.0) so the Test Lab application seam (career-test-lab-applications.ts) plants its marked application through the same ticket and row writes the queue uses, never a copy of them. createApplication takes an optional Test Lab tag that it records as the ticket's `test_lab_tag` metadata, the only mark the seam's removal accepts; an unscored posting's ticket says so instead of printing a missing fit. The enqueue path passes no tag and is unchanged.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount, asOfDate, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /applications.
  */
 
 /**
@@ -25,6 +26,7 @@ import { runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineClaim } from './career-engine-response';
 import { releaseRun, tryAcquireRun, type RunLease } from './career-engine-runner';
 import { callerSub, careerTenant, openUserDb } from './career-user-store';
+const companySent = require('../lib/career-company-sent');
 
 const logger = createChildLogger({ module: 'career-application-routes' });
 const TENANT = careerTenant();
@@ -365,6 +367,34 @@ async function denyApplication(ctx: AppContext, req: Request, res: Response): Pr
   }
 }
 
+function decorateApplicationRows(userSub: string, rows: Record<string, unknown>[]) {
+  const nowMs = Date.now(), signals = new Map<number, { applied_at?: string | null }>();
+  let db: ReturnType<typeof openUserDb> = null;
+  try { db = openUserDb(userSub); } catch { db = null; }
+  try {
+    const ids = rows.map((r) => Number(r.posting_id)).filter((id) => Number.isSafeInteger(id) && id > 0);
+    if (db && ids.length) {
+      try {
+        const found = db.prepare(`SELECT posting_id, applied_at FROM user_signals WHERE posting_id IN (${ids.map(() => '?').join(',')})`).all(...ids) as { posting_id: number; applied_at?: string | null }[];
+        for (const item of found) signals.set(Number(item.posting_id), item);
+      } catch { /* minimal test store without user_signals */ }
+    }
+    const extraSent = rows.filter((r) => r.status === 'applied').map((r) => ({
+      posting_id: r.posting_id, company: r.company, status: 'applied',
+      applied_at: signals.get(Number(r.posting_id))?.applied_at ?? r.updated_at ?? null,
+    }));
+    const counts = companySent.companySentCounts(db, nowMs, extraSent);
+    const applications = rows.map((row) => {
+      const sigAt = signals.get(Number(row.posting_id))?.applied_at ?? null;
+      const appliedAt = sigAt || (row.status === 'applied' ? row.updated_at ?? null : null);
+      return { ...row, ...(sigAt && row.applied_at === undefined ? { applied_at: sigAt } : {}),
+        companySentCount: companySent.countForCompany(counts, row.company),
+        ...companySent.applicationAgeFields(appliedAt, nowMs) };
+    });
+    return { applications, asOfDate: companySent.asOfDateString(nowMs) };
+  } finally { try { db?.close(); } catch { /* ignore close error */ } }
+}
+
 async function listApplications(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -375,7 +405,7 @@ async function listApplications(ctx: AppContext, req: Request, res: Response): P
       ORDER BY updated_at DESC LIMIT 200`,
     [TENANT, userSub],
   );
-  res.json({ applications: result.rows });
+  res.json(decorateApplicationRows(userSub, result.rows as Record<string, unknown>[]));
 }
 
 async function enqueueDrafts(ctx: AppContext, req: Request, res: Response): Promise<void> {

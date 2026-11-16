@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 36 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount, asOfDate, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /jobs and GET /jobs/:id.
  * 35 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15 on the test server, 2026-11-15: the Concierge, asked to draft a job the nightly pass had not marked, said "The draft stopped … the job details are unavailable" and never where to paste them): GET /jobs/:id carries details_needed, the words "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js notice), when the job has no description and the nightly pass marked it or its last preparation stopped for missing details (job_details_unavailable or job_context_unavailable). career_job is what the Concierge and Jarvis read after career_draft, so their reply carries the words; the application page decides the same. The generate route, its refusal and when the engine tries the employer page are unchanged. Guard: tests/career-paste-details-unmarked.test.mjs.
  * 34 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): POST /jobs/:id/generate takes jobDescription, the description the person pasted from the posting (200 to 20,000 characters, lib/career-pasted-details.js), and hands it to the engine as CH_JOB_DESCRIPTION; it is never logged. A job the nightly pass marked "details needed" that still has no description is refused before the engine starts (409 job_details_needed) with words that say to paste it in Prepare application, step 1 · Tailor; the page, the Concierge and Jarvis's career_draft all start preparation here.
  * 33 | maintainer@emeraldcoastsystemsgroup.com | Persist removal as one relationship tombstone and derive saved membership from that status without rewriting board receipts.
@@ -62,6 +63,7 @@ const pay = require('../lib/career-pay');
 const fit = require('../lib/career-fit');
 const emailUpdates = require('../lib/career-email-updates');
 const pastedDetails = require('../lib/career-pasted-details');
+const companySent = require('../lib/career-company-sent');
 const logger = (0, logger_1.createChildLogger)({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
     'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred', 'rejected',
@@ -91,7 +93,8 @@ async function getJobs(ctx, req, res) {
         const currentQueue = Object.entries(state.jobs).filter(([, value]) => value.favorite || value.workflowEnteredAt || value.applicationDraft).map(([id]) => Number(id));
         const result = (0, career_board_feed_1.fetchBoardPage)(db, query, (0, career_search_scope_1.readJobSearchScope)((0, career_user_store_1.userPaths)(userSub).userDir), query.status === 'saved' ? boardState.favoriteIds(state, db) : query.status === 'queue' && query.current === '1' ? currentQueue : undefined, feedback.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.favoriteIds(state, db));
         const emails = emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir);
-        result.jobs = result.jobs.map(job => workflowRoutes.decorate(db, (0, career_user_store_1.userPaths)(userSub).userDir, emailUpdates.decorate(emails, boardState.decorateJob(state, job))));
+        const nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
+        result.jobs = result.jobs.map(job => companySent.decorateJobSentAndAge(workflowRoutes.decorate(db, (0, career_user_store_1.userPaths)(userSub).userDir, emailUpdates.decorate(emails, boardState.decorateJob(state, job))), sentCounts, nowMs));
         logger.info({
             userSub,
             sort: req.query.sort || 'ai',
@@ -101,7 +104,7 @@ async function getJobs(ctx, req, res) {
             poolSize: result.poolSize,
             ms: Date.now() - started,
         }, 'career board feed served');
-        res.json({ ...result, exclusions: feedback.read((0, career_user_store_1.userPaths)(userSub).userDir) });
+        res.json({ ...result, asOfDate: companySent.asOfDateString(nowMs), exclusions: feedback.read((0, career_user_store_1.userPaths)(userSub).userDir) });
     }
     catch (err) {
         if (err instanceof pay.PayRangeError) {
@@ -526,12 +529,14 @@ async function getJob(req, res) {
         row.gaps = parseJsonList(row.ai_fit_gaps);
         res.setHeader('Cache-Control', 'private, no-store');
         const application = applicationDraft.view((0, career_user_store_1.userPaths)(userSub).userDir, postingId, row);
+        const nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
         delete row.resume_path;
         delete row.cover_path;
-        const job = { ...emailUpdates.decorate(emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.decorateJob(boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))), application };
+        const job = companySent.decorateJobSentAndAge({ ...emailUpdates.decorate(emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.decorateJob(boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))), application }, sentCounts, nowMs);
         // The words to say when the job cannot be prepared until the person pastes its description.
         const detailsNeeded = pastedDetails.notice(job);
         res.json({ job: detailsNeeded ? { ...job, details_needed: detailsNeeded } : job,
+            asOfDate: companySent.asOfDateString(nowMs),
             processing: !!(await (0, career_engine_runner_1.nativeRunInProgress)()) });
     }
     catch (err) {

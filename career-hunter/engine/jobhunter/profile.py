@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Raise _MASTER_BULLET_MAX_CHARS from 1000 to 4096 and _MASTER_STORY_MAX_CHARS from 1200 to 2400 so long multi-sentence pasted drafts save whole and are read untruncated before splitting.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. One refusal of a résumé save says main résumé (was master resume). Words only.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | A master save never stores the credential line base_document() shows in place of an empty headline as the headline. Live 2026-11-09 02:35 the save before a Chat rail message wrote it into a master whose headline was empty, which no one had edited. Guard: tests/career-resume-office.test.mjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Include recorded active additional work in private fit context without copying it into the core resume.
@@ -811,11 +812,11 @@ _MASTER_MAX_COMPETENCIES = 40
 _MASTER_MAX_SKILLS = 1024
 _MASTER_MAX_BULLETS = 128
 _MASTER_ITEM_MAX_CHARS = 200
-_MASTER_BULLET_MAX_CHARS = 1000
+_MASTER_BULLET_MAX_CHARS = 4096
 # ADR-141 D7: the story review's evidence travels with the document it proves. Bounded for the
 # same reason every other field here is — the studio round-trips this over HTTP.
 _MASTER_MAX_STORIES = 6
-_MASTER_STORY_MAX_CHARS = 1200
+_MASTER_STORY_MAX_CHARS = 2400
 
 
 def _master_stories(role: dict) -> list:

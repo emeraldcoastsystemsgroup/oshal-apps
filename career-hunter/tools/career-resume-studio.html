@@ -22,6 +22,7 @@
   31 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"). The document follows the main résumé: opening it, the save before a concierge turn, an approved change and Undo all go through the document host's one settle (tools/career-resume-office.js), so a job or bullet added on Work history or by a card anywhere is in the document with no press, typed text is saved into the main résumé and never replaced, and a document that is only behind is never saved back. Only a document Career cannot place (it differs and names no version) shows the note with Use my work history; the save before a concierge turn leaves it alone.
   29 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled My résumé (was Resume Studio). The picker, the Save button and every status line say main résumé, the words the page already used when it opened it (was master résumé); the More menu says Download my data and Other experience, and the empty line says My jobs. The value the picker and the routes carry is still `master`. Guard: tests/career-page-names.test.mjs.
   32 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1 (Roger, from his phone, 2026-11-14: "in edit and then concierge the screen is putting the text box at the top above the thread"). The résumé editor's conversation reads as every chat does: its heading, the thread filling the panel and scrolling, and the text box with Send last, under the newest message. Entry 3 had put the text box beside the heading, above the thread. On a phone the editor is a sheet between Career's bars (the frame's two measures), no longer one that began under the row of tabs and hid its own heading there; Close the editor is in the sheet's heading, where this page's other sheet has its close, and the Edit with AI bar is away while the sheet is open, so the text box rests on Career's bottom bar. The thread shows the newest message when the sheet opens, after Send, when a reply arrives and when the window changes height (a phone keyboard, a turned screen), unless the person has scrolled up to read. Guard: tests/career-resume-editor-composer.test.mjs.
+  33 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Add an unmistakable active-document identity banner (#docIdentity) above the résumé showing Main résumé (Synced with Work history · revision) vs Tailored résumé (For <Role> · <Company>, with a one-click Back to main résumé button).
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -109,8 +110,20 @@
   #aiBar[hidden] { display: none !important; }
   #noProfile[hidden] { display: none; }
   /* Until a résumé exists there is nothing to edit: no editor panel, no Edit with AI bar, no More menu. */
-  body:not([data-resume=ready]) :is(.chat, #aiBar, #moreBtn) { display: none !important; }
+  body:not([data-resume=ready]) :is(.chat, #aiBar, #moreBtn, #docIdentity) { display: none !important; }
   body:not([data-resume=ready]) .wrap { grid-template-columns: minmax(0, 1fr); }
+  .doc-identity { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+    max-width: 760px; margin: 0 auto 12px; padding: 8px 12px; border-radius: var(--ds-radius-m, 10px);
+    border: 1px solid var(--ds-edge, var(--line)); background: var(--ds-surface-2, var(--panel)); color: var(--ds-ink, var(--text)); font-size: 14px; }
+  .doc-identity[data-doc-kind=tailored] { border-color: color-mix(in srgb, var(--ds-warn, var(--accent)) 50%, var(--ds-edge, var(--line)));
+    background: color-mix(in srgb, var(--ds-warn, var(--accent)) 10%, var(--ds-surface, var(--panel))); }
+  .doc-identity[hidden], #backToMaster[hidden] { display: none !important; }
+  .doc-identity-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; flex: 1 1 220px; }
+  .doc-identity-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--ds-radius-s, 6px);
+    font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--accent) 16%, var(--ds-surface, var(--card))); color: var(--ds-accent-ink, var(--accent)); white-space: nowrap; }
+  .doc-identity[data-doc-kind=tailored] .doc-identity-badge { background: color-mix(in srgb, var(--ds-warn, var(--accent)) 18%, var(--ds-surface, var(--card)));
+    color: color-mix(in srgb, var(--ds-warn, var(--accent)) 72%, var(--ds-ink, var(--text))); }
+  body[data-view=office] .doc-identity { max-width: none; margin: 0 0 8px; }
   /* The master resume as a Word document: AI Office's editor fills the page under one app row, and its
      own Concierge (docked on a desktop, a sheet on a phone) replaces Career's resume editor panel. */
   html, body { overscroll-behavior: contain; }
@@ -152,6 +165,7 @@
     body[data-view=office] #status { grid-column: 1 / -1; font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     body[data-view=office] #status:empty { display: none; }
     body[data-view=office] :is(#err, #historyNote) { grid-column: 1 / -1; }
+    body[data-view=office] .doc-identity { margin: 0 12px 6px; padding: 6px 10px; font-size: 12px; }
     body[data-view=office] .office-host { border-radius: 0; border-left: 0; border-right: 0; }
   }
 </style>
@@ -185,6 +199,10 @@
       <input type="file" id="resumeFile" accept=".pdf,.docx,.txt,.md" hidden>
       <button type="button" class="ck-primary" id="uploadBtn">Upload your résumé (PDF or DOCX)</button>
     </section>
+    <div id="docIdentity" class="doc-identity" role="region" aria-label="Active résumé" hidden>
+      <div class="doc-identity-copy"><strong id="docIdentityBadge" class="doc-identity-badge"></strong><span id="docIdentityDetail"></span></div>
+      <button type="button" class="ck-btn" id="backToMaster" hidden>Back to main résumé</button>
+    </div>
     <div id="sheet" class="sheet" data-no-glass hidden></div>
     <div id="officeHost" class="office-host" hidden></div>
     <div id="empty" class="empty">Pick a résumé to start editing. The ⭐ main résumé is the one each application
@@ -295,6 +313,28 @@ function historyNote(){
 function takeMaster(fresh){
   if (!fresh || !fresh.resume) return;
   state.resume = fresh.resume; docRevision = revisionOf(fresh); dirty = false; masterRevision = fresh.revision || masterRevision;
+  updateDocIdentity();
+}
+function updateDocIdentity(){
+  const bar = $('docIdentity'); if (!bar) return;
+  if (!state.postingId || !state.resume) { bar.hidden = true; return; }
+  const isMaster = state.postingId === 'master';
+  bar.hidden = false; if (bar.dataset) bar.dataset.docKind = isMaster ? 'main' : 'tailored';
+  $('docIdentityBadge').textContent = isMaster ? 'Main résumé' : 'Tailored résumé';
+  if (isMaster) {
+    const rev = String(masterRevision || docRevision || '').slice(0, 8), revNote = rev ? ` · revision ${rev}` : '';
+    const oState = office && office.active() ? office.state() : '';
+    $('docIdentityDetail').textContent = ['jobs', 'unsure'].includes(oState)
+      ? `Needs review against Work history${revNote}`
+      : (dirty || oState === 'typed') ? `Unsaved edits on this screen${revNote} — Save updates Work history.`
+      : `Synced with Work history${revNote} · every new application starts here.`;
+    $('backToMaster').hidden = true;
+  } else {
+    const meta = window.__meta || {}, title = String(meta.title || '').trim(), co = String(meta.company || '').trim();
+    const jobLabel = title && co ? `${title} · ${co}` : title || co || `Job #${state.postingId}`;
+    $('docIdentityDetail').textContent = `For ${jobLabel} — changes here apply only to this job, not your main résumé.`;
+    $('backToMaster').hidden = false; $('backToMaster').disabled = Boolean(documentBusy);
+  }
 }
 async function openOffice(j){
   try { masterRevision = j.revision || ''; await office.open(j); takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true; }
@@ -321,7 +361,7 @@ async function saveOffice(quiet){
 function showError(t){ $('err').textContent = t || ''; $('err').hidden = !t; }
 /* Save is secondary and enabled only with an unsaved change (and never while there is no résumé). */
 function syncSave(){ $('save').disabled = Boolean(documentBusy) || !state.postingId || (!dirty && !officeOpen()); }
-function markEdited(){ edits += 1; dirty = true; syncSave(); }
+function markEdited(){ edits += 1; dirty = true; syncSave(); updateDocIdentity(); }
 // The resume routes carry no revision, so the handoff names the saved document by a fingerprint of
 // its content (a 64-bit string hash that works on plain http, where crypto.subtle is unavailable).
 function revisionOf(doc){
@@ -470,6 +510,7 @@ function resumeDigest(){
 }
 
 function publishContext(){
+  updateDocIdentity();
   if (!window.__bridge) return;
   if (!readyDocument()) {
     try { window.__bridge.emitContext({surface:'resume-studio',title:'Résumé editor unavailable',
@@ -571,7 +612,7 @@ async function loadDoc(id){
   try {
     const j = await fetchDoc(id); if (epoch !== documentEpoch) return;
     state = {postingId:isMaster ? 'master' : Number(id),resume:j.resume || {},cover:j.cover || {},history:[]};
-    docRevision = revisionOf(j); dirty = false;
+    docRevision = revisionOf(j); dirty = false; if (isMaster) masterRevision = j.revision || '';
     window.__meta = j.meta || {}; selectLoadedDocument();
     add('sys', isMaster
       ? 'This is your main résumé. Each application starts from it.'
@@ -743,6 +784,12 @@ import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) =
 })).catch((e) => setStatus('The assistant cannot synchronize this résumé: ' + e.message));
 
 $('pick').addEventListener('change', (e) => { openDoc(e.target.value); });
+$('backToMaster').addEventListener('click', () => {
+  if (documentBusy) return;
+  if (applicationContext) { $('pick').hidden = false; $('pick').disabled = false; }
+  try { history.replaceState(null, '', location.pathname); } catch (_) {}
+  $('pick').value = 'master'; openDoc('master');
+});
 $('send').addEventListener('click', send);
 $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the Work history page's screen. It reads the main résumé with its revision (GET /resume/doc?id=master), draws one card per job, opens a card as a form, saves through POST /resume/master-edit (career-work-history.js builds the edits), shows the changed-with-Undo bar (career-change-bar.js), keeps the Word document on My résumé in step (career-resume-office.js), and registers the page with the shared document handoff so Career's concierge reads it saved and the change it proposes and the person approves is on the page at once, with Undo.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13 ~22:16Z: each new job held his whole pasted draft as one bullet, and that bullet stopped mid-sentence, so the concierge could not quote it). A bullet box no longer carries maxlength 1000, which Chromium applies to a paste by keeping the first 1000 characters; the whole paste is saved, and the engine makes it one bullet per line (master_edit, card_targets.split_lines). Guard: tests/career-work-history-page.test.mjs, the pasted-draft case.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): the Word document on My résumé follows through CareerResumeOffice.settle, which knows the version the document was made from, so it is brought up to date after every change here whatever it missed before (it used to be left for ever once it was behind). On opening, text typed in the document and never saved is saved into the main résumé first, so this page shows it and nothing here is later written over it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Document the raised 4,096-character per-bullet engine bound on pasted multi-sentence drafts.
  */
 (function (win) {
   'use strict';
@@ -61,7 +62,7 @@
 
   function bulletRow(text, orig) {
     // No maxlength: a browser cuts a longer paste there without a word. The engine turns a pasted draft into one bullet
-    // per line and refuses, in words, a single line over its 1000-character bullet limit.
+    // per line and refuses, in words, a single line over its 4096-character bullet limit.
     var area = el('textarea', { class: 'wh-bullet-text', rows: '2', 'aria-label': 'Bullet', 'data-orig': orig == null ? '' : String(orig) });
     area.value = text || '';
     return el('li', { class: 'wh-bullet' }, [area, el('div', { class: 'wh-bullet-tools' }, [

@@ -8,6 +8,7 @@
  *   invitation from Morgan and a weekly series; an OSHAL event in a recording pool; the compiled meetings routes; the kernel's
  *   route tools stand-in in front of them; and the kernel's own card code (platform/src/api/jarvis-package-tools.js from
  *   OSHAL_KERNEL_PLATFORM, a read-only export of the kernel's platform folder), which the suites refuse, never skip, without.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Fix Sunday wall-clock failure where nextWeekday(2, 3) and nextWeekday(3, 4) pushed Tuesday/Wednesday to 9–10 days ahead past meeting-conversation's 9-day lookup window.
  */
 'use strict';
 const fs = require('node:fs');
@@ -20,7 +21,7 @@ const { routeTools } = require('./route-tools.cjs');
 const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(ROOT, '../scripts/toolchain')] }));
 const manifest = yaml.load(fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8'));
 const ZONE = 'America/Chicago';
-const TUE = nextWeekday(2, 3), WED = nextWeekday(3, 4), THU = nextWeekday(4, 5);
+const TUE = nextWeekday(2, 1), WED = nextWeekday(3, 2), THU = nextWeekday(4, 3);
 const at = (day, time) => ({ dateTime: `${day}T${time}:00`, timeZone: ZONE });
 const you = { email: 'you@example.com', displayName: 'You', self: true, responseStatus: 'accepted' };
 const dana = { email: 'dana@example.com', displayName: 'Dana Reyes', responseStatus: 'accepted' };

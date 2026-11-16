@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Split single-line pasted blocks containing multiple inline bullet glyphs (•, ●, ▪, ◦, ‣) while keeping ordinary single-line multi-sentence drafts intact.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "could not run - Your main résumé changed"): a Card remembers which job and which list item each change named (targets, items) and which job each add made (made), so a card written on an earlier revision can be fitted to the main résumé as it is now (card_rebase); when it is, each change's job is given (pins, pin_made) and is never looked up by a place that has moved.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13, the Work history concierge: "it wasnt able to perform the change i asked for"; one card of four edits, two bullets under a job that had none and two other jobs removed, answered "item index must be an integer from 0 to 0" and changed nothing). A card is written from one reading of the work history, and the concierge numbers its edits in more than one way: on blue it wrote the new bullets as their final places (0, 1) and the removed jobs where it read them, each with index as well; Roger's card counted a bullet from one. Positions are therefore never the anchor. A job is the one whose exact title (and employer, when the edit names it) the edit names, at the place the concierge read it or the place the card's earlier edits left it; a job the card itself added is named where its add put it; two jobs that both fit are refused, never guessed. A bullet or list item is the one whose exact text the edit quotes; an add that quotes none goes at the end, in the order written. Every refusal names the change, the job and the text in words.
 """Which job and which bullet each edit of one approval card names, as the person read the card."""
@@ -12,6 +13,7 @@ SUMMARY_SHOWN = 120
 ERROR_MAX_CHARS = 500
 QUOTE_MIN = 30
 _MARK = re.compile(r'^\s*(?:[•●▪◦‣∙·*\-–—]|\(?\d{1,2}[.)])\s+')
+_INLINE_BULLET = re.compile(r'(?:^|\s+)[•●▪◦‣]\s+')
 FIELD_WORDS = {'role': 'a job', 'experience': 'a bullet', 'competencies': 'a core competency', 'skills': 'a skill',
                 'headline': 'the headline', 'summary': 'the summary', 'clearance': 'the clearance'}
 _OP_WORDS = {'set': 'change', 'add': 'add', 'remove': 'remove', 'move': 'move', 'split': 'split'}
@@ -50,7 +52,12 @@ def split_lines(text: str) -> list:
     @param text the bullet text @returns list of bullets"""
     lines = [line.strip() for line in str(text).splitlines() if line.strip()]
     if len(lines) < 2:
-        return [str(text).strip()]
+        single = str(text).strip()
+        if single and _INLINE_BULLET.search(single):
+            parts = [part.strip() for part in _INLINE_BULLET.split(single) if part.strip()]
+            if len(parts) >= 2:
+                return parts
+        return [single]
     marked = any(_MARK.match(line) for line in lines)
     bullets = []
     for line in lines:

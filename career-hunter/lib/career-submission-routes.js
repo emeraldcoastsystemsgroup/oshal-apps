@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach asOfDate, companySentCount and tracked-application age fields on GET /submission-queue.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve per-press pictures only to their original owner with a digest check on every read.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Expose owner-only unknown resolution and hash-checked retained browser pictures.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Expose caller-owned packet review, explicit one-job approval, recoverable native dispatch and retained confirmation through the original Career namespace.
@@ -7,6 +8,7 @@
 const {Router}=require('express'),fs=require('node:fs');
 const queue=require('./career-submission-queue'),native=require('./career-submission-native');
 const drafts=require('./career-application-draft');
+const companySent=require('./career-company-sent');
 const {callerSub,userPaths,openUserDb}=require('../routes/career-user-store');
 const {loadAutofillProfile}=require('../routes/career-autofill-routes');
 const {resolveContainedRegularFile}=require('../routes/career-resume-preview');
@@ -99,7 +101,13 @@ function createCareerSubmissionRoutes(ctx){
     try{await handler(req,res,sub,userPaths(sub).userDir);}
     catch(e){const known=e instanceof queue.SubmissionError||e instanceof drafts.DraftError;res.status(known?e.status:503).json({error:known?e.message:'Submission service unavailable; your existing intent is retained.',code:e.code||'submission_unavailable'});}
   };
-  router.get('/submission-queue',run(async(_req,res,_sub,dir)=>res.json({items:Object.values(queue.read(dir).items).map(queue.publicItem).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))})));
+  router.get('/submission-queue',run(async(_req,res,sub,dir)=>{
+    const nowMs=Date.now();let db=null,counts=new Map();
+    try{db=openUserDb(sub);counts=companySent.companySentCounts(db,nowMs);}catch{/* empty store */}finally{try{db?.close();}catch{}}
+    const items=Object.values(queue.read(dir).items).map(queue.publicItem).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
+      .map(item=>({...item,companySentCount:companySent.countForCompany(counts,item.company),...companySent.applicationAgeFields(item.submittedAt||(['submitted','resolved_sent'].includes(item.status)?item.updatedAt:null),nowMs)}));
+    res.json({items,asOfDate:companySent.asOfDateString(nowMs)});
+  }));
   router.get('/submission-review/:postingId',run(async(req,res,sub,dir)=>{const id=Number(req.params.postingId),review=native.review(await material(sub,id)),previous=drafts.latestIntent(dir,id);res.json({...review,questionLabels:Object.fromEntries((previous?.questions||[]).map(question=>[question.id,question.text]))});}));
   router.post('/submission-queue',run(async(req,res,sub,dir)=>{
     const keys=Object.keys(req.body||{});if(keys.some(k=>!['postingId','packetDigest','approved'].includes(k)))throw new queue.SubmissionError('invalid_request','Only job selection and exact packet approval are accepted.',400);

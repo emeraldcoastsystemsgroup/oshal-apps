@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Raise per-bullet evidence excerpt cap from 1500 to 4096 characters to match long work-history bullet limits.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Prepare interviews from the same owner-private employer detail used for fit and documents.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Prepare one job's interview from exact recorded experience, validate evidence references, and persist bounded private practice feedback without changing the candidate profile.
 """Job-specific interview preparation and practice, inside the owner store lease."""
@@ -91,7 +92,7 @@ def source(posting_id):
                 if not isinstance(text, str) or not text.strip():
                     continue
                 evidence.append({'id': f'r{index}-{kind}-{n}', 'role': context,
-                                 'text': text.strip()[:1500]})
+                                 'text': text.strip()[:4096]})
                 if len(evidence) >= 100:
                     break
             if len(evidence) >= 100:
