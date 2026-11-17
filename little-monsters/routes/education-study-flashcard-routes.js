@@ -11,6 +11,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add owner/class-scoped flashcard CRUD route adapters.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Include per-student study preferences when requested on GET /flashcards/sets/:setId/cards?includePrefs=1 (RP-LM-04).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The preferences are optional on that read: when they cannot be read the cards still answer, with preferences null, and the failure is logged. An installation whose relationship policy was installed before 1.9.0 refuses every statement on lm_flashcard_study_prefs ("SQL table is outside installed relationship policy"); the whole request answered 500, so Study opened every set empty (Roger's phone, 2026-11-16). Guard: tests/lm-flashcard-study-opens.test.cjs.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-flashcard-routes
@@ -42,13 +43,31 @@ async function listSets(req, res, ctx) {
         fail(res, error, 'load flashcard sets');
     }
 }
+/**
+ * @description The learner's saved Shuffle and Term/Definition choice for a set the cards read already admitted, or
+ * null when it cannot be read. The choice is optional (the study page keeps it on the device too), so it never takes
+ * the cards down with it: an installation whose relationship policy predates lm_flashcard_study_prefs refuses every
+ * statement on that table.
+ * @param ctx - Application context holding the request's pool.
+ * @param actor - The signed-in learner.
+ * @param setId - The set whose cards were just read.
+ * @returns The saved choice, or null when it is unavailable.
+ */
+async function readPreferences(ctx, actor, setId) {
+    try {
+        return await (0, education_study_store_1.getStudySetPreferences)(ctx.pool, actor, setId);
+    }
+    catch (error) {
+        logger.error({ err: error, operation: 'read the study preferences' }, 'Study preferences unavailable; the cards answer without them');
+        return null;
+    }
+}
 async function listCards(req, res, ctx) {
     try {
         const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         const cards = await (0, education_study_store_1.listReadableCards)(ctx.pool, actor, req.params.setId);
         if (req.query.includePrefs === '1') {
-            const preferences = await (0, education_study_store_1.getStudySetPreferences)(ctx.pool, actor, req.params.setId);
-            res.json({ cards, preferences });
+            res.json({ cards, preferences: await readPreferences(ctx, actor, req.params.setId) });
             return;
         }
         res.json({ cards });

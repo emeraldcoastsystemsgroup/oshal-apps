@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The quant's contract: the manifest's chatBot names a declared bot whose persona file has a perspective, authorizes every declared tool and carries routing words; every api tool's endpoint is a route the package mounts under /api/kalshi; the rating declares the hosted feature with a template fallback; the Markets tab, its Why button and Ask the quant exist on the page.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: the market list is the card list (#mk-list); Why opens from a card; the ticker lookup is the search field (the form keeps id mk-lookup).
  */
 'use strict';
 const test = require('node:test');
@@ -60,7 +61,7 @@ test('the page has a Markets tab first, a Why walkthrough and Ask the quant', ()
   const tabs = [...page.matchAll(/data-tab="([a-z-]+)"/g)].map((m) => m[1]);
   assert.equal(tabs[0], 'markets', 'the person lands on the whole market list');
   assert.match(page, /data-panel="markets"/);
-  assert.match(page, /id="mk-rows"/);
+  assert.match(page, /id="mk-list"/);
   assert.match(page, /mkJson\('\/markets\?' \+ mkParams\(\)\)/, 'the list is read from GET /api/kalshi/markets');
   assert.match(page, /mkJson\('\/markets\/' \+ encodeURIComponent\(ticker\)\)/, 'the walkthrough is read from GET /api/kalshi/markets/:ticker');
   assert.match(page, /Ask the quant/);

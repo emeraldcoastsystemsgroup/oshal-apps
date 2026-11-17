@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise truthful unscored states and explicit per-job fit checks on synthetic saved jobs without generating documents or bulk scoring.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A failed matching receipt retains earlier fit evidence while reporting failure and offering retry.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Delayed posting responses cannot overwrite a newer completed per-job fit receipt.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: the fixture job carries a description. Since 1.68.6 the posting sheet reads a job's missing description (POST /jobs/:id/details, tests/career-job-details-sheet-browser.test.mjs); these cases are about the fit check, so their job has one and every write they count is still the fit check's own.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ before(async()=>{browser=await playwright().chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
 
 function fixture(mode='success') {
-  const state={mode,writes:[],job:{id:7,title:'Fixture role',company:'Fixture employer',location:'Austin, TX',
+  const state={mode,writes:[],job:{id:7,title:'Fixture role',company:'Fixture employer',location:'Austin, TX',description:'Fixture description of the role.',
     status:'new',favorite:true,active:1,has_resume:false,has_cover:false,
     board:{phase:'failed',error:'resume_required',requestId:'old-fixture',completedAt:'2026-11-01T12:00:00Z'}}};
   state.api=({method,url,body})=>{

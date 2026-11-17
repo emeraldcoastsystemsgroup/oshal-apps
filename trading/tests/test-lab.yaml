@@ -1,3 +1,12 @@
+# CHANGE LOG: 41 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: quant-lab states the process copy of archived day prices (ten minutes, shared, only missing names read); quant-lab-playbook states that trading_quant_run is the desk's own pass and never an answer, that explain computes nothing and is followed by the tool it names, that the lab tools work without Schwab, and that no lab answer names trading_quant_run.
+# CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: quant-reference-options states that every reference read asks the kernel to end it within the budget with the plain agent, the kernel-shaped silent-host guard (the abort signal ends nothing, only timeoutMs does; the desk run with its read over inside 2 seconds), and that nothing is read on a kernel whose fetch cannot end a read early.
+# CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: quant-reference-options states the cache-only interactive reads, the desk pass's bounded refresh with its rest after a failure, the Treasury bill-rate source, and the silent-host guard (every lab route and the desk run under 2 seconds); quant-lab-playbook states the explain-first rule.
+# CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | Register quant-reference-options (1.61.0; file tests/native-quant-reference): the official Fama-French factors and the Treasury bill rate read, cached, refreshed and attributed (never filled in), the official three-factor regression, and the option view over a real-shaped Schwab chain with no chain shown when there is none.
+# CHANGE LOG: 37 | maintainer@emeraldcoastsystemsgroup.com | Register quant-lab and quant-lab-playbook (1.60.0; files tests/native-quant-lab and native-quant-lab-playbook): the quant's tools over made-up markets (all fifty ideas explained, the calculator, a stock's five views, the World archive labelled when no Schwab login is connected, bounds, portfolios, pairs, Monte Carlo, backtest overfitting) and the read-in that names them; quant-desk states the lab's routes and intents.
+# CHANGE LOG: 36 | maintainer@emeraldcoastsystemsgroup.com | Register the quant's math core (1.59.0; files tests/native-quant-math-*, named so the store's trading test command runs them): textbook and reference-value guards for the statistics, option, volatility, portfolio, risk, time-series, overfitting, simulation, microstructure and factor math, and the boundary that keeps it pure and outside the order authority.
+# CHANGE LOG: 35 | maintainer@emeraldcoastsystemsgroup.com | Register account-details-history-browser (1.58.0; file tests/native-account-details-history-browser): the account details page draws an account's recorded value history from GET /paper/values and asks for no save; before, it said "Account history could not be read" on the native kernel, whose page reads cannot save.
+# CHANGE LOG: 34 | maintainer@emeraldcoastsystemsgroup.com | Register portfolio-overview and portfolio-overview-browser (1.58.0; files tests/native-portfolio-overview and native-portfolio-overview-browser, named so the store's trading test command runs them): Intelligent Trades opens on a portfolio overview drawn from recorded daily values, and the first screen's cards become its Trading status tab (today-home-browser opens that tab).
+# CHANGE LOG: 33 | maintainer@emeraldcoastsystemsgroup.com | Register review-blockers-browser (1.57.1): Review blockers did nothing visible when its section was already open. The suite drives the shipped account page over the shipped routes after the watcher's own tick and requires each next step to bring its content into view with focus; account-status-browser and account-status-evidence follow the steps' named content.
 # CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | Register today-read, account-story and today-home-browser (1.57.0; files tests/native-today-read, native-account-story and native-today-home-browser, named so the store's trading test command runs them): the first screen answers from saved records whether each account is running or parked and in what, what it did today and why its value moved, with a source and a time on each part, one button per card and no control that can change money; the two landing browser cases open the screen's closed section.
 # CHANGE LOG: 31 | maintainer@emeraldcoastsystemsgroup.com | Verify contextual account guidance, independently dated counts, disclosure accessibility, exact strategy binding and preserved explicit controls.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register paper valuation and entry-fee reporting regressions without live account or order actions.
@@ -1653,6 +1662,7 @@ cases:
       - Owner and connection bindings isolate historical balances and reject unresolved accounts.
       - History never reconstructs old equity from present holdings or presents account value change as a cash-flow-adjusted return.
       - Dashboard links, symbol comparison, reload and cash-only accounts work on desktop and phone.
+      - A holding's price against the comparison symbol is drawn from daily prices read at GET /api/trading-charts/bars (holding and SPY, 1Day, the account's connection); nothing reads /api/trading/bars, which no route serves, and the fixture host serves only addresses the package serves (1.58.1).
       - Ambiguous broker position day amounts cannot become account daily returns.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: fixture-write
@@ -1710,6 +1720,7 @@ cases:
       - The list reads by page, group, search, signal and column; filings refresh it without moving a rank.
       - The deep-dip signal sits in the history test like any other; the quality dip takes only a 25%+ fall with a profitable, growing filing, deepest first, the screen ranks by the exact rule the scoreboard grades, and the brief carries tonight's candidates with the forward verdict named.
       - The screen runs the desk, pages, filters, searches and sorts across the whole list, explains a rank, shows holdings and the scoreboard at desktop and phone widths, and writes only to the desk and its own job.
+      - The Quant router also serves the quant lab under /lab (seven routes), each refusing a caller with no admitted identity; the lab adds only the read-only intents prices.series and trading.quotes, and no Quant file has an order path.
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Drop the disposable PostgreSQL database and close the synthetic servers. }
@@ -1860,6 +1871,7 @@ cases:
     expected:
       - Approval is strict; stale, mismatched, malformed or missing evidence stays unknown. A completed cycle alone is not alignment.
       - One next step follows the existing classification; recorded submitted zero and unknown retain their own observation date.
+      - Review blockers lists exactly the holdings the watcher's record names, with a plain reason and the person's step, marks only those rows, and says what an unnamed record leaves out.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
@@ -1873,12 +1885,29 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/native-account-status-browser.test.js] }
     expected:
       - Shipped renderers show dates and targets versus holdings at1440 and412px, separate approval, and send no mutations or page errors.
-      - Contextual actions only open local evidence or settings with keyboard focus; directly visible Deactivate and contextual actions are at least 44 px.
+      - Contextual actions only open local evidence or settings and move keyboard focus into the content they name, never onto the section heading; directly visible Deactivate and contextual actions are at least 44 px.
       - Missing or mismatched account, connection or strategy withholds foreign execution evidence; a newer failed attempt never supplies the older submitted count date.
     prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
     limits: { timeoutMs: 120000 }
+    installation: never
+
+  - id: review-blockers-browser
+    name: Review blockers and every next step go visibly to their content
+    purpose: Drive the shipped account page in Chromium over the shipped routes and synthetic records, after the watcher's own tick; no broker, kernel or real account.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-review-blockers-browser.test.js] }
+    expected:
+      - The watcher's tick leaves a whole-account allocation waiting on one holding with a stale price, and the page shows Review blocked with Review blockers.
+      - With the evidence section already open, and again closed, Review blockers scrolls a list naming exactly the holdings the record names, each with its reason and step, into view and gives it a visible focus.
+      - Only the named holdings' rows are marked in the targets table, in words and colour; at 1440 and 412 px nothing scrolls sideways.
+      - Review recorded orders, See targets and holdings, Review last check and Review setup each move a visible focus to their own content the same way.
+      - Every page request that is not GET or HEAD is aborted and counted, none occurs, and no order is submitted.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 180000 }
     installation: never
   - id: today-read
     name: The first screen's read answers from saved records only
@@ -1915,8 +1944,8 @@ cases:
     installation: never
 
   - id: today-home-browser
-    name: The first screen on desktop and phone
-    purpose: Drive the shipped page, scripts and route handlers in Chromium on a fixture host with invented accounts; no broker, kernel or real account.
+    name: The Trading status tab on desktop and phone
+    purpose: Drive the shipped page, scripts and route handlers in Chromium on a fixture host with invented accounts, on the Accounts screen's Trading status tab; no broker, kernel or real account.
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/native-today-home-browser.test.js] }
     expected:
@@ -1930,6 +1959,57 @@ cases:
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
     limits: { timeoutMs: 180000 }
+    installation: never
+
+  - id: portfolio-overview
+    name: The portfolio overview's read and arithmetic
+    purpose: Run the shipped GET /paper/values handler on a statement-exact in-memory database with invented accounts, and the overview's series and chart modules on invented values; no broker, kernel or real record.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-portfolio-overview.test.js] }
+    expected:
+      - The route is registered, refuses a caller who is not admitted, sends its one SELECT, calls no kernel intent, and none of its files joins the order-authority set.
+      - Each account's days come back oldest first, one per day, the later record winning; an unreadable row is skipped and another person's rows never appear.
+      - A day with no record is a gap with no bar on it or after it; a single day has no change; ranges are cut back from the newest day, month ends included, and say when the history starts.
+      - The total adds the accounts only on days every one is recorded; percent counts from the first value in the range; benchmark closes are read without guessing between two.
+      - An approval ending within 14 days warns with the days left, one ending before the account's next trade names that trade, a later one is a plain date, and none says nothing.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Discard the per-case in-memory records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: account-details-history-browser
+    name: Account details draws the recorded history without a save
+    purpose: Drive the shipped account details page in Chromium at 1440 and 412 px on the overview's fixture host, which refuses a save during a page read as the native kernel does; invented accounts and closes only.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-account-details-history-browser.test.js] }
+    expected:
+      - The page draws the account's recorded value line and daily change bars from GET /paper/values, one point per recorded market day in the period, and its table lists the same days.
+      - It compares the change in value with SPY on matching dates, and switching the period redraws both.
+      - It never calls the account-details read that saves before it reads, sends no statement but reads, and no request that is not GET or HEAD.
+      - A card on the overview opens the same page with the history drawn.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 180000 }
+    installation: never
+
+  - id: portfolio-overview-browser
+    name: The portfolio overview on desktop and phone
+    purpose: Drive the shipped page, scripts and route handlers in Chromium at 1440 and 412 px on a fixture host with three invented accounts and made-up SPY and BIL closes; no broker, kernel or real account.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/native-portfolio-overview-browser.test.js] }
+    expected:
+      - Intelligent Trades opens on the overview; the total, today's change, the value line and the daily bars match the saved values, bars are green up and red down, a day with no record is a gap, and nothing sends a POST, PUT, PATCH or DELETE or a statement but SELECT.
+      - The range buttons switch the total, the cards and the comparison together and say when the history starts; nothing scrolls sideways at 1440, 1024, 768 or 412 px.
+      - Each account card shows its value, day change, trendline and status chip, and a tap opens the existing account details page.
+      - The comparison draws each account with SPY and BIL from the same day and says when a price read fails; the holdings table sorts by each column and leaves unknown figures as a dash.
+      - The Trading status tab is one tap away and shows the same cards and headline; a person with no connected account sees how to connect one; a failed saved-record read draws the former landing with one line.
+      - Under "Is it trading?" and on each card the approval's end date shows; one ending before the next trade says so and its link opens Strategy settings and approval without sending anything.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close local fixture listener and browser. }
+    limits: { timeoutMs: 240000 }
     installation: never
   - id: paper-strategy-valuation
     name: Fresh paper marks preserve strategy decisions and risk anchors
@@ -1977,4 +2057,133 @@ cases:
       cleanup: Discard per-case in-memory account, assignment, quote and SQL fixtures.
     limits:
       timeoutMs: 30000
+    installation: never
+  - id: quant-math-foundations
+    name: The quant's statistics, returns, money arithmetic and regressions match textbook and reference values
+    purpose: Check the math core's foundations against scipy and numpy values and closed forms, on made-up numbers only.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-math-core.test.js] }
+    expected:
+      - The normal and Student t distributions match scipy to machine precision; the 95% one-sided z is 1.6449.
+      - Simple, log and compound returns, CAGR, annualizing and the square-root-of-time rule are exact.
+      - Present value, net present value, annuities and expected value match their formulas; probabilities that do not add up to 1 are refused.
+      - Volatility drag is about half the variance; +50% then -50% loses a quarter.
+      - The Sharpe ratio is annualized by the square root of 252 with Lo's standard error.
+      - Skew, kurtosis, Jarque-Bera, Spearman, quantiles and t-tests match scipy; least squares with Newey-West errors matches numpy.
+      - A number the math cannot use is refused with a reason (status 400), never repaired.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: quant-math-derivatives-volatility
+    name: Option pricing and volatility models match textbook values and recover simulated parameters
+    purpose: Check Black-Scholes, the Greeks, parity, the binomial tree, implied volatility, Monte Carlo, delta hedging, the smile fit, GARCH, GJR-GARCH and volatility estimators on made-up inputs.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-math-options.test.js, tests/native-quant-math-volatility.test.js] }
+    expected:
+      - Black-Scholes (100, 100, 1 year, 5%, 20%) gives a 10.4506 call and a 5.5735 put, and put-call parity holds, with and without a dividend yield.
+      - Every Greek matches a finite difference of the price.
+      - The CRR tree converges to Black-Scholes; the American put (6.0902 at 5000 steps) carries an early-exercise premium and the American call none.
+      - Implied volatility round-trips across strikes and a price outside the no-arbitrage range has none.
+      - Monte Carlo agrees within three standard errors; delta hedging's error halves when rebalancing quadruples, and hedging at too low a volatility loses.
+      - GARCH(1,1) and GJR-GARCH recover simulated parameters within tolerance, the fit is the likelihood's maximum, the forecast decays to the long run, and the asymmetry test finds GJR data only.
+      - EWMA, Parkinson and Garman-Klass estimate a known volatility; volatility targeting caps exposure.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: quant-math-portfolio-risk-research
+    name: Portfolio, risk, time-series, overfitting, simulation, microstructure and factor math match closed forms and published examples
+    purpose: Check the efficient frontier, risk parity, Black-Litterman, Kelly, VaR and expected shortfall, unit-root and cointegration tests, the Kalman filter, the deflated Sharpe ratio and PBO, Monte Carlo and the bootstrap, market-maker and impact models, spread estimators and factor models on made-up data.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-math-portfolio-risk.test.js, tests/native-quant-math-timeseries.test.js, tests/native-quant-math-research.test.js] }
+    expected:
+      - The two-asset minimum-variance weight matches its closed form, no frontier point beats the tangency Sharpe ratio, and long-only weights stay long-only.
+      - Risk parity equalizes risk contributions; Black-Litterman with no views returns the market equilibrium; Kelly is (bp - q) / b.
+      - The 95% bell-curve VaR is 1.645 sigma; Cornish-Fisher and Student t raise it for fat tails; a bell-curve VaR on fat-tailed returns fails Kupiec's test and historical VaR passes.
+      - The ADF statistic matches numpy and MacKinnon's critical values; a random walk is not rejected and a mean-reverting series is; Engle-Granger finds a cointegrated pair only; the half-life, Hurst exponent and variance ratio read each series correctly.
+      - A Kalman filter tracks a drifting hedge ratio far better than one fixed ratio.
+      - The deflated Sharpe ratio reproduces the published 0.9004; 45 tries need about 5 years; PBO is near 0 for a real edge and high for noise.
+      - Monte Carlo GBM matches its exact moments; the bootstrap matches the textbook standard error.
+      - Glosten-Milgrom, Kyle, Avellaneda-Stoikov, the square-root law and Almgren-Chriss match their formulas; Roll and Corwin-Schultz recover a simulated spread.
+      - Beta is cov / var and the regression slope; Fama-French SMB and HML recover planted premia; a quantile sort and Fama-MacBeth find a priced factor.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: quant-math-boundary
+    name: The quant's math stays pure and outside the order authority
+    purpose: Follow every version of the order-authority closure by the kernel's literal-require rules and read the math files themselves.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-math-boundary.test.js] }
+    expected:
+      - No module under routes/quant/math joins any version's order-authority closure; a closure file that loaded one turns this red.
+      - Each math module loads only its siblings, with no file, network, database, model or order path; a math module that loaded node:fs turns this red.
+      - Each math file has its change log, stays under 1000 code lines, keeps every function under 50 lines and documents it.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: quant-lab
+    name: The quant's tools answer from real-shaped prices, label archived prices, stay bounded and never reach an order
+    purpose: Drive the quant lab's handlers over made-up markets (seeded Schwab-shaped candles, World archive day rows, a Level 1 quote) and a memory store.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-lab.test.js] }
+    expected:
+      - All fifty ideas resolve by id, name or alias with plain words, use, tool and pitfalls; an unknown idea gets suggestions and the full list.
+      - The calculator applies the math to supplied numbers (Black-Scholes 10.4506, Kelly 0.2, VaR 1.645 sigma), accepts "5%" and numbers under inputs, reads no prices, and names its kinds for an unknown one.
+      - With a Schwab login a stock's risk, behavior, volatility (GARCH and GJR on five years), liquidity (Level 1 spread, impact) and factors (beta, CAPM, ETF-proxy three-factor, APT) views answer from Schwab candles.
+      - Without one, the views read the World archive, label it as not official exchange closes, and say what 25 days cannot support (GARCH, fat tails, a bootstrap); a name with no prices says why and gets no number.
+      - Names, days, paths, horizon, view and method are bounded; a slow Schwab read is answered without inside the read budget; the largest questions answer within two seconds.
+      - Risk parity equalizes contributions, Black-Litterman views move the posterior, a tied pair is cointegrated with a Kalman hedge ratio near 1, and the desk's overfitting report needs its history and finds a real edge (low PBO).
+      - The lab names only trading.config, trading.bars, trading.quotes and prices.series and has no order path.
+      - Archived day prices are kept in the process ten minutes per name and window and shared by every caller: the same names read nothing, a new name reads only itself, a shorter window is its own copy, a name the archive lacks is asked again, and the kept answer equals the read one.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: quant-lab-playbook
+    name: The quant's read-in names the tools that exist and keeps a quant answer honest
+    purpose: Read the manifest's tools, the concierge persona and the lab's own tables together.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-lab-playbook.test.js] }
+    expected:
+      - Every lab tool is a research-only route tool over a route the lab serves, takes no owner, account or order field, and is the concierge's to call.
+      - The calculator's offered kinds equal the kinds it serves, and the playbook names every tool, view and kind.
+      - The playbook says numbers come only from tools, archived prices are not official closes, the order book behind the best bid and ask and live option chains are not read, the Fama-French factors are ETF proxies, every backtest's pitfalls (look-ahead, survivorship, overfitting, fat tails), and never an instruction.
+      - Each of the fifty ideas points only at tools that exist.
+      - A "what is" or "explain" question always starts with trading_quant_explain, said in the persona and in the tool's own description.
+      - trading_quant_run is described as the desk's own pass in Trading's single process that answers no question, and the playbook never uses it to get prices, a rate or an answer.
+      - Explain computes nothing and is followed by the tool it names when the question names a stock, a portfolio or numbers; the stock, portfolio, pair, simulate and calculate tools work without Schwab.
+      - No lab answer (the overfitting check's not-ready answers, an unavailable rate) names trading_quant_run.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+  - id: quant-reference-options
+    name: The quant's reference data is real, cached and attributed, and option chains come only from the person's Schwab connection
+    purpose: Drive the reference loaders and the lab's options and factors routes with made-up files (a ZIP in the French library's layout, a FRED CSV) and a made-up chain priced by Black-Scholes on a known smile; a fetch double refuses every other host.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-reference.test.js] }
+    expected:
+      - The French library's ZIP and daily CSV read exactly in fractions; FRED's missing days are skipped, never filled.
+      - The French library's ZIP and the Treasury's bill-rate file (13-week coupon equivalent) read exactly; blank days are skipped, never filled.
+      - Interactive reads never reach the network: with no copy yet they answer at once that the rate or the factors are unavailable right now, with the reason; a rate the person gives wins.
+      - Only a desk pass reads the network: one due source per pass within 1.5 seconds; the copy then serves at once, dated and attributed; a failed read is recorded with its reason and rests 30 minutes.
+      - Every reference read asks the kernel to end it within the pass's budget (timeoutMs, 100 to 1500 ms) and sends the plain agent (no address in parentheses, which the Treasury's server never answers) with Accept */* (the French library answers 406 to application/zip and 404 to no Accept header).
+      - With a reference host that accepts a connection and never answers, every lab route and the desk run answer in under 2 seconds; served the kernel's way (the package's abort signal ends nothing, only timeoutMs does), the desk run's read is over inside 2 seconds too.
+      - On a kernel whose fetch does not say it honors timeoutMs, the desk reads nothing and the run and the risk answer say why.
+      - The official three-factor regression recovers planted loadings with the library's attribution, and says when the factors end before the prices.
+      - On a real-shaped chain the smile fit recovers the planted level and skew, put-call parity holds, the expected move is spot x IV x sqrt(T), and the at-the-money Greeks come from the chain; the chain read asks only for the symbol and a bounded strike count.
+      - No chain is shown without a Schwab connection, on a kernel without the chain read, or for a symbol with no listed options.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
     installation: never

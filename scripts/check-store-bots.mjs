@@ -42,6 +42,7 @@
  * 17 | maintainer@emeraldcoastsystemsgroup.com | PENDING (T15): Life and System (launchers), the Developer Workspace Index and Hello OSHAL borrow jarvis's oshal-assistant by name instead of general-bot, so their four entries leave the list. Payments and Payroll stay: each needs a concierge of its own with read tools over its routes, which neither declares.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit batch 2b: register Intelligent Operations' new front-desk concierge (ops-concierge, which replaces ops-rca-specialist as chatBot) and Kalshi's side-chat quant (kalshi-quant).
  * 19 | maintainer@emeraldcoastsystemsgroup.com | Concierge audit (T15), the batch after 2b: register Intelligent Processing's own front-desk concierge (processing-concierge, which replaces the imported ops-rca-specialist as chatBot).
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Futures Research 1.2.0: register futures-research-concierge as Futures Research's inline front-desk concierge in CONCIERGES while futures-research-worker remains its tool-less workflow worker.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -68,7 +69,7 @@ export const CONCIERGES = [
   'embodied/personas/embodied-operator.yaml',
   'fantasy-football/personas/fantasy-quant.yaml',
   'feeds/personas/feeds-curator.yaml',
-  'futures-research/personas/futures-research-worker.yaml',
+  'futures-research/personas/futures-research-concierge.yaml',
   'home/personas/home-bot.yaml',
   'lora/personas/lora-director.yaml',
   'motion-studio/personas/motion-editor.yaml',

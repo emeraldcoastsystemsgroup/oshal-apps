@@ -158,6 +158,16 @@ download their original file and use **Open a file** rather than regenerating th
 
 
 
+### A page that frames the editor (2.20.4, 2.20.6)
+
+A page that frames `/api/presentations/editor/app` may own two things on its screen. With `?assistant=host` the page's
+own concierge is the screen's one assistant, so the editor makes none. With `?header=host` (or `?header=editor` while the
+editor keeps its own row) the page draws the document's one bar itself, as Career's My résumé does on a phone: it moves
+the app row with `{type:'office-header', owner:'host'|'editor'}`, presses the row's own buttons by name with
+`{type:'office-command', command}` (`edit`, `undo`, `redo`, `export`, `document`, `documents`), and hears the row's state
+(`office-header-state`) and the canvas's scroll (`office-scroll`). Messages pass only between the editor and its direct
+parent on the same origin. Without these options nothing changes.
+
 ### Document paragraphs and pending cell edits
 
 Document sections accept ordinary blank-line paragraphs. The outline remains the

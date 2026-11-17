@@ -11,10 +11,11 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Include the complete shared user product bundle in one reviewed member assignment; retain each component's exact catalog roles and data boundaries.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Scan to Print 0.7.0 adopts an ADR-149 catalog, so its member role is the catalog's `maker` (the whole app, as @app-admin was); template version 3 carries it, and existing version 2 assignments keep their grants until an administrator reviews and applies the upgrade.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7 (concierge audit T15, the store's PENDING list): the Studio screen's concierge is the required member jarvis's oshal-assistant (imported under dependencies.required.bots), as on the Jarvis experience since its entry 6, instead of the platform general-bot, which holds none of this experience's data. A Jarvis request that names this experience now stays with the assistant (the kernel keeps a request whose application's concierge is the assistant) instead of being handed to general-bot. No member, role or authorization change.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: requires and maps only applications the public catalog or the kernel platform ships. 1.1.7 required four applications that live only in the private store and mapped their roles in its member template, so a kernel with the required-member check (crates/packages/src/loader/local.rs check_dependencies) refused this experience on every installation without the private store (the trial, 2026-11-16). Those four roles move to the private store's own Federal experience, which an installation that carries the private store assigns separately. Template member is version 9: an assignment of version 8 grants less than was approved, so the kernel holds it for an administrator's review instead of carrying it over. Guard: scripts/app-dependency-declarations.test.mjs.
 name: studio-experience
 displayName: Studio
 description: Applications, recent work and conversations in your established Studio workspace.
-version: 1.1.7
+version: 1.1.8
 status: active
 suite: ai-productivity
 rating:
@@ -57,7 +58,6 @@ dependencies:
       - calling-assistant
       - marketing-engine
       - venture-plan
-      - private-app-1
       - payroll
       - payments
       - identity
@@ -82,9 +82,6 @@ dependencies:
       - games
       - jarvis
       - workflow-studio
-      - private-app-2
-      - intelligent-sales
-      - private-app-3
     bots: [{ app: jarvis, name: oshal-assistant }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
@@ -104,7 +101,7 @@ experience:
   surfaces: []
   roleTemplates:
     - id: member
-      version: 8
+      version: 9
       label: Complete workspace member
       members:
         - app: studio-experience
@@ -141,8 +138,6 @@ experience:
           role: '@app-admin'
         - app: venture-plan
           role: member
-        - app: private-app-1
-          role: crm_representative
         - app: payroll
           role: '@app-admin'
         - app: payments
@@ -225,12 +220,6 @@ experience:
           role: chat-user
         - app: workflow-studio
           role: '@app-admin'
-        - app: private-app-2
-          role: '@app-admin'
-        - app: intelligent-sales
-          role: sales_manager
-        - app: private-app-3
-          role: administrator
 routes:
   - module: routes/experience.js
     factory: createExperienceRoutes

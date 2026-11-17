@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 regression guard for storage--storage-assistant (MERGE) and storage--storage-settings (FIX-LAYOUT): chatBot is storage-assistant, ribbon.defaultView is storage-files, storage-assistant leaves ui.static with zero cross-store experience surface references, assistant chips are <button> controls with one greeting and Graphite-safe on-accent ink, unconnected backends are disabled <option> elements with a Connections link beneath the select, changing a select sends PUT /api/storage/prefs immediately and displays Saved (or role="alert" on failure), and local usage / 250 MB limit sits in the help text with lowercase oshal copy.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.3: Storage Settings copy and option labels name the product Open Swarm ("Storage Settings — Open Swarm", "Choose where Open Swarm saves...", "Open Swarm (local)").
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.4: the assistant page is the kernel's one chat window as Storage's concierge (it mounts /shared/ui/js/jarvis-chat-frame.js with storage-assistant, the four starter prompts and a help line naming Files and Storage Settings) and draws no chat of its own: no transcript, no message bar, no POST /api/storage/assistant of its own.
  * -----------------------------------------------------------------------------
  * @module storage-ux-batch7.test
  */
@@ -66,7 +67,7 @@ function mountSettingsDom(fetchImpl, appViewActive = null) {
   return { els, getEl };
 }
 
-test('storage--storage-assistant: manifest sets chatBot and defaultView, removes tile safely, and assistant UI uses buttons and on-accent ink', () => {
+test('storage--storage-assistant: manifest sets chatBot and defaultView, removes tile safely, and the assistant page is the one chat window', () => {
   const manifest = fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8');
   assert.match(manifest, /^chatBot:\s*storage-assistant$/m);
   assert.match(manifest, /ribbon:[\s\S]*?defaultView:\s*storage-files/);
@@ -82,17 +83,12 @@ test('storage--storage-assistant: manifest sets chatBot and defaultView, removes
   }
 
   const assistant = fs.readFileSync(path.join(PKG, 'tools', 'storage-assistant.html'), 'utf8');
-  const chipButtons = [...assistant.matchAll(/<button[^>]*class="chip"[^>]*>([^<]+)<\/button>/g)].map((m) => m[1]);
-  assert.deepEqual(chipButtons, [
-    'Where do my files save?',
-    'List my files',
-    'Save my files to Dropbox',
-    'Make a GitHub repo',
-  ]);
-  assert.equal((assistant.match(/add\('bot',\s*"Hi —/g) || []).length, 1, 'exactly one greeting');
-  assert.match(assistant, /href="\/api\/files"/, 'assistant links to /api/files');
-  assert.match(assistant, /\.msg\.user\s*\{[^}]*color:var\(--on-accent\)/);
-  assert.match(assistant, /\.bar button\s*\{[^}]*color:var\(--on-accent\)/);
+  assert.match(assistant, /const \{ mountJarvisChat \} = await import\('\/shared\/ui\/js\/jarvis-chat-frame\.js'\);/, 'the page mounts the kernel\'s one chat window');
+  assert.match(assistant, /app: 'storage', bot: 'storage-assistant'/, 'as Storage\'s concierge');
+  const prompts = JSON.parse(/const PROMPTS = (\[[^\]]*\]);/.exec(assistant)[1].replace(/'/g, '"'));
+  assert.deepEqual(prompts, ['Where do my files save?', 'List my files', 'Save my files to Dropbox', 'Make a GitHub repo']);
+  assert.match(assistant, /const HELP = '[^']*Files \(\/api\/files\)[^']*Storage Settings \(\/api\/storage\)/, 'the help line names Files and Storage Settings');
+  assert.doesNotMatch(assistant, /fetch\('\/api\/storage\/assistant'|id="log"|class="msg|class="bar"/, 'no chat of its own');
 });
 
 test('storage--storage-settings: static structure removes Save bar and opacity:.5, names the product Open Swarm, and gates on AppView', () => {

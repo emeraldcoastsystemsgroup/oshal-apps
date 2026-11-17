@@ -27,6 +27,7 @@
  * 2026-09-04 23:40:00 | roger.murphy@emeraldcoastsystemsgroup.com   | summarizeAlertRecord — the win/loss fold over alerts joined to their graded predictions (settled/won/one-contract P&L). Pure, so the plain-node suite pins the math: unsettled rows are "open", a record with no settled rows has NULL rates (never 0%), and P&L averages only over rows that were actually graded.
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | contrarianExtremeRow — the pre-registered "bet against ourselves at the extremes" forward test (operator, 2026-09-04): for a scan hand with our P >= .90 or <= .10, the OPPOSITE side at its own ask (= 1 - our bid, from the hand's spread), claimed +.10 over the market, zero stake. In-sample the 79 such flips made ~6c a contract after spread; that is a hypothesis, so it is registered as one and graded by the same judge. Pure, so the plain-node suite pins the rule.
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | openHands — GET /scan drops the hands whose market closed after the snapshot was taken (the table listed them as closed and the concierge recommended them from a 5.3 h old scan) and reports how many it dropped.
+ * 2026-11-16 23:10:00 | maintainer@emeraldcoastsystemsgroup.com     | 1.10.2: the ratings in the page's words (EDGE_WORDS, edgeWord: Big edge, Good edge, Small edge, No edge, No estimate for the scan's monster, strong, playable, fold, not-evaluable; the values themselves are unchanged), and the Jarvis alert says them: "Kalshi: 2 new markets with an edge", each market as "[Big edge] YES ...", "Every pick is recorded ..." (it said "new playable hands" and "[monster]"). The explainer reads the same map; the Home card keeps its own copy (its route loads nothing but express), held equal to this one by tests/kalshi-plain-words.test.js.
  * 2026-10-30 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | notifyJarvis defaults to FALSE: a person who turns the background-scan job on gets a fresh snapshot and no Jarvis alerts until they switch Tell Jarvis on in Settings (Roger, 2026-10-29: the scan does its job, Jarvis maybe later). Outward stays off. Guard: tests/kalshi-scan-config.test.js.
  *
  * @module kalshi-scan-config
@@ -37,6 +38,20 @@ export type ScanHandStrength = 'monster' | 'strong' | 'playable' | 'fold';
 
 /** Strongest → weakest. A minimum of 'playable' therefore admits monster + strong + playable. */
 export const STRENGTH_ORDER: Record<ScanHandStrength, number> = { monster: 0, strong: 1, playable: 2, fold: 3 };
+
+/** The ratings as a person reads them (1.10.0's words); the scan's own values stay as they are. */
+export const EDGE_WORDS: Record<ScanHandStrength | 'not-evaluable', string> = {
+  monster: 'Big edge', strong: 'Good edge', playable: 'Small edge', fold: 'No edge', 'not-evaluable': 'No estimate',
+};
+
+/**
+ * @description A rating in a person's words; an unknown value reads as no estimate rather than leaking a raw value.
+ * @param rating - The scan's rating (monster, strong, playable, fold or not-evaluable).
+ * @returns The words: Big edge, Good edge, Small edge, No edge or No estimate.
+ */
+export function edgeWord(rating: string | null | undefined): string {
+  return EDGE_WORDS[String(rating) as ScanHandStrength] ?? EDGE_WORDS['not-evaluable'];
+}
 
 /** The subset of a BetHand this module needs (mirrored, not imported — keeps the suite dependency-free). */
 export interface ScanHandLike {
@@ -355,28 +370,28 @@ export function formatAlert(
   const pct = (p: number | undefined): string => `${((p ?? 0) * 100).toFixed(1)}%`;
   const n = hands.length;
   const subject = n === 1
-    ? `Kalshi: 1 new playable hand (${hands[0].title || hands[0].ticker})`
-    : `Kalshi: ${n} new playable hands`;
+    ? `Kalshi: 1 new market with an edge (${hands[0].title || hands[0].ticker})`
+    : `Kalshi: ${n} new markets with an edge`;
   const lines = hands.map((h) => [
-    `- [${h.strength}] ${String(h.side || '').toUpperCase()} ${h.title || h.ticker}`,
+    `- [${edgeWord(h.strength)}] ${String(h.side || '').toUpperCase()} ${h.title || h.ticker}`,
     `  ${h.ticker} · ask ${cents(h.price)} · true P ${pct(h.trueProb)} · net edge +${cents(h.edgeNet)}`,
     `  suggested stake ${pct(h.stakeFraction)}${(h.riskFlags || []).length ? ` · flags: ${(h.riskFlags || []).join(', ')}` : ''}`,
   ].join('\n'));
   const body = [
-    `The background scan found ${n} new hand${n === 1 ? '' : 's'} clearing your alert floor`,
+    `The background scan found ${n} new market${n === 1 ? '' : 's'} with an edge clearing your alert floor`,
     meta.evaluable ? ` (${meta.evaluable} evaluable market${meta.evaluable === 1 ? '' : 's'} this cycle).` : '.',
     '\n\n',
     lines.join('\n'),
     '\n\n',
     meta.mayStake === false
-      ? 'Posture: these are CANDIDATES. Every hand is recorded as a prediction and graded at settlement, and the suggested stake stays 0% until the strategy out-scores the market on settled predictions. Nothing has been ordered.'
-      : 'Every hand is recorded as a prediction and graded at settlement. Nothing has been ordered — orders are confirm-gated on the Kalshi surface.',
+      ? 'Posture: these are CANDIDATES. Every pick is recorded as a prediction and graded at settlement, and the suggested stake stays 0% until the strategy out-scores the market on settled predictions. Nothing has been ordered.'
+      : 'Every pick is recorded as a prediction and graded at settlement. Nothing has been ordered — orders are confirm-gated on the Kalshi surface.',
     '\n\nOpen the Kalshi app (?app=kalshi) to see the full table.',
   ].join('');
   const top = hands[0];
   const shortText = n === 1
     ? `Kalshi: ${String(top.side || '').toUpperCase()} ${top.title || top.ticker} — net edge +${cents(top.edgeNet)} (candidate, 0% stake until proven)`
-    : `Kalshi: ${n} new hands, best +${cents(top.edgeNet)} (${top.title || top.ticker}). Candidates only.`;
+    : `Kalshi: ${n} new markets with an edge, best +${cents(top.edgeNet)} (${top.title || top.ticker}). Candidates only.`;
   return { subject, body, shortText };
 }
 

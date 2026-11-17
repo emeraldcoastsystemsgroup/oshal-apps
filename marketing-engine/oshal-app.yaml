@@ -44,6 +44,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.7 (UX audit 2026-11-06): the UTM builder is on the Channels tab with labelled fields and checks itself before any request; one refresh only; the imports note is a plain line. Guard: tests/ux-utm.test.mjs.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.8 (UX audit 2026-11-06): add Board status filter chips (Active, Draft, Archived, All, default Active) and campaign search input updating the Board count, make primary buttons solid without gradient or glow, and on phone move the tab bar to a fixed opaque bottom bar (Board, Scorecard, Channels, Approvals, More -> Experiments) while stacking campaign rows as cards.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: person-facing and model-facing product references name Open Swarm; technical identifiers and URLs keep their forms. Guard: tests/product-name.test.mjs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone the campaign list starts at 176 px (19%) instead of 357 px (39%): the page's title and tagline step aside (Today's bar names the page), and the Board's controls are two rows, search with Import (its icon) and + New, then the four status chips. Desktop unchanged. Presentation only (tools/marketing-engine.html, CSS in its 760 px phone block).
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -52,7 +53,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.9
+version: 0.5.10
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.

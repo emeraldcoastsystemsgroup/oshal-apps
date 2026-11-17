@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | New portrait carries data-ef-floating, so the shell orb rests above it on a phone.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06 (F15): a person without the create permission (every trial visitor) reached Step 3 and found Back alone, because Generate was hidden. Generate is on screen at Step 3 for everyone, uncovered, disabled with the reason beside it when it cannot run: no create access, no image model. The stepper is numbered with the current step in ink, Step 1 names the next two steps, each step bar is data-ef-floating, the native kernel's asleep answer (no ready field) shows the line, and a press whose first answer only woke the model makes the portrait without a second press.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06 (1.17.4): prove Step 1's cropper stays bounded (<=460x340px with Next: Style on screen) for both landscape and tall portrait photos, and Step 3 pairs a live cropped/generated preview (#step3Preview) with a two-column minor-adjustment grid (#tuneOpts) while keeping Generate on the first screen.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.17.8 (Roger, 2026-11-17, production: Create's Portrait screen opened Create's concierge): the page carries Portrait Studio's own concierge, the one chat window, in the shared editor. With no portraits the studio still opens on Step 1 with Add a photo in the top third; the concierge is there, closed on a desktop so the work keeps its width and off screen on a phone until its bottom bar's Concierge is pressed, and it reads the same registered document session.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -164,15 +165,16 @@ test('SPLIT: with portraits, Your portraits is the first screen with one New por
   }
 });
 
-test('SPLIT: with no portraits the studio opens on Step 1 with Add a photo in the top third, and no embedded concierge column',async t=>{
+test('SPLIT: with no portraits the studio opens on Step 1 with Add a photo in the top third, and its own concierge closed',async t=>{
   for(const [width,phone] of [[412,true],[1440,false]]){
     const height=width===412?915:900,{page,errors}=await fixture(t,{width,height,phone});
     await page.locator('#galleryEmpty').waitFor({state:'attached'});await page.waitForTimeout(150);
     assert.equal(await page.locator('.wrap').getAttribute('data-portrait-view'),'studio');assert.equal(await page.locator('#stepPhoto').isVisible(),true);
     assert.equal(await page.locator('#gallery').isVisible(),false);
     for(const id of ['#pickFileBtn','#browseFilesBtn']){const top=await startsAt(page,id);assert.ok(top<height/3,id+' starts at y='+Math.round(top)+', below the top third');}
-    assert.equal(await page.locator('.ef-ai, .ef-concierge').count(),0,'the shell Concierge is the one assistant entry');
-    assert.equal(await page.evaluate(()=>typeof window.__oshalDocumentSession?.prepare),'function','the shell Concierge still gets the document session');
+    assert.equal(await page.locator('.ef-concierge').count(),1,'Portrait Studio carries its own concierge (the one chat window)');
+    assert.equal(await page.locator('.ef-concierge').isVisible(),false,'it starts closed, so Step 1 keeps the work area');
+    assert.equal(await page.evaluate(()=>typeof window.__oshalDocumentSession?.prepare),'function','the concierge reads the registered document session');
     assert.deepEqual(errors,[]);
   }
 });

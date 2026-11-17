@@ -1,5 +1,8 @@
 /** CHANGE LOG
- * 7 | maintainer@emeraldcoastsystemsgroup.com | Guards the dip pair: the deep-dip price signal sits in the history test like any other; the quality dip takes only a 25%+ fall with a profitable, growing filing behind it, deepest first, and the screen ranks by the exact rule the scoreboard grades; the brief carries tonight's candidates and names the forward verdict for a ranking with no history test.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The lab's options route joins the list (eight lab routes) and its read-only option-chain intent (trading.chains) the allowed set.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | The quant lab joins the Quant router under /lab: the route list names its seven routes, each refuses a caller with no admitted identity, and the read-only intents it adds (prices.series for archived prices, trading.quotes for the Level 1 spread) are named in the allowed set; still no order path.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.59.0: the no-order-path guard walks routes/quant recursively, so the quant math folder (routes/quant/math) is held to the same rule instead of failing the read with EISDIR.
+ * 7 |maintainer@emeraldcoastsystemsgroup.com | Guards the dip pair: the deep-dip price signal sits in the history test like any other; the quality dip takes only a 25%+ fall with a profitable, growing filing behind it, deepest first, and the screen ranks by the exact rule the scoreboard grades; the brief carries tonight's candidates and names the forward verdict for a ranking with no history test.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | A read that fails once gets a second try after the sweep, and a name that keeps failing says why.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Guards the wider pool: who is in it and who is not, the $5 million trading floor in both the list and the history test, passes short enough not to hold up the watcher, statements that never read the whole table, a store that outgrows the kernel's single-answer limit, and reading the list by page and group.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Price reads are paced so the desk cannot crowd out the watcher on Schwab's shared request limit.
@@ -615,20 +618,27 @@ test('the desk stops plainly without Schwab or SPY, and the nightly job respects
 test('the router refuses a caller with no admitted identity and a header never names one', async () => {
   const routes = [], router = { get: (p, fn) => routes.push(['GET', p, fn]), post: (p, fn) => routes.push(['POST', p, fn]) };
   createTradingQuantRoutes({ pool: null, intent: null }, () => router);
-  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /status', 'GET /today', 'GET /symbol/:symbol', 'GET /scoreboard', 'POST /settings', 'POST /run', 'POST /strategy-review', 'GET /strategy-review', 'POST /tick']);
-  const res = { code: 0, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
-  await routes.find(([, p]) => p === '/run')[2]({ headers: { 'x-oshal-user-sub': 'alice' }, body: {} }, res);
-  assert.deepEqual([res.code, res.body.error], [401, 'not_authenticated']);
+  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /status', 'GET /today', 'GET /symbol/:symbol', 'GET /scoreboard', 'POST /settings', 'POST /run', 'POST /strategy-review', 'GET /strategy-review', 'POST /tick',
+    'GET /lab/explain/:concept', 'POST /lab/calculate', 'POST /lab/stock', 'POST /lab/portfolio', 'POST /lab/pair', 'POST /lab/simulate', 'POST /lab/options', 'GET /lab/overfitting']);
+  for (const [, p, handler] of routes.filter(([, p]) => p === '/run' || p.startsWith('/lab/'))) {
+    const res = { code: 0, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    await handler({ headers: { 'x-oshal-user-sub': 'alice' }, params: { concept: 'beta' }, body: { symbol: 'SPY', view: 'risk' } }, res);
+    assert.deepEqual([res.code, res.body.error], [401, 'not_authenticated'], p);
+  }
 });
 
 test('the desk has no order path and changes no authority', () => {
   const dir = path.join(root, 'routes/quant'), intents = new Set();
-  for (const file of fs.readdirSync(dir)) {
-    const src = fs.readFileSync(path.join(dir, file), 'utf8');
+  const walk = (folder) => fs.readdirSync(folder, { withFileTypes: true })
+    .flatMap((entry) => (entry.isDirectory() ? walk(path.join(folder, entry.name)) : [path.join(folder, entry.name)]));
+  const files = walk(dir);
+  assert.ok(files.some((file) => file.includes(`${path.sep}math${path.sep}`)), 'the quant math folder is walked too');
+  for (const file of files) {
+    const src = fs.readFileSync(file, 'utf8');
     for (const m of src.matchAll(/intent\(\s*['"]([^'"]+)['"]/g)) intents.add(m[1]);
-    assert.doesNotMatch(src, /trading\.orders|require\(['"][^'"]*(live\/|trading-native-management|trading-manual-order)/, file);
+    assert.doesNotMatch(src, /trading\.orders|require\(['"][^'"]*(live\/|trading-native-management|trading-manual-order)/, path.relative(dir, file));
   }
-  assert.deepEqual([...intents].sort(), ['feeds.congress_trades', 'feeds.events', 'trading.accounts', 'trading.bars', 'trading.config']);
+  assert.deepEqual([...intents].sort(), ['feeds.congress_trades', 'feeds.events', 'prices.series', 'trading.accounts', 'trading.bars', 'trading.chains', 'trading.config', 'trading.quotes']);
   const manifest = yaml.load(fs.readFileSync(path.join(root, 'oshal-app.yaml'), 'utf8'));
   assert.ok(!manifest.routes.some((r) => /quant/.test(r.module + r.mountPath)), 'a new manifest route would suspend every person schedule');
   const schedule = manifest.schedules.find((s) => s.id === QUANT_SCHEDULE.name);

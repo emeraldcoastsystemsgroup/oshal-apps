@@ -16,6 +16,7 @@
   5   | maintainer@emeraldcoastsystemsgroup.com   | The end-of-deck message speaks through the neural read-aloud (lmSpeak) like every card
   6   | maintainer@emeraldcoastsystemsgroup.com   | UX audit (lm-flashcards): the unflipped answer is aria-hidden until the card turns, and the audio buttons move to one toolbar row of 44px targets under the card
   7   | maintainer@emeraldcoastsystemsgroup.com   | Add per-set Shuffle and Term first / Definition first prompt-side controls remembered per set for the learner while keeping SM-2 reviews and XP bound to cardId (RP-LM-04)
+  8   | maintainer@emeraldcoastsystemsgroup.com   | A set that could not be read is not an empty deck. A failed read showed "No flashcards yet. Pick a set in My flashcards" with Open my flashcards as its only button, so Study on a set went back to the list in circles (Roger's phone, 2026-11-16, while the cards route answered 500). It now says the set could not be opened, keeps the way back to the list and offers Try again. Guard: tests/lm-flashcard-study-opens.test.cjs
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -146,8 +147,8 @@
 
   <!-- Empty state: no deck to study -->
   <div class="lm-empty hide" id="emptyState">
-    <div class="lm-empty-icon">🃏</div>
-    <strong>No flashcards yet.</strong>
+    <div class="lm-empty-icon" id="emptyIcon">🃏</div>
+    <strong id="emptyTitle">No flashcards yet.</strong>
     <span id="emptyText"></span>
     <div id="emptyActions"></div>
     <div class="lm-status lm-mt-md" id="genStatus" role="status"></div>
@@ -257,9 +258,20 @@ async function titleFor(id) {
   } catch (e) { return ''; }
 }
 
+/** The rows a deck shows; the empty and failed states hide them. */
+var STUDY_ROWS = ['cardContainer', 'promptSideSwitch', 'studyTools', 'progressRow', 'tapHint', 'statsRow'];
+
+/** Put the empty block's icon and heading in place: it says "no cards" or "could not be opened". */
+function emptyHeading(icon, title) {
+  STUDY_ROWS.forEach(function (id) { document.getElementById(id).classList.add('hide'); });
+  document.getElementById('emptyIcon').textContent = icon;
+  document.getElementById('emptyTitle').textContent = title;
+  document.getElementById('genStatus').textContent = '';
+}
+
 /** Show the empty state honestly: only the class's teacher/admin is offered generation; everyone else is pointed to the hub. */
 async function showEmpty() {
-  ['cardContainer', 'promptSideSwitch', 'studyTools', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
+  emptyHeading('🃏', 'No flashcards yet.');
   document.getElementById('deckTitle').textContent = 'No flashcards yet';
   var text = document.getElementById('emptyText'), acts = document.getElementById('emptyActions');
   if (classId && await teachesClass(classId)) {
@@ -273,6 +285,24 @@ async function showEmpty() {
     text.textContent = 'Pick a set in My flashcards, or make a new one, to start studying.';
     acts.innerHTML = '<a class="lm-btn lm-btn-primary" href="/api/education/flashcards-hub">Open my flashcards</a>';
   }
+  document.getElementById('emptyState').classList.remove('hide');
+}
+
+/**
+ * A read that failed is not an empty deck. Showing it as "No flashcards yet. Pick a set" sent the learner back to the
+ * list, whose Study came straight back here: say what happened, keep the way back, and offer Try again.
+ */
+function showLoadError() {
+  emptyHeading('☁️', setId ? 'This set could not be opened right now.' : 'Your flashcards could not be loaded right now.');
+  document.getElementById('deckTitle').textContent = setId ? 'This set could not be opened' : 'Flashcards could not be loaded';
+  document.getElementById('emptyText').textContent = 'Nothing is assumed in its place; try again in a moment.';
+  document.getElementById('emptyActions').innerHTML = '<button type="button" class="lm-btn lm-btn-primary" id="retryBtn">Try again</button>' +
+    '<a class="lm-btn lm-btn-ghost" href="/api/education/flashcards-hub">Back to my flashcards</a>';
+  document.getElementById('retryBtn').addEventListener('click', function () {
+    this.disabled = true;
+    this.textContent = 'Opening…';
+    loadDeck();
+  });
   document.getElementById('emptyState').classList.remove('hide');
 }
 
@@ -342,13 +372,13 @@ function setPromptSide(side) {
   if (currentIndex < deck.length) showCard();
 }
 
-/** Load a flashcard deck from the API. Shows the empty state if no sets exist. */
+/** Load a flashcard deck from the API. Shows the empty state if no sets exist, and says so when a read fails. */
 async function loadDeck() {
   var params = new URLSearchParams(window.location.search);
   setId = params.get('setId');
   classId = params.get('classId');
   activeSetId = setId || null;
-  var title = '', serverPrefs = null;
+  var title = '', serverPrefs = null, failed = false;
   originalDeck = [];
   deck = [];
 
@@ -359,8 +389,10 @@ async function loadDeck() {
         var body = await resp.json();
         originalDeck = mapCards(body.cards);
         if (body.preferences) serverPrefs = body.preferences;
+        title = await titleFor(setId);
+      } else {
+        failed = true;
       }
-      title = await titleFor(setId);
     } else {
       // Load the first available set for the class (or across all sets)
       var setsResp = await fetch('/api/education/flashcards/sets' + (classId ? '?classId=' + encodeURIComponent(classId) : ''));
@@ -375,14 +407,20 @@ async function loadDeck() {
             var cBody = await cardsResp.json();
             originalDeck = mapCards(cBody.cards);
             if (cBody.preferences) serverPrefs = cBody.preferences;
+          } else {
+            failed = true;
           }
         }
+      } else {
+        failed = true;
       }
     }
   } catch (e) {
     console.warn('[Flashcards] API fetch failed:', e.message);
+    failed = true;
   }
 
+  if (failed) { showLoadError(); return; }
   if (originalDeck.length === 0) { await showEmpty(); return; }
 
   var localPrefs = readLocalPrefs(activeSetId);
@@ -392,7 +430,7 @@ async function loadDeck() {
   saveLocalPrefs(activeSetId, studyPrefs);
 
   document.getElementById('emptyState').classList.add('hide');
-  ['cardContainer', 'promptSideSwitch', 'studyTools', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
+  STUDY_ROWS.forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
   document.getElementById('deckTitle').textContent = (title || 'Study deck') + ' — ' + originalDeck.length + (originalDeck.length === 1 ? ' card' : ' cards');
   applyDeckOrder();
   showCard();

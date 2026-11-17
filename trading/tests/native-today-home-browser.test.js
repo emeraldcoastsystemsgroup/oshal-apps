@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The first screen (1.57.0) in Chromium at desktop and phone width, over the shipped trading.html, the shipped ui scripts and the shipped accounts, status, portfolio and paper route handlers on a fixture host with invented accounts. It proves what opening the screen requests (saved records and the job list, no /portfolio read, no write), that each card answers its three questions with a source and a time and carries one button and no control that can change money, that each button lands on the existing screen and section it names, that the former landing is one tap away and whole, what the screen says when the saved-record read fails, and that an armed paper account still gets its job switched on by the page's existing keeper and nothing else. No broker, no kernel, no real account.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: these cards are the Accounts screen's Trading status tab (the screen opens on the portfolio overview), so each case opens ?view=accounts&sub=status and, after going back to Accounts, presses that tab; the host's paper router also serves the shipped GET /values the overview reads. Every earlier check stays.
  */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
@@ -65,7 +66,7 @@ function paperRouter(h,today,state){
   try{if(name==='today'&&state.todayFails)throw new Error('fixture: the saved-record read is down');const out=await handlers[name](req);res.status(out.status).json(out.body);}
   catch(err){res.status(Number(err.status)||500).json({error:err.code||'paper_route_failed',message:err.message});}
  };
- router.get('/',serve('status'));router.get('/today',serve('today'));router.get('/books',serve('books'));router.get('/books/:ref',serve('book'));
+ router.get('/',serve('status'));router.get('/today',serve('today'));router.get('/values',serve('values'));router.get('/books',serve('books'));router.get('/books/:ref',serve('book'));
  return router;
 }
 
@@ -111,7 +112,7 @@ async function host(t,seed){
 }
 
 /** @description Open the page at a width on the fixture clock and wait for the first screen. */
-async function open(browser,h,width,{wait=true,query=''}={}){
+async function open(browser,h,width,{wait=true,query='?view=accounts&sub=status'}={}){
  const context=await browser.newContext({viewport:{width,height:915},locale:'en-US',timezoneId:'America/New_York'}),page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(15000);
  await page.clock.setFixedTime(NOW);await page.goto(h.base+query);
@@ -222,6 +223,7 @@ test('the links and the paper buttons open the existing account screens',async t
   await reference.getByRole('link',{name:'Open account',exact:true}).click();
   await page.locator('#viewTabs .tabbar button.on',{hasText:'Trade journal'}).waitFor();assert.equal(new URL(page.url()).searchParams.get('view'),'account');
   await page.locator('#nav').getByRole('button',{name:'Accounts',exact:true}).click();
+  await page.locator('[data-accounts-tab="status"]').click();
   await page.locator('#homeCards [data-story="paper|paper"]').getByRole('button',{name:'See passes and fills',exact:true}).click();
   await page.locator('#viewTabs .tabbar button.on',{hasText:'Trade journal'}).waitFor();await settled(page);
   assert.deepEqual(h.calls().filter(line=>!line.startsWith('GET ')),[],'links and buttons only navigate');assert.deepEqual(errors,[]);await close();

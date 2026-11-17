@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness smoke and Ambient Recall surface empty-state + pre-promotion 404 acceptance suite.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Document Continuous Profile Learning and Eavesdrop Business Cards verification in ambient-recall-surface e2e case.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Set ambient-recall-surface level to browser to satisfy the closed Test Lab level enum.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: register phone-first-screen (lane mobilesweep1): the page in a stand-in Today at 412x915, 390x844, 360x780 and 1440x900.
 version: 1
 cases:
   - id: package-readiness
@@ -44,4 +45,25 @@ cases:
       cleanup: Close ephemeral loopback server, headless browser context, and temporary dataDir.
     limits:
       timeoutMs: 45000
+    installation: never
+  - id: phone-first-screen
+    name: Ambient Recall opens on its recall field on a phone
+    purpose: "Guard 1.2.5 (lane mobilesweep1): inside a stand-in for Today at 412x915, 390x844 and 360x780 with touch the recall field starts within the top quarter of the screen (it was 408 px, 45%), the title and paragraph are not drawn, the five tabs are one row whose last tab is in reach, nothing scrolls sideways and nothing to tap sits under the floating Jarvis button at the end; at 1440x900 the desktop keeps its title, paragraph and one tab row."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/person-model-surface.test.cjs
+    expected:
+      - At 412, 390 and 360 px wide the recall field starts within the top quarter of the screen, under one row of tabs.
+      - The page's title and paragraph are not drawn on a phone; the desktop keeps them.
+      - No sideways page scroll, and nothing to tap under the floating Jarvis button at the end of the page.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback server, the headless browser and the temporary dataDir.
+    limits:
+      timeoutMs: 90000
     installation: never

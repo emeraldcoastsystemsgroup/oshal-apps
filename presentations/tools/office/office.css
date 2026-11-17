@@ -4,6 +4,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every chrome colour, line, radius, size and space comes from the --ds-* tokens; controls are solid with a 3:1 edge (no translucent fill, gradient, lift or fade), one 2px focus ring, radii 6/10/14/20, the type scale with nothing under 12px, 44px targets on touch; one app row; the phone's bottom bar and opaque top-layer sheets and menus; on a desktop a 240px Slides pane, the canvas and one docked 320px Format | Concierge pane; the page stays white paper in every theme (N7). The document's own rendering (slides, Word pages, the grid) keeps its fonts and colours inside [data-ds-work].
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): styles for anchored comment highlights, tracked insertion/deletion marks, Find & Replace hit markers, Mobile reflow view, and Comment/Suggest/Share thread sheets.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: pin the AI Office Concierge composer flush to the bottom of the docked right rail and phone sheet with flex layout so 5-child prompt strips never overflow and only the message log scrolls.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 2.20.6: while a framing page draws the document's one bar itself (?header=host, design.mjs bindHostRow), this editor draws no app row of its own, so the page starts at the top of the frame.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3): the concierge is the kernel's one chat window. Generate a draft is a padded row above the window (design.mjs puts it there), so on a desktop the window's composer reaches the rail's bottom; the phone's Concierge sheet (ds-chat) is as tall as a sheet may be and gives the window its whole body, edge to edge (it gave the window 308 px, from the old pane's 360 px minimum); and the screen reader's status line is pinned to the page's top corner, so it no longer makes the page 1 px taller than the screen from where it sat at the bottom edge.
  */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:contain;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
@@ -26,10 +28,12 @@ h2{margin:0;font:var(--ds-text-heading,600 18px/24px system-ui)}
 h3{margin:0;font:600 16px/24px var(--ds-font,system-ui)}
 [hidden]{display:none!important}
 .danger,.ds-danger{color:var(--ds-bad,var(--status-error))}
-.office-sr-only{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.office-sr-only{position:absolute!important;top:0;left:0;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
 /* ── The app row (§3.1): Back, the name and its menu, Undo, Redo, the tools on a desktop, Save and Export. */
 #office-root .ef-header-slot{border-bottom:1px solid var(--ds-hairline,var(--border-color));background:var(--ds-page,var(--bg-primary))}
+/* The framing page draws the document's one bar and presses this row's buttons by name (design.mjs bindHostRow). */
+html[data-office-header=host] #office-root .ef-header-slot{display:none!important}
 #office-header{display:flex;align-items:center;gap:8px;min-height:56px;padding:4px 12px;background:var(--ds-page,var(--bg-primary));flex-wrap:nowrap}
 .office-icon-action{min-width:44px;padding:0;border-color:transparent;background:transparent;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .office-icon-action:hover:not(:disabled){background:var(--ds-surface-3,var(--bg-secondary))}
@@ -161,7 +165,8 @@ html[data-office-view=home] .office-bottom-bar{display:none!important}
 :is(#office-root,.ds-layer) .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
 :is(#office-root,.ds-layer) :is(.ef-assistant-speaker,.ef-assistant-notice){font-size:12px}
 :is(#office-root,.ds-layer) .ef-assistant-form textarea{font-size:16px}
-.office-prompts{display:flex;gap:8px;margin:0 12px;padding:0 0 8px;overflow-x:auto}
+/* Generate a draft is a row above the one chat window (design.mjs), which keeps the rest of the pane down to its bottom. */
+.office-prompts{display:flex;gap:8px;margin:0;padding:8px 12px;overflow-x:auto}
 .office-chip{flex:none;min-height:44px;padding:0 16px;border-radius:999px}
 
 /* ── Menus and sheets (§4.3, §4.4): modal top-layer dialogs, opaque, one float elevation, a plain scrim. */
@@ -179,7 +184,11 @@ html[data-office-view=home] .office-bottom-bar{display:none!important}
 .ds-layer #office-navigation,.ds-layer #office-ai{padding:0}
 .ds-layer .ef-inspector{display:block!important;position:static!important;width:auto!important;max-height:none!important;border:0!important;box-shadow:none!important;background:transparent!important}
 .ds-layer .ef-inspector .ef-properties{padding:0}
-.ds-layer #office-ai .ef-assistant{height:min(60dvh,520px);min-height:360px}
+/* The Concierge sheet (ds-chat) holds the one chat window: as tall as a sheet may be, its body edge to edge, and the
+   window takes all of it under the Generate a draft row, so its starters sit clear above its composer. */
+.ds-layer.ds-chat[open]{display:flex;flex-direction:column;height:calc(100dvh - 32px);overflow:hidden}
+.ds-layer.ds-chat>.ds-layer-body{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;padding:0;gap:0}
+.ds-layer.ds-chat #office-ai{flex:1 1 auto;height:auto;min-height:0}
 .ds-layer #office-ai .ef-assistant-header{display:none}
 .ds-layer #page-settings,.ds-layer #sheet-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .ds-layer #page-settings>button,.ds-layer #sheet-settings>button,.ds-layer #word-settings{grid-column:1/-1}
@@ -235,6 +244,7 @@ dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;fon
  #office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs{display:none!important}
  .ds-layer.ds-sheet{margin:auto 0 0;width:100%;max-width:none;max-height:calc(100dvh - 56px);border-radius:20px 20px 0 0;border-bottom:0}
  .ds-layer.ds-sheet.ds-half{max-height:60dvh}
+ .ds-layer.ds-sheet.ds-chat[open]{height:calc(100dvh - 56px)}
  .ds-layer.ds-sheet.ds-half::backdrop{background:rgb(0 0 0 / .2)}
  .ds-layer.ds-sheet::before{content:'';display:block;width:36px;height:5px;margin:8px auto 0;border-radius:999px;background:var(--ds-ink-disabled,#8a94a6)}
  .office-home-new{bottom:calc(16px + env(safe-area-inset-bottom,0px))}

@@ -1,4 +1,5 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner per-press evidence reads to career.read.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: the My jobs posting sheet said there was no information about his Torch Technologies jobs): bind POST /jobs/:id/details (lib/career-job-details.js) to career.change, an existing permission: it reads one job's missing description from the employer's posting through the kernel's egress and keeps it in the caller's own store (a state write that spends nothing). The GET /jobs/:id?details=read view read rides the existing job binding on career.read. No new permission and no role change, so every assignment grants what it did.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0, one concierge (Roger, 2026-11-14: "one concierge for the entire app that can do everything that needs to be done in the app"): bind 29 new concierge tools, each to exactly the permission of the route it calls (the kernel withholds a tool bound differently from its route; tests/career-concierge-tools.test.mjs checks each one by the kernel's rule). No permission, role, grant or route binding changed, so every assignment grants what it granted before. The five job-source tools carry career.administer, as their routes do.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: bind its page (GET /work-history) to app.open like every Career page, and Undo of a main-résumé change (POST /resume/master-undo, the caller's own store) to career.change like the edit it undoes. Job edits ride the existing POST /resume/master-edit and career_resume_patch bindings. No new permission and no role change, so every assignment grants what it granted before.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Bind owner outcome statements and retained browser-picture reads to existing change/read permissions.
@@ -133,6 +134,7 @@ bindings:
     - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
     - { id: job-goal, method: POST, path: /jobs/goal, allOf: [career.change] }
     - { id: job-status, method: POST, path: /jobs/:id/status, allOf: [career.change] }
+    - { id: job-details, method: POST, path: /jobs/:id/details, allOf: [career.change] }
     - { id: job-generated-purge, method: DELETE, path: /jobs/purge-generated, allOf: [career.change] }
     - { id: job-generate, method: POST, path: /jobs/:id/generate, allOf: [career.execute] }
     - { id: job-packet-remove, method: DELETE, path: /jobs/:id/packet, allOf: [career.change] }

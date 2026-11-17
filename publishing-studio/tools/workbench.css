@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4; CONVENTIONS §5.5): every colour, line, radius, size and space from the --ds-* tokens; solid controls with a 3:1 edge and no translucent fill, gradient, lift or fade; one 2px focus ring (frame outlines too); radii 6/10/14/20 and the type scale; 44px targets on touch; the page stays white paper in every theme (N7) and draws its text in its frames; one app row; the tool row as the phone's bottom bar (scrolling sideways, More last) and inside the app row on a desktop; opaque top-layer menus and sheets (half sheets for Text, Text style and Arrange); the selection float at the chosen item; Pages 240 | canvas | Properties·Concierge 320 on a desktop with no fourth column; Your publications as paper thumbnails with one New at the bottom right. The B8 touch rules (the page scrolls under a finger; only the Move handle drags by touch) are kept as they were.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: at 1440x900 the Your publications list spans the app instead of sitting in the editor grid's second column (the trial check, 2026-11-06).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: styles for template cards, multi-select and group outlines, brand swatches, comment pins and threads, social composer, and the collapsible video timeline bar (RP-PUB-01..08), plus zero-specificity --ds-* token fallbacks for platform snapshots without design-tokens.css.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). On a desktop Your publications hid the concierge column outright, so Today's bar Concierge opened a concierge nobody could see (a 0 px window with no message box): the concierge now opens beside the list as a 320 px column and its Close gives the list the whole width again. The list's heading row holds the list's own Concierge.
  */
 :where(:root,[data-theme]){--ds-page:var(--bg-primary,#f8fafc);--ds-surface:var(--bg-primary,#ffffff);--ds-surface-2:color-mix(in srgb,var(--text-primary,#0f172a) 6%,var(--ds-surface));--ds-surface-3:color-mix(in srgb,var(--text-primary,#0f172a) 12%,var(--ds-surface));--ds-scrim:rgb(0 0 0 / .4);--ds-hairline:color-mix(in srgb,var(--text-primary,#0f172a) 14%,var(--ds-page));--ds-edge:color-mix(in srgb,var(--text-primary,#0f172a) 20%,var(--ds-surface));--ds-line-control:color-mix(in srgb,var(--text-primary,#0f172a) 50%,var(--ds-page));--ds-ink:var(--text-primary,#0f172a);--ds-ink-2:color-mix(in srgb,var(--text-primary,#0f172a) 78%,var(--ds-page));--ds-ink-disabled:color-mix(in srgb,var(--text-primary,#0f172a) 45%,var(--ds-page));--ds-accent:var(--accent-primary,#2563eb);--ds-accent-ink:color-mix(in srgb,var(--accent-primary,#2563eb) 66%,var(--text-primary,#0f172a));--ds-on-accent:var(--text-on-accent,#ffffff);--ds-focus:var(--accent-primary,#2563eb);--ds-ok:var(--status-success,#15803d);--ds-warn:var(--status-warning,#b45309);--ds-bad:var(--status-error,#b91c1c);--ds-elev-float:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16);--ds-font:system-ui,sans-serif;--ds-text-meta:400 12px/16px var(--ds-font);--ds-text-help:400 14px/20px var(--ds-font);--ds-text-body:400 16px/24px var(--ds-font);--ds-text-heading:600 18px/24px var(--ds-font);--ds-text-title:700 24px/32px var(--ds-font)}
 @supports (color:rgb(from red r g b / 1)){:where(:root,[data-theme]){--ds-surface:rgb(from var(--bg-card,var(--bg-primary,#ffffff)) r g b / 1)}}
@@ -149,6 +150,11 @@ select{min-width:0}
 /* Your publications (N2): paper thumbnails newest first and one New at the bottom right. */
 .pub-list{padding:8px 0 96px}
 .pub-list-title{font:var(--ds-text-title);margin:0 0 16px}
+/* 0.5.4: the heading row carries the list's own Concierge, at the right. */
+.pub-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 16px}
+.pub-list-head>.pub-list-title{min-width:0;margin:0}
+.pub-list-concierge{border-color:var(--ds-line-control)!important}
+.pub-list-concierge[hidden]{display:none!important}
 .pub-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .pub-card{display:grid;gap:4px;justify-items:start;align-content:start;min-height:44px;padding:0!important;border:0!important;background:transparent!important;text-align:left;font-weight:400}
 .pub-paper{display:block;width:100%;aspect-ratio:612/792;background:#fff;border:1px solid var(--ds-hairline);border-radius:6px}
@@ -212,9 +218,14 @@ select{min-width:0}
  .publishing-foundation[data-pub-pages=closed] .pub-pane-head{padding:4px 2px 0;justify-content:center}
  .publishing-foundation[data-pub-pages=closed] .pub-pane-head h2{display:none}
  .publishing-foundation[data-pub-view=list] .ef-body{grid-template-columns:minmax(0,1fr)!important}
- .publishing-foundation[data-pub-view=list] :is(.ef-navigation,.ef-inspector,.ef-concierge,.pub-tabs){display:none!important}
+ .publishing-foundation[data-pub-view=list] :is(.ef-navigation,.ef-inspector,.pub-tabs){display:none!important}
+ .publishing-foundation[data-pub-view=list]:not([data-editor-concierge=open]) .ef-concierge{display:none!important}
  /* 0.4.2: the list keeps the whole width; the editor's grid-column 2 left it in an implicit 267px column at 1440x900 (trial check 2026-11-06). */
  .publishing-foundation[data-pub-view=list] .ef-viewport{grid-column:1/-1;grid-row:1/3}
+ /* 0.5.4: an open concierge sits beside Your publications as a 320 px column (before, the list hid it and Today's bar Concierge opened nothing visible). */
+ .publishing-foundation.ef-has-concierge[data-pub-view=list][data-editor-concierge=open] .ef-body{grid-template-columns:minmax(0,1fr) 320px!important}
+ .publishing-foundation.ef-has-concierge[data-pub-view=list][data-editor-concierge=open] .ef-viewport{grid-column:1}
+ .publishing-foundation.ef-has-concierge[data-pub-view=list][data-editor-concierge=open] .ef-concierge{grid-column:2;grid-row:1/3}
  .pub-cards{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
  .pub-new{position:absolute;right:24px;bottom:24px}
 }

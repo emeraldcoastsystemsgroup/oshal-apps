@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the real Smart Home overview and page navigation, with searchable device context, truthful reported state and existing device actions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the detail workspace only on explicit selection and release its width when closed or filtered out.
  */
 /* ── Home and its pages (1.6.0). Home is tiles in groups: kitchen and appliances, TVs and streaming, the switch
    cards, phones and tablets, computers. A tile opens the page for that thing; the address keeps the page
@@ -18,7 +19,7 @@ const ICONS = {
   find: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
 };
 let FRIDGE_TELEMETRY = null, SAVED_TVS = [], TV_PAGE_READY = false, CONNECTED = { tvs: [], phones: [], computers: [] }, DEVICE_LINK = DEVICES_PAGE, PAGE_OPENED_HERE = false;
-let HOME_QUERY = '', HOME_SELECTED = '', HOME_SELECTION_CLOSED = false, HOME_ENTRIES = [], HOME_READ_AT = null;
+let HOME_QUERY = '', HOME_SELECTED = '', HOME_ENTRIES = [], HOME_READ_AT = null;
 let CONNECTED_DONE = false, CONNECTED_READ_FAILED = false;
 
 /** The page the address names, or '' for Home. */
@@ -55,12 +56,12 @@ document.addEventListener('click', (event) => {
 document.addEventListener('click', (event) => {
   const detail = event.target.closest('[data-home-detail]');
   if (detail) {
-    HOME_SELECTED = detail.dataset.homeDetail; HOME_SELECTION_CLOSED = false; renderTiles();
-    if (window.innerWidth < 900) $('homeSelection').scrollIntoView({ block: 'start' });
+    HOME_SELECTED = detail.dataset.homeDetail; renderTiles();
+    if (window.innerWidth < 1100) $('homeSelection').scrollIntoView({ block: 'start' });
     $('homeSelection').querySelector('h2')?.focus({ preventScroll: true });
   }
   if (event.target.closest('[data-home-close]')) {
-    const id = HOME_SELECTED; HOME_SELECTED = ''; HOME_SELECTION_CLOSED = true; renderTiles();
+    const id = HOME_SELECTED; HOME_SELECTED = ''; renderTiles();
     document.querySelector(`[data-home-detail="${CSS.escape(id)}"]`)?.focus();
   }
 });
@@ -95,7 +96,6 @@ function renderTiles() {
   const groups = homeGroups(); HOME_ENTRIES = Object.values(groups).flat();
   const visible = HOME_ENTRIES.filter(homeMatches);
   if (!visible.some(d => d.id === HOME_SELECTED)) HOME_SELECTED = '';
-  if (!HOME_SELECTED && !HOME_SELECTION_CLOSED && window.innerWidth >= 900) HOME_SELECTED = visible[0]?.id || '';
   const kitchen = groups.kitchen.filter(homeMatches), tvs = groups.tvs.filter(homeMatches);
   const find = { open: 'tvs', icon: 'find', kind: 'TV', name: 'Find TVs', state: 'Look for TVs and streaming sticks on this network' };
   if (TV_PAGE_READY && (!HOME_QUERY || homeMatches(find))) tvs.push(find);
@@ -144,6 +144,7 @@ function homeConnectionRows(d) {
 
 function renderHomeSelection(d) {
   const panel = $('homeSelection'); panel.hidden = !d;
+  $('homeWorkspace').classList.toggle('has-selection', Boolean(d));
   if (!d) { panel.replaceChildren(); return; }
   const rows = homeConnectionRows(d).map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('');
   const control = d.source === 'computer' && typeof d.raw.can_control === 'boolean' ? `<span class="pill">Control ${d.raw.can_control ? 'on' : 'off'}</span>` : '';

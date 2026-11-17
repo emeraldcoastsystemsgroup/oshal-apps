@@ -42,6 +42,10 @@ After a launch the answer reads the TV again and says what it reported in front.
 
 Version 1.20.1 says it in words. A device you have not saved, or one that is not yours, is answered `404` with `{"error":"device_not_found","message":"No saved device is called \"<what you asked for>\". List your devices first (phone-control-list-devices)."}` on every device route, including **List TV Apps** (`phone-control-tv-apps`); a capture, a transfer, a bridge file and a page file that are not there have their own sentence beside their code (`lib/refusals.js`, checked by `tests/phone-control-routes.test.cjs`).
 
+## On a phone
+
+Version 1.20.2: **Your devices** scrolls under a finger and a mouse wheel again (the html and body rule added in 1.3.0 kept a list taller than the screen from moving). On a screen narrower than 900 px the page also ends with room under its last row, so every row's buttons can be scrolled clear of the floating Jarvis button. Checked in Chromium at 412x915 with touch by `tests/phone-control-phone-scroll.test.cjs`.
+
 ## How it works
 
 The page sends each command to a computer of yours that runs oshal Node with **Let Jarvis control this computer**

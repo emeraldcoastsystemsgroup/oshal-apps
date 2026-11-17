@@ -1,3 +1,4 @@
+/* CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.3: the phone first-screen release (installations near the top, nothing under the Jarvis button). */
 /* CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.2: person-facing product references name Open Swarm. */
 /* CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.0 (concierge audit batch 2b): the front-desk concierge ops-concierge is declared before the two RCA workers, whose identities are unchanged. */
 /* CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.8.3: rule generations rotate (T71: an activation retires the person's OpenSearch rule generations no source binding keeps). */
@@ -108,7 +109,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.9.2');
+  assert.equal(manifest.version, '1.9.3');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

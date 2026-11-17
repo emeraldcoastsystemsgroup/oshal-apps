@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 45 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): the person-specific rules that held his letters until 07-22 (629dd399) moved into an optional prompt_framing block his profile never had, the cover editor's rule (3) "surface ... depth even when it lives in an EARLIER role" lost its scoped example with them, and nothing after the model checked a claim, so the default local model's letters mirrored C# from the posting and reached back to a first job. Now both prompts carry letter_evidence's COVER LETTER EVIDENCE block (the person's roles and engagements ranked by relevance to the posting and recency; before the story evidence, which stays last), the editor draws only on it, and generate_for holds every packet with claims_fix.hold: a skill, level, years count or title the records do not support is toned down or taken out, a letter that lost a sentence is written again once with the problems named (_rewrite_cover), and one still too thin is marked needs your review. application.json records what the check did as claims_check.
+# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... it would leave out my active role"): the model was handed the whole profile with the current role first and wrote résumés without it (5 of the 6 packets made after the role was added), because the EXPERIENCE rules let it drop roles for relevance and the experience list went to the templates exactly as returned. build_prompt and the selected-experience prompt now carry role_plan's ROLES TO CARRY block (before the story evidence, which stays last), and generate_for holds every answer to it with role_plan.carry: a current role and every role that ended within 20 years is its own entry, most recent first, restored from the recorded title, employer, dates and bullets when the model left it out (no bullet with an embargoed term unless the open-source work is opted in). application.json records what the check did as roles_carried.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Ground optional Additional Experience in only selected owner records and preserve that provenance in generated packets.
 # 43 | maintainer@emeraldcoastsystemsgroup.com | Give the cover editor the same bounded employer requirements and full gated profile as packet generation, with explicit employer truncation metadata.
 # 42 | maintainer@emeraldcoastsystemsgroup.com | Reuse owner-private full employer details, include bounded longer requirements in prompts, and retain the exact gated profile and employer source with each packet.
@@ -24,7 +26,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, enrich, profile, config
+from . import db, enrich, profile, config, role_plan, letter_evidence, claims_fix
 
 TEMPLATES = Path(__file__).parent / "templates"
 # Resume/cover output dir — config.APP_DIR points at the per-user persistent volume in
@@ -491,7 +493,8 @@ def build_editor_system(prof: dict) -> str:
     "QUALITY BAR: (1) open with a natural sentence about why THIS role fits, then name the single strongest "
     "match; (2) the body cites CONCRETE, NAMED proof points (the real tools, stacks, and metrics already "
     "in the draft or profile) mapped to the JD's top requirements without turning into a resume paragraph; "
-    "(3) surface the candidate's most JD-relevant depth even when it lives in an EARLIER role" + depth_eg + "; "
+    "(3) draw that proof ONLY from the COVER LETTER EVIDENCE listed with the draft, most relevant first, never from "
+    "a role or engagement it does not list, the candidate's earliest jobs included" + depth_eg + "; "
     "(4) close with the value they would bring and a simple, confident ask. "
     "ANTI-MECHANICAL RULES: delete recruiter-speak and stiff scaffolding. Never use phrases like 'the "
     "closest match to that charter', 'evolve its platform', 'I would welcome a conversation about helping "
@@ -514,10 +517,11 @@ def build_editor_system(prof: dict) -> str:
     )
 
 
-def _polish_cover(cover, title, company, jd, profile_json, prof=None):
+def _polish_cover(cover, title, company, jd, profile_json, prof=None, letter_block=""):
     """Second 'senior editor' pass over the draft cover: rewrite to a higher quality bar
-    (specific, JD-mapped, professional) WITHOUT adding any facts. Falls back to the draft
-    on any error so generation never breaks."""
+    (specific, JD-mapped, professional) WITHOUT adding any facts, drawing only on the
+    COVER LETTER EVIDENCE (letter_block). Falls back to the draft on any error so
+    generation never breaks."""
     try:
         prompt = (
             f"ROLE: {title} at {company}\n\n"
@@ -525,7 +529,8 @@ def _polish_cover(cover, title, company, jd, profile_json, prof=None):
             + ('[Remaining employer description omitted; do not infer its requirements.]\n' if len(jd or '')>24000 else '')
             + '\n'
             f"CANDIDATE PROFILE (the ONLY facts you may draw on; add nothing beyond this):\n"
-            f"{profile_json}\n\n"
+            f"{profile_json}\n"
+            + (letter_block or "") + "\n"
             f"DRAFT COVER (rewrite to the quality bar; keep it strictly truthful):\n"
             f"{json.dumps(cover, indent=1)}\n"
         )
@@ -536,6 +541,57 @@ def _polish_cover(cover, title, company, jd, profile_json, prof=None):
     except Exception:
         pass
     return cover
+
+
+def _rewrite_cover(problems, cover, title, company, jd, profile_json, prof=None, letter_block=""):
+    """
+    @description The letter written again once, after claims_check found what the records do not support in it: the
+    cover editor gets the posting, the gated profile, the COVER LETTER EVIDENCE, the problems in plain lines and the
+    draft that had them. Returns None when the model gives no usable letter (the held first draft then stands).
+    @param problems - claims_fix.instruction() lines. @param cover - The draft that had the problems.
+    @param title - Posting title. @param company - Employer name for the documents. @param jd - Posting description.
+    @param profile_json - The gated profile the packet was generated from. @param prof - That profile (editor framing).
+    @param letter_block - letter_evidence.prompt_block(). @returns {greeting, paragraphs, closing} or None.
+    """
+    prompt = (
+        f"ROLE: {title} at {company}\n\nJOB DESCRIPTION:\n{(jd or '(none)')[:24000]}\n\n"
+        f"CANDIDATE PROFILE (the ONLY facts you may draw on; add nothing beyond this):\n{profile_json}\n"
+        + (letter_block or "")
+        + "\nPROBLEMS CAREER FOUND IN THE LAST DRAFT (checked against the candidate's records; your letter must have "
+        "none of them):\n" + "\n".join(problems)
+        + "\n\nDRAFT COVER (write it again to the quality bar, from the COVER LETTER EVIDENCE only, without any of the "
+        f"problems above; keep it strictly truthful):\n{json.dumps(cover, indent=1)}\n"
+    )
+    try:
+        letter = enrich.parse_json(enrich.complete(build_editor_system(prof or {}), prompt, max_tokens=2000))
+    except Exception:  # the held first draft stands; the failure is logged, never silent
+        import traceback
+        print("career letter rewrite failed:\n" + traceback.format_exc(limit=3), file=sys.stderr, flush=True)
+        return None
+    if not isinstance(letter, dict) or not isinstance(letter.get("paragraphs"), list) or not letter["paragraphs"]:
+        return None
+    letter.setdefault("greeting", cover.get("greeting") or "Dear Hiring Manager,")
+    letter.setdefault("closing", cover.get("closing") or "Sincerely,")
+    return _sanitize(letter)
+
+
+def _hold_packet(data, prof_doc, selected, ranked, letter_block, prof_json, editor_prof, posting) -> tuple:
+    """
+    @description The cover editor's pass, then claims_fix.hold over the whole packet (a letter that lost a sentence is
+    written again once by _rewrite_cover), dashes removed, and the final letter's fingerprint on the receipt.
+    @param data - The generation after role_plan.carry. @param prof_doc - The gated profile it was generated from.
+    @param selected - Selected Other experience. @param ranked - letter_evidence.rank(). @param letter_block - Its block.
+    @param prof_json - prof_doc as sent. @param editor_prof - The profile the editor's framing reads.
+    @param posting - {title, company, description}. @returns (held packet, claims_check receipt).
+    """
+    title, company, jd = posting["title"], posting["company"], posting["description"]
+    data["cover"] = _sanitize(_polish_cover(data["cover"], title, company, jd, prof_json, editor_prof, letter_block))
+    draft = data["cover"]
+    held, receipt = claims_fix.hold(data, prof_doc, selected, posting, ranked, regenerate=lambda problems: _rewrite_cover(
+        problems, draft, title, company, jd, prof_json, editor_prof, letter_block))
+    held = _sanitize(held)
+    receipt["cover_digest"] = claims_fix.digest(held.get("cover"))
+    return held, receipt
 
 
 def _prep_profile(prof: dict, include_oshal: bool) -> dict:
@@ -705,19 +761,23 @@ def collect_story_citations(data: dict, prof: dict) -> list:
 
 
 def build_prompt(prof: dict, company: str, title: str, location: str, description: str,
-                 include_oshal: bool = False) -> str:
+                 include_oshal: bool = False, letter_block: str | None = None) -> str:
     """
     @description The exact user prompt generate_for sends for one posting: the gated career DB, the
-    posting, the open-source suffix when that is opted in, and the story-evidence block when the
-    profile holds stories. Extracted so the prompt is provable without a database or a renderer.
+    posting, the open-source suffix when that is opted in, the roles to carry, the cover letter's
+    evidence (letter_evidence, ranked for this posting) and the story-evidence block when the
+    profile holds stories (always last). Extracted so the prompt is provable without a database or a renderer.
     @param prof - The loaded career profile.
     @param company - The employer name as it may appear in the documents.
     @param title - The posting title.
     @param location - The posting location.
     @param description - The posting description.
     @param include_oshal - Whether the personal open-source work is opted in.
+    @param letter_block - The COVER LETTER EVIDENCE block generate_for ranked; None ranks it here.
     @returns The prompt text.
     """
+    if letter_block is None:
+        letter_block = letter_evidence.prompt_block(letter_evidence.rank(_prep_profile(prof, include_oshal), title, description))
     prompt = PROMPT.format(
         profile=json.dumps(_prep_profile(prof, include_oshal), ensure_ascii=False, separators=(',', ':')),
         company=company, title=title, location=location or "n/a",
@@ -726,7 +786,51 @@ def build_prompt(prof: dict, company: str, title: str, location: str, descriptio
     )
     if include_oshal:
         prompt += _OSHAL_PROMPT_SUFFIX
-    return prompt + story_evidence_suffix(prof)
+    return prompt + role_plan.prompt_block(role_plan.plan(prof)) + letter_block + story_evidence_suffix(prof)
+
+
+# The open-source embargo's own words (_prep_profile, _oshal_ban): a role the check restores carries none of them
+# unless the candidate opted that work in for this application.
+_EMBARGO_TERMS = ("oshal", "open shell", "open swarm", "agentic", "a2a", "agent-orchestration",
+                  "agent orchestration", "multi-agent", "swarm", "ai agent", "agent automation")
+
+
+def _embargo_terms(prof: dict, allowed: bool) -> tuple:
+    """@description The lower-case terms a restored role's bullets may not contain: none when the open-source work is
+    opted in, else the embargo's words plus the project name and terms the profile's prompt_framing names.
+    @param prof - The loaded career profile. @param allowed - Whether the open-source work is opted in.
+    @returns The terms."""
+    if allowed:
+        return ()
+    f = _framing(prof)
+    named = [f["oss_name"], *str(f["oss_embargo_terms"] or "").split(",")]
+    return _EMBARGO_TERMS + tuple(term.strip().lower() for term in named if term and term.strip())
+
+
+def _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, include_oshal, guidance) -> tuple:
+    """
+    @description The generation prompt for one posting: build_prompt's (or, with Other experience selected, the same
+    shape over the profile carrying it), with the source limitation and the person's tailoring notes. The work the
+    letter may draw on is ranked here for THIS posting (letter_evidence: relevance x recency) and the same ranking is
+    held after generation.
+    @param prof - The loaded profile. @param prof_doc - It gated for this packet. @param prof_json - prof_doc as sent.
+    @param selected - Selected Other experience. @param row - The posting. @param company_doc - Employer for documents.
+    @param include_oshal - Open-source opt-in. @param guidance - Tailoring notes. @returns (prompt, ranked, letter_block).
+    """
+    title, description = row["title"], row["description"] or ""
+    ranked = letter_evidence.rank(prof_doc, title, description, selected)
+    letter_block = letter_evidence.prompt_block(ranked)
+    prompt = build_prompt(prof, company_doc, title, row["location"] or "", description, include_oshal, letter_block)
+    if selected:
+        prompt = PROMPT.format(profile=prof_json, company=company_doc, title=title,
+            location=row['location'] or 'n/a', description=(row['description'] or '(no description)')[:24000])
+        prompt += (ADDITIONAL_EXPERIENCE_SUFFIX + role_plan.prompt_block(role_plan.plan(prof)) + letter_block
+                   + story_evidence_suffix(prof_doc))
+    if row.get('description_context', {}).get('basis') == 'listing-summary':
+        prompt += '\nSOURCE LIMITATION: The employer provides only a short listing summary here. Tailor to those known facts; do not infer unlisted duties or requirements.\n'
+    if guidance.strip():
+        prompt += '\nTAILORING PREFERENCES (use only existing profile facts; do not invent experience):\n' + guidance.strip()[:4000]
+    return prompt, ranked, letter_block
 
 
 def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '', additional_experience=None) -> dict:
@@ -771,16 +875,8 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         # framing_notes — yet the prompt still ordered the model to render those roles, forcing
         # omission (gaps) or reconstruction from memory (fabrication). The full DB is ~13k
         # tokens; the generation model holds 200k+.
-        prompt = build_prompt(prof, company_doc, title, row["location"] or "",
-                              row["description"] or "", include_oshal)
-        if selected:
-            prompt = PROMPT.format(profile=prof_json, company=company_doc, title=title,
-                location=row['location'] or 'n/a', description=(row['description'] or '(no description)')[:24000])
-            prompt += ADDITIONAL_EXPERIENCE_SUFFIX + story_evidence_suffix(prof_doc)
-        if row.get('description_context', {}).get('basis') == 'listing-summary':
-            prompt += '\nSOURCE LIMITATION: The employer provides only a short listing summary here. Tailor to those known facts; do not infer unlisted duties or requirements.\n'
-        if guidance.strip():
-            prompt += '\nTAILORING PREFERENCES (use only existing profile facts; do not invent experience):\n' + guidance.strip()[:4000]
+        prompt, ranked, letter_block = _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, include_oshal, guidance)
+        roles = role_plan.plan(prof)   # which recorded roles this résumé carries, most recent first
         data = enrich.parse_json(enrich.complete(sys_prompt, prompt, max_tokens=8000))
         if not data or "resume" not in data:
             raise RuntimeError("AI did not return a usable resume/cover.")
@@ -791,11 +887,16 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
             data['resume'].pop('open_source', None)
         else:
             data['resume'].pop('additional_experience', None)
+        # The model writes the words; the recorded roles decide which jobs are on the page (role_plan).
+        opted_in = include_oshal or any(e['id'] == 'saved-portfolio' for e in selected)
+        roles_carried = role_plan.carry(data['resume'], roles, prof, _embargo_terms(prof, opted_in))
         data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
         # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
         # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
-        data["cover"] = _sanitize(_polish_cover(
-            data["cover"], title, company_doc, row["description"], prof_json, prof_doc if selected else prof))
+        # The editor pass, then the records decide what the documents may claim, whichever model wrote them.
+        data, claims_checked = _hold_packet(data, prof_doc, selected, ranked, letter_block, prof_json,
+                                            prof_doc if selected else prof,
+                                            {"title": title, "company": company_doc, "description": row["description"] or ""})
 
         # Put the requisition number in the folder name when it's a clean id (referral/
         # manual rows store the real req #) so the packet ties back to the posting at a
@@ -833,7 +934,8 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
                         "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],
-                        "url": row["url"], "stories_cited": stories_cited,
+                        "url": row["url"], "stories_cited": stories_cited, "roles_carried": roles_carried,
+                        "claims_check": claims_checked,
                         "profile_snapshot": prof_doc,
                         "job_context": {"description": row['description'],
                             **row.get('description_context', {'basis':'corpus-description'}),

@@ -18,6 +18,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | The phone case also proves no band above the app bar and content within 74 px of the frame.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard: register video-editor-design (tests/video-editor-design.test.mjs) at 412x743 with touch and 1440x900, and update the phone case: Add a clip in the empty timeline as the one primary, Export as the one primary with a clip, one tool row ending in More with greyed inert planned controls and the clip tools, sheets the browser's Back closes, an in-page delete confirm and the graphite dark category look.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: register product-name guard (tests/product-name.test.js) in the plain-Node video job.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): register one-chat-window, Video's editor inside the shipped Today page where every concierge entry a person sees opens the one chat window as video's concierge and, on a phone, the window's own Close closes the Concierge sheet so the editor takes the next tap.
 version: 1
 cases:
   - id: package-readiness
@@ -654,6 +655,31 @@ cases:
     limits:
       timeoutMs: 240000
       maxMemoryMb: 1024
+  - id: one-chat-window
+    name: Video's Concierge opens the one chat window, and its Close gives the editor back
+    purpose: >-
+      Roger, 2026-11-17, in production - the video editor's concierge did not work: on a phone the window's own Close
+      left the Concierge sheet over the editor, so the next tap landed on the window. Open Video's editor inside the
+      shipped Today page (the kernel platform export, Video's profile built from this manifest) over the real compiled
+      editor routes and the one chat window, and press every concierge entry a person sees, as a person does.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/video-one-chat-window.test.mjs]
+    expected:
+      - At 412x915 with touch and at 1440x900 with a mouse, each concierge entry a person can see is pressed with Playwright's own actionability, never forced and never a script click, and opens exactly one window, the one Jarvis chat window at /api/jarvis/?concierge=video&bot=video-editor.
+      - On a phone the window sits in the editor's Concierge sheet, and the window's own Close closes that sheet; on a desktop it closes the editor's concierge column. No sheet and no chat window is left on screen.
+      - The editor then takes the next press - Text opens its sheet - and no page error is raised.
+      - Red on Video 1.14.2 at 412x915 (the sheet stayed open after the window's Close), green on 1.14.3.
+    prerequisites: [runner:node-test, browser:chromium, runtime:kernel-shared-ui, harness:oshal-core-root]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/video-editor.fixture.mjs, tests/video-editor-browser.fixture.mjs]
+      cleanup: Close the loopback server, its temporary media folder and the browser context; the project store is the fixture's strict empty pool, so no database is created or written.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
   - id: product-name
     name: Person-facing Video Studio text names the product Open Swarm
     purpose: Check SOUND_LIBRARY and STICKER_CATALOG attributions, the surface title, the manifest and personas, and all shipped routes, TypeScript route sources and tools files outside comments.

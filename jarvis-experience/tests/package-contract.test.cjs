@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Require the current named Jarvis chat-user and complete template4 rights across all four layouts.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The four role-closure cases read the old TypeScript platform checkout (its scripts/oshal-app-dependencies.js contract, swarm-apps/jarvis.yaml and workflow-studio.yaml, and its js-yaml). Without that checkout they report SKIPPED naming it instead of failing the whole file at load; the three owned-entry cases always run.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The product bundle is the 40 applications the public catalog or the kernel platform ships: the four applications that live only in the private store left the required list, the member template (version 9, 58 members) and the ordinary-role table, so every component is checked against its public manifest with no private exception. The package-version pin read 1.1.4 in all four copies and matched none of them; the template version is the fact the four layouts share.
  */
 // Office's declared admin preserves its earlier reserved app-admin tier; all other reviewed role limits remain.
 'use strict';
@@ -28,10 +29,10 @@ const yaml = LEGACY ? null : createRequire(path.join(framework, 'package.json'))
 const { readAppDependencies } = LEGACY ? {} : require(contract);
 const manifest = LEGACY ? null : yaml.load(read('oshal-app.yaml'));
 const template = manifest?.experience.roleTemplates[0];
-const components = 'home purchasing finance little-monsters movies spotify travel presentations calendar email-summarizer world switchboard social calling-assistant marketing-engine venture-plan private-app-1 payroll payments identity cad-studio circuit-lab create portrait-studio video lora vids creative-studio scan-to-print brand-graphics motion-studio publishing-studio pdf-workbench scene-studio storage career-hunter dnd game-show games jarvis workflow-studio private-app-2 intelligent-sales private-app-3'.split(' ');
+const components = 'home purchasing finance little-monsters movies spotify travel presentations calendar email-summarizer world switchboard social calling-assistant marketing-engine venture-plan payroll payments identity cad-studio circuit-lab create portrait-studio video lora vids creative-studio scan-to-print brand-graphics motion-studio publishing-studio pdf-workbench scene-studio storage career-hunter dnd game-show games jarvis workflow-studio'.split(' ');
 const ordinaryRoles = {
   jarvis: ['chat-user'], 'scan-to-print': ['maker'], presentations: ['admin'],
-  'little-monsters': ['student'], 'calling-assistant': ['caller'], 'venture-plan': ['member'], 'private-app-1': ['crm_representative'], 'intelligent-sales': ['sales_manager'], 'private-app-3': ['administrator'],
+  'little-monsters': ['student'], 'calling-assistant': ['caller'], 'venture-plan': ['member'],
   create: ['creator', 'editor', 'exporter', 'generator'], 'portrait-studio': ['creator', 'editor', 'deleter', 'artist', 'mailer'],
   video: ['creator', 'editor', 'exporter', 'producer'], lora: ['trainer'], 'motion-studio': ['creator', 'editor', 'exporter'], 'publishing-studio': ['creator', 'editor', 'exporter'], 'pdf-workbench': ['creator', 'editor', 'exporter', 'ocr'], 'scene-studio': ['creator'], 'career-hunter': ['member'],
 };
@@ -41,10 +42,10 @@ const componentManifest = name => {
   return { file, directory: ['jarvis', 'workflow-studio'].includes(name) ? framework : path.dirname(file), manifest: yaml.load(fs.readFileSync(file, 'utf8')) };
 };
 test('one complete product role includes every functional component, without optional setup', { skip: LEGACY }, () => {
-  assert.equal(manifest.version, '1.1.4'); assert.equal(template.version, 6);
+  assert.equal(template.version, 9);
   assert.deepEqual(manifest.dependencies.required.apps, components);
-  assert.deepEqual(manifest.dependencies.optional.apps, []); assert.equal(components.length, 44);
-  assert.deepEqual(template.members, expectedMembers); assert.equal(template.members.length, 62);
+  assert.deepEqual(manifest.dependencies.optional.apps, []); assert.equal(components.length, 40);
+  assert.deepEqual(template.members, expectedMembers); assert.equal(template.members.length, 58);
   assert.ok(template.members.every(({ app, role }) => app === 'presentations' ? role === 'admin' : !['@access-admin', '@access-auditor', 'admin', 'manager', 'teacher'].includes(role)));
 });
 test('four layouts share the same product rights instead of granting one empty shell', { skip: LEGACY }, () => {
@@ -55,7 +56,7 @@ test('four layouts share the same product rights instead of granting one empty s
   }
 });
 test('public component roles exist and include their current required package closure', { skip: LEGACY }, () => {
-  for (const name of components.filter(name => !['private-app-1', 'private-app-2', 'intelligent-sales', 'private-app-3'].includes(name))) {
+  for (const name of components) {
     const source = componentManifest(name); assert.equal(source.manifest.name, name); assert.equal(source.manifest.status, 'active');
     assert.notEqual(source.manifest.scope, 'operator'); assert.notEqual(source.manifest.scope, 'deployment');
     for (const dependency of readAppDependencies(source.manifest).required.apps) assert.ok(components.includes(dependency), name + ' requires ' + dependency);

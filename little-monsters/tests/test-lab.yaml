@@ -19,6 +19,7 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register lm-ux-batch7 for My Files Saved view and Voice Settings student and teacher split.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register lm-curriculum-videos-and-rp for the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 reference features.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Register lm-index-handoff: the old /index.html address answers a hand-off page to the arcade, where it called a redirect a kernel does not relay (HTTP 500 there).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Register lm-flashcard-study-opens: Study opens the chosen set over the real compiled flashcard route while the preferences table is refused, a failed read offers Try again instead of the Pick a set loop, and the class page's Topic Study Pack refreshes its sets (1.9.3).
 version: 1
 cases:
   - id: lm-curriculum-videos-and-rp
@@ -210,6 +211,29 @@ cases:
       mode: none
     limits:
       timeoutMs: 180000
+    installation: never
+  - id: lm-flashcard-study-opens
+    name: Study opens the chosen flashcard set
+    purpose: Prove that Study on a set opens that set's cards even where the installation's relationship policy refuses the study-preferences table, that a failed read is not shown as an empty deck, and that the class page's Topic Study Pack refreshes the class's sets and opens the new set.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-flashcard-study-opens.test.cjs
+    expected:
+      - At 412x915, Study on a set in My flashcards opens the set's first card over the compiled flashcard route while every statement on lm_flashcard_study_prefs is refused with the kernel's words; the cards read answers 200 and the refusal is logged.
+      - The card flips to its back, Got it! moves to the next card face up, and ← My flashcards returns to the list.
+      - A set whose read fails says it could not be opened, keeps Back to my flashcards and offers Try again, which opens the set; it never shows No flashcards yet or Pick a set.
+      - After a Topic Study Pack is saved, the class page reports it as ready with no script error, reads the class's flashcard sets again, and its Study Flashcards link opens the set on its first card.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never
   - id: lm-index-handoff
     name: Old index address hand-off

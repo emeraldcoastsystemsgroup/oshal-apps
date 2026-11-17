@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | not-connected also expects the persona to say hotels and cars need the Duffel rail (sweep 14: it offered demo hotel searches that answered 503).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register search-handoff: with no Duffel rail the searches answer the booking-site links for the trip and never call the refusing provider.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register duffel-egress: on the native kernel flights search Duffel through the kernel's egress (version header, no package credential), test-key offers are labelled and kept out of the price history, no key or a rejected trip answers the link.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4: register phone-first-screen (lane mobilesweep2).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -178,4 +179,27 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: phone-first-screen
+    name: Travel keeps the flight search compact on a phone and its options near the top after a search
+    purpose: "Guard 1.3.4 (lane mobilesweep2): the real page in a stand-in for Today with test-fare answers, a search for three synthetic options, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-phone-first-screen.test.js
+    expected:
+      - On a phone the flight search is four rows starting within the top 30% (From and To with a whole 44 px Swap beside them, Depart and Return, Cabin and Search flights), the tagline is not drawn and the empty results line shows on the first screen (it was at 68%).
+      - After a search that found options the form folds into one line naming the trip with Edit search, and the first option starts within the top 30%; Edit search opens the form with the typed trip.
+      - The desktop keeps the form open and the tagline; nothing scrolls sideways; the Travel concierge button covers nothing at the end; searching writes nothing.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

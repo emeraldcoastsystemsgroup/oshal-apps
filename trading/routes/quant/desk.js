@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | A pass may be given the deadline its caller started from, so the reference refresh that runs first in the same desk pass counts against the 12-second budget instead of adding to it.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Raise the engine so a list already published tonight republishes its history test with each signal's monthly results, which the quant's overfitting check reads.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Raise the engine for the deep-dip price signal and the quality-dip forward signal, so a list already published tonight republishes with both from the stored prices.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Raise the engine so the history test's corrected wording republishes from the stored prices.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | On the first full read ADP, CME, ENB and LH were marked as having no data, yet each read fine a minute later; the last error was the kernel refusing a read when the Schwab connection changed under it. A name that fails now gets a second try once the sweep ends, and the reason for each name still left out is kept.
@@ -21,7 +23,7 @@ const { readSecFinancialSummary } = require('../trading-sec-financial-reader');
 
 const HISTORY_DAYS = 4000;
 /** Raise when results are worked out differently: the night's list is republished from the stored prices. */
-const ENGINE = 6;
+const ENGINE = 7;
 /** Shorter windows to try when one old candle in the long window is unusable. */
 const SHORTER_WINDOWS = Object.freeze([1500, 400]);
 /** Everything else in Trading waits while a pass runs, so reading stops this soon. A read already started may finish. */
@@ -238,9 +240,10 @@ function progress(state) {
  * @description Run one bounded pass. Safe to call any time: finished work is not repeated and a pass already running is left alone.
  * @param {object} deps - {ctx, pool, intent, time, listedCompanies, readSec, readCompany}.
  * @param {string} sub - Owner.
+ * @param {number} [deadline] - When reading stops (deps.time() epoch ms); the full budget from now when not given.
  * @returns {Promise<object>} {status, progress, message?}.
  */
-async function runPass(deps, sub) {
+async function runPass(deps, sub, deadline) {
   const now = new Date(deps.time()), session = lastCompletedSession(now);
   let state = await store.getRecord(deps.pool, sub, 'state', 'current');
   // A release that changes results republishes whenever the night already has a list, even partway through its filings.
@@ -260,7 +263,7 @@ async function runPass(deps, sub) {
   await store.putRecord(deps.pool, sub, 'state', 'current', state);
   try {
     // Working out tonight's pool takes a pass of its own: its reads are many and small.
-    if (!fresh) await advance(deps, sub, state, deps.time() + PASS_BUDGET_MS);
+    if (!fresh) await advance(deps, sub, state, deadline ?? deps.time() + PASS_BUDGET_MS);
     return { status: state.phase === 'done' ? 'done' : 'working', progress: progress(state) };
   } finally {
     state.busyUntil = 0;

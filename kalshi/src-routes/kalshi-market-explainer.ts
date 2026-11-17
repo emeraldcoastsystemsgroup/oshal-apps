@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: the walkthrough says the rating in the page's words (edgeWord from kalshi-scan-config): the headline leads with Big edge, Good edge, Small edge, No edge or No estimate (it led with Monster, Strong, Playable, Fold or No verdict), the sizing reason says "to count as a small edge", and the question put to the quant says "the scan rates YES at 51.0¢ a big edge" and "the scan gave no estimate". The verdict values themselves are unchanged. Guard: tests/kalshi-plain-words.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The headline of a market priced on pooled evidence carries "Category unknown, pooled evidence." so the Markets table shows the caveat beside the verdict, not only inside the walkthrough.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A market whose series the scan did not read inside its time budget (live: 1492 of 1500 rows) is priced anyway, with the pooled calibration evidence and the default fee model, and its walkthrough says so ("Category unknown"); resting liquidity of zero beside real volume is reported as not reported, not as an empty book.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Browse every market the scan walked, not only the playable hands, and say in words why each bet is good or bad (Roger, 2026-10-30: "i should also be able to browse kalshi not just the edges and talk to an agent quant who can walk me through why every bet is bad"). browseMarket keeps one row per walked market with its two asks, book, horizon and the evaluator's better-side hand (or why the evaluator skipped it); explainMarket turns that into a verdict, a headline and the walkthrough reasons (price vs calibrated chance, fee, net edge, book, evidence, horizon, sizing) using only the evaluator's own numbers, and the question the person can put to the quant. Pure: no I/O, no model.
@@ -10,6 +11,7 @@
  * @module kalshi-market-explainer
  */
 import type { BetHand, CalibrationTable, KalshiMarket, KalshiSeriesMeta } from '@/features/prediction-markets';
+import { edgeWord } from './kalshi-scan-config';
 
 /** One market as the Markets tab and the quant see it: the market, its book, and the evaluator's view of it. */
 export interface BrowseMarket {
@@ -157,10 +159,10 @@ export function explainMarket(m: BrowseMarket, opts: ExplainOptions = {}): Marke
   if (!h) {
     return {
       verdict: 'not-evaluable', side: null,
-      headline: `No verdict: ${m.notEvaluable || 'the evaluator could not price this market'}.`,
+      headline: `${edgeWord('not-evaluable')}: ${m.notEvaluable || 'the evaluator could not price this market'}.`,
       reasons: [`Book: ${book}.`, 'The evaluator only judges single markets with a two-sided book inside its calibration horizon; outside that it makes no probability claim, so there is no edge to report either way.'],
       numbers: { yesAsk: m.yesAsk, noAsk: m.noAsk, volume: m.volume, liquidity: m.liquidity, openInterest: m.openInterest, hoursToClose: hours },
-      question: `Walk me through ${m.ticker} (${m.title}): the evaluator gave no verdict because ${m.notEvaluable || 'it could not price it'}. Is there anything a careful bettor could still say about it?`,
+      question: `Walk me through ${m.ticker} (${m.title}): the scan gave no estimate because ${m.notEvaluable || 'it could not price it'}. Is there anything a careful bettor could still say about it?`,
     };
   }
   const side = h.side === 'no' ? 'no' : 'yes';
@@ -169,7 +171,7 @@ export function explainMarket(m: BrowseMarket, opts: ExplainOptions = {}): Marke
   const n = Math.round(num(h.calibrationN)), flags = Array.isArray(h.riskFlags) ? h.riskFlags : [];
   const gated = opts.mayStake === false;
   const strength = (h.strength === 'monster' || h.strength === 'strong' || h.strength === 'playable') ? h.strength : 'fold';
-  const verdictWord = strength === 'fold' ? 'Fold' : strength === 'playable' ? 'Playable' : strength === 'strong' ? 'Strong' : 'Monster';
+  const verdictWord = edgeWord(strength);
   const reasons: string[] = [];
   reasons.push(`Price vs chance: ${SIDE} costs ${cents(price)}; the calibrated chance it pays is ${pct(prob)} (the market's own implied chance is ${pct(price)}).`);
   reasons.push(`Fees: Kalshi's taker fee on this price is about ${cents(fee)} a contract, so you need the chance to beat ${cents(price + fee)} just to break even.`);
@@ -181,13 +183,13 @@ export function explainMarket(m: BrowseMarket, opts: ExplainOptions = {}): Marke
   const stake = num(h.stakeFraction), kelly = num(h.kellyFraction);
   if (strength === 'fold') {
     reasons.push(edge <= 0 ? 'Sizing: with no net edge the Kelly stake is zero; there is no price at which this side pays.'
-      : `Sizing: the edge is real but too small or too thinly evidenced for the strength floors (1.2¢ with 35% confidence to be playable), so the stake is zero.`);
+      : `Sizing: the edge is real but too small or too thinly evidenced for the strength floors (1.2¢ with 35% confidence to count as a small edge), so the stake is zero.`);
   } else {
     reasons.push(`Sizing: full Kelly would be ${pct(kelly)} of bankroll; quarter-Kelly, halved once per risk flag and capped at 5%, is ${pct(stake)}${gated ? ` — on paper only, because the strategy may not stake yet (${opts.gateReason || 'the forward test has not earned it'})` : ''}.`);
   }
   const caveat = m.seriesUnknown ? ' Category unknown, pooled evidence.' : '';
   const headline = (strength === 'fold'
-    ? `Fold: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after the ${cents(fee)} fee${flags.length ? `, with ${plural(flags.length, 'risk flag')}` : ''}.`
+    ? `${verdictWord}: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after the ${cents(fee)} fee${flags.length ? `, with ${plural(flags.length, 'risk flag')}` : ''}.`
     : `${verdictWord}: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after fees; stake ${pct(stake)}${gated ? ' (paper only)' : ''}.`) + caveat;
   return {
     verdict: strength, side, headline, reasons,
@@ -195,6 +197,6 @@ export function explainMarket(m: BrowseMarket, opts: ExplainOptions = {}): Marke
       liquidity: m.liquidity, openInterest: m.openInterest, volume: m.volume, calibrationN: n, confidence: conf, hoursToClose: hours, kellyFraction: kelly, stakeFraction: stake },
     question: strength === 'fold'
       ? `Walk me through ${m.ticker} (${m.title}): why is ${SIDE} at ${cents(price)} a bad bet?`
-      : `Walk me through ${m.ticker} (${m.title}): the scan calls ${SIDE} at ${cents(price)} ${strength}. What could make it a bad bet?`,
+      : `Walk me through ${m.ticker} (${m.title}): the scan rates ${SIDE} at ${cents(price)} a ${verdictWord.toLowerCase()}. What could make it a bad bet?`,
   };
 }

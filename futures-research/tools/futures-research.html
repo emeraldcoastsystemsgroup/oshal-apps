@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-theme="light-blue">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Futures Research · Open Swarm</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <link rel="stylesheet" href="/shared/ui/css/design-tokens.css">
+  <link rel="stylesheet" href="/api/futures-research/futures-research.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <script src="/api/futures-research/futures-research.js" defer></script>
+</head>
+<body>
+  <main class="fr-page" id="futuresResearchApp">
+    <header class="fr-head">
+      <div class="fr-head-copy">
+        <p class="fr-kicker">AI Finance · Walk-Forward Futures Desk</p>
+        <h1>Futures Research</h1>
+        <p class="fr-lede">Owner-scoped walk-forward futures study reviews, unapplied proposal audit trail, and frozen forward-call grading.</p>
+      </div>
+      <div class="fr-head-actions">
+        <button type="button" class="fr-btn fr-btn-primary" id="frRefreshBtn">Refresh research</button>
+      </div>
+    </header>
+
+    <section class="fr-banner" aria-label="Research posture">
+      <div class="fr-banner-main">
+        <strong>Research-only desk — zero live order placement</strong>
+        <p>Walk-forward CME and Micro futures study reviews and forward-call grading never place, modify, or route orders. Any next-study proposal requires your explicit human adoption in Intelligent Trades.</p>
+      </div>
+      <ul class="fr-roots" aria-label="Supported contract roots">
+        <li><code>/MES</code></li>
+        <li><code>/MNQ</code></li>
+        <li><code>/ES</code></li>
+        <li><code>/NQ</code></li>
+        <li><code>/CL</code></li>
+        <li><code>/GC</code></li>
+      </ul>
+    </section>
+
+    <section class="fr-tiles" id="frTiles" aria-label="Futures Research summary">
+      <article class="fr-tile">
+        <span class="fr-tile-label">Review queue</span>
+        <strong class="fr-tile-value" id="frTileQueue">—</strong>
+        <span class="fr-tile-hint" id="frTileQueueHint">Loading workflow tickets…</span>
+      </article>
+      <article class="fr-tile">
+        <span class="fr-tile-label">Recorded studies</span>
+        <strong class="fr-tile-value" id="frTileStudies">—</strong>
+        <span class="fr-tile-hint" id="frTileStudiesHint">Checking study ledger…</span>
+      </article>
+      <article class="fr-tile">
+        <span class="fr-tile-label">Unapplied proposals</span>
+        <strong class="fr-tile-value" id="frTileProposals">—</strong>
+        <span class="fr-tile-hint" id="frTileProposalsHint">Explicit adoption required</span>
+      </article>
+      <article class="fr-tile">
+        <span class="fr-tile-label">Forward calls</span>
+        <strong class="fr-tile-value" id="frTileForward">—</strong>
+        <span class="fr-tile-hint" id="frTileForwardHint">Frozen holdout receipts</span>
+      </article>
+    </section>
+
+    <section class="fr-card" aria-labelledby="frStudiesHeading">
+      <div class="fr-card-head">
+        <div>
+          <h2 id="frStudiesHeading">Studies &amp; Proposals</h2>
+          <p class="fr-card-sub">Walk-forward runs and bounded grid hypotheses from Intelligent Trades when admitted in your session.</p>
+        </div>
+        <span class="fr-badge" id="frStudiesStatus">Checking…</span>
+      </div>
+      <div id="frStudiesBody" role="status" class="fr-empty">Loading studies and proposals…</div>
+    </section>
+
+    <section class="fr-card" aria-labelledby="frQueueHeading">
+      <div class="fr-card-head">
+        <div>
+          <h2 id="frQueueHeading">Review Queue</h2>
+          <p class="fr-card-sub">Thesis, sample and source-lag risks, confidence posture, and exact evidence citations per review.</p>
+        </div>
+        <span class="fr-badge" id="frQueueStatus">Checking…</span>
+      </div>
+      <div id="frQueueBody" role="status" class="fr-empty">Loading review queue…</div>
+    </section>
+
+    <section class="fr-card" aria-labelledby="frForwardHeading">
+      <div class="fr-card-head">
+        <div>
+          <h2 id="frForwardHeading">Forward Calls</h2>
+          <p class="fr-card-sub">Separately frozen post-issuance directional receipts; flat and unscored cases are never counted as wins.</p>
+        </div>
+        <span class="fr-badge" id="frForwardStatus">Checking…</span>
+      </div>
+      <div id="frForwardBody" role="status" class="fr-empty">Loading forward call receipts…</div>
+    </section>
+  </main>
+</body>
+</html>

@@ -2,7 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
 /** Saved personal alerts and placement records; no scan, forecast, trade or provider refresh. */
+/* 1.10.2: a recorded alert's note says its rating in the page's words ("rated Big edge"; it said "strength monster").
+   The words are kept here, not imported: this route loads nothing but express (the store's market summary contract,
+   scripts/market-home.test.cjs). tests/kalshi-plain-words.test.js holds them equal to EDGE_WORDS in kalshi-scan-config. */
 const express_1 = require("express");
+const RATED = { monster: 'Big edge', strong: 'Good edge', playable: 'Small edge', fold: 'No edge', 'not-evaluable': 'No estimate' };
 const clip = (value, cap = 400) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
 function createHomeSummaryRoutes(ctx) {
     const router = (0, express_1.Router)();
@@ -28,7 +32,7 @@ function createHomeSummaryRoutes(ctx) {
         }));
         const actions = (title, notes) => ['review-finance', 'prepare-document', 'review-research'].map(integration => ({ integration, context: { title, notes } }));
         const items = alerts.status === 'fulfilled' ? alerts.value.rows.map((a) => {
-            const notes = clip(`Recorded market alert ${a.ticker}, strength ${a.strength || 'not recorded'}, first seen ${new Date(a.created_at).toISOString()}. ${a.delivered ? 'Marked delivered.' : 'Delivery not confirmed.'} This alert is a research signal, not an order, position, settlement or realized profit.`, 2000);
+            const notes = clip(`Recorded market alert ${a.ticker}, ${a.strength ? 'rated ' + (RATED[a.strength] || RATED['not-evaluable']) : 'rating not recorded'}, first seen ${new Date(a.created_at).toISOString()}. ${a.delivered ? 'Marked delivered.' : 'Delivery not confirmed.'} This alert is a research signal, not an order, position, settlement or realized profit.`, 2000);
             return { text: clip(a.ticker, 120), detail: clip(notes), tone: 'neutral', fix: 'kalshi-home', actions: actions('Research a recorded market alert', notes) };
         }) : [];
         if (orders.status === 'fulfilled')

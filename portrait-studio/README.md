@@ -1,5 +1,7 @@
 # Portrait Studio — an OSHAL app package
 
+1.17.8 gives the studio its own concierge again: the kernel's one Jarvis chat window as Portrait Studio's (`portrait-artist`), in the shared editor, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying. Before it, the page left the concierge to the shell, so on Create's Portrait screen the Jarvis ball opened Create's concierge. Now Today hides its ball and its bar's Concierge opens Portrait's window, alone or inside Create; on Your portraits the Concierge (Today's bar on a desktop, the editor's bottom bar on a phone) brings the studio forward with the concierge open. Each message saves the photo source first and hands it over (its id, revision and selected crop). Needs a kernel with `jarvis-chat-frame.js` (00c62f98 or later). Proven by `tests/portrait-studio-one-chat-window.test.mjs` (Test Lab case `one-chat-window`).
+
 1.16.3 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

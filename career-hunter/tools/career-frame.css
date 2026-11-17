@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Give phone section links 44 px targets and wrap the row so every page stays reachable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the changed-with-Undo bar Work history and My résumé show after a change (career-change-bar.js), above the phone's bottom bar and clear of the docked concierge. On a phone My résumé's Word document now reaches the bottom bar: the 64 px kept for the old Edit with AI bar is kept only in the classic view that still has it (before, an empty band sat under the document).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1: My résumé's editor sheet on a phone is placed by the page itself, between this frame's two measures (--cf-top and --cf-bottom), so the rule that rested the sheet 64 px above the bottom bar is gone: the Edit with AI bar it left room for is away while the sheet is open.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). On a phone a section's row of pages is one 48 px line that scrolls sideways and never wraps (entry 3 wrapped it onto two lines, 99 px on My résumé); every tab keeps its 44 px target. My résumé's Word document slides up over the top bar and the row once the person scrolls into it (the page sets data-resume-full), keeping its bottom on the bottom bar the whole way; reduced motion moves it at once.
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
@@ -154,7 +155,9 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   .cf-more-phone > summary { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 22px; line-height: 1; }
   .cf-more-phone .cf-menu { min-width: 250px; max-width: calc(100vw - 16px); }
   .cf-menu a { min-height: 44px; font-size: 15px; }
-  .cf-subnav { height: auto; min-height: 48px; padding: 2px 12px; flex-wrap: wrap; overflow: visible; }
+  /* One row that scrolls sideways and never wraps (Google Docs' and Word's tabs on a phone); every page is still one
+     swipe away, and the frame scrolls the open page's tab into view. */
+  .cf-subnav { box-sizing: border-box; height: 48px; padding: 0 12px; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-padding-inline: 12px; }
   .cf-subnav .cf-subnav-label { display: none; }
   .cf-subnav a { min-height: 44px; }
   .cf-bottombar {
@@ -188,6 +191,18 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar .wrap { height: calc(100dvh - 64px - var(--cf-top) - var(--cf-bottom)); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar[data-view=office] .wrap { height: calc(100dvh - var(--cf-top) - var(--cf-bottom)); }
   html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar #aiBar { bottom: var(--cf-bottom); }
+  /* 1.67.2: once the person scrolls into the résumé, the page sets data-resume-full and the document, with its own bar,
+     slides up over the top bar and the row of pages; the bottom of the document stays on the bottom bar all the way. */
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar[data-view=office] .wrap {
+    position: relative; z-index: 0; transition: transform 180ms ease, height 180ms ease, margin-bottom 180ms ease, z-index 0s linear 180ms;
+  }
+  html[data-career-frame][data-career-surface="resume-studio"][data-resume-full] body.cf-has-bottombar[data-view=office] .wrap {
+    z-index: 82; height: calc(100dvh - var(--cf-bottom)); margin-bottom: calc(-1 * var(--cf-top)); transform: translateY(calc(-1 * var(--cf-top)));
+    transition: transform 180ms ease, height 180ms ease, margin-bottom 180ms ease;
+  }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  html[data-career-frame][data-career-surface="resume-studio"] body.cf-has-bottombar[data-view=office] .wrap { transition: none !important; }
 }
 /* ── 6. The changed-with-Undo bar (career-change-bar.js) ───────────────────── */
 .cf-change-bar {

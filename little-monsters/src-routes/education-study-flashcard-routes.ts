@@ -10,6 +10,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add owner/class-scoped flashcard CRUD route adapters.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Include per-student study preferences when requested on GET /flashcards/sets/:setId/cards?includePrefs=1 (RP-LM-04).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The preferences are optional on that read: when they cannot be read the cards still answer, with preferences null, and the failure is logged. An installation whose relationship policy was installed before 1.9.0 refuses every statement on lm_flashcard_study_prefs ("SQL table is outside installed relationship policy"); the whole request answered 500, so Study opened every set empty (Roger's phone, 2026-11-16). Guard: tests/lm-flashcard-study-opens.test.cjs.
  * ---------------------------------------------------------------------------
  *
  * @module education-study-flashcard-routes
@@ -18,7 +19,7 @@
 import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
-import { assertClassAccess, resolveAuthedStudent } from './education-access';
+import { assertClassAccess, resolveAuthedStudent, type AuthedStudent } from './education-access';
 import { sendStudyError } from './education-study-errors';
 import {
   addStudyCard,
@@ -29,6 +30,7 @@ import {
   listReadableCards,
   listReadableSets,
   updateStudyCard,
+  type StudySetPreferences,
 } from './education-study-store';
 
 const logger = createChildLogger({ module: 'education-study-flashcard-routes' });
@@ -51,13 +53,31 @@ async function listSets(req: Request, res: Response, ctx: AppContext): Promise<v
   }
 }
 
+/**
+ * @description The learner's saved Shuffle and Term/Definition choice for a set the cards read already admitted, or
+ * null when it cannot be read. The choice is optional (the study page keeps it on the device too), so it never takes
+ * the cards down with it: an installation whose relationship policy predates lm_flashcard_study_prefs refuses every
+ * statement on that table.
+ * @param ctx - Application context holding the request's pool.
+ * @param actor - The signed-in learner.
+ * @param setId - The set whose cards were just read.
+ * @returns The saved choice, or null when it is unavailable.
+ */
+async function readPreferences(ctx: AppContext, actor: AuthedStudent, setId: unknown): Promise<StudySetPreferences | null> {
+  try {
+    return await getStudySetPreferences(ctx.pool, actor, setId);
+  } catch (error) {
+    logger.error({ err: error, operation: 'read the study preferences' }, 'Study preferences unavailable; the cards answer without them');
+    return null;
+  }
+}
+
 async function listCards(req: Request, res: Response, ctx: AppContext): Promise<void> {
   try {
     const actor = await resolveAuthedStudent(req, ctx.pool);
     const cards = await listReadableCards(ctx.pool, actor, req.params.setId);
     if (req.query.includePrefs === '1') {
-      const preferences = await getStudySetPreferences(ctx.pool, actor, req.params.setId);
-      res.json({ cards, preferences });
+      res.json({ cards, preferences: await readPreferences(ctx, actor, req.params.setId) });
       return;
     }
     res.json({ cards });

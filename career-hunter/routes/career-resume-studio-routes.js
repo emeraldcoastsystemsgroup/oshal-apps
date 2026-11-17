@@ -23,6 +23,7 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The answers a person reads say main résumé (was master resume). Words only: log lines, the instruction the classic editor's model is given, route paths and the item id `master` are unchanged.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): GET /resume/doc?id=master&earlier=<revision|recent> answers the main résumé document as it read at an earlier revision (the engine's base-earlier, from the backups Undo reads), so the My résumé page can tell a Word document that is only behind from one that holds typed text. The same read binding as GET /resume/doc; nothing is written.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: POST /resume/master-undo is Undo for a main-résumé change (the engine's base-undo puts back the earlier profile from its backup only while the profile is still exactly what that change left), the signed-in owner's own store only, bound to career.change.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): GET /resume/master-section also reads field `portfolio`, the saved portfolio whole with the main résumé's exact revision (engine portfolio.read_section), for its Edit form on Other experience; the form saves through POST /resume/master-edit (an edit of field portfolio) and Undo through POST /resume/master-undo. No new route and no new binding.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -437,7 +438,7 @@ async function getMasterSection(ctx, req, res) {
         return /^(0|[1-9]\d{0,6})$/.test(text) && Number(text) <= 1_000_000 ? Number(text) : null;
     };
     const index = integer(req.query.index), offset = integer(req.query.offset);
-    if (!['overview', 'headline', 'summary', 'clearance', 'competencies', 'skills', 'experience', 'education', 'certifications', 'licenses'].includes(field) || index === null || index > 9999 || offset === null) {
+    if (!['overview', 'headline', 'summary', 'clearance', 'competencies', 'skills', 'experience', 'education', 'certifications', 'licenses', 'portfolio'].includes(field) || index === null || index > 9999 || offset === null) {
         res.status(400).json({ ok: false, error: 'Choose a valid master section and page.' });
         return;
     }

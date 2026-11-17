@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Open the REAL editor screen served by the real compiled Video routes over a disposable PostgreSQL, with the core's real shared theme code, in real Chromium. Every request that leaves the loopback origin is refused and recorded; the named fixture prober and encoder stand in for ffprobe and FFmpeg (real FFmpeg is proved in video-edit-export.test.mjs).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve kernel shared document handoff code beside the actual editor routes in browser proofs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A proof may open the editor as a touch phone (options.device: isMobile, hasTouch, deviceScaleFactor).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A proof may add its own routes after the shared assets (options.extend): the concierge proof serves the kernel's one chat window there (kernel 00c62f98 made the editor's concierge pane frame it), from the same loopback server.
  */
 import { resolve } from 'node:path';
 import { express, requireCore, packageRoot, startApi, fixtureEncoder } from './video-editor.fixture.mjs';
@@ -23,12 +24,12 @@ function sharedAssets(app) {
 
 /**
  * @description Start the editor on loopback and open it in a fresh browser context.
- * @param {object} t Test context. @param {object} browser Chromium. @param {object} database Postgres fixture. @param {object} options denied, viewport, theme.
+ * @param {object} t Test context. @param {object} browser Chromium. @param {object} database Postgres fixture. @param {object} options denied, viewport, theme, extend (more routes after the shared assets).
  * @returns {Promise<object>} page, api, encoder, errors, external and requests.
  */
 export async function openEditor(t, browser, database, options = {}) {
   const encoder = fixtureEncoder();
-  const api = await startApi(t, database.pool, { denied: options.denied, exports: encoder, extend: sharedAssets });
+  const api = await startApi(t, database.pool, { denied: options.denied, exports: encoder, extend: app => { sharedAssets(app); options.extend?.(app); } });
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1440, height: 1000 }, ...(options.device ?? {}) });
   const errors = [], external = [], requests = [];
   t.after(async () => { await context.close(); });

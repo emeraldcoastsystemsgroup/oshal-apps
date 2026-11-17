@@ -3,6 +3,7 @@
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | OSHAL Audio Studio 3-pane multitrack workbench conforming to surface-themes.css, table.js, and oshal-surface-bridge.
   2 | maintainer@emeraldcoastsystemsgroup.com | Apply crisp-glass design standard: single primary CTA, zero emoji SVG icons, mobile pane switcher, ADR-208 formula macros, and Cockpit concierge handoff.
+  3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16: the first track started 617 px down a 915 px phone, 67%, under the app bar, the section tabs, a transport wrapped onto three rows, six formula macros wrapped onto four rows and the status line). The transport's controls and its tools are two groups (transport-main: Play, Pause, Stop, Record Take and the time; transport-tools: Slice, Loop 16s and the LUFS meter), which a desktop still lays out as one bar (display: contents); on a phone the tracks come right under one transport row, as in GarageBand or BandLab, and the tools, the status line and the macros (one row that scrolls sideways) follow them. Presentation only.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -151,26 +152,30 @@
     <!-- Center Stage: Transport, ADR-208 Macros, Multitrack Waveform Timeline & Track Table -->
     <section class="pane wb-center" aria-label="Multitrack timeline">
       <div class="transport-bar">
-        <div class="button-row">
-          <button id="btn-play" class="btn primary" type="button">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>
-            <span>Play</span>
-          </button>
-          <button id="btn-pause" class="btn secondary" type="button">Pause</button>
-          <button id="btn-stop" class="btn secondary" type="button">Stop</button>
-          <button id="btn-transport-record" class="btn danger" type="button">Record Take</button>
-        </div>
-        <div class="timecode-readout" id="timecode">00:00.000</div>
-        <div class="button-row">
-          <button id="btn-slice-at-playhead" class="btn ghost" type="button">Slice</button>
-          <button id="btn-loop-all" class="btn ghost" type="button">Loop 16s</button>
-        </div>
-        <div class="meter-box">
-          <span class="meter-label">LUFS</span>
-          <div class="meter-bar-bg">
-            <div id="master-lufs-fill" class="meter-bar-fill"></div>
+        <div class="transport-main">
+          <div class="button-row">
+            <button id="btn-play" class="btn primary" type="button">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>
+              <span>Play</span>
+            </button>
+            <button id="btn-pause" class="btn secondary" type="button">Pause</button>
+            <button id="btn-stop" class="btn secondary" type="button">Stop</button>
+            <button id="btn-transport-record" class="btn danger" type="button">Record Take</button>
           </div>
-          <span id="master-lufs-value" class="meter-val">-14.0 LUFS</span>
+          <div class="timecode-readout" id="timecode">00:00.000</div>
+        </div>
+        <div class="transport-tools">
+          <div class="button-row">
+            <button id="btn-slice-at-playhead" class="btn ghost" type="button">Slice</button>
+            <button id="btn-loop-all" class="btn ghost" type="button">Loop 16s</button>
+          </div>
+          <div class="meter-box">
+            <span class="meter-label">LUFS</span>
+            <div class="meter-bar-bg">
+              <div id="master-lufs-fill" class="meter-bar-fill"></div>
+            </div>
+            <span id="master-lufs-value" class="meter-val">-14.0 LUFS</span>
+          </div>
         </div>
       </div>
 

@@ -1,5 +1,7 @@
 # Publishing Studio
 
+0.5.4 opens Publishing's concierge, the kernel's one chat window as `concierge=publishing-studio&bot=publishing-editor`, on screen from every entry a person sees, inside Today (Create's Publishing Studio screen and Publishing's own) and alone, on a desktop and on a phone. Your publications hid the concierge column on a desktop, so Today's bar Concierge opened nothing visible; an open concierge now sits beside the list as a 320 px column. On a phone the list had no concierge entry; its heading row now carries Concierge (on a desktop it steps aside while Today's bar opens the concierge). The phone's Concierge sheet closes with the window's own Close. Proven by `tests/publishing-concierge-entries.test.mjs` (Test Lab case `concierge-entries`) and `scripts/editor-foundation/today-concierge.test.mjs`.
+
 0.3.5 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

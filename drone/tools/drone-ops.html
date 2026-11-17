@@ -22,7 +22,11 @@
        event log) and Plan (patterns, mission builder, saved missions, operator chat); Plan waypoints, Direct goto, 3D and
        CAM are one exclusive segmented control; with no drone one empty state on the canvas says so once; the event and
        capture polls ask only for a registered drone; Prepare a diagnostic brief opens as a sheet from Brief in the app
-       row; small buttons are 44px; on desktop the canvas keeps at least 60% of the width and the rail scrolls on its own. -->
+       row; small buttons are 44px; on desktop the canvas keeps at least 60% of the width and the rail scrolls on its own.
+     5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the
+       no-drone card started 306 px down a 915 px phone, 33%, in the middle of an empty map under a two-row header): on a
+       phone with no drone the header is one row (the provider pill only repeated NO DRONE and the battery read –%) and the
+       card sits at the top of the map under the view control. The desktop is unchanged. Presentation only. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
      flight plans (how many, which are not flown yet, the latest ones with their shape and where each one stands) from
      the SAME GET /api/drone/missions the full page reads, plus two counts of GET /api/drone/home-summary (plans started
@@ -305,6 +309,13 @@
     .mode-toggle.segmented { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .mode-toggle.segmented .btn { padding: 6px 4px; font-size: 12px; }
     .view-tabs { position: static; margin: 0; }
+  }
+  /* 1.4.1, the phone first screen: with no drone the header is one row (the provider pill only repeats NO DRONE and the
+     battery reads –%), and the no-drone card sits at the top of the map, under the view control, not in its middle. */
+  @media (max-width: 760px) {
+    .app:has(#canvasEmpty:not([hidden])) :is(#providerPill, .batt) { display: none; }
+    .app:has(#canvasEmpty:not([hidden])) .topbar { flex-wrap: nowrap; }
+    .canvas-empty { top: 70px; transform: translateX(-50%); }
   }
 </style>
 </head>

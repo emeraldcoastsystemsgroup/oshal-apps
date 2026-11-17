@@ -1,5 +1,7 @@
 # Storage — Open Swarm app package
 
+1.4.4 makes the Storage Assistant page (`/api/storage/assistant/ui`, and Open the assistant on the audience views) the kernel's one chat window as Storage's concierge, the same window the shell's Concierge opens, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying; the page draws no chat of its own. It needs a kernel with `/shared/ui/js/jarvis-chat-frame.js` (`00c62f98` or later). Proven by `tests/storage-ux-batch7.test.cjs` and `tests/audience-view.test.cjs`.
+
 1.4.3 names the product Open Swarm in every answer, card, picker label, surface, tool description and persona sentence a person reads or hears, while keeping technical identifiers (`oshal-local`, headers, env vars and paths) unchanged. Proven by `tests/product-name.test.cjs` (Test Lab case `product-name`).
 
 1.4.0 adds `storage-upload-file` (`POST /api/storage/files/upload`, held for the person's approval), a schema-bounded file upload server operation backed by the kernel's `storage.save` intent so files and device captures can be uploaded to the person's configured `FILES` target or a specified connected provider (`dropbox`, `google-drive`, `onedrive`, `github`, or `oshal-local`) and folder path, returning the exact provider and destination location.

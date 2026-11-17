@@ -1,6 +1,7 @@
 /**
  * CHANGE LOG
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Classify all native account and Quant loaders with their explicit render and tab guards; preserve capture-before-await and guard-before-paint checks.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: classify loadNativeValueComparison (native-account-details.js) as view-scoped: it paints the account details page's comparison after the price read and re-checks the render token first.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -39,7 +40,7 @@ const TAB_SCOPED = [
 const VIEW_SCOPED = [
   'loadKpisAndPositions', 'loadRealized', 'loadPerfSummary', 'loadSignalModel',
   'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard', 'loadPositionPlans', 'loadNativeAccountManagement',
-  'loadNativeAccountDetails', 'loadNativeStockComparison', 'loadNativeDashboardState', 'loadNativeAccountOverview',
+  'loadNativeAccountDetails', 'loadNativeStockComparison', 'loadNativeValueComparison', 'loadNativeDashboardState', 'loadNativeAccountOverview',
 ];
 /** State-only: writes module state and paints NOTHING, so it has no stale paint to guard against. */
 const STATE_ONLY = ['loadBooks'];

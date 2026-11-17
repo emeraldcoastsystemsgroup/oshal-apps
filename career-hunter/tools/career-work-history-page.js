@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13 ~22:16Z: each new job held his whole pasted draft as one bullet, and that bullet stopped mid-sentence, so the concierge could not quote it). A bullet box no longer carries maxlength 1000, which Chromium applies to a paste by keeping the first 1000 characters; the whole paste is saved, and the engine makes it one bullet per line (master_edit, card_targets.split_lines). Guard: tests/career-work-history-page.test.mjs, the pasted-draft case.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): the Word document on My résumé follows through CareerResumeOffice.settle, which knows the version the document was made from, so it is brought up to date after every change here whatever it missed before (it used to be left for ever once it was behind). On opening, text typed in the document and never saved is saved into the main résumé first, so this page shows it and nothing here is later written over it.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Document the raised 4,096-character per-bullet engine bound on pasted multi-sentence drafts.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): the page also draws Expanded experience (career-work-history-engagements.js): each job's card ends with the client engagements placed under it, and the summary line under the heading counts jobs, client engagements and client accounts with links to them. save() takes a step to run once a change is saved, answers whether it was, keeps the refusal's words for the form that asked, and reads the page again when the main résumé moved meanwhile (409), so the next try is made on what is saved. A job form and an engagement form are never open at once; the concierge waits for either.
  */
 (function (win) {
   'use strict';
@@ -26,7 +27,7 @@
   async function request(path, init) {
     var response = await win.fetch(API + path, Object.assign({ credentials: 'same-origin', cache: 'no-store' }, init || {}));
     var body = await response.json().catch(function () { return {}; });
-    if (!response.ok || body.ok === false) throw new Error(body.error || body.message || 'Career could not answer. Try again.');
+    if (!response.ok || body.ok === false) throw Object.assign(new Error(body.error || body.message || 'Career could not answer. Try again.'), { status: response.status });
     return body;
   }
   function roles() { return (state.doc && state.doc.resume && state.doc.resume.experience) || []; }
@@ -47,6 +48,7 @@
         el('button', { type: 'button', class: 'ck-btn wh-edit', 'data-edit': String(index), 'aria-label': 'Edit ' + (role.title || 'this job'), text: 'Edit' }),
       ]),
       bullets.length ? el('ul', { class: 'wh-bullets' }, bullets) : el('p', { class: 'wh-meta', text: 'No bullets yet.' }),
+      win.CareerEngagements ? win.CareerEngagements.underJob(index) : null,
     ]);
   }
 
@@ -108,6 +110,7 @@
     var cards = jobs.map(function (role, index) { return state.editing === index ? editor(role, index) : cardView(role, index); });
     if (state.editing === 'new') cards.unshift(editor({ title: '', org: '', start: '', end: '', bullets: [''] }, 'new'));
     list.replaceChildren.apply(list, cards);
+    if (win.CareerEngagements) win.CareerEngagements.render();
     $('whAdd').disabled = state.busy || state.editing != null;
     var first = list.querySelector('.wh-editing input[name=title]');
     if (first && doc.activeElement === doc.body) first.focus({ preventScroll: false });
@@ -149,22 +152,31 @@
     } : null });
   }
 
-  /** Send the edits in order, each request on the revision the last one answered; one change, one Undo. */
-  async function save(edits, done) {
-    if (!edits.length) { state.editing = null; render(); return; }
+  /**
+   * Send the edits in order, each request on the revision the last one answered; one change, one Undo. `saved` runs once
+   * the change is saved, before the page is drawn again. Answers whether it was saved; a refusal's words stay in
+   * state.lastError for the form that asked. When the main résumé moved meanwhile (409), the page is read again.
+   */
+  async function save(edits, done, saved) {
+    if (!edits.length) { state.editing = null; render(); return true; }
     var before = state.revision, revision = before, prior = state.doc;
-    state.busy = true; notice('Saving…');
+    state.busy = true; state.lastError = ''; notice('Saving…');
     try {
       for (var part of W.chunks(edits)) {
         var answer = await request('/resume/master-edit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision: revision, edits: part }) });
         revision = answer.revision;
       }
       state.editing = null; notice('');
+      if (saved) saved();
       await load(); await followInWord(prior, state.doc);
       announce(done, before, state.revision);
+      return true;
     } catch (error) {
+      state.lastError = error.message;
       notice(revision !== before ? 'Part of this change was saved: ' + error.message : error.message);
       if (revision !== before) { await load().catch(function () {}); announce('Part of the change was saved.', before, revision); }
+      else if (error.status === 409) await load().catch(function () {});
+      return false;
     } finally { state.busy = false; render(); }
   }
 
@@ -185,6 +197,7 @@
 
   function removeJob(index) {
     var job = roles()[index], dialog = $('whConfirm');
+    $('whConfirmTitle').textContent = 'Remove this job?';
     $('whConfirmText').textContent = 'Remove ' + job.title + (job.org ? ' at ' + job.org : '') + ' and its bullets from your work history? Undo puts it back.';
     dialog.returnValue = '';
     dialog.onclose = function () {
@@ -204,6 +217,9 @@
   function click(event) {
     var target = event.target.closest('button'); if (!target || state.busy) return;
     var card = target.closest('.wh-job'), index = card && card.dataset.job !== 'new' ? Number(card.dataset.job) : state.editing;
+    if ((target.id === 'whAdd' || target.dataset.edit != null) && win.CareerEngagements && win.CareerEngagements.draftOpen()) {
+      notice('Save or cancel the engagement or group you are editing first.'); return;
+    }
     if (target.id === 'whAdd') { state.editing = 'new'; render(); }
     else if (target.dataset.edit != null) { state.editing = Number(target.dataset.edit); render(); }
     else if (target.dataset.cancel != null) { state.editing = null; render(); }
@@ -215,6 +231,7 @@
 
   /** An open form with changes is the person's own draft: the concierge waits for Save or Cancel instead of replacing it. */
   function draftOpen() {
+    if (win.CareerEngagements && win.CareerEngagements.draftOpen()) return true;
     var form = doc.querySelector('.wh-editing form'); if (!form) return false;
     if (state.editing === 'new') return true;
     return W.roleEdits(state.editing, roles()[state.editing], readForm(form)).length > 0;
@@ -228,6 +245,7 @@
           await load();
           return { app: 'career-hunter', screen: 'surface', surface: 'work-history', recordId: 'master', title: 'Work history',
             fields: { revision: state.revision, jobs: roles().length, readOnly: false, draft: false,
+              clientEngagements: ((state.doc && state.doc.expanded) || { engagements: [] }).engagements.length,
               editWith: 'career_resume_patch: field role for a job, field experience for its bullets' } };
         },
         refresh: async function () {
@@ -250,6 +268,6 @@
     registerHandoff();
   }
 
-  win.CareerWorkHistoryPage = { state: state, load: load, render: render, readForm: readForm, formProblem: formProblem, save: save };
+  win.CareerWorkHistoryPage = { state: state, load: load, render: render, readForm: readForm, formProblem: formProblem, save: save, el: el, notice: notice };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot); else boot();
 }(window));

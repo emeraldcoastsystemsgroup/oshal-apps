@@ -1,6 +1,7 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Separate opt-in Futures reasoning from equity decisions; execution is bound to durable owner-scoped study evidence.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release exact-citation, outcome-aware reasoning without changing tools or automatic enrollment.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: add Futures Research's own responsive Light Blue first screen (/api/futures-research/app), caller-authenticated overview (/api/futures-research/overview) and Today Home summary (/api/futures-research/home-summary), inline front-desk futures-research-concierge with route-backed futures_research_overview read tool, and optional intelligent-trades partner declaration while keeping futures-research-worker tool-less and preserving zero live order placement.
 name: futures-research
 suite: ai-finance
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -14,8 +15,8 @@ rating:
       generation: none
       degrade: disable
 displayName: Futures Research
-description: Tool-less scheduled review of owner-scoped Futures studies; proposals require explicit adoption in the Trading console.
-version: 1.1.1
+description: Walk-forward CME and Micro futures study reviews, proposal review queue, and forward-call grading with explicit adoption in Intelligent Trades and zero order execution.
+version: 1.2.0
 status: active
 scope: public
 uses: [bound-workflow-results, app-dependencies, test-catalog]
@@ -30,7 +31,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [intelligent-trades]
     tools: []
     connectors: []
 ticketType: futures-research
@@ -39,6 +40,7 @@ workflow:
   pipeline: manifest-worker
   workerBot: futures-research-worker
   autoStart: true
+chatBot: futures-research-concierge
 bots:
   - agentId: 7c51c6e6-cc8a-4de9-8695-40584737789d
     name: futures-research-worker
@@ -47,6 +49,40 @@ bots:
     role: trading/futures-research
     capabilities: [futures-study-review]
     accessRoles: [operator, swarm]
+  - agentId: f8f0f55c-8885-451f-a448-68d81c93211e
+    name: futures-research-concierge
+    displayName: Futures Research concierge
+    posture: inline
+    persona: personas/futures-research-concierge.yaml
+    role: concierge
+    capabilities: [futures-study-guidance]
+    accessRoles: [authenticated, operator, swarm]
+tools:
+  - name: futures_research_overview
+    displayName: Futures Research overview
+    type: api
+    category: finance
+    description: Read the signed-in person's Futures Research overview, including workflow queue ticket counts, recent Futures Research review tickets, and walk-forward study contract metadata.
+    executor: { executorType: api, apiEndpoint: "GET /api/futures-research/overview" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: Call with {} before answering questions about the signed-in person's Futures Research review queue, studies, proposals, or forward calls.
+    tags: [futures-research, route-backed, read-only]
+ui:
+  static:
+    - toolName: futures-research-home
+      label: Futures Research
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/futures-research/app
+      section: top
+ribbon:
+  defaultView: futures-research-home
+  hideFrameworkItems: [tickets, chat, calendar, addressbook, dashboard, logs, settings, operations]
+summary:
+  path: /api/futures-research/home-summary
+  tilesPointer: /tiles
+  itemsPointer: /items
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -65,6 +101,13 @@ routes:
     factory: createPackageSmokeRoutes
     mountPath: /api/futures-research/_smoke
     auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/futures-research-routes.js
+    factory: createFuturesResearchRoutes
+    mountPath: /api/futures-research
+    auth: oidc
+    requiresAuth: true
     requiresContext: true
     requiresAi: false
 theme: light-blue

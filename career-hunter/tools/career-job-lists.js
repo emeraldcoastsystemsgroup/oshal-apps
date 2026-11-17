@@ -1,4 +1,7 @@
 /* CHANGE LOG:
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "there are a bunch of jobs from torch technology that i want to apply for but in the my jobs initial screen the popup says that there is no information about the job"): the posting sheet never says "No description was provided." A job with a description shows it (and, when Career read it from the posting or the person pasted it, says so). A job with none is read from the employer's posting while the sheet says "Reading the job description from <employer>…" (POST /jobs/:id/details keeps it as the person's copy; when Career cannot keep it right now, GET /jobs/:id?details=read shows it for this view), and its fit is drawn again with it. One Career cannot read says so plainly: why (the posting is gone, the site refused or did not answer, the posting has no description, or Career cannot read that site), Open the posting, and Paste it in Prepare application, which opens step 1 · Tailor and its paste box; a site that did not answer also offers Try again. Links in the sheet are web addresses only (CareerJobActions.employerUrl). Guard: tests/career-job-details-sheet-browser.test.mjs.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, 194 saved jobs: "select multiple rows on a table and push all the applications to prepare application"): the page hands its stage, its filters, its status line and its redraws to the Table view (career-jobs-table.js) once the person is known, and while the Table is shown it loads and draws nothing of its own (load() and render() step aside). A List row of a job the bulk queue holds work for says so in its status line ("Queued to prepare", "Preparing…", "Preparation failed: …", "Queued: Remove"). New matches has no Table. Guard: tests/career-jobs-table-browser.test.mjs.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): a job's facts say where it is through CareerJobPlace (tools/career-job-place.js): the posting's place or Location unknown, Fully remote / Hybrid / On-site when the posting says so, and the miles from home. Within (Any distance, 10, 25, 50 or 100 miles, Remote only) is a remembered filter and Distance from home a sort, both answered by GET /jobs over every page; with no home they are off and one line under the search row says how to set it.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Render an accessible confirmed-sent count badge next to the company name on My jobs rows, phone match cards, sending rows and the posting detail sheet whenever companySentCount >= 1.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): a job the nightly pass could not read is listed (New matches, My jobs, the phone card and the posting sheet) with "Details needed" where its fit would be, and the warning "Career could not read this job's details. Open the posting and paste its description in Prepare application to get your fit and a tailored résumé." with Open the posting. It offers no Check my fit, which could not work without a description. Guard: tests/career-paste-details-phone.test.mjs.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | A job the settled nightly pass left as a close call says "Close call, not settled yet" beside Check my fit, instead of "Not scored yet"; a job the pass did not reach still says "Not scored yet", never a low score.
@@ -33,7 +36,7 @@
  const APPLICATIONS=new Set(['status','interview','offer','closed']),FEED={status:'tracked',closed:'rejected'},VIEW={matches:'matches',queue:'queue',status:'status',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed'},ROW={saved:'saved',queue:'preparing',status:'applied',matches:'matches',interview:'interviewing',offer:'offer',closed:'closed',dismissed:'dismissed'};
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  function companySentBadge(job){const n=Math.floor(Number(job?.companySentCount));if(!(n>=1))return '';const co=String(job?.company||'this company').trim()||'this company',label=n===1?`1 confirmed application sent to ${co}`:`${n} confirmed applications sent to ${co}`;return ` <span class="company-sent-badge" role="img" aria-label="${esc(label)}" title="${esc(label)}">✓ ${n} sent</span>`;}
- const fields=['q','sort','per','min_score','pay_period','min_pay','max_pay','days','remote'];let page=1,firstPage=1,rows=[],exhausted=false,epoch=0,controller=null,memoryKey=null,earlier=query.get('earlier')==='1',busy=false,returnY=0,firstLoad=true,savingJobs=new Set();
+ const fields=['q','sort','per','min_score','pay_period','min_pay','max_pay','days','remote','within'];let page=1,firstPage=1,rows=[],exhausted=false,epoch=0,controller=null,memoryKey=null,earlier=query.get('earlier')==='1',busy=false,returnY=0,firstLoad=true,savingJobs=new Set();
  const phoneMedia=typeof window.matchMedia==='function'?window.matchMedia('(max-width: 640px)'):{matches:false,addEventListener:()=>{}};
  let matchLayout='deck',deckHistory=[];const removing=new Set();const preparationStates=new Map();const fitChecks=new Map(),fitResults=new Map();let fitRevision=0;
  /* What GET /resume/state says: unknown until it answers, and unknown again if it does not, in which case the page behaves as it did. */
@@ -53,6 +56,11 @@
  function drawStages(){if(window.CareerStages)void CareerStages.counts().then(counts=>CareerStages.render($('careerStages'),ROW[stage],counts));}
  drawStages();
  document.querySelectorAll('[data-stage-filter="match"]').forEach(el=>{el.hidden=!['saved','matches'].includes(stage);});
+ /* Near me (1.67.4): the stages of My jobs take Within and Distance from home; the stages of Applications do not. */
+ const NEAR=new Set(['matches','saved','queue','dismissed']);let home=null;
+ document.querySelectorAll('[data-stage-filter="near"],#sort option[value="distance"]').forEach(el=>{el.hidden=!NEAR.has(stage);});
+ /** @description Say, once under the search row, that Career does not know the person's home, and turn off what needs it. @param {object} [next] GET /jobs `home`. @returns {void} */
+ function showHome(next){if(next)home=next;const unknown=NEAR.has(stage)&&home&&home.known===false,line=$('jobsHomeLine');if(line){line.hidden=!unknown;line.innerHTML=unknown&&window.CareerJobPlace?CareerJobPlace.homeLine(home):'';}for(const option of document.querySelectorAll('#within option[data-miles],#sort option[value="distance"]'))option.disabled=Boolean(home&&home.known===false);}
 
  function wireSheetBack(dialog,key){
   let pushed=false;
@@ -94,6 +102,8 @@
  function remember(){if(!memoryKey)return;try{sessionStorage.setItem(memoryKey,JSON.stringify({filters:filters(),page:firstPage,scrollY:window.scrollY,earlier,sortChosen}));}catch{}}
  function address(){const params=new URLSearchParams(filters());if(VIEW[stage])params.set('view',VIEW[stage]);if(earlier)params.set('earlier','1');params.set('page',String(firstPage));history.replaceState(null,'',location.pathname+'?'+params);}
  function pay(job){const a=job.salary_min,b=job.salary_max;if(!a&&!b)return 'Pay estimate unavailable';const symbol=job.salary_currency==='USD'?'$':(job.salary_currency||'')+' ',amount=n=>symbol+Number(n).toLocaleString('en-US',{maximumFractionDigits:2}),unit={year:' / year',hour:' / hour',month:' / month',course:' / course'}[job.salary_period]||' · period unknown';return (a&&b&&a!==b?amount(a)+'–'+amount(b):amount(b||a))+unit+(['heuristic','ai_estimated','bls_estimated'].includes(job.salary_source)?' · estimate':'');}
+ /** @description Where a job is, as the facts of its row (tools/career-job-place.js). @param {object} job @returns {string} Markup. */
+ function placeMeta(job){return window.CareerJobPlace?CareerJobPlace.meta(job):`<span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}`;}
  function state(job){return job.preparation?job.preparation.reason:DONE.has(job.status)?'Application recorded':job.board?.applicationDraft?'Application draft saved':job.board?.phase==='generating'?'Generating documents':job.has_resume?'Documents available':job.status==='promoted'?'Ready for preparation':recommended?'':'Saved';}
  /* Career's picks (CareerStages.picks) lead Saved, and what Career is sending from the person's computer (the open records of GET /submission-queue) leads Applied. Neither read holds the list back: each is drawn when it answers. */
  let picked=[],picksRead=stage!=='saved',sending=[],sendingKnown=true,landed=false,countWords=['',''];
@@ -200,13 +210,13 @@
  }
  function row(job){const pending=preparationStates.get(job.id);if(pending?.job&&!DONE.has(job.status))job={...job,...pending.job};const done=DONE.has(job.status),prepared=isPrepared(job),action=pending?.unknown?'Check preparation':done?'View application':prepared?'Open application':'Prepare application',reply=replyLine(job);
   /* An applied job says in one line that it was sent and how Career knows; a pick is marked as Career's and is not called saved; a removed job is not called saved either. */
-  const said=stage==='dismissed'?'Removed':state(job),status=job.picked?'':done&&window.CareerStatusLine?lineMarkup(CareerStatusLine.forJob(job)):said?`<p class="status">${esc(said)}</p>`:'';
+  const bulk=window.CareerJobsTable?.words(job.id)||'',said=bulk||(stage==='dismissed'?'Removed':state(job)),status=job.picked&&!bulk?'':done&&!bulk&&window.CareerStatusLine?lineMarkup(CareerStatusLine.forJob(job)):said?`<p class="status"${bulk?' data-bulk-line':''}>${esc(said)}</p>`:'';
   const second=job.picked||(stage==='saved'&&!done)?`<button class="btn quiet" data-remove-pick="${job.id}">Remove</button>`:stage==='saved'?`<button class="btn quiet" data-unstar="${job.id}">Unsave</button>`:'';
-  return `<article class="job-row" data-job-id="${job.id}"${job.picked?' data-picked':''}><div class="summary">${job.picked?'<p class="pick-mark">Career picked this for you</p>':''}<button class="job-title" data-posting="${job.id}">${esc(job.title)}</button><p class="job-company muted">${esc(job.company)}${companySentBadge(job)}</p><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${fitMarkup(job)}${job.posted_date?`<span>Posted ${esc(job.posted_date.slice(0,10))}</span>`:''}${job.active===0?'<span>Posting no longer active</span>':''}</div>${reply?`<button type="button" class="reply-line" data-reply="${job.id}">${esc(reply)}</button>`:''}${status}</div><div class="row-actions">${recommended?`<button class="btn${job.favorite?'':' primary'}" data-save="${job.id}" ${job.favorite?'disabled':''}>${job.favorite?'Saved':'Save'}</button><button class="btn" data-job-feedback="${job.id}">Not interested</button>`:`<button class="btn${done?'':' primary'}" data-open="${job.id}" data-done="${done}"${pending?.busy?' disabled aria-busy="true"':''}>${action}</button>${second}`}</div></article>`;
+  return `<article class="job-row" data-job-id="${job.id}"${job.picked?' data-picked':''}><div class="summary">${job.picked?'<p class="pick-mark">Career picked this for you</p>':''}<button class="job-title" data-posting="${job.id}">${esc(job.title)}</button><p class="job-company muted">${esc(job.company)}${companySentBadge(job)}</p><div class="meta"><span>${esc(pay(job))}</span>${placeMeta(job)}${fitMarkup(job)}${job.posted_date?`<span>Posted ${esc(job.posted_date.slice(0,10))}</span>`:''}${job.active===0?'<span>Posting no longer active</span>':''}</div>${reply?`<button type="button" class="reply-line" data-reply="${job.id}">${esc(reply)}</button>`:''}${status}</div><div class="row-actions">${recommended?`<button class="btn${job.favorite?'':' primary'}" data-save="${job.id}" ${job.favorite?'disabled':''}>${job.favorite?'Saved':'Save'}</button><button class="btn" data-job-feedback="${job.id}">Not interested</button>`:`<button class="btn${done?'':' primary'}" data-open="${job.id}" data-done="${done}"${pending?.busy?' disabled aria-busy="true"':''}>${action}</button>${second}`}</div></article>`;
  }
 
  function deckCardMarkup(job,lead){
-  return `<article class="match-card ${lead?'lead':'peek'}" data-deck-id="${job.id}"><p class="co">${esc(job.company)}${companySentBadge(job)}</p><h2><button class="job-title" type="button" data-posting="${job.id}">${esc(job.title)}</button></h2><div class="meta"><span>${esc(pay(job))}</span><span>${esc(job.location||'Location unavailable')}</span>${job.remote?'<span>Fully remote</span>':''}${job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}</span>`:CareerJobActions.detailsNeeded(job)?'<span class="details-needed-label">Details needed</span>':''}</div>${CareerJobActions.detailsNeeded(job)?detailsNote(job):`<p class="why">${esc(job.ai_fit_rationale||'Open this role to inspect full posting requirements and fit details.')}</p>`}</article>`;
+  return `<article class="match-card ${lead?'lead':'peek'}" data-deck-id="${job.id}"><p class="co">${esc(job.company)}${companySentBadge(job)}</p><h2><button class="job-title" type="button" data-posting="${job.id}">${esc(job.title)}</button></h2><div class="meta"><span>${esc(pay(job))}</span>${placeMeta(job)}${job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}</span>`:CareerJobActions.detailsNeeded(job)?'<span class="details-needed-label">Details needed</span>':''}</div>${CareerJobActions.detailsNeeded(job)?detailsNote(job):`<p class="why">${esc(job.ai_fit_rationale||'Open this role to inspect full posting requirements and fit details.')}</p>`}</article>`;
  }
 
  async function actDeck(kind){
@@ -296,6 +306,7 @@
   $('deckActionButtons').innerHTML=enabled?'<button type="button" class="ck-btn" data-deck-act="undo">Undo</button><button type="button" class="ck-btn" data-deck-act="pass">Pass</button><button type="button" class="ck-primary" data-deck-act="save">Save</button><button type="button" class="ck-btn" data-deck-act="more">More</button>':'';
  }
  function render(){
+  if(window.CareerJobsTable?.active())return;
   rows=rows.filter(job=>!removing.has(job.id));picked=picked.filter(job=>!removing.has(job.id));
   const useDeck=recommended&&phoneMedia.matches&&matchLayout==='deck'&&rows.length>0;setDeckActions(useDeck);
   if(useDeck){
@@ -314,13 +325,14 @@
  }
  async function load(append=false,top=false){
   if(recommended){await resumeReady;if(noResume()||readingResume()){rows=[];renderWithoutResume();return;}}
+  if(window.CareerJobsTable?.active()){address();remember();return CareerJobsTable.load();}
   controller?.abort();controller=new AbortController();const current=++epoch;busy=true;$('list').setAttribute('aria-busy','true');$('requestState').textContent=rows.length?'Updating results…':'Loading jobs…';
   const params=new URLSearchParams(filters());if(stage==='matches')params.set('matches','1');else params.set('status',FEED[stage]||stage);if(stage==='queue'&&!earlier)params.set('current','1');params.set('page',String(page));
-  try{const response=await fetch('/api/career-hunter/jobs?'+params,{signal:controller.signal,cache:'no-store'}),data=await response.json();if(current!==epoch)return;if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+  try{const response=await fetch('/api/career-hunter/jobs?'+params,{signal:controller.signal,cache:'no-store'}),data=await response.json();if(current!==epoch)return;if(!response.ok){if(data.home)showHome(data.home);throw Object.assign(Error(data.message||data.error||'HTTP '+response.status),{code:data.error});}showHome(data.home);
    firstPage=append?firstPage:page;const incoming=data.jobs||[];rows=CareerFeedback.unique([...new Map((append?[...rows,...incoming]:incoming).map(job=>[job.id,job])).values()]);exhausted=data.exhausted===true||incoming.length<Number($('per').value);
    if(recommended){rows=CareerFeedback.visible(rows,data.exclusions||[]);CareerFeedback.configure(rows,data.exclusions,(rules)=>{rows=CareerFeedback.visible(rows,rules);render();void load();});}
    countWords=[earlier?'Earlier preparation · ':'',data.pooled&&data.poolSize?' · ranked within '+data.poolSize.toLocaleString()+' matches':''];render();showCount();address();if(top)window.scrollTo({top:0,behavior:'instant'});else if(firstLoad&&returnY)window.scrollTo({top:returnY,behavior:'instant'});firstLoad=false;remember();landOnPicks();
-  }catch(error){if(current!==epoch||error.name==='AbortError')return;$('requestState').replaceChildren(document.createTextNode('Could not update jobs: '+error.message+'. '));const retry=document.createElement('button');retry.className='btn';retry.textContent='Retry';retry.onclick=()=>load(append,top);$('requestState').append(retry);}
+  }catch(error){if(current!==epoch||error.name==='AbortError')return;if(error.code==='home_location_required'){rows=[];render();$('requestState').textContent=error.message;return;}$('requestState').replaceChildren(document.createTextNode('Could not update jobs: '+error.message+'. '));const retry=document.createElement('button');retry.className='btn';retry.textContent='Retry';retry.onclick=()=>load(append,top);$('requestState').append(retry);}
   finally{if(current===epoch){busy=false;$('list').setAttribute('aria-busy','false');}}
  }
  /** @description Whether the saved job already has a tailoring workspace. */
@@ -359,8 +371,55 @@
    catch(error){say(error.message);}
   }finally{pending.busy=false;render();}
  }
- async function posting(id){const startedFit=fitRevision,dialog=document.createElement('dialog');dialog.className='ck-sheet edit-dialog';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.innerHTML='<header><b>Job posting and fit</b><button class="btn" type="button" data-close>Close posting</button></header><section class="ck-sheet-body" style="padding:20px" role="status">Loading posting…</section>';document.body.append(dialog);const openPosting=wireSheetBack(dialog,'boardPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>dialog.remove());openPosting();
-  try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not load this posting.');const {job:readJob}=await response.json(),finished=fitResults.get(id),job=finished&&finished.revision>startedFit?{...readJob,...finished.job}:readJob;dialog.querySelector('section').innerHTML=`<h1>${esc(job.title)}</h1><p class="muted">${esc(job.company)}${companySentBadge(job)} · ${esc(job.location)}</p><p>${esc(pay(job))}</p><h2>Fit assessment</h2><div data-posting-fit="${id}">${postingFitMarkup(job)}</div><h2>Employer description</h2><div class="posting-text">${esc(job.description||'No description was provided.')}</div>${job.url?`<p><a class="btn" href="${esc(job.url)}" target="_blank" rel="noopener">Employer posting ↗</a></p>`:''}`;}catch(error){dialog.querySelector('section').textContent=error.message;}
+ /* 1.68.6: the sheet's description. A job with none is read from the employer's posting once and kept as the person's copy (POST /jobs/:id/details); while Career cannot keep it (it is preparing the person's applications) GET ?details=read shows it for this view. One that cannot be read says why, with the posting and the paste path. */
+ const hasWords=value=>/\S/.test(String(value??''));
+ const READ_WHY={'no-reader':'It cannot read job descriptions from this employer’s job site.',closed:'The posting is no longer on the employer’s site.',refused:'The employer’s site refused the request.',empty:'The posting has no description.',unavailable:'The employer’s site did not answer.'};
+ /** @description The Employer description part of the posting sheet: the text, reading, or why there is none with the posting and the paste path. @param {object} job - The job as GET /jobs/:id reads it. @param {{reading?:boolean,reason?:string}} [state] - What the read is doing. @returns {string} Markup. */
+ function postingDescription(job,state={}){
+  const link=CareerJobActions.employerUrl(job.url),company=String(job.company??'').trim()||'the employer';
+  if(hasWords(job.description)){
+   const basis=job.description_context?.basis,source=basis==='person-pasted'?'The description you pasted for this job.':basis==='employer-detail'?'Read from the employer’s posting.':'';
+   return `<div class="posting-text">${esc(job.description)}</div>${source?`<p class="posting-source">${source}</p>`:''}${link?`<p><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Employer posting ↗</a></p>`:''}`;
+  }
+  if(state.reading)return `<p class="posting-reading" role="status">Reading the job description from ${esc(company)}…</p>`;
+  const never=state.reason==='no-reader',why=READ_WHY[state.reason]||READ_WHY.unavailable;
+  const head=never?'<b>Career has no description for this job.</b> '+why:`<b>Career could not read this job’s description from ${esc(company)}.</b> ${why}`;
+  const how=(link?'Open the posting, copy the job description and paste it':'Copy the job description from the employer’s posting and paste it')+' in Prepare application, step 1 · Tailor. Career uses it to check your fit and write your résumé and cover letter.';
+  const paste=DONE.has(job.status)?'':`<button class="btn primary" type="button" data-paste-description="${job.id}">Paste it in Prepare application</button>`;
+  /* A site that did not answer (busy, rate-limited or down) may answer a moment later. */
+  const again=state.reason==='unavailable'||!state.reason?`<button class="btn" type="button" data-read-again="${job.id}">Try again</button>`:'';
+  return `<div class="posting-missing" role="note" data-read="${never?'never':'failed'}"><p>${head}</p><p>${how}</p><p class="posting-missing-actions">${link?`<a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open the posting ↗</a>`:''}${paste}${again}</p></div>`;
+ }
+ /** @description Read a job's missing description into its open sheet, keep it when Career can, and redraw the sheet's fit with it; otherwise say why. @param {number} id @param {object} job @param {HTMLDialogElement} dialog @returns {Promise<void>} */
+ async function readPostingDescription(id,job,dialog){
+  const area=()=>dialog.querySelector(`[data-posting-description="${id}"]`);let read;
+  try{
+   const kept=await fetch('/api/career-hunter/jobs/'+id+'/details',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(45000)});
+   if(kept.ok)read=await kept.json();
+   else{
+    /* Not kept (Career is preparing applications, or this account may only read): read it for this view only. */
+    const view=await fetch('/api/career-hunter/jobs/'+id+'?details=read',{cache:'no-store',signal:AbortSignal.timeout(45000)}),answer=view.ok?await view.json():{};
+    read=hasWords(answer.job?.description)?{ok:true,description:answer.job.description,description_context:answer.job.description_context}:{ok:false,reason:answer.details_read?.reason||'unavailable'};
+   }
+  }catch{read={ok:false,reason:'unavailable'};}
+  if(!dialog.isConnected||!area())return;
+  if(read?.ok&&hasWords(read.description)){
+   const shown={...job,description:read.description,description_context:read.description_context};
+   area().innerHTML=postingDescription(shown);
+   const fit=dialog.querySelector(`[data-posting-fit="${id}"]`);if(fit)fit.innerHTML=postingFitMarkup(shown);
+  }else area().innerHTML=postingDescription(job,{reason:read?.reason});
+ }
+ const sheetJobs=new Map();
+ async function posting(id){const startedFit=fitRevision,dialog=document.createElement('dialog');dialog.className='ck-sheet edit-dialog';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.innerHTML='<header><b>Job posting and fit</b><button class="btn" type="button" data-close>Close posting</button></header><section class="ck-sheet-body" style="padding:20px" role="status">Loading posting…</section>';document.body.append(dialog);const openPosting=wireSheetBack(dialog,'boardPosting');dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.addEventListener('close',()=>{sheetJobs.delete(id);dialog.remove();});openPosting();
+  try{const response=await fetch('/api/career-hunter/jobs/'+id,{cache:'no-store'});if(!response.ok)throw Error('Could not load this posting.');const {job:readJob}=await response.json(),finished=fitResults.get(id),job=finished&&finished.revision>startedFit?{...readJob,...finished.job}:readJob;sheetJobs.set(id,job);const missing=!hasWords(job.description);dialog.querySelector('section').innerHTML=`<h1>${esc(job.title)}</h1><p class="muted">${esc(job.company)}${companySentBadge(job)} · ${esc(job.location)}</p><p>${esc(pay(job))}</p><h2>Fit assessment</h2><div data-posting-fit="${id}">${postingFitMarkup(job)}</div><h2>Employer description</h2><div data-posting-description="${id}">${postingDescription(job,{reading:missing})}</div>`;if(missing)void readPostingDescription(id,job,dialog);}catch(error){dialog.querySelector('section').textContent=error.message;}
+ }
+ /** @description Paste it in Prepare application: the same press as the job's Prepare application, from its sheet, so step 1 · Tailor opens with its paste box. The sheet closes first and its Back entry is gone before the page moves. @param {number} id @param {HTMLDialogElement|null} dialog @returns {void} */
+ function pasteFromSheet(id,dialog){
+  const job=sheetJobs.get(id);
+  if(job&&!find(id)){const pending=preparationStates.get(id)||{};pending.job=pending.job||job;preparationStates.set(id,pending);}
+  const go=()=>void openJob(id);
+  if(history.state?.dsSheet==='boardPosting'){let gone=false;const once=()=>{if(gone)return;gone=true;window.removeEventListener('popstate',once);go();};window.addEventListener('popstate',once);setTimeout(once,600);dialog?.close();}
+  else{dialog?.close();go();}
  }
  document.addEventListener('click',async event=>{const el=event.target.closest('button');if(!el)return;
   if(el.hasAttribute('data-clear-filters')){$('clearFilters')?.click();return;}
@@ -369,6 +428,8 @@
   if(el.dataset.application){remember();CareerJobActions.openApplication(Number(el.dataset.application),false);return;}
   if(el.dataset.removePick){void removePick(el,Number(el.dataset.removePick));return;}
   if(el.dataset.checkFit){void checkFit(Number(el.dataset.checkFit));return;}
+  if(el.dataset.pasteDescription){pasteFromSheet(Number(el.dataset.pasteDescription),el.closest('dialog'));return;}
+  if(el.dataset.readAgain){const id=Number(el.dataset.readAgain),dialog=el.closest('dialog'),job=sheetJobs.get(id),area=dialog?.querySelector(`[data-posting-description="${id}"]`);if(job&&area){area.innerHTML=postingDescription(job,{reading:true});void readPostingDescription(id,job,dialog);}return;}
   const id=Number(el.dataset.open||el.dataset.save||el.dataset.unstar||el.dataset.posting);
   if(el.dataset.posting){void posting(id);return;}
   if(el.dataset.page){if(busy)return;remember();if(el.dataset.page==='previous')page=Math.max(1,firstPage-1);else page+=1;void load(el.dataset.page==='more',el.dataset.page!=='more');return;}
@@ -407,9 +468,11 @@
  });
  if(stage==='saved'&&window.CareerStages?.picks)void CareerStages.picks().then(jobs=>{picked=jobs;picksRead=true;if(!firstLoad&&!busy){render();showCount();}landOnPicks();});
  if(APPLICATIONS.has(stage))void readSending();
+ /** @description Hand the Table view and the bulk queue this page's stage, filters, status line and redraws. @param {string} owner 'tenant:principal', or '' when the person is not known. @returns {void} */
+ function attachTable(owner){if(!window.CareerJobsTable)return;CareerJobsTable.attach({stage,feed:FEED[stage]||stage,current:stage==='queue'&&!earlier,title:labels[stage],owner,filters,say,reload:()=>{void load();},redraw:()=>{if(!busy&&rows.length)render();},refresh:()=>{void CareerNavigation.refreshCounts();drawStages();window.CareerFrame?.refresh?.();void load();}});}
  function refilter(){page=1;void load();}let typing;$('q').oninput=()=>{clearTimeout(typing);typing=setTimeout(refilter,250);};$('keywordSearch').onsubmit=event=>{event.preventDefault();clearTimeout(typing);refilter();};fields.filter(key=>key!=='q').forEach(key=>$(key).onchange=refilter);
  $('showEarlier').onclick=()=>{earlier=true;page=1;refilter();};window.addEventListener('pagehide',()=>{remember();for(const check of fitChecks.values())check.stop?.();fitChecks.clear();render();});
  void CareerNavigation.refreshCounts().then(data=>{if(stage==='queue'&&data?.earlierPreparation){$('earlier').hidden=false;$('earlierCount').textContent='('+data.earlierPreparation+')';}});
- (async()=>{try{const response=await fetch('/api/auth/user',{signal:AbortSignal.timeout(2000)}),identity=await response.json();if(response.ok&&identity.authenticated&&identity.tenant&&identity.principal_id){memoryKey='career-journey:'+identity.tenant+':'+identity.principal_id+':'+stage;const stored=JSON.parse(sessionStorage.getItem(memoryKey)||'null');const explicit=fromApprove||fields.some(key=>query.has(key))||query.has('page');if(stored&&!explicit){for(const key of fields)if(stored.filters?.[key]!=null&&(key!=='sort'||stored.sortChosen===true))$(key).value=stored.filters[key];sortChosen=stored.sortChosen===true;page=stored.page||1;returnY=stored.scrollY||0;earlier=stored.earlier===true;}}}catch{/* URL and current session still work without persistent preferences. */}
-  for(const key of fields)if(query.has(key))$(key).value=query.get(key);if(query.has('page'))page=Math.max(1,Number(query.get('page'))||1);if(![25,50,100,200].includes(Number($('per').value)))$('per').value='50';firstPage=page;void load();})();
+ (async()=>{let owner='';try{const response=await fetch('/api/auth/user',{signal:AbortSignal.timeout(2000)}),identity=await response.json();if(response.ok&&identity.authenticated&&identity.tenant&&identity.principal_id){owner=identity.tenant+':'+identity.principal_id;memoryKey='career-journey:'+identity.tenant+':'+identity.principal_id+':'+stage;const stored=JSON.parse(sessionStorage.getItem(memoryKey)||'null');const explicit=fromApprove||fields.some(key=>query.has(key))||query.has('page');if(stored&&!explicit){for(const key of fields)if(stored.filters?.[key]!=null&&(key!=='sort'||stored.sortChosen===true))$(key).value=stored.filters[key];sortChosen=stored.sortChosen===true;page=stored.page||1;returnY=stored.scrollY||0;earlier=stored.earlier===true;}}}catch{/* URL and current session still work without persistent preferences. */}
+  for(const key of fields)if(query.has(key))$(key).value=query.get(key);if(query.has('page'))page=Math.max(1,Number(query.get('page'))||1);if(![25,50,100,200].includes(Number($('per').value)))$('per').value='50';firstPage=page;attachTable(owner);void load();})();
 })();

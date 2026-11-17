@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The market explainer, pinned on its words and numbers: a browse row keeps the book and the evaluator's hand or the reason it skipped the market (parlay leg, empty book, closing within minutes, beyond the calibration horizon, unknown series); a fold says why in cents and percentages (price vs chance, fee, net edge, evidence, flags, zero stake); a playable hand says its stake and that it is paper-only under a closed gate; the question put to the quant names the ticker and the side; openMarkets drops what closed since the scan.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: the walkthrough says the rating in the page's words: the headline leads with No estimate, No edge or Good edge (it led with No verdict, Fold or Strong), and the question put to the quant says "the scan rates NO at 42.0¢ a good edge".
  */
 'use strict';
 const test = require('node:test');
@@ -55,7 +56,7 @@ test('why the evaluator skips a market is said in words, mirroring its own gates
   assert.match(row.notEvaluable, /parlay leg/);
   const why = explainMarket(row, { nowMs: NOW });
   assert.equal(why.verdict, 'not-evaluable');
-  assert.match(why.headline, /^No verdict: it is a parlay leg/);
+  assert.match(why.headline, /^No estimate: it is a parlay leg/);
   assert.match(why.question, /KXRAIN-26OCT31-AUS/);
 });
 
@@ -80,7 +81,7 @@ test('a fold is explained in cents and percentages with a zero stake', () => {
   const why = explainMarket({ ...browseMarket(market(), series, table, () => fold, NOW) }, { mayStake: true, calibrationGeneratedAt: table.generatedAt, nowMs: NOW });
   assert.equal(why.verdict, 'fold');
   assert.equal(why.side, 'yes');
-  assert.match(why.headline, /^Fold: YES at 58\.0¢ against a 54% calibrated chance is −6\.0¢ a contract after the 1\.7¢ fee, with 2 risk flags\./);
+  assert.match(why.headline, /^No edge: YES at 58\.0¢ against a 54% calibrated chance is −6\.0¢ a contract after the 1\.7¢ fee, with 2 risk flags\./);
   const text = why.reasons.join('\n');
   assert.match(text, /YES costs 58\.0¢; the calibrated chance it pays is 54%/);
   assert.match(text, /beat 59\.7¢ just to break even/);
@@ -93,16 +94,16 @@ test('a fold is explained in cents and percentages with a zero stake', () => {
   assert.equal(why.question, 'Walk me through KXRAIN-26OCT31-AUS (Will it rain in Austin on Oct 31?): why is YES at 58.0¢ a bad bet?');
 });
 
-test('a playable hand says its stake, and paper-only under a closed strategy gate', () => {
+test('a market with an edge says its stake, and paper-only under a closed strategy gate', () => {
   const row = browseMarket(market(), series, table, () => hand(), NOW);
   const open = explainMarket(row, { mayStake: true, nowMs: NOW });
   assert.equal(open.verdict, 'strong');
-  assert.match(open.headline, /^Strong: NO at 42\.0¢ against a 49% calibrated chance is \+5\.3¢ a contract after fees; stake 1%\.$/);
+  assert.match(open.headline, /^Good edge: NO at 42\.0¢ against a 49% calibrated chance is \+5\.3¢ a contract after fees; stake 1%\.$/);
   assert.match(open.reasons.join('\n'), /full Kelly would be 11% of bankroll; quarter-Kelly, halved once per risk flag and capped at 5%, is 1%\./);
   const gated = explainMarket(row, { mayStake: false, gateReason: 'the forward test is unproven', nowMs: NOW });
   assert.match(gated.headline, /\(paper only\)\.$/);
   assert.match(gated.reasons.join('\n'), /on paper only, because the strategy may not stake yet \(the forward test is unproven\)/);
-  assert.match(open.question, /the scan calls NO at 42\.0¢ strong\. What could make it a bad bet\?$/);
+  assert.match(open.question, /the scan rates NO at 42\.0¢ a good edge\. What could make it a bad bet\?$/);
 });
 
 test('openMarkets drops what closed since the scan and counts it', () => {

@@ -53,6 +53,7 @@
 # 38  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.4: UX audit batch 7 (lm-storage MERGE, lm-voice-settings SPLIT): merge Storage into My Files -> Saved (?view=saved) and remove lm-storage from ui.static (verified zero experience references); split Voice Settings into Voice (picker + Hear a sample) and Details (collapsible advanced playback/voice details with Save, Play sample and Reset defaults). Guard: tests/lm-ux-batch7.test.cjs.
 # 39  | maintainer@emeraldcoastsystemsgroup.com     | 1.9.0: Study Lab curriculum video browser across 8 courses (168 topics, 338 monster-taught video lessons streamed from lasting storage) plus RP-LM-01 parent progress summary, RP-LM-02 saved tutoring thread history drawer, RP-LM-03 ISBN/DOI/URL citation lookup over keyless egress, RP-LM-04 per-set flashcard shuffle and prompt-side preferences, and RP-LM-05 account-synced named timelines. Migration 042-reference-features.sql adds owner-scoped tables; authorization.yaml unchanged.
 # 40  | maintainer@emeraldcoastsystemsgroup.com     | 1.9.1: the old /api/education/index.html address answers a hand-off page to the arcade. It called a redirect, which the native kernel does not relay from a package (no `redirect` on its response, no Location header passed on), so the address answered HTTP 500 there. No contract change. Guard: tests/lm-index-handoff.test.cjs.
+# 41  | maintainer@emeraldcoastsystemsgroup.com     | 1.9.3: Study opens the chosen set (Roger's phone, 2026-11-16: "i pick the set it returns me to the pick a set selection screen"). GET /flashcards/sets/:setId/cards?includePrefs=1 read the learner's Shuffle/Term-first choice from lm_flashcard_study_prefs in the same request; an installation whose relationship policy was installed before 1.9.0 refuses every statement on that table ("SQL table is outside installed relationship policy"), so the route answered 500 for the cards too and the study page showed "No flashcards yet. Pick a set", whose only button led back to the list. The route now answers the cards with preferences null when they cannot be read (logged), and the page says a set could not be opened and offers Try again instead of the "Pick a set" screen. The class page's Topic Study Pack refreshes the class's sets with loadFlashcardSets (it called loadFlashcards, which is not defined, and reported a saved pack as failed). No contract change. Guard: tests/lm-flashcard-study-opens.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -110,7 +111,7 @@ description: >-
   their school calendar; and chat with a Socratic tutor grounded only in
   caller-owned or teacher/admin-approved class material through per-material
   RAG collections.
-version: 1.9.2
+version: 1.9.3
 lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 

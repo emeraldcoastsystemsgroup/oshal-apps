@@ -1,3 +1,4 @@
+# CHANGE LOG: 1.4.1 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2 (the phone first-screen sweep of 2026-11-16): with no drone the "No drone connected" card started 306 px down a 915 px phone (33%) in the middle of an empty map under a two-row header. On a phone with no drone the header is one row (the provider pill only repeated NO DRONE and the battery read -%) and the card sits at the top of the map under the view control. Guard tests/drone-phone-first-screen.test.cjs. Presentation only; the desktop is unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — drone ("Drone Ops")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -49,7 +50,7 @@ description: >-
   separation checks. A flight-planning concierge drafts single or fleet
   missions from natural language; a human approves every flight. Sim engine
   built in, MAVLink (ArduPilot/PX4) at the drone node.
-version: 1.4.0
+version: 1.4.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml

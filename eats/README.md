@@ -1,5 +1,21 @@
 # Eats — OSHAL app package
 
+1.5.7 puts the allergy guard in the tools and makes the Eats Concierge the kernel's one chat window. Before, only the
+page's own chat route (`POST /api/eats/chat`) held back a restaurant named for an allergen the diner avoids; the
+`search-restaurants` tool (which the Eats concierge and Jarvis's hand-off to Eats call) and `open-uber-eats` went
+without it. Now `GET` and `POST /api/eats/search` hold back by the diner's saved allergies and diet (remembered notes and
+the profile's dietary list) plus any the caller names in `avoid`, and say which (`allergy.restrictions`,
+`allergy.heldBack`); `POST /api/eats/order` refuses a held restaurant (409 `allergy_conflict`, nothing recorded); and
+`POST /api/eats/notes` (the new `remember-eats-note` tool) keeps an allergy, diet or taste the person states, grounded
+in their own words. The page shows the held-back restaurants under the results. The Eats Concierge panel (on a phone the
+sheet behind the Eats Concierge button) holds the window every concierge is (eats-concierge), with its model menu, New
+conversation, Recent conversations, Files, Tap to talk and Keep trying, in place of the page's own chat; before each
+turn it is told the screen (`context.screen_state`: the delivery address and search fields, the restaurants on screen
+with their place ids, the held-back ones, and the saved diet and allergies). An approved `open-uber-eats` card reloads
+Opened in Uber Eats. The window needs a kernel with `/shared/ui/js/jarvis-chat-frame.js` (`00c62f98` or later). Proven by
+`tests/eats-allergy-tools.test.js` (Test Lab case `allergy-tools`) and `tests/eats-one-chat-window.test.js` (case
+`one-chat-window`).
+
 1.5.0 keeps what Google answers. Address resolutions, restaurant searches and restaurant cards are saved per person
 (`migrations/041-eats-place-cache.sql`, `src-routes/place-cache.ts`) for the 30 consecutive days Google's terms allow
 (place ids may be kept indefinitely; nothing else is served past 30 days). A search whose saved answer is younger than a

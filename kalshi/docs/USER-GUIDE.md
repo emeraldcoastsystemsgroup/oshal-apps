@@ -3,25 +3,25 @@
 > This guide ships with the package (it moved out of the oshal kernel's core help, which documents only core screens).
 
 The Kalshi app (`/cockpit/?app=kalshi`, or the **Kalshi Edge** tile) scans every open event
-contract on an hourly cadence, announces hands that clear your alert floor to Jarvis, and
+contract on an hourly cadence, announces markets with an edge that clear your alert floor to Jarvis, and
 records every one of them as a prediction that reality grades at settlement. This guide is
 how to watch that record, where the reports are, and how to ask your own questions of it.
 Design and verdicts live in docs/apps/kalshi/ (oshal repository: `docs/apps/kalshi/README.md`).
 
 One rule underlies everything below: **a strategy earns the right to stake by beating the
 market's own Brier score on settled predictions.** Until then its suggested stake is 0%, the
-hands are still shown, and nothing is ordered without your confirmation.
+markets with an edge are still shown, and nothing is ordered without your confirmation.
 
 ## Where wins and losses show
 
 | I want to see… | Where |
 |---|---|
 | Whether each strategy is winning, and whether it may stake | **Scorecard** tab — status (UNPROVEN / FAILING / PROVEN), graded and pending counts, our Brier vs the market's, hit rate, P&L per contract. One row per strategy, including the zero-stake forward tests. |
-| The outcome of every hand Jarvis actually announced | **Alerts** tab — each announced hand carries WIN / LOSS (or *open* until it settles) and the one-contract P&L, with a **Record** line above the table: W – L, hit rate, average and total P&L, how many are still open. Paper numbers: an alert never places an order. |
-| What the scan believes right now | **Scan** tab — the ranked hands from the last snapshot, with true P, price, net edge, suggested stake, risk flags, and the snapshot's age. |
+| The outcome of every market Jarvis actually announced | **Alerts** tab — each announced market carries WIN / LOSS (or *open* until it settles) and the one-contract P&L, with a **Record** line above the table: W – L, hit rate, average and total P&L, how many are still open. Paper numbers: an alert never places an order. |
+| What the scan believes right now | **Scan** tab — the ranked markets with an edge from the last snapshot, with true P, price, net edge, suggested stake, risk flags, and the snapshot's age. |
 | Real money: balance, positions, resting and past orders | **Account** tab, and `GET /api/kalshi/orders/history`. Every order attempt is audited, refusals included. |
 | The record as charts: the four books, KPI tiles, cumulative P&L per strategy, rolling hit rate vs breakeven, and when the next forward test reaches its verdict | **Trends** tab — inline charts over the ledger with a legend, crosshair tooltips and a table twin each. `GET /api/kalshi/trends?days=30` serves the series. **Real · auto** is shown as *not built*: an autopilot needs a PROVEN strategy first. |
-| The same, from Jarvis | Ask *"what did the Kalshi scan find?"* — Jarvis answers from the announced hands in his feed, not a fresh scan. Alerts arrive summarized ("16 new updates from Kalshi") and are read out only when you ask. |
+| The same, from Jarvis | Ask *"what did the Kalshi scan find?"* — Jarvis answers from the announced markets in his feed, not a fresh scan. Alerts arrive summarized ("16 new updates from Kalshi") and are read out only when you ask. |
 
 ## The reports
 
@@ -45,7 +45,7 @@ It prints, in order:
 
 1. **Scorecard** — the staking gate, same numbers as the tab.
 2. **Forward tests in progress** — strategies with fewer than 30 graded rows: registered, graded/30, Brier so far.
-3. **Hands Jarvis announced** — the W – L record of what was actually surfaced to you.
+3. **Markets Jarvis announced** — the W – L record of what was actually surfaced to you.
 4. **By price paid** — each strategy in five bands (longshot, 20–40¢, even money, 60–80¢, favorite): hit rate, average price, **breakeven** (price plus fee), P&L before fee, fees, after fee. A cell only pays when hit beats breakeven.
 5. **By our confidence** — the same, cut by how sure the model was. This is where you check whether "80% confidence" actually wins 80%.
 6. **What if we had taken the other side** — every as-bet total against the flip, priced at one minus our bid plus the spread you pass (default 3¢), fees included.
@@ -65,8 +65,8 @@ docker exec oshal-local-db psql -U oshal -d oshal
 | Table | What a row is |
 |---|---|
 | `kalshi_predictions` | **The ledger.** One pre-registered prediction per (strategy, ticker), immutable once made: `side`, `predicted_prob` (ours), `market_prob` (the ask paid), `edge_net`, `stake_fraction`, `rationale` (JSON: what the model used), then at settlement `settled`, `settled_yes`, `brier`, `market_brier`, `pnl_per_contract`, `graded_at`. |
-| `kalshi_scan_alerts` | Every hand announced to a user, once, with the hand as it looked (`detail`). Join to the ledger on `ticker` with `strategy = 'calibration'` for its outcome. |
-| `kalshi_orders` | Every order attempt, including refusals and exchange rejections, with the justifying hand snapshot. |
+| `kalshi_scan_alerts` | Every market announced to a user, once, with the pick as it looked (`detail`). Join to the ledger on `ticker` with `strategy = 'calibration'` for its outcome. |
+| `kalshi_orders` | Every order attempt, including refusals and exchange rejections, with the justifying pick as it looked. |
 | `kalshi_forecast_log` | Each NWS forecast the weather strategy used and, once known, the observed high — the forecast-error model is measured from these. |
 | `kalshi_scan_snapshots` | The last scan result the Scan tab serves. |
 
@@ -106,7 +106,7 @@ graded once its market settles and appears on the tab with no other change.
 - **30 graded rows** before the verdict means anything (`KALSHI_MIN_GRADED`). Beating the market's
   Brier is the bar; hit rate alone is not, because a 90% hit rate on 93¢ contracts loses money.
 - **Two live templates:** `contrarian-extreme` (the kalshi package pre-registers the opposite
-  side of every extreme scan hand) and `contrarian-weather-disagree`
+  side of every extreme scan pick) and `contrarian-weather-disagree`
   (`scripts/kalshi-contrarian.ts`, the opposite side of every weather pick that disagrees with the
   market by 30+ points). Both are zero-stake hypotheses that came out of the report above.
 - **What can be back-tested.** Anything that depends on our model can only be scored on our own

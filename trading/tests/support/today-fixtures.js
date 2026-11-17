@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: the double also answers the one statement GET /paper/values sends (its text is imported from routes/today/values.js), every saved value of the owner from a day on, in the order they were saved.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Invented accounts for the first screen (1.57.0): a statement-exact database double for GET /paper/today that answers only the SELECT statements the shipped modules declare (their texts are imported, so they cannot drift), logs every statement and refuses anything else, plus builders for made-up monitors, receipts, broker orders and paper ledgers. No real account, order or balance appears here.
  */
 'use strict';
@@ -11,6 +12,7 @@ const books=require('../../routes/paper/books');
 const {fingerprint}=require('../../routes/trading-portfolio-store');
 const {accountKey}=require('../../routes/trading-portfolio-model');
 const {SQL:CONNECTED_SQL}=require('../../routes/today/connected');
+const {SQL:VALUES_SQL}=require('../../routes/today/values');
 
 const RECORD_LIST=/^SELECT record_id, payload, created_at FROM oshal_trading_portfolio_records WHERE user_sub=\$1 AND kind=\$2 ORDER BY created_at DESC LIMIT \d+$/;
 const RECORD_GET='SELECT record_id, payload, created_at FROM oshal_trading_portfolio_records WHERE user_sub=$1 AND kind=$2 AND record_id=$3';
@@ -46,6 +48,7 @@ function createTodayDb(){
  statements.set(RECORD_GET,([sub,kind,id])=>answer(db.records.filter(r=>r.user_sub===sub&&r.kind===kind&&r.record_id===id)));
  statements.set(CONNECTED_SQL.VALUES_RECENT,([sub,connection,account])=>answer(db.values.filter(v=>v.user_sub===sub&&v.connection_key===connection&&v.account_id===account)
   .sort((a,b)=>a.observed_day<b.observed_day?1:-1).slice(0,3)));
+ statements.set(VALUES_SQL.VALUES_ALL,([sub,from])=>answer(db.values.filter(v=>v.user_sub===sub&&v.observed_day>=from)));
  const query=async(text,values=[])=>{
   log.push(text);
   if(RECORD_LIST.test(text))return answer(db.records.filter(r=>r.user_sub===values[0]&&r.kind===values[1]).sort((a,b)=>a.created_at<b.created_at?1:-1));

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The desk's run now refreshes the quant's reference data on the production router; the browser fixture's router is offline, so a run never reaches the network.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Rank by offers the forward-judged signals: the quality dip is selected on the real screen, labeled with its forward record, and its note says it is judged by the forward scoreboard alone.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time: the page, the group filter, search and sorting across the whole list are driven in the browser, on real companies from a stand-in for the SEC's list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Roger pressed both buttons, both worked, and all he saw was a flicker: every click must leave a message saying what it did, and Run now with nothing new must not repaint.
@@ -28,7 +29,7 @@ test('the Quant desk runs, explains a rank and shows its record on desktop and p
     if (name === 'feeds.events') return [];
     throw new Error('Unexpected intent ' + name);
   };
-  const seam = createTradingQuantRoutes({ pool: memoryPool(), intent }, () => express.Router(), { listedCompanies: async () => ({ fields: ['cik', 'name', 'ticker', 'exchange'], data: Array.from({ length: 60 }, (_, i) => [1000 + i, i === 0 ? 'Newmont Corp' : 'Company ' + i, 'C' + String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + (i >> 2)), 'NYSE']) }), readSec: async () => ({ revenueYoYPct: 5, netMarginPct: 5 }), readCompany: async () => ({ sic: '1040' }), pause: async () => {} });
+  const seam = createTradingQuantRoutes({ pool: memoryPool(), intent }, () => express.Router(), { fetch: async () => { throw new Error('offline in tests'); }, listedCompanies: async () => ({ fields: ['cik', 'name', 'ticker', 'exchange'], data: Array.from({ length: 60 }, (_, i) => [1000 + i, i === 0 ? 'Newmont Corp' : 'Company ' + i, 'C' + String.fromCharCode(65 + (i % 26)) + String.fromCharCode(65 + (i >> 2)), 'NYSE']) }), readSec: async () => ({ revenueYoYPct: 5, netMarginPct: 5 }), readCompany: async () => ({ sic: '1040' }), pause: async () => {} });
   const activated = [], schedule = { id: 'quant-job', app: 'intelligent-trades', name: 'quant-desk', status: 'not-activated', nextRunAt: '2026-11-02T22:00:00.000Z' };
   const outer = express();
   outer.use(express.json());

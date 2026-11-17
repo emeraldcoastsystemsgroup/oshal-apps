@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify all Business CRM selections against a synthetic catalog matching the reviewed own-read role contract.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify readiness through mounted service-secret and exact member authorization, including revocation.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove all included components and the ordinary CRM authoring contract from one fresh-principal application role.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.0.5: Business requires only public applications. The synthetic private CRM components, the CRM-only authoring case and the Sales entry special case left with them; every member is loaded from its own public manifest and catalog.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,28 +41,6 @@ const actors = [admin, resident, outsider];
 let directory: string, server: Server, base: string, policy: ApplicationAuthorizationService, store: MemoryAuthorizationStore;
 const saved = new Map<string, string | undefined>();
 function environment(name: string, value: string) { saved.set(name, process.env[name]); process.env[name] = value; }
-async function loadSyntheticCrm(apps: SwarmAppService, directory: string) {
-  const crmRoot = join(directory, 'private-app-1'); mkdirSync(crmRoot);
-  const reads = ['app.open', 'organizations.read', 'contacts.read', 'opportunities.read', 'contracts.read', 'obligations.read', 'crm.me.read', 'crm.meta.read'];
-  const writes = ['opportunities.create', 'crm.partners.create', 'crm.partners.update', 'crm.reports.create', 'crm.import.batches.create'];
-  const permissions = Object.fromEntries([
-    ...reads.map(permission => [permission, { resource: 'portfolio', effect: 'read', minimumTier: 'viewer' }]),
-    ...writes.map(permission => [permission, { resource: 'portfolio', effect: 'write', minimumTier: 'editor' }]),
-    ['crm.admin.permissions.update', { resource: 'portfolio', effect: 'administer', minimumTier: 'admin' }],
-  ]);
-  // Representative contract facts only; no private package, records or provider code is copied.
-  const crmCatalog = { version: 1, resources: { portfolio: { scopes: ['own'] } }, permissions,
-    roles: { crm_representative: { tier: 'editor', grants: [...reads, ...writes].map(permission => ({ permission, scope: 'own' })) } },
-    bindings: { http: [{ id: 'summary', method: 'GET', path: '/summary', allOf: ['app.open'] }] } };
-  writeFileSync(join(crmRoot, 'authorization.yaml'), yaml.dump(crmCatalog));
-  writeFileSync(join(crmRoot, 'oshal-app.yaml'), yaml.dump({ name: 'private-app-1', displayName: 'Synthetic CRM contract', version: '1.0.0', status: 'active',
-    ui: { static: [{ toolName: 'federal-home', label: 'Synthetic CRM home', icon: 'codicon codicon-home', iframeUrl: '/fixture/federal-home', section: 'top' }] },
-    chatBot: 'general-bot', dependencies: { apps: ['private-app-2', 'intelligent-sales', 'private-app-3'], tools: [], connectors: [] }, uses: ['application-authorization'], authorization: { version: 1, catalog: 'authorization.yaml' } }));
-  await apps.loadApp(join(crmRoot, 'oshal-app.yaml'));
-  policy.registerResourceAdapter('private-app-1', 'portfolio', {
-    authorize: async ({ actor, operation, grant }) => grant.scope === 'own' && operation.resourceId === actor.sub,
-  });
-}
 /** Load synthetic transport/records with the public component's actual role and required-dependency declaration. */
 async function loadRequiredComponent(apps: SwarmAppService, name: string): Promise<void> {
   const memberRoot = join(directory, name); mkdirSync(memberRoot);
@@ -87,31 +66,8 @@ async function loadRequiredComponent(apps: SwarmAppService, name: string): Promi
     }
   }
 }
-/** Explicit reviewed private contract facts only; no private catalog, UI, runtime or record is copied. */
-async function loadSyntheticPrivateComponent(apps: SwarmAppService, name: string): Promise<void> {
-  const root = join(directory, name); mkdirSync(root);
-  const fixture: Record<string, unknown> = { name, displayName: 'Synthetic ' + name, version: '1.0.0', status: 'active', chatBot: 'general-bot',
-    dependencies: { apps: name === 'private-app-3' ? ['private-app-2'] : [], tools: [], connectors: [] } };
-  if (name !== 'private-app-2') {
-    const sales = name === 'intelligent-sales';
-    const names = sales ? ['sales.boards.work', 'sales.leads.import', 'sales.export.all'] : ['app.open', 'capture.advance', 'formation.update'];
-    const tier = sales ? 'editor' : 'admin';
-    const role = sales ? 'sales_manager' : 'administrator';
-    const catalog = { version: 1, resources: { ownRecords: { scopes: ['own'] } },
-      permissions: Object.fromEntries(names.map(permission => [permission, { resource: 'ownRecords', effect: permission === 'app.open' ? 'read' : 'write', minimumTier: tier }])),
-      roles: { [role]: { tier, grants: names.map(permission => ({ permission, scope: 'own' })) } },
-      bindings: { http: [{ id: 'entry', method: 'GET', path: '/app', allOf: [names[0]] }] } };
-    fixture.authorization = { version: 1, catalog: 'authorization.yaml' }; fixture.uses = ['application-authorization'];
-    writeFileSync(join(root, 'authorization.yaml'), yaml.dump(catalog));
-  }
-  writeFileSync(join(root, 'oshal-app.yaml'), yaml.dump(fixture));
-  await apps.loadApp(join(root, 'oshal-app.yaml'));
-  if (name !== 'private-app-2') policy.registerResourceAdapter(name, 'ownRecords', {
-    authorize: async ({ actor, grant, operation }) => grant.scope === 'own' && (!operation.resourceId || operation.resourceId === actor.sub),
-  });
-}
-/** Sales binds entry to its existing sales.boards.work permission, not an invented app.open declaration. */
-const entryPermission = (app: string) => app === 'intelligent-sales' ? 'sales.boards.work' : 'app.open';
+/** Every member binds its entry to app.open. */
+const entryPermission = (_app: string) => 'app.open';
 before(async () => {
   assert.ok(process.env.OSHAL_FRAMEWORK, 'Explicit framework checkout is required');
   environment('SWARM_SERVICE_SECRET', 'synthetic-experience-service-secret');
@@ -141,11 +97,7 @@ before(async () => {
   const mounter = new ManifestRouteMounterImpl(app, auth, { pool } as unknown as AppContext, undefined, runtime);
   const apps = new SwarmAppService(pool as never, repo as never, { updateAgentStatus: async () => undefined } as never,
     undefined, undefined, undefined, mounter, undefined, undefined, undefined, undefined, runtime);
-  for (const name of manifest.dependencies.required.apps) {
-    if (name === 'private-app-1') await loadSyntheticCrm(apps, directory);
-    else if (['private-app-2', 'intelligent-sales', 'private-app-3'].includes(name)) await loadSyntheticPrivateComponent(apps, name);
-    else await loadRequiredComponent(apps, name);
-  }
+  for (const name of manifest.dependencies.required.apps) await loadRequiredComponent(apps, name);
   await apps.loadApp(join(home, 'oshal-app.yaml'));
   app.use('/api/ui', auth, createUiProfileRoutes(new UIProfileService(), apps, { runtime, resolveActor }));
   server = app.listen(0, '127.0.0.1'); await new Promise<void>(done => server.once('listening', done));
@@ -199,41 +151,4 @@ test('exact reviewed experience roles open the actual package, and revocation cl
   for (const member of template.members) assert.equal((await policy.authorize(resident, { app: member.app, permission: entryPermission(member.app), resourceId: resident.sub })).allowed, false, member.app);
   assert.equal((await get('/api/'+packageName+'/app', resident)).status, 403); assert.equal((await store.read()).assignments.length, 0);
   assert.equal((await smoke(resident)).status, 403);
-});
-
-test('all Business roles include ordinary CRM authoring and refuse a legacy adapter or administrative authority', async () => {
-  for (const selected of manifest.experience.roleTemplates) {
-    const input = { action: 'assign' as const, app: packageName, template: selected.id,
-      targetSub: resident.sub, targetIssuer: issuer, reason: 'Synthetic CRM own-record authoring contract', expectedRevision: (await store.read()).revision };
-    const review = await policy.previewCompositeRole(admin, input);
-    assert.equal(review.ready, true);
-    const member = review.members.find(row => row.app === 'private-app-1')!;
-    assert.equal(member.role, 'crm_representative'); assert.equal(member.tier, 'editor');
-    const permissions = member.permissions?.map(grant => grant.permission) ?? [];
-    for (const permission of ['app.open', 'crm.meta.read', 'opportunities.create', 'crm.partners.create', 'crm.partners.update', 'crm.reports.create', 'crm.import.batches.create']) {
-      assert.ok(permissions.includes(permission), permission);
-    }
-    assert.ok(member.permissions?.every(grant => grant.scope === 'own'));
-    const receipt = await policy.applyCompositeRole(admin, { previewId: review.previewId!, idempotencyKey: randomUUID() });
-    assert.equal((await policy.authorize(resident, { app: 'private-app-1', permission: 'app.open', resourceId: resident.sub })).allowed, true);
-    assert.equal((await policy.authorize(resident, { app: 'private-app-1', permission: 'app.open', resourceId: outsider.sub })).allowed, false);
-    for (const permission of ['opportunities.create', 'crm.partners.create', 'crm.partners.update', 'crm.reports.create', 'crm.import.batches.create']) {
-      assert.equal((await policy.authorize(resident, { app: 'private-app-1', permission, resourceId: resident.sub })).allowed, true, permission);
-      assert.equal((await policy.authorize(resident, { app: 'private-app-1', permission, resourceId: outsider.sub })).allowed, false, permission);
-    }
-    assert.equal((await policy.authorize(resident, { app: 'private-app-1', permission: 'crm.admin.permissions.update', resourceId: resident.sub })).allowed, false);
-    const revoke = await policy.previewCompositeRole(admin, { action: 'revoke', app: packageName, assignmentId: receipt.assignmentId,
-      reason: 'Synthetic CRM cleanup', expectedRevision: (await store.read()).revision });
-    await policy.applyCompositeRole(admin, { previewId: revoke.previewId!, idempotencyKey: randomUUID() });
-    assert.equal((await store.read()).assignments.length, 0);
-  }
-  const ownCatalog = yaml.load(require('node:fs').readFileSync(join(original, 'authorization.yaml'), 'utf8'));
-  await policy.registerApp({ app: 'synthetic-mutant-experience', source: 'synthetic-mutant-source', version: '1.0.0', catalog: ownCatalog, mode: 'enforce',
-    compositeRoles: { templates: [{ id: 'mutant', version: 1, label: 'Synthetic mutant', members: [
-      { app: 'synthetic-mutant-experience', role: 'staff' }, { app: 'private-app-1', role: '@app-admin' }] }],
-      requiredApps: ['private-app-1'], optionalApps: [] } });
-  const mutant = await policy.previewCompositeRole(admin, { action: 'assign', app: 'synthetic-mutant-experience', template: 'mutant',
-    targetSub: resident.sub, targetIssuer: issuer, reason: 'Original mapping refusal', expectedRevision: (await store.read()).revision });
-  assert.equal(mutant.ready, false); assert.equal(mutant.members.find(row => row.app === 'private-app-1')?.blocked, 'composite_member_role_unavailable');
-  assert.equal((await store.read()).assignments.length, 0);
 });

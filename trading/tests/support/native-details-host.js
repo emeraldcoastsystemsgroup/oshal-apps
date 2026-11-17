@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Synthetic, read-only account-detail browser fixture using shipped routes, shell, scripts and styles. Never real broker access.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve the chart bars route from the same synthetic trading.bars intent for the holding comparison chart.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: the page reads its history from GET /paper/values (served by the shipped paper handler over the same values) and its comparison prices from GET /api/trading-charts/bars, so the host serves both.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.58.1: the host serves only addresses the installed package serves. It also answered GET /api/trading/bars, which no Trading route serves (bars are only at /api/trading-charts/bars, routes/trading-charts-routes.js); that stand-in let the holding-vs-comparison chart pass here while production showed "Price comparison unavailable". Now an unserved read fails here as it fails there.
  */
 'use strict';
 const path=require('node:path'),fs=require('node:fs');
@@ -14,7 +16,8 @@ async function detailsHost(){
  const original=h.ctx.intent;
  h.ctx.intent=async(name,input)=>name==='trading.accounts'?{accounts:h.accounts,errors:[],readAt:'2026-10-23T19:55:00Z'}:original(name,input);
  for(let i=1;i<23;i++)await recordAccountValue(h.ctx,'owner-a',{...a,equity:9500+i*20,cash:3000},'2026-10-'+String(i).padStart(2,'0')+'T19:55:00Z');
- h.app.get('/api/trading/bars',async(q,r)=>r.json(await h.ctx.intent('trading.bars',{symbol:String(q.query.symbol),timeframe:'1Day',connection:q.query.connection})));
+ h.app.get('/api/trading-charts/bars',async(q,r)=>r.json(await h.ctx.intent('trading.bars',{symbol:String(q.query.symbol),timeframe:'1Day',connection:q.query.connection})));
+ h.app.get('/api/trading/paper/values',async(q,r)=>{const out=await require('../../routes/trading-paper-routes').paperHandlers({pool:h.ctx.pool}).values(q);r.status(out.status).json(out.body);});
  h.app.get('/api/trading/accounts',(_q,r)=>r.json({nativeReadOnly:true,accounts:h.accounts,books:[]}));
  h.app.get('/api/trading/summary',(_q,r)=>r.json({accounts:h.accounts.map(a=>({...a,nativeReadOnly:true,notTrading:true})),positions:[]}));
  h.app.get('/api/trading/status',(_q,r)=>r.json({liveEnabled:false,paperConfigured:false,liveConfigured:false,guardrails:{}}));

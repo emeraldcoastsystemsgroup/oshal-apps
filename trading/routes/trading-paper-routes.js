@@ -8,6 +8,7 @@
  *   GET  /orders      simulated fills, newest first
  *   GET  /decisions   the decision behind each fill, newest first
  *   GET  /today       what the caller's saved records say about every account, for the first screen (reads only)
+ *   GET  /values      every daily value recorded for the caller's connected accounts, for the overview's charts (reads only)
  *
  * Paper only: the engine prices every fill from the kernel's prices intents and writes it to the
  * caller's own scope. Nothing in this module or routes/paper/ can reach a broker; there is no order
@@ -25,6 +26,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep film rendering out of the paper execution dependency path; load media only when a film route is requested.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | 1.57.0: GET /today, the one read behind the first screen (routes/today/read.js). It is handed the pool and this module's logger and nothing else, so it sends SELECT statements only and cannot reach a broker, a price read or an order service. Mounted here because this router is hand-written JavaScript outside the order-authority set: no compiled file, manifest route, tool or schedule changes.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: the film routes render inside Trading (paper/report-film.js through the kernel's voice.speak and the package's lasting storage); the routes and their shapes are unchanged.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 1.58.0: GET /values, the read behind the portfolio overview (routes/today/values.js): every daily value recorded for the caller's connected accounts. Like /today it is handed the pool and this module's logger and nothing else, so it sends one SELECT and cannot reach a broker, a price read or an order service. No compiled file, manifest route, tool or schedule changes.
  *
  * @module trading-paper-routes
  */
@@ -36,6 +38,7 @@ const books = require('./paper/books');
 const paperStrategy = require('./paper/strategy');
 const reports = require('./paper/report');
 const today = require('./today/read');
+const values = require('./today/values');
 // Load media dependencies only for a requested film operation; paper execution stays process-free.
 const reportVideo = () => require('./reports/report-video');
 const { nativeHost } = require('./paper/screen');
@@ -150,6 +153,8 @@ function paperHandlers(ctx, clock = () => new Date()) {
     async videoPresenter(req){return reportVideo().savePresenterClip(deps,callerOf(req),req.body||{});},
     // The first screen's read: the pool and the logger only, so no intent (broker, prices, orders) is within its reach.
     async today(req) { return { status: 200, body: await today.todayRead({ pool: deps.pool, log: logger }, callerOf(req), clock()) }; },
+    // The overview's read: the pool and the logger only, like /today.
+    async values(req) { return { status: 200, body: await values.valuesRead({ pool: deps.pool, log: logger }, callerOf(req), clock()) }; },
     async orders(req) { return { status: 200, body: { ok: true, orders: await store.listOrders(deps.pool, callerOf(req)) } }; },
     async decisions(req) { return { status: 200, body: { ok: true, decisions: await store.listDecisions(deps.pool, callerOf(req)) } }; },
   };
@@ -195,6 +200,7 @@ function createTradingPaperRoutes(ctx, makeRouter) {
   router.get('/orders', route('orders', h.orders));
   router.get('/decisions', route('decisions', h.decisions));
   router.get('/today', route('today', h.today));
+  router.get('/values', route('values', h.values));
   router.get('/books',route('books',h.books));
   router.post('/books',route('create-book',h.createBook));
   router.post('/reset',route('reset',h.reset));

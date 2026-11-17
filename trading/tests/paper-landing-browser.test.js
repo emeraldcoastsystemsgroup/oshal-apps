@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve declared dependencies in package-only native fixtures as well as Store checkouts.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Assert that the real-capital headline excludes the paper book while its separate balance and holdings remain visible.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the first screen is drawn from saved records, so this host also serves the shipped paper routes (GET /paper/today) and the paper book first shows as a card that says it is simulated and running; the tile, the hero and the rollup this test has always checked are reached by opening the screen's closed section "Balances and holdings, read from your broker now". Every earlier check stays.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: the saved-record cards are the Accounts screen's Trading status tab (it opens on the portfolio overview), so the page opens ?view=accounts&sub=status. Every earlier check stays.
  */
 'use strict';
 
@@ -84,7 +85,7 @@ test('with no Schwab the landing shows the paper book, and its chart draws the W
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
 
-  await page.goto(base + '/api/trading/');
+  await page.goto(base + '/api/trading/?view=accounts&sub=status');
   const card = page.locator('#homeCards [data-story="paper|paper"]');
   await card.waitFor();
   assert.match(await card.innerText(), /Paper \(reference book\)[\s\S]*SIMULATED MONEY[\s\S]*This simulation counts prices only\./i);

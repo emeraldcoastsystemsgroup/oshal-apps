@@ -15,6 +15,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register explorer-handoff: the person and the concierge edit the same Explorer in turn through the shared document handoff, the shipped tile over the compiled routes on the store double. Blade Studio and Harvest Console hold no saved record and are not wired.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register lab-views (both pages two views, the parameters pane with number fields and a reset, short captions with Help, the themed brief sheet, Blade Studio Fit and one Export).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (ocean-lab--ocean-lab-explorer): update explorer-surface expectations for withheld Evaluate in air, two views, row ⋯ CAD Studio action and <=412px phone width; register explorer-ux-batch7.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: register harvest-phone-first-screen (lane mobilesweep2).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -545,4 +546,27 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: harvest-phone-first-screen
+    name: The Harvest Siting Console shows its verdict near the top on a phone
+    purpose: "Guard 1.3.6 (lane mobilesweep2): the real console and its in-page engine in a stand-in for Today, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/harvest-phone-first-screen.test.cjs
+    expected:
+      - On a phone the verdict starts within the top 30% of the screen (it was 290 px, 32%); the intro is not drawn and the title is kept for assistive technology only.
+      - Brief and Help stay whole 44 px buttons; nothing scrolls sideways and nothing to tap is under the floating Jarvis button at the end; the desktop keeps the title and the intro.
+      - Opening the console writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

@@ -11,6 +11,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same project file in turn through the shared document handoff, over the compiled routes and the package's shared fixture.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register actual model-visible Blender read/write example execution through owned SQL and a real isolated engine.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register first-screen (UX audit 2026-11-06): the page's action gating with no project open, New's three types with the first preview rendered at once, the projects list with one New, the Scene and Script & build views and the phone layout, in Chromium over the compiled routes and the shared fixture.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.5: register phone-first-screen (lane mobilesweep2).
 version: 1
 cases:
   - id: safe-object-operations
@@ -442,4 +443,28 @@ cases:
       fixtures: [tests/native-editor-fixture.mjs]
       cleanup: Remove only this fixture's container, data root, PostgreSQL schema and role.
     limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+  - id: phone-first-screen
+    name: Scene Studio shows its type cards near the top on a phone
+    purpose: "Guard 0.4.5 (lane mobilesweep2): the real page with the kernel's shared editor in a stand-in for Today, a role that edits sources but does not run project code (the execution note shows) and no project yet, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/scene-phone-first-screen.browser.test.cjs
+    expected:
+      - On a phone the first type card starts within the top 30% of the screen (it was 280 px, 31%); the execution note follows the cards and New's prompt steps aside.
+      - Nothing scrolls sideways and nothing to tap is under the floating Jarvis button at the end; the desktop keeps the note above the cards and the prompt.
+      - Opening Scene Studio writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+      - runtime:kernel-shared-ui
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

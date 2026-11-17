@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Career's Resume Studio embeds AI Office's Word editor on the master resume (a real, proven, optional edge). An offerer that also has a PROVEN edge to presentations is exempt from the offers-only arm, which still holds for every other offerer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Little Monsters' required applications include email-summarizer (its Email tab's standard viewer).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Social's inbox link moved from social-composer.html to social-workspace.html when Composer merged into Workspace.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | A required application must be a package this catalog ships or one of the kernel's two platform declarations. The kernel admits a package only when every required application is active (oshal-kernel crates/packages/src/loader/local.rs check_dependencies: "<package> requires active application <name>"), and an installation of this catalog without the private store carries no private package. Business, Commons, Jarvis, Orbit and Studio required four private applications from 2026-10-05 and every store check passed; the trial's kernel refused all five on 2026-11-16 and rolled back twice. The rule runs over every manifest and has a case that goes red on that shape.
  *
  * @module app-dependency-declarations.test
  */
@@ -73,6 +74,39 @@ test('every package\'s dependency block reads through the catalog generator with
   // A block the reader cannot parse comes back null, and null is mirrored as "declares nothing" -
   // indistinguishable in the catalog from a package that truthfully depends on nothing.
   assert.deepEqual(unreadable, [], 'every package must declare a readable required/optional block');
+});
+
+/**
+ * The applications the kernel itself declares from its shipped platform (oshal-kernel crates/oshald/src/platform_apps.rs
+ * `discover`). A package may require one of these without this catalog shipping it; nothing else.
+ */
+const KERNEL_PLATFORM_APPS = ['jarvis', 'workflow-studio'];
+
+/**
+ * @description The required applications a catalog cannot satisfy on its own.
+ * @param {string[]} names The packages the catalog ships.
+ * @param {(name: string) => string[]} requiredOf A package's required applications.
+ * @returns {string[]} One `package -> application` line per requirement that is neither a shipped package nor a kernel platform declaration.
+ */
+function unshippedRequirements(names, requiredOf) {
+  const shipped = new Set([...names, ...KERNEL_PLATFORM_APPS]);
+  return names.flatMap((name) => requiredOf(name).filter((app) => !shipped.has(app)).map((app) => `${name} -> ${app}`));
+}
+
+test('every required application is a package this catalog ships or a kernel platform declaration', () => {
+  const { names } = packages(ROOT);
+  assert.ok(names.length >= 60, `the store has packages to check, found ${names.length}`);
+  assert.deepEqual(unshippedRequirements(names, (name) => tiersOf(name).required.apps), [],
+    'the kernel admits a package only when every required application is active ("<package> requires active application '
+    + '<name>"), and an installation of this catalog alone carries nothing else. Ship the application here, make it optional, or '
+    + 'move the requirement to a package in the store that carries it');
+});
+
+test('the shipped-requirement rule names a requirement the catalog does not ship and ignores optional ones', () => {
+  const required = { office: ['files', 'jarvis', 'workflow-studio'], files: [], ledger: ['files', 'private-crm'] };
+  assert.deepEqual(unshippedRequirements(Object.keys(required), (name) => required[name]), ['ledger -> private-crm']);
+  assert.deepEqual(unshippedRequirements(['office'], (name) => required[name]), ['office -> files']);
+  assert.deepEqual(unshippedRequirements(['files', 'ledger'], () => []), [], 'an optional application is never a requirement');
 });
 
 test('no package has a cross-package edge it does not declare', () => {

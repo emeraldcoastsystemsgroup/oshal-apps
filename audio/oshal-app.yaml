@@ -2,6 +2,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Audio Studio oshal application manifest with process runtime, lastingStorage, native migrations, surface bridge, and 12 route-backed Jarvis tools.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bump Audio Studio to 1.2.0 for ADR-208 real DSP channel strip, K-weighted LUFS mastering, Kokoro voice synthesis, and emoji-free design standard compliance.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bump Audio Studio to 1.2.1: register studio and editor personal-scope authorization adapters and route native host-process persistence to lasting-storage SQLite.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): a phone opens on the tracks. The first track moves from 617 px (67%; 92% at 360x780) to 232 px (25-30%): one slim app bar (a back arrow, the session's name and revision), the section tabs, one transport row (Play, then Pause, Stop and Record as icons, the time), then the tracks; Slice, Loop, the LUFS meter, the status line and the six formula macros (one row that scrolls sideways) follow the tracks. Desktop unchanged. Presentation only (tools/audio.html groups the transport; tools/audio.css).
 # ─────────────────────────────────────────────────────────────────────────────
 # oshal app package — audio ("Audio Studio")
 # Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing,
@@ -30,7 +31,7 @@ displayName: Audio Studio
 description: >-
   Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and
   mastering with Jarvis and concierge voice assistant.
-version: 1.2.1
+version: 1.2.2
 status: active
 scope: person
 chatBot: audio-engineer

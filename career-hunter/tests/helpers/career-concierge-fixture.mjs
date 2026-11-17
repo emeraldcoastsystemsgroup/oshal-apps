@@ -2,30 +2,32 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Local HTTP fixture serves shipped Career and real shared assistant assets, with fictional owner status and no external requests.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The shared UI comes from OSHAL_KERNEL_PLATFORM, which the store gate supplies; OSHAL_CORE_ROOT is read only when that is unset.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: a suite may add its own routes before the catch-all (extend), for the one-concierge cases: a saved conversation, and Settings as a second page.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98: the pane frames the Jarvis page as Career's concierge). The fixture serves that window from the same platform with its stand-in kernel (scripts/one-chat-window/kernel-window.mjs: the model menu's rails, the conversations, the bot's door that answers at once and then with the steps and answer), after a suite's own routes, so a suite still answers /api/jarvis/history itself. The bot's door refuses a turn whose context is not Career's, as before; `kernel.asks` keeps every turn as the door received it.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {mountWindow,windowKernel} from '../../../scripts/one-chat-window/kernel-window.mjs';
 const require=createRequire(import.meta.url),repo=path.resolve(import.meta.dirname,'../../..');
 const express=require(require.resolve('express',{paths:[path.join(repo,'scripts/toolchain')]}));
 export const {chromium}=require(require.resolve('playwright',{paths:[path.join(repo,'scripts/toolchain')]}));
 export const sharedRoot=process.env.OSHAL_KERNEL_PLATFORM||process.env.OSHAL_CORE_ROOT;
 const items=[['home','Home','home'],['search','Find jobs','search-ui'],['board','My jobs','board-native'],['resume-studio','My résumé','resume-studio'],['settings','Settings','settings']]
  .map(([id,label,view])=>({id:'tool-career-'+id,label,section:'top',toolUi:{iframeUrl:'/api/career-hunter/'+view,visibilityToolName:'career-'+id}}));
+/** What the concierge answers in these cases: Career's own words, and a refusal for a turn not asked as Career. */
+export const ANSWER='Your main résumé is saved. Sections: Summary, Skills, Experience, Education. Open My résumé to edit it.';
 export async function startConciergeFixture(extend){
  const app=express(),calls=[];app.use(express.json());
+ const kernel=windowKernel({answer:ask=>ask.bot==='career-concierge'&&ask.context?.app==='career-hunter'?ANSWER:'Wrong application.'});
  app.use((req,res,next)=>{calls.push({method:req.method,path:req.path,query:req.query,body:req.body});next();});
  if(typeof extend==='function')extend(app,{repo,express});
+ if(sharedRoot)mountWindow(app,{platform:sharedRoot,kernel});
  app.get('/api/ui/profile',(_req,res)=>res.json({profile:{ribbon:{items}}}));
  app.get('/api/auth/user',(_req,res)=>res.json({displayName:'Alex Fixture'}));
  app.get('/api/career-hunter/home',(_req,res)=>res.sendFile(path.join(repo,'career-hunter/tools/career-home.html')));
  app.use('/api/career-hunter/static',express.static(path.join(repo,'career-hunter/tools')));
  if(sharedRoot)app.use('/shared/ui',express.static(path.join(sharedRoot,'src/shared/ui')));
  app.get('/ui/kernel/:file',(_req,res)=>res.type('js').send('/* Fixture: unused table component. */'));
- app.post('/api/swarm/bots/career-concierge/ask',(req,res)=>{
-  if(req.body.context?.app!=='career-hunter')return res.status(400).json({error:'wrong application'});
-  res.json({reply:'Your main résumé is saved. Sections: Summary, Skills, Experience, Education. Open My résumé to edit it.'});
- });
  app.get('/api/career-hunter/jobs/stats',(_req,res)=>res.json({saved:2,queued:0,tracked:0}));
  app.get('/api/career-hunter/resume/state',(_req,res)=>res.json({hasResume:true,name:'Alex Fixture',roles:2,scored:4}));
  app.get('/api/career-hunter/home-summary',(_req,res)=>res.json({metrics:[{label:'Saved jobs',value:'2'}],items:[]}));
@@ -33,7 +35,7 @@ export async function startConciergeFixture(extend){
  app.use('/api',(_req,res)=>res.json({jobs:[],records:[],applications:[]}));
  app.get('/fixture/:host',(req,res)=>res.type('html').send(parent(req.params.host)));
  const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
- return{origin:'http://127.0.0.1:'+server.address().port,calls,close:async()=>{server.closeAllConnections();await new Promise(done=>server.close(done));}};
+ return{origin:'http://127.0.0.1:'+server.address().port,calls,kernel,close:async()=>{server.closeAllConnections();await new Promise(done=>server.close(done));}};
 }
 function parent(host){
  if(host==='native')return`<!doctype html><html><head><style>body{margin:0}#surface-frame-container{height:100dvh;display:flex}iframe{flex:1;min-width:0;border:0}.app-focus-bar{height:40px}</style></head><body><div id="surface-viewer-card"><div class="app-focus-bar"><button id="concierge-toggle">Old concierge</button></div><nav id="active-app-tools">Unformatted application bar</nav><div id="surface-frame-container"><iframe id="active-app-frame" src="/api/career-hunter/home"></iframe><aside id="active-app-concierge">Old fly-in</aside></div></div></body></html>`;

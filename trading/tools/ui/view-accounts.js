@@ -34,6 +34,7 @@
   * 8 | maintainer@emeraldcoastsystemsgroup.com | Label native day P&L as open-position scope; closed-trade results and cash flows are not reconstructed.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Separate account detail and strategy links, show actual authority and open-position gain/loss.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the first screen is drawn by view-home.js from saved records (one card per account: state, plan, today, value). This landing stays whole as that screen's closed section "Balances and holdings, read from your broker now" and as the fallback when the saved-record read cannot be made, where one line says why. The skeleton is split so the closed section can draw the balances without a second watchlist or connected-login list; opening the Accounts screen no longer starts the GET /portfolio read that fills each tile's status line.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: the Accounts screen opens on the portfolio overview (view-overview.js); the saved-record cards are its Trading status tab (?view=accounts&sub=status). Either one, when its saved-record read cannot be made, leaves this landing with the same one line saying why.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The design standard, UI only: the real-capital hero is drawn only once a real account is connected or its read failed (a dashboard shows no tile without a figure, §5.4), the account tiles are the page's declared work, a tile is a card rather than a button around its own buttons, the connected-login roster with Discover opens from ⚙ Settings instead of the landing, an idle paper tile says it is not started in one sentence without empty balance rows, a paper tile no longer repeats its type, and the positions rollup with no position is not drawn.
  */
 
@@ -555,17 +556,20 @@ function paintWatchlistHost() {
 }
 
 /**
- * @description VIEW 'accounts'. The first screen (view-home.js) takes the render when it can read the person's saved
- * records. A bookmark that names an account, or a read that cannot be made, gets this landing instead; a failed read is
- * said in one line above it.
+ * @description VIEW 'accounts'. The portfolio overview (view-overview.js) takes the render, or the Trading status tab
+ * (view-home.js) when the address says sub=status, when it can read the person's saved records. A bookmark that names an
+ * account, or a read that cannot be made, gets this landing instead; a failed read is said in one line above it.
  * @param {number} token - RENDER_TOKEN at dispatch time.
  * @returns {Promise<void>}
  */
 async function renderAccountsView(token) {
-  if (typeof renderHomeView === 'function' && await renderHomeView(token)) return;
+  const status = SUB === 'status';
+  const screen = status ? (typeof renderHomeView === 'function' ? renderHomeView : null) : (typeof renderOverviewView === 'function' ? renderOverviewView : null);
+  if (screen && await screen(token)) return;
   if (stale(token)) return;
   main.innerHTML = accountsSkeleton();
-  if (typeof HOME !== 'undefined' && HOME.failed) main.insertAdjacentHTML('afterbegin', '<div class="panel foot" id="homeFallback" role="status">Saved activity could not be read, so balances read from your broker are shown instead. Reason: ' + esc(String(HOME.failed).replace(/[.\s]+$/, '')) + '.</div>');
+  const failed = status ? (typeof HOME !== 'undefined' && HOME.failed) : (typeof OVERVIEW !== 'undefined' && OVERVIEW.failed);
+  if (failed) main.insertAdjacentHTML('afterbegin', '<div class="panel foot" id="homeFallback" role="status">Saved activity could not be read, so balances read from your broker are shown instead. Reason: ' + esc(String(failed).replace(/[.\s]+$/, '')) + '.</div>');
   await fillAccountsLanding(token, false);
 }
 

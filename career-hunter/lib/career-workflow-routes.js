@@ -1,22 +1,40 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Queue original-owner saved-job preparation only after explicit consent, using the existing draft and background engine writers; refuse automatic retries and submission.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): saved-job preparation never picks a person's Other experience for them. A job is prepared with its own choice, else with the choice the person prepared their last application with (lib/career-experience-choice.js); a person who has other experience and never chose is asked first: the job waits, untouched, and prepareSaved counts it as waiting (Settings says how many). A person with no other experience is prepared as before. Guard: tests/career-prepare-other-experience-route.test.mjs.
  */
 'use strict';
 const {randomUUID}=require('node:crypto');
 const {callerSub,userPaths,findUserPaths,openUserDb}=require('../routes/career-user-store');
 const board=require('./career-board-state'),drafts=require('./career-application-draft'),workflow=require('./career-application-workflow');
+const experienceBank=require('./career-experience-bank'),experienceChoice=require('./career-experience-choice');
 function job(db,id){return db.prepare(`SELECT p.id,p.url,p.active,s.status,s.resume_path,s.cover_path,
  CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
  CASE WHEN s.cover_path IS NOT NULL AND s.cover_path<>'' THEN 1 ELSE 0 END AS has_cover
  FROM corpus.postings_corpus p LEFT JOIN user_signals s ON s.posting_id=p.id WHERE p.id=?`).get(id);}
+/**
+ * @description The tailoring a saved-job preparation uses: the job's own Other experience choice, else the choice the person
+ * prepared their last application with, else (when they have no other experience) the job's tailoring as it is. Null when
+ * they have other experience and never chose: the job waits for them.
+ * @param {string} dir Owner store. @param {object} draft The job's tailoring (drafts.view().draft).
+ * @returns {object|null} The tailoring to prepare with, or null to wait.
+ */
+function tailoringFor(dir,draft){
+ if(experienceChoice.chosen(draft))return draft;
+ const library=experienceBank.read(dir);
+ if(library.last)return {...draft,experienceIds:library.last.experienceIds,experienceRevision:library.revision,experienceChosen:true};
+ return library.entries.some(entry=>!entry.archived)?null:draft;
+}
+/** @returns {boolean|'waiting'} true when queued, 'waiting' when the job waits for the person's Other experience choice. */
 function queueOne(db,dir,id,choice,batchId){
  const saved=board.readBoardState(dir).jobs[id],row=job(db,id);
  if(!saved?.favorite||saved.workflow||!row||['applied','interview','offer','rejected','dismissed'].includes(row.status))return false;
  const application=drafts.view(dir,id,row);if(application.locked||application.busy)return false;
+ let tailoring;try{tailoring=tailoringFor(dir,application.draft);}catch{tailoring=application.draft;/* begin() below reports an unreadable library on the job, as before */}
+ if(!tailoring)return 'waiting';
  db.prepare("INSERT INTO user_signals(posting_id,status,promoted_at)VALUES(?,'promoted',datetime('now')) ON CONFLICT(posting_id)DO UPDATE SET status='promoted',promoted_at=COALESCE(promoted_at,datetime('now'))").run(id);
  board.updateBoardState(dir,id,{workflow:{batchId,mode:choice.mode},workflowEnteredAt:saved.workflowEnteredAt||new Date().toISOString(),phase:'queued',error:null,completedAt:null});
  if(row.active===0||!workflow.address(row.url)){board.updateBoardState(dir,id,{phase:'failed',error:row.active===0?'The employer posting is no longer available.':'The employer form link is unavailable.',completedAt:new Date().toISOString()});return false;}
- try{drafts.begin(dir,id,row,application.draft,randomUUID(),true);}
+ try{drafts.begin(dir,id,row,tailoring,randomUUID(),true);}
  catch(e){board.updateBoardState(dir,id,{phase:'failed',error:e.message,completedAt:new Date().toISOString()});return false;}
  return true;
 }
@@ -24,15 +42,16 @@ function queueOne(db,dir,id,choice,batchId){
 async function prepareSaved(ctx,sub,ids,start){
  const owner=findUserPaths(sub);if(!owner)return {queued:0};const dir=owner.userDir;let choice;try{choice=workflow.read(dir);}catch{return {queued:0,unavailable:true};}if(!choice.enabled)return {queued:0};
  const db=openUserDb(sub,false);if(!db)return {queued:0};
- const batchId=randomUUID(),queued=[];
- try{for(const id of ids||board.favoriteIds(board.readBoardState(dir)))if(queueOne(db,dir,id,choice,batchId))queued.push(id);}
+ const batchId=randomUUID(),queued=[];let waiting=0;
+ try{for(const id of ids||board.favoriteIds(board.readBoardState(dir))){const outcome=queueOne(db,dir,id,choice,batchId);if(outcome==='waiting')waiting+=1;else if(outcome)queued.push(id);}}
  finally{db.close();}
- if(!queued.length)return {queued:0};
+ const asked=waiting?{waiting}:{};
+ if(!queued.length)return {queued:0,...asked};
  let started;
  try{started=await start(ctx.pool,sub,['prepare-saved'],{CH_WORKFLOW_BATCH:batchId});}
  catch{started={started:false};}
  if(!started.started)for(const id of queued){const saved=board.readBoardState(dir).jobs[id];drafts.refused(dir,id,saved.generationDraft.requestId);board.updateBoardState(dir,id,{phase:'failed',error:'Preparation could not start. Open the application and retry generation.',completedAt:new Date().toISOString()});}
- return {queued:queued.length,started:started.started===true};
+ return {queued:queued.length,started:started.started===true,...asked};
 }
 function register(router,ctx,start){
  const run=handler=>async(req,res)=>{

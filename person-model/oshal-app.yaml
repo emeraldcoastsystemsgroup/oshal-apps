@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: Jarvis routing words (backlog P4-16h): ambient-recall-concierge adds 'say', 'said' and 'meeting'. "What did Dave say about the budget in yesterday's meeting?" was a four-way tie (its phrase 'what did they say' never matches a named person) and now reaches Ambient Recall; "Summarize the meeting" stays with Intelligent Communication. No route, tool or permission changed.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: no house identifier in the default profile or sample cards (open-work audit 2026-11-10): the owner address comes only from OSHAL_OWNER_ADDRESS; no street address, LAN address, room device name or real phone number ships in the package.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Release 1.2.4 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone Ambient Recall opens on its recall field: the page's title and six-line paragraph step aside (Today's bar names the application; the empty answer and the examples say what to ask), the five tabs are one row that scrolls sideways and keeps the open tab on screen, a 16 px gutter. Recall field 408 px (45%) -> 113 px (12%) at 412x915; desktop unchanged. Presentation only: no route, read, write, permission or data change.
 name: person-model
 suite: ai-knowledge
 rating:
@@ -25,7 +26,7 @@ description: >-
   build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted
   receipts with assistant-voice playback, open asks and commitments beside their source quotes,
   per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.
-version: 1.2.4
+version: 1.2.5
 runtime: process
 status: active
 scope: person

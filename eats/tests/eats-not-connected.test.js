@@ -8,6 +8,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.0: the search is a POST carrying query, address, limit and refresh; the saved-line helpers are run with it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the restaurants are real (Google Places) and the page's states are the server's: a search without an address shows the address sentence and makes no request; a refused search (503 with the server's sentence: key not configured, Places API not enabled, quota) shows that sentence, never "no restaurants matched"; an empty 200 still reads as no match; a 200 with restaurants renders cards with an Order on Uber Eats button; the concierge turn shows a 503's sentence as the reply. The guard EXECUTES the shipped search() and sendChat() out of the surface against a scripted fetch.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.1: search() and sendChat() save a typed address through rememberAddress (tests/eats-address-saved.test.js); it is a no-op double here.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.7: the page's own chat (sendChat) is gone, so its refused-turn case goes with it: the concierge is the kernel's one chat window (tests/eats-one-chat-window.test.js). search() says which restaurants the server held back for the diner's allergies (showHeldBack, run real here), and a refused search clears that line.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -52,10 +53,10 @@ function surface(source, names, respond, extra = {}) {
     `globalThis.__exports = {${names.filter((n) => !/^[A-Z_]+$/.test(n)).join(',')}};`).runInContext(sandbox);
   return { el, fns: sandbox.__exports, sandbox, requests };
 }
-const NAMES = ['ADDRESS_NEEDED', 'readBody', 'getJson', 'postJson', 'searchFailed', 'showUnavailable', 'showAddressNeeded', 'escapeHtml', 'restaurantMeta', 'renderRestaurantCard', 'savedAgo', 'showSavedLine', 'search', 'sendChat'];
+const NAMES = ['ADDRESS_NEEDED', 'readBody', 'getJson', 'postJson', 'searchFailed', 'showUnavailable', 'showAddressNeeded', 'escapeHtml', 'restaurantMeta', 'renderRestaurantCard', 'savedAgo', 'showSavedLine', 'showHeldBack', 'search'];
 const DISABLED = [503, { error: 'disabled', message: 'Places API (New) is not enabled for this installation\'s Google key (project 1085759851735). Enable it at https://console.developers.google.com/apis/api/places.googleapis.com/overview?project=1085759851735, then try again in a minute.', source: 'Google Places' }];
-const stubs = () => ({ API: '/api/eats', state: { restaurants: [], place: null, query: '', heading: '' }, renderChips() {}, publishContext() {}, hydrateCards() {},
-  addMessage: () => ({ textContent: '', classList: { add() {} }, setAttribute() {} }), proposeOrder() {}, rememberAddress: async () => false });
+const stubs = () => ({ API: '/api/eats', state: { restaurants: [], place: null, query: '', heading: '', heldBack: [] }, renderChips() {}, publishContext() {}, hydrateCards() {},
+  proposeOrder() {}, rememberAddress: async () => false });
 const withAddress = (page) => { page.el('#address').value = '1 Synthetic Way, Pensacola'; return page; };
 
 test('a refused restaurant search shows the server\'s sentence, never that nothing matched', async () => {
@@ -93,10 +94,17 @@ test('a real empty answer still reads as no match, and restaurants render with a
   assert.equal(full.el('#feedLink').hidden, false);
 });
 
-test('a concierge turn refused by the restaurant source shows its sentence as the reply', async () => {
-  const pending = { textContent: '' };
-  const page = withAddress(surface(html, NAMES, () => DISABLED, { ...stubs(), addMessage: () => pending }));
-  page.el('#chatInput').value = 'tacos';
-  await page.fns.sendChat();
-  assert.match(pending.textContent, /Places API \(New\) is not enabled/);
+test('the restaurants the server held back for the diner\'s allergies are said under the heading; a refused search clears the line', async () => {
+  const allergy = { restrictions: ['peanuts'], heldBack: [{ dish: 'Peanut Palace', restriction: 'peanut', label: 'peanuts', contains: 'peanuts' }] };
+  const item = { placeId: 'ChIJ-thai-garden', name: 'Thai Garden', cuisine: 'Thai restaurant', address: '1 Synthetic St' };
+  let answer = [200, { items: [item], allergy, place: { address: '1 Synthetic Way, Pensacola, FL' } }];
+  const page = withAddress(surface(html, NAMES, () => answer, stubs()));
+  await page.fns.search('thai');
+  assert.equal(page.el('#allergyLine').hidden, false);
+  assert.equal(page.el('#allergyLine').textContent, 'Held back for your allergies and diet: Peanut Palace (peanuts).');
+  assert.deepEqual(page.sandbox.state.heldBack, allergy.heldBack, 'the concierge window is told the same held-back list');
+  answer = DISABLED;
+  await page.fns.search('thai');
+  assert.equal(page.el('#allergyLine').hidden, true, 'a refused search holds nothing back');
+  assert.equal(page.sandbox.state.heldBack.length, 0);
 });

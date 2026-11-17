@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Use AI Office's shared assistant and native accounted ask path in Career, docked on desktop and full-width on phones; yield to the résumé document's own assistant.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: on the phone the résumé editor's concierge was "too bunched up to use", and Career's full-screen concierge "cant edit my resume"). This concierge is the one assistant on My résumé too (AI Office's editor opens there with its own off) and on the new Work history page, where it proposes each change as an approval card and the page shows the approved change with Undo. On a phone it fills the screen between Career's bars with a header "Back to <this page>" in place of the close cross, the way a phone app's back button names the screen it returns to; the conversation stays while the person edits and comes back with the Concierge button. The nested editor clears the one-assistant mark on Today, so the mark is kept while this concierge is mounted.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i want one concierge for the entire app that can do everything that needs to be done in the app"). One assistant, one conversation, on every Career page. A page with no document of its own (Home, Find jobs, My jobs, Settings and the rest) now hands the concierge the same record My résumé and Work history do, the person's Career record, with the page's name and what is open on it, so the kernel keeps one conversation for all of them and the pane shows it on each page; before, each such page began a new conversation that knew nothing of the last. Before a turn on any page but My résumé (which does it itself), text typed in the Word document is saved into the main résumé, and after a turn or an approved card the document is brought up to date (CareerResumeOffice.settle), so what the concierge reads and what My résumé shows are the same thing. The page's context names the tools that page's work uses, which is what the kernel ranks a turn's tools by. An earlier message is shown as the person typed it, without the page details sent along with it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (lane MARQUEE1): a Concierge press that came before the concierge mounted (career-frame.js keeps it as data-career-concierge="wanted") opens the concierge as soon as it mounts, instead of being lost; opening or closing clears the button's aria-busy.
  */
 const APP='career-hunter';
 const EDITING=['resume-studio','work-history'];
@@ -130,7 +131,7 @@ export async function mountCareerConcierge(win=window){
  try{if(win.parent!==win)outer=win.parent.document.documentElement;}catch{/* cross-origin host keeps its own controls */}
  function show(open){
   host.hidden=!open;html.dataset.careerConcierge=open?'open':'closed';
-  doc.querySelectorAll('.cf-concierge-toggle').forEach(button=>button.setAttribute('aria-expanded',String(open)));
+  doc.querySelectorAll('.cf-concierge-toggle').forEach(button=>{button.setAttribute('aria-expanded',String(open));button.removeAttribute('aria-busy');});
   if(outer)outer.setAttribute('data-ef-concierge',open?'open':'closed');
   if(open){nameBack(doc,back);assistant.element.querySelector('textarea').focus();}else doc.querySelector('.cf-concierge-toggle')?.focus();
   win.dispatchEvent(new win.Event('resize'));
@@ -144,6 +145,7 @@ export async function mountCareerConcierge(win=window){
  doc.addEventListener('input',drafted);doc.addEventListener('click',click);host.addEventListener('editor-concierge:hide',hide);doc.addEventListener('keydown',key);
  win.addEventListener('oshal-package-tool-done',approved);
  const release=keepMark(win,outer,host);
- show(false);assistant.refresh();
+ // A press that came while this module was on its way (career-frame.js) opens the concierge now.
+ show(html.dataset.careerConcierge==='wanted');assistant.refresh();
  win.addEventListener('pagehide',()=>{release();releaseTidy();doc.removeEventListener('input',drafted);doc.removeEventListener('click',click);doc.removeEventListener('keydown',key);win.removeEventListener('oshal-package-tool-done',approved);assistant.destroy();host.remove();delete html.dataset.careerConcierge;outer?.removeAttribute('data-ef-concierge');},{once:true});
 }

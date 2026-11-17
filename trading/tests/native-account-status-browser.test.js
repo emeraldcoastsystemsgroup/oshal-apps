@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1: a contextual step moves focus into the content it names (blockers, last check, recorded orders, targets, or the settings' first content), not onto its section's heading.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the retained submission count visibly bound to its own date, independent of a later failed attempt, and withhold broker evidence without explicit strategy identity.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the selected account next step local, accessible and honest on desktop and phone; exercise the real renderer without starting the application keeper.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render the shipped account roster, strategy panel and pure status reader in Chromium at desktop and phone sizes with synthetic receipts only. Verify failure and stale evidence stay visible, approval is distinct from activity, targets differ from measured holdings, and the page sends no mutation.
@@ -104,7 +105,8 @@ for(const [kind,next] of [['blocked','Review blockers'],['stale','Review last ch
   const before=h.requests.length;await primary.focus();await page.keyboard.press('Enter');
   const destination=next==='Review setup'?settings:evidence;
   assert.equal(await destination.evaluate(el=>el.open),true);
-  assert.equal(await destination.locator(':scope>summary').evaluate(el=>el===document.activeElement),true);
+  const show={'Review blockers':'blockers','Review last check':'check','Review recorded orders':'orders','See targets and holdings':'targets'}[next];
+  assert.equal(await destination.evaluate((el,name)=>{const active=document.activeElement;return active!==el.querySelector(':scope>summary')&&el.contains(active)&&(!name||active.getAttribute('data-native-status-focus')===name);},show),true,'focus moves into the content the step names');
   assert.equal(h.requests.length,before);assert.deepEqual(await page.evaluate(()=>operations),[]);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const text=await page.locator('.native-management-panel').innerText();

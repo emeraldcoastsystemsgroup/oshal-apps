@@ -49,6 +49,30 @@
   views are a bottom bar (Markets · Scan · Account · Scorecard · More with Trends, Alerts, Settings); a market's title
   shows once with its ticker as meta, two lines on a phone with Why in the row; 50 rows then Show more; the Why panel
   dates a verdict from the scan; the ticker lookup is a 44px field beside the search. No order, scan or request changed.
+  2026-11-16 — 1.10.0, the Markets tab designed for a phone (Roger, his phone at 412 px: "designed terrible"; the first
+  market started 51-59% down the screen under a second title line, a contradicting "trading active", a two-line chip,
+  four rows of controls and a light-blue counts paragraph). Shaped like the category leaders (Kalshi, Polymarket,
+  Robinhood's prediction markets): one app bar (in Today the shell's bar carries this page's search and help icons and
+  its reload is a small icon, no box; standalone the page draws the same bar), one status line ("Paper trading · Connect
+  your Kalshi account"), one line for the scan's and the model's age, the categories as one chip row that scrolls
+  sideways with a Filter sheet for what to show and the sort, and one card per market: the question in two lines, the two
+  asks labelled as the price to buy Yes and No, when it closes, and our estimate with the edge in words; a tap on the card
+  opens Why as a sheet (Back closes it). The ratings read Big edge, Good edge, Small edge, No edge and No estimate (the
+  scan's monster, strong, playable, fold, not-evaluable; Help keeps the legend). The phone's bottom bar is five equal
+  tabs with icons, the Scorecard's unexplained dot is gone (a desktop tab says "1 failing" in words), and the list ends
+  144 px up so the last card clears the floating Jarvis button. Presentation only: every read, request, order, scan,
+  route and setting is what it was. Guard: tests/kalshi-phone-design-browser.test.js.
+  2026-11-16 — 1.10.1: the company and family summary card (the audience view below, which the Business shells and the
+  Home shell open) says the ratings in 1.10.0's words. It still said "2 playable hands", "Playable hands", "Top hands" and
+  each hand's raw rating (monster, strong, playable) in its table and alerts, and "folded" for a scan with no edge. It now
+  says "2 markets with an edge", "With an edge", "Markets with an edge" and Big edge, Good edge, Small edge, No edge or No
+  estimate, from the same table the full page uses. Same reads, same model; words only. Guard: tests/audience-view.test.cjs.
+  2026-11-16 — 1.10.2 (@lane-qa1 on the test slot): Scan now refreshes the Markets list, and so does a scan the background
+  job lands, at the next 30-second read of the scan (refreshMarketsFor; one read per new scan). Before, Markets kept
+  "Nothing has been scanned yet … press Scan now" under "Scanned just now" until a reload. The page's last old words go:
+  the Scorecard and Alerts sentences say market and pick, and Help no longer names the scan's internal ratings; the Why
+  headline's lead word is stripped in the new words (the walkthrough itself now says them). Guards:
+  tests/kalshi-scan-refresh-browser.test.js, tests/kalshi-plain-words.test.js.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -71,6 +95,9 @@
 (function () {
   var A = window.AppView; if (!A) return;
   var KICKER = 'Finance · Kalshi', STRENGTH_TONE = { monster: 'ok', strong: 'ok', playable: 'warn' };
+  // The ratings in the full page's words (1.10.0); the scan's own categories stay monster, strong, playable, fold, not-evaluable.
+  var EDGE_WORDS = { monster: 'Big edge', strong: 'Good edge', playable: 'Small edge', fold: 'No edge', 'not-evaluable': 'No estimate' };
+  function edgeWord(v) { return EDGE_WORDS[v] || EDGE_WORDS['not-evaluable']; }
   function call(path) {
     return fetch('/api/kalshi' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (j) {
@@ -92,8 +119,8 @@
   function headline(p, all) {
     var s = p.scan || {};
     if (p.awaitingFirstScan) return s.running ? 'The first scan is running' : s.unavailable ? 'The scan cannot run on this installation' : s.enabled === false ? 'Background scan is off and no snapshot is saved' : 'Waiting for the first scan';
-    if (!all.length) return 'The last scan folded every market';
-    return plural(all.length, 'playable hand');
+    if (!all.length) return 'The last scan found no market with an edge';
+    return plural(all.length, 'market') + ' with an edge';
   }
   function lede(p, all) {
     var s = p.scan || {}, bits = [];
@@ -105,7 +132,7 @@
     return bits.join(' · ') + '.';
   }
   function handsStat(p, all) {
-    return { id: 'hands', label: 'Playable hands', value: all.length, hint: p.evaluable ? 'of ' + A.num(p.evaluable) + ' evaluable markets' : null, tone: all.length ? 'ok' : null };
+    return { id: 'hands', label: 'With an edge', value: all.length, hint: p.evaluable ? 'of ' + A.num(p.evaluable) + ' evaluable markets' : null, tone: all.length ? 'ok' : null };
   }
   function snapshotStat(p) {
     var s = p.scan || {}, every = s.unavailable ? 'Cannot scan on this installation' : s.intervalMinutes ? 'Every ' + s.intervalMinutes + ' min while your scan job is on' : null;
@@ -136,7 +163,7 @@
   function handRow(h) {
     var edge = Number(h.edgeNet), closes = h.closeTime ? (new Date(h.closeTime).getTime() <= Date.now() ? 'Closed' : A.when(h.closeTime)) : '—';
     return [
-      { text: h.strength || '—', tone: STRENGTH_TONE[h.strength] || null },
+      { text: h.strength ? edgeWord(h.strength) : '—', tone: STRENGTH_TONE[h.strength] || null },
       String(h.side || '').toUpperCase(),
       clip(h.title || h.ticker || 'Market', 90),
       { text: cents(h.price) },
@@ -154,7 +181,7 @@
   }
   function alertItem(a) {
     var d = a.detail || {}, o = outcome(a), pnl = Number(a.pnl_per_contract);
-    var bits = [a.strength || 'playable', d.side ? String(d.side).toUpperCase() : '', '+' + cents(a.edge_net) + ' net edge when announced'];
+    var bits = [a.strength ? edgeWord(a.strength) : '', d.side ? String(d.side).toUpperCase() : '', '+' + cents(a.edge_net) + ' net edge when announced'];
     if (a.settled === true && isFinite(pnl)) bits.push(usd(pnl) + ' per contract');
     bits.push(a.delivered ? 'delivered' + (a.channel ? ' via ' + a.channel : '') : 'delivery not confirmed');
     return { title: clip(d.title || a.ticker || 'Alert', 90), text: bits.filter(Boolean).join(' · '), meta: A.when(a.created_at), badge: o.badge, tone: o.tone };
@@ -172,11 +199,11 @@
       actions: [{ label: 'Open the scan', primary: true, onClick: openFull }],
       stats: [handsStat(p, all), snapshotStat(p), recordStat(rec, alerts.err), alertsStat(summary.ok, summary.err)],
       sections: [
-        { kind: 'table', id: 'hands', title: 'Top hands', wide: true, columns: ['Strength', 'Side', 'Market', { label: 'Ask', align: 'right' }, { label: 'Net edge', align: 'right' }, { label: 'Stake', align: 'right' }, 'Closes', 'Flags'],
-          rows: top.map(handRow), empty: p.awaitingFirstScan ? 'The background scan has not produced its first snapshot yet.' : 'No playable hands: the evaluator folded every market whose history does not support an edge net of fees.',
-          note: (all.length > top.length ? 'The top 10 of ' + all.length + ' hands, as the scan ranks them. ' : '') + 'A stake is a quarter-Kelly paper size of the bankroll; nothing here places an order.' },
+        { kind: 'table', id: 'hands', title: 'Markets with an edge', wide: true, columns: ['Rating', 'Side', 'Market', { label: 'Ask', align: 'right' }, { label: 'Net edge', align: 'right' }, { label: 'Stake', align: 'right' }, 'Closes', 'Flags'],
+          rows: top.map(handRow), empty: p.awaitingFirstScan ? 'The background scan has not produced its first snapshot yet.' : 'No market has an edge: after the fee, every price the scan walked is about right, or too high, for what history supports.',
+          note: (all.length > top.length ? 'The top 10 of ' + all.length + ' markets with an edge, as the scan ranks them. ' : '') + 'A stake is a quarter-Kelly paper size of the bankroll; nothing here places an order.' },
         { kind: 'list', id: 'alerts', title: 'Recent alerts', items: rows.slice(0, 8).map(alertItem),
-          empty: alerts.err ? readFailure(alerts.err, 'alerts') : 'No alerts announced yet. New playable hands are posted to your Jarvis feed by the background scan.',
+          empty: alerts.err ? readFailure(alerts.err, 'alerts') : 'No alerts announced yet. New markets with an edge are posted to your Jarvis feed by the background scan.',
           note: alerts.err ? null : recordNote(rec) }
       ]
     };
@@ -355,63 +382,158 @@
    because on a desktop the box would become the sticky header's scroll container. */
 @media(max-width:640px){.tbl-scroll,.viz-table{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
 .set-grid{grid-template-columns:minmax(0,1fr)}.set-grid .locked{text-align:left}}
-/* UX audit 2026-11-06: the account line, one stale chip, the ticker lookup as a 44px field, Show more, the More menu
-   (phone: a bottom bar Markets · Scan · Account · Scorecard · More) and two-line market rows on a phone. */
-.acct.is-warn { color: var(--amber); font-weight: 600; } .acct.is-ok { color: var(--green); }
-.chip-warn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--amber); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 12px; color: var(--text); background: var(--panel); }
-.chip-warn[hidden] { display: none; }
-.chip-warn button { min-height: 32px; padding: 0 12px; border-radius: 999px; }
-#mk-ticker, #mk-q { min-height: 44px; padding: 0 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
-.mk-lookup button { min-height: 44px; }
+/* UX audit 2026-11-06: Show more and the More menu (on a phone the views are a bottom bar Markets · Scan · Account ·
+   Scorecard · More). */
 .mk-more { display: flex; justify-content: center; margin: 12px 0; }
 .mk-more button { min-height: 44px; padding: 0 18px; }
 .more-tab { display: none; }
 .more-menu[popover] { margin: 0; inset: auto 12px calc(64px + env(safe-area-inset-bottom, 0px)) auto; min-width: 200px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); }
 .more-menu button { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 14px; background: none; border: 0; color: var(--text); }
+/* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+   sheet, menu, card and dialog this page adds is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+:root { --opaque: linear-gradient(var(--panel), var(--panel)), var(--bg, #0d1117); }
+.more-menu[popover] { background: var(--opaque); }
+/* ── 1.10.0: the Markets tab in the category leaders' shape (Kalshi, Polymarket, Robinhood's prediction markets). ── */
+[hidden] { display: none !important; }
+.kx-top { display: flex; flex-wrap: wrap; align-items: center; column-gap: 18px; row-gap: 0; padding: 6px 16px; min-height: var(--hdr-h); }
+.kx-appbar { display: flex; align-items: center; gap: 2px; flex: 1 1 100%; min-height: 44px; }
+html[data-kx-host="cockpit"] .kx-appbar { display: none; }
+html:not([data-kx-host="top"]) .kx-title { display: none; }
+.kx-title { margin: 0; font-size: 18px; font-weight: 700; }
+.kx-icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--text); cursor: pointer; }
+.kx-icon:hover { border: 0; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.kx-icon svg, .kx-filter-btn svg { width: 20px; height: 20px; }
+.kx-line { margin: 0; min-width: 0; font-size: 13px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kx-status .dot { vertical-align: 0; }
+.kx-status .is-warn { color: var(--amber); font-weight: 600; }
+.kx-link { color: color-mix(in srgb, var(--blue) 75%, var(--text)); font-weight: 600; text-decoration: none; }
+.kx-link:hover { text-decoration: underline; }
+.kx-fresh { color: var(--dim); font-size: 12px; }
+.kx-fresh .is-old { color: var(--amber); }
+.kx-fresh .is-bad { color: var(--red); }
+.tab-ico { display: none; }
+.tab-badge.alert-words { background: color-mix(in srgb, var(--amber) 22%, transparent); color: var(--text); }
+.tab-badge.good-words { background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--text); }
+/* The head of the market list: the search, the Filter button and one row of category chips. */
+.kx-mk-head { display: flex; flex-direction: column; gap: 6px; margin: 0 0 4px; }
+.kx-search { display: flex; align-items: center; gap: 6px; }
+.kx-search input { flex: 1; min-width: 0; min-height: 44px; padding: 0 16px; font-size: 16px; border: 1px solid var(--border); border-radius: 22px; background: var(--opaque); color: var(--text); }
+.kx-search input:focus { outline: 2px solid var(--blue); outline-offset: 0; }
+.kx-search-hint { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 12px; color: var(--dim); }
+.kx-filterbar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kx-chip, .kx-filter-btn { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; font: inherit; }
+.kx-chip:hover, .kx-filter-btn:hover { border: 0; }
+.kx-chip > span, .kx-filter-btn > span.kx-pill { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--opaque); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.kx-chip[aria-pressed="true"] > span { background: var(--text); border-color: var(--text); color: var(--bg); }
+.kx-chip:focus-visible > span, .kx-filter-btn:focus-visible > span.kx-pill { outline: 2px solid var(--blue); outline-offset: 1px; }
+.kx-filter-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--blue); color: var(--text-on-accent, #fff); font-size: 11px; line-height: 18px; text-align: center; }
+.kx-chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.kx-chips::-webkit-scrollbar { display: none; }
+.kx-countbar { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.kx-countbar .meta { flex: 1; min-width: 0; }
+.kx-text-btn { flex: none; min-height: 44px; padding: 0 6px; border: 0; background: none; color: var(--blue); font-weight: 600; font-size: 13px; }
+.kx-text-btn:hover { border: 0; text-decoration: underline; }
+/* One card per market: the question in two lines, the price to buy each side, when it closes, our estimate and the edge. */
+.kx-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.kx-item { display: flex; min-width: 0; }
+.kx-item > .kx-card { flex: 1 1 auto; }
+.kx-card { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; min-width: 0; margin: 0; padding: 12px 14px; text-align: left; font: inherit; color: var(--text); background: var(--opaque); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+.kx-card:hover { border-color: var(--blue); }
+.kx-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.kx-q { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 15px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.kx-prices { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; }
+.kx-prices .kx-rate { margin-left: auto; }
+.kx-cap { color: color-mix(in srgb, var(--text) 55%, var(--dim)); font-size: 12px; }
+.kx-px { display: inline-flex; align-items: baseline; gap: 4px; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kx-px.yes { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.kx-px.no { color: var(--red); background: color-mix(in srgb, var(--red) 10%, transparent); }
+.kx-est { min-width: 0; font-size: 13px; }
+.kx-est b { font-weight: 700; white-space: nowrap; } .kx-est b.pos { color: var(--green); } .kx-est b.neg { color: var(--dim); }
+.kx-meta { color: color-mix(in srgb, var(--text) 55%, var(--dim)); font-size: 12px; }
+.kx-rate { flex: none; display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border: 1px solid currentColor; border-radius: 11px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.kx-rate.r-monster { background: var(--green); border-color: var(--green); color: var(--bg, #fff); }
+.kx-rate.r-strong { color: var(--green); }
+.kx-rate.r-playable { color: var(--amber); }
+.kx-rate.r-fold, .kx-rate.r-not-evaluable { color: var(--dim); }
+.kx-rate.r-not-evaluable { border-style: dashed; }
+/* Sheets: Why, Filter and Help. A phone gets them from the bottom; a desktop in the middle. Opaque, over a dimmed page. */
+dialog.kx-sheet { display: none; flex-direction: column; width: min(560px, 94vw); max-width: 94vw; max-height: min(86vh, 760px); padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--opaque); color: var(--text); overflow: hidden; }
+dialog.kx-sheet[open] { display: flex; }
+dialog.kx-sheet::backdrop { background: #0009; }
+.kx-sheet-head { display: flex; align-items: flex-start; gap: 6px; padding: 8px 6px 8px 16px; border-bottom: 1px solid var(--border); }
+.kx-sheet-head h2 { flex: 1; min-width: 0; margin: 11px 0 0; font-size: 16px; line-height: 1.35; }
+.kx-sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 16px; font-size: 13px; line-height: 1.5; }
+.kx-sheet-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.kx-sheet-foot button { min-height: 44px; padding: 0 18px; }
+.kx-why-meta { color: var(--dim); font-size: 12px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.kx-why-meta .ticker { font-size: 12px; }
+.kx-why-facts { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.kx-why .why-box { position: static; max-width: none; border: 0; padding: 0; }
+.kx-opts { margin: 0 0 16px; padding: 0; border: 0; }
+.kx-opts legend { margin: 0 0 4px; padding: 0; color: var(--dim); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.kx-opt { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 4px; border-bottom: 1px solid var(--border); font-size: 14px; cursor: pointer; }
+.kx-opt input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--blue); }
+.kx-opt .n { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+.kx-legend { margin: 0; }
+.kx-legend dt { margin: 12px 0 0; font-weight: 700; }
+.kx-legend dt:first-child { margin-top: 0; }
+.kx-legend dd { margin: 2px 0 0; }
+.kx-help-h { margin: 18px 0 6px; font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+@media (min-width: 641px) {
+  .kx-mk-head { flex-direction: row; align-items: center; gap: 12px; }
+  .kx-search[hidden] { display: flex !important; }
+  .kx-search { flex: 0 0 300px; }
+  .kx-search-close { display: none; }
+  .kx-filterbar { flex: 1; }
+  .kx-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .kx-top { min-height: var(--hdr-h); }
+}
 @media (max-width: 640px) {
-  .tabnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; flex-wrap: nowrap !important; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px !important;
-    background: var(--panel); border-top: 1px solid var(--border); }
+  main { padding-top: 4px; }
+  .kx-top { padding: 4px 16px 0; }
+  .kx-top .kx-line { flex: 1 1 100%; }
+  .kx-mk-head { position: sticky; top: 0; z-index: 6; margin: 0 -16px 2px; padding: 6px 16px 4px; background: var(--bg); }
+  dialog.kx-sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 16px 16px 0 0; border-bottom: 0; max-height: 88vh; }
+  /* The bottom bar: five equal tabs with icons, edge to edge. The floating Jarvis button rests above it (the host is told
+     the bar's height), so no tab gives up its width to the button. */
+  .tabnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 !important;
+    height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 0 env(safe-area-inset-bottom, 0px) !important; background: var(--opaque) !important; border-top: 1px solid var(--border); }
   .tab.overflow { display: none; }
-  .tab, .more-tab { flex: 1; justify-content: center; min-height: 56px; padding: 0 2px !important; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
-  .more-tab { display: inline-flex; align-items: center; background: none; border: 0; border-top: 2px solid transparent; border-radius: 0; color: var(--dim); font-weight: 600; }
+  .tab, .more-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 56px; padding: 0 !important;
+    font-size: 11px; font-weight: 600; border: 0; border-top: 2px solid transparent; border-radius: 0; background: none; color: var(--dim); }
+  .tab-ico { display: block; width: 22px; height: 22px; }
   .tab.active, .more-tab.active { border-top-color: var(--blue); color: var(--text); }
   .tab-badge { display: none !important; }
-  main { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
-  #mk-tbl thead { display: none; }
-  #mk-tbl, #mk-tbl tbody { display: block; }
-  #mk-tbl tr[data-ticker] { display: grid; grid-template-columns: repeat(3, auto) 1fr auto; gap: 2px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  #mk-tbl tr[data-ticker] td { border: 0; padding: 0; }
-  #mk-tbl tr[data-ticker] td.mk-title { grid-column: 1 / -1; }
-  #mk-tbl tr[data-ticker] td:nth-child(2), #mk-tbl tr[data-ticker] td:nth-child(5) { display: none; }
-  #mk-tbl tr[data-ticker] td:last-child button { min-height: 44px; min-width: 56px; }
-  #mk-tbl tr.why-row { display: block; } #mk-tbl tr.why-row td { display: block; }
-  .mk-lookup { flex: 1 1 100%; } .mk-lookup input { flex: 1; } #mk-q { flex: 1 1 100%; }
 }
-  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
-     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
-.more-menu[popover], .chip-warn { background: linear-gradient(var(--panel), var(--panel)), var(--bg, #0d1117); }
-@media (max-width: 640px) { .tabnav { background: linear-gradient(var(--panel), var(--panel)), var(--bg, #0d1117) !important; } }
+/* The end of the page scrolls clear of the floating Jarvis button: on a phone its top edge is 117 px above the bottom
+   (12 px + the 57 px bar inset + 48 px), on a desktop 78 px (22 + 56). */
+@media (max-width: 899px) { main { padding-bottom: 144px; } }
+@media (min-width: 900px) { main { padding-bottom: 104px; } }
 </style>
 </head>
 <body>
 <div class="topbar">
-  <header>
-    <h1>Kalshi <span class="meta">— predictive edge scan</span></h1>
-    <span class="meta"><span class="dot" id="exch-dot" style="background:var(--dim)"></span><span id="exch-label">exchange…</span></span>
-    <span class="meta" id="acct-label" role="status"></span>
-    <span class="chip-warn" id="stale-chip" hidden><span id="calib-label"></span><span id="scan-age"></span><button type="button" id="chip-scan-now">Scan now</button></span>
-    <span class="spacer"></span>
-    <span id="hdr-env"></span>
-  </header>
+  <!-- One app bar (1.10.0). In Today the shell's bar is the app bar: this page puts its search and help icons there and
+       hides this row (data-kx-host="cockpit"); standalone, or under any other host, this row is the bar. -->
+  <div class="kx-top">
+    <div class="kx-appbar" id="kx-appbar">
+      <h1 class="kx-title">Kalshi</h1>
+      <span class="spacer"></span>
+      <button type="button" class="kx-icon" id="kx-search-open" aria-label="Search markets" title="Search markets, or look up a ticker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+      <button type="button" class="kx-icon" id="kx-help-open" aria-label="Help" title="What the words and numbers mean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.4a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.1-2.5 3.8"/><path d="M12 17.3v.1"/></svg></button>
+    </div>
+    <p class="kx-line kx-status" id="kx-status" role="status"><span class="dot" id="acct-dot" style="background:var(--dim)"></span><span id="acct-label">Checking your Kalshi account…</span><span id="acct-sep" hidden> · </span><a class="kx-link" id="acct-link" href="/utilities" target="_top" hidden>Connect your Kalshi account</a> <span id="hdr-env"></span></p>
+    <p class="kx-line kx-fresh" id="kx-fresh"><span id="exch-label" hidden></span><span id="exch-sep" hidden> · </span><span id="scan-age">Reading the last scan…</span><span id="calib-sep" hidden> · </span><span id="calib-label"></span></p>
+  </div>
   <nav class="tabnav" role="tablist" aria-label="Kalshi views">
-    <button class="tab active" data-tab="markets" role="tab" aria-selected="true">Markets <span class="tab-badge" id="badge-markets"></span></button>
-    <button class="tab" data-tab="scan" role="tab" aria-selected="false">Scan <span class="tab-badge" id="badge-scan"></span></button>
-    <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
-    <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
+    <button class="tab active" data-tab="markets" role="tab" aria-selected="true"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><span>Markets</span> <span class="tab-badge" id="badge-markets"></span></button>
+    <button class="tab" data-tab="scan" role="tab" aria-selected="false"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>Scan</span> <span class="tab-badge" id="badge-scan"></span></button>
+    <button class="tab" data-tab="account" role="tab" aria-selected="false"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18M16 14.5h2"/></svg><span>Account</span> <span class="tab-badge" id="badge-account"></span></button>
+    <button class="tab" data-tab="scorecard" role="tab" aria-selected="false"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20v-7M12 20V5M19 20v-10"/></svg><span>Scorecard</span> <span class="tab-badge" id="badge-scorecard"></span></button>
     <button class="tab overflow" data-tab="trends" role="tab" aria-selected="false">Trends</button>
     <button class="tab overflow" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="badge-alerts"></span></button>
     <button class="tab overflow" data-tab="settings" role="tab" aria-selected="false">Settings</button>
-    <button class="more-tab" type="button" id="tab-more" aria-haspopup="menu" popovertarget="more-menu">More</button>
+    <button class="more-tab" type="button" id="tab-more" aria-haspopup="menu" popovertarget="more-menu"><svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></svg><span>More</span></button>
   </nav>
   <div id="more-menu" class="more-menu" popover role="menu" aria-label="More views">
     <button type="button" role="menuitem" data-more="trends">Trends</button>
@@ -422,42 +544,31 @@
 <main>
   <!-- Persistent state warning: shown on every tab when the default connection is the live account,
        because it explains why Bet is disabled on the Scan tab AND why orders are refused. -->
-  <div style="margin-bottom:14px">
-    <div class="warn" id="live-block-banner" style="display:none;font-size:12px;padding:10px 12px">
-      <b>⛔ Orders are blocked — you're connected to your LIVE account.</b><br>
-      Real-money orders are disabled by default (<code>KALSHI_LIVE_ENABLED</code> is off), so the Bet button will be refused.
-      To paper-trade: open <a href="/utilities" target="_top" style="color:var(--blue)">/utilities</a>, paste your <b>demo</b> Key ID + private key into the Kalshi card, then click <b>make default</b> on the demo connection.
-    </div>
+  <div class="warn" id="live-block-banner" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:14px">
+    <b>⛔ Orders are blocked — you're connected to your LIVE account.</b><br>
+    Real-money orders are disabled by default (<code>KALSHI_LIVE_ENABLED</code> is off), so the Bet button will be refused.
+    To paper-trade: open <a href="/utilities" target="_top" style="color:var(--blue)">/utilities</a>, paste your <b>demo</b> Key ID + private key into the Kalshi card, then click <b>make default</b> on the demo connection.
   </div>
 
-  <!-- ── TAB: Markets — every market the scan walked, playable or not, with its verdict in words ── -->
+  <!-- ── TAB: Markets — every market the scan walked, as one card each: the question, the price to buy each side, when
+       it closes, our estimate and the edge in words. A tap on a card opens Why. ── -->
   <section class="tab-panel" data-panel="markets" role="tabpanel">
-    <div class="toolbar">
-      <input type="search" id="mk-q" placeholder="search markets…" aria-label="Search markets">
-      <form id="mk-lookup" class="mk-lookup"><input id="mk-ticker" placeholder="look up any ticker…" aria-label="Kalshi ticker" maxlength="80"><button type="submit">Look up</button></form>
-      <select id="mk-cat" aria-label="Category"><option value="">all categories</option></select>
-      <select id="mk-verdict" aria-label="Verdict">
-        <option value="all">every verdict</option>
-        <option value="playable">playable only</option>
-        <option value="fold">folds only</option>
-        <option value="not-evaluable">no verdict</option>
-      </select>
-      <select id="mk-sort" aria-label="Sort">
-        <option value="verdict">verdict first</option>
-        <option value="closes">closing soonest</option>
-        <option value="edge">best edge first</option>
-        <option value="volume">most traded</option>
-      </select>
-      <button id="mk-refresh" type="button">Refresh</button>
-      <span class="meta" id="mk-counts"></span>
+    <div class="kx-mk-head">
+      <!-- Search and the ticker lookup are one field: words filter the list, a ticker and Enter reads that market. -->
+      <form id="mk-lookup" class="kx-search" role="search" hidden>
+        <button type="button" class="kx-icon kx-search-close" id="kx-search-close" aria-label="Close search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <input type="search" id="mk-q" placeholder="Search markets or a ticker" aria-label="Search markets, or type a Kalshi ticker and press Enter to look it up" maxlength="80" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+      </form>
+      <p class="kx-search-hint" id="kx-search-hint" hidden><span id="kx-search-hint-text"></span><button type="button" class="kx-text-btn" id="kx-lookup-go">Look up</button></p>
+      <div class="kx-filterbar">
+        <button type="button" class="kx-filter-btn" id="kx-filter-open" aria-haspopup="dialog" aria-controls="kx-filter"><span class="kx-pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Filter<span class="kx-filter-count" id="kx-filter-count" hidden></span></span></button>
+        <div class="kx-chips" id="kx-chips" role="group" aria-label="Categories"><button type="button" class="kx-chip" data-cat="" aria-pressed="true"><span>All</span></button></div>
+      </div>
+      <select id="mk-cat" aria-label="Category" hidden><option value="">all categories</option></select>
     </div>
+    <div class="kx-countbar"><span class="meta" id="mk-counts"></span><button type="button" class="kx-text-btn" id="mk-refresh">Refresh</button></div>
     <div class="warn" id="mk-empty" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px"></div>
-    <div class="tbl-scroll"><table id="mk-tbl" style="display:none">
-      <thead><tr>
-        <th>Market</th><th>Category</th><th class="num">YES</th><th class="num">NO</th><th class="num">Traded</th><th class="num">Closes</th><th>Verdict</th><th></th>
-      </tr></thead>
-      <tbody id="mk-rows"></tbody>
-    </table></div>
+    <div class="kx-list" id="mk-list" role="list" aria-label="Markets"></div>
     <div class="mk-more"><button type="button" id="mk-more" hidden>Show more</button></div>
     <div id="mk-error" style="display:none"></div>
   </section>
@@ -465,13 +576,13 @@
   <!-- ── TAB: Scan ── -->
   <section class="tab-panel" data-panel="scan" role="tabpanel" hidden>
     <div class="toolbar">
-      <input type="search" id="q" placeholder="search markets…">
-      <select id="f-cat"><option value="">all categories</option></select>
-      <select id="f-strength">
-        <option value="">all strengths</option>
-        <option value="monster">monster</option>
-        <option value="strong">strong+</option>
-        <option value="playable">playable+</option>
+      <input type="search" id="q" placeholder="search markets…" aria-label="Search the scan">
+      <select id="f-cat" aria-label="Category"><option value="">all categories</option></select>
+      <select id="f-strength" aria-label="Rating">
+        <option value="">any edge</option>
+        <option value="monster">big edge only</option>
+        <option value="strong">good edge or bigger</option>
+        <option value="playable">small edge or bigger</option>
       </select>
       <button id="refresh">Refresh</button>
       <!-- Distinct actions, deliberately labelled: Refresh re-reads the stored snapshot (instant);
@@ -483,18 +594,18 @@
     </div>
     <div class="warn" id="awaiting-banner" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px">
       <b id="awaiting-head">The background scanner hasn't produced its first snapshot yet.</b><br>
-      An empty table below is not a "fold" verdict — there is simply nothing scanned yet.
+      An empty table below does not mean no market has an edge: nothing has been scanned yet.
       <span id="awaiting-why"></span>
     </div>
     <div class="tbl-scroll"><table id="tbl" style="display:none">
       <thead><tr>
-        <th>Hand</th><th>Side</th><th>Market</th><th>Category</th>
+        <th>Rating</th><th>Side</th><th>Market</th><th>Category</th>
         <th class="num">Price</th><th class="num">True&nbsp;P</th><th class="num">Edge&nbsp;(net)</th>
         <th class="num">Stake</th><th>Conf&nbsp;(n)</th><th>Risk</th><th class="num">Closes</th><th></th>
       </tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
-    <div id="empty" style="display:none">No playable hands right now. The evaluator folds every market whose price history doesn't support an edge net of fees — an empty table is the system working, not broken.</div>
+    <div id="empty" style="display:none">No market has an edge right now. The scan passes on every market whose price history does not support an edge after fees; an empty table is the system working, not broken.</div>
     <div id="error" style="display:none"></div>
   </section>
 
@@ -540,7 +651,7 @@
     </div>
     <div id="score-empty" class="explain">No strategy has made a prediction yet. Once the scan or the weather model records one, it appears here and is graded at settlement.</div>
     <p class="explain">
-      <b>How the gate works.</b> Every hand shown on the Scan tab is recorded as a prediction and graded when the market settles.
+      <b>How the gate works.</b> Every market with an edge on the Scan tab is recorded as a prediction and graded when the market settles.
       Grading reads Kalshi's public results, so it runs with or without a Kalshi account: opening this tab grades what is waiting, and the background scan job grades between scans.
       A strategy is <b>UNPROVEN</b> until it has enough settled predictions, then <b>FAILING</b> if its Brier score is no better than the market's — either way its suggested stake is forced to 0%.
       Only a <b>PROVEN</b> strategy (one that beats the market's Brier) is allowed to size a real bet. Optimism has to be earned, not assumed.
@@ -593,19 +704,19 @@
 
   <section class="tab-panel" data-panel="alerts" role="tabpanel" hidden>
     <div class="panel">
-      <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each hand is announced ONCE, the first time it clears your floor</span></h2>
+      <h2>Alert history <span class="meta" style="text-transform:none;font-weight:400">— each market is announced ONCE, the first time it clears your floor</span></h2>
       <div class="meta" id="alert-record" style="margin-bottom:8px"></div>
       <div class="tbl-scroll"><table style="width:100%">
-        <thead><tr><th>When</th><th>Market</th><th>Hand</th><th class="num">Net edge</th><th>Outcome</th><th>Since announced</th><th>Sent via</th></tr></thead>
+        <thead><tr><th>When</th><th>Market</th><th>Rating</th><th class="num">Net edge</th><th>Outcome</th><th>Since announced</th><th>Sent via</th></tr></thead>
         <tbody id="alert-rows"></tbody>
       </table></div>
       <div class="meta" id="alert-pops-note" style="margin-top:8px"></div>
-      <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a hand that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
+      <div class="meta" id="alerts-empty" style="margin-top:8px">Nothing yet. When the background scan finds a market with an edge that clears your alert floor, it lands in your Jarvis feed and is listed here.</div>
     </div>
     <p class="explain">
-      Alerts are <b>first-seen</b>: the scan re-finds the same hand every cycle, so re-announcing it would train you to ignore it.
-      <b>Outcome</b> is the settlement grade of the hand exactly as announced — WIN or LOSS, and the P&amp;L of one contract bought at the alerted ask, fees included.
-      <b>Since announced</b> is the same hand's price move while it is still OPEN: the ask you were quoted versus the latest candle on the same side, in cents, green when the market moved toward the pick.
+      Alerts are <b>first-seen</b>: the scan re-finds the same market every cycle, so re-announcing it would train you to ignore it.
+      <b>Outcome</b> is the settlement grade of the pick exactly as announced — WIN or LOSS, and the P&amp;L of one contract bought at the alerted ask, fees included.
+      <b>Since announced</b> is the same market's price move while it is still OPEN: the ask you were quoted versus the latest candle on the same side, in cents, green when the market moved toward the pick.
       It is read from Kalshi's public candles, which are shared and rate-limited, so a busy refresh prices the newest alerts first and says below the table how many it left for the next one.
       It is a paper record (an alert never places an order) and the same grades feed the Scorecard tab.
       Change the floor, the strength, or the daily cap on the <b>Settings</b> tab. <b>Jarvis</b> gets these in his feed —
@@ -663,12 +774,67 @@
   </form>
 </dialog>
 
-<footer><details><summary>How to read this</summary><p><b>True P</b> = calibrated probability from Kalshi's own settled history (beta-shrunk toward price; n = observations behind it).
-  <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
-  Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
-  <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b> — the hand is still shown, it just hasn't earned a slice of the bankroll. Every hand here is recorded as a prediction and graded at settlement.
-  This table is a <b>snapshot</b> kept warm by your background-scan job (turned on from the <b>Jobs</b> screen) on the cadence in <b>Settings</b> — opening this page never waits on a scan.
-</p></details></footer>
+<!-- Why: one market's walkthrough, opened by a tap on its card (1.10.0). Back or Close shuts it. -->
+<dialog id="kx-why" class="kx-sheet kx-why" aria-labelledby="kx-why-title">
+  <div class="kx-sheet-head"><h2 id="kx-why-title">Why</h2><button type="button" class="kx-icon" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="kx-sheet-body" id="kx-why-body"></div>
+</dialog>
+<!-- Filter: what the market list shows and its order. The two selects stay the list's state (mkParams reads them). -->
+<dialog id="kx-filter" class="kx-sheet" aria-labelledby="kx-filter-title">
+  <div class="kx-sheet-head"><h2 id="kx-filter-title">Filter and sort</h2><button type="button" class="kx-icon" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="kx-sheet-body">
+    <fieldset class="kx-opts"><legend>Show</legend>
+      <label class="kx-opt"><input type="radio" name="kx-show" value="all" checked> All markets <span class="n" data-count="total"></span></label>
+      <label class="kx-opt"><input type="radio" name="kx-show" value="playable"> With an edge <span class="n" data-count="playable"></span></label>
+      <label class="kx-opt"><input type="radio" name="kx-show" value="fold"> No edge <span class="n" data-count="fold"></span></label>
+      <label class="kx-opt"><input type="radio" name="kx-show" value="not-evaluable"> No estimate <span class="n" data-count="notEvaluable"></span></label>
+    </fieldset>
+    <fieldset class="kx-opts"><legend>Sort by</legend>
+      <label class="kx-opt"><input type="radio" name="kx-sort" value="verdict" checked> Best rating first</label>
+      <label class="kx-opt"><input type="radio" name="kx-sort" value="closes"> Closing soonest</label>
+      <label class="kx-opt"><input type="radio" name="kx-sort" value="edge"> Biggest edge</label>
+      <label class="kx-opt"><input type="radio" name="kx-sort" value="volume"> Most traded</label>
+    </fieldset>
+    <select id="mk-verdict" aria-label="Show" hidden>
+      <option value="all">All markets</option>
+      <option value="playable">With an edge</option>
+      <option value="fold">No edge</option>
+      <option value="not-evaluable">No estimate</option>
+    </select>
+    <select id="mk-sort" aria-label="Sort by" hidden>
+      <option value="verdict">Best rating first</option>
+      <option value="closes">Closing soonest</option>
+      <option value="edge">Biggest edge</option>
+      <option value="volume">Most traded</option>
+    </select>
+  </div>
+  <div class="kx-sheet-foot"><button type="button" id="kx-filter-reset">Reset</button><button type="button" class="btn-primary" data-sheet-close>Done</button></div>
+</dialog>
+<!-- Help: the words and numbers this page uses, in a sentence each, and how to read the Scan table (the footer this
+     page had). The shell's bar opens it from this page's help icon. -->
+<dialog id="kx-help" class="kx-sheet" aria-labelledby="kx-help-title">
+  <div class="kx-sheet-head"><h2 id="kx-help-title">Help: reading Kalshi</h2><button type="button" class="kx-icon" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="kx-sheet-body">
+    <dl class="kx-legend" id="kx-legend">
+      <dt><span class="kx-rate r-monster">Big edge</span></dt><dd>The scan's strongest rating: our estimate beats the price by the most after the fee, with the most settled history behind it.</dd>
+      <dt><span class="kx-rate r-strong">Good edge</span></dt><dd>A clear edge after the fee, with less behind it than a big one.</dd>
+      <dt><span class="kx-rate r-playable">Small edge</span></dt><dd>The smallest edge the scan still counts: at least 1.2¢ a contract after the fee, with 35% confidence.</dd>
+      <dt><span class="kx-rate r-fold">No edge</span></dt><dd>After the fee the price is about right, or too high, for what history supports, so the scan passes.</dd>
+      <dt><span class="kx-rate r-not-evaluable">No estimate</span></dt><dd>The scan does not price it: it closes more than 48 hours out, it is a parlay leg, one side has no price, or it closes within minutes.</dd>
+      <dt>Buy · Yes 54¢ · No 47¢</dt><dd>What one contract of each side costs now, the ask. A contract pays $1 if its side wins, nothing if it loses.</dd>
+      <dt>Our estimate</dt><dd>The chance that the side wins, from how often Kalshi markets at that price and in that category settled that way (the model data, dated on the line under the account).</dd>
+      <dt>Edge</dt><dd>Our estimate minus the price and Kalshi's fee, in cents a contract. Plus means the side is cheaper than history says it should be.</dd>
+      <dt>Paper trading</dt><dd>Nothing here places a real order. Every pick is recorded on paper and graded when its market settles: that is the Scorecard. With your Kalshi account connected you can also place your own orders, one at a time, after a confirmation.</dd>
+    </dl>
+    <h3 class="kx-help-h">The Scan table</h3>
+    <p><b>True P</b> = calibrated probability from Kalshi's own settled history (beta-shrunk toward price; n = observations behind it).
+      <b>Edge (net)</b> = True P − (ask + taker fee). <b>Stake</b> = quarter-Kelly, halved per risk flag, capped at 5% of bankroll.
+      Orders are limit-only and confirm-gated; the LIVE exchange is refused unless explicitly enabled.
+      <b>Stake is forced to 0% until a strategy out-scores the market on settled predictions</b>: the pick is still shown, it just hasn't earned a slice of the bankroll. Every pick there is recorded as a prediction and graded at settlement.
+      The table is a <b>snapshot</b> kept warm by your background-scan job (turned on from the <b>Jobs</b> screen) on the cadence in <b>Settings</b>; opening this page never waits on a scan.</p>
+    <p><a class="kx-link" href="/api/help" target="_blank" rel="noreferrer">All user guides ↗</a></p>
+  </div>
+</dialog>
 <script>
 (function () {
   'use strict';
@@ -694,6 +860,51 @@
   /* A Kalshi market title can carry markdown bold ('Will average **gas prices** be above $5.4900?'): escape it, show
      each **pair** as bold and drop a stray marker, so no asterisks reach the screen. */
   function marketTitle(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, ''); }
+
+  /* ── Plain words (1.10.0). The scan's own categories stay (monster, strong, playable, fold, not-evaluable); this page
+     says them as a person reads them, and Help keeps the legend. ───────────────────────────────────────────────── */
+  var EDGE_WORDS = { monster: 'Big edge', strong: 'Good edge', playable: 'Small edge', fold: 'No edge', 'not-evaluable': 'No estimate' };
+  /** @description The words for a rating. @param {string} v The scan's rating. @returns {string} Its plain words. */
+  function edgeWord(v) { return EDGE_WORDS[v] || EDGE_WORDS['not-evaluable']; }
+  /** @description A price in cents for a card: 54¢, 54.5¢; nothing to buy reads as a dash. @param {number} x Dollars. @returns {string} Words. */
+  function priceText(x) {
+    var n = Number(x);
+    if (!isFinite(n) || n <= 0) return '—';
+    var c = Math.round(n * 1000) / 10;
+    return (c % 1 ? c.toFixed(1) : String(c)) + '¢';
+  }
+  /** @description When a market closes, in words: in 25 min, in 38 h, or its date. @param {string} iso Close time. @param {number} nowMs Now. @returns {string} Words. */
+  function closesWords(iso, nowMs) {
+    var at = iso ? new Date(iso).getTime() : NaN;
+    if (!isFinite(at)) return '';
+    var m = (at - nowMs) / 60000;
+    if (m <= 0) return 'Closed';
+    if (m < 90) return 'Closes in ' + Math.max(1, Math.round(m)) + ' min';
+    if (m < 48 * 60) return 'Closes in ' + Math.round(m / 60) + ' h';
+    return 'Closes ' + new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  /** @description Why the scan did not price a market, in a few words for a card (the Why sheet keeps the full reason). */
+  function shortSkip(reason) {
+    var r = String(reason || '');
+    if (/horizon/.test(r)) return 'Too far from closing to estimate';
+    if (/parlay|multivariate/.test(r)) return 'A parlay leg: not estimated';
+    if (/book is empty/.test(r)) return 'One side has no price to judge';
+    if (/within minutes/.test(r)) return 'Closes too soon to estimate';
+    if (/no close time/.test(r)) return 'No close time to estimate by';
+    return 'Not estimated by the scan';
+  }
+  /**
+   * @description The card's estimate line: our chance for the side the scan judged and the edge after the fee, in words.
+   * @param {object} m A market row (its hand, when the scan priced it). @returns {string} HTML (numbers and fixed words only).
+   */
+  function estimateHtml(m) {
+    var h = m.hand;
+    if (!h) return esc(shortSkip(m.notEvaluable));
+    var side = h.side === 'no' ? 'No' : 'Yes', edge = Number(h.edgeNet), prob = Number(h.trueProb);
+    var est = isFinite(prob) ? 'Our estimate ' + Math.round(prob * 100) + '% ' + side : 'Our estimate for ' + side;
+    if (!isFinite(edge)) return est;
+    return est + ' · <b class="' + (edge > 0 ? 'pos' : 'neg') + '">' + (edge >= 0 ? '+' : '−') + Math.abs(edge * 100).toFixed(1) + '¢ on ' + side + '</b>';
+  }
 
   /* ── Tabs: eager-load everything, gate only visibility. ─────────────────────── */
   function activateTab(name) {
@@ -727,13 +938,13 @@
       return true;
     });
     var closedSince = state.payload && state.payload.closedSinceScan > 0 ? ' · ' + state.payload.closedSinceScan + ' closed since this scan, not shown' : '';
-    $('counts').textContent = rows.length + ' hands / ' + (state.payload ? state.payload.evaluable : 0) + ' markets' + closedSince;
+    $('counts').textContent = rows.length + ' with an edge / ' + (state.payload ? state.payload.evaluable : 0) + ' markets' + closedSince;
     setBadge('badge-scan', state.hands.length ? String(state.hands.length) : '', state.hands.length ? 'good' : '');
     var tb = $('rows'); tb.innerHTML = '';
     rows.forEach(function (h) {
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td><span class="badge b-' + h.strength + '">' + h.strength + '</span></td>' +
+        '<td><span class="kx-rate r-' + esc(h.strength) + '">' + esc(edgeWord(h.strength)) + '</span></td>' +
         '<td class="side-' + h.side + '">' + h.side.toUpperCase() + '</td>' +
         '<td><div class="title">' + marketTitle(h.title) + '</div><div class="ticker">' + esc(h.ticker) + '</div></td>' +
         '<td class="cat">' + esc(h.category) + '</td>' +
@@ -760,10 +971,10 @@
     var sc = (p && p.scorecard) || [];
     var tb = $('score-rows'); tb.innerHTML = '';
     var pill = { proven: 'b-monster', failing: 'b-playable', unproven: 'b-strong' };
-    var anyProven = false, anyFailing = false;
+    var proven = 0, failing = 0;
     sc.forEach(function (s) {
-      if (s.status === 'proven') anyProven = true;
-      if (s.status === 'failing') anyFailing = true;
+      if (s.status === 'proven') proven += 1;
+      if (s.status === 'failing') failing += 1;
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + esc(s.strategy) + '</td>' +
@@ -779,11 +990,9 @@
     $('score-panel').style.display = sc.length ? '' : 'none';
     $('score-empty').style.display = sc.length ? 'none' : '';
     $('gate-reason').textContent = (p && p.gateReason) ? p.gateReason : '';
-    // Scorecard tab dot: green if a strategy is proven, amber if any is actively failing.
-    var dot = $('dot-scorecard');
-    if (anyProven) { dot.className = 'tab-dot show'; dot.style.background = 'var(--green)'; }
-    else if (anyFailing) { dot.className = 'tab-dot show'; dot.style.background = 'var(--amber)'; }
-    else { dot.className = 'tab-dot'; }
+    // The Scorecard tab says its news in words (1.10.0; it was an unexplained coloured dot): a proven strategy first, else
+    // how many are failing. A phone's bottom bar shows no tab badge; the tab itself says the same at its top.
+    setBadge('badge-scorecard', proven ? proven + ' proven' : failing ? failing + ' failing' : '', proven ? 'good-words' : 'alert-words');
   }
   /* ── Grading: the Scorecard scores what is past its close, with or without a Kalshi account. ──
      The background job grades on the ticks where it does not scan; opening this tab grades what is waiting right
@@ -940,18 +1149,37 @@
      table only ages, and a person weighing a hand should see that. */
   function calibrationLabel(iso, nowMs) {
     var at = iso ? new Date(iso).getTime() : NaN;
-    if (!isFinite(at)) return 'calibration table: none installed';
+    if (!isFinite(at)) return 'no model data installed';
     var days = Math.max(0, Math.floor((nowMs - at) / 86400000));
-    return 'calibration table from ' + new Date(at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
-      ' (' + (days === 0 ? 'today' : days === 1 ? '1 day old' : days + ' days old') + ')';
+    var date = new Date(at).toLocaleDateString(undefined, days > 300 ? { year: 'numeric', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' });
+    return 'model from ' + date + ', ' + (days === 0 ? 'made today' : days === 1 ? '1 day old' : days + ' days old');
   }
-  /* The exchange is "halted" only when a scan actually read the exchange status and it said so. With no scan
-     yet, or a status this installation could not read (null), the header says unknown instead of halted. */
+  /* The exchange's own state, said only when there is something to say (1.10.0): "trading active" beside "paper mode"
+     read as if this page were trading. Paused only when a scan read the exchange status and it said so; a status this
+     installation could not read is unknown; before any scan, and while Kalshi is open, the line claims nothing. */
   function exchangeState(p) {
-    if (!p || p.awaitingFirstScan || !p.generatedAt) return { color: 'var(--amber)', label: 'exchange status unknown (no scan has run yet)' };
-    if (p.exchangeActive === true) return { color: 'var(--green)', label: 'trading active' };
-    if (p.exchangeActive === false) return { color: 'var(--red)', label: 'trading halted' };
-    return { color: 'var(--amber)', label: 'exchange status unknown' };
+    if (!p || p.awaitingFirstScan || !p.generatedAt) return { tone: '', label: '' };
+    if (p.exchangeActive === true) return { tone: 'ok', label: '' };
+    if (p.exchangeActive === false) return { tone: 'bad', label: 'Kalshi has paused trading' };
+    return { tone: 'warn', label: 'Kalshi status unknown' };
+  }
+  /** @description How long ago the snapshot was taken, in words, and whether that is old (over a day). */
+  function scanAgeWords(p, nowMs) {
+    var at = Date.parse(p && p.generatedAt);
+    if (!p || p.awaitingFirstScan || !isFinite(at)) return { text: 'Nothing scanned yet', old: true };
+    var mins = Math.max(0, (nowMs - at) / 60000);
+    var text = mins < 1.5 ? 'Scanned just now' : mins < 90 ? 'Scanned ' + Math.round(mins) + ' min ago'
+      : mins < 36 * 60 ? 'Scanned ' + Math.round(mins / 60) + ' h ago' : 'Scanned ' + new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return { text: text, old: mins > 24 * 60 };
+  }
+  function setWords(el, text, cls) { if (!el) return; el.textContent = text || ''; el.hidden = !text; el.className = cls || ''; }
+  /** @description The one line under the account: the exchange when it is not plainly open, the scan's age and the model's age (old ones in amber). */
+  function renderFreshLine(p, nowMs) {
+    var exch = exchangeState(p), age = scanAgeWords(p, nowMs), cal = Date.parse(p && p.calibrationGeneratedAt);
+    setWords($('exch-label'), exch.label, exch.tone === 'bad' ? 'is-bad' : 'is-old');
+    setWords($('scan-age'), age.text, age.old ? 'is-old' : '');
+    setWords($('calib-label'), calibrationLabel(p && p.calibrationGeneratedAt, nowMs), !isFinite(cal) || nowMs - cal > 30 * 86400000 ? 'is-old' : '');
+    $('exch-sep').hidden = !exch.label; $('calib-sep').hidden = false;
   }
 
   function load() {
@@ -964,18 +1192,15 @@
         renderScorecard(p);
         renderFreshness(p);
         if (state.job === undefined) readScanJob(p.scan && p.scan.schedule).then(function (j) { state.job = j; if (state.payload) renderFreshness(state.payload); });
-        var exch = exchangeState(p);
-        $('exch-dot').style.background = exch.color;
-        $('exch-label').textContent = exch.label;
-        $('calib-label').textContent = calibrationLabel(p.calibrationGeneratedAt, Date.now());
-        renderStaleChip(p, Date.now());
+        renderFreshLine(p, Date.now());
+        refreshMarketsFor(p);
         var cats = {}; state.hands.forEach(function (h) { cats[h.category] = 1; });
         var sel = $('f-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
         Object.keys(cats).sort().forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
         sel.value = cur;
         render();
       })
-      .catch(function (e) { $('error').textContent = 'Scan failed: ' + e.message; $('error').style.display = ''; $('tbl').style.display = 'none'; $('empty').style.display = 'none'; })
+      .catch(function (e) { $('error').textContent = 'Scan failed: ' + e.message; $('error').style.display = ''; $('tbl').style.display = 'none'; $('empty').style.display = 'none'; if (!state.payload) setWords($('scan-age'), 'The last scan could not be read', 'is-bad'); })
       .then(function () { $('refresh').disabled = false; $('refresh').textContent = 'Refresh'; });
   }
 
@@ -1000,6 +1225,7 @@
               var idle = !(p.scan && p.scan.running);
               state.payload = p; state.hands = p.hands || [];
               renderFreshness(p); render(); renderScorecard(p);
+              if (changed) { renderFreshLine(p, Date.now()); refreshMarketsFor(p); }
               if (changed || (idle && tries > 3) || tries >= 30) { clearInterval(poll); loadAlerts(); }
             })
             .catch(function () { /* transient — the next poll retries */ });
@@ -1085,7 +1311,7 @@
           tr.innerHTML =
             '<td class="meta">' + esc(new Date(a.created_at).toLocaleString()) + '</td>' +
             '<td><div class="title">' + esc(d.title || a.ticker) + '</div><div class="ticker">' + esc(a.ticker) + '</div></td>' +
-            '<td><span class="badge b-' + esc(a.strength || 'playable') + '">' + esc(a.strength || '—') + '</span>' +
+            '<td><span class="kx-rate r-' + esc(a.strength || 'playable') + '">' + esc(a.strength ? edgeWord(a.strength) : '—') + '</span>' +
             (d.side ? ' <span class="side-' + esc(d.side) + '">' + esc(String(d.side).toUpperCase()) + '</span>' : '') + '</td>' +
             '<td class="num edge-pos">+' + ((Number(a.edge_net) || 0) * 100).toFixed(1) + '¢</td>' +
             outcomeCell(a) +
@@ -1123,8 +1349,11 @@
       el = document.createElement('input'); el.type = 'checkbox'; el.checked = value === true;
     } else if (Array.isArray(spec.enum)) {
       el = document.createElement('select');
+      // A list of the scan's ratings (the alert floor) reads in this page's words; the stored values are the scan's own.
+      var ratings = spec.enum.every(function (opt) { return opt === 'monster' || opt === 'strong' || opt === 'playable'; });
       spec.enum.forEach(function (opt) {
-        var o = document.createElement('option'); o.value = opt; o.textContent = opt; el.appendChild(o);
+        var o = document.createElement('option'); o.value = opt;
+        o.textContent = ratings ? edgeWord(opt) + (opt === 'monster' ? ' only' : ' or bigger') : opt; el.appendChild(o);
       });
       el.value = String(value);
     } else if (type === 'integer' || type === 'number') {
@@ -1261,24 +1490,27 @@
       .then(function (s) { state.status = s; })
       .catch(function () { state.status = null; });
   }
-  /** The account in the header (UX audit 2026-11-06): a failing portfolio read is named with its fix, never hidden behind
-   *  a green exchange line. 409 is the route's "no Kalshi connection"; anything else keeps the route's own words. */
-  function accountLine(p, err) {
-    if (p) return { tone: 'ok', text: 'Kalshi account connected' + (p.env ? ' \u00b7 ' + (p.env === 'demo' ? 'demo (paper)' : 'live') : '') };
-    if (!err) return { tone: '', text: '' };
-    if (err.status === 409 || err.status === 401) return { tone: 'warn', text: 'Kalshi account not connected \u00b7 paper mode \u00b7 paste your API key on the Connections page' };
-    return { tone: 'warn', text: 'Kalshi account could not be read: ' + err.message };
+  /** The account in the status line (UX audit 2026-11-06, words 1.10.0): with no Kalshi account connected the page is paper
+   *  trading, said plainly with the link that connects one; a failing read is named, never hidden. 409 is the route's "no
+   *  Kalshi connection"; anything else keeps the route's own words. A live account says whether real-money orders are on.
+   *  @param {object|null} p The portfolio read. @param {Error|null} err Its failure. @param {boolean} liveOn Whether live orders are enabled.
+   *  @returns {{tone:string,text:string,link:boolean}} The line. */
+  function accountLine(p, err, liveOn) {
+    if (p) {
+      if (p.env === 'live') return liveOn ? { tone: 'live', text: 'Live account connected \u00b7 real money', link: false } : { tone: 'warn', text: 'Live account connected \u00b7 real-money orders are off', link: false };
+      return { tone: 'ok', text: 'Paper trading \u00b7 demo account connected', link: false };
+    }
+    if (!err) return { tone: '', text: '', link: false };
+    if (err.status === 409 || err.status === 401) return { tone: 'paper', text: 'Paper trading', link: true };
+    return { tone: 'warn', text: 'Kalshi account could not be read: ' + err.message, link: false };
   }
+  var ACCOUNT_DOT = { ok: 'var(--green)', warn: 'var(--amber)', live: 'var(--red)', paper: 'var(--blue)' };
   function renderAccountLine(p, err) {
-    var a = accountLine(p, err), el = $('acct-label'); if (!el) return;
-    el.textContent = a.text; el.className = 'meta acct' + (a.tone ? ' is-' + a.tone : '');
-  }
-  /** One warning chip when the calibration table is over 30 days old or the last scan over a day old, with Scan now. */
-  function renderStaleChip(p, nowMs) {
-    var cal = Date.parse(p && p.calibrationGeneratedAt), scan = Date.parse(p && p.generatedAt), day = 86400000;
-    var calOld = isFinite(cal) && (nowMs - cal) > 30 * day, scanOld = !isFinite(scan) || (nowMs - scan) > day;
-    $('stale-chip').hidden = !(calOld || scanOld);
-    $('scan-age').textContent = isFinite(scan) ? ' \u00b7 last scan ' + new Date(scan).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ' \u00b7 no scan yet';
+    var a = accountLine(p, err, !!(state.status && state.status.liveOrdersEnabled)), el = $('acct-label'); if (!el) return;
+    el.textContent = a.text; el.className = a.tone === 'warn' ? 'is-warn' : '';
+    $('acct-dot').style.background = ACCOUNT_DOT[a.tone] || 'var(--dim)';
+    $('acct-link').hidden = !a.link; $('acct-sep').hidden = !a.link;
+    $('kx-status').title = a.text + (a.link ? ' \u00b7 Connect your Kalshi account' : '');
   }
   function loadPortfolio() {
     $('pf-refresh').disabled = true;
@@ -1351,9 +1583,9 @@
       });
   }
 
-  /* ── Markets: every market the scan walked, playable or not, with the evaluator's verdict in words. ── */
-  var mk = { rows: [], why: {}, timer: null };
-  function clipText(v, n) { v = String(v === null || v === undefined ? '' : v); return v.length > n ? v.slice(0, n - 1) + '…' : v; }
+  /* ── Markets: every market the scan walked, one card each (1.10.0): the question, the price to buy each side, when it
+     closes, our estimate and the edge in words. A tap on a card opens Why as a sheet. ── */
+  var mk = { rows: [], why: {}, timer: null, counts: {}, total: 0, cats: '', whyFor: '' };
   function mkParams() {
     var p = new URLSearchParams(), q = $('mk-q').value.trim(), c = $('mk-cat').value;
     if (q) p.set('q', q);
@@ -1365,58 +1597,54 @@
     return fetch('/api/kalshi' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status)); return b; }); });
   }
-  function closesText(iso) {
-    if (!iso) return '—';
-    var ms = new Date(iso).getTime() - Date.now();
-    if (!isFinite(ms)) return '—';
-    if (ms <= 0) return 'Closed';
-    var m = ms / 60000;
-    if (m < 90) return 'in ' + Math.round(m) + ' min';
-    if (m < 48 * 60) return 'in ' + (m / 60).toFixed(m < 600 ? 1 : 0) + ' h';
-    return 'in ' + (m / 1440).toFixed(1) + ' d';
-  }
-  function verdictCell(m) {
-    var v = m.verdict || (m.hand ? m.hand.strength : 'not-evaluable'), edge = m.hand ? Number(m.hand.edgeNet) : NaN;
-    return '<span class="badge b-' + esc(v) + '">' + esc(v === 'not-evaluable' ? 'no verdict' : v) + '</span>' +
-      (m.side ? ' <span class="side-' + esc(m.side) + '">' + esc(String(m.side).toUpperCase()) + '</span>' : '') +
-      (isFinite(edge) ? ' <span class="' + (edge > 0 ? 'edge-pos' : 'meta') + '">' + (edge >= 0 ? '+' : '') + esc(cents(edge)) + '</span>' : '');
-  }
   /** The title once: the scan joins a market's title and subtitle with " — ", and for most sports markets the subtitle
    *  repeats the title ("Ferencvarosi wins by more than 2.5 goals? — Ferencvarosi wins by more than 2.5 goals"). */
   function onceTitle(t) {
     var norm = function (x) { return String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }, kept = [];
-    String(t || '').split(' \u2014 ').forEach(function (part) { if (part && !kept.some(function (k) { return norm(k) === norm(part); })) kept.push(part); });
-    return kept.join(' \u2014 ');
+    String(t || '').split(' — ').forEach(function (part) { if (part && !kept.some(function (k) { return norm(k) === norm(part); })) kept.push(part); });
+    return kept.join(' — ');
   }
   var MK_PAGE = 50;
-  function mkRow(m) {
-    var tr = document.createElement('tr'); tr.setAttribute('data-ticker', m.ticker);
-    tr.innerHTML = '<td class="mk-title"><div class="title">' + esc(clipText(onceTitle(m.title) || m.ticker, 110)) + '</div><div class="ticker">' + esc(m.ticker) + '</div></td>' +
-      '<td class="meta">' + esc(m.category || '—') + '</td>' +
-      '<td class="num">' + esc(cents(Number(m.yesAsk) || 0)) + '</td><td class="num">' + esc(cents(Number(m.noAsk) || 0)) + '</td>' +
-      '<td class="num">' + esc(String(Math.round(Number(m.volume) || 0))) + '</td>' +
-      '<td class="num meta">' + esc(closesText(m.closeTime)) + '</td>' +
-      '<td>' + verdictCell(m) + '</td>';
-    var cell = document.createElement('td'), why = document.createElement('button');
-    why.type = 'button'; why.className = 'btn'; why.textContent = 'Why'; why.setAttribute('data-why', m.ticker);
-    why.addEventListener('click', function () { toggleWhy(m.ticker, tr); });
-    cell.appendChild(why); tr.appendChild(cell);
-    return tr;
+  /** A Kalshi market ticker as a person types it: letters and digits with at least one dash (KXRAIN-26NOV17-LV). */
+  var TICKER_SHAPE = /^[A-Z0-9][A-Z0-9._]*-[A-Z0-9._-]{1,78}$/;
+  function ratingOf(m) { return m.verdict || (m.hand ? m.hand.strength : 'not-evaluable'); }
+  /**
+   * @description A card's facts under its question, in three rows: the two asks labelled as the price to buy each side
+   * with the rating beside them; our estimate and the edge in words; when it closes and how much has traded.
+   */
+  function factsHtml(m, nowMs) {
+    var v = ratingOf(m), volume = Number(m.volume), meta = [closesWords(m.closeTime, nowMs), isFinite(volume) && m.volume !== undefined && m.volume !== null ? count(Math.round(volume)) + ' traded' : ''].filter(Boolean);
+    return '<span class="kx-prices"><span class="kx-cap">Buy</span><span class="kx-px yes">Yes ' + esc(priceText(m.yesAsk)) + '</span>' +
+      '<span class="kx-px no">No ' + esc(priceText(m.noAsk)) + '</span><span class="kx-rate r-' + esc(v) + '">' + esc(edgeWord(v)) + '</span></span>' +
+      '<span class="kx-est">' + estimateHtml(m) + '</span><span class="kx-meta">' + esc(meta.join(' · ')) + '</span>';
+  }
+  /** @description One market as a card in the list; the whole card is the button that opens Why. */
+  function mkItem(m, nowMs) {
+    var item = document.createElement('div'), card = document.createElement('button');
+    item.setAttribute('role', 'listitem'); item.className = 'kx-item';
+    card.type = 'button'; card.className = 'kx-card'; card.setAttribute('data-ticker', m.ticker); card.setAttribute('data-why', m.ticker);
+    card.innerHTML = '<span class="kx-q">' + esc(onceTitle(m.title) || m.ticker) + '</span>' + factsHtml(m, nowMs);
+    item.appendChild(card);
+    return item;
   }
   function renderMarkets() {
-    var tb = $('mk-rows'); tb.innerHTML = '';
-    mk.rows.slice(0, mk.shown).forEach(function (m) { tb.appendChild(mkRow(m)); });
+    var list = $('mk-list'), now = Date.now(); list.innerHTML = '';
+    mk.rows.slice(0, mk.shown).forEach(function (m) { list.appendChild(mkItem(m, now)); });
     $('mk-more').hidden = mk.rows.length <= mk.shown;
     $('mk-more').textContent = 'Show more (' + Math.min(MK_PAGE, mk.rows.length - mk.shown) + ' of ' + (mk.rows.length - mk.shown) + ' left)';
-    $('mk-tbl').style.display = mk.rows.length ? '' : 'none';
     $('mk-empty').style.display = mk.rows.length ? 'none' : '';
+  }
+  /** @description The route's headline without its leading rating word (the sheet shows the rating), in this page's words. */
+  function plainHeadline(text) {
+    var h = String(text || '').replace(/^(Big edge|Good edge|Small edge|No edge|No estimate):\s*/, '');
+    return h.charAt(0).toUpperCase() + h.slice(1);
   }
   function whyBox(r) {
     var w = r.why || {}, box = document.createElement('div'); box.className = 'why-box';
     // A verdict from the scan was judged at that scan's time; say when, beside the live book line (UX audit 2026-11-06).
     var at = r.source !== 'live' && mk.generatedAt ? new Date(mk.generatedAt) : null;
     var when = at && isFinite(at.getTime()) ? '<span class="meta">At the ' + esc(at.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })) + ' scan:</span> ' : '';
-    var h = when + '<b>' + esc(w.headline || '') + '</b>' + (r.source === 'live' ? ' <span class="meta">(read live from Kalshi; not in the last scan)</span>' : '') + '<ul>';
+    var h = when + '<b>' + esc(plainHeadline(w.headline)) + '</b>' + (r.source === 'live' ? ' <span class="meta">(read live from Kalshi; not in the last scan)</span>' : '') + '<ul>';
     (w.reasons || []).forEach(function (line) { h += '<li>' + esc(line) + '</li>'; });
     box.innerHTML = h + '</ul>';
     var actions = document.createElement('div'); actions.className = 'why-actions';
@@ -1439,59 +1667,237 @@
     if (mk.why[ticker]) return Promise.resolve(mk.why[ticker]);
     return mkJson('/markets/' + encodeURIComponent(ticker)).then(function (b) { mk.why[ticker] = b; return b; });
   }
-  function toggleWhy(ticker, tr) {
-    var next = tr.nextElementSibling;
-    if (next && next.classList.contains('why-row')) { next.remove(); return; }
-    var row = document.createElement('tr'); row.className = 'why-row';
-    var td = document.createElement('td'); td.colSpan = 8; td.textContent = 'Reading the walkthrough…'; row.appendChild(td);
-    tr.parentNode.insertBefore(row, tr.nextSibling);
-    fetchWhy(ticker).then(function (r) { td.innerHTML = ''; td.appendChild(whyBox(r)); })
-      .catch(function (e) { td.textContent = 'Could not read the walkthrough: ' + e.message; });
+  /** @description The facts a card shows, at the top of Why under the market's ticker and category. */
+  function whyFacts(m, nowMs) {
+    return '<p class="kx-why-meta"><span class="ticker">' + esc(m.ticker || '') + '</span>' + (m.category ? ' · ' + esc(m.category) : '') + '</p>' +
+      '<div class="kx-why-facts">' + factsHtml(m, nowMs) + '</div>';
+  }
+  /** @description Why for one market as a sheet: the card's facts at once, then the walkthrough from GET /markets/:ticker. */
+  function openWhy(ticker, row) {
+    var body = $('kx-why-body'), now = Date.now();
+    mk.whyFor = ticker;
+    $('kx-why-title').textContent = row ? (onceTitle(row.title) || ticker) : ticker;
+    body.innerHTML = (row ? whyFacts(row, now) : '') + '<p class="meta" id="kx-why-wait">Reading the walkthrough…</p>';
+    openSheet('kx-why');
+    return fetchWhy(ticker).then(function (r) {
+      if (mk.whyFor !== ticker) return;
+      var market = r.market ? Object.assign({}, r.market) : (row || { ticker: ticker });
+      market.verdict = (r.why && r.why.verdict) || market.verdict;
+      $('kx-why-title').textContent = onceTitle(market.title) || ticker;
+      body.innerHTML = whyFacts(market, now); body.appendChild(whyBox(r));
+    }).catch(function (e) {
+      var wait = $('kx-why-wait'); if (wait && mk.whyFor === ticker) wait.textContent = 'Could not read the walkthrough: ' + e.message;
+    });
+  }
+  /** @description The line above the list: how many markets, how many with an edge; a filtered list says how many match. */
+  function countsWords(b) {
+    if (b.awaitingFirstScan) return 'Nothing scanned yet';
+    var c = b.counts || {}, total = Number(b.total) || 0, matched = Number(b.matched === undefined ? total : b.matched);
+    if (matched !== total) return count(matched) + ' of ' + count(total) + ' open markets match';
+    return count(total) + ' open markets · ' + count(c.playable) + ' with an edge';
+  }
+  function emptyWords(b) {
+    if (b.awaitingFirstScan) return 'Nothing has been scanned yet. Turn the background scan on (Jobs) or press <b>Scan now</b> on the Scan tab; every market the scan walks appears here with its rating.';
+    if (b.needsRescan) return 'The last scan ran before this tab existed, so it kept only the markets with an edge. Press <b>Scan now</b> on the Scan tab, or wait for the next tick of your scan job; every market the scan walks then appears here with its rating.';
+    return TICKER_SHAPE.test($('mk-q').value.trim().toUpperCase()) ? 'That ticker is not in the last scan. Press Enter, or Look up, to read it from Kalshi.' : 'No open market matches these filters.';
+  }
+  /** @description The category chips: All, then every category the last scan walked; the pressed one is the filter. */
+  function renderChips(categories) {
+    var host = $('kx-chips'), cur = $('mk-cat').value, list = categories ? [''].concat(categories) : null;
+    if (list && list.join('|') !== mk.cats) {
+      mk.cats = list.join('|'); host.innerHTML = '';
+      list.forEach(function (c) {
+        var chip = document.createElement('button'), label = document.createElement('span');
+        chip.type = 'button'; chip.className = 'kx-chip'; chip.setAttribute('data-cat', c);
+        label.textContent = c || 'All'; chip.appendChild(label); host.appendChild(chip);
+      });
+    }
+    host.querySelectorAll('.kx-chip').forEach(function (chip) { chip.setAttribute('aria-pressed', chip.getAttribute('data-cat') === cur ? 'true' : 'false'); });
   }
   function loadMarkets() {
     $('mk-error').style.display = 'none';
     return mkJson('/markets?' + mkParams()).then(function (b) {
-      mk.rows = b.markets || []; mk.shown = MK_PAGE; mk.generatedAt = b.generatedAt || null;
+      mk.rows = b.markets || []; mk.shown = MK_PAGE; mk.generatedAt = b.generatedAt || null; mk.counts = b.counts || {}; mk.total = b.total || 0;
       var sel = $('mk-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
       (b.categories || []).forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
       sel.value = cur;
-      var c = b.counts || {};
-      $('mk-counts').textContent = b.awaitingFirstScan ? 'nothing scanned yet'
-        : (b.matched + ' of ' + b.total + ' open markets · ' + (c.playable || 0) + ' playable · ' + (c.fold || 0) + ' folds · ' + (c.notEvaluable || 0) + ' without a verdict' + (b.generatedAt ? ' · scanned ' + new Date(b.generatedAt).toLocaleString() : ''));
-      $('mk-empty').innerHTML = b.awaitingFirstScan
-        ? 'Nothing has been scanned yet. Turn the background scan on (Jobs) or press <b>Scan now</b> on the Scan tab; every market the scan walks appears here with its verdict.'
-        : b.needsRescan ? 'The last scan ran before this tab existed, so it kept only the playable hands. Press <b>Scan now</b> on the Scan tab, or wait for the next tick of your scan job; every market the scan walks then appears here with its verdict.'
-        : 'No open market matches these filters.';
+      renderChips(b.categories || []);
+      $('mk-counts').textContent = countsWords(b);
+      $('mk-empty').innerHTML = emptyWords(b);
+      filterCounts();
       setBadge('badge-markets', b.total ? String(b.total) : '', '');
       renderMarkets();
-    }).catch(function (e) { $('mk-error').textContent = 'Could not read the markets: ' + e.message; $('mk-error').style.display = ''; });
+    }).catch(function (e) { $('mk-error').textContent = 'Could not read the markets: ' + e.message; $('mk-error').style.display = ''; })
+      .then(function () { mk.loaded = true; });
+  }
+  /**
+   * @description 1.10.2: a scan newer than the one the market list shows refreshes the list, whether Scan now or the
+   * background job landed it (before, Markets kept "Nothing has been scanned yet" under "Scanned just now" until a
+   * reload). The same scan is never read twice, and nothing is read before the page's own first read of the list.
+   * @param {object} p The scan read (GET /scan). @returns {void}
+   */
+  function refreshMarketsFor(p) {
+    var gen = p && p.generatedAt;
+    if (!gen || !mk.loaded || gen === mk.generatedAt || gen === mk.pendingGen) return;
+    mk.pendingGen = gen; mk.why = {};
+    loadMarkets().then(function () { mk.pendingGen = null; });
+  }
+  /** @description A new search, category or filter starts the list from its first card. */
+  function reloadFromTop() { return loadMarkets().then(function () { if (window.scrollY > 0) window.scrollTo(0, 0); }); }
+
+  /* ── Search: one field for words and tickers (1.10.0). Words filter the list as they are typed; a ticker and Enter (or
+     Look up) reads that market, from the last scan or live from Kalshi, and opens its Why. ── */
+  function searchHint() {
+    var t = $('mk-q').value.trim().toUpperCase(), show = TICKER_SHAPE.test(t);
+    $('kx-search-hint').hidden = !show;
+    if (show) $('kx-search-hint-text').textContent = 'A ticker: Look up reads ' + t + ' from Kalshi.';
+  }
+  function openSearch() {
+    activateTab('markets');
+    $('mk-lookup').hidden = false;
+    var input = $('mk-q'); input.focus();
+  }
+  function closeSearch() {
+    var input = $('mk-q'), had = input.value.trim();
+    input.value = ''; $('mk-lookup').hidden = true; searchHint();
+    if (had) reloadFromTop();
   }
   function lookupMarket(ev) {
-    ev.preventDefault();
-    var ticker = $('mk-ticker').value.trim().toUpperCase(); if (!ticker) return;
+    if (ev) ev.preventDefault();
+    var ticker = $('mk-q').value.trim().toUpperCase();
+    if (!TICKER_SHAPE.test(ticker)) { clearTimeout(mk.timer); reloadFromTop(); $('mk-q').blur(); return; }
     $('mk-error').style.display = 'none';
-    fetchWhy(ticker).then(function (r) {
-      var tb = $('mk-rows'), tr = null, rows = tb.querySelectorAll('tr[data-ticker]');
-      for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute('data-ticker') === ticker) tr = rows[i];
-      if (tr && tr.nextElementSibling && tr.nextElementSibling.classList.contains('why-row')) tr.nextElementSibling.remove();
-      if (!tr) {
-        var m = r.market || {}; m.verdict = r.why && r.why.verdict; m.side = r.why && r.why.side;
-        tr = mkRow(m); tb.insertBefore(tr, tb.firstChild); $('mk-tbl').style.display = ''; $('mk-empty').style.display = 'none';
-      }
-      toggleWhy(ticker, tr); tr.scrollIntoView({ block: 'center' });
-    }).catch(function (e) { $('mk-error').textContent = ticker + ': ' + e.message; $('mk-error').style.display = ''; });
+    openWhy(ticker, mk.rows.filter(function (m) { return m.ticker === ticker; })[0] || null);
   }
-  $('mk-q').addEventListener('input', function () { clearTimeout(mk.timer); mk.timer = setTimeout(loadMarkets, 250); });
+
+  /* ── Filter: what the list shows and its order, as one sheet. The hidden selects stay the list's state. ── */
+  function syncFilter() {
+    var show = $('mk-verdict').value, sort = $('mk-sort').value, changed = (show !== 'all' ? 1 : 0) + (sort !== 'verdict' ? 1 : 0);
+    document.querySelectorAll('#kx-filter input[name="kx-show"]').forEach(function (r) { r.checked = r.value === show; });
+    document.querySelectorAll('#kx-filter input[name="kx-sort"]').forEach(function (r) { r.checked = r.value === sort; });
+    $('kx-filter-count').textContent = String(changed); $('kx-filter-count').hidden = !changed;
+    $('kx-filter-open').setAttribute('aria-label', changed ? 'Filter, ' + changed + ' changed' : 'Filter');
+  }
+  function filterCounts() {
+    document.querySelectorAll('#kx-filter [data-count]').forEach(function (el) {
+      var key = el.getAttribute('data-count'), v = key === 'total' ? mk.total : (mk.counts || {})[key];
+      el.textContent = v === undefined || v === null ? '' : count(v);
+    });
+  }
+
+  /* ── Sheets (Why, Filter, Help): modal and opaque. Opening one adds one history entry, so the phone's Back closes it and
+     stays in Kalshi; closing it any other way takes that entry back. ── */
+  var sheets = { open: '', popping: false };
+  /** @description Mark this page's frame while a sheet is open, so the shell's floating Jarvis button steps aside (host style). */
+  function markHostSheet(open) { try { if (window.frameElement) window.frameElement.toggleAttribute('data-kx-sheet-open', open); } catch (_) { /* no host to tell */ } }
+  function openSheet(id) {
+    var d = $(id); if (!d) return;
+    var replacing = Boolean(sheets.open && sheets.open !== id);
+    if (replacing) { sheets.popping = true; $(sheets.open).close(); sheets.popping = false; }
+    if (!d.open) d.showModal();
+    sheets.open = id; markHostSheet(true);
+    try { if (replacing) history.replaceState({ kxSheet: id }, ''); else if (!(history.state && history.state.kxSheet === id)) history.pushState({ kxSheet: id }, ''); } catch (_) { /* the Close button still closes it */ }
+  }
+  function wireSheet(d) {
+    d.addEventListener('close', function () {
+      if (sheets.open === d.id) sheets.open = '';
+      if (!sheets.open) markHostSheet(false);
+      if (!sheets.popping && history.state && history.state.kxSheet === d.id) { try { history.back(); } catch (_) { /* nothing to take back */ } }
+    });
+    d.addEventListener('click', function (ev) { if (ev.target === d || (ev.target.closest && ev.target.closest('[data-sheet-close]'))) d.close(); });
+  }
+  window.addEventListener('popstate', function () {
+    if (!sheets.open) return;
+    sheets.popping = true; $(sheets.open).close(); sheets.popping = false;
+  });
+
+  $('mk-q').addEventListener('input', function () { clearTimeout(mk.timer); searchHint(); mk.timer = setTimeout(reloadFromTop, 250); });
   $('mk-cat').addEventListener('change', loadMarkets);
   $('mk-verdict').addEventListener('change', loadMarkets);
   $('mk-sort').addEventListener('change', loadMarkets);
   $('mk-refresh').addEventListener('click', function () { mk.why = {}; loadMarkets(); });
   $('mk-lookup').addEventListener('submit', lookupMarket);
+  $('kx-lookup-go').addEventListener('click', lookupMarket);
+  $('kx-search-open').addEventListener('click', openSearch);
+  $('kx-search-close').addEventListener('click', closeSearch);
+  $('kx-help-open').addEventListener('click', function () { openSheet('kx-help'); });
+  $('kx-filter-open').addEventListener('click', function () { syncFilter(); filterCounts(); openSheet('kx-filter'); });
+  $('kx-filter-reset').addEventListener('click', function () { $('mk-verdict').value = 'all'; $('mk-sort').value = 'verdict'; syncFilter(); reloadFromTop(); });
+  document.querySelectorAll('#kx-filter input[type="radio"]').forEach(function (radio) {
+    radio.addEventListener('change', function () { $(radio.name === 'kx-show' ? 'mk-verdict' : 'mk-sort').value = radio.value; syncFilter(); reloadFromTop(); });
+  });
+  $('kx-chips').addEventListener('click', function (ev) {
+    var chip = ev.target.closest && ev.target.closest('.kx-chip'); if (!chip) return;
+    $('mk-cat').value = chip.getAttribute('data-cat'); renderChips(null);
+    if (chip.scrollIntoView) chip.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    reloadFromTop();
+  });
+  $('mk-list').addEventListener('click', function (ev) {
+    var card = ev.target.closest && ev.target.closest('.kx-card'); if (!card) return;
+    var ticker = card.getAttribute('data-ticker');
+    openWhy(ticker, mk.rows.filter(function (m) { return m.ticker === ticker; })[0] || null);
+  });
   $('mk-more').addEventListener('click', function () { mk.shown += MK_PAGE; renderMarkets(); });
+  document.querySelectorAll('dialog.kx-sheet').forEach(wireSheet);
   document.querySelectorAll('#more-menu [data-more]').forEach(function (b) {
     b.addEventListener('click', function () { var menu = $('more-menu'); if (menu.hidePopover) menu.hidePopover(); activateTab(b.getAttribute('data-more')); });
   });
-  $('chip-scan-now').addEventListener('click', function () { $('scan-now').click(); });
+
+  /* ── One app bar (1.10.0). Today's shell draws one bar above an application: its name, Reload, help and profile. There
+     this page puts its own search and help icons in the application's part of that bar, hides the shell's general help
+     link while this page shows (this page's Help ends with a link to all user guides), draws the shell's Reload as a small
+     icon on a phone and tells the shell's floating Jarvis button to rest above this page's bottom bar. All of it is a
+     stylesheet scoped to this page's own frame plus two buttons in its own bar, so another application's screen gets the
+     shell exactly as it was. Standalone, or under any other host, this page's own bar row stays. Nothing is sent anywhere. ── */
+  var OWN_FRAME = 'iframe[src^="/api/kalshi/"]', HOST_STYLE_ID = 'kalshi-host-style', HOST_ACTIONS = 'kalshi-host-actions';
+  function hostKind() {
+    try {
+      if (window.top === window.self) return 'top';
+      var frame = window.frameElement, host = window.parent.document;
+      if (frame && frame.parentElement && frame.parentElement.classList.contains('tool-view-container') && host.querySelector('.cockpit-body')) return 'cockpit';
+    } catch (_) { /* a host this page cannot read keeps this page's own bar */ }
+    return 'other';
+  }
+  function hostStyleText() {
+    var own = '.tool-view-container:has(> ' + OWN_FRAME + ')';
+    return '.' + HOST_ACTIONS + ' { display: inline-flex; align-items: center; gap: 2px; flex: none; }' +
+      ' .' + HOST_ACTIONS + ' button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; background: none; color: inherit; cursor: pointer; }' +
+      ' .' + HOST_ACTIONS + ' svg { width: 20px; height: 20px; }' +
+      ' .' + HOST_ACTIONS + ' button:focus-visible { outline: 2px solid var(--accent-primary, #3b82f6); outline-offset: 1px; }' +
+      ' body:has(.tool-view-container > ' + OWN_FRAME + ') #surfaceHelpBtn { display: none !important; }' +
+      ' html:has(' + OWN_FRAME + '[data-kx-sheet-open]) #jarvisOrbFab:not(.dragging) { display: none !important; }' +
+      ' @media (min-width: 641px) { .' + HOST_ACTIONS + ' [data-kalshi-host="search"] { display: none; } }' +
+      ' @media (max-width: 640px) { ' + own + ' > .tool-view-header [data-tool-view-reload] { width: 40px; padding: 0 !important; border-color: transparent !important; background: none !important; font-size: 20px !important; line-height: 1 !important; }' +
+      ' html:has(.tool-view-container > ' + OWN_FRAME + ') { --oshal-app-bottom-inset: 56px; } }';
+  }
+  /** @description Put this page's search and help icons at the end of its own bar in the shell, replacing a previous load's. */
+  function mountHostActions(host, header) {
+    var old = header.querySelector('.' + HOST_ACTIONS); if (old) old.remove();
+    var wrap = host.createElement('span'); wrap.className = HOST_ACTIONS;
+    wrap.innerHTML = '<button type="button" data-kalshi-host="search" aria-label="Search markets" title="Search markets, or look up a ticker">' + $('kx-search-open').innerHTML + '</button>' +
+      '<button type="button" data-kalshi-host="help" aria-label="Help" title="What the words and numbers mean">' + $('kx-help-open').innerHTML + '</button>';
+    wrap.querySelector('[data-kalshi-host="search"]').addEventListener('click', openSearch);
+    wrap.querySelector('[data-kalshi-host="help"]').addEventListener('click', function () { openSheet('kx-help'); });
+    header.appendChild(wrap);
+    return wrap;
+  }
+  function mountAppBar() {
+    var html = document.documentElement, kind = hostKind();
+    if (!html) return;
+    html.setAttribute('data-kx-host', kind);
+    if (kind !== 'cockpit') return;
+    try {
+      var host = window.parent.document, header = window.frameElement.parentElement.querySelector(':scope > .tool-view-header');
+      if (!header) { html.setAttribute('data-kx-host', 'other'); return; }
+      var style = host.getElementById(HOST_STYLE_ID);
+      if (!style) { style = host.createElement('style'); style.id = HOST_STYLE_ID; host.head.appendChild(style); }
+      style.textContent = hostStyleText();
+      var wrap = mountHostActions(host, header);
+      // The shell may hide its bar (full-window focus): then this page's own bar row comes back.
+      var place = function () { html.setAttribute('data-kx-host', wrap.isConnected && wrap.getClientRects().length ? 'cockpit' : 'other'); };
+      place(); window.addEventListener('resize', place);
+    } catch (_) { html.setAttribute('data-kx-host', 'other'); }
+  }
 
   // Tab clicks.
   var tabEls = document.querySelectorAll('.tab');
@@ -1729,6 +2135,8 @@
   // The full page’s start. Under an audience view (ADR-164 D6) the kit owns the document and only the view’s own
   // reads may run, so the loads and the pollers start only when no view renders (and on a core without the kit).
   if (!window.AppView || !AppView.active()) {
+    mountAppBar();
+    syncFilter();
     load();
     loadMarkets();
     loadAlerts();

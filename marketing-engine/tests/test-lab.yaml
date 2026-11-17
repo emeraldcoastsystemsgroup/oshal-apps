@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | home-summary also proves each recent campaign's real draft count and time (sweep 11: the concierge invented draft times).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The home-summary case also expects RFC 3339 draft times and the persona's no-unlisted-campaigns and no-conversion rules (sweep 13).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: register product-name guard (tests/product-name.test.mjs) in the plain-Node marketing-engine job.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10: register phone-first-screen (lane mobilesweep1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -217,4 +218,25 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: phone-first-screen
+    name: The campaign list starts right under the Board's controls on a phone
+    purpose: "Guard 0.5.10 (lane mobilesweep1): the real page in a stand-in for Today with three synthetic campaigns, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-phone-first-screen.test.mjs
+    expected:
+      - On a phone the first campaign starts within the top quarter of the screen (it was 357 px, 39%), under search, Import and + New in one row and the four status chips in the next.
+      - The page's title and tagline are not drawn on a phone; the desktop keeps them.
+      - No sideways scroll, nothing to tap under the floating Jarvis button at the end, no write and no page error on open.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

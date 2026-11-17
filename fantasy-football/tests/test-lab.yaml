@@ -11,6 +11,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-open-slot: a lineup as set that leaves a starting slot empty names the starter that fills it, and the Start / sit card never says "already the best" beside a positive gain (sweep 13).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register slot-names: the Projected starters Slot column names each ESPN slot (QB, WR, FLEX), never the raw id (sweep 14).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (F22): register fantasy-quant (read-only FLEX start-sit, waivers, matchup breakdown, and confirm-gated mutations) and fantasy-quant-browser (collapsible Fantasy Quant Concierge rail across 1440x900 and 412x915).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register phone-wizard (lane mobilesweep2).
 version: 1
 cases:
   - id: package-readiness
@@ -826,4 +827,27 @@ cases:
       mode: disposable
     limits:
       timeoutMs: 60000
+    installation: never
+  - id: phone-wizard
+    name: The league walkthrough keeps Continue clear of the Jarvis button on a phone
+    purpose: "Guard 0.4.1 (lane mobilesweep2): the real page in a stand-in for Today, a new person with no league (the walkthrough opens by itself), at 412x915, 390x844 and 360x780 with touch and at 1440x900. Intelligent Sports opens the same page."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-phone-wizard.test.js
+    expected:
+      - On a phone Continue is not under the floating Jarvis button on the first screen nor at the end of the page, and nothing else to tap is under it at the end.
+      - The walkthrough starts within the top 30% of the screen; nothing scrolls sideways; the desktop keeps Continue at the right end of its bar.
+      - Opening the walkthrough writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

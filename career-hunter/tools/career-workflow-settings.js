@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read and explicitly save the person's default-off preparation choice, retaining unsaved controls on refusal and never authorizing submission.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1: the saved line says how many saved jobs wait for the person's other experience choice (lib/career-workflow-routes.js prepareSaved waiting) and what to do: prepare one application and choose it there, then save this choice again. Guard: tests/career-prepare-other-experience-route.test.mjs.
  */
 (()=>{'use strict';
  const $=id=>document.getElementById(id),API='/api/career-hunter/application-workflow';
@@ -14,7 +15,7 @@
   const input={enabled:$('workflowEnabled').checked,mode:document.querySelector('[name="workflowMode"]:checked').value};controls(true);$('workflowState').textContent='Saving…';
   try{const value=await request({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
    if(value.ok!==true||value.enabled!==input.enabled||value.mode!==input.mode)throw Error('Saved choice could not be confirmed.');
-   $('workflowState').textContent='Saved. '+(value.enabled?'Preparation is on. '+value.queued+' saved jobs queued.':'Preparation is off.')+(value.started===false?' Preparation could not start; open Getting ready to review and retry.':'');
+   $('workflowState').textContent='Saved. '+(value.enabled?'Preparation is on. '+value.queued+' saved jobs queued.':'Preparation is off.')+(value.started===false?' Preparation could not start; open Getting ready to review and retry.':'')+(value.waiting?' '+value.waiting+(value.waiting===1?' waits':' wait')+' for your other experience choice: prepare one application yourself and choose it on step 1 · Tailor, then save this choice again.':'');
   }catch(e){$('workflowState').textContent='Not saved or confirmed: '+e.message+' Your choices are still here. Read Settings again before retrying an uncertain save.';}
   finally{controls(false);}
  };

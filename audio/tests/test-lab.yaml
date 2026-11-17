@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Audio Studio (audio).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: register phone-first-screen (lane mobilesweep1).
 version: 1
 cases:
   - id: audio-acceptance
@@ -45,4 +46,24 @@ cases:
       mode: disposable
     limits:
       timeoutMs: 30000
+    installation: never
+  - id: phone-first-screen
+    name: Audio Studio opens on its tracks on a phone
+    purpose: "Guard 1.2.2 (lane mobilesweep1): the real studio page with its own scripts in a stand-in for Today, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audio-phone-first-screen.test.cjs
+    expected:
+      - On a phone the first track starts within the top 30% of the screen (it was 617 px, 67%), under one transport row (Play, Pause, Stop, Record Take and the time), with the formula macros as one row after the tracks.
+      - Pause, Stop and Record Take keep their names as icons; the kicker is not drawn on a phone; the desktop keeps its kicker, one transport bar with the LUFS meter, and its macros.
+      - No sideways scroll, nothing to tap under the floating Jarvis button at the end, no write and no page error on open.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 180000
     installation: never

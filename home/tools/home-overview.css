@@ -1,5 +1,6 @@
 /* CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the Smart Home surface stylesheet and add a searchable catalogue with a responsive selected-device workspace.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the available overview width, size groups by catalogue space, and reserve a detail column only while selected.
  */
 /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
      than hardcoding hex — so all eleven themes work, not just the dark ones. The "on"/success teal
@@ -131,9 +132,12 @@
   }
 
 /* Overview: discover a device, then work with its reported state and existing controls. */
-.home-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 12px 24px; margin: 12px 0 24px; }
+body:not(.view-hubs):not(.view-automations) .wrap:has(#homeView:not([hidden])) { max-width: none; padding: 24px 32px 64px; }
+body:not(.view-hubs):not(.view-automations) .wrap:has(#homeView:not([hidden])) > header { margin-bottom: 12px; }
+body:not(.view-hubs):not(.view-automations) .wrap:has(#homeView:not([hidden])) .count { font-size: 13px; line-height: 20px; }
+.home-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 16px 32px; align-items: center; margin: 0 0 28px; padding-bottom: 24px; border-bottom: 1px solid var(--ds-edge, var(--line)); }
 .home-kicker { margin: 0; color: var(--ds-ink-2, var(--muted)); font-size: 12px; line-height: 18px; letter-spacing: .06em; text-transform: uppercase; }
-.home-intro h2 { margin: 6px 0; font-size: 24px; line-height: 1.25; }
+.home-intro h2 { margin: 6px 0 8px; font-size: clamp(24px, 2.2vw, 32px); line-height: 1.2; letter-spacing: -.02em; }
 .home-description { margin: 0; max-width: 56ch; color: var(--ds-ink-2, var(--muted)); font-size: 16px; }
 .home-search { display: grid; gap: 8px; align-content: start; min-width: 0; }
 .home-search label { font-weight: 600; font-size: 14px; }
@@ -143,19 +147,31 @@
 .home-search .lnk { text-decoration: none; font-size: 14px; padding: 0 8px; }
 .home-read-state, .home-search-status { grid-column: 1 / -1; margin: 0; color: var(--ds-ink-2, var(--muted)); font-size: 14px; line-height: 20px; }
 .home-search-status:empty { display: none; }
-.home-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 24px; align-items: start; }
+.home-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start; }
+.home-workspace.has-selection { grid-template-columns: minmax(0, 1fr) 320px; }
 .home-workspace[hidden], .home-selection[hidden], #homeSearchClear[hidden] { display: none !important; }
-.home-catalogue { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; align-items: start; }
-.home-catalogue > :is(#devicesSection, .home-scenes) { grid-column: 1 / -1; min-width: 0; }
-.home-catalogue .sectitle { margin: 0 0 12px; font-size: 12px; }
-.home-catalogue .tiles { grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); align-items: stretch; }
+.home-catalogue { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 24px; align-items: start; container-type: inline-size; }
+.home-catalogue > * { grid-column: 1 / -1; min-width: 0; }
+.home-catalogue .sectitle { margin: 0 0 12px; color: var(--ds-ink, var(--text)); font-size: 15px; line-height: 22px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.home-catalogue :is(.tiles, .grid) { grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 14px; align-items: stretch; }
+.home-catalogue .tile { padding: 18px; gap: 8px; }
+.home-catalogue .tile svg { width: 36px; height: 36px; padding: 5px; border-radius: 9px; background: var(--ds-surface-2, var(--panel2)); }
+.home-catalogue .tile .tile-nm { font-size: 16px; line-height: 22px; }
+.home-catalogue .tile .tile-st { font-size: 13px; line-height: 19px; }
+.home-catalogue .tiles > .tile { border-style: dashed; justify-content: center; }
 .home-tile-shell { min-width: 0; display: grid; grid-template-rows: 1fr auto; overflow: hidden; border: 1px solid var(--ds-edge, var(--line)); border-radius: 14px; background: var(--ds-surface, var(--panel)); }
 .home-tile-shell.is-selected { border-color: var(--ds-accent, var(--accent)); }
-.home-tile-shell .tile { width: 100%; min-height: 100px; border: 0; border-radius: 0; background: transparent; }
+.home-tile-shell .tile { width: 100%; min-height: 142px; border: 0; border-radius: 0; background: transparent; }
 .home-details-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 8px 12px; border: 1px solid var(--ds-line-control, var(--line)); border-radius: 10px;
   background: var(--ds-surface-2, var(--panel2)); color: var(--ds-ink, var(--text)); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: normal; }
 .home-tile-shell .home-details-btn { border-width: 1px 0 0; border-radius: 0; }
-.home-catalogue .card .home-details-btn { margin-top: auto; }
+.home-catalogue .card { min-width: 0; padding: 18px; gap: 12px; border-color: var(--ds-edge, var(--line)); }
+.home-catalogue .card.on { border-color: color-mix(in srgb, var(--accent2) 55%, var(--line)); }
+.home-catalogue .card .crow:first-child { align-items: flex-start; }
+.home-catalogue .card .nm { min-width: 120px; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
+.home-catalogue .card .dim { margin: 0; }
+.home-catalogue .card input[type="range"] { min-width: 0; }
+.home-catalogue .card .home-details-btn { margin: auto -18px -18px; border-width: 1px 0 0; border-radius: 0 0 13px 13px; }
 .home-selection { min-width: 0; display: grid; gap: 16px; position: sticky; top: 16px; padding: 20px; border: 1px solid var(--ds-edge, var(--line)); border-radius: 14px; background: var(--ds-surface, var(--panel)); }
 .home-selection-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .home-selection-top .lnk { text-decoration: none; font-size: 14px; padding: 0; }
@@ -172,12 +188,16 @@
 .home-connection dd { margin: 0; overflow-wrap: anywhere; }
 .home-scenes .scene { display: flex; flex-direction: column; align-items: flex-start; text-align: left; color: var(--text); font: inherit; }
 #homeView :focus-visible { outline: 2px solid var(--ds-focus, var(--accent)); outline-offset: 3px; }
-@media (max-width: 899px) {
-  .home-intro { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-  .home-workspace { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .home-catalogue { grid-template-columns: minmax(0, 1fr); order: 2; }
+@container (min-width: 944px) {
+  .home-catalogue > .tgroup { grid-column: auto; }
+}
+@media (max-width: 1099px) {
+  .home-workspace.has-selection { grid-template-columns: minmax(0, 1fr); }
+  .home-catalogue { order: 2; }
   .home-selection { position: static; order: 1; scroll-margin-top: 12px; }
-  .home-catalogue > :is(#devicesSection, .home-scenes) { grid-column: auto; }
-  .home-catalogue .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .home-catalogue .tiles:not(:has(> :nth-child(2))) { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  body:not(.view-hubs):not(.view-automations) .wrap:has(#homeView:not([hidden])) { padding: 16px 16px 48px; }
+  .home-intro { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .home-catalogue { gap: 24px; }
 }

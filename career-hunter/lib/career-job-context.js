@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Honor expiry, complete listing bindings and authoritative replacements with the same Unicode/source-size checks as the Python hydrator.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A saved copy no longer expires after a day, as in the Python hydrator: the job page had fallen back to the short listing text 24 hours after the details were read.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0: a copy the person pasted from the posting (basis person-pasted, job_context.remember_pasted) is read like an employer copy, with the same checks, and keeps its basis so the page can say whose text it is.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: snapshot (the listing a copy is bound to) and hasText are exported for lib/career-job-details.js, which keeps a description the posting sheet read as the person's copy in this same format. Nothing here changes.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -49,4 +50,4 @@ function applyJobContext(dir,row){
   return {...row,description:value.description,description_context:{basis:value.basis,retrievedAt:stamp,descriptionSha256:value.descriptionSha256,
     sourceChars:value.sourceChars,sourceBytes:value.sourceBytes,truncated:false,listingSha256:value.snapshot.listingSha256}};
 }
-module.exports={applyJobContext};
+module.exports={applyJobContext,snapshot,hasText};

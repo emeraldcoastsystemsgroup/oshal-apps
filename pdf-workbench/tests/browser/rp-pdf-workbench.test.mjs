@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Browser end-to-end verification of RP-PDF-01..10 and RP-ALL-01 across real UI sheets, canvas gestures, saved revisions and downloads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). RP-ALL-01's prompt is the window's starter chip: pressing Summarize this PDF there sends those words alone to pdf-editor as PDF Workbench, through the fixture's stand-in kernel, and the summary shows in the window.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=pdf-workbench&bot=pdf-editor, read with scripts/one-chat-window/today-host.mjs windowAddress.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,6 +11,8 @@ import {spawnSync} from 'node:child_process';
 import {fixture} from '../fixtures/fixture.mjs';
 import {requireRuntime} from '../fixtures/runtime.mjs';
 import {uploadAndCreate,closeLayers,leaveMode} from './workbench-ui.mjs';
+import {chatWindow} from '../../../scripts/one-chat-window/kernel-window.mjs';
+import {windowAddress} from '../../../scripts/one-chat-window/today-host.mjs';
 
 const {chromium}=requireRuntime('playwright');
 const python=()=>process.env.OSHAL_PDF_TEST_PYTHON||'python3';
@@ -64,9 +68,7 @@ test('photos-to-PDF, single/two-page and night views, size reduction and Office 
 });
 
 test('word markup, freehand pen and eraser, blank page, check/cross, signature pad with resize and concierge prompts work live',async t=>{
- const conciergeCalls=[];
- const f=await fixture({extend:app=>app.post('/api/swarm/bots/pdf-editor/ask',async(req,res)=>{let raw='';for await(const c of req)raw+=chunkStr(c);conciergeCalls.push(JSON.parse(raw));res.json({reply:'Summary ready.',sessionId:'rp-pdf-session'});})});
- function chunkStr(c){return Buffer.isBuffer(c)?c.toString('utf8'):String(c);}
+ const f=await fixture({answer:()=>'Summary ready.'});
  t.after(()=>f.close());
  const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
  const page=await browser.newPage({viewport:{width:1440,height:960}}),errors=[];
@@ -110,8 +112,12 @@ test('word markup, freehand pen and eraser, blank page, check/cross, signature p
  assert.ok(saved.model.annotations.some(a=>a.kind==='ink'));
  assert.ok(saved.model.objects.some(o=>o.kind==='check')&&saved.model.objects.some(o=>o.kind==='image'));
  await page.locator('.pdf-mode[data-mode="concierge"]').click();
- await page.getByRole('button',{name:'Summarize this PDF',exact:true}).click();
- await page.getByText('Summary ready.',{exact:true}).waitFor({timeout:30000});
- assert.equal(conciergeCalls.length,1);assert.match(conciergeCalls[0].message,/Summarize this PDF/);
+ const chat=await chatWindow(page.locator('.ef-assistant'));
+ const where=await windowAddress(page.locator('.ef-assistant'));assert.deepEqual([where.path,where.app,where.bot],['/api/jarvis/','pdf-workbench','pdf-editor'],'the Concierge mode opens the one chat window as PDF Workbench\'s own concierge');
+ await chat.locator('[data-concierge-prompt="Summarize this PDF"]').click();
+ await chat.locator('#convo .msg.bot .bx').getByText('Summary ready.').waitFor({timeout:30000});
+ assert.equal(f.kernel.asks.length,1);const [ask]=f.kernel.asks;
+ assert.deepEqual([ask.bot,ask.context.app,ask.message],['pdf-editor','pdf-workbench','Summarize this PDF'],'the prompt\'s words alone reach PDF Workbench\'s bot');
+ assert.equal(ask.context.recordId,id,'with the saved document on the context');
  assert.deepEqual(errors,[]);
 });

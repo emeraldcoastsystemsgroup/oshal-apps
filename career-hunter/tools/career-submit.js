@@ -6,6 +6,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted approval/bind/start requests with the same frozen packet and ticket, synchronizing first and refusing expired approvals or uncertain outcomes.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Review exact job documents and applicant facts in place, then publish approval, bind and start one recoverable native submission intent.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals while retaining explicit submission recovery and every other error.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: approveAndStart(postingId, packetDigest) is the approve, bind and start that reviewAndSubmit always made, now named so My jobs' bulk Send runs the same three writes after the person confirmed the list. reviewAndSubmit is unchanged in what it asks and sends.
  */
 (()=>{
   'use strict';const BASE='/api/career-hunter',BOT='cb000000-0000-0000-0000-000000000004';
@@ -87,15 +88,26 @@
       dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);openDialog();
     });
   }
+  /**
+   * @description The three writes of an approved send: approve this exact packet, bind its native ticket, start it. The
+   * server answers a repeat of any of them with the record it already has (the same packet is never approved twice), so a
+   * press Career was too busy to finish is run again safely. My jobs' bulk Send calls this after the person confirmed.
+   * @param {number} postingId The job.
+   * @param {string} packetDigest The exact packet the person approved.
+   * @returns {Promise<object>} The started submission record.
+   */
+  async function approveAndStart(postingId,packetDigest){
+    const approved=await request('/submission-queue',{postingId,packetDigest,approved:true});
+    await request('/submission-queue/'+approved.item.id+'/bind',{});
+    return (await request('/submission-queue/'+approved.item.id+'/start',{})).item;
+  }
   async function reviewAndSubmit(postingId){
     const packet=await request('/submission-review/'+encodeURIComponent(postingId));
     const availability=await workers().catch(()=>({available:false}));
     if(!await reviewDialog(packet,availability.available))return null;
-    const approved=await request('/submission-queue',{postingId,packetDigest:packet.packetDigest,approved:true});
-    await request('/submission-queue/'+approved.item.id+'/bind',{});
-    const started=await request('/submission-queue/'+approved.item.id+'/start',{});
+    const started=await approveAndStart(postingId,packet.packetDigest);
     if(window.CareerJobActions)await window.CareerJobActions.monitor(true).catch(()=>{});
-    return started.item;
+    return started;
   }
   const recovering=new Map();
   function resumeApproved(id){
@@ -160,5 +172,5 @@
     const [guest,user]=await Promise.all([read('/api/guest/session'),read('/api/auth/user')]);
     return !((guest&&(guest.guest===true||guest.active===true))||(user&&(user.guest===true||/^urn:oshal:guest:|^guest[-:]/i.test(String(user.sub||user.principal_id||'')))));
   }
-  window.CareerSubmit={reviewAndSubmit,resumeApproved,answerAndReview,connectWorker,synchronize,workers,canConnect,request};
+  window.CareerSubmit={reviewAndSubmit,approveAndStart,resumeApproved,answerAndReview,connectWorker,synchronize,workers,canConnect,request};
 })();

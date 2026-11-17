@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour over a stub kit and a stub fetch, with the browser fixture's synthetic answers as the one source of truth: on open it reads exactly GET /scan, GET /alerts and GET /home-summary and never /status, /portfolio or /alerts/pops (each asks Kalshi live), /trends, /settings or a write; the stats are the playable-hand count, the snapshot age with its freshness, the paper alert record and the five-day alert count; the hands table carries strength, side, market, ask, net edge, stake, close and flags as the snapshot ranks them (a past close reads Closed); the alerts list carries strength, side, edge, delivery and the settlement outcome (Open, Win, Loss, Settled), newest first, capped at eight, under the record line; waiting for the first scan, a running first scan, the scan switched off, a folded scan, a stale or failed snapshot, an open staking gate, 401, 403, a failed snapshot read (the route's own error, or the HTTP status when not JSON), a failed or refused alerts read (which never hides the hands), a failed, unavailable or partial home summary and no alerts at all each read as what they are. The page's main script and its connected-actions script run against a stub DOM to prove that under a view nothing starts (no read, no poller, no mount) while without a view, and without the kit, every start step runs as before.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The scan cadence is stated as conditional on the person's background-scan job ("scans every 60 min while your background-scan job is on"; the snapshot hint "Every 60 min while your scan job is on"), since the scan runs only when that job is activated, and an installation that cannot scan says so in the title, the lede and the snapshot hint instead of a cadence.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | The full page's start also reads GET /markets: the Markets tab (1.7.0) is the first tab and its rows load with the snapshot, so the expected read list names it. Under an audience view that load is gated with the others, which the first assertion already proves.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | 1.10.1: the card says the ratings in 1.10.0's words. Kalshi 1.10.0 renamed them on the full page (Big edge, Good edge, Small edge, No edge, No estimate) and the card still said "2 playable hands", "Playable hands", "Top hands", the raw rating (monster, strong, playable) and "folded". The expectations follow the new words, and a new case proves the card's rating table is the full page's own EDGE_WORDS and that nothing the card shows says monster, fold, playable or verdict, for every rating in the hands table and the alerts.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -102,38 +103,38 @@ test('on open the view reads only the saved snapshot, the alert ledger and the h
 
 test('the hero and stats name the scan state: hands, snapshot age and freshness, the paper record and the five-day alert count', async () => {
   const model = await loadCompany(OK).company({});
-  assert.deepEqual([model.kicker, model.title, model.actions.map((a) => a.label)], ['Finance · Kalshi', '2 playable hands', ['Open the scan']]);
+  assert.deepEqual([model.kicker, model.title, model.actions.map((a) => a.label)], ['Finance · Kalshi', '2 markets with an edge', ['Open the scan']]);
   assert.equal(model.lede, 'Snapshot W(' + GEN + ') over 1387 evaluable markets · scans every 60 min while your background-scan job is on · paper only: strategy calibration is unproven (12 graded, 30 needed).');
   assert.deepEqual(model.stats.map(brief), [
-    ['hands', 'Playable hands', 2, 'of 1387 evaluable markets', 'ok'],
+    ['hands', 'With an edge', 2, 'of 1387 evaluable markets', 'ok'],
     ['snapshot', 'Last scan', 'W(' + GEN + ')', 'Every 60 min while your scan job is on', 'ok'],
     ['record', 'Alert record (paper)', '2–1', '67% hit over 3 settled alerts', 'ok'],
     ['alerts5d', 'Alerts / 5 days', '4', '3 delivered', null],
   ]);
 });
 
-test('the hands table carries strength, side, market, ask, net edge, stake, close and flags as the snapshot ranks them, capped at ten', async () => {
+test('the hands table carries the rating in words, side, market, ask, net edge, stake, close and flags as the snapshot ranks them, capped at ten', async () => {
   const hands = section(await loadCompany(OK).company({}), 'hands');
-  assert.deepEqual(hands.columns.map((c) => (typeof c === 'string' ? c : c.label)), ['Strength', 'Side', 'Market', 'Ask', 'Net edge', 'Stake', 'Closes', 'Flags']);
+  assert.deepEqual(hands.columns.map((c) => (typeof c === 'string' ? c : c.label)), ['Rating', 'Side', 'Market', 'Ask', 'Net edge', 'Stake', 'Closes', 'Flags']);
   assert.deepEqual(hands.rows, [
-    [{ text: 'strong', tone: 'ok' }, 'YES', 'Synthetic Fed holds in November', { text: '42.0¢' }, { text: '+7.3¢', tone: 'ok' }, { text: '0.00%' }, 'W(' + SCAN.hands[0].closeTime + ')', '—'],
-    [{ text: 'playable', tone: 'warn' }, 'NO', 'Synthetic rain in Miami on Friday', { text: '61.0¢' }, { text: '+3.1¢', tone: 'ok' }, { text: '0.00%' }, 'W(' + SCAN.hands[1].closeTime + ')', 'thin-book'],
+    [{ text: 'Good edge', tone: 'ok' }, 'YES', 'Synthetic Fed holds in November', { text: '42.0¢' }, { text: '+7.3¢', tone: 'ok' }, { text: '0.00%' }, 'W(' + SCAN.hands[0].closeTime + ')', '—'],
+    [{ text: 'Small edge', tone: 'warn' }, 'NO', 'Synthetic rain in Miami on Friday', { text: '61.0¢' }, { text: '+3.1¢', tone: 'ok' }, { text: '0.00%' }, 'W(' + SCAN.hands[1].closeTime + ')', 'thin-book'],
   ]);
   assert.equal(hands.note, 'A stake is a quarter-Kelly paper size of the bankroll; nothing here places an order.');
   const many = Array.from({ length: 14 }, (_, i) => ({ ...SCAN.hands[0], ticker: 'SYN-' + i, title: 'Synthetic ' + i, stakeFraction: 0.0125, closeTime: i === 0 ? iso(-1) : i === 1 ? null : iso(48), strength: 'monster' }));
   const capped = await loadCompany({ ...OK, [S]: scan({ hands: many, mayStake: true }) }).company({});
-  assert.deepEqual([capped.title, section(capped, 'hands').rows.length, section(capped, 'hands').rows[0][5], section(capped, 'hands').rows[0][6], section(capped, 'hands').rows[1][6], section(capped, 'hands').rows[0][0].tone], ['14 playable hands', 10, { text: '1.25%' }, 'Closed', '—', 'ok']);
-  assert.match(section(capped, 'hands').note, /^The top 10 of 14 hands, as the scan ranks them\. /);
+  assert.deepEqual([capped.title, section(capped, 'hands').rows.length, section(capped, 'hands').rows[0][5], section(capped, 'hands').rows[0][6], section(capped, 'hands').rows[1][6], section(capped, 'hands').rows[0][0].tone], ['14 markets with an edge', 10, { text: '1.25%' }, 'Closed', '—', 'ok']);
+  assert.match(section(capped, 'hands').note, /^The top 10 of 14 markets with an edge, as the scan ranks them\. /);
   assert.match(capped.lede, / · staking gate open for calibration\.$/);
 });
 
-test('the alerts list carries strength, side, edge, delivery and the settlement outcome, newest first, capped at eight, under the record line', async () => {
+test('the alerts list carries the rating in words, side, edge, delivery and the settlement outcome, newest first, capped at eight, under the record line', async () => {
   const alerts = section(await loadCompany(OK).company({}), 'alerts');
   assert.deepEqual(alerts.items.map((i) => [i.title, i.text, i.meta, i.badge, i.tone]), [
-    ['Synthetic rain in Miami on Friday', 'playable · NO · +3.1¢ net edge when announced · delivered via jarvis', 'W(' + OK[L].alerts[0].created_at + ')', 'Open', null],
-    ['Synthetic CPI above 3% in September', 'strong · YES · +5.8¢ net edge when announced · +$0.55 per contract · delivered via jarvis', 'W(' + OK[L].alerts[1].created_at + ')', 'Win', 'ok'],
-    ['Synthetic quarterback throws for 300 yards', 'playable · YES · +3.4¢ net edge when announced · −$0.47 per contract · delivery not confirmed', 'W(' + OK[L].alerts[2].created_at + ')', 'Loss', 'bad'],
-    ['Synthetic snow in Denver by Sunday', 'monster · YES · +9.1¢ net edge when announced · +$0.28 per contract · delivered via jarvis', 'W(' + OK[L].alerts[3].created_at + ')', 'Win', 'ok'],
+    ['Synthetic rain in Miami on Friday', 'Small edge · NO · +3.1¢ net edge when announced · delivered via jarvis', 'W(' + OK[L].alerts[0].created_at + ')', 'Open', null],
+    ['Synthetic CPI above 3% in September', 'Good edge · YES · +5.8¢ net edge when announced · +$0.55 per contract · delivered via jarvis', 'W(' + OK[L].alerts[1].created_at + ')', 'Win', 'ok'],
+    ['Synthetic quarterback throws for 300 yards', 'Small edge · YES · +3.4¢ net edge when announced · −$0.47 per contract · delivery not confirmed', 'W(' + OK[L].alerts[2].created_at + ')', 'Loss', 'bad'],
+    ['Synthetic snow in Denver by Sunday', 'Big edge · YES · +9.1¢ net edge when announced · +$0.28 per contract · delivered via jarvis', 'W(' + OK[L].alerts[3].created_at + ')', 'Win', 'ok'],
   ]);
   assert.equal(alerts.note, 'Record: 2 wins, 1 loss (67% hit rate over 3 settled alerts) · avg +$0.12 per contract, +$0.36 had you bought one contract on each · 1 alert still open · 4 alerts announced. Paper: alerts never place orders.');
   const twelve = Array.from({ length: 12 }, (_, i) => ({ ...OK[L].alerts[0], ticker: 'SYN-' + i, detail: {}, settled: i === 0 ? true : null, won: null }));
@@ -144,7 +145,7 @@ test('the alerts list carries strength, side, edge, delivery and the settlement 
 test('waiting for the first scan, a running first scan, the scan switched off and a folded scan each read as what they are', async () => {
   const waiting = await loadCompany({ ...OK, [S]: AWAITING }).company({});
   assert.deepEqual([waiting.title, waiting.lede, brief(stat(waiting, 'hands')), brief(stat(waiting, 'snapshot')), section(waiting, 'hands').rows.length, section(waiting, 'hands').empty],
-    ['Waiting for the first scan', 'scans every 60 min while your background-scan job is on · paper only: the background scan has not produced its first snapshot yet.', ['hands', 'Playable hands', 0, null, null], ['snapshot', 'Last scan', 'None yet', 'Every 60 min while your scan job is on', 'warn'], 0, 'The background scan has not produced its first snapshot yet.']);
+    ['Waiting for the first scan', 'scans every 60 min while your background-scan job is on · paper only: the background scan has not produced its first snapshot yet.', ['hands', 'With an edge', 0, null, null], ['snapshot', 'Last scan', 'None yet', 'Every 60 min while your scan job is on', 'warn'], 0, 'The background scan has not produced its first snapshot yet.']);
   const reason = 'No Kalshi market feed is connected on this installation: the runtime provides no prediction-markets market reader.';
   const cannot = await loadCompany({ ...OK, [S]: scan({ ...AWAITING, gateReason: reason }, { unavailable: reason, lastError: reason }) }).company({});
   assert.deepEqual([cannot.title, cannot.lede, stat(cannot, 'snapshot').hint],
@@ -155,7 +156,35 @@ test('waiting for the first scan, a running first scan, the scan switched off an
   const off = await loadCompany({ ...OK, [S]: scan(AWAITING, { enabled: false }) }).company({});
   assert.deepEqual([off.title, stat(off, 'snapshot').hint], ['Background scan is off and no snapshot is saved', 'Background scan is off']);
   const folded = await loadCompany({ ...OK, [S]: scan({ hands: [] }) }).company({});
-  assert.deepEqual([folded.title, stat(folded, 'hands').value, stat(folded, 'hands').tone || null, section(folded, 'hands').empty], ['The last scan folded every market', 0, null, 'No playable hands: the evaluator folded every market whose history does not support an edge net of fees.']);
+  assert.deepEqual([folded.title, stat(folded, 'hands').value, stat(folded, 'hands').tone || null, section(folded, 'hands').empty], ['The last scan found no market with an edge', 0, null, 'No market has an edge: after the fee, every price the scan walked is about right, or too high, for what history supports.']);
+});
+
+/**
+ * @description Every string the card shows (titles, lede, labels, hints, values, columns, cells, notes, list items, actions),
+ * leaving out ids, kinds, tones and alignments, which are never drawn as words.
+ * @param {*} node A model or a part of it. @returns {string[]} The shown strings.
+ */
+function shown(node) {
+  if (typeof node === 'string') return [node];
+  if (typeof node === 'number') return [String(node)];
+  if (!node || typeof node !== 'object') return [];
+  return Object.entries(node).filter(([key]) => !['id', 'kind', 'tone', 'align', 'onClick', 'primary', 'wide'].includes(key)).flatMap(([, value]) => shown(value));
+}
+
+test('the card says the ratings in the full page\x27s words: the same EDGE_WORDS, and no monster, fold, playable or verdict anywhere it shows', async () => {
+  const table = (src) => { const m = src.match(/var EDGE_WORDS = (\{[^}]*\});/); assert.ok(m, 'an EDGE_WORDS table'); return new Function('return ' + m[1])(); };
+  const s = html.indexOf('<script>', html.indexOf('</main>')), main = html.slice(s + 8, html.indexOf('</script>', s));
+  const words = table(block);
+  assert.deepEqual(words, table(main), 'the card\x27s words are the full page\x27s');
+  assert.deepEqual(words, { monster: 'Big edge', strong: 'Good edge', playable: 'Small edge', fold: 'No edge', 'not-evaluable': 'No estimate' });
+  const rated = ['monster', 'strong', 'playable'].map((strength, i) => ({ ...SCAN.hands[0], ticker: 'SYN-R' + i, title: 'Synthetic rated ' + i, strength }));
+  const ledger = { alerts: ['monster', 'strong', 'playable', 'fold', 'not-evaluable', undefined].map((strength, i) => ({ ...OK[L].alerts[1], ticker: 'SYN-A' + i, strength, detail: { title: 'Synthetic alert ' + i, side: 'yes' } })), record: OK[L].record };
+  const model = await loadCompany({ ...OK, [S]: scan({ hands: rated }), [L]: ledger }).company({});
+  assert.deepEqual(section(model, 'hands').rows.map((r) => r[0].text), ['Big edge', 'Good edge', 'Small edge']);
+  assert.deepEqual(section(model, 'alerts').items.map((i) => i.text.split(' · ')[0]), ['Big edge', 'Good edge', 'Small edge', 'No edge', 'No estimate', 'YES']);
+  const folded = await loadCompany({ ...OK, [S]: scan({ hands: [] }), [L]: NO_ALERTS }).company({});
+  const waiting = await loadCompany({ ...OK, [S]: AWAITING }).company({});
+  for (const m of [model, folded, waiting]) for (const text of shown(m)) assert.doesNotMatch(text, /\b(monster|fold(ed|s)?|playable|verdict)\b/i, 'the card shows: ' + text);
 });
 
 test('a stale snapshot, a failed last scan and a switched-off scan with a saved snapshot are each named on the snapshot stat', async () => {
@@ -179,12 +208,12 @@ test('a refusal and a failed snapshot read each read as what they are', async ()
 test('a failed or refused alerts read never hides the hands; a failed, unavailable or partial home summary and no alerts at all are each named', async () => {
   const noAlerts = await loadCompany({ ...OK, [L]: { http: 503, body: { error: 'Synthetic ledger unavailable' } } }).company({});
   assert.deepEqual([noAlerts.title, section(noAlerts, 'hands').rows.length, section(noAlerts, 'alerts').items.length, section(noAlerts, 'alerts').empty, section(noAlerts, 'alerts').note, brief(stat(noAlerts, 'record'))],
-    ['2 playable hands', 2, 0, 'Alerts could not be read (HTTP 503).', null, ['record', 'Alert record (paper)', '—', 'Could not check', null]]);
+    ['2 markets with an edge', 2, 0, 'Alerts could not be read (HTTP 503).', null, ['record', 'Alert record (paper)', '—', 'Could not check', null]]);
   const refusedAlerts = await loadCompany({ ...OK, [L]: { http: 401, body: {} } }).company({});
   assert.deepEqual([section(refusedAlerts, 'alerts').empty, stat(refusedAlerts, 'record').hint], ['Sign in to see alerts.', 'Sign in to see it']);
   const quiet = await loadCompany({ ...OK, [L]: NO_ALERTS }).company({});
   assert.deepEqual([brief(stat(quiet, 'record')), section(quiet, 'alerts').empty, section(quiet, 'alerts').note],
-    [['record', 'Alert record (paper)', '—', 'No alerts announced yet', null], 'No alerts announced yet. New playable hands are posted to your Jarvis feed by the background scan.', 'An alert is a research signal the background scan posted to your feed, never an order.']);
+    [['record', 'Alert record (paper)', '—', 'No alerts announced yet', null], 'No alerts announced yet. New markets with an edge are posted to your Jarvis feed by the background scan.', 'An alert is a research signal the background scan posted to your feed, never an order.']);
   const openOnly = await loadCompany({ ...OK, [L]: { alerts: OK[L].alerts.slice(0, 1), record: { alerted: 2, settled: 0, wins: 0, losses: 0, open: 2, hitRate: null, pnlPerContract: null, pnlTotal: null } } }).company({});
   assert.deepEqual(brief(stat(openOnly, 'record')), ['record', 'Alert record (paper)', '0–0', '2 open alerts, none settled yet', null]);
   const noSummary = await loadCompany({ ...OK, [H]: { http: 503, body: { error: 'x' } } }).company({});

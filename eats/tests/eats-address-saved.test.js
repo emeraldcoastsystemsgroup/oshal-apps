@@ -10,6 +10,8 @@
  *   save of only the address keeps the saved diet. A second save of an existing row failed the same way (the proposed row is checked before ON
  *   CONFLICT), so the row always carries lists and the update keeps the saved ones through $9/$10. (2) The page saved an address only from Use location; a typed address used by a search or a
  *   concierge turn is now saved once (the page's own rememberAddress and search, run over a recording fetch), and the boot read never saves.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: a concierge turn is the kernel's one chat window's; the context each turn carries (eatsTurnContext) saves the typed
+ *   address first, as the page's own chat turn did.
  */
 'use strict';
 const test = require('node:test');
@@ -94,7 +96,8 @@ test('the page saves a typed address once, and never an empty or unchanged one',
 test('a search the person asks for and a concierge turn save the address; the boot read does not', () => {
   const search = HTML.slice(HTML.indexOf('async function search('), HTML.indexOf('\n}\n', HTML.indexOf('async function search(')));
   assert.match(search, /if \(!readOnly\) rememberAddress\(address\);/);
-  const chat = HTML.slice(HTML.indexOf('async function sendChat('), HTML.indexOf('\n}\n', HTML.indexOf('async function sendChat(')));
-  assert.match(chat, /rememberAddress\(\$\('#address'\)\.value\);/);
+  const turn = HTML.slice(HTML.indexOf('async function eatsTurnContext('), HTML.indexOf('\n}\n', HTML.indexOf('async function eatsTurnContext(')));
+  assert.match(turn, /await rememberAddress\(\$\('#address'\)\.value\)/);
+  assert.match(HTML, /chatHost: \{ prepare: \(\) => window\.eatsTurnContext\(\) \}/, 'every turn of the concierge window carries it');
   assert.match(HTML, /await search\('', false, true\);/, 'boot still reads with readOnly');
 });

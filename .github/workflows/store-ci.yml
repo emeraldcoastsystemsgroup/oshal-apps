@@ -102,6 +102,10 @@
 # 92 | maintainer@emeraldcoastsystemsgroup.com | The local gate is scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"): scripts/store-ci-local.mjs runs the publish wall and every structural job on every push, plus the jobs of the packages a change touches or reaches (scripts/store-ci-scope.mjs; anything it cannot place runs everything), and scripts/store-full-run.sh runs this whole file on a clean checkout of origin/main on a schedule. Job `store-ci-local` runs both contracts: scripts/store-ci-scope.test.mjs (what a change selects, when everything runs, the scoped last line, the rerun of failed jobs, the always-set mutation) and scripts/store-gate-wrappers.test.mjs (the full run's checkout, receipt, retry and lock; the hook's mode line). A job added to this file must be either inside a package folder or listed in ALWAYS_JOBS, or every push runs the whole suite until it is.
 # 93 | maintainer@emeraldcoastsystemsgroup.com | Job `calendar` (1.4.0) also runs the meeting change and cancel suites: the Google meeting routes over a stand-in kernel egress and Google API, the OSHAL event changes, the change, cancel and decline cards as the kernel's own card code renders them and the ask-which conversation (tests/*meeting*.test.cjs and tests/own-event-changes.test.cjs, with OSHAL_KERNEL_PLATFORM). The screen's Edit and Cancel meeting browser suite is named personal-calendar-meetings-browser so the existing PostgreSQL and browser step runs it.
 # 94 | maintainer@emeraldcoastsystemsgroup.com | Job `identity` (1.2.8): Identity Hub had no job, so no gate ran its suites. Roger, 2026-11-15: Reconnect on the phone said "The current window does not have permission to navigate the target frame". The job runs the package's node suites (the consent start, the list contract, the views, search rank, the audience view and the kernel access review) and Reconnect in Chromium at phone and desktop sizes, framed with the cockpit's package sandbox and on its own (tests/connect-from-frame.browser.cjs).
+# 95 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2 (the phone first-screen sweep of 2026-11-16): the phone first-screen browser guards of six packages run in the gate. Job `home-summary` runs Vids' (with OSHAL_KERNEL_PLATFORM: the Studio is the kernel's shared editor), Drone Ops', Print Inbox's and Travel's (those three packages have no job of their own); job `scene-studio` runs Scene Studio's (with OSHAL_KERNEL_PLATFORM); job `ocean-lab` runs the Harvest Siting Console's. Only the new guards: the packages' other ungated suites stay as they are.
+# 96 | maintainer@emeraldcoastsystemsgroup.com | Job `publishing-studio`: the step names OSHAL_KERNEL_PLATFORM, so its browser cases mount the kernel's shared editor from the platform the gate pins (STORE_CI_KERNEL_PLATFORM on the gate machine) and the fixture refuses without one. Before, the step named none and the fixture served <clone>/../oshal-kernel/platform, on the gate machine a link to the live kernel checkout: kernel 00c62f98 (the one chat window) made the old concierge box a hidden stand-in there, and tests/workbench-browser.test.mjs case 39 failed two FULL gates on 2026-11-17 with no store change.
+# 97 | maintainer@emeraldcoastsystemsgroup.com | Jobs `sports-edge` and `rides` name OSHAL_KERNEL_PLATFORM on their suites step (lane CHATCORE3): each package's page now mounts the kernel's one chat window, and its browser suite (tests/<app>-one-chat-window.test.js, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
+# 98 | maintainer@emeraldcoastsystemsgroup.com | Job `eats` names OSHAL_KERNEL_PLATFORM on its suites step (lane CHATCORE3, eats 1.5.7): the page now mounts the kernel's one chat window, and its browser suite (tests/eats-one-chat-window.test.js, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
 
 name: store-ci
 
@@ -160,6 +164,16 @@ jobs:
       - run: node --test world/tests/world-operations.test.cjs
       - run: node --test world/tests/audience-view.test.cjs
       - run: node --test vids/tests/integration-surface.test.js
+      - name: Run the Vids phone first-screen browser guard
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test vids/tests/vids-phone-first-screen.test.cjs
+      - name: Run the Drone Ops phone first-screen browser guard
+        run: node --test drone/tests/drone-phone-first-screen.test.cjs
+      - name: Run the Print Inbox phone first-screen browser guard
+        run: node --test print-ingest/tests/print-phone-first-screen.test.cjs
+      - name: Run the Travel phone first-screen browser guard
+        run: node --test travel/tests/travel-phone-first-screen.test.js
 
   test-discovery:
     name: non-empty package test discovery
@@ -634,6 +648,8 @@ jobs:
       # guard proves the page speaks the shared bridge and opens Uber Eats from one place.
       - name: Run eats suites
         working-directory: eats
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*-*.test.js"
 
   dev-workspace-index:
@@ -1012,6 +1028,8 @@ jobs:
       # stay gone. Plain node, no install, against the compiled route module + the served HTML.
       - name: Run rides suites
         working-directory: rides
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.js"
 
   pumpkin:
@@ -1113,6 +1131,8 @@ jobs:
       # .mjs package and node --test would exit 0 having run nothing.
       - name: Run sports-edge suites
         working-directory: sports-edge
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.js"
 
   fantasy-football:
@@ -1294,6 +1314,9 @@ jobs:
       - name: Run ocean-lab engine suites
         working-directory: ocean-lab
         run: node --test "tests/engine-*.test.js"
+      - name: Run the ocean-lab phone first-screen browser guard
+        working-directory: ocean-lab
+        run: node --test tests/harvest-phone-first-screen.test.cjs
 
   cad-studio:
     name: cad-studio package suites
@@ -1350,6 +1373,11 @@ jobs:
       - name: Run scene-studio contract, transport and sandbox suites
         working-directory: scene-studio
         run: node --test "tests/*-*.test.js"
+      - name: Run the scene-studio phone first-screen browser guard
+        working-directory: scene-studio
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test tests/scene-phone-first-screen.browser.test.cjs
 
   circuit-lab:
     name: circuit-lab package suites
@@ -1513,8 +1541,12 @@ jobs:
           node-version: 24
       - name: Provision the pinned source contract dependencies
         run: npm ci --prefix scripts/toolchain
+      # The browser cases mount the kernel's shared editor, so they run on the kernel platform the gate pins
+      # (tests/fixtures/shared-ui.mjs refuses without a named one), never on a kernel checkout found beside the clone.
       - name: Require genuine Publishing renderer SQL HTTP and browser proofs
         working-directory: publishing-studio
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.mjs"
 
   cloud:

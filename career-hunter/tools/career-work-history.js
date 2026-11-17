@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience ... it covers like 20 different companies over a 4 year span when i was consulting in the field"): the edits a client engagement's form, its bullets, "Place all under" and a client account group's form ask for (fields engagement, engagement-bullet and accounts of POST /resume/master-edit), and how an engagement's months and length read (engagementSpan, lengthLabel).
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my expierence and when it is avialbe the concierge should be able to make the changes and reflct them on the screen in my resume"). The Work history page: the jobs the main résumé is built from, each a card with its title, employer, months and bullets, in the order the résumé shows them. Edit opens the card as a form (job title, employer, start and end month and year, I work here now, bullets you add, edit, move and remove); Add a job puts a new one first; a job moves up or down or is removed. The layout follows where LinkedIn's Experience section and the résumé builders (Indeed, Resume.io, Zety) agree: newest job first, one card per job, a month and year for each date with a "currently work here" box, bullets as their own lines. Each save is turned into the exact edits the engine's revision-checked main-résumé edit takes (POST /resume/master-edit; at most 20 a request, chained on each answer's revision) and shows the changed-with-Undo bar; the concierge's approved changes arrive through the registered document refresh and show the same bar. A change also brings the Word document on My résumé up to date when it still matched (CareerResumeOffice.syncDocument).
  */
 (function (root) {
@@ -106,8 +107,92 @@
     return out;
   }
 
+  /** @description How long an engagement ran as a person reads it: "3 months", "1.5 months", "2 weeks", "2 days". @param {number|null} months @returns {string} */
+  function lengthLabel(months) {
+    if (typeof months !== 'number' || !(months > 0)) return '';
+    if (months >= 1) { var m = Math.round(months * 10) / 10; return m + (m === 1 ? ' month' : ' months'); }
+    var weeks = Math.round(months * 52 / 12);
+    if (weeks >= 1) return weeks + (weeks === 1 ? ' week' : ' weeks');
+    var days = Math.max(1, Math.round(months * 365 / 12));
+    return days + (days === 1 ? ' day' : ' days');
+  }
+  /** @description An engagement's months: "Feb 2018 – Apr 2018", "From Sep 2018", "Until Jun 2019", or '' when none is saved. @param {string} start @param {string} end @returns {string} */
+  function engagementSpan(start, end) {
+    if (start && end) return monthLabel(start) + ' – ' + monthLabel(end);
+    if (start) return 'From ' + monthLabel(start);
+    return end ? 'Until ' + monthLabel(end) : '';
+  }
+  function sameList(a, b) { return a.length === b.length && a.every(function (item, n) { return item === b[n]; }); }
+
+  /**
+   * @description The edits that turn an engagement's saved bullets into the rows on its form, as POST /resume/master-edit
+   * takes them (field engagement-bullet), named by the engagement's place and its saved name. The same order and anchors
+   * as a job's bullets (bulletEdits), so each edit names the exact text the engine finds there at that moment.
+   * @param {number} index the engagement's place @param {string} name its saved name @param {string[]} saved its saved bullets
+   * @param {Array<{orig:number|null,text:string}>} rows the form's bullets @returns {object[]}
+   */
+  function engagementBulletEdits(index, name, saved, rows) {
+    return bulletEdits(0, '', saved, rows).map(function (edit) {
+      var out = { op: edit.op, field: 'engagement-bullet', engagementIndex: index, engagementName: name, index: edit.index, before: edit.before };
+      if ('to' in edit) out.to = edit.to;
+      if ('value' in edit) out.value = edit.value;
+      return out;
+    });
+  }
+
+  /**
+   * @description The edits a saved engagement's form asks for: its bullets first (named by the name it still has), then one
+   * change of every detail that differs (name, role, industry, months, length, technology, the job it was done under,
+   * marked not public). A form that changes nothing asks for nothing.
+   * @param {object} saved the engagement as Work history read it (expanded.engagements[n])
+   * @param {{project:string,role:string,industry:string,start:string,end:string,months:number|null,tech:string[],job:{index:number,title:string}|null,public:boolean,bullets:Array}} form
+   * @returns {object[]}
+   */
+  function engagementEdits(saved, form) {
+    var edits = engagementBulletEdits(saved.index, saved.project, saved.bullets || [], form.bullets), value = {};
+    ['project', 'role', 'industry', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim() !== String(saved[key] || '').trim()) value[key] = String(form[key] || '').trim(); });
+    if ((form.months == null ? null : form.months) !== (saved.months == null ? null : saved.months)) value.months = form.months;
+    if (!sameList(form.tech, saved.tech || [])) value.tech = form.tech;
+    if ((form.job ? form.job.index : null) !== (saved.job ? saved.job.index : null)) value.job = form.job;
+    if (form.public !== (saved.public !== false)) value.public = form.public;
+    if (Object.keys(value).length) edits.push({ op: 'set', field: 'engagement', index: saved.index, before: saved.project, value: value });
+    return edits;
+  }
+
+  /** @description The edits that add a new engagement at place `at` (the end of the list), then its bullets. @param {number} at @param {object} form @returns {object[]} */
+  function newEngagementEdits(at, form) {
+    var name = String(form.project || '').trim(), value = { project: name };
+    ['role', 'industry', 'start', 'end'].forEach(function (key) { if (String(form[key] || '').trim()) value[key] = String(form[key]).trim(); });
+    if (form.months != null) value.months = form.months;
+    if (form.tech.length) value.tech = form.tech;
+    if (form.job) value.job = form.job;
+    if (form.public === false) value.public = false;
+    var edits = [{ op: 'add', field: 'engagement', index: at, before: '', value: value }];
+    form.bullets.filter(function (row) { return row.text.trim(); }).forEach(function (row, q) {
+      edits.push({ op: 'add', field: 'engagement-bullet', engagementIndex: at, engagementName: name, index: q, before: '', value: row.text.trim() });
+    });
+    return edits;
+  }
+
+  /** @description Place every given engagement under one job (or under none). @param {object[]} engagements @param {{index:number,title:string}|null} job @returns {object[]} */
+  function placeEdits(engagements, job) {
+    return engagements.map(function (e) { return { op: 'set', field: 'engagement', index: e.index, before: e.project, value: { job: job } }; });
+  }
+
+  /** @description A client account group's names as one per line of a box, back into a list (blank lines dropped). @param {string} text @returns {string[]} */
+  function namesOf(text) { return String(text || '').split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean); }
+
+  /** @description The edit a client account group's form asks for: its names replaced, the group removed when none is left, or nothing. @param {{key:string,items:string[]}} group @param {string[]} names @returns {object[]} */
+  function groupEdits(group, names) {
+    if (sameList(names, group.items)) return [];
+    return names.length ? [{ op: 'set', field: 'accounts', key: group.key, before: group.items, value: names }]
+      : [{ op: 'remove', field: 'accounts', key: group.key, before: group.items }];
+  }
+
   var api = { MONTHS: MONTHS, parseMonth: parseMonth, composeMonth: composeMonth, monthLabel: monthLabel, spanLabel: spanLabel,
-    bulletEdits: bulletEdits, roleEdits: roleEdits, newRoleEdits: newRoleEdits, chunks: chunks, API: API };
+    bulletEdits: bulletEdits, roleEdits: roleEdits, newRoleEdits: newRoleEdits, chunks: chunks, API: API,
+    lengthLabel: lengthLabel, engagementSpan: engagementSpan, engagementBulletEdits: engagementBulletEdits, engagementEdits: engagementEdits,
+    newEngagementEdits: newEngagementEdits, placeEdits: placeEdits, namesOf: namesOf, groupEdits: groupEdits };
   root.CareerWorkHistory = api;
   if (typeof module === 'object' && module.exports) module.exports = api;
 }(typeof window !== 'undefined' ? window : globalThis));

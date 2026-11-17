@@ -3,6 +3,7 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Travel search, honest fare watch and concierge surface with family/company audience view.
 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2 (UX audit travel--travel-concierge): on a phone (<=820px) the Travel concierge opens as an opaque bottom half sheet from one 48px neutral button instead of sitting below the form.
+3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: results started 618 px down a 915 px phone, 68%, under a title, a tagline, the tabs and a seven-row search form with Swap on a row of its own): on a phone, as flight apps do, From and To stack with Swap beside them, Depart and Return share a row, Cabin and Search flights share a row, and the tagline steps aside; after a search that found options the form folds into one line naming the trip with Edit search, so the results start near the top. The desktop is unchanged.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -216,6 +217,35 @@ SEQ | AUTHOR | DESCRIPTION
     .chatin { padding:10px 12px; }
     .chatin input { font-size:16px; }
   }
+  /* 1.3.4, the phone first screen: the flight search is four rows (From and To with Swap beside them, Depart | Return,
+     Cabin | Search flights) under no tagline; once a search has found options it folds into one line with Edit search. */
+  .search-summary { display:none; }
+  @media (max-width:640px){
+    header .sub { display:none; }
+    header h1 { font-size:18px; margin:0; }
+    #searchForm:has(#f_origin) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px; align-items:end; }
+    #searchForm:has(#f_origin) > .field { width:auto; min-width:0; }
+    #searchForm:has(#f_origin) > .field:nth-child(1) { grid-column:1 / 3; grid-row:1; }
+    #searchForm:has(#f_origin) > .field:nth-child(2) { grid-column:3; grid-row:1 / 3; align-self:center; }
+    #searchForm:has(#f_origin) > .field:nth-child(2) label, #searchForm:has(#f_origin) > .field:nth-child(7) label { display:none; }
+    #searchForm:has(#f_origin) > .field:nth-child(2) .swap { width:44px; min-height:44px; padding:0; }
+    #searchForm:has(#f_origin) > .field:nth-child(3) { grid-column:1 / 3; grid-row:2; }
+    #searchForm:has(#f_origin) > .field:nth-child(4) { grid-column:1; grid-row:3; }
+    #searchForm:has(#f_origin) > .field:nth-child(5) { grid-column:2 / 4; grid-row:3; }
+    #searchForm:has(#f_origin) > .field:nth-child(6) { grid-column:1; grid-row:4; }
+    #searchForm:has(#f_origin) > .field:nth-child(7) { grid-column:2 / 4; grid-row:4; }
+    #searchForm:has(#f_origin) input[type="date"] { min-width:0; }
+    body.search-folded header { display:none; }
+    body.search-folded .tabs { padding-top:6px; }
+    body.search-folded .left { padding-top:8px; }
+    body.search-folded #searchForm, body.search-folded #searchForm:has(#f_origin) { display:none; }
+    body.search-folded .search-summary { display:flex; align-items:center; gap:10px; padding:4px 4px 4px 12px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); font-size:14px; }
+    body.search-folded .priceband { margin:8px 0 2px; padding:8px 12px; }
+    body.search-folded .demoflag { margin:4px 0; }
+    body.search-folded #results > .card:first-child { margin-top:6px; }
+    .search-summary span { flex:1; min-width:0; overflow-wrap:anywhere; }
+    .search-summary button { width:auto; flex:none; min-height:44px; }
+  }
 </style>
 <!-- Framework theme-sync: copy the cockpit's active theme tokens onto our locals ONLY as a matched set (the parent
      must name both --bg-primary and --text-primary; otherwise this page keeps the palette surface-theme.js gave it) (light/dark
@@ -235,6 +265,7 @@ SEQ | AUTHOR | DESCRIPTION
 </div>
 <main>
   <div class="left">
+    <div id="searchSummary" class="search-summary" role="status"><span id="searchSummaryText"></span><button type="button" class="ghost" id="searchEdit" onclick="foldSearch(false)">Edit search</button></div>
     <form id="searchForm" onsubmit="return doSearch(event)"></form>
     <div id="priceband" class="priceband"></div>
     <div id="demoflag" class="demoflag" style="display:none">Showing demo data, not live prices.</div>
@@ -293,6 +324,22 @@ const CABINS = { economy:'Economy', premium_economy:'Premium economy', business:
 function cabinWords(c){ return CABINS[c] || String(c||'economy').replace(/_/g,' '); }
 /** The ⇄ button: From and To trade places. */
 function swapPlaces(){ const a=document.getElementById('f_origin'), b=document.getElementById('f_dest'); const t=a.value; a.value=b.value; b.value=t; }
+/** On a phone, a search that found options folds the form into one line naming the trip (Edit search opens it again),
+ *  so the results start near the top as in a flight app. The desktop keeps the form; the class only has effect at 640 px and below. */
+/** The folded search line: "VPS → DCA · 2026-12-16 · Economy" for a flight, the trip in words otherwise. */
+function foldedTrip(kind, t){
+  if(kind!=='flight' || !t) return describeTrip(kind, t);
+  const day = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso||'')); return m ? new Date(+m[1], +m[2]-1, +m[3]).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : String(iso||''); };
+  return String(t.origin||'').toUpperCase()+' → '+String(t.destination||'').toUpperCase()+' · '+day(t.departDate)+(t.returnDate?' – '+day(t.returnDate):'')+(t.cabin?' · '+cabinWords(t.cabin):'');
+}
+function foldSearch(on){
+  const summary = document.getElementById('searchSummaryText');
+  if(!document.body || !summary) return;
+  const fold = Boolean(on) && LAST.items.length > 0;
+  document.body.classList.toggle('search-folded', fold);
+  summary.textContent = fold ? foldedTrip(KIND, LAST.search) : '';
+  if(!on){ const first = document.querySelector('#searchForm input'); if(first && window.matchMedia('(max-width:640px)').matches && document.body.contains(first)) first.focus(); }
+}
 // The trip-type tabs are a real tablist: arrow keys move between Flights, Hotels and Cars.
 document.addEventListener('keydown', function(e){
   const t = e.target; if(!t || !t.classList || !t.classList.contains('tab') || (e.key!=='ArrowRight' && e.key!=='ArrowLeft')) return;
@@ -348,6 +395,7 @@ function idleResults(){
 function switchTab(kind){
   if(document.getElementById(FIELDS[KIND][0])) saveForm();
   showTab(kind);
+  if(document.body) document.body.classList.remove('search-folded');
 }
 /** Build a tab's form from its kept values (switchTab() keeps the open tab's values first). */
 function showTab(kind){
@@ -432,6 +480,7 @@ async function doSearch(e){
       data = await api('/cars?'+qs.toString());
     }
     render(data);
+    foldSearch(true);
   } catch(err){
     if(err.status===503) showNotConnected();
     else document.getElementById('results').innerHTML = '<div class="empty">'+esc(err.message)+'</div>';

@@ -7,6 +7,7 @@
   4 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0 (Lane FINH1b, 2026-11-14): the record pages join the bar after Home (Accounts, Transactions, Bills, Spending, Goals, then Trades; the rest under More, Bank accounts among them); a phone's bar holds Accounts, Bills and Spending. Home opens with Where you stand, from the person's own records (GET /api/finance/day): on a first run three steps (bring in a statement, confirm your bills, see your month); otherwise cash, what is owed and net worth with the oldest date among them, bills overdue and due in the next seven days with their total, the month's money out, and the new transactions to look at, each button opening its page. The cards that were there stay below. The page still only reads.
   5 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0 (Lane FINH2, 2026-11-14): Where you stand is read again each time Home is shown, not once per load, so a statement brought in, a bill added or a goal set on another page shows when the person comes back to Home (VER2 on the test slot: Home kept the first-run steps until a reload). Still one GET; the rest of Home is read once as before.
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Recurring joins the bar after Bills (on a phone it is under More).
+  7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone inside Today the floating Jarvis button rested ON Finance's bottom bar, over its More tab, on every Finance screen. The style Finance gives its Today page also tells the button the bar's height (--oshal-app-bottom-inset: 64px, the way Career and Kalshi tell it theirs) while the bar shows (720 px and below), so the button rests above the bar and every tab is in reach, and Home ends 72 px higher there so its last row clears the button. Presentation only.
 
   What it reads (all the caller's own, all GET):
     /api/ui/profile?name=finance        the sections the person may open (the server filters them)
@@ -70,6 +71,8 @@
   .fx-main { flex: 1 1 auto; min-height: 0; position: relative; }
   .fx-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg-primary, #0b1220); }
   .fx-home { position: absolute; inset: 0; overflow: auto; padding: 22px 16px calc(28px + var(--fx-bottom)); }
+  /* 1.8.2: inside Today on a phone the floating Jarvis button rests above the bottom bar, so Home ends above it too. */
+  @media (max-width: 720px) { html[data-fx-today] .fx-home { padding-bottom: calc(28px + var(--fx-bottom) + 72px); } }
   .fx-wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
   .fx-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .fx-head h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
@@ -232,8 +235,11 @@
       style.textContent = scope + ':is(.header-bar,.status-bar,#ribbonContainer,.ribbon-backdrop,.chat-panel.collapsed,.panel-resize-handle,.tool-view-header,.zen-exit-btn,#workspaceNavigation,#workspaceNavigationMore){display:none!important}'
         + scope + '.cockpit-body{padding:0!important;gap:0!important;height:100vh!important}'
         + scope + ':is(.main-content,.tool-view-container){border:none!important;border-radius:0!important;margin:0!important;padding:0!important;height:100%!important}'
-        + scope + '.main-content{flex:1 1 auto!important;min-width:0!important}' + scope + '.tool-view-container{width:100%!important}';
+        + scope + '.main-content{flex:1 1 auto!important;min-width:0!important}' + scope + '.tool-view-container{width:100%!important}'
+        // While Finance's bottom bar shows (720 px and below), the floating Jarvis button rests above it, not on its More tab (1.8.2).
+        + '@media (max-width:720px){' + scope + '{--oshal-app-bottom-inset:64px}}';
       host.head.appendChild(style);
+      document.documentElement.setAttribute('data-fx-today', '');
     } catch (_) { /* a host on another origin keeps its own frame */ }
   }
 

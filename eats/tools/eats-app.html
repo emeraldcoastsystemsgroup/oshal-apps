@@ -4,6 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Eats</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | eats 1.5.7 (Roger, 2026-11-16: every concierge is the core Jarvis chat
+       window, with its model menu): the Eats Concierge panel no longer draws a chat of its own over POST /api/eats/chat. In
+       the same place (the side panel; on a phone the bottom sheet behind the Eats Concierge button) it holds the kernel's
+       one chat window as the Eats Concierge (eats-concierge, /shared/ui/js/jarvis-chat-frame.js), with its model menu, New
+       conversation, Recent conversations, Files, Tap to talk and Keep trying. Before each turn the window is told what this
+       screen shows (context.screen_state): the delivery address and search fields, the restaurants on screen with their
+       place ids, the restaurants held back for the diner's allergies, and the saved diet and allergies from Settings; a
+       typed address is saved as a concierge turn uses it, as before. The concierge searches (search-restaurants), keeps a
+       stated allergy (remember-eats-note) and opens Uber Eats with an approval card (open-uber-eats); an approved card
+       reloads Opened in Uber Eats. Its replies no longer fill the grid. A search the page runs shows which restaurants the
+       diner's allergies held back (the server holds them back for every caller since 1.5.7). A plan-meal brief from another
+       application goes into the window's message box. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what Eats keeps for the
@@ -522,52 +535,34 @@
   /* The cuisine chips: one row that scrolls sideways, each a 44px target (UX audit 2026-11-06). */
   .quick-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; align-items: center; }
   .quick-row .chip { flex: none; min-height: 44px; height: 44px; padding: 0 14px; }
+  /* 1.5.7: the Eats Concierge is the kernel's one chat window (jarvis-chat-frame.js); it fills this part of the panel. */
   .assistant {
     min-height: 0;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    display: flex;
+    flex-direction: column;
     border-top: 1px solid var(--line);
   }
-  .messages {
+  .sheet-bar { display: none; }
+  .concierge-window {
+    flex: 1;
     min-height: 0;
-    overflow: auto;
-    padding: 10px 12px;
-    display: grid;
-    align-content: start;
-    gap: 8px;
+    display: flex;
   }
-  .msg {
-    max-width: 90%;
-    padding: 8px 10px;
-    border-radius: 8px;
+  .concierge-window .jarvis-chat-frame {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .concierge-window.assistant-unavailable {
+    flex: none;
+    padding: 12px;
+    color: var(--muted);
     font-size: 13px;
     line-height: 1.4;
-    white-space: pre-wrap;
   }
-  .msg.bot {
-    justify-self: start;
-    border: 1px solid var(--line);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .msg.allergy-check {
-    border-color: var(--warn);
-    color: var(--warn);
-    font-weight: 700;
-  }
-  .msg.me {
-    justify-self: end;
-    background: var(--accent);
-    color: var(--on-accent);
-    font-weight: 850;
-  }
-  .chat-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 72px;
-    gap: 8px;
-    padding: 10px 12px;
-    border-top: 1px solid var(--line);
-  }
+  .allergy-line { margin: -4px 0 10px; color: var(--warn); font-size: 12px; font-weight: 700; line-height: 1.4; }
   .empty {
     color: var(--muted);
     padding: 22px 10px;
@@ -593,7 +588,7 @@
   .toast.show { opacity: 1; }
   @media (max-width: 1120px) {
     .layout { grid-template-columns: 1fr; }
-    .side { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); grid-template-rows: 360px; }
+    .side { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); grid-template-rows: 480px; }
     .assistant { border-top: 0; border-left: 1px solid var(--line); }
   }
   @media (max-width: 760px) {
@@ -642,8 +637,7 @@
   .side,
   .mini,
   .card,
-  .handoff-row,
-  .msg.bot {
+  .handoff-row {
     background: var(--eats-card);
     box-shadow: var(--eats-shadow);
   }
@@ -695,7 +689,6 @@
 
   .btn.primary,
   .chip.active,
-  .msg.me,
   .toast {
     border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -734,7 +727,6 @@
   }
 
   .side-head,
-  .chat-row,
   .personal-strip {
     background: color-mix(in srgb, var(--surface) 70%, transparent);
   }
@@ -762,7 +754,6 @@
   .deliver-to-btn[hidden], .location-row[hidden], .field-label[hidden], .field-hint[hidden] { display: none; }
   .topbar .settings-btn { min-height: 44px; padding: 0 14px; margin-left: 8px; }
   .concierge-open-btn, .concierge-backdrop, .concierge-sheet-done { display: none; }
-  .side-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
   .eats-settings-dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); width: min(560px, calc(100vw - 24px)); max-height: 85dvh; padding: 0; box-shadow: var(--eats-shadow-strong); }
   .eats-settings-dialog::backdrop { background: rgba(15, 23, 42, .48); }
   .eats-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
@@ -773,8 +764,35 @@
     .concierge-open-btn { position: fixed; right: 12px; bottom: 12px; z-index: 20; display: inline-flex; align-items: center; justify-content: center; height: 48px; min-height: 48px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font-weight: 850; box-shadow: var(--eats-shadow-strong); }
     .concierge-backdrop.open { display: block; position: fixed; inset: 0; z-index: 24; background: rgba(15, 23, 42, .48); }
     .assistant { display: none; border-left: 0; border-top: 1px solid var(--line); }
-    .assistant.sheet-open { display: grid; position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; max-height: 62dvh; min-height: 280px; border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: var(--eats-shadow-strong); }
+    .assistant.sheet-open { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; height: min(82dvh, 720px); border-radius: 16px 16px 0 0; background: var(--surface); box-shadow: var(--eats-shadow-strong); overflow: hidden; }
+    .assistant.sheet-open .sheet-bar { display: flex; justify-content: flex-end; padding: 8px 10px 4px; }
     .concierge-sheet-done { display: inline-flex; min-height: 44px; padding: 0 12px; }
+  }
+  /* 1.5.6, Eats on a phone (lane mobilesweep1, 2026-11-16: the restaurants started 438 px down a 915 px phone, 48%, under
+     the brand bar, the "Food delivered where you are." headline, the address card with its labels and hint, and the
+     search card). Shaped like a delivery app (DoorDash, Uber Eats): the address or "Deliver to" row first with Settings
+     as an icon beside it, then search, then the cuisine chips, then the restaurants. Today's bar names the page, so the
+     brand and the headline step aside; the field labels stay for assistive technology only; the hint and the results'
+     "Delivering to" line (the Deliver to row says it) step aside. The desktop is unchanged. */
+  @media (max-width: 760px) {
+    .app { position: relative; }
+    .topbar { position: absolute; top: 18px; right: 20px; z-index: 3; min-height: 0; padding: 0; border: 0; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .topbar .brand-mark, .topbar .brand { display: none; }
+    .topbar .settings-btn { width: 44px; min-height: 44px; padding: 0; margin: 0; font-size: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .topbar .settings-btn::before { content: "\2699"; font-size: 20px; line-height: 1; }
+    .layout { padding: 8px; }
+    .hero { padding: 10px 12px; gap: 8px; }
+    .location-card { gap: 6px; padding-right: 52px; }
+    .location-title, #placeLine { display: none; }
+    #addressFieldLabel, .search-panel > .field-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    .location-row .btn { min-height: 44px; }
+    .search-row .btn { min-height: 44px; }
+    .search-panel { gap: 8px; }
+    .search-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .location-card { grid-template-columns: minmax(0, 1fr); } /* a long Deliver to address ellipsizes instead of widening the row */
+    .location-card .deliver-to-btn { box-sizing: border-box; min-width: 0; }
+    .results { padding-top: 10px; }
+    .section-head .sub { display: none; } /* "Delivering to <address>": the Deliver to row above already says it */
   }
 </style>
 <!-- 1.5.1: no parent-token copy. surface-theme.js above sets this page's data-theme from the cockpit (and keeps it live),
@@ -823,6 +841,7 @@
           <a class="feed-link" id="feedLink" href="https://www.ubereats.com/feed?diningMode=DELIVERY" target="_blank" rel="noopener" hidden>Browse everything on Uber Eats</a>
         </div>
         <div class="saved-line" id="savedLine" role="status" hidden></div>
+        <div class="allergy-line" id="allergyLine" role="status" hidden></div>
         <div class="food-grid" id="grid"></div>
         <p class="note handoff-line" id="handoffLine">Order on Uber Eats opens Uber Eats at your address: you choose the dishes and pay there, never here.</p>
       </section>
@@ -830,24 +849,11 @@
 
     <aside class="side">
       <div class="concierge-backdrop" id="eatsConciergeBackdrop"></div>
-      <section class="assistant" id="eatsConciergeSheet">
-        <div class="side-head">
-          <div class="side-head-row">
-            <div>
-              <h2>Eats Concierge</h2>
-              <p>Say what you feel like. I find places near you and open Uber Eats at the one you pick.</p>
-            </div>
-            <button class="btn concierge-sheet-done" id="eatsConciergeDone" type="button">Done</button>
-          </div>
-        </div>
-        <div class="messages" id="messages">
-          <div class="msg bot">Tell me what sounds good. I know the restaurants near your address, remember your tastes and allergies, and open Uber Eats at the one you choose.</div>
-        </div>
+      <section class="assistant" id="eatsConciergeSheet" aria-label="Eats Concierge">
+        <div class="sheet-bar"><button class="btn concierge-sheet-done" id="eatsConciergeDone" type="button">Done</button></div>
         <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
-        <div class="chat-row">
-          <input class="input" id="chatInput" placeholder="Spicy Thai for two, under $40..." />
-          <button class="btn primary" id="chatSend" type="button">Send</button>
-        </div>
+        <!-- The Eats Concierge (1.5.7): the kernel's one chat window, mounted by the module script at the end of the page. -->
+        <div class="concierge-window" id="eatsConcierge"></div>
       </section>
 
       <section class="handoffs">
@@ -885,8 +891,9 @@
 const API = '/api/eats';
 const $ = (selector) => document.querySelector(selector);
 const state = {
-  conversationId: localStorage.getItem('oshalEatsConv') || '',
   profile: null,
+  diet: [],
+  heldBack: [],
   history: [],
   restaurants: [],
   place: null,
@@ -1043,6 +1050,19 @@ function showSavedLine(result) {
 }
 
 /**
+ * The restaurants the server held back for the diner's allergies and diet (1.5.7: every caller of the search gets the
+ * same check), said under the heading so a missing restaurant is never a silent gap.
+ */
+function showHeldBack(result) {
+  const line = $('#allergyLine');
+  state.heldBack = (result && result.allergy && Array.isArray(result.allergy.heldBack)) ? result.allergy.heldBack : [];
+  line.hidden = !state.heldBack.length;
+  line.textContent = state.heldBack.length
+    ? `Held back for your allergies and diet: ${state.heldBack.map((h) => `${h.dish} (${h.label})`).join(', ')}.`
+    : '';
+}
+
+/**
  * Search the restaurants near the address. The page's own start reads (a GET, which the server may answer from the
  * saved rows but never writes); a search the person asks for, a chip or Refresh is a POST, which the server may save.
  */
@@ -1083,19 +1103,20 @@ async function search(query = '', refresh = false, readOnly = false) {
   const address = $('#address').value.trim();
   state.heading = query ? `Results for "${query}"` : 'Restaurants near you';
   $('#sectionTitle').textContent = state.heading;
-  if (!address) { state.restaurants = []; $('#sectionSub').textContent = ''; showSavedLine(null); showAddressNeeded(); publishContext(); return; }
+  if (!address) { state.restaurants = []; $('#sectionSub').textContent = ''; showSavedLine(null); showHeldBack(null); showAddressNeeded(); publishContext(); return; }
   $('#sectionSub').textContent = `Delivering to ${address}`;
   if (!readOnly) rememberAddress(address);
   $('#grid').innerHTML = `<div class="empty">${refresh ? 'Asking Google again...' : 'Finding restaurants near you...'}</div>`;
   const result = readOnly
     ? await getJson(`${API}/search?q=${encodeURIComponent(query)}&address=${encodeURIComponent(address)}&limit=16`)
     : await postJson(`${API}/search`, { query, address, limit: 16, refresh: Boolean(refresh) });
-  if (searchFailed(result)) { state.restaurants = []; showSavedLine(null); showUnavailable(result); publishContext(); return; }
+  if (searchFailed(result)) { state.restaurants = []; showSavedLine(null); showHeldBack(null); showUnavailable(result); publishContext(); return; }
   const items = result.items || [];
   state.place = result.place || null;
   if (state.place && state.place.address) $('#sectionSub').textContent = `Delivering to ${state.place.address}`;
   if (result.feedUrl) { $('#feedLink').href = result.feedUrl; $('#feedLink').hidden = false; }
   showSavedLine(result);
+  showHeldBack(result);
   $('#grid').innerHTML = items.length ? items.map(renderRestaurantCard).join('') : '<div class="empty">No restaurants matched that craving near your address. Try another craving.</div>';
   hydrateCards(items);
 }
@@ -1114,62 +1135,65 @@ async function requestOrder(placeId) {
   loadHistory();
 }
 
-function addMessage(role, text) {
-  const node = document.createElement('div');
-  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
-  node.textContent = text;
-  $('#messages').appendChild(node);
-  $('#messages').scrollTop = $('#messages').scrollHeight;
-  return node;
+// ── The Eats Concierge window's view of this screen (1.5.7) ──────────────────
+// The concierge is the kernel's one chat window (the module script at the end of the page mounts it). Before each turn it
+// is told what this screen shows, in the kernel's screen-snapshot shape (context.screen_state: "# heading", "[field] name:
+// value", "[button] words", the pieces of one row joined by " / "): the delivery address and search fields, the restaurants
+// on screen with their place ids (open-uber-eats takes one), the ones held back for the diner's allergies, and the saved
+// diet and allergies from Settings, which the page's own chat request used to carry to the concierge.
+
+/** The words an element shows, spaces collapsed. */
+function shownWords(el) {
+  return String((el && (el.innerText ?? el.textContent)) || '').replace(/\s+/g, ' ').trim();
 }
 
-async function sendChat() {
-  const input = $('#chatInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  addMessage('me', text);
-  rememberAddress($('#address').value);
-  const pending = addMessage('bot', 'Looking near you...');
-  try {
-    const result = await postJson(`${API}/chat`, {
-      message: text,
-      conversationId: state.conversationId,
-      location: $('#address').value.trim()
-    });
-    if (searchFailed(result)) { pending.textContent = (result.message || result.error || 'The concierge could not answer.'); return; }
-    state.conversationId = result.conversationId || state.conversationId;
-    if (state.conversationId) localStorage.setItem('oshalEatsConv', state.conversationId);
-    pending.textContent = result.reply || 'I could not find that yet.';
-    // The route's allergy and diet check: a dish the reply names that usually carries one of the diner's restrictions
-    // is said on its own line.
-    if (result.allergy && result.allergy.check) {
-      const check = addMessage('bot', result.allergy.check);
-      check.classList.add('allergy-check');
-      check.setAttribute('role', 'status');
-    }
-    if (result.place && result.place.address) { state.place = result.place; $('#sectionSub').textContent = `Delivering to ${result.place.address}`; }
-    if (Array.isArray(result.cards) && result.cards.length) {
-      state.heading = 'Concierge picks';
-      $('#sectionTitle').textContent = state.heading;
-      $('#backBtn').style.display = 'inline';
-      $('#grid').innerHTML = result.cards.map(renderRestaurantCard).join('');
-      hydrateCards(result.cards);
-    }
-    // A chat order is a PROPOSAL: it becomes a confirm card and nothing opens until the diner
-    // clicks Confirm (onProposalClick -> requestOrder(placeId)).
-    if (result.proposal) proposeOrder(result.proposal);
-  } catch {
-    pending.textContent = 'I hit an error answering that. Try searching directly.';
-  }
+/** One restaurant on screen as one line: its name, its facts, its rating, whether it delivers, and its place id. */
+function restaurantLine(item) {
+  const rating = item.rating ? `${item.rating} stars${item.ratingCount ? ` (${item.ratingCount})` : ''}` : '';
+  return [item.name, restaurantMeta(item), rating, item.delivery === true ? 'Delivers' : '', `place ${item.placeId}`, '[button] Order on Uber Eats']
+    .filter(Boolean).join(' / ');
+}
+
+/**
+ * What the concierge window is told this screen shows, read fresh before each turn.
+ * @returns {{title: string, tab: string, text: string}} The screen_state the window's turn carries.
+ */
+function eatsScreen() {
+  const address = $('#address').value.trim();
+  const active = document.querySelector('#chips .chip.active');
+  const lines = [`[field] Delivery address: ${address || '(empty)'}`, `[field] Search: ${$('#query').value.trim() || '(empty)'}`];
+  if (active) lines.push(`[button] ${shownWords(active)} (on)`);
+  lines.push(`# ${state.heading}`);
+  // A line the person cannot see (hidden, or set aside on a phone) is not on the screen.
+  for (const id of ['#sectionSub', '#savedLine', '#allergyLine']) { const el = $(id); if (el && !el.closest('[hidden]') && el.getClientRects().length && shownWords(el)) lines.push(shownWords(el)); }
+  if (state.restaurants.length) state.restaurants.forEach((item) => lines.push(restaurantLine(item)));
+  else lines.push(shownWords($('#grid .empty')) || 'No restaurants on screen.');
+  lines.push(`Saved diet and allergies (Settings): ${state.diet.length ? state.diet.join(', ') : 'none saved'}`);
+  lines.push('Order on Uber Eats opens Uber Eats at the delivery address; no menu or prices are known here.');
+  return { title: address ? `Eats near ${address}`.slice(0, 200) : 'Eats', tab: 'Order Food', text: lines.join('\n').slice(0, 9000) };
+}
+
+/**
+ * The context one concierge turn carries: a typed delivery address is saved first, as a concierge turn uses it (1.5.1's
+ * rule), so the concierge's search finds it on the profile too; then the screen.
+ * @returns {Promise<{screen_state: object}>}
+ */
+async function eatsTurnContext() {
+  await rememberAddress($('#address').value).catch(() => false);
+  return { screen_state: eatsScreen() };
+}
+
+/** An approved card of the concierge's (the Uber Eats hand-off records a link): Opened in Uber Eats reads the history again. */
+function onConciergeCard(event) {
+  if (event && event.detail && event.detail.app === EATS_APP) loadHistory();
 }
 
 // ── The assistant rail (shared surface bridge) ───────────────────────────────
 // The page publishes what it is showing (`context`) so the floating assistant answers about the
 // restaurants and the address on screen, and it takes the assistant's `custom` ops through the
-// same functions the buttons call. A hand-off anyone proposes (the embedded concierge or the
-// floating assistant) is a `propose` card rendered by the shared client; only the diner's
-// Confirm opens Uber Eats.
+// same functions the buttons call. A hand-off the floating assistant proposes is a `propose` card
+// rendered by the shared client; only the diner's Confirm opens Uber Eats. (The Eats Concierge
+// window proposes its hand-off as its own approval card, open-uber-eats.)
 const EATS_APP = 'eats';
 const BRIDGE_CHANNEL = 'oshal-surface-bridge';
 const DIGEST_CAP = 3900;
@@ -1236,8 +1260,8 @@ function proposeOrder(proposal) {
     window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'open_uber_eats', summary, confirmLabel: 'Open Uber Eats', cancelLabel: 'Not yet' }]);
     return;
   }
-  // No bridge module (an old cockpit or a static preview): say it; the card's own button stays the only way out.
-  addMessage('bot', `${summary} Use "Order on Uber Eats" on its card to continue.`);
+  // No bridge module (an old cockpit or a static preview): say it beside the cards, whose own button stays the only way out.
+  $('#bridgeOptions').textContent = `${summary} Use "Order on Uber Eats" on its card to continue.`;
 }
 
 function setConciergeSheet(open, fromPop = false) {
@@ -1250,8 +1274,8 @@ function setConciergeSheet(open, fromPop = false) {
   btn.setAttribute('aria-expanded', String(open));
   if (open) {
     history.pushState({ eatsSheet: true }, '');
-    const input = $('#chatInput');
-    if (input && input.focus) setTimeout(() => input.focus({ preventScroll: true }), 20);
+    // The window loads once its sheet is on screen; its message box takes the focus.
+    setTimeout(() => { void window.__eatsChat?.then((chat) => chat?.focus()); }, 20);
   } else if (!fromPop && history.state && history.state.eatsSheet) {
     history.back();
   }
@@ -1348,6 +1372,7 @@ async function loadProfile() {
     $('#prefCuisine').textContent = Array.isArray(profile.favorite_cuisines) && profile.favorite_cuisines.length ? profile.favorite_cuisines.join(', ') : 'Any craving';
     const remembered = Array.isArray(result.remembered) ? result.remembered : [];
     const diet = (Array.isArray(profile.dietary) ? profile.dietary : []).concat(remembered.filter((r) => r.restriction).map((r) => r.note));
+    state.diet = diet;
     $('#prefDiet').textContent = diet.length ? diet.join(', ') : 'No diet set';
     showRemembered(remembered);
     // A remembered spending note ("budget: cheap") shows on the card while no dollar cap is set.
@@ -1445,8 +1470,7 @@ async function boot() {
   $('#backBtn').addEventListener('click', () => search($('#query').value.trim()));
   $('#refreshBtn').addEventListener('click', () => search($('#query').value.trim(), true));
   $('#locBtn').addEventListener('click', requestLocation);
-  $('#chatSend').addEventListener('click', sendChat);
-  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  window.addEventListener('oshal-package-tool-done', onConciergeCard);
   $('#address').addEventListener('change', publishContext);
   $('#query').addEventListener('change', publishContext);
   $('#bridgeOptions').addEventListener('click', onProposalClick, true);
@@ -1472,8 +1496,8 @@ if (!window.AppView || !AppView.active()) boot();
 
 <!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
      (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
-     producer in 'self' mode lets the embedded concierge's hand-off proposal travel the SAME path, so
-     both assistants drive one confirm card. Degrades silently without the module. -->
+     producer in 'self' mode lets a relayed open_uber_eats travel the SAME path as the client's own
+     ops, so it is one confirm card. Degrades silently without the module. -->
 <script type="module">
   // Under an audience view the assistant rail stays off: the view publishes no context and takes no relayed op.
   if (!window.AppView || !AppView.active()) {
@@ -1491,6 +1515,33 @@ if (!window.AppView || !AppView.active()) boot();
   }
 </script>
 
+<!-- The Eats Concierge (1.5.7): the kernel's one chat window as this application's concierge, the same window every
+     concierge is, with its model menu, conversations, Files, Tap to talk and Keep trying. It sits where the page's own
+     chat was (#eatsConcierge: the side panel, on a phone the sheet behind the Eats Concierge button) and is told this
+     screen before each turn (eatsTurnContext above). -->
+<script type="module">
+// The full page only: under an audience view no concierge is offered, so no chat window loads behind it.
+if (!window.AppView || !AppView.active()) {
+  const host = document.getElementById('eatsConcierge');
+  const PROMPTS = ['Something spicy for dinner', 'Thai food near me', 'Open a place on my screen in Uber Eats'];
+  const HELP = 'Tell me what sounds good. I know the restaurants near your delivery address, keep your tastes and allergies, and open Uber Eats at the one you choose once you approve it.';
+  // A promise of the mounted window: the sheet's open and the plan-meal hand-off put the person in its message box.
+  window.__eatsChat = (async () => {
+    try {
+      const { mountJarvisChat } = await import('/shared/ui/js/jarvis-chat-frame.js');
+      return mountJarvisChat(host, { app: 'eats', bot: 'eats-concierge', title: 'Eats Concierge', closable: false, lazy: true,
+        prompts: PROMPTS.map((prompt) => ({ label: prompt, prompt })), help: HELP,
+        chatHost: { prepare: () => window.eatsTurnContext() } });
+    } catch (err) {
+      host.classList.add('assistant-unavailable');
+      host.textContent = 'The Eats Concierge needs Open Swarm\'s chat window, which this installation does not serve. Search and Order on Uber Eats work without it.';
+      console.warn('[eats] concierge window unavailable', err && err.message);
+      return null;
+    }
+  })();
+}
+</script>
+
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
@@ -1499,13 +1550,14 @@ import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
 if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
-const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
-receiveHandoff({"app":"eats","action":"plan-meal","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatInput', brief(context)); document.getElementById('chatInput').focus(); });
+// A planning brief from another application goes into the concierge window's message box, ready to send (on a phone the
+// concierge's sheet opens first).
+receiveHandoff({"app":"eats","action":"plan-meal","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { if (window.matchMedia?.('(max-width: 760px)').matches) setConciergeSheet(true); void window.__eatsChat?.then((chat) => chat?.focus(brief(context))); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions');
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.results').prepend(element);
-void mountConnectedActions({ app:"eats", element, contextForOffer:()=>{ const notes=val('chatInput') || val('query'); if(!notes) return null; return {title:'Prepare for my meal request',notes:clip(notes+(val('address')?'\nMeal location: '+val('address'):''))}; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+void mountConnectedActions({ app:"eats", element, contextForOffer:()=>{ const notes=val('query'); if(!notes) return null; return {title:'Prepare for my meal request',notes:clip(notes+(val('address')?'\nMeal location: '+val('address'):''))}; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
 }
 </script>
 </body>

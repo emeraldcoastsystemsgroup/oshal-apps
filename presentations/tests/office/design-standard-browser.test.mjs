@@ -3,9 +3,16 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view and Share are now real controls in the same slots with zero RP-OFF-* planned attributes; RP-ALL-01 Summarize remains an inert planned control.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: verify the docked desktop Concierge composer stays pinned within 20px of the bottom of the right rail with zero outer rail/page scrollbar even when conversation messages scroll.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): verify the Concierge sheet renders the kernel's live Summarize prompt chip with zero duplicate greyed RP-ALL-01 placeholders.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The phone's Concierge sheet holds the window, with its message box and the kernel's live Summarize starter above it, where a tap at its centre lands on it (still no greyed RP-ALL-01 placeholder); on a desktop the Concierge tab opens the window in the docked pane beside the canvas, and the window's composer is pinned near the bottom of the right rail while its own conversation absorbs the scroll, with no outer rail, page or window scrollbar. The old pane's hidden stand-in box is not what a person types in, so it is no longer measured.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=presentations&bot=deck-builder, read with scripts/one-chat-window/today-host.mjs windowAddress. concierge-entry-browser.test.mjs opens AI Office inside Today.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8: AI Office lays itself out around the one chat window. A new case proves that Generate a draft sits above the window, which reaches the rail's bottom on a desktop, and still writes its starter sentence into the window's own message box with the focus there (through the pane's stand-in box); that the phone's Concierge sheet (412x915) is as tall as a sheet may be and the window takes all of it under that row; and that the window's own Close closes the sheet and keeps the editor (on 2.20.7 it did nothing in the sheet). The phone sheet's tap on the Summarize starter and the desktop composer's place at the rail's bottom with no page scrollbar pass on 2.20.8 (red on 2.20.7: a 308 px window whose composer covered the starter, and the window's composer 64 px above the rail's bottom on a page 1 px taller than the screen).
  */
 import{test}from'node:test';import assert from'node:assert/strict';import{createRequire}from'node:module';
 import{fixture}from'./fixture.mjs';
+import{chatWindow}from'../../../scripts/one-chat-window/kernel-window.mjs';
+import{windowAddress}from'../../../scripts/one-chat-window/today-host.mjs';
+/** The window a Concierge opened is AI Office's own concierge, by its address. */
+async function officeConcierge(scope){const where=await windowAddress(scope);assert.deepEqual([where.path,where.app,where.bot],['/api/jarvis/','presentations','deck-builder'],'the one chat window as AI Office\'s own concierge');}
 const{chromium}=createRequire(import.meta.url)('playwright');
 const PHONE={viewport:{width:412,height:743},isMobile:true,hasTouch:true,deviceScaleFactor:2.625};
 const DESKTOP={viewport:{width:1440,height:900}};
@@ -61,9 +68,13 @@ test('phone: Format, Insert, Concierge, More and Export open as opaque sheets th
  for(const id of ['find-replace','suggest-changes','mobile-view','share'])assert.ok(moreMenuIds.includes(id),`More includes ${id}`);
  await backStaysInApp(page);
  await page.locator('.office-bottom-bar').getByRole('button',{name:'Concierge',exact:true}).tap();await openLayer(page).waitFor();
- assert.equal(await page.locator('dialog.ds-layer[open] textarea').isVisible(),true,'the concierge composer is in the sheet');
+ const chat=await chatWindow(openLayer(page));await officeConcierge(openLayer(page));
+ assert.equal(await chat.locator('.jc-composer #typein').isVisible(),true,'the concierge composer (the one chat window\'s) is in the sheet');
  assert.equal(await page.locator('dialog.ds-layer[open] [data-ds-backlog="RP-ALL-01"]').count(),0,'no duplicate greyed RP-ALL-01 Summarize placeholder');
- assert.equal(await page.locator('dialog.ds-layer[open] [data-concierge-prompt="Summarize"]').isVisible(),true,'the kernel live Summarize prompt sits above the composer');
+ const summarize=chat.locator('[data-concierge-prompt="Summarize"]');assert.equal(await summarize.isVisible(),true,'the kernel live Summarize prompt is in the window');
+ // It sits above the composer where a finger can press it: a tap at its centre lands on it, not on the composer.
+ const pressed=await summarize.evaluate(chip=>{const box=chip.getBoundingClientRect(),hit=document.elementFromPoint(box.left+box.width/2,box.top+box.height/2);return hit===chip||chip.contains(hit)?'the Summarize prompt':hit?.closest('.jc-composer')?'the window\'s composer':String(hit?.className||hit?.tagName||'nothing');});
+ assert.equal(pressed,'the Summarize prompt','a tap on the Summarize prompt lands on it');
  await backStaysInApp(page);
  await page.locator('#office-export').tap();await openLayer(page).waitFor();
  assert.equal(await page.locator('dialog.ds-layer[open] [data-ds-not-yet]').count(),0,'Export has no planned placeholders');
@@ -106,8 +117,8 @@ test('desktop: Format | Concierge is one docked pane and Zoom Fit keeps the whol
  const legacy=page.locator('.ef-tools').getByRole('button',{name:'Properties',exact:true});
  if(await legacy.isVisible().catch(()=>false))await legacy.click();else await page.locator('.office-pane-tabs [data-pane=format]').click();await page.waitForTimeout(200);
  const first=await fits();check(first,'Format');
- assert.equal(await page.locator('.office-pane-tabs [data-pane=concierge]').isVisible(),true);assert.equal(await page.locator('.ef-concierge textarea').isVisible(),false,'the concierge opens closed: one assistant entry');
- await page.locator('.office-pane-tabs [data-pane=concierge]').click();await page.locator('.ef-concierge textarea').waitFor();await page.waitForTimeout(200);check(await fits(),'Concierge');
+ assert.equal(await page.locator('.office-pane-tabs [data-pane=concierge]').isVisible(),true);assert.equal(await page.locator('.ef-concierge iframe.jarvis-chat-frame').isVisible(),false,'the concierge opens closed: one assistant entry');
+ await page.locator('.office-pane-tabs [data-pane=concierge]').click();await chatWindow(page.locator('.ef-concierge'));await officeConcierge(page.locator('.ef-concierge'));await page.waitForTimeout(200);check(await fits(),'Concierge');
  await page.locator('.office-pane-tabs [data-pane=format]').click();await page.waitForTimeout(200);check(await fits(),'back to Format');
  await page.getByRole('button',{name:'Insert ▾'}).click();await page.getByRole('menuitem',{name:'Rectangle',exact:true}).click();await page.waitForTimeout(200);check(await fits(),'a selected shape');
  assert.equal(await page.locator('[data-editor-property=fill]').isVisible(),true,'the selection\'s properties are in the docked Format pane');
@@ -126,23 +137,65 @@ test('desktop: a text selection raises Cut, Copy, Paste and Comment at the selec
 test('desktop: Concierge composer is pinned flush at the bottom of the right rail with zero outer scrollbar',{timeout:120000},async t=>{
  const{page}=await open(t,DESKTOP,'?kind=docx');
  await page.locator('.office-pane-tabs [data-pane=concierge]').click();
- await page.locator('.ef-concierge .ef-assistant-composer textarea').waitFor();
+ // The concierge is the one chat window docked in the rail: its composer and its conversation are inside its frame.
+ await chatWindow(page.locator('#office-root .ef-concierge'));await officeConcierge(page.locator('#office-root .ef-concierge'));
  await page.waitForTimeout(150);
- const measure=()=>page.evaluate(()=>{
-  const rail=document.querySelector('#office-root .ef-concierge'),ai=document.getElementById('office-ai'),assistant=rail.querySelector('.ef-assistant'),log=rail.querySelector('.ef-assistant-log'),composer=rail.querySelector('.ef-assistant-composer');
-  const rr=rail.getBoundingClientRect(),cr=composer.getBoundingClientRect();
-  return{bottomGap:Math.round(rr.bottom-cr.bottom),docOverflowY:document.documentElement.scrollHeight>window.innerHeight,railOverflowY:rail.scrollHeight>rail.clientHeight,aiOverflowY:ai.scrollHeight>ai.clientHeight,assistantOverflowY:assistant.scrollHeight>assistant.clientHeight,logScrolls:log.scrollHeight>log.clientHeight};
- });
+ const frame=await(await page.locator('#office-root .ef-concierge iframe.jarvis-chat-frame').elementHandle()).contentFrame();
+ const measure=async()=>{
+  const outer=await page.evaluate(()=>{
+   const rail=document.querySelector('#office-root .ef-concierge'),ai=document.getElementById('office-ai'),assistant=rail.querySelector('.ef-assistant'),frame=rail.querySelector('iframe.jarvis-chat-frame');
+   return{railBottom:rail.getBoundingClientRect().bottom,frameTop:frame.getBoundingClientRect().top,docOverflowY:document.documentElement.scrollHeight>window.innerHeight,railOverflowY:rail.scrollHeight>rail.clientHeight,aiOverflowY:ai.scrollHeight>ai.clientHeight,assistantOverflowY:assistant.scrollHeight>assistant.clientHeight};
+  });
+  const inner=await frame.evaluate(()=>{
+   // The conversation scrolls in its own container, never as the window's page.
+   let scroller=document.getElementById('convo');while(scroller&&scroller!==document.body&&!(/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)&&scroller.scrollHeight>scroller.clientHeight))scroller=scroller.parentElement;
+   return{composerBottom:document.querySelector('.jc-composer').getBoundingClientRect().bottom,windowOverflowY:document.documentElement.scrollHeight>innerHeight,logScrolls:Boolean(scroller)&&scroller!==document.body};
+  });
+  const{railBottom,frameTop,...rest}=outer;return{bottomGap:Math.round(railBottom-(frameTop+inner.composerBottom)),...rest,windowOverflowY:inner.windowOverflowY,logScrolls:inner.logScrolls};
+ };
  const initial=await measure();
- assert.ok(initial.bottomGap>=8&&initial.bottomGap<=20,'composer sits pinned near rail bottom: '+JSON.stringify(initial));
+ assert.ok(initial.bottomGap>=0&&initial.bottomGap<=20,'composer sits pinned near rail bottom: '+JSON.stringify(initial));
  assert.equal(initial.docOverflowY,false,'no outer document scrollbar');
  assert.equal(initial.railOverflowY,false,'no outer right-rail scrollbar');
  assert.equal(initial.aiOverflowY,false,'no #office-ai scrollbar');
  assert.equal(initial.assistantOverflowY,false,'no .ef-assistant overflow');
- await page.evaluate(()=>{const log=document.querySelector('#office-root .ef-concierge .ef-assistant-log');for(let i=0;i<24;i++){const a=document.createElement('article'),p=document.createElement('p');p.textContent='Conversation turn '+i+' keeps scrolling inside the log container only.';a.append(p);log.append(a);}});
+ assert.equal(initial.windowOverflowY,false,'the window does not scroll as a page');
+ await frame.evaluate(()=>{const section=document.getElementById('convoSect'),log=document.getElementById('convo');if(section)section.style.display='';for(let i=0;i<24;i++){const turn=document.createElement('div'),body=document.createElement('div');turn.className='msg bot';body.className='bx';body.textContent='Conversation turn '+i+' keeps scrolling inside the conversation only.';turn.append(body);log.append(turn);}});
  const crowded=await measure();
- assert.equal(crowded.logScrolls,true,'conversation log absorbs scroll');
- assert.ok(crowded.bottomGap>=8&&crowded.bottomGap<=20,'composer stays pinned at bottom when log overflows: '+JSON.stringify(crowded));
+ assert.equal(crowded.logScrolls,true,'conversation absorbs the scroll');
+ assert.ok(crowded.bottomGap>=0&&crowded.bottomGap<=20,'composer stays pinned at bottom when the conversation overflows: '+JSON.stringify(crowded));
  assert.equal(crowded.railOverflowY,false,'right rail still has zero outer scrollbar');
  assert.equal(crowded.docOverflowY,false,'document still has zero outer scrollbar');
+ assert.equal(crowded.windowOverflowY,false,'and the window still does not scroll as a page');
+});
+
+test('the one chat window: Generate a draft sits above it and writes its starter into its message box; the phone sheet gives it all its room and its own Close closes the sheet',{timeout:150000},async t=>{
+ const f=await fixture({http:true});t.after(()=>f.close());
+ const starter='Create the content in this open Word document about ';
+ // The Generate a draft row, the window's frame and the pane or sheet they are in, in page pixels.
+ const places=(page,scope)=>page.evaluate(scope=>{const root=document.querySelector(scope),box=node=>{const r=node.getBoundingClientRect();return{top:Math.round(r.top),bottom:Math.round(r.bottom)};};return{row:box(root.querySelector('.office-prompts')),frame:box(root.querySelector('iframe.jarvis-chat-frame')),holder:box(root)};},scope);
+ const frameOf=async(page,scope)=>(await page.locator(scope+' iframe.jarvis-chat-frame').elementHandle()).contentFrame();
+ // What the window's own message box holds and whether it has the focus.
+ const typed=frame=>frame.waitForFunction(words=>{const box=document.getElementById('typein');return box&&box.value===words&&document.activeElement===box;},starter,{timeout:10000});
+ {const{page}=await open(t,DESKTOP,'?kind=docx',f);
+  await page.locator('.office-pane-tabs [data-pane=concierge]').click();await chatWindow(page.locator('#office-root .ef-concierge'));
+  const at=await places(page,'#office-root .ef-concierge');
+  assert.ok(at.row.bottom<=at.frame.top,'Generate a draft is above the window, never under it: '+JSON.stringify(at));
+  assert.equal(at.frame.bottom,at.holder.bottom,'the window reaches the bottom of the rail: '+JSON.stringify(at));
+  await page.locator('#office-root .office-prompts').getByRole('button',{name:'Generate a draft',exact:true}).click();
+  await typed(await frameOf(page,'#office-root .ef-concierge'));}
+ {const{page}=await open(t,{...PHONE,viewport:{width:412,height:915}},'?kind=docx',f);
+  await page.keyboard.type('Tabs');await page.locator('.office-bottom-bar').getByRole('button',{name:'Concierge',exact:true}).tap();
+  const sheet=openLayer(page);await sheet.waitFor();const chat=await chatWindow(sheet);
+  const at=await places(page,'dialog.ds-layer[open]');
+  assert.ok(at.holder.top<=57&&at.holder.bottom===915,'the Concierge sheet is as tall as a sheet may be, under the app row: '+JSON.stringify(at));
+  assert.ok(at.row.bottom<=at.frame.top&&at.frame.top-at.row.bottom<=1,'the window starts right under Generate a draft: '+JSON.stringify(at));
+  assert.equal(at.frame.bottom,at.holder.bottom,'and takes the rest of the sheet, down to its bottom: '+JSON.stringify(at));
+  await sheet.locator('.office-prompts').getByRole('button',{name:'Generate a draft',exact:true}).tap();
+  await typed(await frameOf(page,'dialog.ds-layer[open]'));
+  const url=page.url();await chat.locator('.jc-header .jc-panel-close').tap();await sheet.waitFor({state:'detached',timeout:3000});
+  assert.equal(page.url(),url,'the window\'s Close closed the sheet and kept the editor');
+  assert.equal(await page.locator('#office-root .ef-concierge #office-ai').count(),1,'the concierge is back in the editor, ready to open again');
+  // Moved back, the window loads there again; the case ends once it has, so the fixture never closes under a load.
+  await(await frameOf(page,'#office-root .ef-concierge')).waitForFunction(()=>document.readyState==='complete'&&Boolean(document.getElementById('typein')),null,{timeout:15000});}
 });

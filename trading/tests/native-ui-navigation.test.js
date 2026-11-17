@@ -1,4 +1,6 @@
-/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drive delayed shipped Quant responses across reused tab bodies, navigation, errors and pending run/review actions. */
+/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drive delayed shipped Quant responses across reused tab bodies, navigation, errors and pending run/review actions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: account details now reads the roster (GET /accounts) and the recorded values (GET /paper/values) together instead of one account-details read, so its fence cases answer each read by its path; every earlier check stays.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.58.1: the holding comparison reads its daily prices with fetch at GET /api/trading-charts/bars (the address Trading serves), not through api('/bars') (GET /api/trading/bars, which no route serves). The fixture answers fetch the way it answers api, the fence cases answer that read by its path, and the holding case also proves no comparison read goes through api('/bars'); every fence check stays. */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../tools/ui/view-quant.js'),'utf8');
@@ -55,11 +57,18 @@ test('returning to Quant releases the departed run without allowing its completi
 function detailsFixture(){
  const pending=[],notice={textContent:''},chart={innerHTML:''},host={isConnected:true,dataset:{},querySelector:s=>({'[data-details-status]':notice,'[data-details-compare]':{value:'SPY'},'[data-details-period]':{value:'1M'},'[data-details-stock]':chart})[s],querySelectorAll:()=>[]};
  const context=vm.createContext({RENDER_TOKEN:1,URLSearchParams,host,paints:0,model:{accountId:'fixture',connectionKey:'fixture'},main:{querySelector:()=>host},esc:String,
-  api:url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject})),sameNativeAccount:()=>true});
+  api:url=>new Promise((resolve,reject)=>pending.push({url,resolve,reject})),sameNativeAccount:()=>true,
+  fetch:url=>new Promise((resolve,reject)=>pending.push({url:String(url),resolve:value=>resolve({ok:true,status:200,json:async()=>value}),reject}))});
  vm.runInContext('function stale(t){return t!==RENDER_TOKEN;}',context);
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../tools/ui/native-account-details.js'),'utf8'),context);
  vm.runInContext('paintNativeAccountDetails=()=>{paints++;};',context);
  return {context,host,notice,chart,pending,run:code=>vm.runInContext(code,context)};
+}
+const roster=positions=>({accounts:[{accountId:'fixture',connectionKey:'fixture',positions}]}),VALUES={ok:true,accounts:[],sessions:[]};
+/** @description Answer (or fail) the oldest open read of a path. */
+function settle(h,prefix,value,error){
+ const request=h.pending.find(p=>!p.done&&p.url.startsWith(prefix));assert.ok(request,'an open read of '+prefix);request.done=true;
+ if(error)request.reject(error);else request.resolve(value);
 }
 for(const change of ['render','detached','superseded'])test('native account details discard a '+change+' request and its late failure',async()=>{
  for(const failure of [false,true]){
@@ -69,21 +78,23 @@ for(const change of ['render','detached','superseded'])test('native account deta
   else if(change==='detached')h.host.isConnected=false;
   else latest=h.run('loadNativeAccountDetails(model,1)');
   h.notice.textContent='Current account view';
-  if(failure)h.pending[0].reject(Error('Old failure'));else h.pending[0].resolve({account:{positions:[]}});
+  if(failure)settle(h,'/accounts',null,Error('Old failure'));else settle(h,'/accounts',roster([]));
+  settle(h,'/paper/values',VALUES);
   await task;assert.equal(h.context.paints,0);assert.equal(h.notice.textContent,'Current account view');
-  if(latest){h.pending[1].resolve({account:{positions:[]}});await latest;assert.equal(h.context.paints,1);h.host.isConnected=false;h.pending[2].resolve({bars:[]});await new Promise(setImmediate);}
+  if(latest){settle(h,'/accounts',roster([]));settle(h,'/paper/values',VALUES);await latest;assert.equal(h.context.paints,1);h.host.isConnected=false;settle(h,'/api/trading-charts/bars',{bars:[]});await new Promise(setImmediate);}
  }
 });
 test('the holding comparison retains its parent request fence after account details finish',async()=>{
  for(const change of ['render','detached','superseded','holding']){
-  const h=detailsFixture(),task=h.run('loadNativeAccountDetails(model,1)');h.pending[0].resolve({account:{positions:[{symbol:'AAA'}]}});await task;
-  assert.equal(h.pending.length,3,'the original page starts both real comparison reads');
+  const h=detailsFixture(),task=h.run('loadNativeAccountDetails(model,1)');settle(h,'/accounts',roster([{symbol:'AAA'}]));settle(h,'/paper/values',VALUES);await task;
+  assert.equal(h.pending.filter(p=>p.url.startsWith('/api/trading-charts/bars?')).length,2,'the original page starts both real comparison reads');
+  assert.equal(h.pending.filter(p=>p.url.startsWith('/bars')).length,0,'no comparison read goes through api(\'/bars\') (GET /api/trading/bars, which no route serves)');
   if(change==='render')h.context.RENDER_TOKEN++;
   else if(change==='detached')h.host.isConnected=false;
   else if(change==='superseded')h.host.dataset.request='2';
   else h.host.dataset.stock='NEW';
   h.chart.innerHTML='Current comparison';
-  for(const request of h.pending.slice(1))request.resolve({bars:[{t:1700000000,c:100},{t:1700086400,c:101}]});
+  for(const request of h.pending.filter(p=>p.url.startsWith('/api/trading-charts/bars?')))request.resolve({bars:[{t:1700000000,c:100},{t:1700086400,c:101}]});
   await new Promise(setImmediate);assert.equal(h.chart.innerHTML,'Current comparison',change);
  }
 });

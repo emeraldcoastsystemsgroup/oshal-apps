@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the company view against a stub kit and a stub fetch: on open it reads only GET /home-summary, GET /prefs and GET /local/list (never POST /assistant, never the Dropbox or GitHub pickers); the title, stats, files table and stores list are asserted as the model it paints; signed out, refused, nothing saved, an empty store, a partial summary, a failed prefs read, a failed listing and a failed summary each read as what they are, and only both the summary and the prefs failing rejects into the kit's failure notice. The page's own script, run against a stub document, adds no greeting under a view and still greets without the audience or without the kit.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Guard for 54e49068 that crosses the route: the compiled routes/home-summary.js runs with a stub Router and a stub pool, and its own output is asserted (nothing saved says the default target is in use; the note says Automatic resolves to OSHAL (local) unless GitHub, Dropbox or Google Drive is connected). The hand-shaped saved and failed summaries are checked against the route's output, and the nothing-saved and failed views are fed the route's JSON. Before this the test fed the view its own NOTE constant and stayed green on the old route.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.3: follow Open Swarm product naming across routes/home-summary.js and the audience view labels (Open Swarm (local), Open Swarm local, Files in Open Swarm local).
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.4: the full page is the kernel's one chat window as Storage's concierge: the page's own module, run against a stub document with a stub mount, mounts nothing under a view and mounts the window (storage-assistant, four prompts, no Close) without the audience or without the kit; it still fetches nothing on load.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -208,22 +209,28 @@ test('a partial summary, a failed prefs read, a failed listing and a failed summ
 });
 
 /**
- * @description Run the page's own script (the last inline block) against a stub document, so its one start step, the
- * greeting, is asserted under a view, without a view and without the kit. Any fetch is a failure: the page reads nothing on load.
+ * @description Run the page's own module (the last block) against a stub document and a stub mount, so its one start
+ * step, mounting the one chat window, is asserted under a view, without a view and without the kit. Any fetch is a
+ * failure: the page reads nothing on load.
  * @param {string|null|undefined} activeView What AppView.active() answers; undefined means no kit at all.
- * @returns {string[]} The HTML of every message appended to the log.
+ * @returns {object[]} Every mount the page asked for: the host's id and the options.
  */
-function runFull(activeView) {
-  const open = html.lastIndexOf('<script>'), src = html.slice(open + 8, html.indexOf('</script>', open));
-  const added = [];
-  const node = () => ({ className: '', innerHTML: '', value: '', scrollTop: 0, scrollHeight: 0, appendChild: (d) => added.push(d.innerHTML) });
-  const log = node(), kit = activeView === undefined ? undefined : { active: () => activeView };
-  new Function('window', 'AppView', 'document', 'fetch', src)({ AppView: kit }, kit, { getElementById: () => log, createElement: node }, () => { throw new Error('the page fetched on load'); });
-  return added;
+async function runFull(activeView) {
+  const marker = '<script type="module">', open = html.lastIndexOf(marker), loads = [];
+  const src = html.slice(open + marker.length, html.indexOf('</script>', open)).replace(/await import\(('[^']+')\)/, 'await load($1)');
+  const mounts = [], kit = activeView === undefined ? undefined : { active: () => activeView };
+  const AsyncFunction = (async () => {}).constructor;
+  await new AsyncFunction('window', 'AppView', 'document', 'fetch', 'load', src)({ AppView: kit }, kit, { getElementById: (id) => ({ id }) },
+    () => { throw new Error('the page fetched on load'); },
+    async (url) => { loads.push(url); return { mountJarvisChat: (host, options) => mounts.push({ host: host.id, ...options }) }; });
+  return Object.assign(mounts, { loads });
 }
 
-test('under an audience view the page adds no greeting and fetches nothing; without the audience, or without the kit, it greets as before', () => {
-  assert.deepEqual(runFull('company'), []);
-  assert.deepEqual(runFull(null).map((m) => m.slice(0, 27)), ['Hi — I\x27m your storage assis']);
-  assert.equal(runFull(undefined).length, 1);
+test('under an audience view the page mounts and loads nothing; without the audience, or without the kit, it is the one chat window as Storage\'s concierge', async () => {
+  const under = await runFull('company');
+  assert.deepEqual([under.length, under.loads], [0, []]);
+  const full = await runFull(null), [mounted] = full;
+  assert.deepEqual(full.loads, ['/shared/ui/js/jarvis-chat-frame.js']);
+  assert.deepEqual([mounted.host, mounted.app, mounted.bot, mounted.closable, mounted.prompts.length], ['concierge', 'storage', 'storage-assistant', false, 4]);
+  assert.equal((await runFull(undefined)).length, 1);
 });

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | OSHAL Screen Standard 3-pane workbench stylesheet for Audio Studio deriving all colors from surface-themes.css tokens.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Apply crisp-glass design standard: opaque surfaces, 1px hairline borders, 10px/14px radii, mobile pane tabs, >=44px touch targets, and zero horizontal overflow.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | 1.2.2 (lane mobilesweep1): a phone opens on the tracks. The app bar is one slim row (a back arrow, the session's name, its revision; Today's bar already says Audio Studio), the transport is one row (Play, then Pause, Stop and Record as icons, the time), and the tracks follow it; Slice, Loop and the LUFS meter, the status line and the six formula macros (one row that scrolls sideways) come after the tracks. The first track moves from 617 px (67%) to under a quarter of the screen. The desktop bar is unchanged (the two transport groups are display: contents there).
  */
 
 * {
@@ -344,6 +345,12 @@ button:focus-visible {
   margin-right: 4px;
 }
 
+/* The transport's two groups (1.2.2) are invisible to a desktop's layout: their children stay the bar's own items. */
+.transport-main,
+.transport-tools {
+  display: contents;
+}
+
 .timecode-readout {
   font-family: var(--font-mono, "JetBrains Mono", monospace);
   font-size: 15px;
@@ -578,4 +585,53 @@ tbody tr:hover {
     min-height: 44px;
     font-size: 15px;
   }
+}
+
+/* 1.2.2, a phone opens on the tracks (lane mobilesweep1, 2026-11-16: the first track started 617 px down a 915 px phone,
+   67%). Shaped like GarageBand or BandLab on a phone: one slim app bar, the section tabs, one transport row, then the
+   tracks; the tools, the status line and the formula macros (one row that scrolls sideways) follow the tracks. */
+@media (max-width: 640px) {
+  .wb-bar { padding: 4px 8px; flex-wrap: nowrap; }
+  .wb-bar-left { gap: 6px; min-width: 0; }
+  .wb-brand .kicker { display: none; }
+  .wb-brand h1 { font-size: 15px; }
+  .nav-back { width: 44px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  .nav-back svg { width: 18px; height: 18px; }
+  .mobile-pane-tabs { padding: 4px 8px; }
+
+  .wb-center {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "transport" "tracks" "tools" "status" "macros" "stems";
+    align-content: start;
+    gap: 8px;
+    padding: 6px 8px 8px;
+  }
+  .transport-bar { display: contents; }
+  .transport-main,
+  .transport-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--bg-secondary, #121420);
+    border: 1px solid var(--border-color, #2a2d42);
+    border-radius: 14px;
+  }
+  .transport-main { grid-area: transport; flex-wrap: nowrap; justify-content: space-between; }
+  .transport-main .button-row { flex-wrap: nowrap; gap: 6px; }
+  .transport-tools { grid-area: tools; flex-wrap: wrap; justify-content: space-between; }
+  #track-list { grid-area: tracks; }
+  #status { grid-area: status; }
+  .macro-strip { grid-area: macros; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .macro-strip::-webkit-scrollbar { display: none; }
+  .macro-strip > * { flex: none; }
+  .wb-center > .pane-section { grid-area: stems; }
+
+  /* Pause, Stop and Record as icons (their names stay Pause, Stop and Record Take); Play keeps its word. */
+  #btn-pause, #btn-stop, #btn-transport-record { width: 44px; padding: 0; font-size: 0; display: inline-flex; align-items: center; justify-content: center; }
+  #btn-pause::before { content: ""; width: 12px; height: 14px; box-sizing: border-box; border-left: 4px solid currentColor; border-right: 4px solid currentColor; }
+  #btn-stop::before { content: ""; width: 13px; height: 13px; border-radius: 2px; background: currentColor; }
+  #btn-transport-record::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: currentColor; }
+  .timecode-readout { font-size: 13px; padding: 5px 8px; white-space: nowrap; }
 }

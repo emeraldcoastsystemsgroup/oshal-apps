@@ -1116,6 +1116,45 @@ They retain the existing read/change/open permissions. `career_experience_bank`
 provides summary IDs and revision to Jarvis; `career_draft` accepts explicitly
 selected IDs/revision. The legacy portfolio draft tool remains an opt-in alias.
 
+### The saved portfolio's Edit form (1.68.7)
+
+The saved portfolio (`oss_portfolio` in the main résumé, the `saved-portfolio` entry the list makes from it) is
+what job scoring reads, and what a résumé or letter uses when the person ticks the entry. Before 1.68.7 nothing
+changed it: the list's own form saved a copy into the Other experience file, which résumés then used while job
+scoring kept the old portfolio. Now:
+
+- Opening the entry on Other experience shows its own form (`tools/career-experience-portfolio.js`): organization or
+  product, your role, dates, your site, product site, product link, bullets, technology, applications and skills one
+  per line, the summary for job scoring, a short label and a private note.
+- The form reads the portfolio whole with the main résumé's exact revision (`GET /resume/master-section?field=portfolio`,
+  engine `portfolio.read_section`), and **Save portfolio** sends it whole as one main-résumé edit
+  (`POST /resume/master-edit` with `{op: 'set', field: 'portfolio', value}`, engine `portfolio.apply_edit`). Every field is
+  checked first (at most 20 bullets of 1,500 characters, 60 items of 100 characters per list, http or https links, no
+  control characters), then one write goes through the same backup, audit and atomic publish as every main-résumé edit.
+  An empty text removes its key; keys the form does not show are kept. With no portfolio saved yet, the same edit
+  writes one when the form holds anything (the list then offers it); the page offers the form only for a saved one.
+  A main résumé that moved since the form read it
+  is refused (409) and read again, and a save that would grow the main résumé past what job scoring reads (128 KB) is
+  refused in words. **Undo** puts the earlier version back (`POST /resume/master-undo`).
+- No new route and no new binding: the read and the save use the existing `career.read` and `career.change` routes.
+- The list's own form no longer saves the entry while it still comes from the main résumé (409, "has its own Edit
+  form"). A copy saved there before 1.68.7 keeps that form, and the portfolio form refuses a save that would leave the
+  two apart.
+
+Guarded by `tests/career-portfolio-edit.test.mjs` (Test Lab case `portfolio-edit`; red on store main 6467ca6d).
+
+### Concierge pressed early (1.68.8)
+
+Career's bar draws **Concierge** before Career's concierge has mounted: `tools/career-concierge.mjs` and the kernel's
+shared assistant are still on their way, which on a busy or just-started installation takes seconds. Until 1.68.8 a
+press in that window reached no handler and the button did nothing (the coordinator's one-chat-window live check on the
+test slot, 2026-11-17, at 412 right after a restart). Now `tools/career-frame.js` keeps such a press
+(`data-career-concierge="wanted"`, the button `aria-busy`) and the concierge opens as soon as it mounts.
+
+Guarded by `tests/career-concierge-early-press.test.mjs` (Test Lab case `concierge-early-press`; red on 1.68.7) and, on
+the test slot, by the kernel's `ops/audit/one_chat_window_live.cjs`, which presses Concierge at 412 while Career's
+concierge module is still held back.
+
 ## Master record (1.51.0)
 
 **Master record** (Resume, next to Additional experience; Resume Studio's **⋯** (More) menu, "Master record
@@ -1256,6 +1295,152 @@ document banner distinguishing **Main résumé** (`Synced with Work history · r
 [`CHANGELOG.md`](CHANGELOG.md) so `oshal-app.yaml` stays well within the `128 KiB` (`131,072`-byte) `package-smoke` readiness ceiling,
 guarded by `tests/career-package-smoke.test.mjs`.
 
+**My résumé on a phone (1.67.2).** On a phone the résumé starts in the top quarter of the screen under one document bar, as
+Google Docs and Word give a document: the résumé's name (the picker) with its save state under it, **Edit** while it is open to
+read (**Undo** and **Redo** once editing), **Save**, then **More**. The section tabs are one row that scrolls sideways. AI Office
+opens with `?header=host` (AI Office 2.20.6) and draws no app row of its own there: the bar presses that row's buttons, and **More**
+holds its **Export**, its document menu (version history, rename and the rest) and **Your AI Office documents**, with the banner's
+words for the main résumé at the top. Once the person scrolls into the résumé, Career's bar and the tabs slide away; scrolling up
+brings them back. A tailored résumé keeps its banner, and a computer or tablet keeps the page as before. Guarded by
+`tests/browser/career-resume-header-phone.test.cjs` (run in the gate through `tests/career-resume-header-phone.test.mjs`); on an
+installed Career, `tests/career-resume-header-live-proof.mjs check` measures the same bar read-only as a test person on the test slot.
+
+**Every résumé carries the current role (1.67.3).** A résumé Career generates or tailors carries each role the main résumé
+records as current (no end date, or an end of Present or current) and every role that ended within the last 20 years, most recent
+first, with the title and employer Work history records; older roles stay the model's choice (condensed or left out). The model
+gets a **ROLES TO CARRY** list in its prompt, and `engine/jobhunter/role_plan.py` checks its answer: a role it left out comes back
+from its recorded title, employer, dates and bullets (none naming the embargoed open-source work unless that is opted in), a
+current role's dates run to Present, and `application.json` records what the check did as `roles_carried`. A résumé prepared
+before this check that leaves a required role out is not ready: **Prepare application** opens on step 1 · Tailor with a notice
+naming the role and **Generate résumé & cover letter**, and review and sending wait until it is generated again
+(`lib/career-resume-roles.js`, the engine's rules, in `lib/career-application-draft.js`). A submitted application keeps its
+documents as the record. Guarded by `tests/career-resume-roles.test.mjs` and `tests/career-resume-current-role-route.test.mjs`.
+
+**Where each job is, and near me, on My jobs (1.67.4).** A saved job is a reference to its posting, so My jobs reads where it
+is from the posting every time it draws the list: the place the posting names (or **Location unknown**), **Fully remote**,
+**Hybrid** or **On-site** when the posting's own title or place says so (fully remote is the board's existing rule), and the miles
+from home ("24.9 mi from home"), straight-line from the city point Find jobs maps to the person's home. Home is their saved
+**Matching area** (Settings, What I'm looking for), the place Career's "near home" job search already uses; a fully remote job
+has no trip to measure. **Within** (Any distance, 10, 25, 50 or 100 miles, Remote only) and the sort **Distance from home** are
+answered by the server over every page, on the stages of My jobs. With no home one line under the search row says so with
+**Set your home**, which opens Settings on Matching area (`?section=matching`, since Today passes a page its query, never its
+hash), and the choices that need a home are off. For any other view of the same jobs, `GET /jobs` answers per job `location`
+(text or null), `workplaceType` (`remote`, `hybrid`, `onsite` or null), `lat` and `lon` (or null) and `distanceMiles` (one decimal,
+or null with no home, no point or a fully remote job), and `home` (`known`, `label`, `radiusMiles`, `line`, `settingsUrl`);
+`within=<1-250>`, `within=remote` and `sort=distance` filter and order, and a distance with no home answers 400
+`home_location_required` rather than widening. `GET /jobs/:id` carries the same fields. A posting that names no place gets no
+point and no distance; nothing guesses one. A corpus published before the place columns still lists jobs, without them, and
+refuses a distance (`places_unavailable`). There is no write backfill, because there is no stored copy to fill:
+`python3 -I career-hunter/scripts/saved-job-places.py <career data root>` counts, read-only, what every person's saved jobs will
+show (counts only, `would_write` 0). Guarded by `tests/career-saved-job-place.test.mjs` (compiled routes over real SQLite) and
+`tests/career-saved-job-place-browser.test.mjs`; on an installed Career, `tests/career-saved-job-place-live-proof.mjs check`
+compares My jobs with Find jobs as a test person on the test slot.
+
+**Bulk select on My jobs (1.68.0).** Saved, Getting ready, Removed and the four Applications stages have a **Table** beside the
+**List**; the choice is remembered per person in their own browser. One row per job: Company, Title, Location ("Remote", "Location
+unknown", or the place with its miles from home when Career knows home), Match, Stage, Saved and Résumé. Every column sorts, and
+the table's own filters are distance (within 10, 25, 50 or 100 miles, or Remote), résumé (prepared or not) and, on Saved, stage.
+Each row has a checkbox; the header box chooses every job the filters show (Shift chooses a range) and the bar counts them. The bar
+holds the stage's bulk actions: on Saved **Prepare applications**, **Remove** and **Move to** Getting ready; on Getting ready **Send
+from my computer** (only while a computer is connected), **Prepare applications** and **Remove**; on Removed **Put back in Saved**
+and **Prepare applications**; on Applied, Interviewing, Offer and Closed **Move to** the others. Prepare asks first (1.68.1, below),
+then runs each job's own writes (its tailoring with the chosen Other experience, `POST /jobs/:id/status` promoted, then
+`POST /jobs/:id/generate` with that choice), at most two at a time; the
+native kernel lets one run hold a person's Career files, so in practice they run one after another, and a write refused while
+Career works on the account waits and is tried again. Progress shows on each row and overall (queued, preparing, prepared, failed
+with the reason in words); what is queued can be cancelled, three failures in a row with one reason pause the rest until **Resume**,
+and **Prepare the failed ones again** queues them anew. The queue is kept in the person's browser storage, so it survives a reload,
+and it runs while My jobs is open. **Send from my computer** reads each job's exact packet, then asks once with the count and the
+companies and sends nothing until the person ticks the approval; each send is one job's own approve, bind and start
+(`CareerSubmit.approveAndStart`). At phone width the table is a selectable list with the same bar. Guarded by
+`tests/career-bulk-queue.test.mjs` and `tests/career-jobs-table-browser.test.mjs`; on an installed Career,
+`tests/career-bulk-select-live-proof.mjs check` drives it as a test person on the test slot.
+
+**Other experience is asked before any résumé is generated (1.68.1).** Prepare application never generates a résumé before
+the person has had the chance to choose the Other experience for that application. Step 1 · Tailor shows the **Other experience ·
+optional** boxes, ticked with the job's own choice, else with the choice the person prepared their last application with ("Ticked
+as in the last application you prepared."), and **Generate résumé & cover letter** sends exactly the boxes ticked at that moment.
+A job whose documents were made without a choice (1.68.0's bulk Prepare, saved-job preparation, an older packet) opens on step 1
+with a notice, and **Review generated documents** still opens them as they are. **Prepare applications** in the Table asks once
+before anything is queued: the same boxes under "Include in every selected application", the count ("Prepare 4 applications")
+and the jobs left out; **Cancel** queues nothing. Each queued job's tailoring gets the choice before it is moved and prepared, so
+its preparation uses it whichever way it starts; a preparation queued before 1.68.1 has no choice and is cancelled with words.
+With **Prepare saved jobs for me** on, a job is prepared with its own choice, else the last one; a person who has other
+experience and never chose is asked first (the job waits, and Settings says how many). The choice is kept per job
+(`experienceChosen` on its tailoring) and per person (`experience-choice.json`, answered as `last` by `GET /experience-bank`).
+Ticking the open-source entry (`saved-portfolio`) is the one switch that includes that work, as 1.67.3's role check reads it.
+Guarded by `tests/career-prepare-other-experience-browser.test.mjs` (1440x900 and 412x915) and
+`tests/career-prepare-other-experience-route.test.mjs` (with `career-prepare-other-experience-contract.py`); on an installed
+Career, `tests/career-prepare-other-experience-live-proof.mjs check` drives it as a test person on the test slot.
+
+**Expanded experience on Work history (1.68.4).** A person's client engagements and client accounts were always in their
+main résumé (`career_db.json`: `project_ledger`, each `{project, role, industry, duration_months, tech, public}`, and
+`named_accounts`, `{group: [names]}`), and no screen but Download my data's Evidence lines read them. Work history now shows
+them: the line under its heading counts jobs, client engagements and client accounts, each a link; an engagement placed under a
+job shows on that job's card under **Client engagements (N)**; the rest are under **Expanded experience**, **Not placed under a
+job yet**, with **Place all under** [job] **Place them**; each shows its name, role, industry, months or length, technology,
+bullets and **Marked not public**, and **Edit** opens it as a form (client or project, role, industry, start and end month and
+year, length in months, technology, **Done under**, marked not public, bullets) with **Move up**, **Move down** and **Remove this
+engagement**; **Add an engagement**; client accounts show by group, **Edit** takes one name per line, **Add a group**; the link
+to a detailed work addendum the profile keeps outside Career is there too. The data stays in the same keys (no migration): an
+entry gains `start`, `end` (`YYYY` or `YYYY-MM`), `bullets` and `job` (the `id` of the `roles[]` entry it was done under) only
+when the person writes them, and a key the page does not know is kept as saved. `GET /resume/doc?id=master` answers `expanded`
+(`engagements`, `accounts`, `addendum`; every entry whole at any count) beside the document, and `POST /resume/master-edit`
+takes `engagement`, `engagement-bullet` and `accounts` edits (add, set, move, remove; named by place and exact current name),
+all or nothing with the patch, backed up, audited and undoable. Such a patch is refused when the main résumé moved after the
+page read it (409, the page reads it again), and refused in words when it would grow the main résumé past the 128 KiB job
+scoring reads. Download my data's engagement line carries the months, the job and every bullet. No route, permission or
+migration changed; staticFiles adds `career-work-history-engagements.js`. Guarded by `tests/career-engagements-engine.test.mjs`
+and `tests/career-engagements-page.test.mjs` (1440, 412, 360); on an installed Career, `tests/career-engagements-live-proof.mjs
+check` reads it as a test person with 20 made-up engagements on the test slot.
+
+**Letters and résumés say only what your records support (1.68.5).** Until 1.68.5 the rules that kept letters honest were
+instructions to the model: the person-specific ones moved in July 2026 into an optional `prompt_framing` block, the cover editor
+was told to "surface ... depth even when it lives in an EARLIER role", and nothing after the model call checked a claim, so a
+local model could mirror a tool from the posting and reach back to a first job. Now `engine/jobhunter/letter_evidence.py` ranks
+every recorded role, client engagement (the main résumé's `project_ledger`, dated by its own months, else by the job it was
+done under or the job whose record names the client) and selected Other experience entry by how much of the posting it speaks
+to and how recent it is, and the generation prompt and the cover editor both get the top five as **COVER LETTER EVIDENCE**;
+work the person marked not public is never offered. After the model answers, `engine/jobhunter/claims_check.py` reads every letter sentence about the
+candidate and every résumé claim the same way whichever model wrote them (and every letter sentence about the job for tools): a
+tool the records never name, a level they do not state
+(expert, advanced, deep, strong ...), a years count the recorded dates do not add up to, a title or employer they do not hold, a
+tool put under the wrong job, and a letter sentence drawn from older work outside the evidence (a first job, or a tool only a first
+job records). `engine/jobhunter/claims_fix.py` tones a level or a years count down to what the records say, puts a résumé job's
+title back, and takes out the rest; a letter that lost a sentence is written again once with the problems named, and one still too
+thin to send is marked **needs your review**. `application.json` records what the check did as `claims_check`. On **Prepare
+application**, step 2 · Review documents lists what Career took out; a letter that needs review shows its problems with **Edit
+documents** and **I checked the cover letter** in place of **Continue to send**, automatic preparation never marks it ready, and
+a connected computer will not send it until the person edits it or confirms that exact letter (`lib/career-letter-claims.js`,
+`lib/career-application-draft.js`). Guarded by `tests/career-letter-truth.test.mjs`, `tests/career-letter-truth-route.test.mjs`
+and `tests/career-letter-truth-page.test.mjs`; on an installed Career, `tests/career-letter-truth-live-proof.mjs check` prepares
+one job as a test person with a made-up long-form résumé on the test slot.
+
+**A job's description on My jobs (1.68.6).** The posting sheet (a job's title on any stage of My jobs, or New matches) shows
+the description Career holds for the job: the list's own text, the copy Career read from the employer's posting (it says **Read
+from the employer's posting.**) or the one the person pasted. Workday lists carry no description, and the pull's description stage
+leaves Workday, Oracle Recruiting Cloud and SmartRecruiters jobs to each person's own reads, so the shared corpus held none for
+those jobs (none of Torch Technologies' 889 postings on 2026-11-16). When the job has none, the sheet says **Reading the job
+description from** the employer while `POST /jobs/:id/details` reads it once through the kernel's egress, at the one structured
+address the engine's readers use (a Workday posting's cxs detail, an Oracle requisition's ById details, a SmartRecruiters posting;
+`lib/career-employer-detail.js` admits it), from the same fields, with its paragraph and list breaks kept as the pull keeps a
+description. The text is kept as the person's own copy in the engine's format (`job-context/<id>.json`, basis employer-detail, bound
+to the listing), so the sheet, the Concierge and Jarvis (`GET /jobs/:id`), preparation and scoring use it without another read; a job
+the nightly pass marked **Details needed** loses the mark. While Career is preparing the person's applications a write waits, so the
+sheet asks `GET /jobs/:id?details=read`, which reads for that view and keeps nothing. A job Career cannot read says so plainly, never
+"No description was provided.": **Career could not read this job's description from** the employer and why (the posting is no
+longer there, the site refused or did not answer, or the posting has no description), or **Career has no description for this job**
+when its site is not one Career can read, with **Open the posting** and **Paste it in Prepare application**, which opens step 1 ·
+Tailor and its paste box. For the jobs already in the corpus, `python3 -I career-hunter/scripts/backfill-job-descriptions.py`
+re-reads one employer's open postings that have no description, once, into the shared corpus for every person: `dry-run <career
+data root> --company <id>` reads and prints counts only; `plan`, `prepare` and `publish` keep exactly the descriptions that read, in
+an edited copy proven to differ only there, under the pull's lock, with the old corpus kept as `corpus.before.db`. A refused, closed
+or empty read leaves the posting as it was, and a second run fills nothing it filled. Guarded by `tests/career-job-details.test.mjs`
+(compiled routes over real SQLite, the saved real Torch Technologies, Oracle and SmartRecruiters answers, and the engine holding the
+reader, the backfill and every kept copy to its own reading), `tests/career-job-details-sheet-browser.test.mjs` and
+`tests/career-job-descriptions-backfill.test.mjs`; on an installed Career, `tests/career-job-details-live-proof.mjs check` reads
+and shows a Torch Technologies posting as a test person on the test slot.
+
 <!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.0: one concierge with every tool, the one-résumé rule and the card applied on the current revision. -->
 <!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.1: the two workers' conversation: false, the live walk's whole-turn wait, one call per card and the month format. -->
 <!-- CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.2: a nightly match cycle begins at the installation's pull time (CAREER_INGEST_CRON), else 18:00. -->
@@ -1267,3 +1452,11 @@ guarded by `tests/career-package-smoke.test.mjs`.
 <!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | Document 1.66.1: an unmarked job whose preparation stopped for missing details carries details_needed; the off Generate is drawn off. -->
 <!-- CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.0: per-company confirmed-sent counts and badge, deterministic application age fields, 4,096-character bullet preservation and Main vs Tailored résumé banner. -->
 <!-- CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.1: historical manifest release notes moved verbatim to CHANGELOG.md to keep oshal-app.yaml within the 128 KiB package-smoke ceiling. -->
+<!-- CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.2: My résumé on a phone, one document bar, one row of tabs, AI Office's row folded into the bar, and the bars slide away once the person scrolls into the résumé. -->
+<!-- CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.3: every generated résumé carries the current role and the roles of the last 20 years, most recent first; an earlier résumé that leaves one out is not ready until it is generated again. -->
+<!-- CHANGE LOG: 19 | maintainer@emeraldcoastsystemsgroup.com | Document 1.67.4: My jobs says where each job is from its posting (place, workplace, point, miles from the saved Matching area), Within and Distance from home over every page, the no-home line, the GET /jobs place fields, and the read-only count in place of a backfill. -->
+<!-- CHANGE LOG: 20 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.0: My jobs' Table view, bulk select and the bulk actions of each stage, the bulk preparation queue and the one confirmation before a bulk send. -->
+<!-- CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.1: Prepare application and bulk Prepare ask about Other experience before any résumé is generated (last choice ticked, exactly what is ticked is sent, one step before bulk Prepare queues, the choice on each queued job's tailoring), and saved-job preparation waits for a person who never chose. -->
+<!-- CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.4: Expanded experience on Work history (client engagements under their jobs, Place all under, client accounts by group), the `expanded` answer, the engagement edits and their guards. -->
+<!-- CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.5: letters and résumés say only what the records support; the letter draws on the work ranked most relevant and recent; a letter that still cannot is marked needs your review. -->
+<!-- CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.6: the My jobs posting sheet reads a job's missing description through the kernel's egress and keeps it as the person's copy, says plainly why it cannot, and the one-employer description backfill for the shared corpus. -->

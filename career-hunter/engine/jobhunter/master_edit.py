@@ -4,7 +4,9 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. The messages a person reads say main résumé and My résumé (were master resume and Resume Studio). Words only; the error codes are unchanged.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Read bounded master sections and apply exact revision-checked text/list edits through existing owner backup, audit and atomic persistence rails.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: an edit may also change a job (field role: set its title, employer, start or end month, add, move or remove it, work_history.py) or move a bullet (op move), and may carry a one-line summary the approval card shows the person. The overview and a role page carry each job's start and end month, base_with_revision() gives the main résumé document with its exact revision, and every touched job is checked whole at the end of the patch, so it stays all or nothing.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): the main résumé document Work history reads (base_with_revision) also carries `expanded`, every client engagement and client account group (engagements.view); an edit may also add, change, move or remove a client engagement, one of its bullets, or a client account group (fields engagement, engagement-bullet and accounts, engagements.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Such a patch is refused, never fitted, when the main résumé moved after the page read it, and refused in words when it would grow the main résumé past what job scoring reads (128 KiB).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: a Work history card of four edits, two bullets under a job with none and two jobs removed, answered "item index must be an integer from 0 to 0" and changed nothing). One card means what the person read on it: each edit finds its job and its list item through card_targets.Card, made once from the profile at the card's revision, so an earlier edit of the card never renumbers a later one; a bullet, competency or skill is the one whose exact text the edit quotes, and an add that quotes none goes at the end in the order written. A refused edit says which change of the card, which job and what is wrong in words, and still changes nothing. apply_edits is split into one helper per kind of edit; an edit may also name its job's employer (roleOrg).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): the saved portfolio is read (read_section field `portfolio`) and replaced whole (an edit of field `portfolio`, portfolio.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like an engagement edit it is refused, never fitted, when the main résumé moved after the form read it; it is refused in words when it would grow the main résumé past what job scoring reads, and its refusal reads as the form's own words (error portfolio_refused) rather than a card's.
 """Model-free bounded access to the current owner's master resume."""
 from __future__ import annotations
 
@@ -13,7 +15,7 @@ import hashlib
 import json
 import re
 
-from . import card_rebase, card_targets, profile, work_history
+from . import card_rebase, card_targets, engagements, portfolio, profile, work_history
 from .card_targets import CardRefusal
 
 MAX_BYTES = 12 * 1024
@@ -45,9 +47,23 @@ def _integer(value, label, maximum):
     return value
 
 
+def _portfolio_section(index, offset):
+    """The saved portfolio whole, with the exact revision, for its Edit form; refused when it could not be saved back
+    in one edit (the same 12 KB a patch may carry)."""
+    if index or offset:
+        raise ValueError('the saved portfolio is read whole, from its start')
+    _, raw, revision = _snapshot()
+    result = portfolio.read_section(raw, revision)
+    if len(_encoded(result)) > MAX_BYTES:
+        raise ValueError('your saved portfolio is larger than this form can save at once (12 KB), so it is not shown here')
+    return result
+
+
 def read_section(field='overview', index=0, offset=0, limit=20):
     """Return an explicitly paged, byte-bounded view from one exact profile revision."""
     try:
+        if field == portfolio.FIELD:
+            return _portfolio_section(index, offset)
         if field not in FIELDS:
             raise ValueError('unsupported master section')
         _integer(index, 'role index', 9999)
@@ -175,13 +191,14 @@ def _checked_edit(edit):
 
 def base_with_revision():
     """@description The main résumé document (profile.base_document) with the exact revision of the profile it was
-    read from, so a page that shows it can edit it with apply_edits and offer Undo. No profile reads as before.
-    @returns {resume, cover, meta, revision?}"""
+    read from, so a page that shows it can edit it with apply_edits and offer Undo, and `expanded`: the person's client
+    engagements and client account groups as Work history lists them (engagements.view). No profile reads as before.
+    @returns {resume, cover, meta, revision?, expanded?}"""
     try:
         _, raw, revision = _snapshot()
     except (OSError, ValueError):
         return profile.base_document()
-    return {**profile.base_document(raw), 'revision': revision}
+    return {**profile.base_document(raw), 'revision': revision, 'expanded': engagements.view(raw)}
 
 
 def earlier_documents(revision=None, **extra):
@@ -304,6 +321,10 @@ def _section_list_edit(raw, edit, doc, card, changelog):
 
 def _apply_one(raw, edit, card, changelog, touched):
     """Apply one edit of a card to the parsed profile in place; returns whether it changed anything."""
+    if isinstance(edit, dict) and edit.get('field') in engagements.FIELDS:
+        return engagements.apply_edit(raw, edit, changelog)
+    if isinstance(edit, dict) and edit.get('field') == portfolio.FIELD:
+        return portfolio.apply_edit(raw, edit, changelog)
     op, field = _checked_edit(edit)
     if field == 'role':
         return work_history.apply_role(raw, edit, changelog, touched, card)
@@ -333,6 +354,8 @@ def _apply_card(raw, edits, changelog, card=None, refuse=card_targets.refusal):
         card.number = number
         try:
             changed = _apply_one(raw, edit, card, changelog, touched) or changed
+        except portfolio.PortfolioRefusal:
+            raise
         except ValueError as error:
             raise ValueError(refuse(card, edit, str(error))) from None
     try:
@@ -376,6 +399,10 @@ def apply_edits(revision, edits):
                     'message': 'Save a smaller group of edits; the master profile was not changed.'}
         text, raw, current = _snapshot()
         card, changelog = None, []
+        expanded, held = engagements.touches(edits), portfolio.touches(edits)
+        if current != revision and (expanded or held):
+            # Engagement, account and portfolio edits name their place as the page read it; a moved main résumé is read again.
+            return {'ok': False, 'error': 'master_changed', 'message': portfolio.MOVED if held else engagements.MOVED}
         if current != revision:
             # The main résumé moved after this card was written (another card was approved, or the My résumé document
             # saved): apply it as it is now only when everything the card names still reads as the person read it.
@@ -392,6 +419,10 @@ def apply_edits(revision, edits):
             changed = _apply_card(raw, edits, changelog)
         if changed and raw == json.loads(text):
             changed, changelog = False, []
+        if changed and expanded:
+            engagements.check_budget(raw, json.loads(text))
+        if changed and held:
+            portfolio.check_budget(raw, json.loads(text))
         if changed:
             # Native owner writes are serialized by the retained store lease. Recheck
             # its exact preimage before backup/publish as well as at request admission.
@@ -406,5 +437,7 @@ def apply_edits(revision, edits):
         return result
     except OSError:
         return {'ok': False, 'error': 'The master edit could not be confirmed. Read the affected section before retrying.'}
+    except portfolio.PortfolioRefusal as error:
+        return {'ok': False, 'error': 'portfolio_refused', 'message': f'{error} Nothing was saved.'}
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return {'ok': False, 'error': str(error)}

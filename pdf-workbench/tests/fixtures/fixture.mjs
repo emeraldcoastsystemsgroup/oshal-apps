@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Load actual mounted application after explicit clean-test toolchain bootstrap.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Permit browser proofs to mount actual kernel shared document handoff assets.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Apply 003-signatures-and-preferences.sql migration to disposable PostgreSQL fixture.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98: the shared editor pane frames the Jarvis page as PDF Workbench's concierge; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The fixture serves that window from the same platform folder with its stand-in kernel (scripts/one-chat-window/kernel-window.mjs: the model menu's rails, the conversations, and the bot's door, which answers at once and then with the steps and the answer), after a suite's own extend routes, so a suite still answers what it names (a proposal's current state, the card's execution). `answer` words the stand-in's replies (Markdown, or {answer, packageToolProposal} for a card); `kernel.asks` keeps every turn as the door received it.
  */
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {spawn} from 'node:child_process';
@@ -13,12 +14,13 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {requireRuntime} from './runtime.mjs';
+import {mountWindow,windowKernel} from '../../../scripts/one-chat-window/kernel-window.mjs';
 const {createPdfRoutes}=await import('../../routes/application.mjs');
 const packageRoot=resolve(import.meta.dirname,'../..');
 const require=requireRuntime;
 const {Pool}=require('pg'),express=require('express');
 function exchange(port,request){return new Promise((done,reject)=>{const socket=connect(port,'127.0.0.1');let buffer='',hello,ended=false;const timer=setTimeout(()=>finish(new Error('fixture engine timeout')),55000);function finish(error,result){if(ended)return;ended=true;clearTimeout(timer);socket.destroy();error?reject(error):done(result);}socket.on('error',finish);socket.on('close',()=>{if(!ended)finish(new Error('fixture engine incomplete'));});socket.on('data',data=>{buffer+=data;if(buffer.length>16*1024*1024)return finish(new Error('fixture frame exceeded'));for(;;){const end=buffer.indexOf('\n');if(end<0)break;const line=buffer.slice(0,end);buffer=buffer.slice(end+1);let value;try{value=JSON.parse(line);}catch{return finish(new Error('fixture bad frame'));}if(!hello){hello=value;if(value.error)return finish(null,{hello,reply:null});socket.write(JSON.stringify({id:1,...request})+'\n');}else return finish(null,{hello,reply:value});}});});}
-export async function fixture({extend}={}){
+export async function fixture({extend,answer}={}){
  const python=process.env.OSHAL_PDF_TEST_PYTHON;if(!python)throw new Error('OSHAL_PDF_TEST_PYTHON required; install engine/requirements.txt in isolated runtime');
  const raw=process.env.OSHAL_TEST_POSTGRES;if(!raw)throw new Error('OSHAL_TEST_POSTGRES required; use shared disposable127.0.0.1:35689');const url=new URL(raw);if(!['postgres:','postgresql:'].includes(url.protocol)||url.hostname!=='127.0.0.1'||url.port!=='35689')throw new Error('Only shared disposable PG127.0.0.1:35689');
  const suffix=randomUUID().replaceAll('-',''),database='pdf_http_'+suffix,role='pdf_http_role_'+suffix,password=randomUUID();
@@ -31,7 +33,10 @@ export async function fixture({extend}={}){
   const ctx={appPackageDir:packageRoot,pool,authorization:{registerResource:()=>{},currentActor:()=>({issuer:'pdf-http-fixture',sub:als.getStore()??'none',isActive:states.has(als.getStore())}),authorize:async({permission})=>({allowed:states.has(als.getStore())&&!states.get(als.getStore()).has(permission)})},intent:async(name,input)=>{if(name!=='engine.exchange')throw new Error('Fixture does not fake native artifact handles');return exchange(ready.port,input.request);}};
   const captured=new Set(),runs={keepRunAlive:async id=>captured.add(id),run:async(id,work)=>{if(!captured.has(id))throw new Error('fixture run not captured');return work();},runFinished:async id=>captured.delete(id)};
   const platformRoot=resolve(process.env.OSHAL_PLATFORM_ROOT??resolve(packageRoot,'../../oshal-kernel/platform'));
-  const app=express();app.use((req,_res,next)=>als.run(req.headers['x-test-owner']??'alice',next));app.get('/shared/ui/js/package-tool-cards.js',(_req,res)=>res.sendFile(resolve(platformRoot,'src/api/jarvis-package-tools.js')));app.use('/shared/ui',express.static(resolve(platformRoot,'src/shared/ui')));app.use('/cockpit',express.static(resolve(platformRoot,'src/pages/cockpit')));app.get('/ui/kernel/table.js',(_req,res)=>res.sendFile(resolve(platformRoot,'../crates/api/src/kernel_table.js')));app.use('/api/pdf-workbench',createPdfRoutes(ctx,runs));extend?.(app);server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
-  return{url:'http://127.0.0.1:'+server.address().port,directory,states,close,db,ctx};
+  const app=express();app.use((req,_res,next)=>als.run(req.headers['x-test-owner']??'alice',next));app.get('/shared/ui/js/package-tool-cards.js',(_req,res)=>res.sendFile(resolve(platformRoot,'src/api/jarvis-package-tools.js')));app.use('/shared/ui',express.static(resolve(platformRoot,'src/shared/ui')));app.use('/cockpit',express.static(resolve(platformRoot,'src/pages/cockpit')));app.get('/ui/kernel/table.js',(_req,res)=>res.sendFile(resolve(platformRoot,'../crates/api/src/kernel_table.js')));app.use('/api/pdf-workbench',createPdfRoutes(ctx,runs));extend?.(app);
+  // The concierge is the kernel's one chat window: the Jarvis page and the routes it reads, after the suite's own.
+  const kernel=windowKernel({answer});mountWindow(app,{platform:platformRoot,kernel});
+  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+  return{url:'http://127.0.0.1:'+server.address().port,directory,states,close,db,ctx,kernel};
  }catch(error){await close();throw error;}
 }

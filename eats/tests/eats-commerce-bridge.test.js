@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the Eats assistant rail under plain node: the manifest declares its surface.ops from the closed bridge vocabulary, the page loads the SHARED client and producer, marks its bridge fields and hosts, advertises exactly the custom ops its handler applies, opens Uber Eats from ONE place and never from the chat reply, and keeps its digest under the contract's 4000-character cap.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the custom ops are `search` and `open_uber_eats` (no menu, no cart); the one hand-off site is requestOrder, which sends only the restaurant's place id and the address; a chat proposal and a relayed open_uber_eats both become the shared confirm card whose Confirm alone hands off; the digest is the restaurants on screen with their place ids.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.7: the page sends no chat turn of its own. Its concierge is the kernel's one chat window (eats / eats-concierge), whose hand-off is the open-uber-eats approval card; an approved card reloads Opened in Uber Eats and never opens a link itself, and the relayed open_uber_eats still only proposes.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -58,14 +59,16 @@ test('the custom ops the page advertises are exactly the ones its handler applie
   assert.match(handler, /if \(proposal\) proposeOrder\(proposal\)/, 'a relayed open_uber_eats proposes, it never opens');
   assert.doesNotMatch(handler, /requestOrder\(|window\.open/, 'the handler never hands off by itself');
 });
-test('Uber Eats opens from the explicit hand-off only; a chat reply becomes a confirm card', () => {
+test('Uber Eats opens from the explicit hand-off only; the concierge window hands off with its own approval card', () => {
   const opens = [...page.matchAll(/window\.open\(/g)];
   assert.equal(opens.length, 1, 'exactly one hand-off site');
   assert.match(fn('requestOrder'), /window\.open\(result\.checkoutUrl, '_blank'\)/, 'and it is the explicit hand-off');
-  const chat = fn('sendChat');
-  assert.doesNotMatch(chat, /window\.open|checkoutUrl/, 'the chat reply never opens a hand-off');
-  assert.match(chat, /if \(result\.proposal\) proposeOrder\(result\.proposal\)/);
-  assert.match(chat, /hydrateCards\(result\.cards\)/, 'chat-shown restaurants get working Order buttons');
+  // 1.5.7: no chat turn of the page's own; the concierge is the kernel's one chat window, and its hand-off is the
+  // open-uber-eats approval card, which reloads Opened in Uber Eats and opens nothing from the page.
+  assert.doesNotMatch(page, /function sendChat|id="chatInput"|\$\{API\}\/chat`/, 'no chat turn of the page\'s own');
+  assert.match(page, /mountJarvisChat\(host, \{ app: 'eats', bot: 'eats-concierge', title: 'Eats Concierge'/);
+  assert.match(fn('onConciergeCard'), /loadHistory\(\)/);
+  assert.doesNotMatch(fn('onConciergeCard'), /window\.open|requestOrder\(/, 'an approved card never opens a second link');
   assert.match(fn('proposeOrder'), /op: 'propose', actionId: 'open_uber_eats'/);
   assert.doesNotMatch(fn('proposeOrder'), /requestOrder\(|window\.open/, 'proposing never hands off');
   const click = fn('onProposalClick');

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: answer GET /paper/values' statement (every saved value of the owner from a day on) instead of reading its two arguments as a connection and an account.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Model the separate exact-owner account observation table and latest-timestamp upsert.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Provide explicit timestamped synthetic quotes and broker facts for planning tests; model insert-once approval behavior.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner-aware synthetic SQL and Schwab transport for actual shipped portfolio routes. Never production account data or orders.
@@ -6,6 +7,7 @@
 'use strict';
 const path=require('node:path'),{standIns,loadShipped}=require('./native-landing-host');
 const PKG=path.resolve(__dirname,'../..');
+const {SQL:VALUES_SQL}=require('../../routes/today/values');
 const TOOLCHAIN=path.resolve(process.env.STORE_CI_TOOLCHAIN || (process.env.OSHAL_FRAMEWORK ? path.join(process.env.OSHAL_FRAMEWORK,'node_modules') : path.resolve(PKG,'../scripts/toolchain/node_modules')));
 const express=require(path.join(TOOLCHAIN,'express'));
 function application(){
@@ -14,6 +16,7 @@ function application(){
  const pool={query:async(sql,args)=>{
   calls.push({sql,args});
   if(sql.includes('trading_account_values')){
+   if(sql===VALUES_SQL.VALUES_ALL)return{rows:[...values.values()].filter(r=>r.user_sub===args[0]&&r.observed_day>=args[1])};
    if(sql.startsWith('INSERT')){const [user_sub,connection_key,account_id,observed_day,observed_at,equity,cash]=args,key=[user_sub,connection_key,account_id,observed_day].join('|'),old=values.get(key);if(!old||Date.parse(observed_at)>Date.parse(old.observed_at))values.set(key,{user_sub,connection_key,account_id,observed_day,observed_at,equity,cash});return{rows:[]};}
    return{rows:[...values.values()].filter(r=>r.user_sub===args[0]&&r.connection_key===args[1]&&r.account_id===args[2]).sort((a,b)=>b.observed_day.localeCompare(a.observed_day)).slice(0,4000)};
   }

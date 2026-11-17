@@ -7,6 +7,7 @@ exports.countNewMatches = countNewMatches;
 exports.fetchBoardPage = fetchBoardPage;
 /**
  * CHANGE LOG
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): every card carries where its job is. The card's columns gain the posting's own city point (p.city, p.lat, p.lon, the values Find jobs maps); each job is decorated by lib/career-job-place.js with workplaceType and distanceMiles from the person's saved Matching area; `within=N|remote` and `sort=distance` apply to every page, not one. A corpus without the place columns (an old published corpus, or a minimal test corpus) is read without them, and a distance asked of it is refused as places_unavailable.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): New matches also lists the jobs the nightly pass marked "details needed" (no AI fit; ai_model starts {"needsDetails":), in the order the person chose (by date under Date posted, after every AI fit under Best AI fit), and counts them. They are read through the partial index idx_user_needs_details (migrations/sqlite/002) and only when this owner generation has it; a ranked rung adds them only when it holds every scored match, so no deeper scored match can be passed over. Saved, preparation and application views are unchanged.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Use migrated relationship ordering indexes for exact pipeline pages, with old-generation read fallback.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | Share one actionable personal-match predicate between pages and exact counts while preserving separate saved and application feeds.
@@ -60,6 +61,7 @@ const career_browse_feed_1 = require("./career-browse-feed");
 const pay = require('../lib/career-pay');
 const fit = require('../lib/career-fit');
 const feedback = require('../lib/career-job-feedback');
+const place = require('../lib/career-job-place');
 /** Deprecated response keys remain null; no hiring probability or unverified qualification bonus is supplied. */
 exports.LAND_PROB = 'NULL';
 exports.HIGH_WIN = 'NULL';
@@ -101,10 +103,16 @@ const NEEDS_DETAILS_INDEX = 'idx_user_needs_details';
 const CAND_COLS = 'posting_id, fit_score, ai_fit_score, ai_fit_rationale, ai_scored_at, ai_model, ai_input_fingerprint, status, applied_at, '
     + 'promoted_at, generated_at, notes, resume_path, cover_path, confirmation_path, '
     + 'application_source, application_task_id';
+/** Where the job is: the posting's own city point, the values Find jobs maps (1.67.4). */
+const PLACE_COLS = 'p.city, p.lat, p.lon';
+/** The same three, unknown, for a corpus published before it had them. */
+const NO_PLACE_COLS = 'NULL AS city, NULL AS lat, NULL AS lon';
+/** SQLite's words for a statement that names a place column the attached corpus does not have. */
+const MISSING_PLACE = /no such column: p\.(?:city|lat|lon)\b/;
 /** The board card's column list. Deliberately excludes `p.description` (1.1GB of the corpus). */
 const SELECT_COLS = `p.id, p.title, c.name AS company, p.location, p.url, p.posted_date, p.first_seen_at,
         p.job_type, CASE WHEN ${(0, career_search_scope_1.fullyRemoteSql)()} THEN 1 ELSE 0 END AS remote,
-        p.state, p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source, p.target_role,
+        p.state, ${PLACE_COLS}, p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source, p.target_role,
         COALESCE(c.referral,0) AS referral, c.industry,
         s.fit_score, s.ai_fit_score, s.ai_fit_rationale, s.ai_scored_at, s.ai_model, s.ai_input_fingerprint,
         s.status, s.applied_at, s.promoted_at, s.generated_at, s.notes,
@@ -434,15 +442,15 @@ function runDateBounded(db, parts, order, per, offset, days, unread = false) {
  * @returns The page of job cards plus the plan that produced it.
  */
 /** Starred openings are a stable prefix across the entire paginated board, including pending scores. */
-function fetchBoardPage(db, query, scope, selectedIds, exclusions, favoriteIds = []) {
-    const favorites = savedIds(favoriteIds);
-    let result;
+function boardPage(db, query, scope, selectedIds, exclusions, favorites, near) {
     if (!param(query, 'status') && !actionableMatches(query) && favorites.length) {
         const per = Math.min(Math.max(Math.trunc(Number(query.per)) || 120, 1), 300), page = Math.max(1, Math.trunc(Number(query.page)) || 1), offset = (page - 1) * per;
         // Explicit saves remain visible outside the matching area's age/radius defaults.
         // Keyword, pay and workplace filters still apply; application history stays in Status.
         const parts = splitBoardFilters({ ...query, days: '' }, null, exclusions);
-        const order = exports.SORT_MAP[String(query.sort)] || exports.SORT_MAP.ai;
+        if (near.where)
+            parts.corpWhere += ' AND ' + near.where;
+        const order = near.order || exports.SORT_MAP[String(query.sort)] || exports.SORT_MAP.ai;
         const pinned = db.prepare(`SELECT ${SELECT_COLS} FROM user_signals s
       CROSS JOIN corpus.postings_corpus p ON p.id=s.posting_id
       CROSS JOIN corpus.companies c ON c.id=p.company_id
@@ -451,14 +459,39 @@ function fetchBoardPage(db, query, scope, selectedIds, exclusions, favoriteIds =
         AND ${parts.scoredWhere} AND ${parts.corpWhere}
       ORDER BY ${order}`).all(...favorites, ...parts.scoredArgs, ...parts.corpArgs);
         const head = pinned.slice(offset, offset + per), remaining = per - head.length;
-        const tail = fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, { offset: Math.max(0, offset - pinned.length), per: remaining + 1, exclude: pinned.map(j => Number(j.id)) }, favorites);
-        result = { ...tail, jobs: [...head, ...tail.jobs.slice(0, remaining)], page, per,
+        const tail = fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, { offset: Math.max(0, offset - pinned.length), per: remaining + 1, exclude: pinned.map(j => Number(j.id)) }, favorites, near);
+        return { ...tail, jobs: [...head, ...tail.jobs.slice(0, remaining)], page, per,
             exhausted: offset + per >= pinned.length && tail.jobs.length <= remaining,
             starredFirst: true, starredCount: pinned.length };
     }
-    else
-        result = fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, undefined, favorites);
-    result.jobs = result.jobs.map(job => fit.decorateFit(pay.decoratePay(job, query)));
+    return fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, undefined, favorites, near);
+}
+/** @description The same database, with every card statement reading the place columns as unknown. @param db Owner database. @returns A prepare-only view of it. */
+function withoutPlaces(db) {
+    return { prepare: (sql) => db.prepare(sql.split(PLACE_COLS).join(NO_PLACE_COLS)) };
+}
+/**
+ * @description One page of the board, each job carrying where it is (lib/career-job-place.js decorate). A corpus that has
+ *   no place columns is read again without them; a distance filter or sort asked of it is refused, never widened.
+ * @param db - The user's signals DB with the shared corpus ATTACHed.
+ * @param query - The board request query (filters, `within`, `sort`, `per`, `page`).
+ * @param scope - The person's saved Matching area: their home for distances, and the hunt scope of new matches.
+ * @returns The page of job cards plus the plan that produced it.
+ */
+function fetchBoardPage(db, query, scope, selectedIds, exclusions, favoriteIds = []) {
+    const favorites = savedIds(favoriteIds), near = place.nearQuery(query, scope);
+    let result;
+    try {
+        result = boardPage(db, query, scope, selectedIds, exclusions, favorites, near);
+    }
+    catch (err) {
+        if (!MISSING_PLACE.test(String(err?.message)))
+            throw err;
+        if (near.places)
+            throw new place.PlaceFilterError('places_unavailable', 'This installation\'s jobs have no map points yet, so Career cannot tell how far they are.');
+        result = boardPage(withoutPlaces(db), query, scope, selectedIds, exclusions, favorites, near);
+    }
+    result.jobs = result.jobs.map(job => place.decorate(fit.decorateFit(pay.decoratePay(job, query)), scope));
     return result;
 }
 /** @description The exact indexed keyword set shared by page selection and counting. @param parts Eligibility. @param workflow Whether this is named history. @param selected Explicit selected IDs. @param columns Selected columns. @returns Unordered keyword SQL. */
@@ -529,13 +562,15 @@ function rankedPage(db, parts, plan) {
     return { jobs, page, per, poolSize, exhausted, pooled: !ALIGNED_SORTS.has(sort) && poolSize !== null, scoredOnly: !includeUnscored };
 }
 /** @description Choose the existing query strategy using one resolved set of caller filters. @param db Owner database. @param query Board query. @param scope Saved matching area. @param selectedIds Explicit history IDs. @param exclusions Owner feedback. @param window Pinned-prefix page offset. @param favorites Owner saved IDs. @returns One exact page. */
-function fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, window, favorites = []) {
+function fetchBoardPageRaw(db, query, scope, selectedIds, exclusions, window, favorites = [], near = { where: '', order: '' }) {
     const requestedSort = String(query.sort || 'ai'), sort = ['prob', 'highwin'].includes(requestedSort) ? 'ai' : requestedSort;
-    const order = param(query, 'status') === 'queue' && sort === 'generated' ? "MAX(COALESCE(julianday(s.promoted_at),0),COALESCE(julianday(s.generated_at),0)) DESC, s.posting_id DESC" : exports.SORT_MAP[sort] || exports.SORT_MAP.ai;
+    const order = near.order || (param(query, 'status') === 'queue' && sort === 'generated' ? "MAX(COALESCE(julianday(s.promoted_at),0),COALESCE(julianday(s.generated_at),0)) DESC, s.posting_id DESC" : exports.SORT_MAP[sort] || exports.SORT_MAP.ai);
     const poolOrder = POOL_ORDER[sort] || POOL_ORDER.ai, per = window?.per ?? Math.min(Math.max(Number(query.per) || 120, 1), 300), page = Math.max(1, Number(query.page) || 1), offset = window?.offset ?? (page - 1) * per;
     const includeUnscored = !actionableMatches(query) && param(query, 'include_unscored') === '1', expression = (0, career_browse_feed_1.ftsExpressionFor)({ q: param(query, 'q') });
     const indexedKeywords = !includeUnscored && !!expression && (0, career_browse_feed_1.hasFullText)(db) && selectedIds === undefined;
     const parts = feedFilters(indexedKeywords ? { ...query, q: '' } : query, scope, exclusions, favorites);
+    if (near.where)
+        parts.corpWhere += ' AND ' + near.where;
     if (window?.exclude.length) {
         const omit = `s.posting_id NOT IN (${window.exclude.map(() => '?').join(',')})`;
         parts.scoredWhere += ' AND ' + omit;

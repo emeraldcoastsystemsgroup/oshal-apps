@@ -31,6 +31,7 @@
 # 30 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0 (Lane TV1): readiness 1.20.0; phone-control-front registers the Roku and Samsung application suite (tests/phone-control-front.test.mjs, which the gate job's own glob runs).
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: readiness 1.20.1 (refusal sentences; their guard is tests/phone-control-routes.test.cjs, already registered).
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (remove unsupported regressionTests blocks, quote colon-containing expectations, set closed sideEffects/cleanup on disposable external suites, and bound timeoutMs to 300000).
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: readiness 1.20.2; phone-control-phone-scroll registers the phone scroll guard (tests/phone-control-phone-scroll.test.cjs, which the gate job's own glob runs): in a stand-in Today frame at 412x915 with touch, a finger swipe and a wheel turn move the device list, every row's buttons can rest clear of the floating Jarvis button, the page paints no positioned dot, and a device screen is still the fixed full-frame session. tests/live/phone-scroll-live.cjs (case phone-control-live-phone-scroll) is the same check read-only on a loopback installation, with the list lengthened in the browser only.
 version: 1
 cases:
   - id: package-readiness
@@ -41,7 +42,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.20.1 with its store open.
+      - The installed phone-control package answers its identity and version 1.20.2 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -134,6 +135,28 @@ cases:
       - Details show How it connects, Through, State, Control and Address for a saved device, and What it can do for a computer.
       - Rename posts the new name to the device route and the tree shows it.
       - No button in the Add a device sheet has clipped text at 412 px or 1280 px.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: phone-control-phone-scroll
+    name: Your devices scrolls by finger on a phone, clear of the floating Jarvis button
+    purpose: Open the real page in Chromium at 412x915 with touch inside a stand-in Today frame (a 46 px bar, the application frame under it and the shell's floating Jarvis button at its phone place) over the stand-in routes, and check that the device list moves under a finger and a wheel, that every row's buttons can rest where the floating button does not cover them, that the page paints no small positioned dot, and that a device's screen still opens as the fixed full-frame session.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-phone-scroll.test.cjs
+    expected:
+      - A CDP touch swipe up and a mouse wheel turn over the list each move the frame's scrollTop by at least 150 px; the page still never scrolls sideways.
+      - Scrolled to its end, no row button is under the floating Jarvis button, and every row's Details can be brought to a place it does not cover.
+      - No element positioned fixed, absolute or sticky and at most 24 px wide is painted as a dot over the page.
+      - Pressing a computer's row opens the session view fixed over the whole frame, and the frame does not scroll behind it.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -709,6 +732,27 @@ cases:
       mode: live
     limits:
       timeoutMs: 300000
+    installation: never
+
+  - id: phone-control-live-phone-scroll
+    name: Your devices scrolls by finger on a live installation, as its operator
+    purpose: Read only, on a loopback installation at 412x915 with touch as the installer's operator persona, open /cockpit/?app=phone-control, lengthen the device list in the browser only (its rendered rows are copied) and check that a finger swipe and a wheel turn move it and that at its end no row button sits under the shell's floating Jarvis button. Every request that is not a read is stopped in the browser, so no device command runs; --css checks a phone-control.css before it is delivered.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/phone-scroll-live.cjs
+    expected:
+      - "The receipt lists no problem: swipe and wheel each at least 150 px, nothing under the floating Jarvis button at the end; on 1.20.1 it reports both moves as 0 px."
+    prerequisites:
+      - runtime:chromium
+      - fixture:live-installation
+    sideEffects: none
+    isolation:
+      mode: live
+    limits:
+      timeoutMs: 120000
     installation: never
 
   - id: phone-control-ble-takeover

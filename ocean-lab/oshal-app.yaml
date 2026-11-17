@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: UX audit (ocean-lab harvest console and blade studio): each page is two views (Soil siting / Tidal reference; Blade studio / Blade analysis) with the parameters as a 320px pane or a phone sheet, a number field beside each slider and a reset; one-sentence captions with the derivations in Help; the analysis brief as a themed sheet instead of the fixed dark box; Blade Studio gets a Fit button on the 3-D view and one Export sheet. No model or solver changed.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: UX audit batch 7 (ocean-lab-explorer SPLIT): two views (Design & sea states / Parts & BOM) with a phone bottom bar, plain stage ladder + gate sentences, Delete this explorer moved to the Stage card ⋯ menu behind an in-page confirm dialog, and non-watertight part banner. Guard: tests/explorer-ux-batch7.test.cjs, tests/engine-explorer-ux-batch7.test.js.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): the Harvest Siting Console's verdict started 290 px down a 915 px phone (32%) under the title, Brief and Help, a three-line intro and two badges. On a phone the title is for assistive technology only (Today's bar names the console) and the intro steps aside (Help explains the model); Brief and Help keep their row with the badges under it. Guard tests/harvest-phone-first-screen.test.cjs. Presentation only; the desktop is unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — ocean-lab ("Ocean Lab")
 #
@@ -65,7 +66,7 @@ description: >-
   recompute from its design vector, with its eleven parts as CAD Studio programs
   and a displacement budget that gates the stage. Every model runs in-process and
   deterministically; every site parameter is illustrative, not surveyed.
-version: 1.3.5
+version: 1.3.6
 status: active
 scope: person
 # Ocean Lab's own concierge: it reads the deterministic route-backed tools below and explains the lab's terms.

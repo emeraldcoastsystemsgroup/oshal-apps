@@ -1,6 +1,7 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register bounded readiness and package contracts without claiming live inference or nightly acceptance.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register persona-direct-question: a direct question is answered before the where-reviews-start sentence.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The direct-question case also expects a set length to cover the whole reply (sweep 13).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register futures-research-surface: verify /overview and /home-summary auth gates and render /api/futures-research/app in Chromium at 412x915 and 1440x900.
 version: 1
 cases:
   - id: package-readiness
@@ -15,12 +16,12 @@ cases:
     limits: { timeoutMs: 15000 }
     installation: safe-smoke
   - id: package-contract
-    name: Dedicated workflow and readiness contract
-    purpose: Exercise the compiled readiness route over loopback HTTP and verify the tool-less separate workflow declaration. Core PostgreSQL queue guards run separately in the framework Test Lab.
+    name: Dedicated workflow, concierge and readiness contract
+    purpose: Exercise the compiled readiness route over loopback HTTP and verify the tool-less separate workflow declaration, inline concierge, and own first screen. Core PostgreSQL queue guards run separately in the framework Test Lab.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/package-contract.test.cjs] }
     expected:
-      - The workflow declares the exact worker and fails closed on older framework versions.
+      - The workflow declares the exact worker, inline concierge, and own first screen (/api/futures-research/app).
       - The readiness route reads only bounded package identity and rejects invalid or missing manifests.
     prerequisites: [runner:node-test, fixture:core-checkout]
     sideEffects: fixture-write
@@ -43,4 +44,20 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: futures-research-surface
+    name: Caller-authenticated overview, Home summary and responsive Light Blue surface
+    purpose: Verify /overview and /home-summary reject unauthenticated callers with 401 and render /api/futures-research/app in headless Chromium at 412x915 and 1440x900 with opaque cards, zero horizontal scroll, and honest empty and populated states.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/futures-research-surface.test.cjs] }
+    expected:
+      - Unauthenticated GETs to /overview, /home-summary, and /app return 401 with Cache-Control no-store.
+      - Authenticated renders at 412x915 and 1440x900 wear light-blue, paint opaque cards with >=44px controls, do not overflow horizontally, and show honest empty and populated study/review/forward states.
+    prerequisites: [runner:node-test, browser:chromium]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures: [tests/futures-research-surface.test.cjs]
+      cleanup: Loopback Express servers and headless Chromium contexts are closed in finally blocks.
+    limits: { timeoutMs: 45000 }
     installation: never

@@ -2,10 +2,16 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove selected native CAD base/feature editing, rebuilt geometry, owned immutable history, real export and reopening with the common shell.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Assert real saved-document/selection context and unchanged owned content through an explicit unavailable-provider boundary.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The shared editor no longer draws a pane button while its pane is on screen (desktop compaction, kernel PR #183; the review found this press timing out at 1440x1000), so the closing Properties press happens only where the button is drawn, and the proof now asserts the inspector is on screen either way.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98: the shared editor pane frames the Jarvis page as the application's concierge; Roger, 2026-11-16, every concierge is the core Jarvis chat window). The proof serves that window on the fixture's server from the same platform with its stand-in kernel (scripts/one-chat-window/kernel-window.mjs) and asks in it: the window shows its model menu and its other controls, a model picked rides on the turn, the turn reaches cad-studio-designer's door with the person's words alone and the saved part and selected feature on its context, the unavailable provider (still the door's explicit 503) is said in the window's own bubble with the words kept in its box, and no reply or card is drawn. The pane's own message box, Send and notice line are gone with the old pane.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z, in production: four editors' concierge entries did not open or could not be pressed. The concierge is now always opened by pressing its Concierge the way a person does, after asserting that the editor opens with its concierge closed; before, the press was skipped whenever a pane already showed, so a run could pass without pressing it.
  */
 import test from 'node:test';import assert from 'node:assert/strict';import{mkdir}from'node:fs/promises';import{join}from'node:path';import{startNativeEditorFixture,chromium}from'./native-editor-fixture.mjs';
+import{kernelPlatform,windowKernel,mountWindow,chatWindow,windowControls,pickModel}from'../../scripts/one-chat-window/kernel-window.mjs';
 test('CAD common editor selects and edits native geometry/features with OCCT rebuild, revision and STEP export',{timeout:180000},async t=>{
+ const platform=kernelPlatform();
  const f=await startNativeEditorFixture(),browser=await chromium.launch({headless:true});t.after(async()=>{await browser.close();await f.close();});
+ // The window and the kernel routes it reads, behind the fixture's own routes (it has no catch-all).
+ mountWindow(f.app,{platform,kernel:windowKernel()});
  const call=async(method,path,body)=>{const r=await fetch(f.origin+'/api/cad-studio'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}),out=await r.json();assert.ok(r.ok,JSON.stringify(out));return out;};
  const created=await call('POST','/models',{title:'Native editor bracket',base:{kind:'box',sizeX:60,sizeY:40,sizeZ:30}}),id=created.model.model_id;assert.equal(created.build.ok,true);assert.equal(created.model.report.volumeMm3,72000);
  const added=await call('POST','/models/'+id+'/features',{type:'hole',label:'Mounting hole',params:{axis:'z',x:15,y:10,diameter:6,depth:30}});assert.equal(added.build.ok,true);const feature=added.feature;assert.equal(added.model.feature_status.find(x=>x.id===feature.id).ok,true);
@@ -19,9 +25,22 @@ test('CAD common editor selects and edits native geometry/features with OCCT reb
  await page.setViewportSize({width:412,height:915});if(!await page.locator('.ef-inspector').isVisible())await page.getByRole('button',{name:'Properties',exact:true}).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if(process.env.EDITOR_REVIEW_SCREENSHOT_DIR)await page.screenshot({path:join(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,'cad-phone.png'),fullPage:true});assert.deepEqual(errors,[]);
 });
 
-// The unavailable provider is an explicit boundary seam; saving and document context use genuine app routes.
+// The unavailable provider is an explicit boundary seam (the bot's door answers 503); saving and document context use
+// genuine app routes. The concierge is the kernel's one chat window, framed in the editor's concierge pane.
 async function proveUnavailableAssistant(page,app,bot,recordId,revision){
- const requests=[];await page.route('**/api/swarm/bots/'+bot+'/ask',async route=>{requests.push(route.request().postDataJSON());await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'AI provider unavailable in this isolated review fixture. Your document is kept.'})});});
- if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Adjust the selected object.');await page.locator('.ef-assistant-form').getByRole('button',{name:'Send',exact:true}).click();await page.locator('.ef-assistant-notice').filter({hasText:'AI provider unavailable in this isolated review fixture. Your document is kept.'}).waitFor();
- assert.equal(requests.length,1);const context=requests[0].context;assert.equal(context.app,app);assert.equal(context.recordId,recordId);assert.equal(context.fields.revision,revision);assert.equal(context.selection.ids.length,1);assert.ok(context.selection.kind);assert.equal(await page.locator('.ef-assistant-reply,.ef-assistant-cards').count(),0);const properties=page.getByRole('button',{name:'Properties',exact:true});if(await properties.isVisible())await properties.click();await page.locator('.ef-inspector').waitFor({state:'visible'});
+ const requests=[],click=locator=>locator.click(),words='Adjust the selected object.';
+ await page.route('**/api/swarm/bots/'+bot+'/ask',async route=>{requests.push(route.request().postDataJSON());await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'AI provider unavailable in this isolated review fixture. Your document is kept.'})});});
+ assert.equal(await page.locator('.ef-ai').isVisible(),false,'the editor opens with its concierge closed');await page.getByRole('button',{name:'Concierge',exact:true}).click();
+ const pane=page.locator('.ef-ai'),chat=await chatWindow(pane);await windowControls(chat);
+ assert.match(await pane.locator('iframe.jarvis-chat-frame').getAttribute('src'),new RegExp(`[?&]concierge=${app}&bot=${bot}(&|$)`),'the concierge is the one chat window as this application\'s bot');
+ assert.equal(await pickModel(chat,click),'Picked model','the model picked for this request is shown on the control');
+ await chat.locator('#typein').fill(words);await click(chat.locator('#typer button[type=submit]'));
+ await chat.locator('#convo .msg.bot .err').filter({hasText:/unavailable/}).waitFor();
+ assert.equal(requests.length,1);const {message,context}=requests[0];assert.equal(message,words,'the person\'s words alone: the document travels on the context');
+ assert.equal(context.app,app);assert.equal(context.recordId,recordId);assert.equal(context.fields.revision,revision);assert.equal(context.selection.ids.length,1);assert.ok(context.selection.kind);
+ assert.deepEqual([context.provider,context.model],['picked','picked-model'],'the pick rides on that request');
+ assert.equal(await chat.locator('#typein').inputValue(),words,'the words stay in the box');
+ assert.equal(await chat.locator('#convo .msg.bot').count(),1,'no reply beside the refusal');assert.equal(await chat.locator('.jpt-panel').count(),0,'no card');
+ assert.equal(await page.locator('.ef-assistant-reply,.ef-assistant-user,.ef-assistant-cards').count(),0,'the page draws no conversation of its own');
+ const properties=page.getByRole('button',{name:'Properties',exact:true});if(await properties.isVisible())await properties.click();await page.locator('.ef-inspector').waitFor({state:'visible'});
 }

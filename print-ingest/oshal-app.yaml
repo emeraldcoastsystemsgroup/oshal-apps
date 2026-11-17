@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: declare print-ingest-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.9 (UX audit 2026-11-06, P2): one primary (the selected tab is inverted ink with its count), the editable title as the heading with a 3-line excerpt of the printed text, Match words, one readers line, sticky Approve on a phone, the title named once. Guard: tests/ux-inbox.test.cjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): documents printed to the owner's own computers (Orbit's "Let people print to this computer") wait in the kernel, which reads their text and keeps it for the owner; opening Print Inbox takes them in the owner's own session (POST /api/print-ingest/printed/collect, kernel intents print_jobs.list and print_jobs.take) and files each one awaiting approval, marked as from a printer with the computer it was printed to, the sending address, pages, size and time. Nothing is filed until Approve. Guards: tests/printed-collect.test.cjs, tests/printed-row.test.cjs.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): the Print Inbox list started 264 px down a 915 px phone (29%) under two paragraphs and the tabs. On a phone the one-line explanation steps aside (the tabs say Awaiting approval) and the printed-documents note is one compact line. Guard tests/print-phone-first-screen.test.cjs. Presentation only; the desktop is unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Print Ingest
 #
@@ -39,7 +40,7 @@ description: >-
   paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the
   swarm's shared knowledge, or private to you — and nothing is written until you
   approve it. It cannot print to a home or office printer.
-version: 0.4.0
+version: 0.4.1
 
 # ADR-139 wave 1 — "Send to…" destination: any document becomes a print-inbox intake
 # (extracted to text on the kernel rail, then the normal dedupe/rules/approval queue).

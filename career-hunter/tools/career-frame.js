@@ -13,6 +13,8 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1, T9: the Concierge button opens Career's concierge. The rule that gives Career the whole window hid the cockpit's chat panel outright, so pressing Concierge (it asks the cockpit for that panel) showed nothing on production and on the test slot; it now hides the panel only while it is closed.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Paint fresh admitted navigation independently of optional name and counts, and bound frame reads without inventing a role or count.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the Résumé section holds My résumé, then Work history (the new page where a person edits their jobs, months and bullets), then Other experience and Improve it. My résumé shows the Concierge button too: Career's concierge is that page's one assistant now (AI Office's editor opens there with its own concierge off), so the person can ask it to change a job or a bullet and see the change in the document.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). On a phone the row of a section's pages is one line that scrolls sideways (career-frame.css); after drawing it the frame scrolls the open page's tab into view (showCurrentTab), so a page at the end of the row (Improve it) is never off screen when it opens.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (lane MARQUEE1; the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412: Career's Concierge pressed, "did not show the chat window"). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant are still on their way, seconds on a busy or just-started installation), and a press then reached no handler and was lost: the button did nothing. A press before the concierge is ready is now kept (data-career-concierge="wanted", the button aria-busy) and the concierge opens as soon as it mounts; one that cannot load clears it with the reason.
  */
 (function (root) {
   'use strict';
@@ -388,7 +390,8 @@
       var name = firstName(state.user) || state.name || '', role = state.remembered ? '' : roleOf(state.entries);
       var inMore = Boolean(active && layout.more.some(function (entry) { return entry.view === active.view; }));
       var menu = menuHtml(layout, active);
-      var concierge = '<button class="cf-concierge-toggle" type="button" aria-expanded="' + (doc.documentElement.dataset.careerConcierge === 'open' ? 'true' : 'false') + '">Concierge</button>';
+      var wanted = doc.documentElement.dataset.careerConcierge;
+      var concierge = '<button class="cf-concierge-toggle" type="button" aria-expanded="' + (wanted === 'open' ? 'true' : 'false') + '"' + (wanted === 'wanted' ? ' aria-busy="true"' : '') + '>Concierge</button>';
       return concierge + '<details class="cf-more cf-more-desk"><summary' + (inMore ? ' aria-current="page"' : '') + '>More ▾</summary><div class="cf-menu">' + menu + '</div></details>' +
         (chip && board ? '<a class="cf-chip" href="' + esc(board.href + '?' + chip.query) + '" data-cf-view="board" data-cf-query="' + esc(chip.query) + '"><b>' + chip.count + '</b> ' + esc(chip.label) + '</a>' : '') +
         whoHtml(name, role) +
@@ -437,6 +440,12 @@
       var summary = bar.querySelector('.cf-more-desk > summary');
       if (spill.querySelector('a[aria-current]')) summary.setAttribute('aria-current', 'page');
     }
+    /** @description The row of pages is one line that scrolls sideways on a phone: bring the open page's tab into view. */
+    function showCurrentTab(sub) {
+      var current = sub && !sub.hidden ? sub.querySelector('a[aria-current="page"]') : null;
+      if (!current || sub.scrollWidth <= sub.clientWidth) return;
+      sub.scrollLeft = Math.max(0, current.offsetLeft - (sub.clientWidth - current.offsetWidth) / 2);
+    }
     /** @description Keep the frame's measures true for the page's own layout, and the host's assistant above the phone bar. */
     function measure(bar, sub, bottom) {
       if (disposed) return;
@@ -471,6 +480,13 @@
         open(entry, a.getAttribute('data-cf-query') || '');
       });
       doc.addEventListener('keydown', function (event) { if (event.key === 'Escape') menus().forEach(function (menu) { menu.removeAttribute('open'); }); });
+      // A Concierge press before the concierge has mounted is kept, never lost; career-concierge.mjs opens it on mounting.
+      doc.addEventListener('click', function (event) {
+        var toggle = event.target.closest ? event.target.closest('.cf-concierge-toggle') : null;
+        if (!toggle || toggle.disabled || doc.querySelector('.cf-concierge')) return;
+        doc.documentElement.dataset.careerConcierge = 'wanted';
+        doc.querySelectorAll('.cf-concierge-toggle').forEach(function (button) { button.setAttribute('aria-busy', 'true'); });
+      });
     }
 
     function draw(parts, state) {
@@ -480,6 +496,7 @@
       var sub = subnavHtml(layout, active);
       parts.sub.innerHTML = sub; parts.sub.hidden = !sub;
       if (sub) parts.sub.setAttribute('aria-label', layout.primary.filter(function (part) { return part.pages.some(function (page) { return active && page.view === active.view; }); })[0].label);
+      showCurrentTab(parts.sub);
       var bottom = bottomHtml(state, layout, active);
       parts.bottom.innerHTML = bottom; parts.bottom.hidden = !bottom;
       doc.body.classList.toggle('cf-has-bottombar', Boolean(bottom));
@@ -503,7 +520,8 @@
       wire();
       var conciergeStyle = doc.createElement('link'); conciergeStyle.rel = 'stylesheet'; conciergeStyle.href = '/api/career-hunter/static/career-concierge.css'; doc.head.appendChild(conciergeStyle);
       import('/api/career-hunter/static/career-concierge.mjs').then(function (module) { if (!disposed) return module.mountCareerConcierge(w); }).catch(function () {
-        doc.querySelectorAll('.cf-concierge-toggle').forEach(function (button) { button.disabled = true; button.title = 'The concierge could not load. Reload this page to try again.'; });
+        if (doc.documentElement.dataset.careerConcierge === 'wanted') doc.documentElement.dataset.careerConcierge = 'closed';
+        doc.querySelectorAll('.cf-concierge-toggle').forEach(function (button) { button.disabled = true; button.removeAttribute('aria-busy'); button.title = 'The concierge could not load. Reload this page to try again.'; });
       });
       var queued = 0;
       w.addEventListener('resize', function () { if (!queued) queued = w.requestAnimationFrame(function () { queued = 0; fit(parts.bar); measure(parts.bar, parts.sub, parts.bottom.hidden ? null : parts.bottom); }); });

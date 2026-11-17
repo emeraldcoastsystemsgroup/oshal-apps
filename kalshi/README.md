@@ -171,8 +171,8 @@ The **Markets** tab lists every open market the last scan walked (not only the p
 its YES/NO asks, volume, close time and the evaluator's verdict in words. **Why** opens the
 walkthrough: price vs calibrated chance, fee, net edge, evidence (settled-market count and
 confidence), book, risk flags and sizing, built only from the evaluator's own numbers
-(`src-routes/kalshi-market-explainer.ts`, pure). **Look up** reads any ticker live from Kalshi and
-prices it against the shipped calibration table. **Ask the quant** hands that market's question to
+(`src-routes/kalshi-market-explainer.ts`, pure). A ticker typed into the search field and Enter (until 1.10.0 a
+separate **Look up** field) reads any ticker live from Kalshi and prices it against the shipped calibration table. **Ask the quant** hands that market's question to
 the application's own concierge, `kalshi-quant` (`personas/kalshi-quant.yaml`), which reads the
 same routes through the `kalshi_market`, `kalshi_markets` and `kalshi_scan` tools and never trades.
 
@@ -180,6 +180,84 @@ same routes through the `kalshi_market`, `kalshi_markets` and `kalshi_scan` tool
 | --- | --- |
 | `GET /api/kalshi/markets?q=&category=&verdict=all|playable|fold|not-evaluable&sort=verdict|closes|edge|volume&limit=` | the open walked markets with a verdict headline each |
 | `GET /api/kalshi/markets/:ticker` | one market with its full walkthrough, from the snapshot else live (404 unknown ticker, 503 no market reader) |
+
+## The Markets tab on a phone (1.10.0)
+
+Roger's phone at 412 px (2026-11-16): the first market started 51-59% down the screen, under a second title line,
+"trading active" beside "paper mode", a chip that wrapped, four rows of controls and a counts paragraph, and each row
+showed two unlabelled prices and "monster". The tab is now shaped like the category leaders (Kalshi's app, Polymarket,
+Robinhood's prediction markets), measured at 412x915, 390x844, 360x780 and 1440x900:
+
+- **One app bar.** In Today the shell's bar is the app bar: the page adds its own search and help icons to the
+  application's part of it, hides the shell's general help link while Kalshi shows (Kalshi's Help ends with "All user
+  guides"), and draws the shell's Reload as a small icon on a phone. All of it is a stylesheet scoped to this page's
+  own frame plus two buttons in its own bar, so another application gets the shell as it was. Standalone, or under any
+  other host, the page draws the same bar itself.
+- **One status line:** "Paper trading · Connect your Kalshi account" (the link is the Connections page, `/utilities`);
+  a connected account says demo or live and whether real-money orders are on. The exchange is named only when it is
+  not plainly open ("Kalshi has paused trading", "Kalshi status unknown"); "trading active" is gone.
+- **One line for age:** "Scanned 12 min ago · model from Jul 13, 126 days old", an old scan or model in amber. Scan now
+  stays on the Scan tab.
+- **Categories as one chip row** that scrolls sideways, beside a **Filter** sheet: Show (All markets, With an edge, No
+  edge, No estimate, each with its count) and Sort by (Best rating first, Closing soonest, Biggest edge, Most traded).
+  The same `GET /markets` query as before.
+- **One card per market:** the question in two lines; **Buy Yes 54¢ · No 47¢** (the two asks, the price to buy one
+  contract of each side) with the rating beside them; **Our estimate 68% Yes · +13.8¢ on Yes** (the calibrated chance
+  of the side the scan judged, and the edge after the fee); when it closes and how much has traded. A tap on the card
+  opens **Why** as a sheet with the walkthrough and Ask the quant; the phone's Back closes it and stays on Kalshi, and
+  the floating Jarvis button steps aside while a sheet is open.
+- **Plain words,** the same categories underneath: Big edge (the scan's monster), Good edge (strong), Small edge
+  (playable), No edge (fold), No estimate (not-evaluable). Help keeps the legend; the Scan and Alerts tabs and the
+  alert floor in Settings say the same words.
+- **The bottom bar** is five equal tabs with icons, edge to edge (it used to give 72 px to the floating button); the
+  page tells the shell the bar's height, so the button rests above it. The Scorecard tab's unexplained dot is gone; on a
+  desktop its tab says "1 failing" or "1 proven" in words.
+- **The end of the list** sits 144 px up on a phone (104 px on a desktop), so the last card clears the floating Jarvis
+  button, whose top edge is 117 px above the bottom on a phone.
+- **Desktop** gets the same status line, chips, Filter, an always-open search field and the cards in three columns.
+
+Presentation only: no route, read, order, scan, calibration, schedule, posture, setting or permission changed. Guard:
+`tests/kalshi-phone-design-browser.test.js` (Test Lab `phone-design`), with the synthetic markets of
+`tests/browser/phone-design-fixture.cjs`; `node tests/browser/phone-design-shots.cjs <dir> <label> [page]` pictures any
+version of the page the same way. A read-only check on a running kernel as a test person:
+`tests/live/kalshi-phone-live.cjs`.
+
+## Scan now fills the Markets list; the plain words everywhere (1.10.2)
+
+Found by @lane-qa1 on the test slot (2026-11-16): after **Scan now** the Markets tab still said "Nothing has been scanned
+yet … press Scan now" under "Scanned just now", and only a reload showed the markets; and Settings, the Jarvis alert and
+other text a person reads still said hand, playable, monster and fold.
+
+- **The list follows the scan.** Scan now, and a scan the background job lands (seen at the page's next 30-second read
+  of the scan), refresh the Markets list with the person's own search, category and filter. The same scan is never read
+  twice (`refreshMarketsFor` in `tools/kalshi.html`).
+- **Plain words wherever a person reads them,** from one map (`EDGE_WORDS` / `edgeWord` in
+  `src-routes/kalshi-scan-config.ts`): the Jarvis alert ("Kalshi: 2 new markets with an edge", each market as
+  "[Big edge] YES …"), the Why walkthrough (its headline leads with the rating in words, the sizing reason and the
+  question put to the quant say them), the Home card's note ("rated Big edge"; that route keeps its own copy of the five
+  words because it loads nothing but express, `scripts/market-home.test.cjs`, and the guard holds the copy equal), the
+  settings labels ("Which edges to
+  alert on", "Tell Jarvis when new markets with an edge appear", "Markets named in one alert"), the Jarvis briefing
+  ("Kalshi markets with an edge"), the schedule's words, the description and catalog entry, the quant's role, the user
+  guide and the page. The quant is told to say the ratings in these words; its tools still return the scan's values.
+- **Unchanged:** the rating values (monster, strong, playable, fold, not-evaluable) in every route, the setting keys, the
+  briefing id and the routing words; no route, read, order, scan, calibration, schedule, posture or permission.
+
+Guards: `tests/kalshi-scan-refresh-browser.test.js` (Test Lab `scan-refresh-browser`: Chromium with Playwright's clock)
+and `tests/kalshi-plain-words.test.js` (Test Lab `plain-words`: every person-facing string in the package, plus the
+alert, the walkthrough and the Home note run for every rating). The compiled `routes/*.js` twins were emitted one file
+at a time with the framework build's own compiler options (TypeScript's `transpileModule`), which reproduces the
+committed output of an unchanged module byte for byte. A read-only check on a running kernel, as a test person:
+`tests/live/kalshi-refresh-words-live.cjs` (it lands one scan on that person's own ledger from outside the browser and
+waits for the page's next 30-second read to fill the list, then reads every screen for the old words).
+
+**1.10.1:** the company and family summary card (the audience view the Business shells and the Home shell open) says the
+same words. It still said "2 playable hands", "Playable hands" and "Top hands", showed each hand's raw rating (monster,
+strong, playable) in its table and alerts, and said "folded" for a scan with no edge. It now says "2 markets with an
+edge", "With an edge" and "Markets with an edge", a Rating column in Big edge, Good edge, Small edge, No edge or No
+estimate from the full page's own table, and "The last scan found no market with an edge". Same reads, same model;
+words only. Guard: `tests/audience-view.test.cjs` (Test Lab `audience-view`) and the browser fixture
+`tests/audience-view.fixture.cjs`.
 
 ## What this package is
 
@@ -307,14 +385,14 @@ out-scores the market on settled predictions.
 **Company audience view (1.6.2).** The all-inclusive Business shells (Studio, Orbit, Commons) open the
 first surface as `/api/kalshi/?audience=company` (ADR-164 D6). The shared kit
 (`/shared/ui/js/app-view.js`, loaded right after the theme bootstrap) paints the **saved** state of the
-scan: the playable-hand count, the snapshot's age and freshness, the paper alert record (W–L, hit rate)
-and the recorded alerts over five days, then the top hands as the scan ranks them (strength, side,
+scan: how many markets have an edge, the snapshot's age and freshness, the paper alert record (W–L, hit rate)
+and the recorded alerts over five days, then the markets with an edge as the scan ranks them (rating in words, side,
 market, ask, net edge, stake, close, flags) and the newest alerts with their delivery and settlement
 outcome under the record line. On open it reads only `GET /scan`, `GET /alerts` and
 `GET /home-summary` — database reads under the caller's session — never `/status`, `/portfolio` or
 `/alerts/pops` (each asks Kalshi live), never `/trends` or `/settings`, never a write. The one action
 opens the full page; betting, "Scan now" and settings stay there. Waiting for the first scan, a scan
-that is off, a folded scan, a stale or failed snapshot, 401, 403 and failed reads are each named for
+that is off, a scan that found no market with an edge, a stale or failed snapshot, 401, 403 and failed reads are each named for
 what they are. Any other request runs the full page unchanged; its start paths (the loads and pollers,
 the account read, the connected-actions mount) are gated on the kit's decision, and a core without the
 kit runs it as before.

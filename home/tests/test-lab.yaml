@@ -24,6 +24,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1 (Lane TV1): register home-tv-direct (tests/home-lan-direct.test.cjs, which the home job's own glob runs): launch_app, list_apps and active_app on a Roku or a Samsung TV, planned, recorded and described. home-tv-plans expects 56 presses in the kernel grammar and bridge 1.20.0 on every plan. No test presses a real TV.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Remove unsupported regressionTests keys from TV/storage/tile cases and quote the comma-containing cleanup string on home-tv-direct.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name guard (tests/product-name.test.cjs) and align Show Open Swarm wording on home-lan-devices and home-tvs.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Register available-width Home layout, explicit details selection, close focus and responsive overflow regressions against the shipped page.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -279,6 +280,21 @@ cases:
     - Search, room groups and selected-device detail preserve existing actions and connection setup.
     - Missing switch or brightness stays unknown; refused brightness restores the last reported value.
     - Scenes use keyboard-accessible controls; phone controls fit and unsupported actions are not invented.
+  - id: home-layout
+    name: Smart Home uses available app space and opens details deliberately
+    purpose: Measure the shipped page in desktop and phone application frames with synthetic read-only inventory; OSHAL_KERNEL_ROOT supplies real shared theme styles when provided.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-layout.test.cjs] }
+    expected:
+      - A wide overview fills its app viewport without a reserved detail column or automatically selected device.
+      - Search filters devices without selecting one; Details opens the selected device and Close restores catalogue width and keyboard focus. Filtering away a selected device releases its rail and keeps search focus.
+      - Desktop cards remain readable and the catalogue, details, search and Refresh fit 1440, 1024, 768, 390 and 320 pixel frames.
+      - Browsing and opening details issue no device commands.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Each case closes its browser context; all data is synthetic and no device is contacted. }
+    limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
+    installation: never
   - id: product-name
     name: Person-facing Smart Home text names the product Open Swarm
     purpose: Drive compiled TV action labels, refusals and card buttons, inspect the manifest and persona, and scan routes, TypeScript sources and tools outside comments.

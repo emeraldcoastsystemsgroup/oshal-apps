@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify isolated durable review storage and actual Create/Publishing foundation editing through Chromium and genuine native publishing output.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98: the shared editor pane frames the Jarvis page as the application's concierge; Roger, 2026-11-16, every concierge is the core Jarvis chat window). The review workspace answers /api/jarvis with 503 (no AI provider), so the browser case serves the window where the workspace serves nothing (its page and assets from the same platform, the kernel routes it reads from the stand-in kernel in scripts/one-chat-window/kernel-window.mjs); everything the workspace serves, and its door, are its own. Publishing's ask is made in the window: it shows its model menu and its other controls, a model picked rides on the turn, the turn reaches publishing-editor's door with the person's words alone and the publication saved before it (revision 4) on its context, the workspace's "No AI provider" is said in the window's own bubble with the words kept in its box, and no card is drawn; the publication keeps the green it was saved with. The pane's #chat-message and #chat-send are its hidden stand-in now, and its notice line is gone.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z, in production: four editors' concierge entries did not open or could not be pressed. The concierge is now always opened by pressing its Concierge the way a person does, after asserting that the editor opens with its concierge closed; before, the press was skipped whenever a pane already showed, so a run could pass without pressing it.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,6 +11,30 @@ import {join,resolve} from 'node:path';
 import {createRequire} from 'node:module';
 import {ReviewStore} from './review-store.mjs';
 import {startReviewServer} from './review-server.mjs';
+import {kernelPlatform,windowKernel,windowAsset,chatWindow,windowControls,pickModel} from '../one-chat-window/kernel-window.mjs';
+
+/**
+ * @description Serve the one chat window in the review workspace where the workspace serves nothing: its page and
+ * assets from the platform, and the kernel routes it reads from the stand-in kernel. Whatever the workspace answers
+ * itself (the shared UI, the cockpit, the artifact picker) stays its own, and every turn goes to its own door, which
+ * has no AI provider; each turn is kept as it was sent.
+ * @param {object} context The browser context. @param {string} origin The workspace. @param {string} platform
+ * @param {{handle:Function}} kernel The stand-in kernel. @param {Array<object>} doors Every turn sent to a bot's door.
+ * @returns {Promise<void>}
+ */
+async function serveWindow(context,origin,platform,kernel,doors){
+ await context.route('**/*',async route=>{
+  const request=route.request(),url=new URL(request.url());
+  if(url.origin!==origin)return route.fallback();
+  if(/^\/api\/swarm\/bots\/[^/]+\/ask$/.test(url.pathname)){if(request.method()==='POST')doors.push({door:url.pathname,...request.postDataJSON()});return route.fallback();}
+  const asset=['GET','HEAD'].includes(request.method())?await windowAsset(platform,url.pathname):null;
+  const own=asset?null:kernel.handle({method:request.method(),url,body:request.postData()||'',headers:request.headers()});
+  if(!asset&&!own)return route.fallback();
+  const served=await route.fetch();
+  if(served.ok())return route.fulfill({response:served});
+  return asset?route.fulfill({status:asset.status,contentType:asset.type,body:asset.body}):route.fulfill({status:own.status,json:own.json});
+ });
+}
 
 test('Create review revisions survive a fresh store and refuse stale writes without changing bytes',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'editor-review-store-'));try{
@@ -22,6 +48,8 @@ test('Create review revisions survive a fresh store and refuse stale writes with
 
 test('real adapters edit and reopen the same objects, retain native output and keep the review isolated',{timeout:240000},async t=>{
  if(!process.env.STORE_CI_TOOLCHAIN)throw new Error('Set STORE_CI_TOOLCHAIN to the pinned Store toolchain; genuine Chromium is required.');
+ // The window comes from the same platform as the shared UI (the review server's own sibling default); none fails here.
+ const platform=kernelPlatform(resolve(import.meta.dirname,'../../../kernel-editor-foundation/platform')),kernel=windowKernel(),doors=[],click=locator=>locator.click();
  const {chromium}=createRequire(join(resolve(process.env.STORE_CI_TOOLCHAIN),'package.json'))('playwright');
  const dir=await mkdtemp(join(tmpdir(),'editor-foundation-browser-'));
  let review,browser;const errors=[],outside=[];
@@ -30,6 +58,7 @@ test('real adapters edit and reopen the same objects, retain native output and k
  const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
  await context.addInitScript(()=>{if(!localStorage.getItem('cockpit-theme'))localStorage.setItem('cockpit-theme','workspace');localStorage.setItem('cockpit-application-colors','false');});
  await context.route('**/*',route=>{if(new URL(route.request().url()).origin!==review.origin){outside.push(route.request().url());return route.abort();}return route.continue();});
+ await serveWindow(context,review.origin,platform,kernel,doors);
  const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(10000);
  const api=async(path,options={})=>{const response=await fetch(review.origin+path,{...options,headers:{'content-type':'application/json',...options.headers}});return {response,value:await response.json().catch(()=>null)};};
  const status=await api('/review/status');assert.equal(status.value.ai.available,false);
@@ -60,7 +89,15 @@ test('real adapters edit and reopen the same objects, retain native output and k
  await publishing.locator('[data-item="reviewShape"]').click();
  if(process.env.EDITOR_REVIEW_SCREENSHOT_DIR)await page.screenshot({path:join(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,'publishing-desktop.png'),fullPage:true});
  await publishing.locator('[data-editor-property="color"]').fill('#22c55e');
- if(!await publishing.locator('.ef-ai').isVisible())await publishing.getByRole('button',{name:'AI partner',exact:true}).click();await publishing.locator('#chat-message').fill('Make this selected shape green.');await publishing.locator('#chat-send').click();await publishing.locator('.ef-assistant-notice').filter({hasText:'No AI provider'}).waitFor();const afterAsk=(await api('/api/publishing-studio/documents/'+review.info.publishingId)).value.document;assert.equal(afterAsk.revision,4);assert.deepEqual(afterAsk.model.pages[0].objects.find(item=>item.id==='reviewShape').color,[34,197,94]);assert.equal(afterAsk.model.pages[0].objects.find(item=>item.id==='reviewShape').width,250);
+ // Publishing opens its concierge from its side pane's Concierge tab (publishing-shell.mjs); "AI partner" was an older name.
+ assert.equal(await publishing.locator('.ef-ai').isVisible(),false,'Publishing opens with its concierge closed');await publishing.getByRole('tab',{name:'Concierge',exact:true}).click();
+ const pane=publishing.locator('.ef-ai'),chat=await chatWindow(pane);await windowControls(chat);assert.match(await pane.locator('iframe.jarvis-chat-frame').getAttribute('src'),/[?&]concierge=publishing-studio&bot=publishing-editor(&|$)/,'the concierge is the one chat window as Publishing\'s bot');
+ assert.equal(await pickModel(chat,click),'Picked model','the model picked for this request is shown on the control');
+ const words='Make this selected shape green.';await chat.locator('#typein').fill(words);await click(chat.locator('#typer button[type=submit]'));await chat.locator('#convo .msg.bot .err').filter({hasText:'No AI provider'}).waitFor();
+ assert.equal(doors.length,1);assert.deepEqual([doors[0].door,doors[0].message,doors[0].context.app,doors[0].context.recordId,doors[0].context.fields.revision],['/api/swarm/bots/publishing-editor/ask',words,'publishing-studio',review.info.publishingId,4],'the person\'s words alone reach Publishing\'s bot, with the publication saved before the turn');
+ assert.deepEqual([doors[0].context.provider,doors[0].context.model],['picked','picked-model'],'the pick rides on that request');
+ assert.equal(await chat.locator('#typein').inputValue(),words,'the words stay in the box');assert.equal(await chat.locator('.jpt-panel').count(),0,'no card');assert.equal(await publishing.locator('.ef-assistant-reply,.ef-assistant-user,.ef-assistant-cards').count(),0,'the page draws no conversation of its own');
+ const afterAsk=(await api('/api/publishing-studio/documents/'+review.info.publishingId)).value.document;assert.equal(afterAsk.revision,4);assert.deepEqual(afterAsk.model.pages[0].objects.find(item=>item.id==='reviewShape').color,[34,197,94]);assert.equal(afterAsk.model.pages[0].objects.find(item=>item.id==='reviewShape').width,250);
  await page.getByRole('button',{name:'Switch theme'}).click();await publishing.locator('.ef-shell').waitFor();assert.equal(await publishing.locator('html').getAttribute('data-theme'),'midnight');
  if(process.env.EDITOR_REVIEW_SCREENSHOT_DIR)await page.screenshot({path:join(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,'publishing-midnight.png'),fullPage:true});
  await page.getByRole('button',{name:'Switch theme'}).click();await publishing.locator('.ef-shell').waitFor();assert.equal(await publishing.locator('html').getAttribute('data-theme'),'workspace');

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): end-to-end Chromium browser verification at 412x743 (touch phone) and 1440x900 (desktop) for Highlight, Comments, Suggest changes, Find and replace (with single-undo-step Replace all), PDF and plain-text export, non-mutating Mobile reflow view, and two-person sharing.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.7: page leave. The editor's pagehide cleanup threw "assistant is not defined" on every leave (controller.mjs), which this test met only when the collaborator's page navigated and Chromium still reported the old document's error, so it failed from ~/oshal-work and passed elsewhere. Both people now leave their page by the event the browser sends (pagehide) at a fixed point, phone and desktop, and the cleanup must run without an error; the zero-page-errors check stays.
  */
 import{test}from'node:test';
 import assert from'node:assert/strict';
@@ -21,6 +22,12 @@ async function launchActorPage(browser,f,size,{actor='alice',query='?kind=docx',
  await page.locator('html[data-office-ready=true]').waitFor();
  await page.waitForTimeout(250);
  return{context,page,errors};
+}
+
+/** Send the page-leave event the browser sends on navigation and answer the first error it raised, or null.
+ * @param {import('playwright').Page} page The editor page. @returns {Promise<string|null>} The error's message. */
+async function pageLeaveError(page){
+ return page.evaluate(()=>{let thrown=null;const seen=event=>{thrown??=String(event.message||event.error);};addEventListener('error',seen);dispatchEvent(new PageTransitionEvent('pagehide',{persisted:false}));removeEventListener('error',seen);return thrown;});
 }
 
 async function openMoreItem(page,isPhone,menuId){
@@ -184,7 +191,9 @@ test('browser (two-person RP-OFF-07): owner shares with collaborator in UI, coll
  assert.match(await alice.locator('dialog.ds-layer[open] .office-audit-list').innerText(),/bob · edit \(edit\)/);
  await alice.locator('dialog.ds-layer[open] [data-office-action="revoke-share"]').click();
  await alice.waitForFunction(()=>!document.querySelector('dialog.ds-layer[open] [data-share-grantee="bob"]'));
+ assert.equal(await pageLeaveError(bob),null,'the collaborator leaving the page (phone) runs the editor cleanup without an error');
  await bob.goto(f.origin+'/api/presentations/editor/app');
  await bob.locator('html[data-office-ready=true]').waitFor();
  assert.equal(await bob.locator('.office-doc-card').count(),0,'revoking removes shared document from recipient');
+ assert.equal(await pageLeaveError(alice),null,'the owner leaving the page (desktop) runs the editor cleanup without an error');
 });

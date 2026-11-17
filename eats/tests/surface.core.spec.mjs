@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the Eats commerce smoke in real Chromium at 390 x 844, the actual surface iframed by a parent page over the compiled router (search, menu, adds, the confirm-gated hand-off, the relayed ops, the context envelopes, no page errors).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The fixture applies the native admission rule, so no GET in the whole session may attempt a SQL write.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: real restaurants and no cart. The page starts on the diner's saved address and shows the restaurants Google Places answered; a search fills the grid the page scrolls through with no horizontal overflow; a card's Order on Uber Eats fires exactly one POST /order carrying only the place id and the address and opens Uber Eats once at that address with the restaurant searched; a chat "order" renders the shared confirm card with no POST and no window.open until Confirm; a relayed open_uber_eats proposes the same card and Cancel hands off nothing; a relayed search and set_field land through the page and the parent sees the restaurants as context; the hand-off list shows what was opened; no page errors; no GET attempted a SQL write.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.7: the page has no chat of its own (its concierge is the kernel's one chat window, tests/eats-one-chat-window.test.js), so the order case relays open_uber_eats for Sushi House instead of typing into the page's chat: the confirm card hands nothing off until Confirm, then exactly once. The window's own page (/api/jarvis/?concierge=eats...) is a stand-in here: this smoke is the surface's commerce rail, and the window is driven by tests/eats-one-chat-window.test.js.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express, playwright and the shared bridge client.
  * Not part of the store-CI wildcard; run locally:
@@ -41,6 +42,8 @@ test.before(async () => {
     if (url.hostname === 'lh3.googleusercontent.com') return route.fulfill({ status: 200, contentType: 'image/png', body: PIXEL });
     return route.abort();
   });
+  // The Eats Concierge window's own page is a stand-in (registered last, so it is matched first); its rail is not this smoke's.
+  await context.route((url) => url.origin === f.origin && url.pathname === '/api/jarvis/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><meta charset="utf-8"><title>Eats Concierge</title>' }));
   await context.addInitScript(() => { window.__opened = []; window.open = (...args) => { window.__opened.push(args.map(String)); return null; }; });
   page = await context.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -93,14 +96,11 @@ test('a card\'s Order on Uber Eats fires exactly one hand-off POST with the id a
   assert.match(await frame.locator('#orderHistory').innerText(), /1 opened/);
 });
 
-test('a chat order is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
-  f.setReply({ say: 'Sushi House is the pick.', show: ['ChIJ-sushi-house'], remember: [], order: 'ChIJ-sushi-house' });
-  await frame.fill('#chatInput', 'sushi, order it');
-  await frame.click('#chatSend');
+test('a relayed order is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
+  await relay({ op: 'custom', name: 'open_uber_eats', data: { placeId: 'ChIJ-sushi-house' } });
   const card = frame.locator('#bridgeOptions .bridge-propose');
   await card.waitFor();
   assert.match(await card.innerText(), /Open Uber Eats at 1 Synthetic Way, Pensacola, FL 32502, USA with Sushi House searched\?/);
-  assert.deepEqual(await cards(), ['ChIJ-sushi-house'], 'the chat shows its pick');
   assert.equal(handoffs().length, 1, 'no new hand-off POST before the confirm');
   assert.equal((await opened()).length, 1, 'no window.open before the confirm');
   await frame.locator('#bridgeOptions .bridge-confirm').click();

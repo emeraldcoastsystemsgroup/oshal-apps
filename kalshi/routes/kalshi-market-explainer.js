@@ -4,6 +4,7 @@ exports.notEvaluableReason = notEvaluableReason;
 exports.browseMarket = browseMarket;
 exports.openMarkets = openMarkets;
 exports.explainMarket = explainMarket;
+const kalshi_scan_config_1 = require("./kalshi-scan-config");
 const MAX_HOURS_TO_CLOSE = Number(process.env.KALSHI_MAX_HOURS_TO_CLOSE) > 0 ? Number(process.env.KALSHI_MAX_HOURS_TO_CLOSE) : 48;
 function iso(value) {
     if (value instanceof Date)
@@ -111,10 +112,10 @@ function explainMarket(m, opts = {}) {
     if (!h) {
         return {
             verdict: 'not-evaluable', side: null,
-            headline: `No verdict: ${m.notEvaluable || 'the evaluator could not price this market'}.`,
+            headline: `${(0, kalshi_scan_config_1.edgeWord)('not-evaluable')}: ${m.notEvaluable || 'the evaluator could not price this market'}.`,
             reasons: [`Book: ${book}.`, 'The evaluator only judges single markets with a two-sided book inside its calibration horizon; outside that it makes no probability claim, so there is no edge to report either way.'],
             numbers: { yesAsk: m.yesAsk, noAsk: m.noAsk, volume: m.volume, liquidity: m.liquidity, openInterest: m.openInterest, hoursToClose: hours },
-            question: `Walk me through ${m.ticker} (${m.title}): the evaluator gave no verdict because ${m.notEvaluable || 'it could not price it'}. Is there anything a careful bettor could still say about it?`,
+            question: `Walk me through ${m.ticker} (${m.title}): the scan gave no estimate because ${m.notEvaluable || 'it could not price it'}. Is there anything a careful bettor could still say about it?`,
         };
     }
     const side = h.side === 'no' ? 'no' : 'yes';
@@ -123,7 +124,7 @@ function explainMarket(m, opts = {}) {
     const n = Math.round(num(h.calibrationN)), flags = Array.isArray(h.riskFlags) ? h.riskFlags : [];
     const gated = opts.mayStake === false;
     const strength = (h.strength === 'monster' || h.strength === 'strong' || h.strength === 'playable') ? h.strength : 'fold';
-    const verdictWord = strength === 'fold' ? 'Fold' : strength === 'playable' ? 'Playable' : strength === 'strong' ? 'Strong' : 'Monster';
+    const verdictWord = (0, kalshi_scan_config_1.edgeWord)(strength);
     const reasons = [];
     reasons.push(`Price vs chance: ${SIDE} costs ${cents(price)}; the calibrated chance it pays is ${pct(prob)} (the market's own implied chance is ${pct(price)}).`);
     reasons.push(`Fees: Kalshi's taker fee on this price is about ${cents(fee)} a contract, so you need the chance to beat ${cents(price + fee)} just to break even.`);
@@ -137,14 +138,14 @@ function explainMarket(m, opts = {}) {
     const stake = num(h.stakeFraction), kelly = num(h.kellyFraction);
     if (strength === 'fold') {
         reasons.push(edge <= 0 ? 'Sizing: with no net edge the Kelly stake is zero; there is no price at which this side pays.'
-            : `Sizing: the edge is real but too small or too thinly evidenced for the strength floors (1.2¢ with 35% confidence to be playable), so the stake is zero.`);
+            : `Sizing: the edge is real but too small or too thinly evidenced for the strength floors (1.2¢ with 35% confidence to count as a small edge), so the stake is zero.`);
     }
     else {
         reasons.push(`Sizing: full Kelly would be ${pct(kelly)} of bankroll; quarter-Kelly, halved once per risk flag and capped at 5%, is ${pct(stake)}${gated ? ` — on paper only, because the strategy may not stake yet (${opts.gateReason || 'the forward test has not earned it'})` : ''}.`);
     }
     const caveat = m.seriesUnknown ? ' Category unknown, pooled evidence.' : '';
     const headline = (strength === 'fold'
-        ? `Fold: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after the ${cents(fee)} fee${flags.length ? `, with ${plural(flags.length, 'risk flag')}` : ''}.`
+        ? `${verdictWord}: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after the ${cents(fee)} fee${flags.length ? `, with ${plural(flags.length, 'risk flag')}` : ''}.`
         : `${verdictWord}: ${SIDE} at ${cents(price)} against a ${pct(prob)} calibrated chance is ${signedCents(edge)} a contract after fees; stake ${pct(stake)}${gated ? ' (paper only)' : ''}.`) + caveat;
     return {
         verdict: strength, side, headline, reasons,
@@ -152,7 +153,7 @@ function explainMarket(m, opts = {}) {
             liquidity: m.liquidity, openInterest: m.openInterest, volume: m.volume, calibrationN: n, confidence: conf, hoursToClose: hours, kellyFraction: kelly, stakeFraction: stake },
         question: strength === 'fold'
             ? `Walk me through ${m.ticker} (${m.title}): why is ${SIDE} at ${cents(price)} a bad bet?`
-            : `Walk me through ${m.ticker} (${m.title}): the scan calls ${SIDE} at ${cents(price)} ${strength}. What could make it a bad bet?`,
+            : `Walk me through ${m.ticker} (${m.title}): the scan rates ${SIDE} at ${cents(price)} a ${verdictWord.toLowerCase()}. What could make it a bad bet?`,
     };
 }
 //# sourceMappingURL=kalshi-market-explainer.js.map

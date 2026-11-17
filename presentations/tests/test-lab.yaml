@@ -20,6 +20,9 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 2.18.8: register the Word desktop first-click proof (one mouse click focuses a not-yet-selected paragraph and keeps the typing).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): register unit, OOXML round-trip, multipage PDF/plain-text export, forced-RLS two-person sharing and phone/desktop Chromium browser suites for Highlight, Comments, Suggest changes, Find and replace, PDF/plain-text export, Mobile reflow view and Share.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 2.20.5: register read-does-not-write proving every Presentations GET route runs read-only under reader SQL admission without SQL mutations, writable transactions, advisory locks, or mirror disk writes.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): office-design-standard-browser finds the window in the phone's Concierge sheet and the desktop's docked pane, with its composer pinned at the rail's bottom.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register office-concierge-entry-browser, AI Office inside the shipped Today page as its own application and as Create's AI Office screen, where every concierge entry a person sees is pressed for real and must open AI Office's own concierge.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8: office-design-standard-browser also proves AI Office's layout around the one chat window: Generate a draft above the window and writing its starter into the window's message box, the phone's Concierge sheet giving the window all its room, and the window's own Close closing that sheet.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -618,6 +621,33 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+  - id: office-concierge-entry-browser
+    name: Every concierge entry on AI Office opens AI Office's own concierge
+    purpose: >-
+      Roger, 2026-11-17 02:22Z, in production - the Image editor's concierge button could not be clicked, same with AI Office. Open AI Office
+      inside the shipped Today page (the kernel platform export), as its own application and as Create's AI Office screen, over its real routes
+      on disposable PostgreSQL, and press every concierge entry a person sees, as a person does.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/office/concierge-entry-browser.test.mjs
+    expected:
+      - At 1440x900 with a mouse and 412x915 with touch, each concierge entry a person can see (Today's bar Concierge, the floating ball, AI Office's Concierge tab and its bottom bar's Concierge) is pressed with Playwright's own actionability, never forced and never a script click.
+      - Each press opens exactly one window, the one Jarvis chat window with its message box ready, at /api/jarvis/?concierge=presentations&bot=<deck-builder>, from AI Office's own application and from Create's AI Office screen.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture databases, roles, browser contexts and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
   - id: office-design-standard-browser
     name: AI Office to the oshal design standard on a phone and a desktop
     purpose: >-
@@ -640,6 +670,8 @@ cases:
       - Delete asks in the page and no native dialog opens; with a document saved the first screen is Your documents with one New at the bottom right; an existing document opens to read with one Edit, and Edit shows the tools.
       - At 1440x900 the Slides pane is 240px, the Format | Concierge pane is beside the canvas and the whole slide stays in view with Format, with Concierge and with a selected shape (red on 2.18.8, where the inspector floated over the canvas).
       - A text selection raises Cut, Copy, Paste, Comment and More on the float layer next to it, never over it, and Cut removes the selected words.
+      - The Concierge is the one chat window; the phone's sheet holds its message box with the live Summarize starter above it, where a tap lands on it, and at 1440x900 the docked window's composer stays within 20px of the rail's bottom while its own conversation scrolls, with no outer rail, page or window scrollbar.
+      - Generate a draft is a row above the window, never under it, on a desktop and in the phone's sheet, and pressing it puts its starter sentence in the window's own message box with the focus there; the phone's Concierge sheet (412x915) is as tall as a sheet may be and the window takes the rest of it under that row; the window's own Close closes the sheet and keeps the editor (2.20.8; on 2.20.7 the row sat under the window and the Close did nothing in the sheet).
     prerequisites:
       - runner:node
       - runtime:chromium
@@ -672,6 +704,7 @@ cases:
       - Multipage PDF 1.7 and plain-text exports render styled pages, lists, tables and embedded images and open cleanly in PDF Workbench.
       - Mobile view reflows Word pages to frame width without mutating the document model, supports editing and restores page layout when switched off.
       - Two-person forced-RLS sharing enforces view, comment and edit roles, blocks cross-tenant access, revokes cleanly and records immutable access audit entries.
+      - Leaving the editor page (pagehide, phone and desktop) runs its cleanup without an error; the concierge, the document session and the editor foundation are released and no page error is reported (2.20.7).
     prerequisites:
       - runner:node
       - runtime:chromium

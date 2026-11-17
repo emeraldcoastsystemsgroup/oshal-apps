@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep explicit preparation consent in each owner's records and bind readiness/review to current inputs and exact packet bytes; preparation never authorizes employer submission.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): a saved-job preparation that stopped because Career had no description of the job (job_details_unavailable or job_context_unavailable, the job still has none) says what to do in the words the application page uses, "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js NEEDED), not "Preparation stopped: job details unavailable." Every other reason reads as before. Guard: tests/career-paste-details-unmarked.test.mjs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "the cover letter is not acceptable"): a prepared application whose cover letter the claims check marked needs your review is never ready, in automatic preparation too: the workflow holds it with the check's notice until the person edits the letter or confirms they checked it. review() takes that confirmation ({claims: the letter's fingerprint}) beside the existing packet review ({proof}).
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -35,6 +36,7 @@ function packetProof(dir,id,job,application){
 function view(dir,id,job,application){
  const state=board.readBoardState(dir).jobs[id]||{},flow=state.workflow;if(!flow)return null;
  const held=reason=>({state:'stuck',ready:false,reason,proof:null});
+ if(application.claims?.needsReview&&state.phase==='ready')return held(application.claims.notice);
  if(job.active===0)return held('The employer posting is no longer available. Check the original posting.');
  if(!address(job.url))return held('The employer form link is unavailable. Open the application and check the posting.');
  if((state.phase==='failed'||application.failed)&&pasted.stoppedForDetails(state.error,job.description))return held(pasted.NEEDED);
@@ -46,7 +48,9 @@ function view(dir,id,job,application){
  return {state:ready?'ready':'review',ready,proof,reason:ready?'Ready to submit. Career does not send this to the employer automatically.':'Review each application before it is marked ready to submit.'};
 }
 function review(dir,id,job,input){
- const drafts=require('./career-application-draft'),application=drafts.view(dir,id,job),workflow=view(dir,id,job,application);
+ const drafts=require('./career-application-draft');
+ if(input&&Object.keys(input).length===1&&Object.hasOwn(input,'claims'))return {ok:true,application:drafts.confirmClaims(dir,id,job,input.claims)};
+ const application=drafts.view(dir,id,job),workflow=view(dir,id,job,application);
  if(!input||Object.keys(input).length!==1||typeof input.proof!=='string')fail('Review the current application first.',400);
  if(application.locked||!workflow?.proof||workflow.proof!==input.proof)fail('The application changed. Review its current documents before marking it ready.');
  const saved=board.readBoardState(dir).jobs[id];board.updateBoardState(dir,id,{workflow:{...saved.workflow,reviewedProof:workflow.proof,reviewedAt:new Date().toISOString()}});

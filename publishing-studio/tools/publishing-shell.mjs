@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard for Publishing Studio (docs/ux/design-standard.md §3.1, §3.3, §4.2-§4.4, §4.10, §5.1; Canva and Adobe Express, REFP CONVENTIONS §5.5, C-DES-1..5; Roger F6). The page's own layers: opaque top-layer menus and sheets with Done that Escape, a tap outside and the phone's Back close (DS-39); one tool row (Text, Image, Shape, Pages, Styles, Concierge, the planned Brand, More last) that scrolls sideways at the bottom of a phone and sits in the app row on a desktop, and switches to the chosen item's tools (Font, Size, Colour, Alignment, Arrange); the selection float at the item (Duplicate, Delete, More); the publication menu (New with a size, Open, Duplicate, Share and export, Saved history, Delete with an in-page confirm); the desktop's 240 px Pages pane and 320 px Properties | Concierge tabs; Your publications with one New at the bottom right; Help for the limits and how-to. Planned controls (RP-PUB-01..07) come from the shared planned-control helper and do nothing.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: without the platform's planned-control helper (an older platform) the studio still opens and simply draws no planned control.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: replace all RP-PUB-01..07 planned placeholders with working controls and add RP-PUB-08 Animate and video timeline controls.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). Your publications, the first screen whenever a person has publications, draws neither the tool row nor the side pane's tabs, so on a phone it had no concierge entry at all: Today hides its ball and its bar's Concierge there because the shared editor says it holds its own. The list's heading row now carries Concierge (on a desktop it steps aside while Today's bar opens the concierge, or while the concierge is open, so there is one entry). On a phone the Concierge sheet now closes with the one chat window's own Close, as with its Done: the window's Close is announced from the pane inside the sheet, outside the editor shell that listens for it.
  */
 import {createPublishingFeatures} from './publishing-features.mjs';
 import {createPublishingTimeline} from './publishing-timeline.mjs';
@@ -195,14 +196,21 @@ export function createPublishingShell(api,{foundation,assistant}){
  ].map(text=>make(doc,'p','pub-help',text))});}
  async function openConcierge(){
   if(wide()){tab('concierge');return;}
-  await sheet('Concierge',[assistant.element]);assistant.element.querySelector('textarea')?.focus({preventScroll:true});
+  const layer=await sheet('Concierge',[assistant.element]);
+  // The window's own Close is announced from the pane, which sits in this sheet, outside the editor shell that listens for it: it closes the sheet, as Done does.
+  layer.dialog.addEventListener('editor-concierge:hide',()=>void layers.close(layer.dialog));
+  assistant.element.querySelector('textarea')?.focus({preventScroll:true});
  }
 
  const tabs=make(doc,'div','pub-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Side pane');
  const tabButton=(name,label)=>{const button=make(doc,'button','pub-tab',label);button.type='button';button.setAttribute('role','tab');button.dataset.tab=name;button.onclick=()=>tab(name);return button;};
  tabs.append(tabButton('properties','Properties'),tabButton('concierge','Concierge'));shell.querySelector('.ef-body').append(tabs);
+ // Your publications draws neither the tool row nor the tabs, so its heading row carries the concierge's entry.
+ const listConcierge=tool('Concierge','concierge',()=>openConcierge(),{cls:'pub-list-concierge'});$('publications-heading').after(listConcierge);
  let shellOwns=false;
- function syncTabs(){const closed=root.dataset.editorConcierge!=='open',paneButton=shell.querySelector('.ef-panes [aria-controls$="-concierge"]');if(closed&&paneButton)shellOwns=paneButton.hidden;tabs.children[1].hidden=shellOwns&&closed;}
+ function syncTabs(){const closed=root.dataset.editorConcierge!=='open',paneButton=shell.querySelector('.ef-panes [aria-controls$="-concierge"]');if(closed&&paneButton)shellOwns=paneButton.hidden;tabs.children[1].hidden=shellOwns&&closed;
+  // One entry (design standard §4.9): on a desktop the list's Concierge steps aside while Today's bar opens the concierge or while it is open.
+  listConcierge.hidden=wide()&&(shellOwns||!closed);}
  function tab(name){
   root.dataset.pubTab=name;for(const button of tabs.children)button.setAttribute('aria-selected',String(button.dataset.tab===name));
   if(name==='concierge'){if(root.dataset.editorConcierge!=='open')foundation.showPanel('ai');}

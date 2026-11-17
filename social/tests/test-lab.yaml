@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): register composer-merge for the Composer redirect to Workspace · Compose, business-experience surface resolution, refine chips, and path-free Connect copy.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Compose and Workspace are one application. composer-merge now proves one Workspace tile and no Composer tile, prepare-post and business-experience on social-workspace, tools/social-composer.html removed, the compiled router's 302 from /api/social/composer to Workspace Compose with every query parameter kept, and every Composer capability in Workspace Compose; workspace-browser adds the prefilled prepare-post link; social-content-routes reads the one Workspace screen.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.7.2: register composer-handoff, and composer-merge expects the hand-off page: the old Composer address answered a 302, which a kernel does not relay from a package (HTTP 500 there).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.7.4: register phone-first-screen (lane mobilesweep1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -267,4 +268,24 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: phone-first-screen
+    name: The Workspace's feed starts right under one row of accounts and one row of focus terms on a phone
+    purpose: "Guard 1.7.4 (lane mobilesweep1): the real Workspace in a stand-in for Today with three synthetic feed cards, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/social-phone-first-screen.test.cjs
+    expected:
+      - On a phone the first feed card starts within the top quarter of the screen (it was 345 px, 38%), the title is not drawn, the account pills are one row and the refresh sits in the focus-terms row.
+      - No sideways scroll, nothing to tap under the floating Jarvis button at the end, no write and no page error on open.
+      - The desktop keeps its title and its "Worth commenting on" row.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

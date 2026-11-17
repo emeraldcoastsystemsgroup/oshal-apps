@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Real PDF object selection, focused-property save, inline text, draft rendering, phone drawers and native exports.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | PDF Workbench 0.3.0 (the oshal design standard): the proofs upload through the Originals sheet, rotate through the Pages sheet, fill forms through the Form fields sheet, select shapes on the page and, on a phone, adjust through the Edit mode's Format sheet; Save shows only while there is something to save.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The AI cases ask in the window through the fixture's stand-in kernel: the person's words alone reach pdf-editor as PDF Workbench, with the automatically saved revision and the selected object on the context, and the answer shows in the window. The approval-card case shows the card in the window, bound to the saved revision, while native inline and form edits stay local and nothing runs before Approve; it no longer asserts that a native edit retires the waiting card: the new pane has no card retirement (its invalidate is empty on kernel 0ed7f44b), so that guard went with the old pane. Each card has its own id, as the window presents an id once.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=pdf-workbench&bot=pdf-editor, read with scripts/one-chat-window/today-host.mjs windowAddress.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,7 +12,13 @@ import {spawnSync} from 'node:child_process';
 import {fixture} from '../fixtures/fixture.mjs';
 import {requireRuntime} from '../fixtures/runtime.mjs';
 import {uploadAndCreate,rotateFirstPage,openFormFields,openFormat,editMode} from './workbench-ui.mjs';
+import {chatWindow,sendInWindow} from '../../../scripts/one-chat-window/kernel-window.mjs';
+import {windowAddress} from '../../../scripts/one-chat-window/today-host.mjs';
 const {chromium}=requireRuntime('playwright');
+const click=locator=>locator.click();
+/** The concierge, opened where it is closed: it is the one chat window inside the pane. */
+async function concierge(page){if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();const chat=await chatWindow(page.locator('.ef-assistant'));
+ const where=await windowAddress(page.locator('.ef-assistant'));assert.deepEqual([where.path,where.app,where.bot],['/api/jarvis/','pdf-workbench','pdf-editor'],'the Concierge opens the one chat window as PDF Workbench\'s own concierge');return chat;}
 async function open(t,options={}){
  const f=await fixture(options);t.after(()=>f.close());if(options.prepare)await options.prepare(f.directory);const browser=await chromium.launch({headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>{errors.push(error.message);console.error('PDF browser error:',error.message);});page.on('response',async response=>{if(response.url().includes('/draft-preview')&&response.status()>=400)console.error('PDF draft preview refused:',response.status(),await response.text());});page.on('dialog',dialog=>dialog.accept());
  await page.goto(f.url+'/api/pdf-workbench/app');await page.locator('[data-pdf-view]').first().waitFor();await uploadAndCreate(page,join(f.directory,'first.pdf'),'Original owned PDF','Editable PDF');await page.locator('.pdf-object').first().waitFor();
@@ -36,12 +44,13 @@ test('selected original PDF objects edit in place, save focused fields, undo and
  assert.deepEqual(errors,[]);
 });
 test('invalid PDF property is retained, phone drawers work and AI reads the automatically saved revision',async t=>{
- const requests=[];
- const {f,page,id,errors}=await open(t,{extend:app=>app.post('/api/swarm/bots/pdf-editor/ask',async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;requests.push(JSON.parse(raw));res.json({reply:'Saved selection received.',sessionId:'fixture-pdf-session'});})});
+ const {f,page,id,errors}=await open(t,{answer:()=>'Saved selection received.'});
  await textObject(page).click();const x=page.getByRole('spinbutton',{name:'X',exact:true});await x.fill('-20');await x.press('Enter');assert.equal(await x.inputValue(),'-20');await page.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.ef-property-error')?.textContent||document.querySelector('[aria-invalid="true"]'));
  assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,1);
- await x.fill('12');await x.press('Enter');if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Read the selected text.');await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText('Saved selection received.',{exact:true}).waitFor({timeout:60000});
- assert.equal(requests.length,1);assert.equal(requests[0].context.recordId,id);assert.equal(requests[0].context.fields.revision,2);assert.ok(requests[0].context.selection[0].includes('/o'));
+ await x.fill('12');await x.press('Enter');const chat=await concierge(page);const {ask,answer}=await sendInWindow(chat,'Read the selected text.',click,f.kernel,60000);
+ assert.match(await answer.textContent(),/Saved selection received\./,'the answer shows in the window');
+ assert.equal(f.kernel.asks.length,1);assert.deepEqual([ask.bot,ask.context.app,ask.message],['pdf-editor','pdf-workbench','Read the selected text.'],'the person\'s words alone reach PDF Workbench\'s bot');
+ assert.equal(ask.context.recordId,id);assert.equal(ask.context.fields.revision,2);assert.ok(ask.context.selection[0].includes('/o'));
  assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,2);
  await page.setViewportSize({width:390,height:844});await openFormat(page);await page.getByRole('spinbutton',{name:'X',exact:true}).waitFor();assert.equal(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue(),'12');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
@@ -73,16 +82,27 @@ test('one click selects the next PDF object after committing a valid property dr
 });
 
 
-test('starting native inline or form edits retires the earlier PDF approval card before execution',async t=>{
- let proposal,executed=0;const {f,page,id,errors}=await open(t,{extend:app=>{
-  app.get('/api/jarvis/assets/jarvis-package-tools.js',(_req,res)=>res.sendFile(join(process.env.OSHAL_PLATFORM_ROOT,'src/api/jarvis-package-tools.js')));
-  app.post('/api/swarm/bots/pdf-editor/ask',async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;const input=JSON.parse(raw);proposal={id:'pdf-fixture-held',app:'pdf-workbench',toolName:'pdf-apply-operations',mode:'ask',label:'Change the selected PDF text.',input:{id:input.context.recordId,baseRevision:input.context.fields.revision,operations:[]},expiresAt:new Date(Date.now()+120000).toISOString()};res.json({reply:'Review the selected text change.',packageToolProposals:[{id:proposal.id}]});});
-  app.get('/api/jarvis/package-tools/proposals/pdf-fixture-held',(_req,res)=>res.json({proposal}));
-  app.post('/api/jarvis/package-tools/execute',(_req,res)=>{executed++;res.status(500).json({error:'No fixture execution is permitted.'});});
- }});
- await textObject(page).click();const ask=async()=>{if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Change the selected text.');await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByRole('button',{name:'Approve',exact:true}).waitFor();};await ask();
- await textObject(page).dblclick();await page.getByRole('textbox',{name:'Edit selected PDF text'}).fill('A still local inline edit');assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);await page.getByRole('textbox',{name:'Edit selected PDF text'}).press('Escape');
- await ask();await openFormFields(page);await page.locator('#forms input').first().fill('A still local form edit');await page.locator('dialog.ds-layer[open] .ds-layer-done').click();if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);assert.equal(executed,0);assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,1);assert.deepEqual(errors,[]);
+test('an approval card waits in the window, bound to the saved revision, while native inline and form edits stay local and nothing runs before Approve',async t=>{
+ // The card is the controller-issued proposal for the turn's own saved document and revision; its current state and its
+ // execution are this suite's explicit seams (execution is refused, so the proof is that nothing is asked to run).
+ const proposals=new Map();let executed=0;
+ const {f,page,id,errors}=await open(t,{
+  answer:ask=>{const proposal={id:'pdf-fixture-held-'+(proposals.size+1),app:'pdf-workbench',toolName:'pdf-apply-operations',mode:'ask',label:'Change the selected PDF text.',input:{id:ask.context.recordId,baseRevision:ask.context.fields.revision,operations:[]},expiresAt:new Date(Date.now()+120000).toISOString()};proposals.set(proposal.id,proposal);return{answer:'Review the selected text change.',packageToolProposal:proposal};},
+  extend:app=>{
+   app.get('/api/jarvis/package-tools/proposals/:id',(req,res)=>proposals.has(req.params.id)?res.json(proposals.get(req.params.id)):res.status(404).json({error:'not_found'}));
+   app.post('/api/jarvis/package-tools/execute',(_req,res)=>{executed++;res.status(500).json({error:'No fixture execution is permitted.'});});
+  }});
+ await textObject(page).click();
+ // The nth turn's own answer (the earlier one has the same words), then its card's Approve.
+ const ask=async n=>{const chat=await concierge(page),{ask}=await sendInWindow(chat,'Change the selected text.',click,f.kernel);
+  await chat.locator('#convo .msg.bot .bx').filter({hasText:'Review the selected text change.'}).nth(n-1).waitFor();await chat.getByRole('button',{name:'Approve',exact:true}).waitFor();return{chat,ask};};
+ let {chat,ask:turn}=await ask(1);
+ assert.deepEqual([turn.bot,turn.context.app,turn.context.recordId,turn.context.fields.revision,turn.message],['pdf-editor','pdf-workbench',id,1,'Change the selected text.'],'the card is asked for this saved document at revision 1');
+ await textObject(page).dblclick();await page.getByRole('textbox',{name:'Edit selected PDF text'}).fill('A still local inline edit');await page.getByRole('textbox',{name:'Edit selected PDF text'}).press('Escape');
+ ({chat,ask:turn}=await ask(2));assert.equal(turn.context.fields.revision,1,'the second turn is still about revision 1');
+ assert.equal(await chat.getByRole('button',{name:'Approve',exact:true}).count(),1,'one reply\'s card waits at a time');
+ await openFormFields(page);await page.locator('#forms input').first().fill('A still local form edit');await page.locator('dialog.ds-layer[open] .ds-layer-done').click();await concierge(page);
+ assert.equal(executed,0,'nothing runs before the person approves');assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,1,'the native edits stay local');assert.deepEqual(errors,[]);
 });
 
 

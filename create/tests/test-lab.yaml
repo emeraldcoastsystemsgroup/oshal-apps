@@ -33,6 +33,7 @@
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Register fourteen-module discovery parity and actual CAD/LoRA Home/New access, navigation and owner-summary guards without a browser, CAD engine or training job.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): register the editor's app row, autosave, Insert, bar-only tool options, one Format inspector and 16 px offset browser proof at 412x915 touch and 1440x900.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New merges into Home as a sheet; register the Home cards unit case (meta in words, match counts, planned controls, Blank starts, skeletons) and restate the workspace and New expectations for the merged Home.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register create-concierge-entry, Create's Image editor and Portrait screens inside the shipped Today page, where every concierge entry a person sees is pressed for real and must open the one chat window as that screen's own application's concierge.
 version: 1
 cases:
   - id: editor-foundation-adapter
@@ -71,6 +72,26 @@ cases:
       fixtures: [tests/browser/create-editor-fixture.mjs]
       cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process; no installed projects or model providers.
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: create-concierge-entry
+    name: Every concierge entry on Create's screens opens that screen's own concierge
+    purpose: Roger, 2026-11-17 02:22Z, in production - the Image editor's concierge button could not be clicked and Portrait's Jarvis ball opened create-editor. Open Create's Image editor and Portrait screens inside the shipped Today page (the kernel platform export) and press every concierge entry a person sees, as a person does.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-concierge-entry-proof.mjs]
+    expected:
+      - At 1440x900 with a mouse and 412x915 with touch, each concierge entry a person can see on the screen (Today's bar Concierge, the floating ball, the screen's own Concierge) is pressed with Playwright's own actionability, never forced and never a script click.
+      - Each press opens exactly one window, the one Jarvis chat window with its message box ready, at /api/jarvis/?concierge=<app>&bot=<that app's chat bot>.
+      - The Image editor opens Create's concierge (create-editor); Portrait opens Portrait Studio's (portrait-artist), not Create's.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, runtime:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-editor-fixture.mjs]
+      cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process; no installed projects or model providers.
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
     installation: never
   - id: editor-ux-audit-browser
     name: The image editor's app row, Insert tools and one Format inspector

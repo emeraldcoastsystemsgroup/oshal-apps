@@ -1,12 +1,14 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i want one concierge for the entire app that can do everything that needs to be done in the app. it doesnt make sense to have 2 agents that cant perform the tasks"). One assistant and one conversation on every Career page, in Chromium over the shipped pages and the kernel's real shared assistant: a page with no document of its own hands over the person's Career record (the record My résumé and Work history hand over), so the kernel keeps one conversation for all of them; the pane shows that conversation on each page as the person typed it; and the Word document on My résumé is brought together with the main résumé around every turn. The manifest and the personas say the same: one bot answers a person, it carries every tool, and the worker is named as a worker. The kernel's ask endpoint is a recording stand-in; no model, no person's data.
- */
+
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The pane is the kernel's one chat window (kernel 00c62f98, Roger 2026-11-16: every concierge is the core Jarvis chat window). The cases ask in the window inside the pane: the turn reaches career-concierge in the Career record's conversation with the page's context on the turn's context and the person's words alone as its message (the window sends no page details in the message), the earlier conversation is in the window when it opens (a turn the old pane sent shows the page details the kernel kept after the person's words: the window shows a kept turn as it was kept), and the Word document and the main résumé are brought together around a turn. */
 import {test,after,before} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 import {startConciergeFixture,chromium,sharedRoot} from './helpers/career-concierge-fixture.mjs';
+import {chatWindow,sendInWindow} from '../../scripts/one-chat-window/kernel-window.mjs';
 import {pageContext,surfaceOf} from '../tools/career-concierge.mjs';
 
 const root=path.resolve(import.meta.dirname,'..'),repo=path.resolve(root,'..');
@@ -43,11 +45,10 @@ async function onPage(address,work){
  }finally{await context.close();}
 }
 async function ask(panel,text){
- const before=fixture.calls.length;
- await panel.getByRole('textbox',{name:'Message to concierge'}).fill(text);await panel.getByRole('button',{name:'Send',exact:true}).click();
- await panel.locator('.ef-assistant-notice').getByText('The concierge finished.',{exact:true}).waitFor();
+ const before=fixture.calls.length,chat=await chatWindow(panel);
+ await sendInWindow(chat,text,locator=>locator.click(),fixture.kernel);
  const since=fixture.calls.slice(before);
- return{since,sent:since.find(call=>call.method==='POST'&&call.path.endsWith('/ask'))};
+ return{since,sent:since.find(call=>call.method==='POST'&&call.path.endsWith('/ask')),chat};
 }
 
 test('Home and Settings hand the concierge the same Career record, so the kernel keeps one conversation for every page',needsShared,async()=>{
@@ -59,16 +60,20 @@ test('Home and Settings hand the concierge the same Career record, so the kernel
    const context=sent.body.context;
    assert.deepEqual([context.app,context.recordId,context.surface,context.title],['career-hunter','master',surface,title]);
    assert.match(context.fields.tools,/career_(database|settings)/,'the page names the tools its work uses');
-   assert.match(sent.body.message,/^How many jobs have I saved\?\nCurrent saved document and selection: /);
-   assert.doesNotMatch(sent.body.message,/No document is open/);
+   assert.equal(sent.body.message,'How many jobs have I saved?','the person\'s words alone; the page is on the context');
+   assert.equal(context.fields.draft,false,'the record is handed over as a Career document is');
   });
  }
 });
 
-test('the conversation from another page is in the pane when it opens, as the person typed it',needsShared,async()=>{
+test('the conversation from another page is in the window when it opens',needsShared,async()=>{
  await onPage('/api/career-hunter/home',async(_page,panel)=>{
-  await panel.locator('.ef-assistant-reply').getByText('I proposed the change on a card.').waitFor();
-  assert.deepEqual(await panel.locator('.ef-assistant-user p').allInnerTexts(),['Add my IL6 job'],'without the page details sent along with it');
+  const chat=await chatWindow(panel);
+  await chat.locator('#convo .msg.bot .bx').getByText('I proposed the change on a card.').waitFor({timeout:15000});
+  // The person's earlier words open the conversation. The kernel keeps a turn the old pane sent with the page details
+  // it added after the words, and the window shows the kept text, so only the start of that turn is the person's.
+  const said=(await chat.locator('#convo .msg.user .bx').allInnerTexts()).map(text=>text.trim());
+  assert.equal(said.length,1,'one earlier message: '+JSON.stringify(said));assert.ok(said[0].startsWith('Add my IL6 job'),said[0]);
  });
 });
 

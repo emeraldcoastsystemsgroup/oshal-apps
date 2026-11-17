@@ -23,6 +23,7 @@
   29 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 12, 13 and 14: one name for each page. The page is titled My résumé (was Resume Studio). The picker, the Save button and every status line say main résumé, the words the page already used when it opened it (was master résumé); the More menu says Download my data and Other experience, and the empty line says My jobs. The value the picker and the routes carry is still `master`. Guard: tests/career-page-names.test.mjs.
   32 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1 (Roger, from his phone, 2026-11-14: "in edit and then concierge the screen is putting the text box at the top above the thread"). The résumé editor's conversation reads as every chat does: its heading, the thread filling the panel and scrolling, and the text box with Send last, under the newest message. Entry 3 had put the text box beside the heading, above the thread. On a phone the editor is a sheet between Career's bars (the frame's two measures), no longer one that began under the row of tabs and hid its own heading there; Close the editor is in the sheet's heading, where this page's other sheet has its close, and the Edit with AI bar is away while the sheet is open, so the text box rests on Career's bottom bar. The thread shows the newest message when the sheet opens, after Send, when a reply arrives and when the window changes height (a phone keyboard, a turned screen), unless the person has scrolled up to read. Guard: tests/career-resume-editor-composer.test.mjs.
   33 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Add an unmistakable active-document identity banner (#docIdentity) above the résumé showing Main résumé (Synced with Work history · revision) vs Tailored résumé (For <Role> · <Company>, with a one-click Back to main résumé button).
+  34 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"; the résumé began half way down a 412 px screen under Career's bar, two lines of tabs, the picker row, a status line, the banner and AI Office's own app row). On a phone the main résumé's document has ONE bar of 52 px, as Google Docs and Word give it: the résumé's name (the picker) with its save state in small type under it, Edit while the document is open to read (Undo and Redo once editing), Save, then More. AI Office draws no app row of its own here (it opens with ?header=host, AI Office 2.20.6): the bar presses that row's buttons, "Unsaved changes" from it shows under the name, and More holds its Export, its document menu (version history, rename and the rest) and Your AI Office documents, each one tap further than before. The banner's words for the main résumé (Synced with Work history, its revision) are the top of More on a phone; a tailored résumé keeps its banner with Back to main résumé, and a computer or tablet keeps the page as it was. Once the person scrolls into the résumé, Career's bar and the row of pages slide away and the document has the screen under its own bar; scrolling back up brings them back. Guard: tests/browser/career-resume-header-phone.test.cjs.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -154,19 +155,42 @@
   }
   #historyNote { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--ds-ink); }
   #historyNote[hidden] { display: none; }
-  /* A phone (the frame's 720 px): one column, the picker, Save and More on one row, the status one line under it, the
-     document edge to edge. Word and Google Docs on a phone give the page the screen under one short app row. */
+  /* What the banner says about the open résumé, at the top of More where the document's one bar holds it (a phone). */
+  .ck-menu .doc-facts:not([hidden]) { display: block; margin: 0 0 4px; padding: 8px 12px 10px; max-width: min(320px, calc(100vw - 32px)); border-bottom: 1px solid var(--ds-hairline, var(--line));
+    color: var(--ds-ink-2, var(--muted)); font-size: 13px; line-height: 18px; }
+  .ck-menu .doc-facts b { display: block; color: var(--ds-ink, var(--text)); font-size: 14px; line-height: 20px; }
+  /* A phone (the frame's 720 px): the document's ONE bar, as Google Docs and Word give a document on a phone. The résumé's
+     name (the picker) with its save state in small type under it, Edit while the document is open to read (Undo and Redo
+     once editing), Save, then More. AI Office draws no app row of its own here (?header=host): the bar presses its
+     buttons, and More holds the rest of them and what the banner said. The document runs edge to edge to the bottom bar. */
   @media (max-width: 720px) {
-    body[data-view=office] .preview { padding: 6px 0 0; }
-    body[data-view=office] .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 8px; align-items: center; padding: 0 12px; margin-bottom: 6px; }
-    body[data-view=office] #pick { grid-area: 1 / 1; width: 100%; font-size: 15px; }
-    body[data-view=office] #save { grid-area: 1 / 2; padding: 0 16px; }
-    body[data-view=office] #moreBtn { grid-area: 1 / 3; }
-    body[data-view=office] #status { grid-column: 1 / -1; font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body[data-view=office] .preview { padding: 0; background: var(--bg); }
+    body[data-view=office] .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) repeat(5, auto); grid-template-rows: 44px; column-gap: 0; row-gap: 4px;
+      align-items: center; margin: 0; padding: 4px 8px 4px 4px; }
+    body[data-view=office] :is(#docEdit, #docUndo, #docRedo, #save, #moreBtn) { grid-row: 1; margin-left: 4px; }
+    body[data-view=office] #docEdit { grid-column: 2; padding: 0 12px; }
+    body[data-view=office] #docUndo { grid-column: 3; }
+    body[data-view=office] #docRedo { grid-column: 4; }
+    body[data-view=office] #save { grid-column: 5; padding: 0 14px; }
+    body[data-view=office] #moreBtn { grid-column: 6; }
+    body[data-view=office] #pick { grid-area: 1 / 1; align-self: stretch; width: 100%; height: 44px; padding: 2px 22px 20px 8px; border-color: transparent; appearance: none;
+      background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%235b6b80' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 6px top 7px / 12px 12px;
+      color: var(--text); font-size: 16px; font-weight: 650; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    body[data-view=office] :is(#status, #docState) { grid-area: 1 / 1; align-self: end; min-width: 0; margin: 0 22px 3px 9px; pointer-events: none;
+      font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     body[data-view=office] #status:empty { display: none; }
-    body[data-view=office] :is(#err, #historyNote) { grid-column: 1 / -1; }
-    body[data-view=office] .doc-identity { margin: 0 12px 6px; padding: 6px 10px; font-size: 12px; }
+    body[data-view=office] .toolbar:has(#docState:not([hidden])) #status { visibility: hidden; }
+    body[data-view=office] :is(#err, #historyNote) { grid-column: 1 / -1; margin: 0 4px 4px; }
+    body[data-view=office] #docIdentity { display: none !important; }
     body[data-view=office] .office-host { border-radius: 0; border-left: 0; border-right: 0; }
+  }
+  /* The narrowest phones (360 px): a little less room around the buttons, so the résumé's name keeps its words. */
+  @media (max-width: 380px) {
+    body[data-view=office] .toolbar { padding-right: 4px; }
+    body[data-view=office] #docEdit { padding: 0 10px; }
+    body[data-view=office] #save { padding: 0 12px; }
+    body[data-view=office] #pick { font-size: 15px; padding-right: 18px; background-position: right 4px top 7px; }
+    body[data-view=office] :is(#status, #docState) { margin-right: 18px; }
   }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
@@ -177,20 +201,28 @@
   <div class="preview" data-ds-work>
     <nav class="toolbar" id="docbar">
       <select id="pick" aria-label="Résumé"><option value="">Pick a résumé…</option><option value="master">⭐ Main résumé</option></select>
+      <button type="button" class="ck-btn" id="docEdit" hidden>Edit</button>
+      <button type="button" class="ck-icon" id="docUndo" aria-label="Undo" title="Undo" hidden>↶</button>
+      <button type="button" class="ck-icon" id="docRedo" aria-label="Redo" title="Redo" hidden>↷</button>
       <button id="save" class="ck-btn" disabled hidden>Save &amp; re-render PDF</button>
       <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open résumé PDF</a>
       <a id="coverPdf" href="#" target="_blank" rel="noopener" style="display:none">Open cover PDF</a>
       <span id="status" class="ck-saved" title=""></span>
+      <span id="docState" class="ck-saved" hidden>Unsaved changes</span>
       <button type="button" class="ck-icon" id="moreBtn" aria-haspopup="menu" aria-label="More" popovertarget="moreMenu">⋯</button>
       <p id="err" role="alert" hidden></p>
       <p id="historyNote" hidden><span id="historyText"></span><button type="button" class="ck-btn" id="useHistory">Use my work history</button></p>
     </nav>
-    <div class="ck-menu" id="moreMenu" popover role="menu">
+    <div class="ck-menu" id="moreMenu" popover role="menu" aria-describedby="docFacts">
+      <p id="docFacts" class="doc-facts" role="none" hidden></p>
       <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Download my data (everything saved)</a>
       <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Other experience</a>
       <a role="menuitem" data-career-tool="career-board" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a>
       <button type="button" role="menuitem" id="openMaterials">Add career materials…</button>
       <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved main résumé</button>
+      <button type="button" role="menuitem" id="docExport" hidden>Export this document…</button>
+      <button type="button" role="menuitem" id="docMenu" hidden>Version history, rename, more…</button>
+      <button type="button" role="menuitem" id="docList" hidden>Your AI Office documents</button>
     </div>
     <section id="noProfile" class="ck-empty" hidden>
       <div class="ck-empty-icon" aria-hidden="true">📄</div>
@@ -280,7 +312,7 @@ const PHONE = typeof window.matchMedia === 'function' ? window.matchMedia('(max-
 function saveLabel(text){ if (text) $('save').dataset.label = text; if (!officeOpen()) return;
   const full = $('save').dataset.label || $('save').textContent;
   $('save').textContent = PHONE.matches ? 'Save' : full; $('save').setAttribute('aria-label', full); }
-PHONE.addEventListener('change', () => saveLabel());
+PHONE.addEventListener('change', () => { saveLabel(); if (office && office.active()) office.rowOwner(PHONE.matches ? 'host' : 'editor'); paintRow(); });
 
 // ── The master resume as a Word document (AI Office's editor and its standard Concierge) ───────
 // Career owns only the mapping and the save into the profile; the editing, undo, revision history
@@ -294,14 +326,59 @@ const office = window.CareerResumeOffice && window.CareerResumeOffice.createHost
     if (!res.ok || !j.ok) throw new Error('Save failed' + (j.error ? ': ' + j.error : '.'));
     return j;
   },
-  status: (t) => setStatus(t) });
+  status: (t) => setStatus(t),
+  // On a phone this page draws the document's one bar, and AI Office's app row is folded into it (AI Office 2.20.6).
+  header: () => (PHONE.matches ? 'host' : 'editor'), onRow: () => paintRow(), onScroll: (top) => followScroll(top) });
 function officeOpen(){ return Boolean(office && office.active() && state.postingId === 'master'); }
 function officeView(on){
   if (!on && !(office && office.active())) return;
   document.body.dataset.view = on ? 'office' : '';
   $('replaceMaster').hidden = !on; $('save').className = on ? 'ck-primary' : 'ck-btn';
   if (!on) { office.close(); $('historyNote').hidden = true; $('save').removeAttribute('aria-label'); }
+  paintRow();
 }
+/* Whether the document's one bar is this page's: the main résumé's Word document, on a phone. */
+function rowHere(){ return Boolean(PHONE.matches && officeOpen()); }
+/* The bar follows AI Office's row it holds: Edit while the document is open to read, Undo and Redo once editing,
+   "Unsaved changes" under the name while the document has them; More holds Export, the document's menu, Your
+   documents, and what the banner says. Nothing shows until the editor has the document open. */
+function paintRow(){
+  const here = rowHere(), row = here && office.row() && office.row().ready ? office.row() : null;
+  document.body.toggleAttribute('data-office-row', here);
+  $('docEdit').hidden = !(row && row.edit);
+  for (const [id, key] of [['docUndo', 'undo'], ['docRedo', 'redo']]) { $(id).hidden = !row || row.reading; $(id).disabled = !(row && row[key]); }
+  $('docState').textContent = row && row.conflict ? 'Revision conflict' : 'Unsaved changes';
+  $('docState').hidden = !(row && (row.dirty || row.conflict));
+  for (const id of ['docExport', 'docMenu', 'docList']) $(id).hidden = !row;
+  $('docExport').disabled = !(row && row.export);
+  updateDocFacts();
+  if (!here) setFull(false);
+}
+function press(command){ try { $('moreMenu').hidePopover(); } catch (_) { /* not open */ } if (office && office.active()) office.press(command); }
+$('docEdit').addEventListener('click', () => press('edit'));
+$('docUndo').addEventListener('click', () => press('undo'));
+$('docRedo').addEventListener('click', () => press('redo'));
+$('docExport').addEventListener('click', () => press('export'));
+$('docMenu').addEventListener('click', () => press('document'));
+$('docList').addEventListener('click', () => press('documents'));
+/* Once the person scrolls into the résumé on a phone, it takes the screen under its own bar (Career's bar and the row of
+   pages slide away, as a phone browser's own bar does); scrolling back up, or to the top, brings them back. */
+let full = false, scrollMark = 0, scrollQuiet = 0;
+function setFull(on){
+  const next = Boolean(on) && rowHere();
+  if (next === full) return;
+  full = next; document.documentElement.toggleAttribute('data-resume-full', full);
+  // The frame changes height while the bars move, and the document's scroll then says nothing about the person.
+  scrollQuiet = Date.now() + 300;
+}
+function followScroll(top){
+  if (!rowHere()) { setFull(false); scrollMark = top; return; }
+  if (Date.now() < scrollQuiet) { scrollMark = top; return; }
+  if (top <= 8) { setFull(false); scrollMark = top; return; }
+  if (full) { scrollMark = Math.max(scrollMark, top); if (scrollMark - top >= 24) { setFull(false); scrollMark = top; } }
+  else { scrollMark = Math.min(scrollMark, top); if (top - scrollMark >= 24 && top >= 48) { setFull(true); scrollMark = top; } }
+}
+document.addEventListener('focusin', (e) => { if (full && e.target.closest && e.target.closest('.cf-topbar, .cf-subnav')) setFull(false); });
 /* A document Career cannot bring up to date by itself (its jobs do not line up, or it differs and names no version):
    say so, and offer the one press that puts the main résumé in it. Every other document follows by itself. */
 function historyNote(){
@@ -317,7 +394,7 @@ function takeMaster(fresh){
 }
 function updateDocIdentity(){
   const bar = $('docIdentity'); if (!bar) return;
-  if (!state.postingId || !state.resume) { bar.hidden = true; return; }
+  if (!state.postingId || !state.resume) { bar.hidden = true; updateDocFacts(); return; }
   const isMaster = state.postingId === 'master';
   bar.hidden = false; if (bar.dataset) bar.dataset.docKind = isMaster ? 'main' : 'tailored';
   $('docIdentityBadge').textContent = isMaster ? 'Main résumé' : 'Tailored résumé';
@@ -335,6 +412,13 @@ function updateDocIdentity(){
     $('docIdentityDetail').textContent = `For ${jobLabel} — changes here apply only to this job, not your main résumé.`;
     $('backToMaster').hidden = false; $('backToMaster').disabled = Boolean(documentBusy);
   }
+  updateDocFacts();
+}
+/* Where the document's one bar is this page's (a phone), the banner's words are the top of More, not a card over the page. */
+function updateDocFacts(){
+  const facts = $('docFacts'), shown = rowHere() && !$('docIdentity').hidden;
+  facts.hidden = !shown;
+  if (shown) facts.innerHTML = `<b>${esc($('docIdentityBadge').textContent)}</b>${esc($('docIdentityDetail').textContent)}`;
 }
 async function openOffice(j){
   try { masterRevision = j.revision || ''; await office.open(j); takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true; }

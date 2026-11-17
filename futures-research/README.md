@@ -1,40 +1,44 @@
 # Futures Research
 
-This headless companion supplies a dedicated workflow and tool-less research worker. Trading
-owns the console controls; the framework owns study admission, exact owner/run/ticket binding,
-strict output validation and durable review state. The equity decision workflow is unchanged.
+Futures Research (`1.2.0`) provides its own Light Blue research screen (`/api/futures-research/app`),
+an inline front-desk concierge (`futures-research-concierge`), and a dedicated tool-less workflow
+worker (`futures-research-worker`) for walk-forward CME and Micro futures study reviews (`/MES`,
+`/MNQ`, `/ES`, `/NQ`, `/CL`, `/GC`) and frozen forward-call grading. Intelligent Trades owns study
+schedule controls and execution gates; the kernel owns study admission, exact owner/run/ticket
+binding, strict output validation, and durable review state. Neither `futures-research-worker` nor
+`futures-research-concierge` can place, modify, or route live or paper orders.
+
+## Surfaces and Routes
+
+- `GET /api/futures-research/app` (`futures-research-home`, `ribbon.defaultView`): responsive
+  research-only surface displaying the zero-order-placement posture banner, walk-forward Studies &
+  Proposals, the Review Queue (thesis, sample/source-lag risks, confidence posture, and exact
+  `evidenceCitations`), and separately frozen Forward Calls. When `intelligent-trades` is admitted
+  in the signed-in person's session, the surface reads `GET /api/trading/autopilot/futures` and
+  `GET /api/trading/autopilot/futures/predictions` alongside `GET /api/futures-research/overview`
+  and `GET /api/tickets`; otherwise it renders honest empty or disconnected states without
+  fabricating figures.
+- `GET /api/futures-research/overview`: caller-authenticated (`Cache-Control: no-store`) queue
+  overview read backing the `futures_research_overview` concierge tool.
+- `GET /api/futures-research/home-summary`: caller-authenticated Today Home summary (`<= 4`
+  string-valued tiles, `<= 5` items, `partial: false`).
+- `GET /api/futures-research/_smoke`: service-authenticated package readiness probe.
+
+## Workflow and Adoption Boundary
 
 Install the matching framework and this package, then enable `futures-research-worker` in the
-Bots console. On Compose, its optional service has the same name as the bot, so the existing
-console start/stop operation addresses it directly. No CLI login or connector secret is mounted
-on this worker. A configured hosted provider is required for supported unattended reasoning.
+Bots console when running queued study reviews. No CLI login or connector secret is mounted on the
+worker. In Intelligent Trades → Strategies → Tuning, opt into **Queue research-bot review after new
+evidence** and save. Installation alone does not enroll anyone or create a schedule. Loading a
+next-study proposal changes only the form; explicit Save in Intelligent Trades is the human approval
+that selects future studies.
 
-In Trading → Strategies → Tuning, opt into **Queue research-bot review after new evidence** and
-save. The schedule owner must still be an operator, the schedule active and opt-in enabled when
-the queue executes. Installation alone does not enroll anyone or create a schedule. New completed
-or insufficient-sample evidence may be reviewed. With the matching framework, newly settled forward
-outcomes also permit review of unchanged historical studies. Identical historical/settled evidence
-is visibly skipped without spending; pending calls alone do not trigger reviews. Failed studies
-do not trigger reasoning.
-Results and workflow ticket IDs appear with the study. Loading a proposal changes only the form;
-explicit Save is the approval that selects future studies. The bot never places orders.
+Version `1.1.0+` interprets frozen forward context separately from historical out-of-sample runs and
+cites the exact context fingerprint. Unscored and flat cases are never counted as wins; overlapping
+horizons are not independent, and signed ticks are not trade P&L or probabilities.
 
-`bound-workflow-results` is a fail-closed core compatibility floor. The worker uses the ordinary
-signed bot transport and task/cost accounting, not inference from a detached scheduler callback.
-Forged tickets without an exact durable binding fail before inference. Late results cannot replace
-a newer attempt, and completed reviews are not regenerated on queue replay.
-
-Version 1.1.0 interprets the framework's frozen forward context separately from historical OOS.
-It must cite the exact supplied context fingerprint. The latest 25 graded and 25 other owner
-receipts disclose total available counts and separate contract/model/study/horizon cohorts.
-Unscored and flat cases are not wins; overlapping horizons are not independent and signed ticks
-are not trade P&L or probabilities. Outcome-informed proposals consume that holdout and require
-new untouched evidence. Later outcomes do not rewrite a completed review; a later run carries
-later evidence. Trading 1.25.0 displays these snapshots and the explicit adoption boundary.
-
-Tests are registered in `tests/test-lab.yaml`. Local synthetic/fixture tests do not prove installed
-provider cost receipts, a real nightly observation, forward prediction grading or paper acceptance.
-Those remain required before closing the Futures backlog.
+Tests are registered in `tests/test-lab.yaml` (`package-readiness`, `package-contract`,
+`persona-direct-question`, and `futures-research-surface`).
 
 <!-- oshal-rating:start -->
 ## Models and requirements

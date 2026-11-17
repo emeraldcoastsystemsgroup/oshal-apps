@@ -15,13 +15,14 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: automatically save inspector drafts and refresh the concierge document handoff.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the page opens inside the cockpit. Its query rule refused the v= every cockpit frame carries and the audience= an experience adds, so the screen showed {"error":"publishing_personal_scope_only"} instead of the studio. Found by the main menu's every-screen sweep. No contract change.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.4 (Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken). Publishing's concierge (the one Jarvis chat window as concierge=publishing-studio&bot=publishing-editor) opens on screen from every entry a person sees, inside Today (Create's Publishing Studio screen and Publishing's own) and alone, at 1440x900 and on a 412x915 phone. Your publications, the first screen whenever a person has publications, hid the concierge column on a desktop, so Today's bar Concierge opened a 0 px window with no message box: an open concierge now sits beside the list as a 320 px column. On a phone the list drew no concierge entry at all (Today hides its ball and its bar's Concierge there because the shared editor says it holds its own): the list's heading row now carries Concierge, which steps aside on a desktop while Today's bar opens the concierge. The phone's Concierge sheet now closes with the window's own Close, as with its Done. Presentation only; no route, tool, binding or authorization change. Guards: tests/publishing-concierge-entries.test.mjs (its own Today and alone, both sizes, list and open publication; red 0/4 on 0.5.3) and scripts/editor-foundation/today-concierge.test.mjs (Create's screen).
 name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
   Original-owned bounded English print and animated layouts, starter templates, linked stories,
   styles, masters, subject cutouts, comments, social scheduling and native Typst PDF/PNG/MP4 output.
-version: 0.5.3
+version: 0.5.4
 runtime: process
 lastingStorage: true
 status: active

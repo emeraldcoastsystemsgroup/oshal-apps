@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1: a next step takes the person to the content it names (the blockers, the last check, the targets, the recorded orders or the settings): opened, scrolled into view, focused and briefly marked, even when its section was already open. Before, it focused the open section's heading and nothing moved. Still a local view change only.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Require explicit matching account, connection and strategy context for retained strategy execution evidence.
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Lead selected accounts with one local evidence/setup action, retain directly available Deactivate and disclose existing strategy controls without changing their handlers or terms.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | Lead account management with the dated retained outcome and target/holding comparison; label live approval separately from trading activity.
@@ -66,8 +67,26 @@ function nativeAccountLocalAction(event,host){
  const button=event.target.closest('[data-native-status-next]');if(!button||!host.contains(button))return false;
  const panel=button.closest('.native-management-panel');
  const destination=panel?.querySelector(button.dataset.nativeStatusNext==='settings'?'[data-native-strategy-settings]':'[data-native-status-evidence]');
- if(destination){destination.open=true;const summary=destination.querySelector('summary');summary?.focus();summary?.scrollIntoView({block:'nearest'});}
+ if(destination)nativeStatusReveal(destination,button.dataset.nativeStatusShow);
  return true;
+}
+/**
+ * @description Open the section and take the person to the content the step names: it is scrolled to the top of the view,
+ *   given focus and briefly marked, whether or not the section was already open (an open section's heading alone moved nothing).
+ * @param {HTMLDetailsElement} section The evidence or settings section.
+ * @param {string} focus The step's content name (blockers, check, targets, orders); otherwise the section's first content.
+ * @returns {void}
+ */
+function nativeStatusReveal(section,focus){
+ section.open=true;
+ const named=focus&&typeof CSS!=='undefined'&&section.querySelector('[data-native-status-focus="'+CSS.escape(focus)+'"]');
+ const goal=named||section.querySelector(':scope>summary+*')||section.querySelector(':scope>summary');if(!goal)return;
+ goal.classList.add('native-status-target');if(!goal.hasAttribute('tabindex'))goal.tabIndex=-1;
+ goal.classList.remove('is-revealed');void goal.offsetWidth;goal.classList.add('is-revealed');
+ goal.addEventListener('animationend',()=>goal.classList.remove('is-revealed'),{once:true});
+ goal.focus({preventScroll:true});
+ const still=typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+ goal.scrollIntoView({block:'start',behavior:still?'auto':'smooth'});
 }
 function nativeAccountMetric(label,value){return'<div class="kpi"><div class="l">'+esc(label)+'</div><div class="n">'+esc(value)+'</div></div>';}
 /** Account-bound retained broker evidence; never infer a fill from an approval or a submitted ticket. */
@@ -90,7 +109,7 @@ function nativeExecutionEvidence(account,watch){
  (same&&automation?.message?'<p>'+esc(automation.message)+'</p>':'')+
  (reasons.length?'<ul>'+[...new Set(reasons)].map(message=>'<li>'+esc(message)+'</li>').join('')+'</ul>':'')+
  '<p class="sub">'+(same?'Broker orders last read '+esc(new Date(receipt.observedAt).toLocaleString())+'.':'No matching account broker receipt is available.')+' Saved authorization and a running watcher do not establish that an order was filled. Quant desk and research feed results do not change this account’s assigned strategy.</p>'+
- workingHtml+(rows?'<details class="native-evidence"><summary>Confirmed broker executions · '+esc(account.label)+'</summary><p class="sub">Most recent 20 executions in the retained broker read; partial fills may occupy separate rows.</p><div style="overflow:auto"><table><thead><tr><th>Time</th><th>Trade</th><th>Shares</th><th>Fill price</th><th>Broker order</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>':'<p>'+esc(executionsReadable?'No confirmed executions were returned in this account’s last broker read.':'Broker executions are unavailable.')+'</p>')+'</section>';
+ '<div class="native-status-target" data-native-status-focus="orders" tabindex="-1">'+workingHtml+'</div>'+(rows?'<details class="native-evidence"><summary>Confirmed broker executions · '+esc(account.label)+'</summary><p class="sub">Most recent 20 executions in the retained broker read; partial fills may occupy separate rows.</p><div style="overflow:auto"><table><thead><tr><th>Time</th><th>Trade</th><th>Shares</th><th>Fill price</th><th>Broker order</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>':'<p>'+esc(executionsReadable?'No confirmed executions were returned in this account’s last broker read.':'Broker executions are unavailable.')+'</p>')+'</section>';
 }
 function nativeStrategyPanel(a,strategy,study,watch,research,management,schedule,saved,reviewReadAvailable=true,researchWindow){
  const stop=watch?.enabled&&watch.automatedTrading?'<button class="btn danger" data-native-management="strategy-stop">Deactivate strategy</button><p data-native-allocation-status role="status" aria-live="polite"></p>':'';

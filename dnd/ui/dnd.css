@@ -37,6 +37,7 @@
  * 28 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-help, dnd-party, dnd-tv): How to play is a card with a title bar and ✕, short upright sections and a footer that stays in view; the import form is one column on a phone and keeps Save in a footer at the bottom of its scroll; a hero without art shows its initials; the hero grid is one column below 600px; TV Mode's join code is a 48px-plus badge, its corner bar (Full screen, Sound) fades in on a move or key, and its status strip is one ellipsized line on a phone.
  * 29 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): style .tv-code .tv-join-url under the join code badge at high contrast for couch legibility.
  * 30 | maintainer@emeraldcoastsystemsgroup.com     | F20 (2026-11-07): move table chrome, drawer, HUD, dock, and overlay screens from pinned dark wood colors to shared design tokens (--ds-* / --bg-*) so the table follows the person's light or dark theme while preserving story serif typography and >= 13.86:1 story-panel contrast across all 20 themes.
+ * 31 | maintainer@emeraldcoastsystemsgroup.com     | 0.22.5 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: My Games floated in the middle of a black stage, 291 px down a 915 px phone, 32%, with its four buttons wrapping into two ragged rows). On a phone My Games is a page: it starts at the top of the table on the page colour (no scrim; the table's buttons wait behind it, as they did under the scrim), full width, with Start New Campaign across the card and Join with Code, My Characters and How to Play in one row of three under it; the stage is the ordinary phone height while it shows. The desktop is unchanged.
  */
 
 /* CHROME follows the cockpit's standard theme (read-only framework tokens from
@@ -850,3 +851,15 @@ body.tv .card p, body.tv .card .read { font-size: clamp(16px, 1.5vw, 24px); }
 .exploration-lead.nominated { border-style: dashed; border-color: var(--amber); }
 @media (max-width: 600px) { .herogrid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .exploration-lead.working { animation: none; } }
+/* 0.22.5, the phone first screen: My Games is a page, not a card floating on a black stage. It starts at the top of the
+   table on the page colour, full width (the table's buttons wait behind it, as they did under the scrim); Start New
+   Campaign is one row and the three other choices share the next.
+   The card is marked by overlay()'s data-screen (the .card.game-library rule above names a class no screen sets). */
+@media (max-width: 760px) {
+  #stage:has(> #overlay:not(.hidden) > .card[data-screen="game-library"]) { height: max(calc(56px + 66.67vw), 60vh); }
+  .overlay:has(> .card[data-screen="game-library"]) { align-items: flex-start; padding-top: 8px; background: var(--bg); }
+  .card[data-screen="game-library"] { width: 100%; max-width: none; height: auto; max-height: calc(100% - 8px); padding: 20px 16px; border-radius: 0; border-width: 1px 0; box-shadow: none; }
+  .card[data-screen="game-library"] .library-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .card[data-screen="game-library"] .library-actions #menuNew { grid-column: 1 / -1; }
+  .card[data-screen="game-library"] .library-actions .big.ghost { min-width: 0; min-height: 44px; padding: 8px 6px; font-size: 13px; white-space: normal; line-height: 1.2; }
+}

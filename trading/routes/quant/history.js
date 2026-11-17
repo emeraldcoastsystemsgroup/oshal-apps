@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The history test keeps each signal's monthly result next to the list's, so the quant can measure backtest overfitting (the deflated Sharpe ratio and PBO) over the desk's own tested signals without rereading prices.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The first limit said a gap above SPY was the warning sign. On the wider pool the list no longer beats SPY, and the missing failed companies still flatter every signal, so it now says that whatever the gap is.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The test now runs over the wider pool and says how many names each end of it held, and that small names cost more to trade than the assumed cost.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The value curve follows the signal that leads the list, next to the same signal without the biggest winners, so the upper limit is never drawn alone.
@@ -219,6 +220,20 @@ function leadingSignal(signals) {
 }
 
 /**
+ * @description Each tested signal's net monthly result and the list's equal-weight average, on one shared month axis
+ * (a signal that held no list that month has null), for overfitting statistics over the signals the desk tried.
+ * @param {Map<string, Array<{month:string, net:number, list:number}>>} series - Monthly results by signal id.
+ * @returns {{months:string[], list:Array<number|null>, nets:Object<string, Array<number|null>>}} The table.
+ */
+function monthlyTable(series) {
+  const months = [...new Set([...series.values()].flatMap((rows) => rows.map((m) => m.month)))].sort();
+  const list = new Map();
+  for (const rows of series.values()) for (const m of rows) list.set(m.month, m.list);
+  const nets = Object.fromEntries([...series.entries()].map(([id, rows]) => { const at = new Map(rows.map((m) => [m.month, m.net])); return [id, months.map((month) => (at.has(month) ? round(at.get(month), 6) : null))]; }));
+  return { months, list: months.map((month) => (list.has(month) ? round(list.get(month), 6) : null)), nets };
+}
+
+/**
  * @description Run the history test over every stored digest.
  * @param {Array<object>} digests - Stored symbol digests.
  * @param {string} at - ISO time of the run.
@@ -238,7 +253,7 @@ function historyTest(digests, at) {
   });
   return {
     at, topN: TOP_N, costBpsPerSide: COST_BPS_PER_SIDE, symbols: digests.length, namesFirst, namesLast,
-    signals: rows, marketTiming: marketTiming(spy), curve, curveSignal: { id: leader.id, name: leader.name },
+    signals: rows, marketTiming: marketTiming(spy), curve, curveSignal: { id: leader.id, name: leader.name }, monthly: monthlyTable(series),
     limits: [
       `The list is today's companies, so failed and delisted ones are missing, and that flatters every signal, most of all those that buy big winners or big losers. Its average made ${rows[0].listAnnual == null ? 'an unknown amount' : `${(rows[0].listAnnual * 100).toFixed(1)}% a year against SPY's ${(rows[0].spyAnnual * 100).toFixed(1)}%`}. Read the Per year column as an upper limit.`,
       `"Holds up" must beat the list both as it stands and with the biggest ${Math.round(WINNERS_REMOVED * 100)}% of winners removed. "Promising" only beats it with them in. The real result is likely between the two.`,
@@ -249,4 +264,4 @@ function historyTest(digests, at) {
   };
 }
 
-module.exports = { TOP_N, COST_BPS_PER_SIDE, MIN_MONTHS, WINNERS_REMOVED, compound, annualized, maxDrawdown, meanT, verdictFor, crossSections, signalSeries, marketTiming, withoutBiggestWinners, leadingSignal, historyTest };
+module.exports = { TOP_N, COST_BPS_PER_SIDE, MIN_MONTHS, WINNERS_REMOVED, compound, annualized, maxDrawdown, meanT, verdictFor, crossSections, signalSeries, marketTiming, withoutBiggestWinners, leadingSignal, monthlyTable, historyTest };

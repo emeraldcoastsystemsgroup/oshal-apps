@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the Save button and the status lines say main résumé.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: the concierge "said that it couldnt change my dates"; on the phone "everything is too bunched up to use the concierge"). Career's concierge is My résumé's one assistant: AI Office's editor opens with assistant=host and shows no concierge of its own. The person types in the document, asks Career's concierge to move a job's start month, sees the change as a card, approves it, and the Word document and the profile both show it; Undo puts it back in both. On a phone (412x915 and 360x800) the page is one column with its row of controls inside the screen, the document reaches Career's bottom bar, the concierge fills the screen between Career's bars with Back to My résumé, and the conversation is still there after going back and forth.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"). With AI Office's real editor and store: a job with two bullets approved while no document is open is in the document the next time My résumé opens, with no press; text typed in the document and saved only in the editor is saved into the main résumé and stays in the document; a third visit rewrites nothing. This is also the proof that the editor keeps the first page's id when a person types, which is where the document names the main résumé it was made from.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: on a phone the page's one document bar holds AI Office's Edit, so the phone run presses Edit there (#docEdit); AI Office's own app row is not shown.
  *
  * Real: Career's page, its frame and concierge, tools/career-resume-office.js and career-change-bar.js; AI Office's editor
  * page and document routes over forced-RLS PostgreSQL (presentations/tests/office/fixture.mjs); the shared editor
@@ -252,7 +253,9 @@ for (const [width, height] of [[412, 915], [360, 800]]) {
     assert.ok(Math.abs(layout.frame.bottom - layout.bottomTop) <= 2, `the document reaches the bottom bar (${layout.frame.bottom} vs ${layout.bottomTop})`);
     await shot(page, `after-${width}x${height}-1-open.png`);
 
-    await frameOf(page).getByRole('button', { name: 'Edit', exact: true }).tap();
+    // 1.67.2: on a phone the page's one document bar holds AI Office's Edit (AI Office draws no app row of its own here).
+    assert.equal(await frameOf(page).locator('#office-header').isVisible(), false, "AI Office's own app row is folded into the page's bar");
+    await page.locator('#docEdit').tap();
     assert.equal(await frameOf(page).locator('.office-bottom-bar').getByRole('button', { name: 'Concierge', exact: true }).count(), 0, "AI Office's bar has no concierge of its own");
     const pane = await askAndApprove(page);
     const geometry = await page.evaluate(() => { const r = document.querySelector('.cf-concierge').getBoundingClientRect(), top = document.querySelector('.cf-topbar').getBoundingClientRect(), bottom = document.querySelector('.cf-bottombar').getBoundingClientRect(); return { left: r.left, width: r.width, top: r.top, bottom: r.bottom, barBottom: top.bottom, bottomTop: bottom.top, scroll: document.documentElement.scrollWidth }; });

@@ -13,6 +13,7 @@
   2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared theme bootstrap (classroom default), package stylesheet and page frame replace the parent-frame theme reader, the glass sheet and the web font; hero, tabs, lists, cards, forms and callouts come from the system and every colour is a token. Role truth: the Manage tab, recording, roster and share approvals show only to an admin or the teacher who teaches the class (what the routes accept); everyone else gets a calm read-only note on the new Info tab; the stale not-yet-available sharing copy is gone because sharing, approve and deny are live. Host messages go through window.LM (openClass, classesChanged); toasts replace alerts for notices, confirms stay for deletes; tab and detail-tab selection use data attributes instead of label text.
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | Class page: Textbooks & materials tab with the Training Textbook Library, a Summary/PowerPoint/Flashcard topic pack, PowerPoint download for a lecture, and quick links to the flashcard builder and practice quiz.
+  2026-11-16     | maintainer@emeraldcoastsystemsgroup.com | The Topic Study Pack refreshes the class's flashcard sets with loadFlashcardSets. It called loadFlashcards, which is not defined: after a pack was saved the page reported "Could not generate Topic Study Pack: loadFlashcards is not defined" and the Flashcards tab kept its old list. Guard: tests/lm-flashcard-study-opens.test.cjs
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -812,7 +813,7 @@ async function generateClassTopicPack() {
     resultEl.innerHTML = '<div class="lm-row is-wrap lm-mb-sm">' + links.join(' ') + '</div>' +
       (data.notes ? '<div class="lm-card is-inset" style="white-space:pre-wrap;font-size:13.5px;max-height:240px;overflow:auto">' + esc(data.notes) + '</div>' : '');
     loadLectures();
-    loadFlashcards();
+    loadFlashcardSets();
   } catch (e) {
     statusEl.className = 'lm-status lm-mt-sm is-error';
     statusEl.textContent = 'Could not generate Topic Study Pack: ' + e.message;

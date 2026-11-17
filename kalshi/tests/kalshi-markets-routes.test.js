@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The browse and walkthrough routes over a stored snapshot: GET /markets lists every walked market still open with a verdict headline, filters by word, category and verdict, sorts by closes/edge/volume and bounds by limit; GET /markets/:ticker answers from the snapshot first, else reads the market live from Kalshi and prices it against the shipped calibration table, 404 when Kalshi has none, 503 when the runtime has no market reader; GET /scan no longer ships the browse rows but counts them; every route refuses an anonymous caller. The scan engine's runScan stores one browse row per walked market beside the hands.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.10.2: the headlines lead with the page's words (Good edge, No estimate, No edge; they led with Strong, No verdict, Fold).
  */
 'use strict';
 const test = require('node:test');
@@ -98,8 +99,8 @@ test('GET /markets lists every open walked market with a verdict headline, and c
   assert.deepEqual(byClose.body.markets.map((m) => m.ticker), ['KXC-3', 'KXA-1', 'KXB-2'], 'closing soonest on request');
   const a = res.body.markets.find((m) => m.ticker === 'KXA-1');
   assert.equal(a.verdict, 'strong'); assert.equal(a.side, 'yes');
-  assert.match(a.headline, /^Strong: YES at 40\.0¢ .* \(paper only\)\.$/);
-  assert.match(res.body.markets.find((m) => m.ticker === 'KXC-3').headline, /^No verdict: it is a parlay leg/);
+  assert.match(a.headline, /^Good edge: YES at 40\.0¢ .* \(paper only\)\.$/);
+  assert.match(res.body.markets.find((m) => m.ticker === 'KXC-3').headline, /^No estimate: it is a parlay leg/);
 });
 
 test('GET /markets filters by word, category and verdict, sorts by edge or volume, and bounds by limit', async () => {
@@ -140,7 +141,7 @@ test('GET /markets/:ticker answers from the snapshot with the full walkthrough',
   assert.equal(res.body.source, 'snapshot');
   assert.equal(res.body.market.ticker, 'KXB-2');
   assert.equal(res.body.why.verdict, 'fold');
-  assert.match(res.body.why.headline, /^Fold: NO at 60\.0¢ against a 55% calibrated chance is −3\.0¢/);
+  assert.match(res.body.why.headline, /^No edge: NO at 60\.0¢ against a 55% calibrated chance is −3\.0¢/);
   assert.ok(res.body.why.reasons.length >= 6);
   assert.match(res.body.why.question, /why is NO at 60\.0¢ a bad bet\?$/);
 });

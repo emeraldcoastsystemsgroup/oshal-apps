@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the phone-start case also proves one app bar row, labelled boxless start links, the Document menu in More and drawn Properties items under the finger.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard: register design-standard (tests/browser/design-standard.test.mjs) at 412x743 with touch and 1440x900, and update the phone case to the blank first page, the document menu, the modes bar and the Format sheet.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register rp-pdf-features and rp-pdf-workbench cases for RP-PDF-01..10 and RP-ALL-01, and update design-standard expectations for live controls.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): native-content-browser asks in the window (saved revision and selection on the context, the card waiting in the window while native edits stay local); rp-pdf-workbench presses the window's Summarize this PDF starter.
 version: 1
 cases:
   - id: model
@@ -253,6 +254,7 @@ cases:
     expected:
       - Actual source objects and image assets retain stable IDs through native immutable revisions.
       - Invalid drafts, phone drawers and unavailable or source-fixture AI boundaries remain explicit.
+      - The concierge is the one chat window; a turn reaches pdf-editor with the person's words alone and the automatically saved revision and selected object on the context, and an approval card waits in the window bound to that revision while native inline and form edits stay local and nothing runs before Approve.
     prerequisites:
       - runner:node
       - runtime:pypdf-pinned
@@ -372,6 +374,7 @@ cases:
     expected:
       - Every RP-PDF-01..10 UI workflow persists or exports valid PDF/OOXML bytes and view preferences without mutating PDF bytes on view toggles.
       - Zero data-ds-not-yet placeholders remain and Concierge renders live Summarize this PDF and Ask about this page prompts.
+      - The concierge is the one chat window; its Summarize this PDF starter sends those words alone to pdf-editor with the saved document on the context, and the answer shows in the window.
     prerequisites:
       - runner:node
       - runtime:pypdf-pinned

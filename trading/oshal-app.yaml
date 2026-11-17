@@ -1,3 +1,12 @@
+# CHANGE LOG: 64 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3, from the 1.61.2 blue proof: bot-fast called trading_quant_run for two stock questions and stopped at trading_quant_explain for a calculation. trading_quant_run is described as the desk's own pass in Trading's single process that answers no question; explain says it computes nothing and that the tool it names follows; stock and calculate say when they apply, with or without Schwab; the persona drops the 1.61.x rule that sent the concierge to the desk for an unavailable rate; and no lab answer names trading_quant_run. The first stock answer took 2.2 s: the kernel's World archive read was 1,966 ms of it, so archived day prices are now kept in the process ten minutes per name. No route, schedule, migration, grant, egress or orderAuthority change.
+# CHANGE LOG: 63 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: a desk run on blue took 22.8 s although the reference read stopped waiting at 1.5 s: the kernel serves a package's outside read before it reads the package's answer and held it to its own 20-second egress timeout. Every reference read now asks the kernel to end it within the pass's budget (timeoutMs, kernel dev/native-parity), the desk reads a source only where the read can be ended in time (on an older kernel nothing is read and every answer says why), and the pass's 12-second budget now includes its refresh. The Treasury's server never answered the old User-Agent (an address in parentheses); the plain agent answers in half a second. No route, schedule, migration, grant, egress or orderAuthority change.
+# CHANGE LOG: 62 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: the blue proof's risk and factors answers took 20 seconds (FRED never answered this host) and Trading serves one call at a time, so the wait held up the stop watcher. Interactive quant tools now read only cached reference data and answer at once ("unavailable right now" with the reason); the Quant desk's own passes refresh one due source each inside 1.5 seconds. The bill rate comes from the U.S. Treasury (egress home.treasury.gov replaces fred.stlouisfed.org); the French library is asked without the Accept header it refused. trading_quant_explain leads a "what is" question so the local model calls it.
+# CHANGE LOG: 61 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the quant's real reference data and option chains: the official daily Fama-French three factors (Kenneth R. French Data Library) in the factors view, the 3-month Treasury bill rate (DTB3 via FRED) as the default risk-free rate, both cached per person and attributed, through two new egress hosts (mba.tuck.dartmouth.edu, fred.stlouisfed.org); and trading_quant_options over the caller's real Schwab option chain (the kernel's trading.chains, kernel 21e634f8), which says plainly when there is none. Still no manifest route, schedule, migration, grant or orderAuthority change.
+# CHANGE LOG: 60 | maintainer@emeraldcoastsystemsgroup.com | 1.60.0: the quant's toolkit: seven research-only tools over the math core (trading_quant_explain, calculate, stock, portfolio, pair, simulate, overfitting) on routes the Quant router serves under /api/trading/quant/lab, the trading concierge's read-in of the fifty ideas with its honesty rules, and the history test keeping each signal's monthly results for the overfitting check (engine 7). Prices are the caller's own Schwab candles or, with no Schwab login, the World archive's recorded day prices, always labelled. No manifest route, schedule, migration, grant or orderAuthority change (closure unchanged).
+# CHANGE LOG: 59 | maintainer@emeraldcoastsystemsgroup.com | 1.59.0: the quant's deterministic math core under routes/quant/math (statistics, returns and money arithmetic, regressions and tests, options and the Greeks, GARCH and GJR-GARCH, portfolios, risk, unit-root and cointegration tests, the Kalman filter, Monte Carlo and the bootstrap, backtest-overfitting statistics, market microstructure, factor models), each guarded on textbook and reference values. Research arithmetic only: no route, tool, schedule, migration, grant or orderAuthority change, and no math module joins the closure (29 files, unchanged).
+# CHANGE LOG: 58 | maintainer@emeraldcoastsystemsgroup.com | 1.58.1: account details draws a holding's price against the comparison symbol again. Its daily prices are read from GET /api/trading-charts/bars, where the charts route serves them; 1.58.0 read GET /api/trading/bars, which no route serves, so production showed "Price comparison unavailable". tools/ui/native-account-details.js only, plus its test host and browser guard. Version only here: no route declaration, tool, schedule, migration, grant or orderAuthority change.
+# CHANGE LOG: 57 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: Intelligent Trades opens on a portfolio overview (the total with today's change, value over time with range buttons and daily bars, one card per account, a comparison with SPY and BIL, one holdings table, each approval's end date with a plain warning when it ends within 14 days or before the next trade); the 1.57.0 cards move to a Trading status tab; account details reads its value history from GET /paper/values instead of a read that saves first, which the native kernel refuses. GET /paper/values inside the existing paper routes. Version only here: no route declaration, tool, schedule, migration, grant or orderAuthority change.
+# CHANGE LOG: 56 | maintainer@emeraldcoastsystemsgroup.com | 1.57.1: Review blockers goes visibly to what holds the allocation up. On the account page the evidence section now leads with exactly the holdings the watcher's record names, each with its reason in plain words and what the person can do; their rows are marked in the targets table; every next step scrolls to its own content and focuses it, open or closed. Version only here: presentation only, no route declaration, tool, schedule, migration, grant or orderAuthority change.
 # CHANGE LOG: 55 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the Accounts screen answers from saved records whether each account is running or parked and in what, what it did today and why its value moved, with a source and a time on each part (GET /paper/today inside the existing paper routes). Version only here: no route declaration, tool, schedule, migration, grant or orderAuthority change.
 # CHANGE LOG: 54 | maintainer@emeraldcoastsystemsgroup.com | 1.56.0: lead account management with a dated outcome, one local review step and directly available Deactivate while preserving all execution authority and controls.
 # 44 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: Dated execution evidence and target versus holding comparison, distinct live approval/schedule controls and truthful paper status. No order or performance calculation change.
@@ -153,7 +162,7 @@ description: >-
   against the S&P 500; research stocks; and test strategies in a separate paper book,
   with a decision trail from signals to orders. Trading actions follow the connected
   account's supported controls. Cash equities. No crypto.
-version: 1.57.0
+version: 1.61.3
 lastingStorage: true
 status: active
 
@@ -234,6 +243,12 @@ egress:
   - host: data.sec.gov
   - host: finnhub.io
     credential: { connector: finnhub, header: x-finnhub-token }
+  # The quant's reference data: the official Fama-French factors (Kenneth R. French Data Library at Dartmouth) and the
+  # 3-month Treasury bill rate (the U.S. Treasury's daily bill rates, public domain). Public and keyless, read only by
+  # the Quant desk's own passes (at most weekly and daily, 1.5 seconds per read), cached per person, and attributed in
+  # every answer that uses them; interactive tools read the cache only.
+  - host: mba.tuck.dartmouth.edu
+  - host: home.treasury.gov
 
 # Dark, focused trading skin.
 theme: light-blue
@@ -919,8 +934,12 @@ tools:
     type: api
     category: trading
     description: >-
-      Run one bounded pass of scoring now (up to about a minute). The reply gives the phase and how many stocks have
-      been read; call it again until the status is done. Finished work is not repeated. Research only. Input: {}.
+      Starts the Quant desk's own scoring pass over its nightly stock list, inside Trading's single process: up to about
+      a minute, it needs a connected Schwab login, and the rest of Trading waits while it runs. It answers no question:
+      a question about a stock, a portfolio, a pair, an option or an idea is answered at once by trading_quant_stock,
+      trading_quant_portfolio, trading_quant_pair, trading_quant_options, trading_quant_calculate or
+      trading_quant_explain, with or without Schwab. The reply gives the phase and how many stocks have been read; call
+      it again until the status is done. Research only. Input: {}.
     executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/run" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -928,8 +947,219 @@ tools:
     inputSchema:
       type: object
       properties: {}
-    usageInstructions: Use when there is no list yet or the person asks for a fresh one.
+    usageInstructions: Only when the person asks to run or refresh the Quant desk's list, or trading_quant_today says there is no list yet. Never to answer a question about a stock, a portfolio or an idea, and never to load prices or rates for an answer.
     routingTags: [trading, quant, run]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  # The quant lab (Research): the math core on real daily prices or on numbers the person supplies. Research only: no tool
+  # here reaches an account, a strategy assignment or an order. Prices are the caller's own Schwab candles, or, with no
+  # Schwab login, the World archive's recorded day prices, and every answer names which.
+  - name: trading_quant_explain
+    displayName: Explain a Quant Idea
+    type: api
+    category: trading
+    description: >-
+      Call this first for every "what is" or "explain" question about an investing, trading or quant idea. It returns
+      the idea in plain words: what it is, when it helps, which tool applies it and its pitfalls. It computes nothing:
+      when the question also names a stock, a portfolio or numbers, call the tool it names next.
+      Covers expected value, random walk, the square-root-of-time rule, the bell curve, returns and compounding, present
+      value, volatility, the Sharpe ratio, volatility drag, correlation, diversification, the efficient frontier, beta,
+      the CAPM, the Kelly criterion, Monte Carlo, fat tails, value at risk, backtesting, regression, hypothesis tests, mean
+      reversion, momentum, the value and size factors, Fama-French, the low-volatility anomaly, factor models,
+      Black-Scholes, implied volatility, put-call parity, delta hedging, the Greeks, the bid-ask spread, binomial pricing,
+      the volatility smile, GARCH, GJR-GARCH, volatility targeting, risk parity, Black-Litterman, arbitrage pricing theory,
+      statistical arbitrage, backtest overfitting, market makers and their inventory risk, informed traders, how spreads
+      are set, market impact and the Kalman filter. Input: {concept}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/lab/explain/{input.concept}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [concept]
+      properties:
+        concept: { type: string, description: "the idea's name, for example sharpe ratio, kelly criterion, garch or volatility smile" }
+    usageInstructions: Always call it before explaining any quant or trading idea, even one you think you know. Then, when the question names a stock, a portfolio or numbers, call the tool it names (trading_quant_stock, trading_quant_calculate and the others) before answering, and say it all in plain words.
+    routingTags: [trading, quant, explain, learn]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_calculate
+    displayName: Quant Calculator
+    type: api
+    category: trading
+    description: >-
+      The quant's math on numbers the person gives, with no price read. kind is one of expected-value, present-value, npv,
+      annuity, returns, sqrt-time, volatility-drag, normal, kelly, capm, var, black-scholes (with the Greeks), binomial,
+      implied-volatility, put-call-parity, delta-hedge, smile, market-maker, glosten-milgrom, kyle, impact, almgren-chriss,
+      deflated-sharpe, min-backtest-length, monte-carlo, t-test or correlation; inputs holds that kind's numbers (rates and
+      volatility as decimals, 0.05 for 5%, or "5%"). The answer carries the formula. Input: {kind, inputs}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/calculate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [expected-value, present-value, npv, annuity, returns, sqrt-time, volatility-drag, normal, kelly, capm, var, black-scholes, binomial, implied-volatility, put-call-parity, delta-hedge, smile, market-maker, glosten-milgrom, kyle, impact, almgren-chriss, deflated-sharpe, min-backtest-length, monte-carlo, t-test, correlation] }
+        inputs: { type: object, description: "the kind's numbers, for example black-scholes {S, K, T, r, sigma, type}, kelly {p, b} or {mu, sigma}, var {sd, confidence, horizon, skew, excessKurtosis}, expected-value {outcomes:[{probability, value}]}" }
+    usageInstructions: Use whenever the person gives numbers for a formula (an option price, a Kelly bet, the spread a market maker sets against informed traders, market impact); never work those numbers out yourself. For a real stock use trading_quant_stock.
+    routingTags: [trading, quant, calculate, options]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_stock
+    displayName: Quant Analysis of a Stock
+    type: api
+    category: trading
+    description: >-
+      One real stock's daily prices through one lens. view risk: returns (simple, log, compound), volatility and the
+      square-root-of-time rule, Sharpe ratio, volatility drag, drawdown, value at risk four ways and fat tails. behavior:
+      random-walk, mean-reversion (Dickey-Fuller, half-life, Hurst) and momentum. volatility: EWMA, high-low estimators,
+      GARCH and GJR-GARCH with a forecast and volatility targeting. liquidity: the bid-ask spread, Roll and Corwin-Schultz
+      spreads, Amihud and the square-root impact of an order of `shares`. factors: beta, the CAPM, the official daily
+      Fama-French three factors (Kenneth R. French Data Library) and a three-factor regression on ETF proxies, and APT
+      on chosen ETFs. Input: {symbol, view, days?, confidence?, horizonDays?, riskFree?,
+      targetVolatility?, shares?, apt?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/stock" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol, view]
+      properties:
+        symbol: { type: string, description: "ticker" }
+        view: { type: string, enum: [risk, behavior, volatility, liquidity, factors] }
+        days: { type: number, description: "trading days of history, 20 to 2520 (defaults: risk 504, behavior 756, volatility 1260, liquidity 63, factors 504)" }
+        confidence: { type: number, description: "VaR confidence, for example 0.95 or 0.99" }
+        horizonDays: { type: number, description: "VaR horizon (risk) or forecast horizon (volatility), in trading days" }
+        riskFree: { type: number, description: "annual risk-free rate as a decimal; the latest 3-month Treasury bill rate unless the person gives one" }
+        targetVolatility: { type: number, description: "annual volatility to target, for example 0.15" }
+        shares: { type: number, description: "order size to cost (liquidity view)" }
+        apt: { type: array, items: { type: string }, description: "up to three ETF tickers as extra factors (factors view)" }
+    usageInstructions: Call for any question about one stock's risk, Sharpe ratio, value at risk, behavior (random walk, mean reversion, trend), volatility, trading cost or factor exposure, with or without Schwab (without it the answer uses the World archive's recorded day prices); quote the answer's source and say which figures were unavailable and why.
+    routingTags: [trading, quant, stock, risk, volatility]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_portfolio
+    displayName: Quant Portfolio Builder
+    type: api
+    category: trading
+    description: >-
+      Two to six real stocks together: correlations and method diversification (portfolio volatility, each holding's share
+      of risk), frontier (minimum variance, tangency, long-only, the efficient frontier), risk-parity, black-litterman
+      (views as [{symbol, expectedReturn}]), kelly or vol-target. Weights from past returns are fragile; the answer says so.
+      Input: {symbols, method, days?, riskFree?, weights?, views?, targetVolatility?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/portfolio" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbols, method]
+      properties:
+        symbols: { type: array, items: { type: string }, description: "two to six tickers" }
+        method: { type: string, enum: [diversification, frontier, risk-parity, black-litterman, kelly, vol-target] }
+        days: { type: number, description: "trading days of history, 20 to 2520 (504)" }
+        riskFree: { type: number, description: "annual risk-free rate as a decimal" }
+        weights: { type: array, items: { type: number }, description: "weights in the symbols' order, for diversification, black-litterman and vol-target" }
+        views: { type: array, items: { type: object }, description: "black-litterman views, for example [{symbol: XOM, expectedReturn: 0.12}]" }
+        targetVolatility: { type: number, description: "annual volatility to target (vol-target)" }
+    usageInstructions: Use for how stocks combine, how to weight them by risk, and what Kelly or a volatility target would hold.
+    routingTags: [trading, quant, portfolio, diversification]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_pair
+    displayName: Quant Pair Check
+    type: api
+    category: trading
+    description: >-
+      Two real stocks as a statistical-arbitrage pair: return correlation, Engle-Granger cointegration, the spread's
+      half-life and z-score, and a Kalman filter's drifting hedge ratio. Input: {a, b, days?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/pair" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [a, b]
+      properties:
+        a: { type: string, description: "first ticker" }
+        b: { type: string, description: "second ticker" }
+        days: { type: number, description: "trading days of history, 20 to 2520 (504)" }
+    usageInstructions: Use for pairs trading, cointegration, mean reversion between two names, or a hedge ratio.
+    routingTags: [trading, quant, pair, arbitrage]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_simulate
+    displayName: Quant Monte Carlo
+    type: api
+    category: trading
+    description: >-
+      Monte Carlo of where one real stock could be after horizonDays: method gbm (geometric Brownian motion with its own
+      historical drift and volatility) or bootstrap (resampled blocks of its actual days, keeping fat tails). Percentile
+      bands, the chance of ending below today and the exact GBM moments. Input: {symbol, horizonDays, method?, paths?, days?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/simulate" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol, horizonDays]
+      properties:
+        symbol: { type: string, description: "ticker" }
+        horizonDays: { type: number, description: "trading days ahead, 1 to 756" }
+        method: { type: string, enum: [gbm, bootstrap] }
+        paths: { type: number, description: "simulated paths, 100 to 20000 (5000)" }
+        days: { type: number, description: "trading days of history to learn from, 20 to 2520 (756)" }
+    usageInstructions: Use for the range of outcomes, the chance of a loss over a horizon, and expected value of a holding.
+    routingTags: [trading, quant, monte carlo, simulation]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_options
+    displayName: Quant Option Chain
+    type: api
+    category: trading
+    description: >-
+      A real option chain from the caller's own Schwab connection: for each of the nearest expirations, the at-the-money
+      implied volatility and the expected move it prices, the volatility smile, put-call parity on every strike quoted both
+      ways, and the at-the-money call and put with their market Greeks; then implied against the stock's own historical
+      volatility. With no Schwab connection, or on a kernel without the chain read, it says so and shows no chain.
+      Input: {symbol, fromDate?, toDate?, strikeCount?, riskFree?}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/lab/options" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "ticker" }
+        fromDate: { type: string, description: "first expiration date to read, YYYY-MM-DD (default today)" }
+        toDate: { type: string, description: "last expiration date to read, YYYY-MM-DD (default 45 days on)" }
+        strikeCount: { type: number, description: "strikes around the money, 1 to 30 (10)" }
+        riskFree: { type: number, description: "annual risk-free rate as a decimal; the latest 3-month bill rate unless given" }
+    usageInstructions: Call for implied volatility, the volatility smile, put-call parity, market Greeks or the move the options market prices.
+    routingTags: [trading, quant, options, volatility]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_overfitting
+    displayName: Quant Backtest Overfitting Check
+    type: api
+    category: trading
+    description: >-
+      Backtest overfitting over the Quant desk's own history test: each signal's Sharpe ratio over the list, the chance it
+      is above zero, the deflated Sharpe ratio after counting every signal tried, and the probability of backtest
+      overfitting (PBO) by cross-validation. Reads the stored test only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/lab/overfitting" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call with trading_quant_scoreboard whenever a backtest result is discussed, so luck from many tries is counted.
+    routingTags: [trading, quant, backtest, overfitting]
     skills: [trading]
     tags: [intelligent-trades]
 

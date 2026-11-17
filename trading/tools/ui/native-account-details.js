@@ -7,6 +7,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Give each real account a separate holdings, recorded value and benchmark dashboard with no financial action controls.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Holdings performance: gain/loss bars per holding and any holding's daily price against the comparison symbol, so the page shows performance on day one while account history is still being recorded.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Account tiles show the shared execution status rather than infer active trading from approval and scheduling.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: the page reads, it never asks for a save. It answered "Account history could not be read" on the native kernel because GET /portfolio/account-details saves today's value before it reads the history, and a GET is admitted as a reader there, so the save is refused (kernel test crates/oshald/tests/trading_today_read.rs, second case). Balances and holdings now come from the broker's roster (GET /accounts), the history from the recorded daily values (GET /paper/values, the overview's read: market days, a day with no record left blank, with its daily change bars), and the comparison from the daily prices the charts already read (GET /api/trading-charts/bars).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.58.1: a holding's price against the comparison symbol reads its daily prices from GET /api/trading-charts/bars, where Trading serves them (routes/trading-charts-routes.js), the same read the value comparison makes. It read them through api('/bars'), i.e. GET /api/trading/bars, which no route serves, so the chart always said "Price comparison unavailable" (production 1.58.0). A refused read shows the route's own words.
  */
 'use strict';
 function nativeDetailsHref(a){return '/api/trading/?view=accounts&sub=details&account='+encodeURIComponent(a.accountId)+'&connection='+encodeURIComponent(a.connectionKey);}
@@ -27,6 +29,9 @@ function nativeAccountDetailsView(model){
  main.querySelector('[data-details-form]').onsubmit=e=>{e.preventDefault();loadNativeAccountDetails(model,token);};
  loadNativeAccountDetails(model,token);
 }
+/** @description Load the page from reads only: the broker's roster for balances and holdings, the recorded daily values for the
+ * history, then the comparison's prices. Nothing here asks the server to save. @param {object} model The account. @param {number} token Render token.
+ * @returns {Promise<void>} */
 async function loadNativeAccountDetails(model,token){
  const host=main.querySelector('.account-details');if(!host)return;
  const notice=host.querySelector('[data-details-status]'),compare=host.querySelector('[data-details-compare]').value.trim().toUpperCase(),period=host.querySelector('[data-details-period]').value;
@@ -34,10 +39,15 @@ async function loadNativeAccountDetails(model,token){
  const current=()=>!stale(token)&&host.isConnected&&host.dataset.request===requestId;
  notice.textContent='Updating account details…';
  try{
-  const answer=await api('/portfolio/account-details?'+new URLSearchParams({accountId:model.accountId,connectionKey:model.connectionKey,period,compare}));
+  if(!/^[$^A-Z][A-Z0-9.$^-]{0,14}$/.test(compare))throw Error('Choose a valid stock, ETF or index symbol to compare with.');
+  // A failed history read is said on the page (Account history could not be read); balances and holdings still show.
+  const [roster,values]=await Promise.all([api('/accounts'),api('/paper/values').catch(()=>null)]);
   if(stale(token)||!current())return;
-  if(!sameNativeAccount(answer.account,model))throw Error('The response did not match this account and connection.');
+  const account=(roster.accounts||[]).find(a=>sameNativeAccount(a,model));
+  if(!account)throw Error('This account and connection are not in your broker\u2019s list right now. Refresh, or check the connection.');
+  const answer={account,readAt:new Date().toISOString(),compare,history:detailsHistory(values,model,period)};
   paintNativeAccountDetails(host,answer);
+  loadNativeValueComparison(host,model,answer.history,compare,current,token);
   notice.textContent='';
   const positions=answer.account.holdings||answer.account.positions||[],held=positions.slice().sort((a,b)=>(b.marketValue||0)-(a.marketValue||0));
   if(!positions.some(p=>p.symbol===host.dataset.stock))host.dataset.stock=held[0]?.symbol||compare;
@@ -54,8 +64,55 @@ function paintNativeAccountDetails(host,data){
  host.querySelector('[data-details-count]').textContent=positions.length+' holdings';
  host.querySelector('[data-details-holdings]').innerHTML=detailsHoldingsTable(positions,a.equity);
  host.querySelector('[data-details-bars]').innerHTML=detailsHoldingBars(positions);
- const history=data.history,comparison=data.benchmark,points=comparison.points||[],last=comparison.status==='available'?points.at(-1):null;
- host.querySelector('[data-details-charts]').innerHTML='<div class="details-chart-grid"><article><h3>Account value over time</h3><p class="details-chart-value">'+detailsMoney(history.points.at(-1)?.value)+'</p>'+detailsLineChart(history.points.map(p=>({date:p.date,value:p.value})),'Recorded account value',false)+'<p class="sub">'+esc(history.message||history.basis)+'</p></article><article><h3>Value change vs. '+esc(comparison.symbol)+'</h3><p class="sub">'+(last?'Matching dates: '+esc(points[0].date)+' – '+esc(last.date):'At least two matching account observations are needed.')+'</p>'+detailsBarChart(last,comparison.symbol)+'<p class="sub">'+esc(comparison.message||comparison.basis||'A comparison becomes available as actual account history is recorded.')+'</p></article></div><details class="details-observations"><summary>Recorded values and comparison details</summary><p class="sub">'+esc(history.basis)+'</p><div class="details-table-scroll"><table><thead><tr><th>Observed</th><th>Account value</th><th>Cash</th></tr></thead><tbody>'+history.points.map(p=>'<tr><td>'+esc(new Date(p.at).toLocaleString())+'</td><td>'+detailsMoney(p.value)+'</td><td>'+detailsMoney(p.cash)+'</td></tr>').join('')+'</tbody></table></div></details>';
+ const history=data.history,rows=history.rows,trend=rows.length>=2&&typeof PortfolioCharts!=='undefined';
+ host.querySelector('[data-details-charts]').innerHTML='<div class="details-chart-grid"><article data-details-history><h3>Account value over time</h3><p class="details-chart-value">'+detailsMoney(rows.at(-1)?.value)+'</p>'+
+  (trend?'<div data-details-value-chart></div><p class="sub">Daily change</p><div data-details-change-chart></div>':history.available?detailsLineChart(rows,'Recorded account value'):'<div class="details-empty"><strong>Account history could not be read</strong></div>')+'<p class="sub">'+esc(detailsHistoryNote(history))+'</p></article>'+
+  '<article data-details-compare-result><h3>Value change vs. '+esc(data.compare)+'</h3><p class="sub">Reading daily prices\u2026</p></article></div>'+
+  '<details class="details-observations"><summary>Recorded values and comparison details</summary><p class="sub">'+esc(history.basis)+'</p><div class="details-table-scroll"><table><thead><tr><th>Observed</th><th>Account value</th><th>Cash</th></tr></thead><tbody>'+rows.slice().reverse().map(p=>'<tr><td>'+esc(new Date(p.at).toLocaleString())+'</td><td>'+detailsMoney(p.value)+'</td><td>'+detailsMoney(p.cash)+'</td></tr>').join('')+'</tbody></table></div></details>';
+ if(trend)detailsDrawHistory(host,history);
+}
+const DETAIL_BASIS='Actual broker account values, cash included: the last value recorded each market day. A change in value is not an investment return: deposits and withdrawals move it too. A day with no record is left blank.';
+const DETAIL_COMPARE_BASIS='Recorded account values and daily closing prices on matching dates. The benchmark is price change only; the account\u2019s change in value includes deposits and withdrawals.';
+/** @description This account's recorded daily values in the period, from GET /paper/values: on market days, a day with no record a gap.
+ * @param {object|null} values GET /paper/values, or null when it failed. @param {object} model The account. @param {string} period 1W, 1M, 3M, 1Y or ALL.
+ * @returns {{available:boolean,points:Array,changes:Array,rows:Array,coverage:object|null,basis:string}} The series in the period and its recorded rows. */
+function detailsHistory(values,model,period){
+ const S=typeof PortfolioSeries==='undefined'?null:PortfolioSeries,empty={available:false,points:[],changes:[],rows:[],coverage:null,basis:DETAIL_BASIS};
+ if(!S||!values||values.ok!==true||!Array.isArray(values.accounts))return empty;
+ const mine=values.accounts.find(a=>a.accountId===model.accountId&&a.connectionKey===model.connectionKey),series=mine?S.accountSeries(mine.points,values.sessions):[];
+ const start=S.rangeStart(series.length?series.at(-1).day:null,period),points=S.inRange(series,start),cash=new Map((mine?mine.points:[]).map(p=>[p.day,p.cash]));
+ return {available:true,points,changes:S.inRange(S.dailyChanges(series),start),coverage:S.coverage(series,start,values.sessions),basis:DETAIL_BASIS,
+  rows:points.filter(p=>p.value!==null).map(p=>({date:p.day,at:p.at,value:p.value,cash:cash.has(p.day)?cash.get(p.day):null}))};
+}
+/** @description What the history says under its chart. @param {object} history detailsHistory(). @returns {string} One sentence. */
+function detailsHistoryNote(history){
+ if(!history.available)return 'Account history could not be read just now. Balances and holdings above are current.';
+ if(history.rows.length<2)return 'History starts with recorded account values. A value is recorded each day this account\u2019s watcher checks it; earlier balances are not reconstructed.';
+ const starts=history.coverage&&history.coverage.starts,day=typeof PortfolioCharts!=='undefined'?PortfolioCharts.dayWords(starts,true):starts;
+ return history.coverage&&history.coverage.short?'History starts '+day+', so this period begins there. '+DETAIL_BASIS:DETAIL_BASIS;
+}
+/** @description Draw the value line and its daily change bars at the width of their box. @param {HTMLElement} host Page. @param {object} history detailsHistory().
+ * @returns {void} */
+function detailsDrawHistory(host,history){
+ const value=host.querySelector('[data-details-value-chart]'),change=host.querySelector('[data-details-change-chart]');
+ if(value)value.innerHTML=PortfolioCharts.valueChart(history.points,{width:value.clientWidth,chart:'details',label:'Recorded account value'});
+ if(change)change.innerHTML=PortfolioCharts.barsChart(history.changes,{width:change.clientWidth,chart:'',label:'Daily change in recorded account value'});
+}
+/** @description Compare the recorded value with a symbol's daily closes on matching dates, read through the charts' existing bars read.
+ * @param {HTMLElement} host Page. @param {object} model Account. @param {object} history detailsHistory(). @param {string} compare Symbol.
+ * @param {Function} current Whether this request is still current. @param {number} token Render token. @returns {Promise<void>} */
+async function loadNativeValueComparison(host,model,history,compare,current,token){
+ const target=host.querySelector('[data-details-compare-result]');if(!target)return;
+ const head='<h3>Value change vs. '+esc(compare)+'</h3>',rows=history.rows,paint=(line,point,note)=>{target.innerHTML=head+'<p class="sub">'+esc(line)+'</p>'+detailsBarChart(point,compare)+'<p class="sub">'+esc(note)+'</p>';};
+ if(rows.length<2){paint('At least two matching account observations are needed.',null,'A comparison becomes available as actual account history is recorded.');return;}
+ let closes=null;
+ try{const answer=await fetch('/api/trading-charts/bars?'+new URLSearchParams({symbol:compare,timeframe:'1Day',connection:model.connectionKey}),{credentials:'include'});closes=answer.ok&&typeof PortfolioSeries!=='undefined'?PortfolioSeries.closesOf(await answer.json()):null;}
+ catch{closes=null;}   // the price read failed: said below, and nothing is drawn for it
+ if(stale(token)||!current()||!target.isConnected)return;
+ if(!closes){paint('Benchmark prices could not be verified. Account values and holdings remain available.',null,DETAIL_COMPARE_BASIS);return;}
+ const matched=rows.filter(r=>closes.has(r.date)),first=matched[0],last=matched.at(-1);
+ if(matched.length<2||!(first.value>0)){paint('At least two matching account observations are needed.',null,DETAIL_COMPARE_BASIS);return;}
+ paint('Matching dates: '+first.date+' \u2013 '+last.date,{accountPct:(last.value/first.value-1)*100,benchmarkPct:(closes.get(last.date)/closes.get(first.date)-1)*100},DETAIL_COMPARE_BASIS);
 }
 const DETAIL_DAYS={'1W':7,'1M':31,'3M':93,'1Y':366,'ALL':3650};
 /** @description Daily closes inside the selected period, newest session last.
@@ -75,7 +132,9 @@ async function loadNativeStockComparison(host,model,stock,compare,period,current
  const target=host.querySelector('[data-details-stock]');if(!target||!stock)return;
  target.innerHTML='<h3>'+esc(stock)+' vs. '+esc(compare)+'</h3><div class="details-empty"><strong>Reading daily prices…</strong></div>';
  try{
-  const read=s=>api('/bars?'+new URLSearchParams({symbol:s,timeframe:'1Day',connection:model.connectionKey}));
+  // Daily prices live at the charts route; there is no /api/trading/bars (api() would ask that address).
+  const read=async s=>{const answer=await fetch('/api/trading-charts/bars?'+new URLSearchParams({symbol:s,timeframe:'1Day',connection:model.connectionKey}),{credentials:'include'}),body=await answer.json().catch(()=>({}));
+   if(!answer.ok)throw Error(body.message||s+' prices could not be read just now.');return body;};
   const [mine,other]=await Promise.all([read(stock),stock===compare?null:read(compare)]);
   if(stale(token)||!current()||host.dataset.stock!==stock)return;
   const days=DETAIL_DAYS[period]||31,a=detailsCloses(mine,stock,days),b=other?detailsCloses(other,compare,days):a;

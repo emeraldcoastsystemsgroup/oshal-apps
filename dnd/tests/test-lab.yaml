@@ -21,6 +21,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | dnd-caption-phone also expects the caption to show narration without Markdown marks (sweep 14).
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register theme-contrast: every text on the table (drawer, status strip, HUD and More menu, dock, banner, My Games) reads at 4.5:1 under all twenty themes, and My Games is opaque (UX audit 2026-11-06, dnd-table FIX-BROKEN).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit: the table's HUD and More menu, My Games' row menu, How to play, My Characters and TV Mode after the 2026-11-06 UX audit.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 0.22.5: register phone-library (lane mobilesweep2).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -299,6 +300,29 @@ cases:
       - runner:node-test
       - dependency:playwright
       - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: phone-library
+    name: My Games starts near the top as a page on a phone
+    purpose: "Guard 0.22.5 (lane mobilesweep2): the real table page with the package's adventure content in a stand-in for Today, no campaigns and no saved characters, at 412x915, 390x844 and 360x780 with touch and at 1440x900. Games opens the same table."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/dnd-phone-library.test.js
+    expected:
+      - On a phone My Games starts within the top 20% of the screen (it was 291 px, 32%), full width, on an opaque page colour instead of the scrim over a black stage.
+      - Start New Campaign is one row and Join with Code, My Characters and How to Play share the next, each a whole 44 px button; nothing scrolls sideways; nothing to tap is under the floating Jarvis button at the end.
+      - The desktop keeps the centred card; opening My Games writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
     sideEffects: none
     isolation:
       mode: none

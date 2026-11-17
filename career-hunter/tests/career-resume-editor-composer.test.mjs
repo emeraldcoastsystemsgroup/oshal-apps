@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1 (Roger, from his phone, 2026-11-14: "in edit and then concierge the screen is putting the text box at the top above the thread"). The shipped tools/career-resume-studio.html with the shipped page frame, in Chromium over a made-up person's fixture at the page's real address, at 412x915 and at 1440x900. The résumé editor's conversation reads as every chat does: the text box and Send are under the thread's newest message, never above the thread; on a phone the sheet begins under Career's bars with its heading in sight, Close the editor is in that heading and not between the thread and the text box, and nothing is behind Career's bottom bar; after Send, when the reply arrives, when a reply arrived while the sheet was closed, and when the window gets shorter (a keyboard that resizes it) the newest message is in view and the text box is still above the bottom bar, while a person who scrolled up to read is left there; on a desktop the thread scrolls inside the editor's column, so the text box stays at its foot and the page itself does not scroll.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: Career's row of pages is one 48 px line on a phone (it was two lines), so the editor sheet between Career's bars is taller and three messages no longer fill it. The case that scrolls up to read first sends three requests and replies, says the thread is longer than its box before scrolling (it waited for a scroll that never came), and the reply that comes while the sheet is closed is the fourth.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -160,24 +161,25 @@ test('phone: a reply that came while the sheet was closed is in view when it ope
   try {
     await page.getByRole('button', { name: 'Edit with AI' }).tap();
     await page.locator('#send').waitFor();
-    for (let n = 1; n <= 2; n++) { await say(); await answer(n); }
+    for (let n = 1; n <= 3; n++) { await say(); await answer(n); }
     await say();
     // The person scrolls up to read, closes the sheet, and the reply comes while it is closed.
+    assert.ok(await page.locator('#log').evaluate((log) => log.scrollHeight > log.clientHeight + 8), 'the thread is longer than its box');
     await page.locator('#log').evaluate((log) => new Promise((done) => { log.addEventListener('scroll', () => done(), { once: true }); log.scrollTop = 0; }));
     await settled(page);
     await page.getByRole('button', { name: 'Close the editor' }).tap();
-    await answer(3, 'attached');
+    await answer(4, 'attached');
     await page.getByRole('button', { name: 'Edit with AI' }).tap();
     await page.locator('#send').waitFor();
     const reopened = await measure(page);
     phoneSheetReads(reopened, 'opened again after a reply came while it was closed');
-    assert.match(reopened.newest.words, /^Made-up reply 3\./);
+    assert.match(reopened.newest.words, /^Made-up reply 4\./);
     // An on-screen keyboard that resizes the window: no height is fixed, so the sheet follows it.
     await page.setViewportSize({ width: 412, height: 520 });
     await page.waitForFunction(() => { const log = document.querySelector('#log'), last = [...log.querySelectorAll('.msg')].pop(); return innerHeight === 520 && last.getBoundingClientRect().bottom <= log.getBoundingClientRect().bottom + 1; });
     const shorter = await measure(page);
     phoneSheetReads(shorter, 'in a window 520 px tall');
-    assert.match(shorter.newest.words, /^Made-up reply 3\./);
+    assert.match(shorter.newest.words, /^Made-up reply 4\./);
     await page.setViewportSize({ width: 412, height: 915 });
     await page.waitForFunction(() => innerHeight === 915);
     await settled(page);

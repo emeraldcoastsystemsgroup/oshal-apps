@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | K4: register chat-no-drone - with no drone registered the operator chat answers a plain no-drone reply (never the raw native executor error), drafts nothing, and the surface keeps it off with the reason.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register battery-unknown: with no drone the header battery bar is empty beside "–%" (sweep 14: it read full and green).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register flight-bar-layout (Land, Return home and Abort ALL stay on screen at 412x915 and at the bottom of the canvas at 1440x900; one exclusive map view; one no-drone empty state; no drone poll with an empty fleet). battery-unknown waits for the canvas empty state.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register phone-first-screen (lane mobilesweep2).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -160,4 +161,27 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: phone-first-screen
+    name: Drone Ops shows the no-drone state near the top on a phone
+    purpose: "Guard 1.4.1 (lane mobilesweep2): the real page in a stand-in for Today over the native no-drone fleet answer, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/drone-phone-first-screen.test.cjs
+    expected:
+      - On a phone the no-drone card starts within the top 30% of the screen (it was 306 px, 33%) and the header is one row with Brief, without the provider pill or the battery.
+      - Land, Return home and Abort ALL stay in the flight bar; nothing scrolls sideways; the desktop keeps the provider pill, the battery and the card in the middle of the map.
+      - Opening Drone Ops writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

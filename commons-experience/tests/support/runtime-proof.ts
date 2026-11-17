@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Load the actual experience package through existing host, authorization and route machinery on an isolated loopback fixture.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify service readiness through actual mounted policy and secret gates.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Provision every component and ordinary authoring role for a fresh synthetic user; verify owner refusals and expiry without touching providers or real memberships.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The bundle requires only public applications, so the doubled private CRM components and their two permission checks are gone; every member is read from its own public manifest and catalog.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,26 +41,8 @@ let directory: string, server: Server, base: string, policy: ApplicationAuthoriz
 let fixtureTime = Date.now();
 const saved = new Map<string, string | undefined>();
 function environment(name: string, value: string) { saved.set(name, process.env[name]); process.env[name] = value; }
-/** Fixture members retain real public catalog bytes and dependency facts, without loading handlers or providers.
- * The private CRM and required child contracts are explicitly doubled; live/private acceptance is a separate check. */
+/** Fixture members retain real public catalog bytes and dependency facts, without loading handlers or providers. */
 function memberContract(name: string): { manifest: Record<string, any>; catalog: Record<string, any> | null } {
-  if (name === 'private-app-1') {
-    const grants = ['app.open', 'crm.me.read', 'crm.contacts.read', 'crm.contacts.create'].map(permission => ({ permission, scope: 'own' }));
-    return { manifest: { name, dependencies: { required: { apps: ['private-app-2', 'intelligent-sales', 'private-app-3'], tools: [], connectors: [] }, optional: { apps: [], tools: [], connectors: [] } } },
-      catalog: { version: 1, resources: { portfolio: { scopes: ['own'] } },
-        permissions: Object.fromEntries(grants.map(({ permission }) => [permission, { resource: 'portfolio', effect: permission.endsWith('.create') ? 'write' : 'read', minimumTier: permission.endsWith('.create') ? 'editor' : 'viewer' }])),
-        roles: { crm_representative: { tier: 'editor', grants } }, bindings: { http: [{ id: 'summary', method: 'GET', path: '/summary', allOf: ['app.open'] }] } } };
-  }
-  if (['private-app-2', 'intelligent-sales', 'private-app-3'].includes(name)) {
-    const dependencies = { required: { apps: name === 'private-app-3' ? ['private-app-2'] : [], tools: [], connectors: [] }, optional: { apps: [], tools: [], connectors: [] } };
-    if (name === 'private-app-2') return { manifest: { name, dependencies }, catalog: null };
-    const role = name === 'intelligent-sales' ? 'sales_manager' : 'administrator', tier = name === 'intelligent-sales' ? 'editor' : 'admin';
-    const permission = name === 'intelligent-sales' ? 'sales.boards.work' : 'formation.update';
-    return { manifest: { name, dependencies }, catalog: { version: 1, resources: { records: { scopes: ['own'] } },
-      permissions: { [permission]: { resource: 'records', effect: 'write', minimumTier: tier } },
-      roles: { [role]: { tier, grants: [{ permission, scope: 'own' }] } },
-      bindings: { http: [{ id: 'owned-write', method: 'POST', path: '/owned', allOf: [permission] }] } } };
-  }
   const file = ['jarvis', 'workflow-studio'].includes(name) ? join(framework, 'swarm-apps', name + '.yaml') : join(original, '..', name, 'oshal-app.yaml');
   const component = yaml.load(readFileSync(file, 'utf8'));
   return { manifest: component, catalog: component.authorization ? yaml.load(readFileSync(join(resolve(file, '..'), component.authorization.catalog), 'utf8')) : null };
@@ -148,7 +131,7 @@ test('exact reviewed experience roles open the actual package, and revocation cl
     assert.deepEqual(access.managementRoles, [], name);
   }
   for (const [app, permission] of [['create', 'project.create'], ['create', 'project.change'], ['create', 'project.export'], ['create', 'project.generate'],
-    ['portrait-studio', 'portrait.create'], ['portrait-studio', 'portrait.email'], ['video', 'studio.generate'], ['video', 'editor.create'], ['video', 'editor.change'], ['video', 'editor.export'], ['little-monsters', 'tutor.execute'], ['intelligent-sales', 'sales.boards.work'], ['private-app-3', 'formation.update']]) {
+    ['portrait-studio', 'portrait.create'], ['portrait-studio', 'portrait.email'], ['video', 'studio.generate'], ['video', 'editor.create'], ['video', 'editor.change'], ['video', 'editor.export'], ['little-monsters', 'tutor.execute']]) {
     assert.equal((await policy.authorize(resident, { app, permission, resourceId: resident.sub })).allowed, true, app + ':' + permission);
     assert.equal((await policy.authorize(resident, { app, permission, resourceId: outsider.sub })).allowed, false, app + ': foreign record');
     assert.equal((await policy.authorize(outsider, { app, permission, resourceId: outsider.sub })).allowed, false, app + ': unassigned actor');

@@ -6,6 +6,8 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register design-standard (the oshal design standard's screen, real Chromium over real routes and SQL) and bring phone-start's first-screen expectations to the blank Letter page.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update design-standard expectations for live RP-PUB-01..07 controls and register rp-pub-features covering RP-PUB-01..08 behaviour and refusals.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: phone-start also proves touch scrolling over the open page, tap-to-select and the Move handle, no preview request for an unrendered revision, and the mouse-only desktop guard.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): document-handoff and workbench-browser ask in the window through the stand-in kernel of scripts/one-chat-window/kernel-window.mjs, and their expectations name what the window proves.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4: register concierge-entries (every concierge entry a person sees in Publishing's own Today and alone, at 1440x900 and 412x915 with touch, on Your publications and on the open publication, opens Publishing's own chat window on screen, closes with its own Close and opens again).
 version: 1
 cases:
   - id: editor-foundation
@@ -104,6 +106,33 @@ cases:
       mode: disposable
       cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
     limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+  - id: concierge-entries
+    name: Every concierge entry opens Publishing's own concierge on screen
+    purpose: >-
+      Roger, 2026-11-17, in production: the concierge entry points of the editors inside Today were broken. Real Chromium
+      over the shipped Today page (scripts/editor-foundation/today-shell.mjs), the real routes and disposable SQL, in
+      Publishing's own Today (/cockpit/?app=publishing-studio&screen=publishing-studio) and with the page alone, at 1440x900
+      and at 412x915 with touch, on Your publications and on the publication pressed open from it. Create's Publishing
+      Studio screen is covered by scripts/editor-foundation/today-concierge.test.mjs.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/publishing-concierge-entries.test.mjs]
+    expected:
+      - Every concierge entry a person can see (Today's bar Concierge, Today's ball, the studio's own Concierge button or tab) is pressed as a person presses it and puts the one chat window on screen with its message box, bound to concierge=publishing-studio&bot=publishing-editor, never Today's own Jarvis.
+      - 'The window''s own Close closes it (on a phone, the Concierge sheet too), and the entry seen first opens it again.'
+      - 'Desktop: in Today the bar''s Concierge is the one entry and the concierge opens beside Your publications as a column; alone, the list''s heading row carries Concierge and an open publication its Concierge tab.'
+      - 'Phone: Your publications carries Concierge in its heading row and an open publication its tool row''s Concierge.'
+      - A turn asked from the list reaches publishing-editor with context.app publishing-studio and no publication; from the open publication it carries its recordId. No page error, nothing leaves the fixture origin.
+      - 'Red on 0.5.3: 0/4 (the bar''s Concierge opened a 0 px window on the list; alone and on a phone the list had no entry).'
+    prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
     installation: never
   - id: model
     name: Closed human/agent model and actual Python parity
@@ -287,6 +316,7 @@ cases:
         - tests/workbench-browser.test.mjs
     expected:
       - Required source assertions pass with genuine declared prerequisites; no skip or fallback.
+      - The concierge is the one chat window; the person's words alone reach publishing-editor with the saved publication at revision 4 on the context, Approve on the window's card runs the held operations and the page shows revision 5 in single view, and on a phone the window's message box is inside the Concierge sheet with nothing wider than the screen.
     prerequisites:
       - runner:node
       - runtime:chromium
@@ -321,6 +351,7 @@ cases:
       - Unchanged saved revisions retain redo, and a delayed refresh cannot replace a newly opened publication.
       - Old handoffs preserve a later historical view, and old approval cards cannot execute from a different document.
       - The embedded chat saves before sending its real request; a full manual batch saves before pending fields continue.
+      - The concierge is the one chat window; each turn carries the person's words alone with the saved revision on the context, the second turn continues the publication's own conversation (doc:publishing-studio:<id>), and a card waiting for one publication leaves the window once another publication opens.
     prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:typst-pinned, fixture:postgres-35689, core:shared-theme-assets]
     sideEffects: fixture-write
     isolation:

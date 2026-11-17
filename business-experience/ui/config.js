@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established display configuration; current catalogs and permissions stay with their owners.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.4: Social's Compose and Workspace are one application; the social card lists surface social-workspace.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.0.5: the federal host and its pipeline card are gone with the private application they mounted; this page lists only applications the manifest requires.
  */
 window.HOMEBASE_PRESETS = {
   "company": {
@@ -140,13 +141,6 @@ window.HOMEBASE_PRESETS = {
         ]
       },
       {
-        "app": "private-app-1",
-        "kicker": "CRM · FEDERAL",
-        "surfaces": [
-          "federal-home"
-        ]
-      },
-      {
         "app": "payroll",
         "kicker": "PAYROLL",
         "surfaces": [
@@ -204,15 +198,6 @@ window.HOMEBASE_PRESETS = {
           "action": {
             "label": "Open AI Office",
             "tool": "tool-presentations-studio"
-          }
-        },
-        {
-          "card": "private-app-1",
-          "title": "Capture pipeline",
-          "kicker": "CRM · FEDERAL",
-          "action": {
-            "label": "Open Federal CRM",
-            "tool": "tool-federal-home"
           }
         },
         "projects",

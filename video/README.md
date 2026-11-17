@@ -1,5 +1,7 @@
 # Video Studio (video) — Open Swarm app package
 
+1.14.3 makes the video editor's Concierge sheet close from the one chat window's own Close on a phone. The editor's Concierge (the tool row's ✦ Concierge) opens a sheet holding the kernel's one Jarvis chat window as Video's concierge (`video-editor`); the window's Close said `editor-concierge:hide` from the pane, which the editor shell hears on a desktop but which never reached it from the sheet, so the sheet stayed over the editor and the next tap landed on the window. The sheet now closes on that event, as AI Office's does. Proven inside the shipped Today page at 412x915 with touch and 1440x900 by `tests/video-one-chat-window.test.mjs` (Test Lab case `one-chat-window`).
+
 1.9.1 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from

@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.13.1: MERGE Vids clip generation into Add media — probe GET /api/vids/jobs?limit=1 and show "Generate a clip…" (prompt, orientation, placement, saved briefs) strictly when a Vids worker is online.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): wire live Stickers, Filters, Speed, Effects, Chroma key, Remove background, Stabilize, Auto captions, Voice, Sound effects and 720p/1080p/4K 30/60fps Export controls in place of planned placeholders while preserving RP-ALL-01 Summarize.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.1 (RP-ALL-01): remove duplicate greyed Summarize planned control from Video's Concierge panel because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work). On a phone the Concierge sheet holds the one Jarvis chat window, whose own Close says editor-concierge:hide from the pane. The editor shell hears that on a desktop, but the sheet sits outside the shell, so the Close left the sheet over the editor and the next tap landed on the window. The sheet now closes on that event too, as AI Office's does.
  */
 import * as timeline from './timeline-model.mjs';
 import {applyMultitrack} from './multitrack-model.mjs';
@@ -180,7 +181,10 @@ export async function bindVideoFoundation(adapter){
  function adjust(){if(wide()){root.querySelector('.ef-inspector')?.scrollIntoView({block:'nearest'});root.querySelector('.ef-inspector [data-editor-property]')?.focus({preventScroll:true});return;}return sheet('Adjust',[root.querySelector('.ef-inspector')]);}
  async function openConcierge(){
   if(wide()){if(root.dataset.editorConcierge==='open')root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide'));else foundation.showPanel('ai');return;}
-  await sheet('Concierge',[assistant.element]);assistant.element.querySelector('textarea')?.focus({preventScroll:true});
+  // The phone's Concierge sheet holds the one chat window, and the window's own Close closes the sheet too: it says
+  // editor-concierge:hide from the pane, which the editor shell hears on a desktop but which never reaches it from here.
+  const layer=layers.create('Concierge','ds-sheet');layer.dialog.addEventListener('editor-concierge:hide',()=>void layers.close(layer.dialog));
+  await layers.open(layer,{nodes:[assistant.element]});assistant.element.querySelector('textarea')?.focus({preventScroll:true});
  }
  async function openExport(){
   if(adapter.dirty()&&adapter.editable())await adapter.save();

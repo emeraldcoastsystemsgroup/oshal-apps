@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The master record (1.51.0, Roger 2026-11-09: "give me every bullet and skill with the addendum history"). One read of everything Career keeps for a person: every role with its numbered bullets, skills and stories, skills by group, additional experience, education and certifications, evidence, the dated history of what was added with the person's own words, Strengthen answers and snapshot dates, and the documents kept outside Career. It is rendered once as Markdown (the page's Download) and served to the concierge as pages of at most 12 KB that together are that Markdown. It reads only the caller's own folder: no write, no engine run, no model. A link or an oversized file is refused, never followed. Career's private writing notes (framing notes, gaps to collect, locked facts) stay on screen and out of the Markdown until Roger decides (plan section 5, question 3).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 4, 11, 12, 13 and 14: one name for each page and for each role. What a person reads names the pages as they are now called: other experience, the answers on Improve it, and Saved from My résumé. Words only; what is read and how is unchanged.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.55.0: the page is named Improve my résumé. "Improve it" says nothing where the name stands alone (the workspace group's toolbar, the cockpit's main menu, a sentence that sends a person there); the line about answers that could not be read says the whole name.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4: a client engagement's line also carries what Work history now writes on it: its start and end month, the job it was done under (by that job's id) and every bullet, so Download my data still holds everything saved.
  */
 'use strict';
 const crypto = require('node:crypto');
@@ -156,12 +157,24 @@ const qualificationLine = lineOf((e) => {
   return head ? join([head + (span ? ` (${span})` : ''), text(e.note)], '. ') : '';
 });
 
-const projectLine = lineOf((p) => {
-  const months = text(p.duration_months);
-  const head = join([text(p.project), join([text(p.role), text(p.industry), months && `${months} months`], ' · ')], ' — ');
-  return head ? join([head, texts(p.tech).length ? `Technology: ${texts(p.tech).join(', ')}` : '',
-    p.public === false ? '(marked not public)' : ''], '. ') : '';
-});
+/**
+ * One client engagement as a line: its name, role, industry, months or length, the job it was done under (1.68.4 links
+ * it by that job's id), its technology and every bullet written on Work history, so the record misses nothing saved.
+ */
+function projectLineOf(raw) {
+  const roles = list(raw.roles).map(record);
+  const jobOf = (id) => {
+    const role = text(id) && roles.find((r) => text(r.id) === text(id));
+    return role ? join([text(role.title), text(role.org) || text(role.employer)], ' at ') : '';
+  };
+  return lineOf((p) => {
+    const months = text(p.duration_months), span = join([text(p.start), text(p.end)], '–'), job = jobOf(p.job);
+    const head = join([text(p.project), join([text(p.role), text(p.industry), span, months && `${months} months`], ' · ')], ' — ');
+    return head ? join([head, job && `Done under ${job}`, texts(p.tech).length ? `Technology: ${texts(p.tech).join(', ')}` : '',
+      texts(p.bullets).length ? `What was done: ${texts(p.bullets).join(' • ')}` : '',
+      p.public === false ? '(marked not public)' : ''], '. ') : '';
+  });
+}
 
 const speakingLine = lineOf((s) => {
   const head = join([text(s.event), join([text(s.topic), text(s.location), text(s.year)], ' · ')], ' — ');
@@ -178,7 +191,7 @@ const employerLine = lineOf((e) => {
 function evidenceOf(raw) {
   return {
     metrics: list(raw.metrics_bank).map(lineOf(() => '')).filter(Boolean),
-    projects: list(raw.project_ledger).map(projectLine).filter(Boolean),
+    projects: list(raw.project_ledger).map(projectLineOf(raw)).filter(Boolean),
     accounts: Object.entries(record(raw.named_accounts)).map(([group, items]) => ({ group: human(group), items: texts(items) })),
     speaking: list(raw.speaking).map(speakingLine).filter(Boolean),
     employers: list(raw.employers).map(employerLine).filter(Boolean),

@@ -37,6 +37,13 @@
       form is valid (it sent empty fields and the route answered 400); 'imports never arm spend' is a
       plain line, not a pill; the page's own Refresh is gone (the shell's Reload sits directly above).
   6 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.9: page title and campaign product placeholder name Open Swarm.
+  7 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.10 (lane mobilesweep1, the phone first-screen sweep of
+      2026-11-16): on a phone the campaign list started 362 px down (40%) under the page's title, a two-line
+      tagline, the New campaign / Import row with "Imports never arm spend.", a chip row and a search row. Shaped
+      like a campaigns app (Mailchimp, HubSpot on a phone): Today's bar names the page, so the title and tagline
+      step aside; the Board's controls are two rows: search, Import (its icon) and + New, then the four status
+      chips; "Imports never arm spend." is the desktop's note. The list starts at 176 px (19%).
+      The desktop is unchanged. Presentation only (CSS in the 760 px phone block).
 -->
 <!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
      surface approves, publishes, and spends. Nothing goes out without an explicit
@@ -437,6 +444,22 @@
     .row-more-cue { display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:34px; }
     table.board tr.detail-row.show, table.board tr.detail-row.show > td { display:block; width:100%; border:0; padding:10px 0 0; background:transparent; }
     .toast { bottom:74px; }
+    /* 0.5.10 (lane mobilesweep1): the campaign list right under the Board's controls on a phone. Today's bar names the
+       page, so the title and tagline step aside; search, Import (its icon; the button still says Import to assistive
+       technology) and + New (it still says New campaign) share the first row, the four status chips the second. */
+    .head { display:none; }
+    #pane-board.on { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; grid-template-areas:"search import new" "chips chips chips" "list list list"; gap:10px 8px; align-items:center; }
+    #pane-board > .rowline { display:contents; }
+    #pane-board > .rowline > span:not(.chips) { display:none; }
+    #campSearch { grid-area:search; min-width:0 !important; max-width:none !important; width:100%; box-sizing:border-box; }
+    #importBtn { grid-area:import; width:44px; padding:0; justify-content:center; font-size:0; gap:0; }
+    #importBtn svg { width:18px; height:18px; }
+    #newCampBtn { grid-area:new; font-size:0; gap:6px; }
+    #newCampBtn::after { content:"New"; font-size:13px; }
+    #campStatusChips { grid-area:chips; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; min-width:0; }
+    #campStatusChips::-webkit-scrollbar { display:none; }
+    #campStatusChips .chip { flex:none; }
+    #campList { grid-area:list; margin-top:4px; }
   }
   @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
 </style>

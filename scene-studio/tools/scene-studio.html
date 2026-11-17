@@ -18,6 +18,7 @@
   SEQ | AUTHOR                                  | DESCRIPTION
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 editor contract and bottom-sheet responsive chrome.
+  2   | maintainer@emeraldcoastsystemsgroup.com | 0.4.5 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the type cards started 280 px down a 915 px phone, 31%, under the execution note and New's one-line prompt): on a phone the first screen's cards come first and the execution note follows them; the prompt under New steps aside. A project keeps the note at the top; the desktop is unchanged.
 -->
 
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
@@ -183,6 +184,10 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
  .scene-foundation .scene-stage {min-height:52dvh}
  .scene-views [role=tab] {padding:8px 10px}
  .scene-sheet {margin:auto 0 0;width:100%;max-width:none;border-radius:14px 14px 0 0}
+ /* 0.4.5, the phone first screen: on the first screen the type cards (or the projects) come first; the execution note
+    follows them, and the one-line prompt under New steps aside. A project keeps the note at the top. */
+ .scene-foundation .scene-viewport:has(> #home:not([hidden])) > #execution-access {order:1}
+ .scene-foundation #home-types > p.muted {display:none}
 }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />

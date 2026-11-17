@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register description (sweep 11): the manifest, catalog and README describe an inbound virtual printer that cannot print to a printer.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): register printed-collect (POST /printed/collect over the real compiled router and a stand-in kernel queue) and printed-row (the page's printed row and its collect-then-list start).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register phone-first-screen (lane mobilesweep2).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -129,4 +130,27 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: phone-first-screen
+    name: Print Inbox shows its list near the top on a phone
+    purpose: "Guard 0.4.1 (lane mobilesweep2): the real inbox in a stand-in for Today with no documents and the printed-documents collect refused (its note shows), at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/print-phone-first-screen.test.cjs
+    expected:
+      - On a phone the list starts within the top 30% of the screen (it was 264 px, 29%) and the one-line explanation is not drawn; the note and both tabs still show.
+      - Nothing scrolls sideways and nothing to tap is under the floating Jarvis button at the end; the desktop keeps the explanation.
+      - The only write on open is taking printed documents in (refused in the fixture); no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

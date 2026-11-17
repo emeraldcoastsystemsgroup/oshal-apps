@@ -18,6 +18,7 @@
  * ---------------------------------------------------------------------------
  * (1.0 to 1.3.6: the Uber Eats provider helper, the curated catalog, the menu-priced cart and the confirmation-gated
  * deep link; see git history.)
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: the allergy guard lives in the tools, not only in the page's chat. Before, only POST /chat held back a restaurant that names an allergen the diner avoids; the restaurant search (the search-restaurants tool that the Eats concierge and Jarvis's hand-off to Eats call, and the page's Find) and the Uber Eats hand-off (open-uber-eats) went without it. Now GET and POST /search hold back by the saved allergies (remembered notes and the profile's diet) plus any the caller names for this search (avoid) and say what they held (allergy.restrictions, allergy.heldBack); POST /order refuses a held restaurant with 409 allergy_conflict and records nothing; POST /notes keeps a note the person stated (the chat's rule: the note must be grounded in the person's words), so an allergy said in the one chat window is saved for the next search. Guard: tests/eats-allergy-tools.test.js.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: a diner's first POST /profile failed with "NOT NULL constraint failed": the insert sent NULL for dietary and favorite_cuisines (NOT NULL, default '{}'), so the first saved delivery address (or Use location) never stuck and every open came up with the address empty (UX audit 2026-11-06). The proposed row always carries lists (NOT NULL is checked before ON CONFLICT, so a second save failed the same way); the update keeps the saved lists unless the body names new ones. Guard: tests/eats-address-saved.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (./place-cache, migration 041). Address resolutions, searches and restaurant cards are saved per person for Google's 30-day limit; a saved search younger than a day is served without asking Google, Refresh asks again, and at Google's quota (or with Google unreachable) the saved answer within 30 days is served with its saved time and the reason. The search is a POST (the page, the chat and the Jarvis tool), because the native kernel admits no write on a GET; GET /search still answers, reading the cache but never writing it. Guards: tests/eats-routes.test.js (the cache cases), tests/eats-place-cache.test.js.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: coordinates (Use location, sent as lat/lng or as the "lat, lng" address text) resolve through the Geocoding API's reverse lookup instead of a Places text search, which refuses them live. Guard: tests/eats-routes.test.js (the coordinates case), tests/places-client.test.js.
@@ -646,6 +647,9 @@ function createEatsRoutes(ctx) {
     router.get('/config', diner(async (_req, res) => {
         res.json({ rail: 'places', source: places_1.SOURCE, connector: places_1.CONNECTOR, handoff: 'uber-eats', uberConnected: false, railNote: exports.EATS_RAIL_NOTE });
     }));
+    // The allergies one call holds by: the saved ones (remembered notes, the profile's diet) plus any the caller names for
+    // this call (the search words, the tool's avoid input). Every caller of the search and the hand-off gets the same check.
+    const callerGuard = async (sub, profile, said, candidates) => allergyGuard(said.map((s) => String(s || '').slice(0, 400)).join('\n'), await store.loadNotes(sub), profile, candidates);
     // ── Restaurants (Google Places around the delivery address, cache first) ──
     // POST is what the page, the chat and the Jarvis tool use: it may save what Google answered. GET still answers,
     // reading the cache, because the native kernel admits no write on a GET.
@@ -654,13 +658,16 @@ function createEatsRoutes(ctx) {
         const q = String(input.q || input.query || '').trim().slice(0, 200);
         const ask = { limit: limitOf(input.limit, 12), openNow: String(input.openNow || '') === 'true' || input.openNow === true, refresh: String(input.refresh || '') === 'true' || input.refresh === true, canWrite: req.method !== 'GET' };
         try {
-            const place = await resolvePlace(fetchImpl, pool, sub, { address: input.address, latitude: input.lat, longitude: input.lng }, await loadProfile(pool, sub), ask.canWrite);
+            const profile = await loadProfile(pool, sub);
+            const place = await resolvePlace(fetchImpl, pool, sub, { address: input.address, latitude: input.lat, longitude: input.lng }, profile, ask.canWrite);
             if (!place) {
                 res.status(400).json({ error: 'address_required', message: exports.ADDRESS_REQUIRED });
                 return;
             }
             const found = await searchCached(fetchImpl, pool, sub, q, place, ask);
-            res.json({ source: places_1.SOURCE, place, query: q, items: found.restaurants.map(card(place)), feedUrl: (0, uber_link_1.feedLink)(place), uberSearchUrl: (0, uber_link_1.searchLink)(q || 'food', place), ...servedFields(found) });
+            const allergy = await callerGuard(sub, profile, [q, input.avoid], found.restaurants);
+            res.json({ source: places_1.SOURCE, place, query: q, items: allergy.safe.map(card(place)), allergy: { restrictions: allergy.restrictions.map((r) => r.label), heldBack: allergy.held },
+                feedUrl: (0, uber_link_1.feedLink)(place), uberSearchUrl: (0, uber_link_1.searchLink)(q || 'food', place), ...servedFields(found) });
         }
         catch (err) {
             answerPlacesError(res, err, 'search');
@@ -702,13 +709,20 @@ function createEatsRoutes(ctx) {
             return;
         }
         try {
-            const place = await resolvePlace(fetchImpl, pool, sub, { address: b.address, latitude: b.lat, longitude: b.lng }, await loadProfile(pool, sub), true);
+            const profile = await loadProfile(pool, sub);
+            const place = await resolvePlace(fetchImpl, pool, sub, { address: b.address, latitude: b.lat, longitude: b.lng }, profile, true);
             if (!place) {
                 res.status(400).json({ error: 'address_required', message: exports.ADDRESS_REQUIRED });
                 return;
             }
             const known = RESTAURANT_CACHE.get(placeId) || await (0, place_cache_1.readPlace)(pool, sub, placeId);
             const name = known ? known.name : (await (0, places_1.placeDetails)(fetchImpl, placeId)).name;
+            const { held } = await callerGuard(sub, profile, [b.avoid], [{ ...(known || {}), name, cuisine: known ? known.cuisine : '' }]);
+            if (held.length) {
+                res.status(409).json({ error: 'allergy_conflict', store: name, placeId, heldBack: held,
+                    message: `${name} is held back because its name points to food that usually contains ${held[0].contains}, which you avoid. Choose another place.` });
+                return;
+            }
             const checkoutUrl = (0, uber_link_1.searchLink)(name, place);
             await pool.query(`INSERT INTO eats_orders (user_sub, store_id, store_name, items, total, handoff_url) VALUES ($1,$2,$3,'[]'::jsonb,NULL,$4)`, [sub, placeId, name, checkoutUrl]);
             res.json({ checkoutUrl, store: name, placeId, address: place.address, note: exports.HANDOFF_NOTE });
@@ -728,6 +742,19 @@ function createEatsRoutes(ctx) {
     // ── Profile ────────────────────────────────────────────────────────────────
     router.get('/profile', diner(async (_req, res, sub) => {
         res.json({ profile: await loadProfile(pool, sub), remembered: (0, remembered_notes_1.rememberedList)(await store.loadNotes(sub, 100)) });
+    }));
+    // Keep a note the person stated (an allergy, a diet, a favourite). Body: { note, said }: said is the person's own words,
+    // and the note is kept only when they state it, the rule the chat applies to its concierge's remember list.
+    router.post('/notes', diner(async (req, res, sub) => {
+        const note = String(req.body?.note || '').trim(), said = String(req.body?.said || '').trim();
+        if (!note || note.length > 200 || !said || said.length > 2000) {
+            res.status(400).json({ error: 'note_and_said_required', message: 'Name the note (200 characters at most) and the words the person said.' });
+            return;
+        }
+        const remembered = newNotes(statedNotes([note], said), await store.loadNotes(sub));
+        for (const kept of remembered)
+            await store.saveNote(sub, kept);
+        res.json({ remembered });
     }));
     // Forget one remembered note, every saved copy of it. Body: { note }.
     router.post('/notes/forget', diner(async (req, res, sub) => {

@@ -111,6 +111,7 @@
     "finance|routes/finance-routes.js|createFinanceRoutes|/api/finance|oidc|machine-write",
     "finance|routes/home-summary.js|createHomeSummaryRoutes|/api/finance/home-summary|oidc|no-sql-write",
     "finance|routes/package-smoke.js|createPackageSmokeRoutes|/api/finance/_smoke|service|no-sql-write",
+    "futures-research|routes/futures-research-routes.js|createFuturesResearchRoutes|/api/futures-research|oidc|no-sql-write",
     "futures-research|routes/package-smoke.js|createPackageSmokeRoutes|/api/futures-research/_smoke|service|no-sql-write",
     "game-show|routes/game-show-routes.js|createGameShowRoutes|/api/game-show|oidc|no-sql-write",
     "game-show|routes/home-summary.js|createHomeSummaryRoutes|/api/game-show/home-summary|oidc|no-sql-write",

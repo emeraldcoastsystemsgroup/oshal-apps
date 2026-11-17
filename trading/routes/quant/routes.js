@@ -1,4 +1,7 @@
 /** CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: a desk pass starts its 12-second budget before the reference refresh, so the refresh's read (itself bounded to 1.5 s) counts against the pass instead of adding to it.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: the quant's reference data (the Treasury bill rate, the Fama-French factors) is refreshed here, in the desk's own passes (run, and the nightly tick when the desk is on), one stale source per pass inside a hard 1.5-second budget; the lab's interactive routes read only the cached copy. The production router alone supplies the network.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The quant lab's routes (explain, calculate, stock, portfolio, pair, simulate, overfitting) join this router under /lab, so the quant's tools need no manifest route, schedule or authority change. Research only.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Save an owner-scoped daily Quant strategy proposal for review without any live execution, assignment or approval.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The brief carries tonight's quality-dip candidates and can be asked for any ranking (by=quality-dip and the other forward signals included), naming the forward verdict where no history test exists, so the concierge answers a dip question from the one tool it already has.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time, filtered by industry, theme or search and ranked by any signal, and a name left off the list says why. The status read no longer loads the whole list.
@@ -10,6 +13,8 @@ const desk = require('./desk');
 const store = require('./store');
 const { explain } = require('./rank');
 const { screenPage, briefPage, knownRanking, whyNotListed } = require('./view');
+const { registerQuantLabRoutes } = require('./lab-routes');
+const { refreshReferences } = require('./lab-reference');
 
 /** The package's person schedule the page activates once the person turns the desk on. */
 const QUANT_SCHEDULE = Object.freeze({ app: 'intelligent-trades', name: 'quant-desk', route: '/api/trading/quant/tick' });
@@ -92,6 +97,30 @@ function briefHistory(history) {
 }
 
 /**
+ * @description One out-of-band reference refresh for a desk pass (bounded inside the reference module); its own failure
+ * never stops the pass.
+ * @param {object} deps - Pass dependencies (fetch only on the production router).
+ * @param {string} sub - Owner.
+ * @returns {Promise<object>} What it refreshed, or why not.
+ */
+async function refreshStep(deps, sub) {
+  try { return await refreshReferences(deps, sub); } catch (err) { return { refreshed: null, reason: String((err && err.message) || err).slice(0, 160) }; }
+}
+
+/**
+ * @description One desk pass inside one 12-second budget: the reference refresh first (bounded, never blocking the pass),
+ * then the desk's own work until the same deadline.
+ * @param {object} deps - Pass dependencies.
+ * @param {string} sub - Owner.
+ * @returns {Promise<{status:number, body:object}>} The pass's answer with what the refresh did.
+ */
+async function deskPass(deps, sub) {
+  const deadline = deps.time() + desk.PASS_BUDGET_MS;
+  const reference = await refreshStep(deps, sub);
+  return { status: 200, body: { ok: true, ...await desk.runPass(deps, sub, deadline), reference } };
+}
+
+/**
  * @description The route handlers as plain functions of (req) to {status, body}, so the router and the tests share them.
  * @param {object} ctx - Route context (pool, intent).
  * @param {object} [overrides] - Test seams for time and SEC reads.
@@ -132,7 +161,7 @@ function quantHandlers(ctx, overrides = {}) {
       await store.putRecord(pool(), sub, 'settings', 'current', { enabled });
       return { status: 200, body: { ok: true, enabled, schedule: QUANT_SCHEDULE } };
     },
-    async run(sub) { return { status: 200, body: { ok: true, ...await desk.runPass(deps(), sub) } }; },
+    async run(sub) { return deskPass(deps(), sub); },
     async strategyReview(sub,req) {
       if(Object.keys(req.body||{}).length)return{status:400,body:{error:'invalid_review_input',message:'The review reads your admitted accounts and stored Quant snapshot; it accepts no caller-supplied account, owner or order.'}};
       return{status:200,body:await require('./strategy-review').createReview(ctx,sub,new Date(deps().time()))};
@@ -143,7 +172,7 @@ function quantHandlers(ctx, overrides = {}) {
     },
     async tick(sub) {
       if ((await settingsOf(sub)).enabled !== true) return { status: 200, body: { ok: true, status: 'off' } };
-      return { status: 200, body: { ok: true, ...await desk.runPass(deps(), sub) } };
+      return deskPass(deps(), sub);
     },
   };
 }
@@ -179,7 +208,8 @@ function route(name, handler) {
  */
 function createTradingQuantRoutes(ctx, makeRouter, overrides) {
   const router = (makeRouter || (() => require('express').Router()))();
-  const h = quantHandlers(ctx, overrides);
+  // Only the production router reaches the network, and only from the desk's own passes.
+  const h = quantHandlers(ctx, { fetch: (url, init) => fetch(url, init), ...(overrides || {}) });
   router.get('/status', route('status', h.status));
   router.get('/today', route('today', h.today));
   router.get('/symbol/:symbol', route('symbol', h.symbol));
@@ -189,6 +219,7 @@ function createTradingQuantRoutes(ctx, makeRouter, overrides) {
   router.post('/strategy-review', route('strategy-review', h.strategyReview));
   router.get('/strategy-review', route('saved-strategy-review', h.savedStrategyReview));
   router.post('/tick', route('tick', h.tick));
+  registerQuantLabRoutes(router, ctx, logger, overrides);
   return router;
 }
 

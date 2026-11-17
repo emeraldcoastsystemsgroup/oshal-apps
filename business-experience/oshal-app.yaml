@@ -9,10 +9,11 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The Business screen's concierge is the required member email-summarizer's communications-bot (imported under dependencies.required.bots), which reads the person's own mail and calendar - the schedule this page leads with - instead of the platform general-bot, which had no Business data and answered "As an AI, I don't have access". Guarded by scripts/check-store-bots.test.mjs.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.0.4: Social's Compose and Workspace are one application (social 1.7.0); the Business screen's social card mounts surface social-workspace, which opens on Compose and carries the company audience view.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.0.5: requires and maps only applications the public catalog or the kernel platform ships. 1.0.4 required four applications that live only in the private store and mapped their roles in all three templates and mounted its federal surface, so a kernel with the required-member check (crates/packages/src/loader/local.rs check_dependencies) refused this experience on every installation without the private store (the trial, 2026-11-16). Those four roles move to the private store's own Federal experience, which an installation that carries the private store assigns separately. Templates staff, manager and specialist are version 4: an assignment of version 3 grants less than was approved, so the kernel holds it for an administrator's review instead of carrying it over. Guard: scripts/app-dependency-declarations.test.mjs.
 name: business-experience
 displayName: Business
 description: Your schedule, projects, documents and explicitly connected business applications.
-version: 1.0.4
+version: 1.0.5
 status: active
 suite: ai-productivity
 rating:
@@ -47,14 +48,10 @@ dependencies:
       - calling-assistant
       - marketing-engine
       - venture-plan
-      - private-app-1
       - payroll
       - payments
       - identity
       - cad-studio
-      - private-app-2
-      - intelligent-sales
-      - private-app-3
     bots: [{ app: email-summarizer, name: communications-bot }]   # the screen's concierge (chatBot)
     tools: []
     connectors: []
@@ -126,9 +123,6 @@ experience:
     - app: venture-plan
       surface: venture-home
       audience: company
-    - app: private-app-1
-      surface: federal-home
-      audience: company
     - app: payroll
       surface: payroll-home
       audience: company
@@ -143,7 +137,7 @@ experience:
       audience: company
   roleTemplates:
     - id: staff
-      version: 3
+      version: 4
       label: Staff
       members:
         - app: business-experience
@@ -168,8 +162,6 @@ experience:
           role: '@app-admin'
         - app: venture-plan
           role: member
-        - app: private-app-1
-          role: crm_representative
         - app: payroll
           role: '@app-admin'
         - app: payments
@@ -178,14 +170,8 @@ experience:
           role: '@app-admin'
         - app: cad-studio
           role: '@app-admin'
-        - app: private-app-2
-          role: '@app-admin'
-        - app: intelligent-sales
-          role: sales_manager
-        - app: private-app-3
-          role: administrator
     - id: manager
-      version: 3
+      version: 4
       label: Manager
       members:
         - app: business-experience
@@ -210,8 +196,6 @@ experience:
           role: '@app-admin'
         - app: venture-plan
           role: member
-        - app: private-app-1
-          role: crm_representative
         - app: payroll
           role: '@app-admin'
         - app: payments
@@ -220,14 +204,8 @@ experience:
           role: '@app-admin'
         - app: cad-studio
           role: '@app-admin'
-        - app: private-app-2
-          role: '@app-admin'
-        - app: intelligent-sales
-          role: sales_manager
-        - app: private-app-3
-          role: administrator
     - id: specialist
-      version: 3
+      version: 4
       label: Specialist
       members:
         - app: business-experience
@@ -252,8 +230,6 @@ experience:
           role: '@app-admin'
         - app: venture-plan
           role: member
-        - app: private-app-1
-          role: crm_representative
         - app: payroll
           role: '@app-admin'
         - app: payments
@@ -262,12 +238,6 @@ experience:
           role: '@app-admin'
         - app: cad-studio
           role: '@app-admin'
-        - app: private-app-2
-          role: '@app-admin'
-        - app: intelligent-sales
-          role: sales_manager
-        - app: private-app-3
-          role: administrator
 routes:
   - module: routes/experience.js
     factory: createExperienceRoutes

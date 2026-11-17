@@ -1,4 +1,4 @@
-/* trading/ui/view-home.js — the first screen of Intelligent Trades (VIEW 'accounts').
+/* trading/ui/view-home.js — the Trading status tab of Intelligent Trades (VIEW 'accounts', sub 'status'; the first screen until 1.58.0).
  *
  * One card per account, drawn by account-story.js from GET /paper/today: is it running or parked and in what, what did it do
  * today, why did the value move, and one next step. The read is saved records only (no broker call, no write), so this screen
@@ -15,6 +15,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: these cards move to their own tab, Trading status (?view=accounts&sub=status), and the Accounts screen opens on the portfolio overview (view-overview.js). The cards, their words and their buttons are unchanged. What the move needed: the two tabs above the headline, the cards built by homeCardsOf so the overview's one-line summary uses the very same cards and headline, and homeBareFact taking the roster's time as an argument.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the screen no longer waits for the roster read (app.js starts it at boot). A later render (Refresh, Discover accounts, coming back from another screen) reads the roster again in the background, as the former landing did on every render, so a newly connected account appears; when that read fails the screen says so in one line and keeps the time of the last roster it did read.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: the Accounts screen answers three questions in plain words from saved records (Roger, 2026-11-12: "its not clear if the trading is really happening or if we are just parked"). First-screen controls go from nine to three: each card's one button, its one link, and the closed broker section. The watchlist stays on Research, and the connected-login list stays in Settings.
  */
@@ -45,7 +46,7 @@ async function homeJobs() {
  * @returns {string} HTML for #main.
  */
 function homeSkeleton() {
-  return '<div id="homeTop"></div><div id="homeCards" data-ds-work></div><p class="foot" id="homeFoot"></p>' +
+  return (typeof accountsTabsHtml === 'function' ? accountsTabsHtml('status') : '') + '<div id="homeTop"></div><div id="homeCards" data-ds-work></div><p class="foot" id="homeFoot"></p>' +
     '<details class="panel story-broker" id="homeBroker"><summary>Balances and holdings, read from your broker now</summary><div id="homeBrokerBody"></div></details>' +
     rosterPanelHtml();
 }
@@ -54,13 +55,31 @@ function homeSkeleton() {
  * @description A connected account the broker lists that has no saved record yet: it gets a card too, with the value the
  *   page read when it opened.
  * @param {object} account - One ACCOUNTS entry.
+ * @param {number|null} [at] - When the roster was read (epoch milliseconds); this tab's own roster time by default.
  * @returns {object} A fact in the shape account-story.js reads.
  */
-function homeBareFact(account) {
+function homeBareFact(account, at = HOME.accountsAt) {
   const identity = { accountId: account.accountId, connectionKey: account.connectionKey };
   return { kind: 'connected', ...identity, label: 'Account ' + (account.accountMasked || ''), strategy: null, status: { account: { ...identity, strategyId: null }, watch: null },
     monitor: null, plan: null, holdings: null, today: null, value: null,
-    live: { equity: account.equity, at: HOME.accountsAt ? new Date(HOME.accountsAt).toISOString() : null } };
+    live: { equity: account.equity, at: at ? new Date(at).toISOString() : null } };
+}
+
+/**
+ * @description Every card from a saved-record read: saved connected accounts first, then connected accounts the roster lists
+ *   with no saved record, then paper accounts. The Trading status tab draws them and the overview counts them for its one line,
+ *   so the two say the same thing.
+ * @param {object} today - GET /paper/today.
+ * @param {{watcher:object|null, paperJob:object|null}} jobs - The two job rows.
+ * @param {number|null} accountsAt - When the roster was read (epoch milliseconds).
+ * @returns {{cards:Array<object>, options:object}} The cards and the options they were made with.
+ */
+function homeCardsOf(today, jobs, accountsAt) {
+  const options = { now: Date.now(), latestSession: today.latestCompletedSession, marketOpen: today.marketOpen, watcher: jobs.watcher, paperJob: jobs.paperJob };
+  const known = new Set(today.connected.map((f) => f.connectionKey + '|' + f.accountId));
+  const bare = ACCOUNTS.filter((a) => a.nativeReadOnly && a.accountId && !known.has(a.connectionKey + '|' + a.accountId)).map((a) => homeBareFact(a, accountsAt));
+  const cards = [...today.connected, ...bare].map((f) => AccountStory.connected(f, options)).concat(today.paper.map((f) => AccountStory.paper(f, options)));
+  return { cards, options };
 }
 
 /**
@@ -71,10 +90,8 @@ function homeBareFact(account) {
 function homePaint() {
   const top = $('homeTop'), host = $('homeCards'), today = HOME.today;
   if (!top || !host || !today) return;
-  const options = { now: Date.now(), latestSession: today.latestCompletedSession, marketOpen: today.marketOpen, watcher: HOME.jobs.watcher, paperJob: HOME.jobs.paperJob };
-  const known = new Set(today.connected.map((f) => f.connectionKey + '|' + f.accountId));
-  const bare = ACCOUNTS.filter((a) => a.nativeReadOnly && a.accountId && !known.has(a.connectionKey + '|' + a.accountId)).map(homeBareFact);
-  HOME.cards = [...today.connected, ...bare].map((f) => AccountStory.connected(f, options)).concat(today.paper.map((f) => AccountStory.paper(f, options)));
+  const { cards, options } = homeCardsOf(today, HOME.jobs, HOME.accountsAt);
+  HOME.cards = cards;
   top.innerHTML = AccountStory.headlineHtml(AccountStory.headline(HOME.cards, options));
   host.innerHTML = HOME.cards.map((card) => AccountStory.cardHtml(card, options)).join('');
   const notes = [];
@@ -146,6 +163,7 @@ function homeGo(card, go) {
  * @returns {void}
  */
 function wireHome() {
+  if (typeof wireAccountsTabs === 'function') wireAccountsTabs();
   const host = $('homeCards'), broker = $('homeBroker');
   host.onclick = (e) => {
     const control = e.target.closest('[data-story-next],[data-story-link]');
@@ -183,7 +201,7 @@ async function homeAwaitAccounts(token) {
 }
 
 /**
- * @description VIEW 'accounts', first screen. Reads the saved records, then the job list, and paints. A bookmark that names
+ * @description VIEW 'accounts', the Trading status tab. Reads the saved records, then the job list, and paints. A bookmark that names
  *   an account, a page without the story module, or a read that fails is left to the former landing (answers false).
  * @param {number} token - RENDER_TOKEN at dispatch time.
  * @returns {Promise<boolean>} true when this screen took the render.

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Ambient Recall browser controller reading /api/jarvis/ambient/person/{projection,recall,asks,people,trends} with graceful empty-state and pre-promotion 404 handling.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add Continuous Profile Learning & Eavesdrop Business Cards controller (/api/person-model/profile-cards, /api/person-model/recall) merged with ambient person endpoints.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5 (lane mobilesweep1): opening a tab keeps it on screen in the phone's one sideways-scrolling tab row.
  */
 
 window.__OSHAL_SCREEN_CONTRACT__ = {
@@ -63,6 +64,8 @@ function noteFor(err) {
 
 function showTab(name, opts = {}) {
   document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  // On a phone the tabs are one row that scrolls sideways: keep the open tab on screen (a ?tab= link may open a later one).
+  document.querySelector(`.tabs [data-tab="${name}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== name; });
   const url = new URL(location.href);
   url.searchParams.set('tab', name);

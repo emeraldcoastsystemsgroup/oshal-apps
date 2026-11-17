@@ -1,5 +1,8 @@
 /**
  * CHANGE LOG
+ * 39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "the popup says that there is no information about the job", Torch Technologies on My jobs): POST /jobs/:id/details (lib/career-job-details.js) reads a job's missing description through the kernel's egress at the address the engine's readers use and keeps it as the person's copy; GET /jobs/:id?details=read reads it for that one view when the job has none, for the sheet while Career is preparing the person's applications and cannot keep it (a read keeps nothing), and says why in details_read when it cannot. A plain GET /jobs/:id reads nothing, as before. Guard: tests/career-job-details.test.mjs.
+ * 38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): POST /jobs/:id/generate hands experienceChosen (true only when Prepare application or bulk Prepare sends it, after the person saw the Other experience boxes) to the draft writer, which keeps the choice on the job's tailoring and as the person's last choice. Nothing else in the route changed. Guard: tests/career-prepare-other-experience-route.test.mjs.
+ * 37 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): GET /jobs answers `home` (the person's saved Matching area as the page shows it: known, label, radiusMiles, line, settingsUrl) and refuses a distance filter or sort it cannot honour with 400 and the closed code (home_location_required, invalid_within, places_unavailable) plus `home`; GET /jobs/:id carries the same place fields as every card (location, workplaceType, lat, lon, distanceMiles). An unreadable Matching area gives a job detail without distance, never a failed read.
  * 36 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount and tracked-application age fields (asOfDate, daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /jobs and GET /jobs/:id.
  * 35 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15 on the test server, 2026-11-15: the Concierge, asked to draft a job the nightly pass had not marked, said "The draft stopped … the job details are unavailable" and never where to paste them): GET /jobs/:id carries details_needed, the words "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js notice), when the job has no description and the nightly pass marked it or its last preparation stopped for missing details (job_details_unavailable or job_context_unavailable). career_job is what the Concierge and Jarvis read after career_draft, so their reply carries the words; the application page decides the same. The generate route, its refusal and when the engine tries the employer page are unchanged. Guard: tests/career-paste-details-unmarked.test.mjs.
  * 34 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): POST /jobs/:id/generate takes jobDescription, the description the person pasted from the posting (200 to 20,000 characters, lib/career-pasted-details.js), and hands it to the engine as CH_JOB_DESCRIPTION; it is never logged. A job the nightly pass marked "details needed" that still has no description is refused before the engine starts (409 job_details_needed) with words that say to paste it in Prepare application, step 1 · Tailor; the page, the Concierge and Jarvis's career_draft all start preparation here.
@@ -71,6 +74,8 @@ const fit = require('../lib/career-fit');
 const emailUpdates = require('../lib/career-email-updates');
 const pastedDetails = require('../lib/career-pasted-details');
 const companySent = require('../lib/career-company-sent');
+const place = require('../lib/career-job-place');
+const jobDetails = require('../lib/career-job-details');
 
 const logger = createChildLogger({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
@@ -88,13 +93,15 @@ async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<vo
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const db = openUserDb(userSub);
-  if (!db) { res.json({ jobs: [], empty: true, asOfDate: companySent.asOfDateString() }); return; }
+  if (!db) { res.json({ jobs: [], empty: true, asOfDate: companySent.asOfDateString(), home: place.homeView(homeOrNone(userSub)) }); return; }
   const started = Date.now();
+  let scope: ReturnType<typeof readJobSearchScope> = null;
   try {
     const query=await matchedBoardQuery(ctx,userSub,req.query as Record<string,unknown>);
     const state = boardState.readBoardState(userPaths(userSub).userDir);
     const currentQueue=Object.entries(state.jobs).filter(([,value])=>(value as {favorite?:boolean,workflowEnteredAt?:string,applicationDraft?:unknown}).favorite||(value as {workflowEnteredAt?:string}).workflowEnteredAt||(value as {applicationDraft?:unknown}).applicationDraft).map(([id])=>Number(id));
-    const result = fetchBoardPage(db, query, readJobSearchScope(userPaths(userSub).userDir),
+    scope = readJobSearchScope(userPaths(userSub).userDir);
+    const result = fetchBoardPage(db, query, scope,
       query.status === 'saved' ? boardState.favoriteIds(state,db) : query.status==='queue'&&query.current==='1'?currentQueue:undefined, feedback.read(userPaths(userSub).userDir), boardState.favoriteIds(state,db));
     const emails = emailUpdates.read(userPaths(userSub).userDir), nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
     result.jobs = result.jobs.map(job => companySent.decorateJobSentAndAge(workflowRoutes.decorate(db,userPaths(userSub).userDir,emailUpdates.decorate(emails, boardState.decorateJob(state, job))), sentCounts, nowMs));
@@ -107,9 +114,10 @@ async function getJobs(ctx: AppContext, req: Request, res: Response): Promise<vo
       poolSize: result.poolSize,
       ms: Date.now() - started,
     }, 'career board feed served');
-    res.json({...result, asOfDate:companySent.asOfDateString(nowMs), exclusions:feedback.read(userPaths(userSub).userDir)});
+    res.json({...result, asOfDate:companySent.asOfDateString(nowMs), exclusions:feedback.read(userPaths(userSub).userDir), home:place.homeView(scope)});
   } catch (err) {
     if (err instanceof pay.PayRangeError) { const failure=err as {code:string,message:string}; res.status(400).json({error: failure.code, message: failure.message}); return; }
+    if (err instanceof place.PlaceFilterError) { const failure=err as {code:string,message:string}; res.status(400).json({error: failure.code, code: failure.code, message: failure.message, home: place.homeView(scope)}); return; }
     logger.error({ err, userSub, ms: Date.now() - started }, 'career jobs read failed');
     res.status(500).json({ error: 'read failed' });
   } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'career jobs database close failed'); } }
@@ -341,7 +349,12 @@ function parseJsonList(value: unknown): unknown[] {
   catch (err) { logger.warn({ err }, 'career job JSON field is malformed'); return []; }
 }
 
-async function getJob(req: Request, res: Response): Promise<void> {
+/** @description The person's home where a read must not fail for want of it (a job's detail, a person with no store yet): their saved Matching area, or none when it is absent or cannot be read. @param userSub Original owner. @returns The Matching area or null. */
+function homeOrNone(userSub: string): ReturnType<typeof readJobSearchScope> {
+  try { return readJobSearchScope(userPaths(userSub).userDir); }
+  catch (err) { logger.error({ err, userSub }, 'career saved home unreadable; job detail shown without distance'); return null; }
+}
+async function getJob(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const postingId = Number(req.params.id);
@@ -370,10 +383,15 @@ async function getJob(req: Request, res: Response): Promise<void> {
     const application=applicationDraft.view(userPaths(userSub).userDir,postingId,row);
     const nowMs=Date.now(),sentCounts=companySent.companySentCounts(db,nowMs);
     delete row.resume_path;delete row.cover_path;
-    const job=companySent.decorateJobSentAndAge({...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))),application},sentCounts,nowMs);
+    const placed=place.decorate(fit.decorateFit(pay.decoratePay(row)),homeOrNone(userSub));
+    const job=companySent.decorateJobSentAndAge({...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), placed)),application},sentCounts,nowMs);
+    // ?details=read (the posting sheet, while Career cannot keep a copy): a job with no description is read for this view only.
+    const viewRead=req.query.details==='read'&&!/\S/.test(String(job.description??''))?await jobDetails.readForView(ctx,db,postingId):null;
+    const shown=viewRead?.description?{...job,description:viewRead.description,description_context:viewRead.description_context}:job;
     // The words to say when the job cannot be prepared until the person pastes its description.
-    const detailsNeeded=pastedDetails.notice(job);
-    res.json({ job: detailsNeeded?{...job,details_needed:detailsNeeded}:job,
+    const detailsNeeded=pastedDetails.notice(shown);
+    res.json({ job: detailsNeeded?{...shown,details_needed:detailsNeeded}:shown,
+      ...(viewRead&&!viewRead.description?{details_read:{reason:viewRead.reason,why:jobDetails.REASONS[viewRead.reason]}}:{}),
       asOfDate: companySent.asOfDateString(nowMs),
       processing: !!(await nativeRunInProgress()) });
   } catch (err) {
@@ -403,7 +421,7 @@ async function generatePacket(ctx: AppContext, req: Request, res: Response): Pro
     const db=openUserDb(userSub);if(!db){res.status(404).json({error:'Upload a résumé first.'});return;}
     let job,needed=false;try{job=db.prepare('SELECT status,resume_path,cover_path,CASE WHEN resume_path IS NOT NULL AND resume_path<>\'\' THEN 1 ELSE 0 END AS has_resume,CASE WHEN cover_path IS NOT NULL AND cover_path<>\'\' THEN 1 ELSE 0 END AS has_cover FROM user_signals WHERE posting_id=?').get(postingId)||{};needed=!pasted.text&&pastedDetails.needed(db,userPaths(userSub).userDir,postingId);}finally{db.close();}
     if(needed){res.status(409).json({error:pastedDetails.NEEDED,code:'job_details_needed'});return;}
-    applicationDraft.begin(userPaths(userSub).userDir,postingId,job,{revision:req.body?.draftRevision,guidance,experienceIds,experienceRevision:bank.revision},requestId,documents);
+    applicationDraft.begin(userPaths(userSub).userDir,postingId,job,{revision:req.body?.draftRevision,guidance,experienceIds,experienceRevision:bank.revision,experienceChosen:req.body?.experienceChosen===true},requestId,documents);
   }catch(error){res.status((error as {status?:number}).status||503).json({error:(error as Error).message});return;}
   const started = await runCareerCliAsync(ctx.pool, userSub, ['prepare-job'], {
     CH_JOB: String(postingId),
@@ -583,7 +601,8 @@ export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void
   router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
   router.get('/jobs/updates',getJobUpdates);
   router.post('/jobs/updates/check',(req,res)=>checkJobUpdates(ctx,req,res));
-  router.get('/jobs/:id', getJob);
+  router.get('/jobs/:id', (req, res) => { void getJob(ctx, req, res); });
+  jobDetails.register(router, ctx);
   router.post('/jobs/:id/generate', (req, res) => generatePacket(ctx, req, res));
   router.delete('/jobs/:id/packet', (req, res) => { void removePacket(ctx, req, res); });
   router.post('/company/:id/referral', setReferral);

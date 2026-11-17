@@ -81,7 +81,7 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "SAT and ACT Study Lab with a shared question bank, private answer and timing history, progress dashboard, saved topic training, monster-taught lesson videos and a Jarvis study coach, plus class lectures, flashcards and tutoring.",
-      "version": "1.9.2",
+      "version": "1.9.3",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [
@@ -269,7 +269,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Your household money in one place: bring in the statement files your bank lets you download (CSV, OFX or QFX) or link your banks and brokerages via Plaid, to see balances, net worth, bills coming due (found in your repeating payments or, when you turn it on, in your own Gmail), every payment that repeats with what it costs a year, spending by month against your own plan and your goals, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Finance pays no bill; money movement is explicit-confirm gated.",
-      "version": "1.8.1",
+      "version": "1.8.2",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -464,7 +464,7 @@
       "suite": "ai-home",
       "displayName": "Eats",
       "description": "AI food-delivery concierge: the real restaurants near your delivery address from Google Places, your tastes and allergies remembered, and a one-tap hand-off into Uber Eats at your address with the restaurant you chose.",
-      "version": "1.5.5",
+      "version": "1.5.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -568,8 +568,8 @@
       "name": "career-hunter",
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
-      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.67.1",
+      "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
+      "version": "1.68.8",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -616,7 +616,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.5",
+      "version": "2.20.8",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -666,7 +666,7 @@
       "suite": "ai-productivity",
       "displayName": "Storage",
       "description": "Your storage hub: choose where Open Swarm saves generated code vs files (GitHub / Dropbox / Open Swarm local), upload files to your connected cloud storage (Dropbox, Google Drive, OneDrive, GitHub, or Open Swarm local), and browse your files. Generators (e.g. Presentations) save to the target you set here.",
-      "version": "1.4.3",
+      "version": "1.4.4",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -708,7 +708,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor.",
-      "version": "1.17.7",
+      "version": "1.17.8",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -750,7 +750,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Control your smart home by chat. Connect a hub at /utilities (SmartThings or Google Nest); the home-bot reads your real devices + scenes via your connector token, inspects SmartThings appliances and Samsung Family Hub refrigerators (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer temperatures, door sensors and live component capabilities), keeps the meals you plan and the items you say you bought beside the refrigerator's weekly check (what is inside the refrigerator is not read yet; your grocery list is kept by Shopping, not here), keeps a persistent Smart Home Operations Guide & Runbook, and turns \"turn off the living room lights\" into the right commands. Destructive actions (locks, garage, thermostat) are confirmed first. It also gives the weather forecast for any US city, address or ZIP code from the National Weather Service (weather.gov): today, tonight and the coming days. It finds the TVs and streaming sticks on your home network through your own computer (Samsung, Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening Open Swarm on the TV. On a Roku or a Samsung TV it also opens an application, lists the applications and says which one is in front (on a Roku a title too, by the application's own id for it). It cannot see a Roku's or a Samsung TV's screen: no screenshot and no on-screen text.",
-      "version": "1.9.2",
+      "version": "1.9.3",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -798,7 +798,7 @@
       "suite": "ai-productivity",
       "displayName": "Social",
       "description": "Draft, review, and publish across your networks from one surface - the comms bot drafts a post in your voice, you approve, and it publishes on your per-user LinkedIn / X / Facebook token (nothing posts until you click Publish). The Signals view reads your social-notification emails straight from your connected inbox. The comms + social-writer nodes, the inbox-ingest Signals engine, and the kernel-resident LinkedIn AI Content Assistant stay framework-resident; this package is the surface over them.",
-      "version": "1.7.3",
+      "version": "1.7.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [
@@ -1026,7 +1026,7 @@
       "suite": "ai-home",
       "displayName": "Travel",
       "description": "AI travel concierge (ADR-059) - search real flights (Duffel), see an honest price read from the swarm's shared price history, watch routes for a fare drop, and book via a deep-link handoff; hotels and cars are deep-link handoffs today. The swarm-shared price engine + fare-watch cron, the Duffel CLI + connector, the travel migrations, and the travel-concierge node stay framework-resident; this package is the surface + tools over them.",
-      "version": "1.3.3",
+      "version": "1.3.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1096,7 +1096,7 @@
       "suite": "ai-home",
       "displayName": "Drone Ops",
       "description": "Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. A flight-planning concierge drafts single or fleet missions from natural language; a human approves every flight (real hardware also needs the confirm rail). The drone engine, the drone-node server, and the drone-operator inline node stay framework-resident; this package is the surface over them (ADR-099: drones ARE swarm nodes).",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1373,7 +1373,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.14.2",
+      "version": "1.14.3",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -1419,7 +1419,7 @@
       "suite": "ai-creative",
       "displayName": "Vids Studio",
       "description": "Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor.",
-      "version": "1.6.6",
+      "version": "1.6.7",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1508,8 +1508,8 @@
       "name": "kalshi",
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
-      "description": "Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new playable hands to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.9.1",
+      "description": "Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. Find mispriced event contracts on Kalshi (ADR-094). Every open market is weighed the same way - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and the markets with an edge are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new markets with an edge to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
+      "version": "1.10.2",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1546,8 +1546,8 @@
       "name": "futures-research",
       "suite": "ai-finance",
       "displayName": "Futures Research",
-      "description": "Opt-in, tool-less queued review of owner-scoped Futures studies. Proposals require explicit adoption in the Trading console; no order execution.",
-      "version": "1.1.1",
+      "description": "Walk-forward CME and Micro futures study reviews, proposal review queue, and forward-call grading with explicit adoption in Intelligent Trades and zero order execution.",
+      "version": "1.2.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1559,7 +1559,9 @@
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "intelligent-trades"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -1581,7 +1583,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Your stock portfolio and trading desk. Connect your brokerage account (Charles Schwab) to see its positions, day change and how it performed over a week, a month or a year against the S&P 500; research stocks; and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.57.0",
+      "version": "1.61.3",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1656,7 +1658,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.22.4",
+      "version": "0.22.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2077,7 +2079,7 @@
       "suite": "ai-engineering",
       "displayName": "Ocean Lab",
       "description": "Ambient-energy design lab — model a machine that moves on tidal and current flow or on the soil thermal gradient, size its rotor with real blade-element momentum theory, and export printable geometry. Three surfaces: a harvest siting console (energy budgets, seasonal gap analysis, storage sizing), a blade studio (NACA sections, panel-method polars, Cp sweeps, STL/OBJ/SCAD/DXF export), and the Explorer — the design study's 300 mm wave explorer as a saved vehicle whose sea-state table, year and stage recompute from its design vector, with its eleven parts as CAD Studio programs and a displacement budget that gates the stage. Every model runs in-process and deterministically; every site parameter is illustrative, not surveyed, and no hardware was built.",
-      "version": "1.3.5",
+      "version": "1.3.6",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2114,7 +2116,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.5.9",
+      "version": "0.5.10",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2359,7 +2361,7 @@
       "suite": "ai-knowledge",
       "displayName": "Print Ingest",
       "description": "An inbound virtual printer for the swarm: a document printed to the oshal virtual printer, or sent to its inbox, is filed into the swarm's knowledge, never printed on paper. Everything lands in one inbox with a recommended filing — a bot's corpus, the swarm's shared knowledge, or private to you — and nothing is written until you approve it. It cannot print to a home or office printer.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2652,7 +2654,7 @@
       "suite": "ai-creative",
       "displayName": "Scene Studio",
       "description": "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects.",
-      "version": "0.4.4",
+      "version": "0.4.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2824,7 +2826,7 @@
       "suite": "ai-productivity",
       "displayName": "Fantasy Football",
       "description": "Manage the fantasy football team you actually have. It reads your own ESPN league with your own connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes stats, not points, and this package holds no stat table), and sets the lineup with the best chance of beating the team you play this week - which starts the volatile player when you are an underdog and the steady one when you are favoured, always beside what the safest lineup would have won. It prices every roster move over the rest of the season: a waiver board with a bid and a drop on every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no other user, operator included, can see them. Every lineup is recorded before kickoff and graded against what was actually started. It advises; you act.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2971,7 +2973,7 @@
       "suite": "ai-productivity",
       "displayName": "Business",
       "description": "Your schedule, projects, documents and explicitly connected business applications.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "dependencies": {
         "apps": [
           "presentations",
@@ -2984,14 +2986,10 @@
           "calling-assistant",
           "marketing-engine",
           "venture-plan",
-          "private-app-1",
           "payroll",
           "payments",
           "identity",
-          "cad-studio",
-          "private-app-2",
-          "intelligent-sales",
-          "private-app-3"
+          "cad-studio"
         ],
         "tools": [],
         "connectors": [],
@@ -3013,14 +3011,10 @@
             "calling-assistant",
             "marketing-engine",
             "venture-plan",
-            "private-app-1",
             "payroll",
             "payments",
             "identity",
-            "cad-studio",
-            "private-app-2",
-            "intelligent-sales",
-            "private-app-3"
+            "cad-studio"
           ],
           "bots": [
             {
@@ -3109,7 +3103,7 @@
       "suite": "ai-productivity",
       "displayName": "Studio",
       "description": "Applications, recent work and conversations in your established Studio workspace.",
-      "version": "1.1.7",
+      "version": "1.1.8",
       "dependencies": {
         "apps": [
           "home",
@@ -3128,7 +3122,6 @@
           "calling-assistant",
           "marketing-engine",
           "venture-plan",
-          "private-app-1",
           "payroll",
           "payments",
           "identity",
@@ -3152,10 +3145,7 @@
           "game-show",
           "games",
           "jarvis",
-          "workflow-studio",
-          "private-app-2",
-          "intelligent-sales",
-          "private-app-3"
+          "workflow-studio"
         ],
         "tools": [],
         "connectors": [],
@@ -3183,7 +3173,6 @@
             "calling-assistant",
             "marketing-engine",
             "venture-plan",
-            "private-app-1",
             "payroll",
             "payments",
             "identity",
@@ -3207,10 +3196,7 @@
             "game-show",
             "games",
             "jarvis",
-            "workflow-studio",
-            "private-app-2",
-            "intelligent-sales",
-            "private-app-3"
+            "workflow-studio"
           ],
           "bots": [
             {
@@ -3244,7 +3230,7 @@
       "suite": "ai-home",
       "displayName": "Jarvis",
       "description": "Your assistant briefing, conversations, agenda and admitted applications.",
-      "version": "1.1.6",
+      "version": "1.1.7",
       "dependencies": {
         "apps": [
           "home",
@@ -3263,7 +3249,6 @@
           "calling-assistant",
           "marketing-engine",
           "venture-plan",
-          "private-app-1",
           "payroll",
           "payments",
           "identity",
@@ -3287,10 +3272,7 @@
           "game-show",
           "games",
           "jarvis",
-          "workflow-studio",
-          "private-app-2",
-          "intelligent-sales",
-          "private-app-3"
+          "workflow-studio"
         ],
         "tools": [],
         "connectors": [],
@@ -3318,7 +3300,6 @@
             "calling-assistant",
             "marketing-engine",
             "venture-plan",
-            "private-app-1",
             "payroll",
             "payments",
             "identity",
@@ -3342,10 +3323,7 @@
             "game-show",
             "games",
             "jarvis",
-            "workflow-studio",
-            "private-app-2",
-            "intelligent-sales",
-            "private-app-3"
+            "workflow-studio"
           ],
           "bots": [
             {
@@ -3379,7 +3357,7 @@
       "suite": "ai-productivity",
       "displayName": "Orbit",
       "description": "Explore your admitted applications, relationships and recent work in the Orbit map.",
-      "version": "1.1.7",
+      "version": "1.1.8",
       "dependencies": {
         "apps": [
           "home",
@@ -3398,7 +3376,6 @@
           "calling-assistant",
           "marketing-engine",
           "venture-plan",
-          "private-app-1",
           "payroll",
           "payments",
           "identity",
@@ -3422,10 +3399,7 @@
           "game-show",
           "games",
           "jarvis",
-          "workflow-studio",
-          "private-app-2",
-          "intelligent-sales",
-          "private-app-3"
+          "workflow-studio"
         ],
         "tools": [],
         "connectors": [],
@@ -3453,7 +3427,6 @@
             "calling-assistant",
             "marketing-engine",
             "venture-plan",
-            "private-app-1",
             "payroll",
             "payments",
             "identity",
@@ -3477,10 +3450,7 @@
             "game-show",
             "games",
             "jarvis",
-            "workflow-studio",
-            "private-app-2",
-            "intelligent-sales",
-            "private-app-3"
+            "workflow-studio"
           ],
           "bots": [
             {
@@ -3514,7 +3484,7 @@
       "suite": "ai-home",
       "displayName": "Commons",
       "description": "Your applications, shared rooms and conversations, with existing household and team boundaries.",
-      "version": "1.1.7",
+      "version": "1.1.8",
       "dependencies": {
         "apps": [
           "home",
@@ -3533,7 +3503,6 @@
           "calling-assistant",
           "marketing-engine",
           "venture-plan",
-          "private-app-1",
           "payroll",
           "payments",
           "identity",
@@ -3557,10 +3526,7 @@
           "game-show",
           "games",
           "jarvis",
-          "workflow-studio",
-          "private-app-2",
-          "intelligent-sales",
-          "private-app-3"
+          "workflow-studio"
         ],
         "tools": [],
         "connectors": [],
@@ -3588,7 +3554,6 @@
             "calling-assistant",
             "marketing-engine",
             "venture-plan",
-            "private-app-1",
             "payroll",
             "payments",
             "identity",
@@ -3612,10 +3577,7 @@
             "game-show",
             "games",
             "jarvis",
-            "workflow-studio",
-            "private-app-2",
-            "intelligent-sales",
-            "private-app-3"
+            "workflow-studio"
           ],
           "bots": [
             {
@@ -3649,7 +3611,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.2",
+      "version": "1.9.3",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3892,7 +3854,7 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3934,7 +3896,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.20.1",
+      "version": "1.20.2",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3968,7 +3930,7 @@
       "suite": "ai-knowledge",
       "displayName": "Ambient Recall",
       "description": "Ask what someone said across your own ambient transcripts, maintain your continuously learned personal profile (identity, address, contact details, preferences, and household facts), and build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted receipts with assistant-voice playback, open asks and commitments beside their source quotes, per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -4002,7 +3964,7 @@
       "suite": "ai-creative",
       "displayName": "Audio Studio",
       "description": "Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "theme": "deep-space",
       "dependencies": {
         "apps": [],

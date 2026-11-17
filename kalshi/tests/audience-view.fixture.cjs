@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Kalshi company audience view (ADR-164 D6): the page, its declared URL, synthetic read-only answers shaped like GET /api/kalshi/scan (the saved snapshot: ranked BetHand rows, the evidence gate, the scan freshness block), GET /alerts (kalshi_scan_alerts rows joined to their settlement grade, plus the summarized record) and GET /home-summary (the route's three alert metrics), and what the company view must show. No answer is given for /status, /portfolio or /alerts/pops: those ask Kalshi live and the view never reads them (the full page's own start meets the harness's 404 for them). Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.10.1: the painted card says 1.10.0's words: "2 markets with an edge" and "Markets with an edge" (it said "2 playable hands" and "Top hands"), and a hand's rating in words (Good edge).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.10.2: the Home summary's alert note reads as the route now writes it ("rated Small edge"; it said "strength playable").
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -53,12 +55,12 @@ module.exports = ({ iso }) => {
         awaitingFirstScan: false, scan: { ageSeconds: 7200, stale: false, nextRunAt: iso(-1), running: false, intervalMinutes: 60, enabled: true, lastError: null, lastMs: 21000, lastSource: 'cron' },
       },
       '/api/kalshi/alerts': { alerts: alerts(iso), record: { alerted: 4, settled: 3, wins: 2, losses: 1, open: 1, hitRate: 2 / 3, pnlPerContract: 0.12, pnlTotal: 0.36 } },
-      '/api/kalshi/home-summary': { metrics, tiles: metrics, items: [{ text: 'SYN-RAIN-MIA', detail: 'Recorded market alert SYN-RAIN-MIA, strength playable.', tone: 'neutral', fix: 'kalshi-home', actions: [] }], asOf: iso(0), partial: false },
+      '/api/kalshi/home-summary': { metrics, tiles: metrics, items: [{ text: 'SYN-RAIN-MIA', detail: 'Recorded market alert SYN-RAIN-MIA, rated Small edge.', tone: 'neutral', fix: 'kalshi-home', actions: [] }], asOf: iso(0), partial: false },
     },
     audiences: {
       company: {
         stats: 4, sections: ['hands', 'alerts'],
-        text: ['Finance · Kalshi', '2 playable hands', 'scans every 60 min', 'paper only: strategy calibration is unproven (12 graded, 30 needed)', 'Top hands',
+        text: ['Finance · Kalshi', '2 markets with an edge', 'scans every 60 min', 'paper only: strategy calibration is unproven (12 graded, 30 needed)', 'Markets with an edge', 'Good edge',
           'Synthetic Fed holds in November', 'Synthetic rain in Miami on Friday', 'in 3 days', 'thin-book', 'Recent alerts', 'Synthetic CPI above 3% in September',
           '+$0.55 per contract', 'delivery not confirmed', 'Record: 2 wins, 1 loss (67% hit rate over 3 settled alerts)', 'Open Kalshi Prediction Markets in the cockpit'],
         statValues: { hands: '2', snapshot: '2 h ago', record: '2–1', alerts5d: '4' },

@@ -1,0 +1,120 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: My jobs' Table view (career-jobs-table.js), drawn with the design standard's tokens and the Career kit: the List | Table switch, the table's own filters and its count, a table whose header stays in view under Career's bar, 44 px checkboxes, the selected-rows bar resting above the phone's bottom bar, the overall progress, the phone's selectable list, and the one confirmation before a bulk send. Every colour is a token, so the page follows the portal's theme.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1: the step before bulk Prepare queues anything (career-jobs-table.js prepareDialog): the Other experience group without a frame, each entry a 44px row with a 20px box, its organization under its title as on the application page.
+ */
+.jt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden]:is(#jobsViewSwitch, #jobsTable, #bulkBar, #bulkProgress) { display: none !important; }
+
+/* The switch beside the stage row. */
+.jt-viewrow { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 0 0 8px; }
+.jt-viewrow .ck-seg { margin: 0; padding: 0; }
+
+/* In the Table, the List's own controls step aside. */
+html[data-jobs-layout="table"] :is(#list, #pager, #earlier, #requestState) { display: none !important; }
+html[data-jobs-layout="table"] label:has(> #sort), html[data-jobs-layout="table"] label:has(> #per), html[data-jobs-layout="table"] label:has(> #within) { display: none; }
+
+/* The table's own filters and count. */
+.jt-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 4px 0 10px; }
+.jt-filter { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; color: var(--ds-ink); min-width: 150px; }
+.jt-filter select { min-height: var(--ds-control-h, 44px); padding: 6px 10px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m, 10px); background: var(--ds-surface, var(--panel, #fff)); color: var(--ds-ink); font: inherit; font-weight: 400; }
+.jt-count { margin-left: auto; align-self: center; color: var(--ds-ink-2); font-size: 14px; }
+.jt-home { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-m, 10px); background: var(--ds-surface-2); color: var(--ds-ink); font-size: 14px; line-height: 20px; }
+.jt-home a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--ds-accent-ink); }
+
+/* The table. */
+/* overflow: clip keeps the rounded corners without making a scroll box, so the header can stay in view under Career's bar. */
+.jt-scroll { overflow: clip; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l, 14px); background: var(--ds-surface, var(--panel, #fff)); }
+.jt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; line-height: 20px; color: var(--ds-ink); }
+.jt-table thead th { position: sticky; top: var(--cf-top, 0px); z-index: 2; background: var(--ds-surface-2); border-bottom: 1px solid var(--ds-edge); text-align: left; font-weight: 600; white-space: nowrap; padding: 0; }
+.jt-table tbody td { padding: 6px 10px; overflow-wrap: anywhere; border-bottom: 1px solid var(--ds-hairline); vertical-align: middle; }
+.jt-table tbody tr:last-child td { border-bottom: 0; }
+.jt-table tbody tr:hover { background: color-mix(in srgb, var(--ds-ink) 4%, var(--ds-surface)); }
+.jt-table tbody tr[data-selected="true"] { background: color-mix(in srgb, var(--ds-accent) 12%, var(--ds-surface)); }
+.jt-sort { display: inline-flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 10px; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.jt-sort:hover { color: var(--ds-accent-ink); }
+.jt-sort:focus-visible, .jt-title:focus-visible, .jt-pick input:focus-visible { outline: 2px solid var(--ds-accent); outline-offset: 2px; }
+.jt-arrow { font-size: 10px; color: var(--ds-accent-ink); }
+.jt-check { width: 52px; }
+.jt-pick { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; cursor: pointer; }
+.jt-pick input { width: 20px; height: 20px; margin: 0; accent-color: var(--ds-accent); cursor: pointer; }
+.jt-title { padding: 0; border: 0; background: none; color: var(--ds-accent-ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.jt-title:hover { text-decoration: underline; }
+.jt-col-company { font-weight: 600; }
+.jt-col-match, .jt-col-saved { white-space: nowrap; }
+.jt-col-location[data-remote] { color: var(--ds-ok, var(--status-success)); font-weight: 600; }
+.jt-col-resume { min-width: 130px; }
+[data-resume-cell] .jt-word { font-weight: 600; }
+[data-resume="done"] .jt-word { color: var(--ds-ok, var(--status-success)); }
+[data-resume="running"] .jt-word, [data-resume="queued"] .jt-word { color: var(--ds-accent-ink); }
+[data-resume="failed"] .jt-word { color: var(--ds-bad, var(--status-error)); }
+.jt-reason { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; max-width: 34ch; color: var(--ds-ink-2); font-size: 12px; line-height: 16px; }
+.jt-open-btn { min-height: 36px; padding: 0 12px; font-size: 14px; }
+
+/* The bar under a selection: above the phone's bottom bar, like Linear's. */
+.jt-bulkbar { position: sticky; bottom: calc(var(--cf-bottom, 0px) + 12px); z-index: 7; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  width: fit-content; max-width: 100%; margin: 14px auto 0; padding: 8px 12px; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l, 14px);
+  background: var(--ds-surface, var(--panel, #fff)); color: var(--ds-ink); box-shadow: var(--ds-elev-float); box-sizing: border-box; }
+.jt-selected { font-weight: 700; font-size: 15px; white-space: nowrap; }
+.jt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.jt-move { min-height: 44px; padding: 0 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m, 10px); background: var(--ds-surface-2); color: var(--ds-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+
+/* Overall progress. */
+.jt-progress { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l, 14px); background: var(--ds-surface, var(--panel, #fff)); color: var(--ds-ink); }
+.jt-progress-line { margin: 0 0 6px; font-size: 15px; line-height: 22px; }
+.jt-progress-line span { color: var(--ds-ink-2); }
+.jt-progress progress { width: 100%; height: 8px; margin: 2px 0 8px; accent-color: var(--ds-accent); }
+.jt-progress .hint { margin: 0 0 8px; color: var(--ds-ink-2); font-size: 14px; }
+.jt-paused { margin: 0 0 8px; color: var(--ds-bad, var(--status-error)); font-weight: 600; font-size: 14px; }
+.jt-progress-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.jt-failures { margin-top: 8px; font-size: 14px; }
+.jt-failures summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 600; }
+.jt-failures ul { margin: 0; padding-left: 18px; color: var(--ds-ink-2); line-height: 20px; }
+
+/* The one question before a bulk send. */
+.jt-send-list { margin: 0; padding-left: 18px; line-height: 22px; max-height: 40vh; overflow: auto; }
+.jt-approve { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; }
+.jt-approve input { width: 20px; height: 20px; accent-color: var(--ds-accent); }
+.jt-refused:empty { display: none; }
+.jt-refused { margin: 0; color: var(--ds-bad, var(--status-error)); font-weight: 600; }
+
+/* The one step before bulk Prepare: Other experience, included in every selected application. */
+.jt-experience { margin: 14px 0 8px; padding: 0; border: 0; min-width: 0; }
+.jt-experience legend { padding: 0; font-weight: 700; font-size: 16px; }
+.jt-include { margin: 4px 0 6px; color: var(--ds-ink-2); font-size: 14px; }
+.jt-choice { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 0 0; font-weight: 600; cursor: pointer; }
+.jt-choice input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--ds-accent); }
+.jt-choice span { min-width: 0; overflow-wrap: anywhere; }
+.jt-choice small { display: block; color: var(--ds-ink-2); font-weight: 400; font-size: 13px; }
+
+/* At phone width the table is a selectable list with the same actions. */
+.jt-phone-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.jt-allrow { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; font-size: 15px; cursor: pointer; }
+.jt-allrow input { width: 20px; height: 20px; margin: 0 0 0 12px; accent-color: var(--ds-accent); }
+.jt-sortrow { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.jt-sortrow select { min-height: 44px; padding: 0 10px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m, 10px); background: var(--ds-surface, var(--panel, #fff)); color: var(--ds-ink); font: inherit; }
+.jt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.jt-card { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: start; gap: 4px; padding: 8px 10px 10px 2px; border: 1px solid var(--ds-edge);
+  border-radius: var(--ds-radius-l, 14px); background: var(--ds-surface, var(--panel, #fff)); color: var(--ds-ink); cursor: pointer; }
+.jt-card[data-selected="true"] { border-color: var(--ds-accent); background: color-mix(in srgb, var(--ds-accent) 12%, var(--ds-surface)); }
+.jt-card-body { min-width: 0; padding-top: 4px; }
+.jt-card .jt-co { margin: 0; font-size: 14px; font-weight: 700; color: var(--ds-ink); overflow-wrap: anywhere; }
+.jt-card .jt-title { display: block; margin: 2px 0; min-height: 28px; font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
+.jt-meta { margin: 0; color: var(--ds-ink-2); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; }
+.jt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.jt-chip { display: inline-flex; flex-direction: column; padding: 2px 10px; border: 1px solid var(--ds-hairline); border-radius: var(--ds-radius-m, 10px); background: var(--ds-surface-2); font-size: 12px; line-height: 18px; }
+.jt-card .jt-open-btn { align-self: center; min-height: 44px; }
+@media (max-width: 640px) {
+  /* One row of filters on a phone; each keeps its name for a screen reader. */
+  .jt-filters { flex-wrap: wrap; gap: 6px; }
+  .jt-filter { flex: 1 1 0; min-width: 0; position: relative; }
+  .jt-filter > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .jt-filter select { width: 100%; padding: 6px; font-size: 14px; }
+  .jt-count { flex: 1 1 100%; margin: 0; }
+  .jt-bulkbar { width: 100%; margin: 12px 0 0; padding: 8px; gap: 6px 8px; }
+  .jt-actions { flex: 1 1 100%; }
+  .jt-actions > * { flex: 1 1 40%; }
+}

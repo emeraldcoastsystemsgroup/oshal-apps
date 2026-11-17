@@ -3,6 +3,9 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.1 (concierge audit batch 2b; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): kalshi-quant, the package's only bot and its side-chat concierge (chatBot), runs inline, now explicit (it already resolved to inline, so nothing moves off a node), and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence for the three route reads kalshi_market, kalshi_markets and kalshi_scan, and runtime harness claude-code (metadata; the kernel takes inference from the installation). No route, tool, schedule, routing word or order path changed: the quant still reads only and never places an order. Guard: tests/kalshi-create-concierge.test.js (Test Lab create-concierge).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.0 (lane kalshiux1; Roger, 2026-11-16, his phone: "designed terrible"): the Markets tab designed for a phone after the category leaders, presentation only (tools/kalshi.html). One app bar, one status line, one line for the scan's and the model's age, the categories as one chip row with a Filter sheet, one card per market with Why as a sheet, ratings in plain words, five equal bottom tabs, the list's end clear of the floating Jarvis button. No route, read, order, scan, calibration, schedule, posture, setting or permission changed. Guard: tests/kalshi-phone-design-browser.test.js (Test Lab phone-design).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.1 (lane smallfix1): the company and family summary card (the audience view in tools/kalshi.html's head block, opened by the Business shells and the Home shell) says the ratings in 1.10.0's words: "2 markets with an edge", "With an edge", "Markets with an edge", a Rating column in Big edge, Good edge, Small edge, No edge or No estimate from the full page's own table, and no "playable hands", "monster" or "folded". Words only: no route, read, order, scan, setting or permission change. Guard: tests/audience-view.test.cjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.2 (lane kalshiux1; @lane-qa1 on the test slot, 2026-11-16): Scan now and a scan the background job lands refresh the Markets list (it kept "Nothing has been scanned yet" under "Scanned just now" until a reload); every string a person reads says 1.10.0's words: the settings labels ("Which edges to alert on", "Tell Jarvis when new markets with an edge appear", "Markets named in one alert"), the briefing ("Kalshi markets with an edge"), the schedule's words, the description, the Jarvis alert, the Why walkthrough, the Home card and the page. The briefing id, the setting keys and the rating values are unchanged. Guards: tests/kalshi-scan-refresh-browser.test.js, tests/kalshi-plain-words.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — kalshi ("Kalshi Prediction Markets", ADR-094)
 #
@@ -89,9 +92,9 @@ rating:
 displayName: Kalshi Prediction Markets
 description: >-
   Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad
-  or good. Every open market is evaluated like a poker hand —
+  or good. Every open market is weighed the same way — its
   calibrated true probability (from settled-market history) versus price plus fees — and the
-  playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
+  markets with an edge are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
 # 1.7.5: UX audit (kalshi--kalshi-home), layout only: the header names the Kalshi account state beside the exchange line; one stale chip with Scan now; a phone bottom bar with More; each market title once, 50 rows then Show more; the Why panel dates a scan verdict; a 44px ticker lookup by the search. No order path changed.
@@ -120,7 +123,20 @@ description: >-
 # in this package's own tables (migrations/077-kalshi-calibration.sql). A whole rebuild takes many firings (about
 # half a day); a table is rebuilt when it is thirty days old. Until the first rebuild finishes the shipped table is
 # read; GET /calibration and /status say which (`source`). No account, no order, nothing new to turn on.
-version: 1.9.1
+# 1.10.0: THE MARKETS TAB DESIGNED FOR A PHONE. On Roger's phone the first market started 51-59% down the screen, under a
+# second title line, a "trading active" beside "paper mode", a chip that wrapped, four rows of controls and a counts
+# paragraph; rows showed two unlabelled prices and "monster". Now, as the category leaders do it: one app bar (in Today
+# the shell's bar carries this page's search and help icons, its Reload a small icon), "Paper trading · Connect your
+# Kalshi account", one line for the scan's and the model's age, the categories as one chip row with a Filter sheet for
+# what shows and the sort, and one card per market (the question, Buy Yes and No at the asks, our estimate and the edge,
+# when it closes); a tap opens Why as a sheet. Ratings read Big edge, Good edge, Small edge, No edge and No estimate.
+# Presentation only: no route, read, order, scan, calibration, schedule or permission changed.
+# 1.10.2: SCAN NOW FILLS THE MARKETS LIST, AND THE PLAIN WORDS ARE EVERYWHERE. Scan now (and a scan the background job
+# lands, at the page's next 30-second read) refreshes the Markets list; before, it said "Nothing has been scanned yet"
+# under "Scanned just now" until a reload. Settings, the Jarvis briefing and alert, the Why walkthrough and the question
+# put to the quant, the Home card and the page say Big edge, Good edge, Small edge, No edge, No estimate and "markets
+# with an edge" (they still said hands, playable, monster and fold). Ids, setting keys and rating values are unchanged.
+version: 1.10.2
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant
@@ -143,8 +159,8 @@ testing:
   catalog: tests/test-lab.yaml
 briefings:
   - id: playable-hands
-    title: Kalshi playable hands
-    description: New playable scan candidates, subject to your Kalshi alert rules and application access.
+    title: Kalshi markets with an edge
+    description: New markets with an edge from the scan, subject to your Kalshi alert rules and application access.
     sessionId: kalshi-alerts
     defaults: { enabled: true, frequency: as-available, channel: voice }
 
@@ -250,7 +266,7 @@ settings:
       type: boolean
       default: false        # off until the person switches it on: the scan does its job, Jarvis hears nothing
       scope: user
-      label: Tell Jarvis when new playable hands appear (off until you switch it on)
+      label: Tell Jarvis when new markets with an edge appear (off until you switch it on)
     notifyOutward:
       type: boolean
       default: false        # opt-in: an hourly job may not start emailing/texting on its own
@@ -268,14 +284,14 @@ settings:
       default: playable
       enum: [monster, strong, playable]
       scope: user
-      label: Minimum hand strength to alert on
+      label: Which edges to alert on
     alertTopN:
       type: integer
       default: 5
       min: 1
       max: 25
       scope: user
-      label: Hands named in one alert
+      label: Markets named in one alert
     alertMaxPerDay:
       type: integer
       default: 6
@@ -297,7 +313,7 @@ schedules:
     method: POST
     body: {}
     timeoutSeconds: 300
-    description: Scan Kalshi's open markets when the snapshot is due. Jarvis hears about new hands only when Tell Jarvis is on in Settings.
+    description: Scan Kalshi's open markets when the snapshot is due. Jarvis hears about new markets with an edge only when Tell Jarvis is on in Settings.
     offer: Keep my Kalshi edge scan fresh.
 
 # ─────────────────────────────────────────────────────────────────────────────

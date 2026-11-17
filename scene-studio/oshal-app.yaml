@@ -40,6 +40,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger F13): a concierge turn begun with no project open lists the projects again and opens the one project it made; no route, tool or permission change.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (UX audit sweep, scene-studio--scene-studio, D1=glass, D2=c): editor contract, opaque sheets/menus/bars with data-no-glass, in-page confirmation/rename sheet replacing browser confirm/prompt, scale radii/typography, and popstate Back dismissal.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.4 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.4.5 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): the first screen's type cards started 280 px down a 915 px phone (31%) under the execution note and New's prompt. On a phone the cards (or the projects) come first and the execution note follows them; the prompt steps aside. Guard tests/scene-phone-first-screen.test.js. Presentation only; the desktop is unchanged.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -54,7 +55,7 @@ rating:
       degrade: disable
 displayName: Scene Studio
 description: "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects."
-version: 0.4.4
+version: 0.4.5
 status: active
 scope: person
 

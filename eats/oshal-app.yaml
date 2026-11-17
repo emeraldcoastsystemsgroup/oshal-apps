@@ -15,6 +15,8 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Jarvis routing words (backlog P4-16i): eats-concierge adds 'sushi place', 'pizza place', 'taco place', 'burger place', 'place to eat' and 'places to eat'. "Find a sushi place near me" tied Marquee on 'find' and now reaches Eats, so "Find a sushi place near me and get me a ride there" reaches Eats and Get a Ride; "Find a place to stay in Denver" stays with nobody. No route, tool or permission changed.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: eats-concierge withdraws 1.5.3's six '... place' routing phrases (review of PR #823): the kernel scores a phrase's words on their own, so 'place' became an Eats keyword and every "Place ... order" request (stocks, Amazon, groceries) scored Eats 4 with 'order', tying Intelligent Trades on "Place a buy order for 5 shares of Tesla" and taking the hand-off of the others. Routing words only; no route, tool or permission changed. Guarded by scripts/jarvis-routing-words.test.mjs.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.5 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone the restaurants start at 226 px (25%) instead of 438 px (48%): the address (or Deliver to) row first with Settings as a gear beside it, then search, then the cuisine chips, then Restaurants near you; the brand bar and the headline step aside (Today's bar names the page), the field labels stay for assistive technology only, the hint and the results' Delivering to line step aside, and a long Deliver to address ellipsizes instead of widening the row. Desktop unchanged. Presentation only (tools/eats-app.html, CSS in a 760 px block).
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7 (Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu; the coordinator, 2026-11-17: the allergy guard goes into the tools first). The allergy guard ran only in the page's own chat route (POST /api/eats/chat); search-restaurants (which the Eats concierge and Jarvis's hand-off to Eats call) and open-uber-eats went without it. Now the search holds back a restaurant named for an allergen the diner avoids, by the saved allergies (remembered notes and the profile's diet) plus any the caller names (avoid, new on both tools), and says which (allergy.heldBack); the hand-off refuses a held restaurant (409 allergy_conflict, nothing recorded); remember-eats-note (new, POST /api/eats/notes) keeps an allergy, diet or taste the diner states, grounded in their own words. Then Order Food's Eats Concierge panel no longer draws a chat of its own: in the same place (on a phone the sheet behind the Eats Concierge button) it holds the kernel's one chat window as the Eats Concierge (eats-concierge), with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying; before each turn it is told the screen (context.screen_state: the delivery address and search fields, the restaurants on screen with their place ids, the ones held back, and the saved diet and allergies). ribbon.hideAssistant stays: the window is this app's one assistant entry. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later). Guards: eats/tests/eats-allergy-tools.test.js, eats/tests/eats-one-chat-window.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -58,7 +60,7 @@ description: >-
   Google Places, your tastes and allergies remembered, and a one-tap hand-off into
   Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
   it to find food.
-version: 1.5.5
+version: 1.5.7
 status: active
 
 source:
@@ -135,14 +137,18 @@ tools:
       properties:
         query: { type: string, description: "The craving, cuisine or restaurant name; empty lists restaurants" }
         address: { type: string, description: "The delivery address; omit to use the diner's saved address" }
+        avoid: { type: string, description: "Allergies or diet the diner named in this conversation, such as \"I am allergic to peanuts\"; the saved ones always apply" }
       required: [query]
     usageInstructions: >-
-      Call with {query} and, when the diner names one, {address}. Use the returned items as the only source of
-      restaurants: each has placeId, name, cuisine, rating, priceLabel, openNow, delivery, distanceKm and uberUrl.
-      There are no menus or prices here: the diner chooses dishes in Uber Eats. To order, call open-uber-eats with
-      the placeId. A 400 address_required means the diner must give a delivery address first; a 503 with a message
-      means the restaurant source is unavailable, say that message, never that nothing matched. The answer's
-      served field is "live" or "saved" (results kept from an earlier search, savedAt says when; savedNote says why).
+      Call with {query} and, when the diner names one, {address}; put every allergy or diet the diner named in this
+      conversation in {avoid}. Use the returned items as the only source of restaurants: each has placeId, name,
+      cuisine, rating, priceLabel, openNow, delivery, distanceKm and uberUrl. The server has already held back every
+      restaurant named for an allergen the diner avoids (their saved allergies and diet plus avoid): allergy.restrictions
+      names what they avoid and allergy.heldBack each restaurant held back and why; never offer a held one, and say it
+      was held back. There are no menus or prices here: the diner chooses dishes in Uber Eats. To order, call
+      open-uber-eats with the placeId. A 400 address_required means the diner must give a delivery address first; a 503
+      with a message means the restaurant source is unavailable, say that message, never that nothing matched. The
+      answer's served field is "live" or "saved" (results kept from an earlier search, savedAt says when; savedNote says why).
     routingTags: [food, restaurants, delivery]
     skills: [restaurant-search, dietary-awareness]
     tags: [eats, route-backed]
@@ -158,16 +164,41 @@ tools:
     inputSchema:
       type: object
       properties:
-        placeId: { type: string, description: "The restaurant's placeId from search-restaurants" }
+        placeId: { type: string, description: "The restaurant's placeId from search-restaurants or the screen" }
         address: { type: string, description: "The delivery address; omit to use the diner's saved address" }
+        avoid: { type: string, description: "Allergies or diet the diner named in this conversation; the saved ones always apply" }
       required: [placeId]
     usageInstructions: >-
       Call only after the diner chose a restaurant and asked to order from it. It records the hand-off and returns
       checkoutUrl, the Uber Eats page at the diner's address with that restaurant searched; give the diner that link.
-      The diner picks the dishes, confirms the address and pays in Uber Eats. Never say an order was placed.
+      The diner picks the dishes, confirms the address and pays in Uber Eats. Never say an order was placed. A 409
+      allergy_conflict means the restaurant is held back for the diner's allergies or diet: say its message and offer
+      another place.
     routingTags: [food, checkout, handoff]
     skills: [checkout-handoff]
     tags: [eats, route-backed, approval-required]
+
+  - name: remember-eats-note
+    displayName: Remember a Diner Note
+    type: api
+    category: commerce
+    description: Keep an allergy, diet, favourite or budget the diner states, so every later restaurant search and hand-off holds by it.
+    executor: { executorType: api, apiEndpoint: "POST /api/eats/notes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        note: { type: string, description: "The short note to keep, such as \"peanut allergy\" or \"loves spicy food\"" }
+        said: { type: string, description: "The diner's own words this turn that state it, copied exactly" }
+      required: [note, said]
+    usageInstructions: >-
+      Call when the diner states an allergy, intolerance, diet, favourite or budget worth keeping, with said copied
+      from their own words this turn. A note their words do not state is not kept (remembered comes back empty). The
+      diner sees every kept note, and can forget it, in Settings under What the concierge remembers.
+    routingTags: [food, preferences, allergies]
+    skills: [preference-learning, dietary-awareness]
+    tags: [eats, route-backed]
 
   - name: ask-eats-concierge
     displayName: Ask Eats Concierge
@@ -263,7 +294,7 @@ ribbon:
     - logs
     - operations
   hideChatPanel: true
-  # One assistant entry (UX audit 2026-11-06): the in-page Eats Concierge; the shell's own orb stays off here.
+  # One assistant entry (UX audit 2026-11-06): the in-page Eats Concierge (since 1.5.7 the kernel's one chat window); the shell's own orb stays off here.
   hideAssistant: true
   defaultView: eats-concierge
 

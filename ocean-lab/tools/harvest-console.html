@@ -12,6 +12,10 @@
   per row on a phone) and the first chart come first. The intro and each caption are one sentence; the long captions and
   The model moved to Help. The analysis brief is a sheet from a Brief button, painted with the theme tokens (the fixed dark
   box is gone), Use visible results a secondary button. Every control keeps its id; the model is unchanged.
+  1.3.6 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the verdict started 290 px down a 915 px phone,
+  32%, under the title, Brief and Help, the intro and the two badges): on a phone the title is for assistive technology
+  only (Today's bar names the console) and the intro steps aside (Help explains the model); Brief and Help keep their row
+  with the badges under it. The desktop is unchanged. Presentation only.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -324,6 +328,16 @@
     .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
     .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); flex-basis: 100%; }
     .verdict .word { font-size: 30px; }
+  }
+  /* 1.3.6, the phone first screen: Today's bar names the console, so on a phone its title is for assistive technology
+     only and the one-sentence intro steps aside (Help explains the model); Brief and Help keep their row with the two
+     badges under it, so the verdict starts near the top instead of 290 px down. */
+  @media (max-width: 760px) {
+    .page { padding-top: 12px; }
+    header.hero h1 { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    header.hero > p:not(:last-child) { display: none; }
+    header.hero > p:last-child { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+    header.hero .badge { white-space: normal; }
   }
   /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
      sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16, Torch Technologies on My jobs): detailsNeeded(job) is also false once the job has a description (the posting sheet read it from the employer's posting, or the person pasted one); a job with no description reads as before. A list row carries no description, so rows are unchanged. Guard: tests/career-job-details-sheet-browser.test.mjs.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): DETAILS_NEEDED, the words for a job Career could not read, ends with what to do after pasting: "… paste it in Prepare application, step 1 · Tailor, and generate your résumé and cover letter there." (lib/career-pasted-details.js NEEDED says the same). Guard: tests/career-paste-details-unmarked.test.mjs.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): job_details_unavailable (and the route's job_details_needed) say what to do: open the job's posting, copy the job description and paste it in Prepare application, step 1 · Tailor. pasted_details_invalid says the pasted text was not used and the bounds. detailsNeeded(job) tells a page that Career could not read the job. Guard: tests/career-paste-details-phone.test.mjs.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.65.0 (Roger, production 2026-11-14: "The PDF renderer is unavailable. Please check Settings.."; the server had no Chrome to make the PDF, and Career's Settings page has nothing a person can set about it): the renderer_unavailable message says what is true and what the person can do: this server cannot make PDF documents right now, it is a fault on the server, tell whoever runs it and try again once it is fixed. It names no page. Words only; the reason code and every other message are unchanged. Guard: tests/career-preparation-notice.test.mjs.
@@ -112,8 +113,8 @@
   }
   /** The words for a job Career could not read; lib/career-pasted-details.js NEEDED says the same. */
   const DETAILS_NEEDED='Career could not read this job’s details, so it cannot check your fit or write a résumé for it yet. Open the job’s posting, copy the job description, paste it in Prepare application, step 1 · Tailor, and generate your résumé and cover letter there.';
-  /** @description Whether the nightly pass marked this job as one Career could not read and it has no AI fit. @param {object} job @returns {boolean} */
-  function detailsNeeded(job){return job?.fit_assessment?.kind==='needs-details'&&job.ai_fit_score==null;}
+  /** @description Whether the nightly pass marked this job as one Career could not read, it has no AI fit and still no description. @param {object} job @returns {boolean} */
+  function detailsNeeded(job){return job?.fit_assessment?.kind==='needs-details'&&job.ai_fit_score==null&&!/\S/.test(String(job.description??''));}
   function message(reason){
     if(reason==='already_submitted')return 'This job is recorded as submitted. Its submission documents are read-only.';
     if(reason==='preparation_failed')return 'Document generation failed. Use Regenerate to try again.';

@@ -67,6 +67,25 @@ keeps what is typed in it. The earlier text stays in the document's Revision his
 Ask "Is my résumé loaded?" to check your signed-in account. If none is saved, open **My résumé** to upload one. An
 unreadable record is reported as unavailable, so it does not mean you have no résumé.
 
+## Your expanded experience
+
+Client work and projects behind your jobs are your **expanded experience**, and they are on **Work history** (Résumé,
+then Work history). The line under its heading counts your jobs, client engagements and client accounts; press one to
+go to it.
+
+- **Client engagements**: each client or project you worked on, with your role, the industry, its months or length,
+  the technology and bullets. One you place under a job shows on that job's card. Those not placed yet are under
+  **Expanded experience**, **Not placed under a job yet**: choose the job in **Place all under** and press **Place
+  them** to put them all under the job you did them in (for example a consulting job).
+- Press **Edit** on an engagement to change it, to choose **Done under** (its job), to add bullets, or to **Move up**,
+  **Move down** or **Remove this engagement**. **Add an engagement** adds a new one.
+- **Client accounts**: the companies and agencies you worked with, by group. **Edit** a group to change its names, one
+  per line; **Add a group** starts another.
+- Every change shows **Undo**. **Download my data** lists all of it too.
+
+Career scores jobs against your whole main résumé, which can be at most 128 KB; a change that would make it larger
+says so and is not saved.
+
 ## Begin with Today
 
 Home's **Today** section links to work that needs attention, such as an
@@ -122,8 +141,10 @@ your matching area does not erase work you deliberately saved.
 In **Settings → Check for new jobs now → Saved-job preparation**, turn on
 **Prepare saved jobs for me** and press **Save preparation choice**. It starts
 preparation for your existing saved jobs and future saves, using your main résumé
-and each job's saved tailoring and experience selections. This setting belongs to
-your own account and starts off. Choose:
+and each job's saved tailoring and experience selections. A job with no Other
+experience choice of its own uses the one you prepared your last application with;
+until you have chosen once, Career asks first: the job waits, and the saved line says
+how many wait. This setting belongs to your own account and starts off. Choose:
 
 - **Review each application first**: Career prepares the documents, then holds the
   application for you. Read its résumé and cover letter, then choose **Review
@@ -154,7 +175,12 @@ through these steps. Prepare opens the tailoring workspace; choose Generate expl
 when you want documents with saved-job preparation off:
 
 1. **Tailor** — review the main résumé, add notes and select relevant Other
-   experience. Choose **Generate résumé & cover letter** when ready.
+   experience. Choose **Generate résumé & cover letter** when ready. Career never
+   generates a résumé before you have seen this step. The **Other experience ·
+   optional** boxes are ticked as in the last application you prepared (the line under
+   the heading says so); change them for this job, and Generate uses exactly the boxes
+   ticked when you press it. A job whose documents were made before you chose opens on
+   this step with a notice; **Review generated documents** opens them as they are.
    For a job with no description, this step starts with the box **Paste the job
    description from the posting** and **Open the posting** beside it. Open the
    employer's posting, copy the whole job description and paste it in the box.
@@ -182,6 +208,13 @@ cannot confirm the preparation write, choose **Check preparation** to read its
 saved state. If nothing was recorded, a separate **Prepare application** press
 tries again. If the workspace did not open, **Open application** tries opening
 it again without repeating the acknowledged preparation.
+
+To prepare several jobs at once, open **My jobs**, switch to **Table**, tick the jobs
+and press **Prepare applications**. Career asks once, before anything starts: the
+same **Other experience · optional** boxes under **Include in every selected
+application**, and the number of applications. **Cancel** starts nothing; **Prepare**
+saves your choice on each job and prepares them one or two at a time while My jobs is
+open.
 
 ### Apply yourself
 
@@ -407,3 +440,7 @@ not reached yet.
 <!-- CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning and make the user get the position details and paste them before generating the resume"): a job Career cannot read reaches New matches as Details needed, and step 1 · Tailor takes its pasted description before generating. -->
 
 <!-- CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1: step 1 · Tailor's off Generate (or Retry generation) is greyed out, and a job whose preparation stopped because Career could not read it is a Job details needed job too; Jarvis and the Concierge say to paste the description in Prepare application, step 1 · Tailor, and generate there. -->
+
+<!-- CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): step 1 · Tailor's Other experience boxes are ticked as last time and Generate uses exactly what is ticked; documents made without a choice open on step 1; Prepare applications in the Table asks once before anything starts; saved-job preparation waits for a person who never chose. -->
+
+<!-- CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): Your expanded experience, on Work history: client engagements under the job they were done in, Place all under, and client accounts by group, each editable with Undo. -->

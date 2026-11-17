@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "it said ... i needed to go to career profile.. but there is no career profile page"). The lines this file wrote sent people to "Profile" for jobs, titles, employers and dates; no such page existed. They now name Work history, the page that edits them, and Education and Certifications say plainly that this document does not change them. Opening the document reads each job's dates line back too (documentState): a document whose text still matches the main résumé but whose jobs changed on Work history is brought up to date as a new revision before it opens (nothing typed is replaced; the earlier one stays in Revision history), one with a different number of jobs says so and offers Use my work history, and syncDocument does the same update from the Work history page right after a save. open() also opens AI Office's editor with assistant=host, so Career's concierge is the one assistant on My résumé.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: the concierge found wording an earlier approved card had added no longer there). Two ways a Word document that is behind the main résumé could undo an approved change, both shown on a made-up profile in tests/career-work-history-keeps.test.mjs: (1) syncDocument left a document that was behind only on job headings or dates lines as it was ('kept'), so the next change's bullets never reached it and the save before the next concierge turn on My résumé wrote the older bullets back; it now brings such a document up to date, as open() already did, since nothing typed is lost. (2) modelToResume put each document job's bullets into the job at the same place, so a document made before a card removed two jobs and added two wrote the removed jobs' bullets into the new ones; a document job must now be the main résumé's job at that place (its heading, its dates line or its bullets agree), or the save is refused in words with Use my work history.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "the resume concierge the resume tab and the database ... i dont think they are working together well. i cant use the tools to update my resume and see it in the resume tab after adding experience"). The main résumé is the one source of truth and this document is a view of it. The document kept no record of which main résumé it was made from, so one that was only behind read as "typed": it was never updated again, and the save before a concierge turn wrote its older bullets back over an approved change (tests/career-resume-one-source.test.mjs shows both on the earlier file). Now the document names the main résumé revision it was made from (the id of its first page, which typing never changes), and settle() is the one way every page brings the two together: a document that is only behind is rewritten from the main résumé; text typed in it is saved into the main résumé, merged field by field and bullet by bullet with what changed there meanwhile (mergeLists), and never lost; a document Career cannot place (made before this version and unlike any kept version) is left alone until the person presses Save to main résumé or Use my work history; and a document near AI Office's 100-revision limit is replaced by a fresh one. open(), saveToMaster() and follow() all go through it.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). createHost takes `header`, `onRow` and `onScroll`: the editor opens with ?header=host|editor (AI Office 2.20.6), so on a phone My résumé draws the document's one bar and AI Office draws no app row of its own; rowOwner() hands the row back on a wider screen, press() presses the row's own buttons (Edit, Undo, Redo, Export, the document menu, Your documents), and the page hears the row's state and the document's scroll. Messages go only to and from the editor's frame on this origin.
  */
 (function (root) {
   'use strict';
@@ -416,12 +417,27 @@
 
   /**
    * @description The host side of My résumé's document view: find or make the person's own main résumé document in AI
-   * Office, show AI Office's editor on it, and keep it and the main résumé together (settle).
-   * @param {{host:HTMLElement, readMaster:Function, saveMaster:Function, status:Function}} options
-   * @returns {object} open, close, active, saveToMaster, follow, replaceFromMaster, inSync, documentId, state, master
+   * Office, show AI Office's editor on it, and keep it and the main résumé together (settle). With `header`, the page
+   * may draw the document's one bar itself (AI Office 2.20.6, ?header=host|editor): `header()` says who draws AI
+   * Office's app row now, rowOwner() moves it, press() presses one of its buttons by name (edit, undo, redo, export,
+   * document, documents), onRow hears the row's state and onScroll the document's scroll position.
+   * @param {{host:HTMLElement, readMaster:Function, saveMaster:Function, status:Function, header?:Function, onRow?:Function, onScroll?:Function}} options
+   * @returns {object} open, close, active, saveToMaster, follow, replaceFromMaster, inSync, documentId, state, master, row, rowOwner, press
    */
-  function createHost({ host, readMaster, saveMaster, status }) {
-    let documentId = null, frame = null, state = null, latest = null;
+  function createHost({ host, readMaster, saveMaster, status, header, onRow, onScroll }) {
+    let documentId = null, frame = null, state = null, latest = null, row = null;
+    const owner = () => (typeof header === 'function' && header() === 'host' ? 'host' : 'editor');
+    /** One message to AI Office's editor in the frame, on this origin only. */
+    function post(message) { try { if (frame && frame.contentWindow) frame.contentWindow.postMessage(message, root.location.origin); } catch (_) { /* the frame is going */ } }
+    if (typeof header === 'function' && typeof root.addEventListener === 'function') {
+      root.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!frame || event.source !== frame.contentWindow || event.origin !== root.location.origin || !data || typeof data !== 'object') return;
+        if (data.type === 'office-header-ready') post({ type: 'office-header', owner: owner() });
+        else if (data.type === 'office-header-state' && data.state && typeof data.state === 'object') { row = data.state; if (onRow) onRow(row); }
+        else if (data.type === 'office-scroll' && onScroll) onScroll(Number(data.top) || 0);
+      });
+    }
     async function handoff() { return import('/shared/ui/js/document-handoff.js'); }
     /** Save the editor's unsaved text first (AI Office's own save), then read that saved revision. */
     async function savedDocument() {
@@ -432,8 +448,8 @@
     }
     function show() {
       if (!frame) { frame = root.document.createElement('iframe'); frame.id = 'officeFrame'; frame.title = 'Main résumé document'; host.append(frame); }
-      const src = `${OFFICE}/app?document=${encodeURIComponent(documentId)}&assistant=host`;
-      if (frame.getAttribute('src') !== src) frame.setAttribute('src', src);
+      const src = `${OFFICE}/app?document=${encodeURIComponent(documentId)}&assistant=host${typeof header === 'function' ? '&header=' + owner() : ''}`;
+      if (frame.getAttribute('src') !== src) { row = null; frame.setAttribute('src', src); }
     }
     /** Take one outcome of settle: remember it, show the document it left, and say it under the document. */
     async function took(outcome, opened) {
@@ -452,7 +468,7 @@
       await took(outcome, true);
       return documentId;
     }
-    function close() { host.hidden = true; documentId = null; if (frame) { frame.remove(); frame = null; } }
+    function close() { host.hidden = true; documentId = null; row = null; if (frame) { frame.remove(); frame = null; } }
     /**
      * Bring the open document and the main résumé together. `explicit` is the person pressing Save to main résumé (a
      * document Career cannot place then wins); the save before a concierge turn passes false and leaves such a document.
@@ -476,7 +492,11 @@
       return !mapped.error && sameResume(mapped.resume, master.resume);
     }
     return { open, close, saveToMaster, follow, replaceFromMaster, inSync, active: () => Boolean(documentId), documentId: () => documentId,
-      state: () => state, master: () => latest };
+      state: () => state, master: () => latest, row: () => row,
+      /** Tell the editor who draws its app row now ('host' or 'editor'). */
+      rowOwner: (who) => post({ type: 'office-header', owner: who === 'host' ? 'host' : 'editor' }),
+      /** Press one of the editor's app row buttons: edit, undo, redo, export, document (its menu) or documents (Your documents). */
+      press: (command) => post({ type: 'office-command', command: String(command) }) };
   }
 
   /**

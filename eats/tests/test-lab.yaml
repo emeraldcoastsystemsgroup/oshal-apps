@@ -18,6 +18,8 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register place-cache (the cache module over the harness pool) and re-describe routes-real-restaurants with the cache cases (a POST saves, a fresh saved search asks Google nothing, Refresh asks, the quota fallback serves the saved answer with its time, nothing past 30 days, GET never writes).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: real restaurants. The cart-totals, no-rail and uber-catalog cases are retired with the cart and the curated catalog; registered instead: uber-link (the Uber Eats location token pinned to the browser-proven string), places (the Google Places client over a recording fetch, key-free), routes-real-restaurants (the compiled routes: address required, geocode once, the restaurants with their Uber Eats links, the recorded hand-off, the chat proposal, ownership, read-only admission, the photo route), places-unavailable (API not enabled, key not configured, no address: said in words, never an empty result); the commerce-bridge, not-connected, allergens and surface-mobile cases re-described for the new surface.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (UX audit 2026-11-06): register address-saved (a first profile save carries empty lists, so the address sticks; the page saves a typed address once), remembered-clean (state notes leave the list, a repeated note is listed once, Forget removes every copy) and one-home (the Restaurants tile merged into Order Food, ?view=browse opens it on its results, one assistant entry, the page follows its theme).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: register phone-first-screen (lane mobilesweep1).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: register allergy-tools (the restaurant search, the Uber Eats hand-off and the new remember tool hold by the diner's saved allergies for every caller) and one-chat-window (the Eats Concierge is the kernel's one chat window, told the screen, its hand-off cards approved in it). allergy-surface is retired with the page's own chat it drove (the route's allergy-check line stays guarded by allergens); commerce-bridge, surface-mobile-commerce, not-connected and address-saved expect a page with no chat of its own.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -39,7 +41,7 @@ cases:
     installation: safe-smoke
   - id: commerce-bridge
     name: Eats assistant rail contract
-    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies (search, open_uber_eats), opens Uber Eats from the explicit hand-off only with the place id and address, turns a chat proposal into a confirm card, and keeps its context digest under the contract cap.
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies (search, open_uber_eats), opens Uber Eats from the explicit hand-off only with the place id and address, sends no chat turn of its own (its concierge is the kernel's one chat window), and keeps its context digest under the contract cap.
     level: unit
     runner:
       kind: node-test
@@ -48,7 +50,7 @@ cases:
         - tests/eats-commerce-bridge.test.js
     expected:
       - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
-      - The only window.open is inside requestOrder(); the chat reply turns a proposal into a propose card; a relayed open_uber_eats proposes and never opens.
+      - The only window.open is inside requestOrder(); a relayed open_uber_eats proposes and never opens; the page mounts the one chat window as eats / eats-concierge and an approved card only reloads the history.
       - A 40-restaurant list digests to at most 4000 characters.
     prerequisites:
       - runner:node-test
@@ -178,7 +180,7 @@ cases:
     installation: never
   - id: surface-mobile-commerce
     name: Eats at phone width in Chromium
-    purpose: Drive the actual Eats surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - the start on the saved address, a search that fills a grid the page scrolls through, a card's Order on Uber Eats, a chat order that waits for Confirm, the floating assistant's relayed ops, the photos through the server, and the context envelopes the parent receives.
+    purpose: Drive the actual Eats surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - the start on the saved address, a search that fills a grid the page scrolls through, a card's Order on Uber Eats, a relayed order that waits for Confirm, the floating assistant's relayed ops, the photos through the server, and the context envelopes the parent receives.
     level: browser
     runner:
       kind: playwright
@@ -188,7 +190,7 @@ cases:
     expected:
       - No horizontal overflow; the restaurants Google answered render with their facts and a photo fetched through the server.
       - A card's Order on Uber Eats fires exactly one POST /order carrying only placeId and address and opens ubereats.com/search once with the restaurant and the location token.
-      - A chat order renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /order and opens Uber Eats once; Cancel on a relayed proposal hands off nothing.
+      - A relayed order renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /order and opens Uber Eats once; Cancel on a relayed proposal hands off nothing.
       - The parent frame receives context envelopes naming the restaurants and a submit for the confirm; the page raises no errors.
       - Under the native admission rule no GET in the session attempts a SQL write.
     prerequisites:
@@ -246,7 +248,7 @@ cases:
       files:
         - tests/eats-not-connected.test.js
     expected:
-      - A refused search and concierge turn show the server's own words; a real empty answer still reads as no match; restaurants render with an Order on Uber Eats button.
+      - A refused search shows the server's own words; a real empty answer still reads as no match; restaurants render with an Order on Uber Eats button; the restaurants the server held back for the diner's allergies are said under the heading, and a refused search clears that line.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -384,23 +386,56 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
-  - id: allergy-surface
-    name: The page shows the allergy check under the reply
+  - id: allergy-tools
+    name: Every caller of the restaurant search and the hand-off gets the allergy guard
     purpose: >-
-      In Chromium at 412x915 the person types the demo's peanut-allergy message into the shipped Eats page and presses Send;
-      the compiled chat route on real express answers with the demo's own Pad Thai reply as the scripted model.
+      Through the compiled routes with a recording Places double, for the callers the page's own chat never covered (the
+      search-restaurants and open-uber-eats tools the Eats concierge and Jarvis's hand-off to Eats call, and the page's Find):
+      a saved allergy (a remembered note or the profile's diet) or one the caller names (avoid) holds a conflicting restaurant
+      back and says so, the hand-off refuses a held restaurant, and a stated allergy is kept for the next search.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-allergy-tools.test.js
+    expected:
+      - With a remembered peanut allergy, POST and GET /search answer only Thai Garden and Green Curry House, naming peanuts and the held Pad Thai Kitchen and Peanut Palace.
+      - The profile's saved diet holds back the same way; avoid holds back the same way with nothing saved; with neither every place is offered.
+      - POST /order refuses Peanut Palace with 409 allergy_conflict, no link and nothing recorded, and hands Thai Garden off.
+      - POST /notes keeps a stated allergy and the next search holds by it; a note the person did not state is not kept; another diner's search is untouched.
+      - The manifest binds search-restaurants, open-uber-eats (an approval) and remember-eats-note to these routes, with avoid declared.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/eats-routes-harness.js
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: one-chat-window
+    name: The Eats Concierge is the kernel's one chat window
+    purpose: >-
+      In Chromium at 1440x900 and 412x915 the shipped Order Food page over the compiled router, beside the kernel's one chat
+      window served from a kernel platform export with its stand-in kernel, for a diner whose saved diet is a peanut allergy.
     level: browser
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/eats-allergy-surface.test.cjs
+        - tests/eats-one-chat-window.test.js
     expected:
-      - The reply bubble is the concierge's words unchanged, and the next line is the status "Allergy and diet check - Pad Thai usually contains peanuts (you avoid peanuts)".
+      - The page's own search shows only the places without peanuts and says which it held back.
+      - The Eats Concierge is the window (concierge=eats, bot=eats-concierge) in the side panel, on a phone in the sheet behind its button, with its model menu, Files, Tap to talk, Keep trying and conversations.
+      - A turn reaches eats-concierge with context.app eats, the picked model, and the screen (the delivery address, the restaurants with their place ids, the held-back ones, the saved diet and allergies); no POST /api/eats/chat and no message box on the page.
+      - Approved in the window, the hand-off to Peanut Palace is refused for the allergy and records nothing; Thai Garden is handed off once and listed under Opened in Uber Eats.
     prerequisites:
       - runner:node-test
       - dependency:playwright
       - browser:chromium
+      - harness:kernel-platform-export
     sideEffects: none
     isolation:
       mode: disposable
@@ -423,7 +458,7 @@ cases:
         - tests/eats-routes-harness.js
     expected:
       - A first save of only the address answers 200 and reads back; a later save keeps the saved diet and cuisines.
-      - The page saves a typed address once, never an empty or unchanged one; a person-asked search and a concierge turn save it, the boot read does not.
+      - The page saves a typed address once, never an empty or unchanged one; a person-asked search and a concierge window turn (eatsTurnContext) save it, the boot read does not.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -473,4 +508,24 @@ cases:
       mode: none
     limits:
       timeoutMs: 20000
+    installation: never
+  - id: phone-first-screen
+    name: Eats shows the restaurants near the top on a phone
+    purpose: "Guard 1.5.6 (lane mobilesweep1): the real page in a stand-in for Today, for a new person and for one with a saved address and three synthetic restaurants, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-phone-first-screen.test.js
+    expected:
+      - On a phone the restaurants section starts within the top 30% of the screen (it was 438 px, 48%) and the first restaurant within the top 40%.
+      - The brand and the headline are not drawn on a phone; Settings is a whole 44 px gear beside the first row; the desktop keeps its brand bar and headline.
+      - No sideways scroll, the Eats Concierge button covers nothing at the end of the page, no write and no page error on open.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

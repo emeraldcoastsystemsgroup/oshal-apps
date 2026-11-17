@@ -14,6 +14,7 @@ CHANGE LOG
 11 | maintainer@emeraldcoastsystemsgroup.com | New portrait carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
 12 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06 (F15): "when you get to the last step there is no way to generate the image". Step 3 hid Generate from anyone without the create permission (every trial visitor holds source editing only), leaving Back alone. Generate is now always drawn at Step 3 under its own name, disabled with one plain line beside it that says why and what makes it work (access, no image model, no photo yet, no style, the group's face count). The stepper is numbered circles with the current step in ink, Step 1 says what the next two steps do, each step's sticky bar is marked data-ef-floating so the orb rests above Next and Generate, the asleep line also reads the native kernel's answer (which carries no ready field), and a first press that only wakes the image model waits for it and sends the same portrait again once, instead of asking the person to press twice.
 13 | maintainer@emeraldcoastsystemsgroup.com | 1.17.4: Roger, 2026-11-06: bound Step 1's cropper inside a compact centered frame (#cropStage max-width 520px, #cropCanvas width:auto capped to <=460x340px) so uploading a photo never expands across the full page, and convert Step 3 into a compact two-column stage pairing a live cropped/generated image preview (#step3Preview) with a two-column minor-adjustment grid (#tuneOpts) while keeping Generate on the first screen.
+14 | maintainer@emeraldcoastsystemsgroup.com | 1.17.8: Roger, 2026-11-17 (production): "portrait has a jarvis ball that opens create-editor not a concierge". With no concierge of its own (entry 8 left it to the shell's), Create's Portrait screen opened Create's concierge, because inside Create the shell's concierge is Create's. Every studio now carries its own concierge, the one window: the editor is built with Portrait Studio's (createRegisteredEditorAssistant, the kernel's one Jarvis chat window as portrait-artist, reading the photo source through the document session this page registers, saved before each message), so Today hides its ball and its bar's Concierge opens this pane, alone or inside Create. It starts closed at every width. Your portraits hides the studio where the pane lives, so opening the concierge there brings the studio forward with it open, a phone keeps the editor's bottom bar with Concierge alone there, and leaving the studio for Your portraits closes the concierge.
 
   Portrait Studio — upload a photo, crop the head, generate a portrait.
   Three modes: Professional (studio headshot), Character (the fun side:
@@ -321,9 +322,20 @@ CHANGE LOG
 /* Two views: Your portraits (full width, New portrait bottom right) and the studio editor. The editor's navigation
    column is only the way back, which the app row's "Your portraits" button already is, so it is not drawn. */
 .wrap[data-portrait-view=portraits]>.ef-shell{display:none}.wrap[data-portrait-view=studio]>#gallery{display:none}
+/* A phone's one concierge entry is the editor's bottom bar (Today's ball and bar Concierge step aside for an editor with
+   its own concierge), so Your portraits keeps that bar with Concierge alone while the studio's work stays hidden. */
+@media(max-width:800px){
+.wrap.ef-has-concierge[data-portrait-view=portraits]>.ef-shell{display:block;height:0;min-height:0;padding:0;border:0}
+.wrap.ef-has-concierge[data-portrait-view=portraits]>.ef-shell>:not(.ef-tools),.wrap.ef-has-concierge[data-portrait-view=portraits]>.ef-shell>.ef-tools>:not(.ef-panes),.wrap.ef-has-concierge[data-portrait-view=portraits] .ef-panes>:not([aria-controls$="-concierge"]){display:none!important}
+.wrap.ef-has-concierge[data-portrait-view=portraits]>#gallery{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+.wrap.ef-has-concierge[data-portrait-view=portraits] .new-portrait{bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+}
 .wrap.ef-editor>#gallery{padding:16px 16px 96px;margin:0}.wrap.ef-editor .g-item .meta{flex-wrap:wrap}.wrap.ef-editor .g-item .meta .lbl{flex-basis:100%}.wrap.ef-editor .g-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 .wrap.ef-editor .ef-navigation,.wrap.ef-editor .ef-panes>button[aria-controls$="-navigation"]{display:none!important}
 @media(min-width:801px){.wrap.ef-editor .ef-body{grid-template-columns:minmax(0,1fr) 300px}}
+/* The open concierge is a third column beside the work and Properties (the shared four columns count a navigation
+   column this page does not draw); from 801px to 1100px the shared three columns already fit. */
+@media(min-width:1101px){.wrap.ef-editor.ef-has-concierge[data-editor-concierge=open] .ef-body{grid-template-columns:minmax(0,1fr) 300px clamp(300px,25vw,380px)}}
 .source-library h3{font-size:14px;margin:22px 0 8px}.source-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .source-row button{flex:none;min-height:44px;border:1px solid var(--border-color,var(--line));border-radius:10px;background:var(--bg-card,var(--panel));color:var(--text-primary,var(--text));padding:0 14px;font:inherit;cursor:pointer}
 .new-portrait{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:25;min-height:48px;padding:0 20px;border:0;border-radius:12px;background:var(--accent-primary,var(--accent));color:var(--text-on-accent,#fff);font:inherit;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.2)}
@@ -701,8 +713,18 @@ if (!window.AppView || !AppView.active()) (function () {
   }
   // ── two views in one package: Your portraits, and the studio (N2, R2) ─────
   var portraitViewChosen = false;
+  function portraitNarrow() { return window.matchMedia('(max-width:800px)').matches; }
+  /** @description Whether Portrait Studio's concierge is on screen: its column on a desktop, its sheet on a phone. @returns {boolean} */
+  function portraitConciergeShown() { var root = document.querySelector('.wrap'); return portraitNarrow() ? root.dataset.editorPanel === 'ai' : root.dataset.editorConcierge === 'open'; }
+  // A turn's hand-over saves the photo source; the window learns of a newly saved source once the turn has ended (the
+  // turn's own refresh re-reads it), never half way through a turn, which would switch the window's conversation under it.
+  var portraitHandingOver = false;
+  function refreshPortraitConcierge() { if (!portraitHandingOver) portraitAssistant?.refresh(); }
+  function closePortraitConcierge() { portraitAssistant?.element.dispatchEvent(new CustomEvent('editor-concierge:hide', { bubbles: true })); }
   function showView(view) {
     var portraits = view === 'portraits' && can('read');
+    // The concierge lives in the studio: leaving it for Your portraits closes it, so only a press there opens it again.
+    if (portraits && portraitConciergeShown()) closePortraitConcierge();
     document.querySelector('.wrap').dataset.portraitView = portraits ? 'portraits' : 'studio';
     $('toPortraits').hidden = portraits || !can('read'); $('newPortraitBtn').hidden = !portraits || !canCreateSource();
     if (!portraits) { showStep(portraitStep); portraitEditor?.refresh(); }
@@ -742,7 +764,7 @@ if (!window.AppView || !AppView.active()) (function () {
   function sourceDirty() { return JSON.stringify(sourceDraft()) !== portraitSourceBaseline || Boolean(portraitEditor?.hasPending()); }
   async function sourceRequest(path, options) { var response = await fetch(API + path, Object.assign({ credentials: 'same-origin', cache: 'no-store' }, options)); var body = await response.json().catch(function () { return {}; }); if (!response.ok) throw Error(body.error || 'Source request refused (' + response.status + ').'); return body; }
   function sourceEditable() { return canCreateSource() || Boolean(portraitSourceId && can('change')); }
-  function sourceNotify() { $('studioComposer').hidden = !canCreateSource() && !portraitSourceId; document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; $('stepper').hidden = !canCreateSource() && !portraitSourceId; if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId; $('generateBtn').hidden = false; if (portraitSourceTitle) portraitSourceTitle.disabled = !sourceEditable(); if (portraitSourceName && portraitSourceTitle) portraitSourceName.textContent = portraitSourceTitle.value.trim() || 'Portrait source'; portraitEditor?.refresh(); portraitAssistant?.refresh(); if (portraitSourceSaveButton) portraitSourceSaveButton.disabled = portraitSourceBusy || !(portraitSourceId ? can('change') : canCreateSource()); }
+  function sourceNotify() { $('studioComposer').hidden = !canCreateSource() && !portraitSourceId; document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; $('stepper').hidden = !canCreateSource() && !portraitSourceId; if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId; $('generateBtn').hidden = false; if (portraitSourceTitle) portraitSourceTitle.disabled = !sourceEditable(); if (portraitSourceName && portraitSourceTitle) portraitSourceName.textContent = portraitSourceTitle.value.trim() || 'Portrait source'; portraitEditor?.refresh(); refreshPortraitConcierge(); if (portraitSourceSaveButton) portraitSourceSaveButton.disabled = portraitSourceBusy || !(portraitSourceId ? can('change') : canCreateSource()); }
   async function listSources() { if (!portraitSourceLibrary) return; try { var data = await sourceRequest('/source-projects'); portraitSourceLibrary.replaceChildren(); data.projects.forEach(function (project) { var button = document.createElement('button'); button.type = 'button'; button.textContent = project.title + ' · revision ' + project.revision; button.onclick = function () { showView('studio'); openSource(project.id).catch(function (error) { setStatus(error.message, true); }); }; portraitSourceLibrary.append(button); }); if (!data.projects.length) portraitSourceLibrary.textContent = 'No saved photo sources yet.'; } catch (error) { portraitSourceLibrary.textContent = 'Saved photo sources unavailable: ' + error.message; } }
   async function saveSource(copy) {
     if (portraitSourceBusy || state.generating) throw Error('Wait for the current source operation.');
@@ -798,12 +820,13 @@ if (!window.AppView || !AppView.active()) (function () {
     var label = document.createElement('label'); label.textContent = 'Source title'; portraitSourceTitle = document.createElement('input'); portraitSourceTitle.maxLength = 120; portraitSourceTitle.value = 'Portrait source'; portraitSourceTitle.addEventListener('input', sourceNotify); label.append(portraitSourceTitle); row.append(label);
     [['New source', newSource], ['Save source', function () { return saveSource(false); }], ['Save copy', function () { return saveSource(true); }], ['Reload saved', function () { if (portraitSourceId) return openSource(portraitSourceId); }]].forEach(function (entry) { var button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; if (entry[0] === 'Save source') portraitSourceSaveButton = button; button.onclick = function () { menu.open = false; Promise.resolve().then(entry[1]).catch(function (error) { setStatus(error.message, true); }); }; row.append(button); }); header.querySelector('h1').after(menu);
     var library = document.createElement('section'), heading = document.createElement('h3'); heading.textContent = 'Saved photo sources'; portraitSourceLibrary = document.createElement('div'); library.className = 'source-library'; portraitSourceLibrary.className = 'source-row'; library.append(heading, portraitSourceLibrary); $('galleryEmpty').after(library); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); await listSources();
-    var handoff = await import('/shared/ui/js/document-handoff.js'); portraitSourceSession = { app: 'portrait-studio', prepare: async function () { for (var attempt = 0; attempt < 3 && (!portraitSourceId || sourceDirty()); attempt++) await saveSource(); if (sourceDirty() || !portraitSourceId) throw Error('Finish your source edit before asking the assistant.'); return { app: 'portrait-studio', selection: portraitContext().selection, screen: 'source-editor', surface: 'portrait-source', title: sourceDraft().title, recordId: portraitSourceId, digest: 'Owned original photo/crop source. Use the typed source tools and current revision. Generated portraits remain separate outputs.', can: [], customOps: [], fields: { available: true, readOnly: !can('change'), revision: portraitSourceRevision, saved: true, draft: false, cropId: cur() ? portraitIdentity(cur(), cropIdentities) : null } }; }, refresh: async function (expected) { if (expected?.recordId && expected.recordId !== portraitSourceId) return; if (portraitSourceId) await openSource(portraitSourceId, true); } }; handoff.registerDocumentSession(portraitSourceSession); portraitAssistant?.refresh();
+    var handoff = await import('/shared/ui/js/document-handoff.js'); portraitSourceSession = { app: 'portrait-studio', prepare: async function () { portraitHandingOver = true; try { for (var attempt = 0; attempt < 3 && (!portraitSourceId || sourceDirty()); attempt++) await saveSource(); } finally { portraitHandingOver = false; } if (sourceDirty() || !portraitSourceId) throw Error('Finish your source edit before asking the assistant.'); return { app: 'portrait-studio', selection: portraitContext().selection, screen: 'source-editor', surface: 'portrait-source', title: sourceDraft().title, recordId: portraitSourceId, digest: 'Owned original photo/crop source. Use the typed source tools and current revision. Generated portraits remain separate outputs.', can: [], customOps: [], fields: { available: true, readOnly: !can('change'), revision: portraitSourceRevision, saved: true, draft: false, cropId: cur() ? portraitIdentity(cur(), cropIdentities) : null } }; }, refresh: async function (expected) { if (expected?.recordId && expected.recordId !== portraitSourceId) return; if (portraitSourceId) await openSource(portraitSourceId, true); } }; handoff.registerDocumentSession(portraitSourceSession); refreshPortraitConcierge();
     document.querySelector('.wrap').addEventListener('editor-foundation:draft', sourceNotify); window.addEventListener('beforeunload', function (event) { if (sourceDirty()) { event.preventDefault(); event.returnValue = ''; } });
   }
 
   async function mountPortraitWorkspace() {
     var foundation = await import('/shared/ui/js/editor-foundation.js');
+    var concierge = await import('/shared/ui/js/editor-assistant.js');
     var root = document.querySelector('.wrap'), panels = [...$('studioComposer').querySelectorAll(':scope > .panel')];
     portraitPhotoPanel = panels[0]; portraitSettingsPanel = panels[1];
     portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId;
@@ -813,13 +836,29 @@ if (!window.AppView || !AppView.active()) (function () {
     [['undoCrop','Undo crop',false,'↶'],['redoCrop','Redo crop',true,'↷']].forEach(function (entry) { var button = document.createElement('button'); button.id = entry[0]; button.type = 'button'; button.className = 'icon-button'; button.textContent = entry[3]; button.setAttribute('aria-label', entry[1]); button.title = entry[1]; button.disabled = true; button.onclick = function () { moveCropHistory(entry[2]); }; actions.append(button); });
     root.querySelector('header').append(actions);
     var note = document.createElement('p'); note.className = 'hint'; note.textContent = 'A finished portrait opens as a single image layer. Original photos, crops and generation settings stay in this source project.'; portraitSettingsPanel.prepend(note);
-    // No embedded "Ask about this document" column: the shell's one Concierge reads the document session registered in
-    // mountPortraitSource (document-handoff). Your portraits is its own view, so the editor's navigation is only the way back.
+    // Your portraits is its own view, so the editor's navigation is only the way back.
     var studioNav = document.createElement('nav'); studioNav.className = 'panel'; studioNav.id = 'studioNav'; studioNav.setAttribute('aria-label', 'Portrait Studio'); root.append(studioNav);
-    portraitEditor = foundation.createEditorFoundation({ root: root, navigation: studioNav, viewport: portraitPhotoPanel, inspector: portraitSettingsPanel, header: root.querySelector('header'),
-      getState: function () { var history = cropHistory(); return { documentId: portraitContext().documentId, revision: portraitSourceRevision, title: portraitSourceTitle?.value || 'Portrait Studio', readOnly: !sourceEditable(), busy: state.generating || portraitSourceBusy, dirty: portraitSourceTitle ? sourceDirty() : Boolean(state.img || $('notes').value), canUndo: Boolean(history && history.past.length > 1), canRedo: Boolean(history && history.future.length), status: portraitSourceId ? 'Photo source revision ' + portraitSourceRevision + (sourceDirty() ? ' · unsaved changes' : ' · saved') : 'Unsaved photo source' }; },
+    function portraitEditorState() { var history = cropHistory(); return { documentId: portraitContext().documentId, revision: portraitSourceRevision, title: portraitSourceTitle?.value || 'Portrait Studio', readOnly: !sourceEditable(), busy: state.generating || portraitSourceBusy, dirty: portraitSourceTitle ? sourceDirty() : Boolean(state.img || $('notes').value), canUndo: Boolean(history && history.past.length > 1), canRedo: Boolean(history && history.future.length), status: portraitSourceId ? 'Photo source revision ' + portraitSourceRevision + (sourceDirty() ? ' · unsaved changes' : ' · saved') : 'Unsaved photo source' }; }
+    // Portrait Studio carries its own concierge, as every Create studio does (Image editor, AI Office, Video editor, CAD):
+    // the kernel's one chat window as Portrait Studio's (portrait-artist). Left to "the shell's one Concierge", Create's
+    // Portrait screen opened Create's (Roger, 2026-11-17, production), because inside Create the shell's is Create's. With
+    // its own pane the shell hides its ball and its bar's Concierge opens this one. A turn hands over the photo source
+    // through the document session mountPortraitSource registers (saved first); the conversation is the saved source's
+    // own, so an unsaved draft names no document.
+    portraitAssistant = await concierge.createRegisteredEditorAssistant({ app: 'portrait-studio', bot: 'portrait-artist', title: 'Portrait Studio AI partner', root: root,
+      getState: function () { return Object.assign(portraitEditorState(), { documentId: portraitSourceId }); }, getSelection: function () { return portraitContext().selection; } });
+    var conciergeHelp = portraitAssistant.element.querySelector('.ef-assistant-help'); if (conciergeHelp) conciergeHelp.textContent = 'Ask about this photo source or request a change. Your source is saved before each message.';
+    portraitEditor = foundation.createEditorFoundation({ root: root, ai: portraitAssistant.element, navigation: studioNav, viewport: portraitPhotoPanel, inspector: portraitSettingsPanel, header: root.querySelector('header'),
+      getState: portraitEditorState,
       getSelection: function () { return portraitContext().selection; }, getProperties: portraitProperties, applyProperty: applyPortraitProperty,
       actions: { save: function () { return saveSource(false); }, undo: function () { moveCropHistory(false); }, redo: function () { moveCropHistory(true); } } });
+    // The concierge starts closed and opens only from its one entry (Today's bar Concierge or the tools row on a desktop,
+    // the bottom bar on a phone): the studio keeps its width, and a tablet turned past 800px on Your portraits finds it
+    // closed rather than open and pulling the studio forward.
+    closePortraitConcierge(); if (document.activeElement?.closest?.('.ef-panes')) document.activeElement.blur();
+    // Your portraits hides the studio, where the concierge pane lives: opening the concierge there (Today's bar Concierge on
+    // a desktop, the bottom bar's Concierge on a phone) brings the studio forward with the concierge open.
+    new MutationObserver(function () { if (root.dataset.portraitView === 'portraits' && portraitConciergeShown()) showView('studio'); }).observe(root, { attributes: true, attributeFilter: ['data-editor-panel', 'data-editor-concierge'] });
     await mountPortraitSource();
     root.addEventListener('input', function () { portraitEditor.refresh(); }); root.addEventListener('change', function () { portraitEditor.refresh(); });
     new ResizeObserver(function () { if (state.img && portraitStep === 1) { sizeCanvas(); drawCrop(); } }).observe($('stepPhoto'));
@@ -1532,7 +1571,7 @@ if (!window.AppView || !AppView.active()) (function () {
   $('notes').addEventListener('input', function () { state.lastGeneratedUrl = ''; renderStep3Preview(); });
 
   function updateGenerateBtn() {
-    portraitEditor?.refresh(); portraitAssistant?.refresh(); updateCropButtons();
+    portraitEditor?.refresh(); refreshPortraitConcierge(); updateCropButtons();
     var btn = $('generateBtn'), why = $('generateWhy');
     var blocker = state.generating ? '' : generateBlocker();
     btn.hidden = false;

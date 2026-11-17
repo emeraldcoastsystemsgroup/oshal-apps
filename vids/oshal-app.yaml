@@ -12,6 +12,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: single brief form (remove duplicate Generation source/settings Properties), withhold Generate clip when no worker is online with setup in Help, close inline Concierge on load, and replace Save brief / Reload saved with one top row (New brief, Undo/Redo icons, Saved caption) and automatic saving.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Release 1.6.6 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): on a phone the brief starts within the top 30% of the screen instead of 485 px down (53%): the description under the title is hidden again (its rule stopped matching when the Studio moved it into a <header>; hidden at every size, as the rule meant), the brief row (title, New brief, Undo, Redo) is one line and the empty preview is one line of text instead of a 200 px band. Guard tests/vids-phone-first-screen.test.cjs (412/390/360/1440, the kernel's shared editor from OSHAL_KERNEL_PLATFORM). Presentation only: no route, read, write, permission or data change.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
@@ -70,7 +71,7 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.6.6
+version: 1.6.7
 authorization:
   version: 1
   catalog: authorization.yaml

@@ -6,10 +6,18 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): replace all seven AI Office planned controls with working Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view, and Share controls while retaining RP-ALL-01 Summarize.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 2.20.4: hostedAssistant() reads ?assistant=host, which a host page that frames this editor and owns the screen's one assistant passes (Career's My résumé, career-hunter 1.61.0, where Career's concierge edits the résumé). Then the side pane has only Format, the phone's bottom bar has no Concierge, and Generate a draft is not offered, because there is no AI Office concierge on that screen to answer them. Without the option nothing changes.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): remove duplicate greyed Summarize planned control from the AI Office Concierge prompt strip because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 2.20.6 (Roger, 2026-11-16, Career's My résumé on his phone: "Half of this page on mobile is taken by the header"). A page that frames this editor and draws the document's one bar itself passes ?header=host (or ?header=editor while this editor keeps its own row) and moves the app row between the two with an office-header message (bindHostRow). While the host has it, this row is not drawn (office.css); the host is told the row's state (office-header-state: reading, Edit, Undo, Redo, Export, unsaved), presses the row's own buttons here by name (office-command: edit, undo, redo, export, document, documents) and hears the canvas's scroll (office-scroll) so it can give the document more of the screen. The direct parent on this origin only. Without the option nothing changes.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): the kernel's concierge pane frames that window now (kernel 00c62f98), and AI Office lays itself out around it. Generate a draft is a row above the window instead of under it, where it left the window's composer ending 64 px above the desktop rail's bottom and took the phone sheet's room; what it does is unchanged (its starter sentence goes into the window's message box through the pane's stand-in box). The phone's Concierge sheet is a chat sheet (ds-chat): as tall as a sheet may be, so the window has the room a conversation needs (it had a 308 px frame, and its composer covered its own Summarize starter, so a tap there landed on the composer). The window's own Close closes that sheet: the editor shell that hears it on a desktop is not around the sheet, so the Close did nothing there.
  */
 import{clone,uid,plain}from'./model.mjs';
 /** @description Whether the page that frames this editor owns the screen's one assistant (?assistant=host). @returns {boolean} */
 export const hostedAssistant=()=>new URLSearchParams(location.search).get('assistant')==='host';
+/**
+ * @description Who draws the document's app row when a page frames this editor: 'host' (the framing page draws it now),
+ * 'editor' (this editor does, and the page may take it), or '' (no such page: this editor always does).
+ * @returns {''|'host'|'editor'} The owner named by ?header=.
+ */
+export const hostedHeader=()=>{const value=new URLSearchParams(location.search).get('header');return value==='host'||value==='editor'?value:'';};
 import{state,notify,status,dirty,pristine,editable,currentPage,currentItem,edit,api}from'./state.mjs';
 import{guard,openDocument,newDocument,refreshDocuments,mayReplace}from'./files.mjs';
 import{fit,invalidate}from'./render.mjs';
@@ -128,14 +136,17 @@ function bindPanesAndFormat({root,foundation,layers,act,planned,sheet}){
  }
  for(const[key,label]of hostedAssistant()?[['format','Format']]:[['format','Format'],['concierge','Concierge']]){const tab=make('button','office-pane-tab',label);tab.type='button';tab.dataset.pane=key;tab.setAttribute('role','tab');tab.onclick=()=>showPane(key);tabs.append(tab);}
  root.querySelector('.ef-body').append(tabs);
- const conciergeSheet=()=>sheet('Concierge',[$('office-ai')],[],{});
+ // The phone's Concierge sheet holds the one chat window: a chat sheet as tall as a sheet may be (office.css ds-chat),
+ // closed by the window's own Close too, which the editor shell hears on a desktop but which never reaches it from here.
+ const conciergeSheet=()=>{const layer=sheet('Concierge',[$('office-ai')],[],{chat:true});layer.dialog.addEventListener('editor-concierge:hide',()=>void layers.close(layer.dialog));return layer;};
  async function generate(){
   if(wide())showPane('concierge');else if(!layers.top()?.querySelector('#office-ai'))await conciergeSheet();
   openGenerationAssistant({foundation:{showPanel(){}},element:$('office-ai'),model:state.model});
  }
  const prompts=make('div','office-prompts'),draft=make('button','office-chip','Generate a draft');draft.type='button';draft.onclick=act(()=>generate());
  prompts.append(draft);
- $('office-ai')?.querySelector('.ef-assistant-composer')?.before(prompts);
+ // Above the window, never under it, so the window keeps the pane's height down to the rail's or the sheet's bottom.
+ $('office-ai')?.querySelector('.ef-assistant-log')?.before(prompts);
  new MutationObserver(()=>{syncPane();requestAnimationFrame(fit);}).observe(root,{attributes:true,attributeFilter:['data-editor-concierge']});
  const formatTabs=make('div','office-format-tabs');formatTabs.setAttribute('role','tablist');formatTabs.setAttribute('aria-label','Format');
  const properties=root.querySelector('.ef-properties');properties.prepend(formatTabs);
@@ -240,16 +251,55 @@ function paintFacts(){
  $('office-doc-summary-title').textContent=model.kind==='pptx'?'Presentation':'Document';
 }
 
+/** The app row's own buttons a host may press by name; each keeps its own handler, guard and disabled state. */
+const HOST_COMMANDS=Object.freeze({edit:'office-edit',undo:'undo',redo:'redo',export:'office-export',document:'document-name',documents:'office-back'});
+
+/**
+ * @description Share the app row with a page that frames this editor and draws the document's one bar itself
+ * (?header=host|editor, see hostedHeader). That page moves the row with {type:'office-header',owner:'host'|'editor'}
+ * and presses its buttons with {type:'office-command',command}; this editor tells it the row's state
+ * ({type:'office-header-state',state}) whenever it changes and the canvas's scroll ({type:'office-scroll',top}).
+ * Messages are taken only from the direct parent on this origin and sent only to it.
+ * @param {{root:HTMLElement}} options The editor's root.
+ * @returns {{publish:Function}} publish() sends the row's state when it has changed (a no-op without a host).
+ */
+function bindHostRow({root}){
+ const mode=hostedHeader(),host=window.parent;
+ if(!mode||host===window)return{publish(){}};
+ const html=document.documentElement,post=message=>{try{host.postMessage(message,location.origin);}catch{/* the framing page has gone */}};
+ const own=owner=>{html.dataset.officeHeader=owner==='host'?'host':'editor';requestAnimationFrame(fit);};
+ let last='';
+ function publish(){
+  const usable=id=>!$(id).hidden&&!$(id).disabled;
+  const now={owner:html.dataset.officeHeader,ready:html.dataset.officeReady==='true',reading:root.hasAttribute('data-office-reading'),edit:usable('office-edit'),undo:usable('undo'),redo:usable('redo'),
+   export:Boolean(state.permissions.export)&&hasContent()&&!$('office-export').disabled,dirty:dirty(),busy:Boolean(state.busy),conflict:Boolean(state.conflict),
+   saveState:$('save-state').textContent,title:state.model.title||''};
+  const key=JSON.stringify(now);if(key===last)return;last=key;post({type:'office-header-state',state:now});
+ }
+ own(mode);
+ window.addEventListener('message',event=>{
+  const data=event.data;
+  if(event.source!==host||event.origin!==location.origin||!data||typeof data!=='object')return;
+  if(data.type==='office-header'){own(data.owner);publish();return;}
+  if(data.type==='office-command'&&Object.hasOwn(HOST_COMMANDS,data.command)){const button=$(HOST_COMMANDS[data.command]);if(button&&!button.disabled)button.click();}
+ });
+ let queued=0;
+ $('document-canvas').addEventListener('scroll',()=>{if(queued)return;queued=requestAnimationFrame(()=>{queued=0;post({type:'office-scroll',top:Math.round($('document-canvas').scrollTop)});});},{passive:true});
+ post({type:'office-header-ready'});
+ return{publish};
+}
+
 export function bindDesign({foundation,plannedControl,insert,removeItem,arrange,duplicate}){
  const root=$('office-root'),layers=createLayers(document),act=work=>guard(async event=>{await work(event);});
  const planned=(backlog,label,options={})=>plannedControl(document,{backlog,label,...options});
- const sheet=(title,nodes=[],extra=[],options={})=>{const layer=layers.create(title,'ds-sheet'+(options.half?' ds-half':''));layer.body.append(...extra);return layers.open(layer,{nodes,onClose:options.onClose});};
+ const sheet=(title,nodes=[],extra=[],options={})=>{const layer=layers.create(title,'ds-sheet'+(options.half?' ds-half':'')+(options.chat?' ds-chat':''));layer.body.append(...extra);return layers.open(layer,{nodes,onClose:options.onClose});};
  const menu=(title,items,anchor)=>{const layer=layers.create(title,'ds-menu');layer.body.append(buildMenuList(items,planned,item=>act(async()=>{await layers.close(layer.dialog);await item.run();})));return layers.open(layer,{anchor});};
  state.confirm=({title,message,action,danger=false})=>new Promise(resolve=>{let answer=false;const layer=layers.create(title,'ds-sheet ds-confirm'),row=make('div','office-dialog-actions'),cancel=make('button','','Cancel'),go=make('button',danger?'ds-danger-fill':'primary',action);cancel.type=go.type='button';if(danger)go.dataset.dsDestructive='';cancel.onclick=()=>void layers.close(layer.dialog);go.onclick=()=>{answer=true;void layers.close(layer.dialog);};row.append(cancel,go);layer.body.append(make('p','office-confirm-text',message),row);layers.open(layer,{onClose:()=>setTimeout(()=>resolve(answer))});});
  const home=bindHomeAndHeader({root,layers,act,menu,sheet});
  const panes=bindPanesAndFormat({root,foundation,layers,act,planned,sheet});
  const tools=bindToolbarsAndMenus({layers,act,planned,menu,sheet,click:home.click,inertNode:home.inertNode,insert,generate:panes.generate,formatSheet:panes.formatSheet,conciergeSheet:panes.conciergeSheet});
  const sel=bindSelectionAndCanvas({root,layers,act,menu,duplicate,arrange,removeItem});
+ const hostRow=bindHostRow({root});
  function refresh(){
   const view=root.dataset.officeView||'document',reading=state.reading&&view==='document',content=hasContent(),canExport=Boolean(state.permissions.export);
   const canStartEdit=Boolean(state.id?(state.accessRole==='owner'?state.permissions.change:state.canEdit):state.permissions.create);
@@ -260,7 +310,7 @@ export function bindDesign({foundation,plannedControl,insert,removeItem,arrange,
   root.toggleAttribute('data-office-reading',reading);document.documentElement.toggleAttribute('data-office-reading',reading);
   root.dataset.officeRail=state.model.kind==='docx'&&state.model.pages.length<2?'off':'on';
   for(const line of $('document-canvas').querySelectorAll('.office-word-page .office-rich-text'))line.toggleAttribute('data-office-empty',line.textContent==='');
-  tools.paintBar();tools.syncDesk();paintFacts();panes.syncPane();panes.applyFormatTab();sel.placeSelectionBar();
+  tools.paintBar();tools.syncDesk();paintFacts();panes.syncPane();panes.applyFormatTab();sel.placeSelectionBar();hostRow.publish();
  }
  home.setView('document');panes.syncPane();tools.paintBar();
  document.addEventListener('keydown',e=>{if(e.key==='Tab')document.documentElement.setAttribute('data-office-keyboard','');},true);

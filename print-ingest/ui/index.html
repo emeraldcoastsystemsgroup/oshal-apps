@@ -13,6 +13,7 @@
   2   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.2: the company audience view for the Business shells (ADR-164 D6). Studio, Orbit and Commons open this first surface with ?audience=company; the page now loads the theme bootstrap and the shared kit right after it, and the kit paints the signed-in account's own inbox from GET /documents and GET /home-summary (four stats, the newest ten documents with where each was proposed or filed, the failed or partly filed ones with their reasons, the route's notes) with every refusal and failure named. The view never approves, rejects, imports or files. The full page's start (the inbox read, the approve / reject and tab listeners) runs only when no audience view renders, and its native controls keep the browser's default colour scheme so the bootstrap leaves the full page as it was.
   3   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.9 (UX audit 2026-11-06): the selected tab is inverted ink with its count, never the accent, so Approve is the one primary; the editable Document title is the heading and the printed text a 3-line excerpt that opens on a tap; Match: medium in sentence case with a tooltip; Readable by once under a group that shares it; Approve and Reject sticky at the bottom on a phone; the in-page title is for screen readers only. Guard: tests/ux-inbox.test.cjs.
   4   | maintainer@emeraldcoastsystemsgroup.com   | 0.4.0 (T11): opening the full inbox (and each tab) first takes the documents printed to your own computers out of the swarm (POST /printed/collect, in your own session), then lists; each arrives awaiting approval. A document that came from a printer says so: "Came from a printer", the computer it was printed to, the sending address, its pages, its size and when, all set as text. A collect that fails says the documents still wait. The company view names the computer a printed document came through and never its sending address. Guard: tests/printed-row.test.cjs.
+  5   | maintainer@emeraldcoastsystemsgroup.com   | 0.4.1 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the list started 264 px down a 915 px phone, 29%, under two paragraphs and the tabs): on a phone the one-line explanation steps aside (the tabs say Awaiting approval) and the printed-documents note is one compact line. The desktop is unchanged. Presentation only.
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -172,6 +173,14 @@
   .excerpt { font-size: 14px; color: var(--ink-2); margin: 0 0 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
   .excerpt.full { display: block; -webkit-line-clamp: unset; }
   .readers { color: var(--ink-3); font-size: 12px; margin: 2px 0 6px; }
+  /* 0.4.1, the phone first screen: the shell names the inbox, so on a phone the one-line explanation steps aside (the
+     tabs say Awaiting approval) and a note about printed documents is one compact line, so the list starts near the top. */
+  @media (max-width: 640px) {
+    .wrap { padding-top: 12px; padding-left: 16px; padding-right: 16px; }
+    .wrap > .sub:not(#printedNote) { display: none; }
+    #printedNote { margin: 0 0 10px; font-size: 13px; }
+    .tabs { margin-bottom: 12px; }
+  }
   @media (max-width: 640px) {
     .doc .actions { position: sticky; bottom: 0; background: var(--card); padding: 10px 0; margin: 14px -20px -18px; padding-left: 20px; padding-right: 20px; border-top: 1px solid var(--rule); }
     .doc .actions button { min-height: 44px; flex: 1 1 0; }

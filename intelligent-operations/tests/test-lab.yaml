@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.9.3: register phone-first-screen (lane mobilesweep2).
 # 41 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name (tests/product-name.test.cjs: person-facing copy names the product Open Swarm; technical identifiers keep oshal; OSHAL Node component wording stays unchanged).
 # 40 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (closed sideEffects enum on cases 28..43, quoted flow-mapping cleanup strings containing commas, <=1000-character purpose summaries on monitor-enroll-prepare and monitor-enroll-otlp, and quoted colon-containing expectation on monitor-enroll-token-controls).
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1 (Monitoring Trust M2 rework): update monitoring-trust-m2 (tests/monitoring-trust-m2.test.cjs: verify package code never touches oshal.current_sub or set_config, enrollment prepare with headless/Windows/macOS/config-pack and optional device trust metadata, removed-source topology scan filtering and discovery auto-disable, and Systems device trust controls in Chromium).
@@ -952,4 +953,27 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: phone-first-screen
+    name: Systems shows its installations line near the top on a phone and nothing under the Jarvis button at the end
+    purpose: "Guard 1.9.3 (lane mobilesweep2): the real Operations experience in a stand-in for Today, opened on Systems for an account no installation has reported to, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ops-phone-first-screen.test.cjs
+    expected:
+      - On a phone the empty line of Monitored installations starts within the top 30% of the screen (the list started 252 px, 28%, under the lead); the general lead steps aside while nothing has reported.
+      - Nothing scrolls sideways and nothing to tap is under the floating Jarvis button at the end of the page (Cloud clusters sat under it); the desktop keeps the lead.
+      - Opening Systems writes nothing and raises no page error.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

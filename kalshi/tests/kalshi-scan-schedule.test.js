@@ -17,6 +17,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The page tells the person whether the scan will run: GET /scan names the background-scan schedule, and the page's scanJobState says the scan cannot run here (no cadence), is off until the person turns on the job's offer on the Jobs screen, is on, or is unknown when the host lists no jobs. The ~30s first-walk promise is gone from the page.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The package ships its calibration table (generatedAt 2026-07-13, all three horizons, a provenance block) and a scan may run against it; a missing table's reason, which the page prints as the gate reason, names no file path; before the first scan GET /scan carries the table's generatedAt; the page says the table's age in days. Live on 2026-10-11 the banner read "no kalshi-calibration.json at /package/data/kalshi-calibration.json or /package/config-seed/..." and the scan never ran.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a due tick scans: appIsActive sends no swarm_applications query there (the kernel is the authority that an installed, active application with a standing activation is being ticked) and the tick writes the snapshot; off the kernel zero registry rows still mean not installed. Live 2026-10-30 every scheduled tick had answered app_inactive in 0.2 s and the person's snapshot stayed at 10/13.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0: the page names the table in plain words, "model from Jul 13, 126 days old" (the year only past 300 days), on the one line under the account that renderFreshLine draws; none installed reads "no model data installed".
  */
 'use strict';
 
@@ -282,9 +283,11 @@ test('the page says how old the calibration table is, and that none is installed
   const ctx = {};
   vm.runInNewContext(`${pageFunction(html, 'calibrationLabel')}\nthis.f = calibrationLabel;`, ctx);
   const now = Date.parse('2026-10-11T12:00:00Z');
-  assert.match(ctx.f('2026-07-13T05:39:26.578Z', now), /^calibration table from .*2026 \(90 days old\)$/);
-  assert.match(ctx.f(null, now), /none installed/);
-  assert.match(html, /calibrationLabel\(p\.calibrationGeneratedAt, Date\.now\(\)\)/, 'the header line uses it');
+  assert.match(ctx.f('2026-07-13T05:39:26.578Z', now), /^model from \S+ 1?\d, 90 days old$/);
+  assert.match(ctx.f('2025-07-13T05:39:26.578Z', now), /^model from .*2025, 455 days old$/, 'the year once it is not this one');
+  assert.match(ctx.f(null, now), /no model data installed/);
+  assert.match(html, /calibrationLabel\(p && p\.calibrationGeneratedAt, nowMs\)/, 'the line under the account uses it');
+  assert.match(html, /renderFreshLine\(p, Date\.now\(\)\)/, 'on every read of the scan');
 });
 
 /** A pool that records every statement, answers no rows, and grants the scan lease. */

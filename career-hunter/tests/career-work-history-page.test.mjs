@@ -3,6 +3,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The store gate failed the concierge case on its kernel platform pin (~/.local/state/oshal-store-gate/kernel-platform-d43b5a8d): Express's res.sendFile refuses an absolute path with a dot-folder segment (~/.local) with 404, so the shared approval-card script never loaded ("Approval cards could not be loaded") and the card's words never appeared. Every file this fixture serves is now sent relative to its folder (the `root` option), and the files are checked before use (the page and shared assistant in before(), the card script in the concierge case), so a fixture or a platform export that cannot serve them fails at once by name: the gate's older pin (kernel-platform-99464cf9) holds only src/shared/ui, so there the concierge case names the missing src/api/jarvis-package-tools.js.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13 ~22:16Z: each new job held his whole pasted draft as one bullet that stopped mid-sentence): a pasted draft longer than 1000 characters stays whole in the bullet box (it had maxlength 1000, which a browser applies to a paste by cutting it) and Save turns it into one bullet per line.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The changed-with-Undo bar leaves after 12 seconds (it covered the Word editor's bar on a phone, seen on blue), but not while it is pointed at.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98, Roger 2026-11-16: every concierge is the core Jarvis chat window). The phone case asks in the window: the turn reaches career-concierge with the Work history page on its context, the window shows the approval card for the new job (the kernel's own card code, as before), Approve runs it, and the window's own Close (its one header) takes the person back to Work history, where the job is shown with Undo. The window and its stand-in kernel come from scripts/one-chat-window/kernel-window.mjs.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 const require = createRequire(import.meta.url), packageRoot = path.resolve(import.meta.dirname, '..'), repo = path.resolve(packageRoot, '..');
 const express = require(require.resolve('express', { paths: [path.join(repo, 'scripts/toolchain')] }));
 const { chromium } = require(require.resolve('playwright', { paths: [path.join(repo, 'scripts/toolchain')] }));
+const { mountWindow, windowKernel, chatWindow, sendInWindow } = await import('../../scripts/one-chat-window/kernel-window.mjs');
 const platform = process.env.OSHAL_KERNEL_PLATFORM || process.env.OSHAL_CORE_ROOT;
 const W = require('../tools/career-work-history.js');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'career-work-history-page-'));
@@ -53,9 +55,23 @@ Module._load = originalLoad;
 const ribbon = [['home', 'Home', 'home'], ['resume-studio', 'My résumé', 'resume-studio'], ['work-history', 'Work history', 'work-history']]
   .map(([id, label, view]) => ({ id: 'tool-career-' + id, label, section: 'top', toolUi: { iframeUrl: '/api/career-hunter/' + view, visibilityToolName: 'career-' + id } }));
 
+/** The concierge's answer to the new-job request: the approval card for the real engine's patch at the saved revision. */
+function proposeJob() {
+  const { revision } = JSON.parse(engine(['resume', 'base-section'], { CH_RESUME_DOC: JSON.stringify({ field: 'overview', index: 0, offset: 0, limit: 20 }) }).out);
+  const at = { roleIndex: 0, roleTitle: 'Staff Engineer' };
+  proposal = { id: 'fixture-add-job', app: 'career-hunter', appName: 'Intelligent Career', toolName: 'career_resume_patch', label: 'Change My Résumé or Work History', mode: 'ask',
+    expiresAt: new Date(Date.now() + 300000).toISOString(), input: { revision, edits: [
+      { op: 'add', field: 'role', index: 0, before: '', value: 'Staff Engineer', summary: 'Add Staff Engineer' },
+      { op: 'set', field: 'role', ...at, key: 'org', before: '', value: 'Northwind Labs', summary: 'at Northwind Labs' },
+      { op: 'set', field: 'role', ...at, key: 'start', before: '', value: '2026-11', summary: 'from Nov 2026' },
+      { op: 'add', field: 'experience', ...at, index: 0, before: '', value: 'Leads the platform group', summary: 'with one bullet' }] } };
+  return { answer: 'I can add Staff Engineer at Northwind Labs from November 2026. Approve to add it.', packageToolProposal: proposal };
+}
+const kernel = windowKernel({ answer: proposeJob });
 function app() {
   const web = express(), router = express.Router(), tools = path.join(packageRoot, 'tools');
   web.use(express.json());
+  mountWindow(web, { platform, kernel });
   studio.registerCareerResumeStudio(router, { pool: {} });
   // Relative to a root: an absolute path through a dot folder (a platform pin under ~/.local) is refused by sendFile.
   web.get('/api/career-hunter/work-history', (_req, res) => res.sendFile('career-work-history.html', { root: tools }));
@@ -67,18 +83,6 @@ function app() {
   web.get('/api/auth/user', (_req, res) => res.json({ displayName: 'Olive' }));
   web.get('/api/career-hunter/jobs/stats', (_req, res) => res.json({ saved: 0, queued: 0, tracked: 0 }));
   web.get('/api/presentations/editor/documents', (_req, res) => res.json({ documents: [] }));
-  web.post('/api/swarm/bots/career-concierge/ask', (req, res) => {
-    const { revision } = JSON.parse(engine(['resume', 'base-section'], { CH_RESUME_DOC: JSON.stringify({ field: 'overview', index: 0, offset: 0, limit: 20 }) }).out);
-    const at = { roleIndex: 0, roleTitle: 'Staff Engineer' };
-    proposal = { id: 'fixture-add-job', app: 'career-hunter', appName: 'Intelligent Career', toolName: 'career_resume_patch', label: 'Change My Résumé or Work History', mode: 'ask',
-      expiresAt: new Date(Date.now() + 300000).toISOString(), input: { revision, edits: [
-        { op: 'add', field: 'role', index: 0, before: '', value: 'Staff Engineer', summary: 'Add Staff Engineer' },
-        { op: 'set', field: 'role', ...at, key: 'org', before: '', value: 'Northwind Labs', summary: 'at Northwind Labs' },
-        { op: 'set', field: 'role', ...at, key: 'start', before: '', value: '2026-11', summary: 'from Nov 2026' },
-        { op: 'add', field: 'experience', ...at, index: 0, before: '', value: 'Leads the platform group', summary: 'with one bullet' }] } };
-    assert.equal(req.body.context.surface, 'work-history');
-    res.json({ reply: 'I can add Staff Engineer at Northwind Labs from November 2026. Approve to add it.', packageToolProposal: proposal.id });
-  });
   web.get('/api/jarvis/package-tools/proposals/:id', (_req, res) => res.json({ proposal }));
   web.post('/api/jarvis/package-tools/execute', (_req, res) => {
     const result = JSON.parse(engine(['resume', 'base-patch'], { CH_RESUME_DOC: JSON.stringify(proposal.input) }).out);
@@ -235,20 +239,22 @@ for (const [width, height] of [[412, 915], [360, 800]]) {
   });
 }
 
-test('phone: the concierge fills the screen with Back to Work history, proposes a new job as a card, and the approved job is on the page with Undo', async () => {
+test('phone: the concierge is the one chat window, proposes a new job as a card, and the approved job is on the page with Undo', async () => {
   reset('concierge');
   await served('/shared/ui/js/package-tool-cards.js', 'oshalPresentPackageTools'); // the kernel's src/api/jarvis-package-tools.js, which approval cards need
   const { page, context, errors } = await open(412, 915);
   try {
     await page.locator('.cf-concierge-toggle').click();
-    const pane = page.locator('.cf-concierge');
-    await pane.getByRole('textbox', { name: 'Message to concierge' }).fill('Add my new job: Staff Engineer at Northwind Labs since November 2026');
-    await pane.getByRole('button', { name: 'Send', exact: true }).click();
-    await pane.getByText('Add Staff Engineer, at Northwind Labs, from Nov 2026, with one bullet').waitFor({ timeout: 15000 });
+    const pane = page.locator('.cf-concierge'), chat = await chatWindow(pane);
+    const { ask } = await sendInWindow(chat, 'Add my new job: Staff Engineer at Northwind Labs since November 2026', (locator) => locator.click(), kernel);
+    assert.deepEqual([ask.bot, ask.context.app, ask.context.surface], ['career-concierge', 'career-hunter', 'work-history'], 'the turn is Career\'s, asked from Work history');
+    await chat.getByText('Add Staff Engineer, at Northwind Labs, from Nov 2026, with one bullet').waitFor({ timeout: 15000 });
     assert.equal(saved().roles.length, 2, 'nothing changes before the person approves');
-    await pane.getByRole('button', { name: 'Approve', exact: true }).click();
-    await pane.getByText(/Done/).first().waitFor({ timeout: 15000 });
-    await pane.getByRole('button', { name: 'Back to Work history', exact: true }).click();
+    await chat.getByRole('button', { name: 'Approve', exact: true }).click();
+    await chat.getByText(/Done/).first().waitFor({ timeout: 15000 });
+    // One header, the window's: its Close takes the person back to Work history.
+    await chat.locator('.jc-header .jc-panel-close').click();
+    await pane.waitFor({ state: 'hidden', timeout: 5000 });
     await card(page, 'Staff Engineer').waitFor({ timeout: 15000 });
     await page.locator('#careerChangeBar').getByText('The change you approved is on the page.').waitFor();
     assert.equal(saved().roles[0].title, 'Staff Engineer');

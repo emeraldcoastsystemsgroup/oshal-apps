@@ -8,6 +8,8 @@
  *   requestedView, and boot calls openOnResults for 'browse'). eats-concierge: one assistant entry (ribbon.hideAssistant), and the page follows
  *   the theme it wears: the parent-token copy that froze the first theme's palette inline (Ocean navy kept after a switch to Light Blue, white
  *   chat text on light grey) is gone, and no dark fill or literal ink is left on the surfaces the audit named.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: the page's own chat bubbles are gone (the Eats Concierge is the kernel's one chat window), so the accent ink is
+ *   checked on the toast, the page's remaining accent-filled surface.
  */
 'use strict';
 const test = require('node:test');
@@ -42,7 +44,7 @@ test('the page follows its own theme: no copy of the parent\'s tokens, no dark f
   const css = HTML.slice(HTML.indexOf('<style>\n  :root {\n    --bg: var(--bg-primary'), HTML.indexOf('</style>', HTML.indexOf('--bg: var(--bg-primary')));
   for (const hex of ['#11151a', '#080a0d', '#2b313d', '#04130b', '#05150d', 'rgba(15,17,21']) assert.ok(!css.includes(hex), `${hex} is gone`);
   assert.match(css, /--on-accent: var\(--ds-on-accent, var\(--text-on-accent, #fff\)\);/);
-  assert.match(css, /\.msg\.me \{[^}]*color: var\(--on-accent\);/);
+  assert.match(css, /\n  \.toast \{[^}]*color: var\(--on-accent\);/);
   const outsideBadges = css.replace(/\n  \.(badge|eta) \{[^}]*\}/g, '');
   assert.doesNotMatch(outsideBadges, /color: #fff;/, 'white ink only on the dark photo badges');
 });

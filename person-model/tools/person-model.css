@@ -512,3 +512,44 @@ td {
 .scroll {
   overflow-x: auto;
 }
+
+/* 1.2.5, Ambient Recall on a phone (lane mobilesweep1, 2026-11-16: the recall field started 408 px down a 915 px phone,
+   45%, under the page's own title, a six-line paragraph and a tab row that wrapped to two lines). A recall app opens on
+   its search field, as a search app does: Today's bar already names the application, so the title and the paragraph
+   step aside on a phone (the empty answer below the field says what to ask, and the examples line shows how); the five
+   sections are one row of 44 px tabs that scrolls sideways; the page keeps a 16 px gutter. The desktop is unchanged. */
+@media (max-width: 640px) {
+  body {
+    padding: 8px 16px 96px;
+  }
+
+  .wrap > h1,
+  .wrap > .sub {
+    display: none;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    margin: 0 -16px 14px;
+    padding: 0 12px;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs button {
+    flex: none;
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+
+  .ask input {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 16px;
+  }
+}

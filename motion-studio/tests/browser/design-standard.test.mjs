@@ -2,10 +2,14 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.2, §3.3, §4.3, §4.4, §4.8, §4.10, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved Motion opens on a blank composition whose one primary is Add layer, and the first layer saves it as 1920×1080, 10 s, 30 fps; + Add holds Text, Shape, Solid, Photo and Camera or light with Video and Audio greyed; the phone's bottom bar is Layers · Add · Properties · Concierge · More and a sheet stays clear of it; the phone's Back closes an open sheet and stays in the app; with no layer chosen the panel shows the composition's size, frame rate, duration, background and work area and a greyed Motion blur; a diamond on a property row adds a key at the current time and opens its editor; Undo and Redo step back and forth; a saved composition makes the list the first screen with one + New; Delete asks in the page, never in a browser dialog. Real routes over disposable PostgreSQL, the real framed compositor and the kernel's shared editor from OSHAL_PLATFORM_ROOT.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: verify live Video… and Audio… menu items in + Add and live Motion blur shutter controls in Composition settings with zero RP-MOT placeholders.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1, RP-ALL-01: verify no duplicate greyed RP-ALL-01 Summarize placeholder is injected beside the kernel's live Summarize prompt chip.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window). The kernel's live Summarize prompt is a starter in that window, so the first case opens the Concierge from the bottom bar once the composition is saved and finds exactly one live Summarize chip there; the page itself still carries no greyed RP-ALL-01 placeholder.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=motion-studio&bot=motion-editor, read with scripts/one-chat-window/today-host.mjs windowAddress.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {startApplicationFixture,chromium} from '../application-fixture.mjs';
+import {chatWindow} from '../../../scripts/one-chat-window/kernel-window.mjs';
+import {windowAddress} from '../../../scripts/one-chat-window/today-host.mjs';
 const PHONE={viewport:{width:412,height:743},isMobile:true,hasTouch:true,deviceScaleFactor:2};
 const overlaps=(a,b)=>Boolean(a&&b&&a.x<b.x+b.width&&b.x<a.x+a.width&&a.y<b.y+b.height&&b.y<a.y+a.height);
 
@@ -37,7 +41,6 @@ test('a blank composition opens with Add layer as its one primary; + Add holds l
  const planned=await menu.locator('[data-ds-not-yet]').count();
  assert.equal(planned,0,'RP-MOT-01 placeholders are replaced by live Video… and Audio…');
  assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(),0,'no duplicate greyed RP-ALL-01 Summarize placeholder');
- assert.equal(await page.locator('[data-concierge-prompt="Summarize"]').count(),1,'kernel-owned live Summarize prompt is present');
  const sheet=await page.locator('dialog[open]').boundingBox(),row=await page.locator('.motion-toolrow').boundingBox();assert.equal(overlaps(sheet,row),false,'the menu sheet stays clear of the bottom bar '+JSON.stringify({sheet,row}));
  await press(page.getByRole('menuitem',{name:'Text',exact:true}));await page.locator('#revision').filter({hasText:'revision 2'}).waitFor({timeout:90000});
  const saved=await page.evaluate(async()=>{const id=document.getElementById('projects').value,body=JSON.parse(await (await fetch('/api/motion-studio/projects/'+id)).text()),comp=Object.values(body.project.document.items).find(item=>item.kind.type==='Comp').kind;return{width:comp.width,height:comp.height,layers:comp.layers.map(l=>l.name),title:body.project.title};});
@@ -45,6 +48,13 @@ test('a blank composition opens with Add layer as its one primary; + Add holds l
  assert.deepEqual(await primaries(page),['Render'],'with a layer, Render is the one primary');
  assert.equal(await page.locator('#timeline .motion-row-name').filter({hasText:'Your caption'}).isVisible(),true,'the layer is a timeline row');
  assert.equal(await page.locator('#play').isEnabled(),true,'Play is live once there is a layer');
+ // RP-ALL-01: the kernel's live Summarize prompt is a starter of the one chat window the Concierge opens.
+ await press(page.locator('.motion-toolrow').getByRole('button',{name:'Concierge',exact:true}));await page.locator('dialog[open] .ef-assistant').waitFor({state:'visible'});
+ const chat=await chatWindow(page.locator('dialog[open] .ef-assistant'));
+ const where=await windowAddress(page.locator('dialog[open] .ef-assistant'));assert.deepEqual([where.path,where.app,where.bot],['/api/jarvis/','motion-studio','motion-editor'],'the bottom bar\'s Concierge opens the one chat window as Motion\'s own concierge');
+ await chat.locator('[data-concierge-prompt="Summarize"]').waitFor({state:'visible'});
+ assert.equal(await chat.locator('[data-concierge-prompt="Summarize"]').count(),1,'kernel-owned live Summarize prompt is present in the window');
+ assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(),0,'and no greyed RP-ALL-01 placeholder beside it');
 });
 
 test('on a phone the Back button closes an open sheet and stays in the app; with no layer chosen the panel shows the composition and live Motion blur controls',{timeout:180000},async t=>{

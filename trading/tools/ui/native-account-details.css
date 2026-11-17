@@ -25,3 +25,20 @@
 .t-actions a{text-decoration:none;display:inline-flex;align-items:center}.t-actions{flex-wrap:wrap}
 @media(max-width:900px){.details-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.details-chart-grid{grid-template-columns:1fr}}
 @media(max-width:540px){.account-details .panel{padding:16px}.details-metrics{gap:10px}.details-metric{padding:14px}.details-metric strong{font-size:20px}.details-header h1{font-size:22px}.details-header>.btn{width:100%}.details-filters{width:100%}.details-chart-grid{gap:16px}}
+/* Account status next steps (1.57.1): the content a step names, and the holdings a blocked check names. Shown on the
+   Strategies account page; a step scrolls its content to the top of the view, focuses it and briefly rings it. */
+.native-status-target{scroll-margin-top:16px;border-radius:10px}
+.native-status-target:focus{outline:3px solid var(--accent,#5648d5);outline-offset:4px}
+.native-status-target.is-revealed{animation:native-status-reveal 1.4s ease-out}
+@keyframes native-status-reveal{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent,#5648d5) 55%,transparent)}to{box-shadow:0 0 0 14px transparent}}
+@media (prefers-reduced-motion:reduce){.native-status-target.is-revealed{animation:none}}
+.native-status-blockers{margin:6px 0 18px;padding:14px 16px;border:1px solid color-mix(in srgb,var(--sell,#c8364b) 45%,var(--native-border,#d9deea));background:color-mix(in srgb,var(--sell,#c8364b) 6%,var(--panel,#fff))}
+.native-status-blockers h3{margin:0 0 6px;font-size:16px}
+.native-status-blockers .sub{margin:0 0 10px}
+.native-blocker-list{display:grid;gap:12px;margin:0;padding:0;list-style:none}
+.native-blocker{display:grid;gap:4px;padding-top:12px;border-top:1px solid var(--native-border,#d9deea);line-height:1.5}
+.native-blocker:first-child{padding-top:0;border-top:0}
+.native-blocker-step{color:var(--muted,#616b80);font-size:13px}
+.native-blocker-missing{margin:8px 0 0;font-weight:600}
+.native-execution-story tr.native-blocker-row>td{background:color-mix(in srgb,var(--sell,#c8364b) 12%,var(--panel,#fff));font-weight:650}
+.native-blocker-tag{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid var(--sell,#c8364b);border-radius:5px;color:var(--sell,#c8364b);font-size:11px;font-weight:700;line-height:1.6;vertical-align:middle}

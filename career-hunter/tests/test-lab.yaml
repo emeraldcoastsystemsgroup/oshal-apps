@@ -1,3 +1,13 @@
+# 109 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8: register concierge-early-press: Career's Concierge pressed while its concierge is still on its way (the bar draws the button first; seconds on a busy or just-started installation) opens the concierge once it mounts instead of doing nothing; the button says it is busy meanwhile. Red on 1.68.7, where the press reached no handler (the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z).
+# 108 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7: register portfolio-edit: Other experience's saved portfolio (oss_portfolio) opens its own Edit form, reads whole with the main résumé's revision and saves whole as one main-résumé edit, backed up and audited with Undo; every reader (the list, Download my data, job scoring) sees the save; a moved main résumé, a bad field, a partial form or a save past what job scoring reads changes nothing; the list's own form no longer copies the portfolio. Red on store main 6467ca6d.
+# 107 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: register job-details-read, job-details-sheet, job-descriptions-backfill and job-details-live: a job with no description (every Torch Technologies posting on 2026-11-16) is read once from the employer's posting through the kernel's egress and kept as the person's copy; the posting sheet shows it, or says plainly why it cannot with the posting and the paste path, never "No description was provided."; the backfill re-reads one employer's empty descriptions into the shared corpus once, with a counts-only dry run.
+# 106 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5: register letter-truth (letter_evidence ranks a long-form candidate's field engagements above a first development job for a controls posting and still picks the first job when only it fits; the prompts carry that evidence, the editor no longer reaches into an EARLIER role, and every anti-inflation rule that held letters before is still in them; claims_check catches an unstated C# level, a tool the records never name, inflated years, a title and an employer the records do not hold, a tool under the wrong job and a sentence drawn from the first job, and leaves an honest packet alone; the REAL generate_for and prepare_job hold a scripted model that overclaims; a letter that needs review is not ready until edited or confirmed; the page names its problems), letter-truth-route (Prepare application end to end through the compiled routes and the real engine with a scripted model that overclaims: one rewrite with the problems named, else needs your review cleared only by the person's confirmation of that letter) and letter-truth-live (the same on an installed Career on the test slot, as a test person with a made-up long-form résumé and no C#, with the real model).
+# 105 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4: register expanded-experience-engine (client engagements and client account groups read whole at every count and size and edited through the real engine's revision-checked main-résumé edit, Undo, refusals, the 128 KiB scoring guard, Download my data and the generation prompt), expanded-experience-page (Work history's Expanded experience in Chromium at 1440, 412 and 360 over the real route and engine) and expanded-experience-live (the same on an installed Career on the test slot as a test person with 20 made-up engagements).
+# 104 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1: register prepare-other-experience, prepare-other-experience-route and prepare-other-experience-live: Prepare application and bulk Prepare ask about the person's Other experience before any résumé is generated (the boxes on step 1 with the last choice ticked; one step before bulk Prepare queues anything), Generate sends exactly what is ticked, each queued job's tailoring holds the bulk choice, saved-job preparation waits for a person who never chose, and ticking the open-source entry is the one switch the engine reads. bulk-queue and jobs-table say each job's writes are now its tailoring, its move and its preparation.
+# 103 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: register bulk-queue and jobs-table: bulk Prepare runs each job's own two writes, at most two preparations at a time, waits while Career works on the account, survives a reload, cancels what is queued and ends failures with words; My jobs' Table view with location, sorting, filters, select all within the filter, the bulk bar of each stage and one confirmation before a bulk send, at 1440x900 and 412x915.
+# 102 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: register saved-job-place, saved-job-place-browser, saved-job-places-dry-run and saved-job-place-live: every saved job on My jobs carries its posting's place, how it is worked, its city point and its miles from the person's own home (their Matching area); Within 10/25/50/100 miles, Remote only and nearest first answer over every page; with no home the page says so and links to Matching area, and a distance is refused, never widened.
+# 101 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3: register resume-current-role (the engine lists the roles to carry and holds every generated résumé to them, current role first, on a made-up candidate past every suspected limit; lib/career-resume-roles.js agrees with the engine; a résumé prepared before the check names the role it leaves out and is not ready) resume-current-role-route (Prepare application end to end through the compiled routes and the real engine with a scripted model that leaves the current role out) and resume-current-role-live (the same on an installed Career on the test slot, as a test person with a made-up résumé, with the real model).
+# 100 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: register resume-header-phone: on a phone (412x915, 390x844, 360x780) My résumé's page starts in the top quarter of the screen under one document bar of at most 56 px with one row of section tabs that scrolls sideways, the résumé gets nearly the whole screen once the person scrolls into it, every control of AI Office's folded app row and the banner is at most one tap deeper, and a computer or tablet keeps the page as it was; and resume-header-live, the read-only check of the same bar on an installed Career on the test slot as a test person with a made-up résumé.
 # 99 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1: register package-smoke-manifest-budget so oshal-app.yaml stays within a 112 KiB budget (>= 16 KiB margin under package-smoke's 128 KiB ceiling) and createPackageSmokeRoutes answers 200 ready.
 # 98 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: register company-sent-and-age and long-bullets-and-banner: per-employer confirmed-sent counts and deterministic 30-day age fields across routes, native readers and desktop/phone screens, plus untruncated 1,900+ character work-history bullets, inline-glyph splitting and My résumé Main vs Tailored header clarity.
 # 97 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1: register paste-words-unmarked and paste-disabled-phone: a job the nightly pass did not mark whose preparation stopped for missing details reads with the paste words the Concierge and Jarvis say, and Generate is drawn off until 200 characters are pasted.
@@ -3255,4 +3265,608 @@ cases:
     sideEffects: none
     isolation: {mode: disposable, cleanup: "Close the loopback server and remove the temporary oversized-manifest directory."}
     limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: resume-header-phone
+    name: My résumé on a phone gives the résumé the screen under one document bar
+    purpose: >-
+      Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header". In Chromium with Career's
+      real page, frame and document host and AI Office's real editor over read-only made-up answers (a sample résumé),
+      measure where the résumé page starts, the row of section tabs and the bars at 412x915, 390x844 and 360x780 with
+      touch, and at 1440x900, 1024x768 and 768x1024.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/browser/career-resume-header-phone.test.cjs]
+    expected:
+      - On each phone the résumé page starts in the top quarter of the screen, the section tabs are one 48 px row of 44 px tabs that scrolls sideways, and the document has one bar of at most 56 px (the résumé with its save state, Edit, Save, More) with no AI Office row and no banner card.
+      - Once the person scrolls into the résumé it has at least 85% of the screen with its own bar at the top, and scrolling back up brings Career's bar back.
+      - Edit, Undo, Redo, Unsaved changes, AI Office's Export, document menu and Your documents, and the banner's words are each at most one tap deeper, and nothing is written.
+      - A computer or tablet keeps AI Office's own row, the banner and Save to main résumé as before.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, harness:kernel-platform-export]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser and every write is refused."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: resume-header-live
+    name: My résumé on a phone on the installed package, read-only, as a test person
+    purpose: >-
+      After career-hunter 1.67.2 and AI Office 2.20.6 are installed on a test slot, open My résumé in the cockpit as the
+      test person with a made-up résumé at 412x915, 390x844 and 360x780 (touch), every request that is not GET or HEAD
+      stopped, and measure where the résumé page starts, the tab row, the bars over the document and the share of the
+      screen the résumé has once scrolled into. Make the person once with `person`; run with
+      node career-hunter/tests/career-resume-header-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-resume-header-live-proof.mjs
+    expected:
+      - At each size the résumé page starts in the top quarter of the screen, the tabs are one row, the document bar is at most 56 px and AI Office draws no row of its own.
+      - Scrolled into, the résumé has at least 85% of the screen; the page itself writes nothing, and the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.67.2
+    sideEffects: none
+    isolation:
+      mode: live
+      cleanup: >-
+        Read-only: every request that is not GET or HEAD is stopped and listed, and the sessions the check signed in
+        with are signed out. `remove` signs the test person out, takes its grants back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: resume-current-role
+    name: Every generated résumé carries the current role first, and an earlier one that leaves it out is not ready
+    purpose: >-
+      Roger, 2026-11-16: the résumés Career prepared left out his current role, listed first on his main résumé with no
+      end date. On a made-up candidate whose profile is longer than 65,536 bytes, run the real build_prompt,
+      generate_for and prepare_job with a scripted model that leaves the three newest roles out; compare
+      lib/career-resume-roles.js with the engine's role_plan.py; read a packet prepared before the check.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-resume-roles.test.mjs, tests/career-resume-current-role-page.test.mjs]
+    expected:
+      - The prompt carries the whole profile and a ROLES TO CARRY block listing each current role first and every role that ended within 20 years, most recent first.
+      - The written résumé and its rendered document start with the current role, its span to Present, restored from the recorded title, employer, dates and bullets, with no bullet naming embargoed work; the model's own entries follow.
+      - The JavaScript and Python rules give the same roles, order and missing roles; a packet prepared earlier that leaves the role out needs generation and its refusal names the role; a submitted one is left alone.
+      - Prepare application opens such a résumé on step 1 · Tailor with a notice naming the role and Generate résumé & cover letter, and draws no later step.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary profile, store and packet folders."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: resume-current-role-route
+    name: Prepare application keeps the current role through the real routes and engine
+    purpose: >-
+      The compiled POST /jobs/:id/generate and GET /jobs/:id over the real engine dispatch, runner, launcher and Python
+      engine for a made-up candidate, with a scripted model on the package's rail path that leaves the current role
+      out and a stand-in Chromium that writes a one-line PDF.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-resume-current-role-route.test.mjs]
+    expected:
+      - A résumé prepared before the check that leaves the current role out reads as needing generation and names the role.
+      - Generate finishes ready and its résumé starts with the two current roles and then the newest ended role, the model's own entries after them.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the rail listener and remove the temporary store root."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: resume-current-role-live
+    name: A prepared résumé keeps the current role on the installed package, as a test person
+    purpose: >-
+      After career-hunter 1.67.3 is installed on a test slot, prepare one job through POST /jobs/:id/generate as a test
+      person whose made-up main résumé has two current jobs (no end date) added through Work history on top of a long
+      uploaded history, with the slot's real model, and read the résumé it wrote. Make the person once with `person`; run
+      with node career-hunter/tests/career-resume-current-role-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-resume-current-role-live-proof.mjs
+    expected:
+      - Preparation finishes ready and the résumé starts with the two current roles, the first one's dates running to Present.
+      - The job read carries missingRoles and it is empty; the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.67.3
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        The test person's own documents for one listing are written on the test slot only, never production. `remove`
+        takes the person's grant back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: saved-job-place
+    name: My jobs carries each saved job's place and its miles from the person's home
+    purpose: >-
+      Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me". Over
+      Career's compiled board and browse routes, real disposable SQLite with the engine's own corpus and owner schemas,
+      invented jobs and made-up homes: save from Find jobs, read My jobs, filter and sort by distance, for several people.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-saved-job-place.test.mjs]
+    expected:
+      - A job saved from Find jobs reaches My jobs with the same place text and map point Find jobs showed, how it is worked (Fully remote, Hybrid, On-site, only from the posting's words) and the same miles from home.
+      - Jobs saved before this version read their place from their postings for every person, each from their own home, alike twice, and the read writes nothing; a posting that names no place gets no point and no distance.
+      - Within 10, 25, 50 and 100 miles keep exactly the jobs at or under N (24.9 in, 25.1 out, fully remote out) over every page; Remote only keeps fully remote jobs; nearest first puts jobs with no distance last.
+      - With no home the answer says so with where to set it, and a distance filter or sort is refused (400 home_location_required); a bad Within is refused; a corpus without place columns still lists jobs and refuses a distance.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the synthetic stores and corpus under the test's temporary folders."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: saved-job-place-browser
+    name: My jobs says where each job is, with Within and Distance from home, on a computer and a phone
+    purpose: >-
+      The shipped My jobs and Settings pages in Chromium over fixture answers shaped as GET /jobs answers (invented jobs,
+      a made-up home), at 1440x900 and 412x915 with touch.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-saved-job-place-browser.test.mjs]
+    expected:
+      - Each saved job's facts read its place (or Location unknown), Fully remote, Hybrid or On-site when the posting says so, and the miles from home; nothing is wider than the screen.
+      - Within (Any distance, 10, 25, 50, 100 miles, Remote only) and Distance from home are asked of the server; the stages of Applications have neither.
+      - With no home one line says so with Set your home, a 44px target on a phone, linked to Settings at ?section=matching, which opens What I'm looking for with Matching area; the choices that need a home are off, and a remembered distance says why instead of Could not update jobs.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: saved-job-places-dry-run
+    name: The read-only count of where every person's saved jobs are, after delivery
+    purpose: >-
+      scripts/saved-job-places.py is the dry run the release coordinator runs on an installation after delivery. Over a
+      made-up native data root with the engine's own schemas, invented jobs and people with and without a home.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-saved-job-places-script.test.mjs]
+    expected:
+      - It counts people, saved jobs (removed ones left out), place text, fully remote jobs, map points and distances exactly, and says it would write nothing.
+      - It prints no subject, principal, title, employer or place, and every file byte under the root is as it was.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up data root under the test's temporary folder."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: saved-job-place-live
+    name: My jobs on the installed package says where each saved job is, as a test person with a made-up home
+    purpose: >-
+      After career-hunter 1.67.4 is installed on a test slot, as a test person with a made-up résumé and home (Bend, OR)
+      who saved a few public openings from Find jobs: compare My jobs with what Find jobs showed, check Within 25 miles,
+      Remote only and nearest first, and read each row's place line in Today at 412x915 and 1440x900. Make the person
+      once with `person`; run node career-hunter/tests/career-saved-job-place-live-proof.mjs check
+      http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-saved-job-place-live-proof.mjs
+    expected:
+      - Before a home was set My jobs said so (home.known false) and refused Within 25 miles with home_location_required; after, home is the made-up town.
+      - Each saved job carries the place text and map point Find jobs showed, Fully remote for the remote one, and the miles Find jobs showed from the same home; Within 25, Remote only and nearest first are exact.
+      - In Today each saved row's facts read its place, how it is worked and its miles from home, a Within choice is there, nothing scrolls sideways, My jobs writes nothing, and the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.67.4
+    sideEffects: none
+    isolation:
+      mode: live
+      cleanup: >-
+        Read-only: every request that is not GET or HEAD is stopped and listed, and the sessions the check signed in
+        with are signed out. `remove` takes the test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: bulk-queue
+    name: Bulk Prepare runs each job's own preparation, at most two at a time, and keeps its progress
+    purpose: >-
+      Run the shipped tools/career-job-actions.js and tools/career-bulk-queue.js against a simulated Career that, like the
+      native kernel, lets one run hold a person's Career files and refuses their other writes until it ends.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-bulk-queue.test.mjs]
+    expected:
+      - Each queued job gets its own writes in order (the Other experience chosen in bulk Prepare on its tailoring, status promoted, then generate with that choice, experienceChosen and a request id the route accepts), and no job is prepared twice; a preparation queued with no choice is cancelled with words and writes nothing.
+      - Never more than two preparations run at once, even where Career would take more; while Career works on the account the next job waits in the queue, nothing fails, and the refused write is tried again after a pause.
+      - A reloaded page shows the same states and follows the running job instead of starting it again; Cancel stops every queued job and nothing cancelled is written; one of two tabs drives the queue.
+      - A failed preparation ends with its reason in words; three in a row with one reason pause the rest until Resume; a job Career cannot read fails with the paste words without being moved; a run that ended without its receipt is reported and never retried by itself.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Nothing to clean: the simulated Career and the browser storage live in memory."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 256}
+    installation: never
+  - id: jobs-table
+    name: My jobs Table view, bulk select and bulk actions at 1440 and 412
+    purpose: >-
+      Open the shipped My jobs page in headless Chromium at 1440x900 and 412x915 over fixture jobs and a fixture Career
+      that runs one preparation at a time, moving the page clock on to let the queue work.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-jobs-table-browser.test.mjs]
+    expected:
+      - The List | Table switch is remembered per person; the Table shows one row per saved job with Company, Title, Location (Remote, Location unknown, miles), Match, Stage, Saved and Résumé, and at phone width is a selectable list with the same actions and nothing wider than the screen.
+      - Location sorts nearest first; Within 25 miles and select all choose exactly the jobs the filter shows, and a job the filter hides is never left selected.
+      - Prepare applications asks once (its step), then queues the jobs it applies to, names the ones left out, makes each job's own writes (its tailoring, its move, its preparation), shows Queued and Preparing on rows and the overall count, ends Prepared, survives a reload, and Cancel stops what is queued.
+      - Send asks once with the count and the companies, refuses without the ticked approval and sends nothing, then approves exactly the packets it read; Applications move in bulk with their own body; with no home location the line and its link show and the mile options are off.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: prepare-other-experience
+    name: Prepare application and bulk Prepare ask about Other experience before any résumé is generated, at 1440 and 412
+    purpose: >-
+      Roger, 2026-11-16: "when i get to the application screen it fully generated my resume without asking me about adding
+      in my optional addendum" and "this is not a choice in bulk edit". Open the shipped My jobs and Prepare application
+      pages in headless Chromium at 1440x900 and 412x915 over a fixture Career for a made-up person whose Other experience is
+      an open-source project and a volunteer entry, and who prepared their last application with the project.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-prepare-other-experience-browser.test.mjs]
+    expected:
+      - Prepare application on a saved job moves it and opens step 1 · Tailor with both Other experience boxes, the last choice ticked and said, and nothing generated; Generate sends exactly the boxes ticked at that moment, with experienceChosen.
+      - A job whose documents were made without a choice opens on step 1 · Tailor with the boxes and a notice, not on the documents, and Review generated documents opens them as they are; a job the person chose for opens on its documents.
+      - Prepare applications in the Table asks once with the same boxes under Include in every selected application, the count and the jobs left out, last time's choice ticked; Cancel queues and writes nothing; Prepare saves the choice on each job's tailoring before its move and preparation, which carry exactly that choice.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: prepare-other-experience-route
+    name: The routes remember the Other experience choice, prepare with exactly it, and saved-job preparation waits for it
+    purpose: >-
+      Drive the compiled board routes and the shipped draft writer, experience library, remembered choice and saved-job
+      preparation for made-up people whose résumé holds an open-source portfolio and a volunteer entry, with only the engine
+      start doubled; then run the real generate_for (scripted model) to prove the open-source entry is the one switch.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-prepare-other-experience-route.test.mjs]
+    expected:
+      - GET /experience-bank answers last, none before the person chooses and the entries they prepared their last application with after; a generation without experienceChosen is not remembered and the revision does not change.
+      - The ticked entry reaches the engine and the unticked one does not, with no second open-source switch, and the job's tailoring keeps the choice marked as chosen.
+      - With Prepare saved jobs for me on, Prepare application and Settings start nothing for a person who has other experience and never chose (the jobs wait, counted); after a choice a job without its own is prepared with the last one; a job's own choice, even nothing ticked, is used as saved.
+      - In the engine, ticking the open-source entry lets a restored role keep its bullet naming that work and puts the entry's facts before the model; nothing ticked or another entry ticked keeps both out.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary store root and packet folders."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: prepare-other-experience-live
+    name: Prepare application and bulk Prepare ask about Other experience on the installed package, as a test person
+    purpose: >-
+      After career-hunter 1.68.1 is installed on a test slot, as a test person with a made-up résumé, two made-up Other
+      experience entries and saved public postings, signed in on /login at 1440x900 and 412x915, with every write stopped
+      unless the check permits it. Make the person once with `person`; run with node
+      career-hunter/tests/career-prepare-other-experience-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder> --prepare.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-prepare-other-experience-live-proof.mjs
+    expected:
+      - GET /experience-bank answers last; Prepare application opens step 1 with both boxes and generates nothing until Generate; the preparation records exactly the ticked entry and the résumé leaves the unticked one out.
+      - At 412 the next job opens with the last choice ticked and said; Prepare applications asks once with the boxes and the count, Cancel writes nothing, and Prepare saves the choice on both jobs, whose preparations record it; the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.68.1
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        The test person's own tailoring, moves and documents for their saved jobs are written on the test slot only, never
+        production. `remove` takes the person's grant back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: expanded-experience-engine
+    name: Client engagements and client accounts read whole and change through the main résumé edit
+    purpose: >-
+      Through the launcher's real Python programs on a made-up field consultant's disposable profile (20 client
+      engagements over four years, client account groups): the main résumé document Work history reads lists every
+      engagement and group whole and in saved order at 0, 1, 20 and 300 engagements, 128 bullets of 4,096 characters and
+      500 names in a group; one revision-checked patch adds, changes, places under a job, moves and removes an engagement,
+      its bullets and an account group, with Undo; Download my data and the generation prompt carry what was saved.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/career-engagements-engine.test.mjs] }
+    expected:
+      - Every engagement and account group is listed whole and in order at every count and size, with the job each was done under; nothing is cut.
+      - Saved edits equal the request, an emptied detail takes its key away, marked not public stays false, and Undo puts back the exact earlier profile.
+      - A wrong name or place, a bad month, an unknown detail, a job that moved, a moved revision and a change past 128 KiB change nothing.
+      - Download my data and the generation prompt carry an engagement's months, length, technology, bullets and the job it was done under.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+
+  - id: expanded-experience-page
+    name: Work history shows and edits Expanded experience at 1440, 412 and 360
+    purpose: >-
+      The shipped Work history page in Chromium over Career's real résumé route module and engine programs on a made-up
+      field consultant's disposable profile: the summary line and Expanded experience list every client engagement and
+      account; Place all under the field job puts them on that job's card and Undo puts the exact profile back; an
+      engagement's form saves months, length, technology, job, marked not public and bullets, moves and removes; a new
+      engagement lands on its job; account groups are edited, added and removed; one column on a phone.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/career-engagements-page.test.mjs] }
+    expected:
+      - At 1440 every engagement and account group is on the page whole, and after Place all under they are on the job's card.
+      - Each saved form equals the main résumé afterwards; a month with no year is refused in the form and nothing is sent.
+      - At 412 and 360 every control is at least 44 px and inside the screen, fields are 16 px and nothing scrolls sideways.
+    prerequisites: [runtime:chromium, runner:python, 'source:shared-ui']
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: "Remove the synthetic profiles, backups and audit files." }
+    limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
+    installation: never
+
+  - id: expanded-experience-live
+    name: Work history on the installed package shows a test person's expanded experience under the job it was done in
+    purpose: >-
+      After career-hunter 1.68.4 is installed on a test slot, as a test person with a made-up résumé holding a four-year
+      field consulting job: write 20 made-up client engagements over those four years through Work history's own save,
+      place them under that job and add a group of client accounts (`person`), then read the main résumé document,
+      Download my data and Work history in Today at 412x915 and 1440x900 with every write stopped (`check`). Run
+      node career-hunter/tests/career-engagements-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-engagements-live-proof.mjs
+    expected:
+      - The main résumé document lists the 20 made-up engagements with their months, two with bullets, all under the field consulting job, and the group of 12 client accounts; Download my data counts them.
+      - In Today at 412 and 1440 the summary reads 20 client engagements, the field job's card lists all 20 in order, the account group reads 12, nothing scrolls sideways, the page changes nothing, and the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.68.4
+    sideEffects: none
+    isolation:
+      mode: live
+      cleanup: >-
+        Read-only: every request that is not GET or HEAD is stopped and listed, and the sessions the check signed in
+        with are signed out. `remove` takes the test person's role back and deactivates it.
+    limits: { timeoutMs: 300000, maxMemoryMb: 1024 }
+    installation: never
+  - id: letter-truth
+    name: Cover letters and résumés claim only what the records support, drawn from the work that fits the job
+    purpose: >-
+      Roger, 2026-11-16: his cover letter drew on his first development job and on older employer work and claimed a C#
+      level his records do not hold. On a made-up long-form candidate (eight short field-contracting engagements, a
+      program role, a first development job that used C# once), rank the work a letter may cite, check the prompts and
+      every earlier anti-inflation rule, run the claims check claim by claim, and run the real generate_for and
+      prepare_job with a scripted model that overclaims; read what a needs-review letter does to Prepare application.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-letter-truth.test.mjs, tests/career-letter-truth-page.test.mjs]
+    expected:
+      - The field engagements that fit a controls posting are chosen above the first development job (also when recorded as engagements), and the first job is chosen when only it fits.
+      - The generation and editor prompts carry the COVER LETTER EVIDENCE, the editor no longer reaches into an earlier role, and the never-invent, mirroring, inflation, title, referral and attribution rules are still in the prompts without any prompt_framing.
+      - An unstated C# level, a tool the records never name, inflated years, a title and an employer the records do not hold, a tool under the wrong job and a letter sentence drawn from the first job are each caught; an honest packet has no problem; a level the records state is kept.
+      - The real generate_for writes the letter again exactly once with the problems named, and the documents on disk claim nothing the records do not support; a letter the rewrite cannot save is marked needs your review; an honest packet is left as written.
+      - A needs-review letter names its problems, refuses sending until the person edits it or confirms that exact letter, and holds automatic preparation; Prepare application shows the notice and I checked the cover letter in place of Continue to send.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary profile, store and packet folders."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 512}
+    installation: never
+  - id: letter-truth-route
+    name: Prepare application holds an overclaiming model through the real routes and engine
+    purpose: >-
+      The compiled POST /jobs/:id/generate, GET /jobs/:id and POST /jobs/:id/status over the real engine dispatch,
+      runner, launcher and Python engine for a made-up long-form candidate, with a scripted model on the package's rail
+      path that claims expert C#, 15 years of it, C# at the program job, a title and an employer the records do not hold
+      and a sentence from the first job, and a stand-in Chromium that writes a one-line PDF.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-letter-truth-route.test.mjs]
+    expected:
+      - The model is given the letter's evidence without the first job, the letter is written again exactly once with the problems named, and the prepared letter and résumé claim nothing the records do not support, the recorded title back in place.
+      - When the rewrite overclaims again the letter is marked needs your review with the problems named; a confirmation of another letter is refused and the person's confirmation of this one clears it.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the rail listener and remove the temporary store root."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 512}
+    installation: never
+  - id: letter-truth-live
+    name: A prepared cover letter claims only what the records support on the installed package, as a test person
+    purpose: >-
+      After career-hunter 1.68.5 is installed on a test slot, prepare one job through POST /jobs/:id/generate as a test
+      person whose made-up long-form résumé has eight field engagements and no C#, with a pasted posting that asks for
+      C# and .NET and the slot's real model, and read the letter and résumé it wrote. Make the person once with
+      `person`; run with node career-hunter/tests/career-letter-truth-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-letter-truth-live-proof.mjs
+    expected:
+      - Preparation finishes ready and the job read carries the claims check.
+      - Neither document names C# or .NET, the letter states no expert level and does not draw on the first development job; the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.68.5
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        The test person's own documents for one listing are written on the test slot only, never production. `remove`
+        takes the person's grant back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: job-details-read
+    name: A job with no description is read once from the employer's posting and kept as the person's copy
+    purpose: >-
+      Roger, 2026-11-16: "there are a bunch of jobs from torch technology that i want to apply for but in the my jobs
+      initial screen the popup says that there is no information about the job". Over the compiled POST /jobs/:id/details
+      and GET /jobs/:id, a disposable invented person and a corpus from the engine's own schema, with the kernel's egress
+      answering from saved real public answers (a Torch Technologies Workday posting, Oracle Recruiting Cloud,
+      SmartRecruiters); then career-job-details-contract.py holds the reader to the engine.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-job-details.test.mjs]
+    expected:
+      - A Torch posting with no description is read once, GET with no redirect, at the Workday cxs address of that posting, and its text (paragraphs kept, references read) is kept as the person's copy; GET /jobs/:id then shows it and a second POST reads nothing.
+      - A closed (404), refused (403), unanswered (503) or failed read answers its reason and why, the employer and the posting, and keeps nothing; a site no reader through the kernel can read answers no-reader with no request.
+      - Listing text and a description the person pasted are never read over; Oracle and SmartRecruiters postings read their one structured address; a job marked Details needed loses the mark once its description is kept.
+      - GET /jobs/:id?details=read reads for the view and keeps nothing; a plain GET reads nothing.
+      - The engine's own reader asks for the same first address, the backfill reads the same addresses and keeps the same text, and every kept copy is one the engine uses for scoring and preparation without a read.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the synthetic store and corpus under the test's temporary folder."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: portfolio-edit
+    name: Other experience's saved portfolio is edited whole with Undo, and every reader sees the save
+    purpose: >-
+      Career's real résumé route module (GET /resume/master-section?field=portfolio, POST /resume/master-edit and
+      /resume/master-undo), the real engine programs and the shipped Other experience library and page, in Chromium at
+      1440x900 and 412x915, on a made-up person whose saved portfolio is an open-source project called Lantern.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-portfolio-edit.test.mjs]
+    expected:
+      - The portfolio reads whole (organization, role, dates, three links, bullets, technology, applications, skills, the summary job scoring reads, a short label and a private note) with the exact revision of the main résumé it sits in.
+      - Save portfolio changes exactly those fields, keeps keys the form does not show and the jobs, backs up the exact earlier file and audits each changed field; the Other experience list names the entry by the new organization, Download my data shows the new bullets and links, and job scoring reads the new summary and skills.
+      - Undo, from the route and from the page, puts back the exact earlier file.
+      - A save on a main résumé that moved, a link that is not http or https, more than 20 bullets, an over-long item, a control character, or a form missing or adding a field changes nothing and says why; a save that would grow the main résumé past 128 KB is refused in words.
+      - With no portfolio saved, the read says so, an empty form writes nothing and a filled one writes a portfolio the list then offers.
+      - The list's own form no longer copies the portfolio into the Other experience file (409); a copy saved there before 1.68.7 keeps its own form, and the portfolio form refuses to leave the two apart.
+      - On a phone the form is one column, every control at least 44 px tall, every field 16 px text, and nothing scrolls sideways; another entry keeps the list's own form.
+    prerequisites: [runner:node-test, runner:python, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up person's folder under the test's temporary folder and close the browser contexts."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: job-details-sheet
+    name: The posting sheet shows a job's description, reads a missing one, or says plainly why it cannot, at 1440 and 412
+    purpose: >-
+      The shipped My jobs page in Chromium at 1440x900 and 412x915 with touch over fixture answers shaped as GET /jobs,
+      GET /jobs/:id and POST /jobs/:id/details answer (invented jobs; the employer name is the one Roger named).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-job-details-sheet-browser.test.mjs]
+    expected:
+      - A job with a description shows it and reads nothing; a job with none says Reading the job description from Torch Technologies while it is read, then shows the text and that it was read from the employer's posting.
+      - A closed posting says Career could not read this job's description from Torch Technologies and why; a site Career cannot read says Career has no description for this job and why; both offer Open the posting and Paste it in Prepare application as 44px targets inside the phone's width, and no state says No description was provided.
+      - A job marked Details needed is drawn again with Not scored yet and Check my fit once its description is read; while Career is preparing applications the description read for the view is shown.
+      - A posting address that is not a web address is no link; an applied job offers no paste; a site that did not answer offers Try again, which reads it again; Paste it in Prepare application closes the sheet, moves the job to Getting ready and opens its application.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: job-descriptions-backfill
+    name: The backfill re-reads one employer's empty descriptions into the shared corpus once, after a counts-only dry run
+    purpose: >-
+      scripts/backfill-job-descriptions.py over a disposable Career root built from the engine's corpus schema, the
+      employer answering from the saved real Torch Technologies posting (career-job-descriptions-backfill-contract.py).
+      The release coordinator runs it on an installation: dry-run, then plan, prepare and publish.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-job-descriptions-backfill.test.mjs]
+    expected:
+      - The dry run reads each open posting with no description once (public addresses, never redirected) and prints counts only (candidates, read, filled, closed, refused, empty, unavailable); every corpus byte is as it was.
+      - Plan, prepare and publish fill exactly the descriptions that read, in an edited copy proven to differ only there, published under the pull's lock with the old corpus kept; the search index has the new text.
+      - A closed, refused or empty answer leaves its posting as it was; a second run reads only those and fills nothing.
+      - A held pull lock, a corpus changed since the plan or a stopped pull's work refuses before anything is written; an employer must be named and the folder must be under the root's maintenance folder.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable Career root under the test's temporary folder."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: job-details-live
+    name: On the installed package a Torch Technologies posting's description is read through the kernel and shown, as a test person
+    purpose: >-
+      After career-hunter 1.68.6 is installed on a test slot, as a test person with a made-up résumé who saved open Torch
+      Technologies postings the corpus has no description for: read one through POST /jobs/:id/details, read it back,
+      and open another's posting sheet on My jobs in Today at 412x915 and 1440x900. Make the person once with `person`;
+      run node career-hunter/tests/career-job-details-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-job-details-live-proof.mjs
+    expected:
+      - POST /jobs/:id/details answers the posting's description through the kernel's egress and keeps it; GET /jobs/:id then shows the same text, read from the employer's posting; GET /jobs/:id?details=read on another reads it for the view and keeps nothing.
+      - The posting sheet of another saved Torch posting says Reading the job description from Torch Technologies, then shows its text; no sheet says No description was provided; nothing scrolls sideways; the only writes the page makes are the description reads; the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.68.6
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Writes only the test person's own description copies on the test slot, never production. Every other request that
+        is not GET or HEAD is stopped and listed, and the sessions the check signed in with are signed out. `remove` takes
+        the test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: concierge-early-press
+    name: Concierge pressed before Career's concierge is ready opens it once ready, never nothing
+    purpose: >-
+      The shipped Career page and the kernel's shared assistant in Chromium at 412x915 with touch and 1280, in the cockpit
+      host and the native host, with Career's concierge module held back: Concierge is pressed while the module is on its
+      way and the concierge opens once it mounts, its chat window framed for Career.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-concierge-early-press.test.mjs]
+    expected:
+      - The press comes before the concierge mounts; the button is marked busy; once the module arrives the concierge is shown and open, its chat window framed as /api/jarvis/?concierge=career-hunter&bot=career-concierge, and the busy mark is gone.
+      - On 1.68.7 the same press reached no handler and the concierge stayed closed (mounted, hidden).
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
     installation: never

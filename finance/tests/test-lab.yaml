@@ -23,6 +23,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register summary-tool: finance-summary reads the caller's saved aggregate for spending questions through the compiled route.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register overview-layout (UX audit 2026-11-05): the read-only overview, the brief under the tiles, Assets and Liabilities, Linked banks as its own screen.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register finance-app and finance-app-browser (1.5.0): Finance opens as its own application - its own bar, the menu's sections inside the page, and a Home that shows each finance application's summary and the finance jobs with last run, result and next run.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: register phone-orb (lane mobilesweep1).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -705,4 +706,24 @@ cases:
       cleanup: Each case drops its own database and closes its loopback server and browser.
     limits:
       timeoutMs: 180000
+    installation: never
+  - id: phone-orb
+    name: On a phone in Today the floating Jarvis button leaves Finance's bottom bar free
+    purpose: "Guard 1.8.2 (lane mobilesweep1): the real Finance page in a stand-in for Today that places the button as Today does on a phone, at 412x915, 390x844 and 360x780 with touch and at 1440x900."
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/finance-phone-orb.browser.test.cjs
+    expected:
+      - On a phone the floating button rests above the bottom bar and covers none of its tabs (it sat on More), and nothing to tap is under it at the end of Home.
+      - A desktop has no bottom bar and Finance sets no inset.
+      - Opening Finance writes nothing and raises no page error.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

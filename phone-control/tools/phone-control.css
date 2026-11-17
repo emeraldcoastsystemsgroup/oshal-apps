@@ -10,10 +10,16 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen fills the page as a tree with a details pane; row text starts at the left (the kernel's button style centred it); a device's details are tables; buttons in Add a device wrap instead of cutting their words.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Your devices has a searchable list, a clear selected-device workspace, separate state labels and progressive connection details; overview controls retain 44px targets on phones.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Signed-in native devices have wrapping names, separate reported state and usable direct links in Add a device.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2 (Roger, his phone, 2026-11-16: "I can't scroll on this screen"): html and body clip sideways with overflow-x: clip instead of hidden. Since 1.3.0, hidden on both made the body a scroll container of its own with nothing to scroll, and its overscroll-behavior-y: contain stopped every finger swipe and wheel turn from reaching the page's real scroller, so a list taller than the screen could not be moved. Below 900 px the page ends 144 px lower, so the last row's buttons scroll clear of the shell's floating Jarvis button (its top edge rests 117 px above a phone's bottom). The desktop layout and the full-screen session view are unchanged.
  */
 
 .ks-page.pc-page { max-width: 1440px; --ks-radius-sm: 10px; }
-html, body { overscroll-behavior-y: contain; max-width: 100%; overflow-x: hidden; }
+/* clip, never hidden: hidden on both would make the body a scroll container whose contain keeps a swipe from the page. */
+html, body { overscroll-behavior-y: contain; max-width: 100%; overflow-x: clip; }
+/* One column (under 900 px): the shell's floating Jarvis button sits over the bottom-right corner, its top edge 117 px
+   above a phone's bottom (12 px + the 57 px bar inset Today keeps for an application + 48 px), so the page ends 144 px
+   lower and the last row's buttons scroll clear of it. The session view's own padding: 0 still wins. */
+@media (max-width: 899px) { .ks-page.pc-page { padding-bottom: 144px; } }
 body:has(#sessionView:not([hidden])) { margin: 0; padding: 0; overflow: hidden; }
 .ks-page.pc-page:has(#sessionView:not([hidden])) { max-width: none; width: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; }
 .pc-page [hidden] { display: none !important; }

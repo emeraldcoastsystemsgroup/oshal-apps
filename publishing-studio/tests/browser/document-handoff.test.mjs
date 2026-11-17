@@ -3,18 +3,31 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify complete history replay with original CAS, immutable source, asset ownership and switched-document fences.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Share the actual public editor-card alias with workbench browser coverage.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the design-standard screen: the publication is made through the real route and its story frame chosen on the page, as a person does; story text applies as it is typed (the 64-edit cap and the automatic save before handoff are unchanged); Saved history is a sheet and the concierge is the Properties | Concierge pane's tab.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The concierge pane is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The concierge cases ask in the window, whose turns go to the fixture's stand-in kernel (shared-ui.mjs sharedEditor): the bot's door still reads the saved publication as each turn arrives (page.route, then on to the stand-in), the person's words alone reach publishing-editor with the saved revision on the context, the second turn continues the publication's own conversation (doc:publishing-studio:<id>, the window's, in place of a session the old reply named), and a card waiting for one publication is gone from the window once another publication opens, so it is never run there. The pane's own transcript and its message suffix are gone with the old pane.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The concierge each case opens is asserted by its address (the coordinator's rule after Roger's 2026-11-17 02:22Z report, where a concierge opened as another application's): the one chat window, /api/jarvis/?concierge=publishing-studio&bot=publishing-editor, read with scripts/one-chat-window/today-host.mjs windowAddress.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fixture } from '../fixtures/fixture.mjs';
 import { requireRuntime } from '../fixtures/runtime.mjs';
-import { mountSharedEditor } from '../fixtures/shared-ui.mjs';
+import { sharedEditor } from '../fixtures/shared-ui.mjs';
 import { createPublication, openStudio, choose, pick } from '../fixtures/publishing-ui.mjs';
+import { chatWindow, sendInWindow } from '../../../scripts/one-chat-window/kernel-window.mjs';
+import { windowAddress } from '../../../scripts/one-chat-window/today-host.mjs';
 const { chromium } = requireRuntime('playwright');
+const click = locator => locator.click();
+/** The concierge tab, opened where it is closed: the one chat window inside the pane. */
+async function concierge(page) {
+  if (!await page.locator('.ef-ai').isVisible()) await page.locator('.pub-tab', { hasText: 'Concierge' }).click();
+  const chat = await chatWindow(page.locator('.ef-assistant')), where = await windowAddress(page.locator('.ef-assistant'));
+  assert.deepEqual([where.path, where.app, where.bot], ['/api/jarvis/', 'publishing-studio', 'publishing-editor'], 'the Concierge tab opens the one chat window as Publishing\'s own concierge');
+  return chat;
+}
 
-async function open(t) {
-  const f = await fixture({ http: true, extend: mountSharedEditor });
+async function open(t, answer) {
+  const { kernel, extend } = sharedEditor({ answer });
+  const f = await fixture({ http: true, extend });
   t.after(() => f.close());
   const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
@@ -33,7 +46,7 @@ async function open(t) {
     });
     assert.equal(response.status, 200, await response.clone().text()); return (await response.json()).document;
   };
-  return { f, page, id, read, edit };
+  return { f, page, id, read, edit, kernel };
 }
 async function begin(page) {
   return page.evaluate(async () => {
@@ -71,33 +84,37 @@ test('failed saves stop the publication handoff and a concurrent field remains i
 });
 
 test('the embedded publishing concierge saves an unapplied field before its actual request', { timeout: 180000 }, async t => {
-  const { page, read } = await open(t); let asked = 0;
-  await page.route('**/api/swarm/bots/publishing-editor/ask', async route => {
-    const body = route.request().postDataJSON(), current = await read();
-    assert.equal(body.context.recordId, current.id); assert.equal(body.context.fields.revision, current.revision);
-    assert.equal(current.model.stories[0].paragraphs[0].runs[0].text, 'Text before concierge reading');
-    asked++; await route.fulfill({ json: { reply: 'I read your latest story.', sessionId: 'handoff-source' } });
-  });
+  const { page, read, kernel } = await open(t, () => 'I read your latest story.'), saved = [];
+  // The bot's door reads the saved publication as the turn arrives, then the turn goes on to the stand-in kernel.
+  await page.route('**/api/swarm/bots/publishing-editor/ask', async route => { saved.push(await read()); await route.continue(); });
   await page.locator('#story-text').fill('Text before concierge reading');
-  if(!await page.locator('.ef-ai').isVisible())await page.locator('.pub-tab', { hasText: 'Concierge' }).click();
-  await page.locator('#chat-message').fill('Review the current story'); await page.locator('#chat-send').click();
-  await page.locator('#chat-log').filter({ hasText: 'I read your latest story.' }).waitFor(); assert.equal(asked, 1);
+  const chat = await concierge(page);
+  const { ask } = await sendInWindow(chat, 'Review the current story', click, kernel);
+  assert.equal(kernel.asks.length, 1); assert.equal(saved.length, 1); const [current] = saved;
+  assert.deepEqual([ask.bot, ask.context.app, ask.message], ['publishing-editor', 'publishing-studio', 'Review the current story'], 'the person\'s words alone reach Publishing\'s bot');
+  assert.equal(ask.context.recordId, current.id); assert.equal(ask.context.fields.revision, current.revision);
+  assert.equal(current.model.stories[0].paragraphs[0].runs[0].text, 'Text before concierge reading', 'the unapplied field was saved before the turn arrived');
 });
 
 test('the shared concierge refreshes a saved story and reads the next manual edit in the same session', {timeout:180000}, async t=>{
- const {page,read,edit}=await open(t),manual='Manual source '+randomUUID();let asks=0;
- // Model selection is an explicit seam; real source SQL, saves, editor refresh and session transport are exercised.
+ let reply='Updated the story.';
+ const {page,id,read,edit,kernel}=await open(t,()=>reply),manual='Manual source '+randomUUID(),saved=[];
+ // Model selection is an explicit seam; real source SQL, saves, editor refresh and the window's session transport are exercised.
  await page.route('**/api/swarm/bots/publishing-editor/ask',async route=>{
-  const body=route.request().postDataJSON(),current=await read();asks++;
-  assert.equal(body.context.recordId,current.id);assert.equal(body.context.fields.revision,current.revision);
-  if(asks===1){await edit(current.revision,'Concierge source in the same story');await route.fulfill({json:{reply:'Updated the story.',sessionId:'publishing-continuity'}});}
-  else{assert.equal(body.sessionId,'publishing-continuity');assert.ok(!body.message.includes(manual));assert.equal(current.model.stories[0].paragraphs[0].runs[0].text,manual);await route.fulfill({json:{reply:current.model.stories[0].paragraphs[0].runs[0].text,sessionId:'publishing-continuity'}});}
+  const current=await read();saved.push(current);
+  // The first turn's concierge changes the story while it works; the second answers with the saved story it reads.
+  if(saved.length===1)await edit(current.revision,'Concierge source in the same story');else reply=current.model.stories[0].paragraphs[0].runs[0].text;
+  await route.continue();
  });
- await page.locator('.pub-tab',{hasText:'Concierge'}).click();await page.locator('#chat-message').fill('Revise this story');await page.locator('#chat-send').click();
+ const chat=await concierge(page);await sendInWindow(chat,'Revise this story',click,kernel);
  await page.waitForFunction(()=>document.querySelector('#story-text').value==='Concierge source in the same story');
  // One side pane at a time (Properties | Concierge tabs): type in Properties, then ask in Concierge.
- await page.locator('.pub-tab',{hasText:'Properties'}).click();await page.locator('#story-text').fill(manual);await page.locator('.pub-tab',{hasText:'Concierge'}).click();await page.locator('#chat-message').fill('What does the selected story say now?');await page.locator('#chat-send').click();
- await page.locator('#chat-log').getByText(manual,{exact:true}).waitFor();assert.equal(asks,2);
+ await page.locator('.pub-tab',{hasText:'Properties'}).click();await page.locator('#story-text').fill(manual);await page.locator('.pub-tab',{hasText:'Concierge'}).click();
+ const {answer}=await sendInWindow(chat,'What does the selected story say now?',click,kernel);await answer.getByText(manual,{exact:true}).waitFor();
+ assert.equal(kernel.asks.length,2);const [first,second]=kernel.asks;
+ for(const [turn,current] of [[first,saved[0]],[second,saved[1]]]){assert.equal(turn.context.recordId,current.id);assert.equal(turn.context.fields.revision,current.revision);}
+ assert.equal(first.sessionId,'doc:publishing-studio:'+id,'the publication\'s own conversation');assert.equal(second.sessionId,first.sessionId,'the next turn continues it');
+ assert.ok(!second.message.includes(manual),'the manual text travels as the saved document, not in the words');assert.equal(saved[1].model.stories[0].paragraphs[0].runs[0].text,manual);
  assert.equal((await read()).revision,3);assert.equal(await page.locator('#story-text').inputValue(),manual);
 });
 
@@ -137,8 +154,13 @@ test('an earlier handoff cannot replace a historical view chosen later in the sa
 });
 
 test('an old approval card cannot execute after opening another publication', {timeout:180000},async t=>{
- const {f,page,id}=await open(t);let executions=0;const proposal={id:'fixture-stale-proposal',app:'publishing-studio',toolName:'publishing-apply-edits',label:'Change the selected publication',mode:'ask',expiresAt:new Date(Date.now()+300000).toISOString(),input:{document:id}};
- // Explicit provider/controller-card transport seams; this test proves the browser refuses execution entirely.
- await page.route('**/api/swarm/bots/publishing-editor/ask',route=>route.fulfill({json:{reply:'Review the change.',packageToolProposal:proposal.id}}));await page.route('**/api/jarvis/package-tools/proposals/'+proposal.id,route=>route.fulfill({json:{proposal}}));await page.route('**/api/jarvis/package-tools/execute',route=>{executions++;return route.fulfill({json:{status:200}});});
- if(!await page.locator('.ef-ai').isVisible())await page.locator('.pub-tab',{hasText:'Concierge'}).click();await page.locator('#chat-message').fill('Edit this publication');await page.locator('#chat-send').click();await page.getByRole('button',{name:'Approve',exact:true}).waitFor();await f.context('alice').store.create({title:'Different approval context',pageCount:1,requestKey:randomUUID()});await page.locator('#back-to-list').click();await page.locator('#documents button').filter({hasText:'Different approval context'}).click();await page.locator('#document-title').filter({hasText:'Different approval context'}).waitFor();assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);assert.equal(executions,0);assert.equal((await f.context('alice').store.get(id)).document.revision,1);
+ let proposal;const {f,page,id,kernel}=await open(t,()=>({answer:'Review the change.',packageToolProposal:proposal}));let executions=0;proposal={id:'fixture-stale-proposal',app:'publishing-studio',toolName:'publishing-apply-edits',label:'Change the selected publication',mode:'ask',expiresAt:new Date(Date.now()+300000).toISOString(),input:{document:id}};
+ // Explicit provider/controller-card transport seams; this test proves the browser never executes the card for another publication.
+ await page.route('**/api/jarvis/package-tools/proposals/'+proposal.id,route=>route.fulfill({json:proposal}));await page.route('**/api/jarvis/package-tools/execute',route=>{executions++;return route.fulfill({json:{status:200}});});
+ const chat=await concierge(page);const {ask}=await sendInWindow(chat,'Edit this publication',click,kernel);assert.equal(ask.context.recordId,id);
+ const approve=chat.getByRole('button',{name:'Approve',exact:true});await approve.waitFor();
+ await f.context('alice').store.create({title:'Different approval context',pageCount:1,requestKey:randomUUID()});await page.locator('#back-to-list').click();await page.locator('#documents button').filter({hasText:'Different approval context'}).click();await page.locator('#document-title').filter({hasText:'Different approval context'}).waitFor();
+ // The window opens the other publication's own conversation: the earlier card is not on screen to be pressed.
+ await concierge(page);await approve.waitFor({state:'detached',timeout:10000});
+ assert.equal(await approve.count(),0);assert.equal(executions,0);assert.equal((await f.context('alice').store.get(id)).document.revision,1);
 });

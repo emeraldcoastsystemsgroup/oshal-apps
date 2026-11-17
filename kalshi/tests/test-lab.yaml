@@ -4,6 +4,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register grading (1.8.0): the grader on a real PostgreSQL against a stand-in Kalshi over HTTP, and the Scorecard tab grading in Chromium at phone width.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register calibration-rebuild (1.9.0): the walk of Kalshi's settled-market tape in short turns on a real PostgreSQL against a stand-in Kalshi over HTTP, compared with a straight run of the retired study.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register create-concierge (1.9.1, concierge audit batch 2b): the side-chat quant follows Create's create-editor and still reads only.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register phone-design (1.10.0, lane kalshiux1): the Markets tab at 412x915, 390x844, 360x780 and 1440x900 in Chromium inside a stand-in for Today's shell; home-layout's expectations follow the 1.10.0 page.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register scan-refresh-browser and plain-words (1.10.2, lane kalshiux1, after @lane-qa1): Scan now and a newly landed scan refresh the Markets list; no person-facing string says hand, playable, monster or fold. The market-explainer case names the walkthrough's new lead words.
 version: 1
 cases:
   - id: package-readiness
@@ -113,9 +115,10 @@ cases:
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
       - On open the company view reads only GET /scan (the saved snapshot), GET /alerts (the ledger and its paper record) and GET /home-summary; it never reads /status, /portfolio or /alerts/pops, which ask Kalshi live, never /trends or /settings, and never writes.
-      - The stats are the playable-hand count, the snapshot's age with its freshness, the paper alert record and the recorded alerts over five days; the hands table names strength, side, market, ask, net edge, stake, close and risk flags as the snapshot ranks them, capped at ten; the alerts list names each alert's strength, side, edge, delivery and settlement outcome, newest first, capped at eight, under the record line.
+      - The stats are the count of markets with an edge, the snapshot's age with its freshness, the paper alert record and the recorded alerts over five days; the table of markets with an edge names the rating in words, side, market, ask, net edge, stake, close and risk flags as the snapshot ranks them, capped at ten; the alerts list names each alert's rating in words, side, edge, delivery and settlement outcome, newest first, capped at eight, under the record line.
       - Waiting for the first scan, a running first scan, the scan switched off, a folded scan, a stale or failed snapshot, an open staking gate, a 401, a 403, a failed snapshot read, a failed or refused alerts read (which never hides the hands), a failed, unavailable or partial home summary and no alerts at all each read as what they are.
       - Under an audience view the page's own start (the snapshot, markets, alert, settings and trend loads, the pollers, the account read) and its connected-actions mount do not run; without the audience, and without the kit, they run as before.
+      - The card says the ratings in the full page's words (1.10.1). Its rating table is the full page's own EDGE_WORDS (Big edge, Good edge, Small edge, No edge, No estimate), the hands table's Rating column and every alert use it, and nothing the card shows says monster, fold, playable or verdict.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -214,7 +217,7 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/kalshi-market-explainer.test.js] }
     expected:
       - A skipped market says why in the evaluator's own terms and is never evaluated.
-      - A fold is explained in cents and percentages with a zero stake; a playable hand says its stake and paper-only under a closed gate.
+      - No edge is explained in cents and percentages with a zero stake; a market with an edge says its stake and paper-only under a closed gate; the headline leads with the rating in the page's words.
       - Markets that closed since the scan are dropped and counted.
     prerequisites: [runner:node-test]
     sideEffects: none
@@ -254,7 +257,7 @@ cases:
     installation: never
   - id: home-layout
     name: Kalshi home tells the account truth and fits a phone
-    purpose: Run the shipped onceTitle, accountLine and renderStaleChip from tools/kalshi.html in a VM and read its markup - no browser, server, exchange or order.
+    purpose: Run the shipped onceTitle, accountLine, renderFreshLine and the card words from tools/kalshi.html in a VM and read its markup - no browser, server, exchange or order.
     level: unit
     runner:
       kind: node-test
@@ -263,9 +266,10 @@ cases:
         - tests/kalshi-home-layout.test.js
     expected:
       - A market title shows once when its subtitle repeats it.
-      - A 409 portfolio read reads Kalshi account not connected · paper mode with its fix; a connected account names its environment.
-      - An old calibration table or scan is one warning chip with Scan now.
-      - A phone gets Markets, Scan, Account, Scorecard and More; the list shows 50 rows then Show more; the Why panel dates a scan verdict; the lookup is a 44px field by the search.
+      - A 409 portfolio read says Paper trading with the link that connects an account; a connected account names its environment.
+      - One line says the scan's and the model's age, an old one in amber; Scan now stays on the Scan tab.
+      - A phone gets five equal tabs, Markets, Scan, Account, Scorecard and More; the list shows 50 cards then Show more; Why is a sheet dated by its scan; search and the ticker lookup are one field.
+      - Ratings, prices, close times and the estimate read in plain words.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -371,4 +375,67 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: phone-design
+    name: The Markets tab on a phone, shaped like the category leaders
+    purpose: >-
+      Open tools/kalshi.html in Chromium inside a stand-in for Today's shell (header, the application's bar with Reload in
+      the shell's box style, the frame, the floating Jarvis button where the shell puts it) with synthetic markets the
+      package's own explainer builds, at 412x915, 390x844, 360x780 and 1440x900 - no server, exchange, account or order.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-phone-design-browser.test.js] }
+    expected:
+      - The first market card's top edge sits within the top 30% of the screen at every size.
+      - One app bar - the shell's, carrying this page's search and help icons, Reload a small icon with no box; by itself the page draws the same bar.
+      - The status line says Paper trading with the link that connects an account, and one whole line says the scan's and the model's age.
+      - The categories are one chip row that scrolls sideways; nothing makes the page scroll sideways.
+      - Cards say Buy Yes and No at the asks, the rating, our estimate with the edge, and when the market closes; no monster, fold, playable or verdict.
+      - A tap on a card opens Why as a sheet; the phone's Back closes it and stays on Kalshi; the floating Jarvis button steps aside while it is open.
+      - At the end of the list the floating Jarvis button covers nothing.
+      - Five equal bottom tabs edge to edge with no unexplained dot, and every view opens from the bar or More.
+      - The bar's search icon opens one field - words filter the list, a ticker and Enter opens its Why - and the Filter sheet and a chip each change the list's query.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation:
+      mode: none
+      cleanup: Each case closes its browser context; the page, the shell and the answers are synthetic and served inside the browser with no network or server.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: scan-refresh-browser
+    name: Scan now and a newly landed scan refresh the Markets list
+    purpose: >-
+      Open tools/kalshi.html in Chromium at 412 x 915 with nothing scanned, the synthetic markets of
+      tests/browser/phone-design-fixture.cjs and Playwright's clock, and land a scan by Scan now and by the background
+      job - no server, exchange, account or order (the fixture answers the one Scan now itself).
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-scan-refresh-browser.test.js] }
+    expected:
+      - After Scan now the Markets tab lists the scan's markets and the "Nothing has been scanned yet" note is gone.
+      - A scan the background job lands fills the Markets list at the page's next 30-second read of the scan.
+      - Two 30-second reads of an unchanged scan read the market list no more.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation:
+      mode: none
+      cleanup: Each case closes its browser context; the page and the answers are synthetic and served inside the browser with no network or server.
+    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
+    installation: never
+  - id: plain-words
+    name: No person-facing string says hand, playable, monster or fold
+    purpose: >-
+      Read every string a person reads in the package - the page, the route sources and their compiled twins, the
+      manifest's person-facing fields, the catalog entry, the quant's role, the user guide and the Home note - and run
+      the Jarvis alert, the Why walkthrough and the Home card's note for every rating.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-plain-words.test.js] }
+    expected:
+      - No markup text, attribute or worded string literal of the page, the routes or the library says hand, playable, monster or fold.
+      - The manifest's settings labels, briefing, schedule words, description and labels, the catalog entry, the quant's role and the guides say none of them.
+      - The Jarvis alert says markets with an edge and each rating as Big edge, Good edge or Small edge, for one market or several.
+      - The Why headline leads with the rating in words and no reason or question to the quant says an old word, for every rating.
+      - The Home card names a recorded alert's rating in words.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
     installation: never
