@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The approval end dates (coordinator's added scope): under "Is it trading?" and on each card, the margin account's approval that ends before the Dec 1 trade says so and links to Strategy settings and approval (which opens on its Manage strategy page and changes nothing), the IRA's later one is a plain date, and the cash account with none shows no line.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The portfolio overview (1.58.0) in Chromium at 1440 and 412 pixels (and no sideways scroll at 1024 and 768), over the shipped trading.html, ui scripts and route handlers on a fixture host with three invented accounts. Intelligent Trades opens on it; it draws the total, today's change, the value line and daily bars that are green when the value rose and red when it fell, with a gap where a day has no record; the range buttons switch every chart; one card per account shows its value, day change, trendline and status chip and opens the existing account details page; the comparison draws each account with SPY and BIL and says when a price read fails; the holdings table sorts by each column; the Trading status tab is one tap away and shows the same cards and words as before; a person with no connected account sees how to connect one; and nothing the page sends can change an order, a strategy, an approval, a schedule or a job. No broker, no kernel, no real account.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the overview and status tab on the same evidence-derived execution headline and dated target-plan chips, without changing approval links, charts, account identity or reads.
  */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
@@ -95,7 +96,7 @@ test('each account has a card with its value, day change, trendline and chip, an
   const {page,errors,close}=await open(browser,h,width);await settled(page);
   const cards=page.locator('#pfCards .pf-card');assert.equal(await cards.count(),3);
   assert.deepEqual(await cards.locator('.pf-card-name').allInnerTexts(),[F.LABELS[F.IRA.connectionKey+'|'+F.IRA.accountId],'Example margin ···0001',F.LABELS[F.CASH.connectionKey+'|'+F.CASH.accountId]],'largest value first');
-  assert.deepEqual(await cards.evaluateAll(list=>list.map(c=>[...c.querySelectorAll('.story-chip')].map(x=>x.textContent).join(' '))),['NEEDS YOU MOSTLY PARKED','RUNNING MOSTLY PARKED','NOT SET UP'],'the status tab\'s own chips');
+  assert.deepEqual(await cards.evaluateAll(list=>list.map(c=>[...c.querySelectorAll('.story-chip')].map(x=>x.textContent).join(' '))),['NEEDS YOU Plan: 60% BIL · Oct 30','IDLE Plan: 60% BIL · Oct 30','NOT SET UP'],'the status tab\'s own chips');
   assert.equal(await cards.nth(1).locator('.pf-card-value').innerText(),'$31,204.18');
   assert.match((await cards.nth(1).locator('.pf-card-deltas').innerText()).replace(/\s+/g,' '),/^-\$12\.40 \(-0\.04%\) Today \+\$[0-9,.]+ \(\+[0-9.]+%\) 1M$/);
   for(const card of await cards.all())assert.equal(await card.locator('.pf-spark-host svg').count(),2,'a trendline over its daily bars');
@@ -186,7 +187,7 @@ test('the Trading status tab is one tap away, from its tab and from See why, and
   h.state.requests.length=0;
   const {page,errors,close}=await open(browser,h,width);await settled(page);
   const strip=await page.locator('.pf-strip p').innerText();
-  assert.match(strip,/^Is it trading\? (Yes|Partly|No)\. /);
+  assert.match(strip,/^Is it trading\? Review required\. /);
   await page.locator('.pf-strip').getByRole('button',{name:'See why'}).click();
   await page.locator('#homeCards [data-story]').first().waitFor();
   assert.equal(new URL(page.url()).searchParams.get('sub'),'status');
@@ -196,7 +197,7 @@ test('the Trading status tab is one tap away, from its tab and from See why, and
   assert.deepEqual(await cards.evaluateAll(list=>list.map(c=>c.getAttribute('data-story-kind'))).then(k=>k.slice(0,3)),['connected','connected','connected']);
   for(const card of await cards.all()){assert.equal(await card.locator('button').count(),1,'one button per card');assert.ok(await card.locator('a').count()<=1);}
   const margin=page.locator('#homeCards [data-story="'+F.ACCOUNT.connectionKey+'|'+F.ACCOUNT.accountId+'"]');
-  assert.match(await margin.innerText(),/Example margin ···0001\s+CONNECTED ACCOUNT\s+RUNNING\s*MOSTLY PARKED/i);
+  assert.match(await margin.innerText(),/Example margin ···0001\s+CONNECTED ACCOUNT\s+IDLE\s*Plan: 60% BIL · Oct 30/i);
   assert.deepEqual(await margin.locator('[data-story-part]').evaluateAll(parts=>parts.map(p=>p.getAttribute('data-story-part'))),['plan','today','value']);
   assert.equal(await page.locator('#homeBroker').evaluate(el=>el.open),false,'the closed broker section is still there');
   await page.screenshot({path:path.join(PROOF,'trades-status-tab-'+width+'.png'),fullPage:true});

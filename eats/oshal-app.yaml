@@ -17,6 +17,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.5 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone the restaurants start at 226 px (25%) instead of 438 px (48%): the address (or Deliver to) row first with Settings as a gear beside it, then search, then the cuisine chips, then Restaurants near you; the brand bar and the headline step aside (Today's bar names the page), the field labels stay for assistive technology only, the hint and the results' Delivering to line step aside, and a long Deliver to address ellipsizes instead of widening the row. Desktop unchanged. Presentation only (tools/eats-app.html, CSS in a 760 px block).
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7 (Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu; the coordinator, 2026-11-17: the allergy guard goes into the tools first). The allergy guard ran only in the page's own chat route (POST /api/eats/chat); search-restaurants (which the Eats concierge and Jarvis's hand-off to Eats call) and open-uber-eats went without it. Now the search holds back a restaurant named for an allergen the diner avoids, by the saved allergies (remembered notes and the profile's diet) plus any the caller names (avoid, new on both tools), and says which (allergy.heldBack); the hand-off refuses a held restaurant (409 allergy_conflict, nothing recorded); remember-eats-note (new, POST /api/eats/notes) keeps an allergy, diet or taste the diner states, grounded in their own words. Then Order Food's Eats Concierge panel no longer draws a chat of its own: in the same place (on a phone the sheet behind the Eats Concierge button) it holds the kernel's one chat window as the Eats Concierge (eats-concierge), with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying; before each turn it is told the screen (context.screen_state: the delivery address and search fields, the restaurants on screen with their place ids, the ones held back, and the saved diet and allergies). ribbon.hideAssistant stays: the window is this app's one assistant entry. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later). Guards: eats/tests/eats-allergy-tools.test.js, eats/tests/eats-one-chat-window.test.js.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.5.8 (the coordinator, 2026-11-17: a dish the one chat window's bot names is never re-checked against the diner's saved allergies; the independent review of the kernel's replyCheck): replyCheck is {path, label, unavailable} naming POST /api/eats/reply-check, Eats' own reply check, mounted on its own (createEatsReplyCheckRoutes) so the route is exact. The reply never waits for it; a check that could not run shows and speaks the unavailable line. A kernel that reads replyCheck calls it as the person after each turn of eats-concierge (the one chat window and Jarvis's hand-off to Eats) with the person's words and the bot's reply, and shows the line it answers under the reply: the after-check POST /chat gives its own replies (a dish that usually carries one of the diner's saved or stated allergies or diet, named in a sentence that does not warn), so the check no longer rests on the persona alone. An older kernel ignores the key. Guard: eats/tests/eats-reply-check.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -60,7 +61,7 @@ description: >-
   Google Places, your tastes and allergies remembered, and a one-tap hand-off into
   Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
   it to find food.
-version: 1.5.7
+version: 1.5.8
 status: active
 
 source:
@@ -262,6 +263,16 @@ routes:
     auth: service-or-oidc   # what server.ts ACTUALLY mounts (ADR-085 D2)
     requiresContext: true
 
+  # Eats' reply check (1.5.8), the exact POST route replyCheck names: reads the diner's notes and diet only.
+  - module: routes/eats-routes.js
+    factory: createEatsReplyCheckRoutes
+    mountPath: /api/eats/reply-check
+    method: POST
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
 # Belt-and-braces: same seven tables ensureEatsSchema creates lazily (owner RLS at the
 # chokepoint). Idempotent — safe where core migration 040 already ran. 041 (bot seed)
 # stays core with the bot.
@@ -272,6 +283,14 @@ migrations:
 # WORKFLOW — tickets of type 'eats' route to the concierge.
 # The bot a Jarvis creation request goes to (its own workflow bot).
 chatBot: eats-concierge
+# Eats' reply check (1.5.8): after each turn of this application's bot the kernel sends the person's words and the bot's
+# reply to this exact POST route (mounted on its own above), as that person and read only, and shows the line it answers
+# under the reply, labelled; the reply never waits for it, and the unavailable line is shown and spoken when the check
+# could not run.
+replyCheck:
+  path: /api/eats/reply-check
+  label: Allergy check
+  unavailable: Allergy check could not run for this reply. Check each dish against your allergies before ordering.
 
 ticketType: eats
 workflow:

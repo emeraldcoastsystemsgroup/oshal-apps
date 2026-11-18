@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard five-minute account observation upserts against EXCLUDED predicates outside DO UPDATE SET on both native package SQL and disposable PostgreSQL.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve the exact approved legacy digest and verify account observations add no authority root and retain their already approved bytes in every supported version.
  */
 'use strict';
 
@@ -125,11 +126,12 @@ test('five-minute account value upsert succeeds under native package-sql rules a
   const validatorPool = createNativeSqlValidatorPool();
   await verifyUpsertSequence(validatorPool);
 
-  const manifest = fs.readFileSync(path.join(PKG_DIR, 'oshal-app.yaml'), 'utf8');
-  assert.match(
-    manifest,
-    /orderAuthority:\s*\n\s*sources:\s*\n\s*-\s*routes\/trading-native-management\.js\s*\n\s*-\s*routes\/live\/management\.js/
-  );
+  const authority = require('./support/order-authority');
+  for (const [version, sources] of Object.entries(authority.preservedLegacy(PKG_DIR))) {
+    const files = authority.closure(PKG_DIR, sources);
+    assert.equal(sources.includes('routes/trading-account-values.js'), false, `account values add no new root to version ${version}`);
+    assert.deepEqual(files.get('routes/trading-account-values.js'), authority.closure(PKG_DIR, authority.LEGACY_ROOTS).get('routes/trading-account-values.js'), `version ${version} retains the already approved account-value bytes`);
+  }
 });
 
 test('five-minute account value upsert succeeds against disposable PostgreSQL', async () => {

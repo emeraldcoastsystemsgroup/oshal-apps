@@ -1,5 +1,15 @@
 <!DOCTYPE html>
 <!-- Fantasy Football (?app=fantasy-football): owner-scoped lineup, season, waiver and trade advice. Self-contained. -->
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger, 2026-11-16, "for the last time": every concierge is the core
+    Jarvis chat window, with its model menu): the Concierge rail draws no chat of its own (its header, log, prompt chips
+    and message box are gone, and so is the approval-card script only they used). It holds the kernel's one chat window
+    as Fantasy Quant's concierge (mounted by concierge.js), with its model menu, New conversation, Recent conversations,
+    Files, Tap to talk and Keep trying; the view, the board, the league on screen and the board's own words ride on every
+    turn. The header's Concierge button still opens and closes the rail; the window's own Close hides it. Intelligent
+    Sports opens this same page.
+-->
 <html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
@@ -122,7 +132,6 @@
   [hidden] { display: none !important; }
 </style>
 <link rel="stylesheet" href="/api/fantasy-football/concierge.css" />
-<script src="/api/jarvis/assets/jarvis-package-tools.js"></script>
 <script src="/api/fantasy-football/concierge.js" defer></script>
 </head>
 <body>
@@ -134,29 +143,8 @@
 <main data-ds-work><div id="fantasyBody" class="muted">loading&hellip;</div></main>
 </div>
 
-<aside id="conciergeRail" class="concierge-rail" aria-label="Concierge">
-  <div class="concierge-header"><h2>Concierge</h2><button type="button" id="conciergeClose" class="concierge-icon" aria-label="Hide concierge" title="Hide concierge">×</button></div>
-  <p class="concierge-help">Ask Fantasy Quant who to start at flex, best waiver wire upgrades, or your weekly win-probability swing. Lineup and waiver changes require your approval.</p>
-  <div id="conciergeLog" class="concierge-log" role="log" aria-label="Fantasy Quant conversation" aria-live="polite"></div>
-  <div class="concierge-chips" aria-label="Quick prompts">
-    <button type="button" class="concierge-chip" data-concierge-prompt="Who should I start at flex?">Who should I start at flex?</button>
-    <button type="button" class="concierge-chip" data-concierge-prompt="Best waiver wire upgrades">Best waiver wire upgrades</button>
-    <button type="button" class="concierge-chip" data-concierge-prompt="Matchup win probability breakdown">Matchup win probability breakdown</button>
-  </div>
-  <div id="conciergeComposer" class="concierge-composer">
-    <div id="conciergeContextRow" class="concierge-context-row"></div>
-    <form id="conciergeForm" class="concierge-form">
-      <textarea id="conciergeInput" rows="2" maxlength="12000" placeholder="Ask Fantasy Quant about flex, waivers, or matchup odds…" aria-label="Message to Fantasy Quant"></textarea>
-      <div class="concierge-controls">
-        <button type="button" id="conciergeAttach" class="concierge-icon" aria-label="Attach active board context" title="Attach active board context">+</button>
-        <button type="button" id="conciergeSpeaker" class="concierge-icon" aria-label="Read latest reply aloud" aria-pressed="false" title="Read latest reply aloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button type="button" id="conciergeMic" class="concierge-icon" aria-label="Voice input" aria-pressed="false" title="Voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-14 0m7 7v3m-4 0h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button type="submit" id="conciergeSend" class="concierge-send">Send</button>
-      </div>
-    </form>
-    <p id="conciergeNotice" class="concierge-notice" role="status"></p>
-  </div>
-</aside>
+<!-- The kernel's one chat window as Fantasy Quant's concierge (concierge.js mounts it here and it fills the rail). -->
+<aside id="conciergeRail" class="concierge-rail" aria-label="Fantasy Quant"></aside>
 
 <script>
 // Classic script, no modules — the surface convention across this codebase.

@@ -240,3 +240,23 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+  - id: approvals-probe
+    name: Proposed budget changes project onto the cross-application approvals probe
+    purpose: Verify marketing-engine declares approvals on /api/marketing/budget/proposals and projects only proposed rows with existing decide endpoints.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/approvals-probe.test.mjs
+    expected:
+      - oshal-app.yaml declares approvals.path = /api/marketing/budget/proposals and itemsPointer = /approvals.
+      - formatBudgetApprovals includes only status = proposed rows and emits confirmed approve and reject descriptors on /api/marketing/budget/proposals/:id/decide.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

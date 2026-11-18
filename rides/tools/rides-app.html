@@ -4,6 +4,17 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Rides</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | rides 1.5.9 (Roger, 2026-11-16: every concierge is the core Jarvis chat
+       window, with its model menu): the builder panel no longer draws a chat of its own over POST /api/rides/chat. In the
+       same place it holds the kernel's one chat window as the Rides Concierge (rides-concierge, /shared/ui/js/
+       jarvis-chat-frame.js), with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep
+       trying. Before each turn the window is told what this screen shows (context.screen_state): the pickup and
+       destination fields, both map pins, the distance, the priced ride options with the selected one and the controls.
+       The concierge prices a trip (estimate-ride) and makes the Uber link with an approval card (prepare-ride-booking);
+       an approved card reloads Recent trips. Its replies no longer fill the fields or move the pins: the form, the map
+       and Open Uber handoff price and hand off a trip as before. A plan-ride brief from another application goes into
+       the window's message box. The pickup and destination fields carry their names (aria-label). -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's planned rides
@@ -505,51 +516,26 @@
     font-size: 11px;
     line-height: 1.35;
   }
+  /* 1.5.9: the Rides Concierge is the kernel's one chat window (jarvis-chat-frame.js); it fills this part of the panel. */
   .assistant {
     border-top: 1px solid var(--line);
+    height: clamp(380px, 48vh, 480px);
+    min-height: 0;
+    display: flex;
+  }
+  .assistant .jarvis-chat-frame {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .assistant.assistant-unavailable {
+    height: auto;
     padding: 12px;
-  }
-  .messages {
-    max-height: 180px;
-    overflow: auto;
-    display: grid;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .msg {
-    max-width: 88%;
-    padding: 8px 10px;
-    border-radius: 8px;
+    color: var(--muted);
     font-size: 13px;
-    line-height: 1.42;
-    white-space: pre-wrap;
-  }
-  .msg.bot {
-    justify-self: start;
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--line);
-  }
-  .msg.me {
-    justify-self: end;
-    background: var(--accent);
-    color: var(--on-accent);
-    font-weight: 700;
-  }
-  .chat-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 72px;
-    gap: 8px;
-  }
-  .chat-row input {
-    min-height: 38px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--ds-surface, var(--bg));
-    color: var(--text);
-    padding: 0 11px;
-    outline: 0;
-    font-size: 16px;
+    line-height: 1.4;
   }
   .toast {
     position: fixed;
@@ -571,6 +557,7 @@
     .content { grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); }
     .order { grid-column: 1 / -1; min-height: 360px; }
     .option-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .assistant { height: 300px; }
   }
   @media (max-width: 760px) {
     body { overflow: auto; }
@@ -612,7 +599,6 @@
   .panel,
   .suggestion,
   .ride-card,
-  .msg.bot,
   .map-chip {
     background: var(--rides-surface);
     box-shadow: var(--rides-shadow);
@@ -629,7 +615,6 @@
   }
 
   .field input,
-  .chat-row input,
   .btn,
   .map-chip {
     border-color: color-mix(in srgb, var(--line) 86%, transparent);
@@ -638,13 +623,11 @@
     box-shadow: none;
   }
 
-  .field input::placeholder,
-  .chat-row input::placeholder {
+  .field input::placeholder {
     color: color-mix(in srgb, var(--muted) 80%, transparent);
   }
 
   .field input:focus,
-  .chat-row input:focus,
   .btn:hover,
   .map-chip:hover,
   .suggestion:hover,
@@ -654,7 +637,6 @@
   }
 
   .btn.primary,
-  .msg.me,
   .toast {
     border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -761,6 +743,8 @@
     .status-pill { display: none; }
     .topbar .settings-btn { margin-left: auto; }
     .trips { margin: 8px; }
+    /* The concierge window under the builder: tall enough to read a conversation above its message box. */
+    .assistant { height: min(600px, 72vh); }
   }
 
   /* The assistant rail's cards. Class names are the ones the SHARED surface-bridge client renders
@@ -805,12 +789,12 @@
       <div class="search-stack">
         <div class="field">
           <span class="pin"></span>
-          <input id="pickup" data-bridge-field="pickup" autocomplete="street-address" placeholder="Pickup: use my current location" />
+          <input id="pickup" data-bridge-field="pickup" aria-label="Pickup" autocomplete="street-address" placeholder="Pickup: use my current location" />
         </div>
         <div class="field-line"></div>
         <div class="field">
           <span class="pin drop"></span>
-          <input id="dropoff" data-bridge-field="dropoff" autocomplete="off" placeholder="Search destination" />
+          <input id="dropoff" data-bridge-field="dropoff" aria-label="Destination" autocomplete="off" placeholder="Search destination" />
         </div>
         <div class="action-row">
           <button class="btn" id="locBtn" type="button">Use location</button>
@@ -823,15 +807,8 @@
         <div class="section-title">Recent trips</div>
         <div class="suggestions" id="recentTrips"></div>
       </div>
-      <div class="assistant">
-        <div class="messages" id="messages">
-          <div class="msg bot">Tell me the trip in plain English. Try "take me to the airport" or "cheapest ride to Walmart".</div>
-        </div>
-        <div class="chat-row">
-          <input id="chatInput" placeholder="Talk to build the ride" />
-          <button class="btn primary" id="chatSend" type="button">Send</button>
-        </div>
-      </div>
+      <!-- The Rides Concierge (1.5.9): the kernel's one chat window, mounted by the module script at the end of the page. -->
+      <div class="assistant" id="ridesConcierge" aria-label="Rides Concierge"></div>
     </section>
 
     <section class="panel map-panel" aria-label="Ride map">
@@ -862,7 +839,7 @@
         <p id="orderSubtitle">Search a destination to compare estimates.</p>
       </div>
       <div class="option-list" id="options">
-        <div class="empty">No route yet. Search, scroll results, or ask the concierge to generate the ride.</div>
+        <div class="empty">No route yet. Search a destination or set the pins on the map to compare estimates.</div>
       </div>
       <p class="fare-basis" id="fareBasis" role="note"></p>
       <div class="order-footer">
@@ -908,7 +885,6 @@ const state = {
   coords: null,
   options: [],
   selected: null,
-  conversationId: localStorage.getItem('oshalRidesConv') || '',
   trips: [],
   savedPlaces: { home: '', work: '' },
   basis: '',
@@ -1606,63 +1582,70 @@ async function requestRide() {
   }
 }
 
-function addMessage(role, text) {
-  const node = document.createElement('div');
-  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
-  node.textContent = text;
-  $('#messages').appendChild(node);
-  $('#messages').scrollTop = $('#messages').scrollHeight;
-  return node;
+// ── The Rides Concierge window's view of this screen (1.5.9) ─────────────────
+// The concierge is the kernel's one chat window (the module script at the end of the page mounts it). Before each turn it
+// is told what this screen shows, in the kernel's screen-snapshot shape (context.screen_state: "# heading", "[field] name:
+// value", "[button] words" with " (disabled)", the pieces of one row joined by " / "), so the trip the page's own chat
+// request used to carry (the pickup and destination fields, both map pins, the priced options) reaches it with the rest of
+// the screen: the distance, the selected ride, the places offered and the controls that price and hand a trip off.
+const SCREEN_PANELS = ['.topbar', '.phone-where', '.builder', '.map-panel', '.order'];
+const SCREEN_PARTS = '#connTxt, button, input, .panel-head h1, .panel-head h2, .panel-head p, .section-title, .empty, .legend-row, #mapHelp, .ride-card, #fareBasis, #bridgeOptions p, .order-footer .note';
+
+/** The words an element shows, spaces collapsed (laid-out text, so a fare and its "estimate" stay two words). */
+function shownWords(el) {
+  return String((el && (el.innerText ?? el.textContent)) || '').replace(/\s+/g, ' ').trim();
 }
 
-async function sendChat() {
-  const input = $('#chatInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  addMessage('me', text);
-  const pending = addMessage('bot', 'Working on the ride...');
-  try {
-    const result = await postJson(`${API}/chat`, {
-      message: text,
-      conversationId: state.conversationId,
-      pickup: $('#pickup').value.trim(),
-      dropoff: $('#dropoff').value.trim(),
-      ...pinParams()
-    });
-    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
-    state.conversationId = result.conversationId || state.conversationId;
-    if (state.conversationId) localStorage.setItem('oshalRidesConv', state.conversationId);
-    pending.textContent = result.reply || 'I could not build that ride yet.';
-    if (result.trip?.pickup) $('#pickup').value = result.trip.pickup;
-    if (result.trip?.dropoff) $('#dropoff').value = result.trip.dropoff;
-    updateLabels();
-    // The concierge just changed the trip — move the pins to match, or the map is describing
-    // the previous conversation.
-    if (googleMapState.enabled) {
-      refreshGoogleRoute();
-    } else {
-      if (result.trip?.pickup) await geocodeField('pickup');
-      if (result.trip?.dropoff) await geocodeField('dropoff');
-    }
-    if (Array.isArray(result.options) && result.options.length) renderOptions(result.options);
-    // A chat booking is a PROPOSAL: the proposed ride is selected on screen and becomes a confirm
-    // card; nothing opens until the rider clicks Confirm (onProposalClick -> requestRide()).
-    if (result.proposal) {
-      if (result.proposal.rideType) selectRide(result.proposal.rideType);
-      proposeRide(result.proposal);
-    }
-  } catch {
-    pending.textContent = 'I hit an error building that ride. Try searching the destination directly.';
+/** A map legend row, with the pin it names while that end's field still names it (the pins the page sends with an estimate). */
+function legendLine(row) {
+  const kind = row.querySelector('.legend-dot.pickup') ? 'pickup' : row.querySelector('.legend-dot.dropoff') ? 'dropoff' : '';
+  const pin = kind ? pinFor(kind) : null;
+  const words = [...row.children].map(shownWords).filter(Boolean);
+  if (pin) words.push(`pin at ${pin.lat.toFixed(5)}, ${pin.lon.toFixed(5)}`);
+  return words.join(' / ');
+}
+
+/** One element as a line of the screen, or '' for one the rider cannot see. */
+function screenLine(el) {
+  if (!el || el.closest('[hidden]') || !el.getClientRects().length) return '';
+  if (el.matches('h1, h2')) return `# ${shownWords(el)}`;
+  if (el.matches('.section-title')) return `## ${shownWords(el)}`;
+  if (el.matches('input')) return `[field] ${el.getAttribute('aria-label') || el.placeholder || 'Field'}: ${el.value.trim() || '(empty)'}`;
+  if (el.matches('.legend-row')) return legendLine(el);
+  if (el.matches('.ride-card')) {
+    const parts = [el.querySelector('h3'), el.querySelector('p'), el.querySelector('.fare')].map(shownWords).filter(Boolean);
+    return parts.join(' / ') + (el.classList.contains('is-selected') ? ' (selected)' : '');
   }
+  if (el.matches('.suggestion')) return `[button] ${[el.querySelector('strong'), el.querySelector('strong + span')].map(shownWords).filter(Boolean).join(' / ')}`;
+  if (el.matches('button')) return `[button] ${shownWords(el)}${el.getAttribute('aria-pressed') === 'true' ? ' (on)' : ''}${el.disabled ? ' (disabled)' : ''}`;
+  return shownWords(el);
+}
+
+/**
+ * What the concierge window is told this screen shows, read fresh before each turn: the panels top to bottom as laid out
+ * (on a phone the map comes first), each one's lines in page order.
+ * @returns {{title: string, tab: string, text: string}} The screen_state the window's turn carries.
+ */
+function ridesScreen() {
+  updateLabels();
+  const panels = SCREEN_PANELS.map((selector) => document.querySelector(selector)).filter((el) => el && el.getClientRects().length)
+    .map((el) => ({ el, box: el.getBoundingClientRect() }))
+    .sort((a, b) => (Math.round(a.box.top) - Math.round(b.box.top)) || (a.box.left - b.box.left));
+  const lines = panels.flatMap(({ el }) => [...el.querySelectorAll(SCREEN_PARTS)].map(screenLine)).filter(Boolean);
+  return { title: state.dropoff ? `Ride to ${state.dropoff}`.slice(0, 200) : 'Plan a ride', tab: 'Get a Ride', text: lines.join('\n').slice(0, 9000) };
+}
+
+/** An approved card of the concierge's (the Uber hand-off records the trip): Recent trips and Trips read the history again. */
+function onConciergeCard(event) {
+  if (event && event.detail && event.detail.app === RIDES_APP) loadTrips();
 }
 
 // ── The assistant rail (shared surface bridge) ───────────────────────────────
 // The page publishes what it is showing (`context`) so the floating assistant answers about the
 // trip, the fares and the selected ride on screen, and it takes the assistant's `custom` ops
-// through the same functions the buttons call. A ride anyone proposes (the embedded concierge or
-// the floating assistant) is a `propose` card rendered by the shared client; only the rider's
-// Confirm opens Uber.
+// through the same functions the buttons call. A ride the floating assistant proposes is a
+// `propose` card rendered by the shared client; only the rider's Confirm opens Uber. (The Rides
+// Concierge window proposes its hand-off as its own approval card, prepare-ride-booking.)
 const RIDES_APP = 'rides';
 const BRIDGE_CHANNEL = 'oshal-surface-bridge';
 const DIGEST_CAP = 3900;
@@ -1760,8 +1743,8 @@ function proposeRide(proposal) {
     window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'request_ride', summary, confirmLabel: 'Open Uber', cancelLabel: 'Not yet' }]);
     return;
   }
-  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
-  addMessage('bot', `${summary} Use "Open Uber handoff" to continue.`);
+  // No bridge module (an old cockpit or a static preview): say it beside the button, which stays the only way out.
+  $('#bridgeOptions').textContent = `${summary} Use "Open Uber handoff" to continue.`;
 }
 
 /** Remember which action the card on screen proposes (every propose replaces the last card). */
@@ -1968,8 +1951,7 @@ async function boot() {
   $('#dropoff').addEventListener('blur', () => { if (!googleMapState.enabled) geocodeField('dropoff'); });
   $('#pickup').addEventListener('blur', () => { if (!googleMapState.enabled) geocodeField('pickup'); });
   $('#pickup').addEventListener('input', updateLabels);
-  $('#chatSend').addEventListener('click', sendChat);
-  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
+  window.addEventListener('oshal-package-tool-done', onConciergeCard);
   $('#pickup').addEventListener('change', publishContext);
   $('#dropoff').addEventListener('change', publishContext);
   $('#bridgeOptions').addEventListener('click', onProposalClick, true);
@@ -2012,8 +1994,8 @@ if (!window.AppView || !AppView.active()) boot();
 
 <!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
      (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
-     producer in 'self' mode lets the embedded concierge's ride proposal travel the SAME path, so
-     both assistants drive one confirm card. Degrades silently without the module. -->
+     producer in 'self' mode lets a relayed request_ride travel the SAME path as the client's own
+     ops, so it is one confirm card. Degrades silently without the module. -->
 <script type="module">
 // The full page only: under an audience view the rail is not attached, so no op is published or applied behind it.
 if (!window.AppView || !AppView.active()) {
@@ -2031,6 +2013,32 @@ if (!window.AppView || !AppView.active()) {
 }
 </script>
 
+<!-- The Rides Concierge (1.5.9): the kernel's one chat window as this application's concierge, the same window every
+     concierge is, with its model menu, conversations, Files, Tap to talk and Keep trying. It sits where the page's own
+     chat was (#ridesConcierge in the builder panel) and is told this screen before each turn (ridesScreen above). -->
+<script type="module">
+// The full page only: under an audience view no concierge is offered, so no chat window loads behind it.
+if (!window.AppView || !AppView.active()) {
+  const host = document.getElementById('ridesConcierge');
+  const PROMPTS = ['Take me to the airport', 'Cheapest ride to Walmart', 'Price the trip on my screen'];
+  const HELP = 'Tell me the trip in plain English. I read the pickup, destination and fares on this screen, price the ride types and make the Uber link once you approve it.';
+  // A promise of the mounted window: the plan-ride hand-off below puts its brief in the window's message box.
+  window.__ridesChat = (async () => {
+    try {
+      const { mountJarvisChat } = await import('/shared/ui/js/jarvis-chat-frame.js');
+      return mountJarvisChat(host, { app: 'rides', bot: 'rides-concierge', title: 'Rides Concierge', closable: false, lazy: true,
+        prompts: PROMPTS.map((prompt) => ({ label: prompt, prompt })), help: HELP,
+        chatHost: { prepare: async () => ({ screen_state: window.ridesScreen() }) } });
+    } catch (err) {
+      host.classList.add('assistant-unavailable');
+      host.textContent = 'The Rides Concierge needs Open Swarm\'s chat window, which this installation does not serve. Show rides and Open Uber handoff work without it.';
+      console.warn('[rides] concierge window unavailable', err && err.message);
+      return null;
+    }
+  })();
+}
+</script>
+
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
@@ -2039,13 +2047,13 @@ import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
 if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
-const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
-receiveHandoff({"app":"rides","action":"plan-ride","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatInput', brief(context)); document.getElementById('chatInput').focus(); });
+// A planning brief from another application goes into the concierge window's message box, ready to send.
+receiveHandoff({"app":"rides","action":"plan-ride","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { void window.__ridesChat?.then((chat) => chat?.focus(brief(context))); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions');
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.search-stack').prepend(element);
-void mountConnectedActions({ app:"rides", element, contextForOffer:()=>{ const destination=val('dropoff'); return destination ? {title:'Plan around my ride destination',notes:clip('Destination: '+destination+'\nPickup: '+val('pickup')+'\n'+val('chatInput'))} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+void mountConnectedActions({ app:"rides", element, contextForOffer:()=>{ const destination=val('dropoff'); return destination ? {title:'Plan around my ride destination',notes:clip('Destination: '+destination+'\nPickup: '+val('pickup'))} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
 }
 </script>
 </body>

@@ -32,6 +32,7 @@
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: readiness 1.20.1 (refusal sentences; their guard is tests/phone-control-routes.test.cjs, already registered).
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (remove unsupported regressionTests blocks, quote colon-containing expectations, set closed sideEffects/cleanup on disposable external suites, and bound timeoutMs to 300000).
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: readiness 1.20.2; phone-control-phone-scroll registers the phone scroll guard (tests/phone-control-phone-scroll.test.cjs, which the gate job's own glob runs): in a stand-in Today frame at 412x915 with touch, a finger swipe and a wheel turn move the device list, every row's buttons can rest clear of the floating Jarvis button, the page paints no positioned dot, and a device screen is still the fixed full-frame session. tests/live/phone-scroll-live.cjs (case phone-control-live-phone-scroll) is the same check read-only on a loopback installation, with the list lengthened in the browser only.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: readiness 1.20.3; phone-control-one-chat-window registers the Chromium guard (tests/phone-control-one-chat-window.test.cjs) proving Device Concierge, Connection Concierge and Today's Phone & Device Control screen mount the kernel's one chat window with device-concierge.
 version: 1
 cases:
   - id: package-readiness
@@ -42,7 +43,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.20.2 with its store open.
+      - The installed phone-control package answers its identity and version 1.20.3 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -811,6 +812,28 @@ cases:
       - Windows and Android devices remain directly selectable by exact identifiers with separately reported connection and control states.
       - Native setup links to this installation's current downloads page without sending a device command.
       - Only an explicitly reported Linux host can offer bridge setup; fresh platform changes invalidate an old selection.
+    prerequisites:
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+    installation: never
+
+  - id: phone-control-one-chat-window
+    name: Device Concierge, Connection Concierge and Today mount the kernel's one chat window
+    purpose: Verify in Chromium at 1440x900 and 412x915 (touch) over the real phone-control router and a kernel platform export that Device Concierge, Connection Concierge and Today's Phone & Device Control screen open the kernel's one chat window as device-concierge with live screen_state and zero bespoke /concierge/turn requests.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-one-chat-window.test.cjs
+    expected:
+      - Device Concierge and Connection Concierge mount iframe.jarvis-chat-frame as phone-control / device-concierge with model menu, conversations, Files, Tap to talk and Keep trying.
+      - Sending a turn carries the picked rail and live device or setup screen_state with zero POST /api/phone-control/concierge/turn requests.
+      - Today (/cockpit/?app=phone-control&screen=phone-control-execution) opens #chatWorkspaceFrame with device-concierge.
     prerequisites:
       - runtime:chromium
     sideEffects: none

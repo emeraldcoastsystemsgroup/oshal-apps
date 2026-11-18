@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 6 (workspace Resume Studio tab at 412 px): the resume select ran past the right edge (right=487 in a 412 viewport, arrow hidden) and the chat placeholder was clipped mid-line. The shipped page, opened in headless Chromium at 412x915 with a long resume name in the select, keeps the select and the page inside the viewport and shows the composer's placeholder whole.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: on a phone the Resume Editor is a sheet opened from "Edit with AI", so the placeholder is measured with it open.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 12: the editor panel is hidden until a résumé exists, which the page's script marks on its body; this layout check serves no script, so it marks one itself before measuring the editor.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): the page has no résumé editor of its own, so there is no composer placeholder to measure and no Send beside the shell's floating assistant (Career's concierge is the chat; tests/career-hunter-one-chat-window.test.mjs measures it at 412 and 1440). The select and the page stay inside 412 px, and the page draws no editor panel, text box or Send.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for playwright. Run locally:
  *   OSHAL_CORE_DIR=<core checkout> node --test tests/career-resume-studio-phone.spec.mjs
@@ -22,7 +23,7 @@ const page = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.ur
   // The layout under test is the page's own markup and CSS; its scripts and shared stylesheets are not served here.
   .replace(/<script[\s\S]*?<\/script>/g, '').replace(/<link[^>]*>/g, '');
 
-test('at 412 px the resume select and the page stay inside the viewport, and the placeholder shows whole', async (t) => {
+test('at 412 px the resume select and the page stay inside the viewport, and the page draws no chat of its own', async (t) => {
   assert.ok(CORE, 'OSHAL_CORE_DIR must name a core checkout with playwright (refusing rather than skipping)');
   const { chromium } = createRequire(path.join(CORE, 'package.json'))('playwright');
   const browser = await chromium.launch();
@@ -34,46 +35,14 @@ test('at 412 px the resume select and the page stay inside the viewport, and the
     o.textContent = 'Senior Platform Reliability Engineer — Northwind Logistics International (tailored 2026-10-11)';
     document.querySelector('#pick').append(o);
     document.querySelector('#pick').value = o.value;
-    document.querySelector('#msg').disabled = false;
-    document.body.dataset.resume = 'ready'; // the editor waits for a résumé; the page's script, not served here, marks one
-    document.querySelector('.chat').classList.add('open'); // the phone editor is the sheet "Edit with AI" opens
+    document.body.dataset.resume = 'ready'; // the page's script, not served here, marks a résumé
   });
   const m = await tab.evaluate(() => {
     const s = document.querySelector('#pick').getBoundingClientRect();
-    const ta = document.querySelector('#msg');
-    const probe = document.createElement('div');
-    const cs = getComputedStyle(ta);
-    Object.assign(probe.style, { position: 'absolute', visibility: 'hidden', width: ta.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) + 'px', font: cs.font, lineHeight: cs.lineHeight, whiteSpace: 'pre-wrap' });
-    probe.textContent = ta.placeholder;
-    document.body.append(probe);
-    const need = probe.getBoundingClientRect().height + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-    return { right: s.right, width: s.width, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, taH: ta.clientHeight, need };
+    return { right: s.right, width: s.width, sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth,
+      own: ['.chat', '#log', '#msg', '#send'].filter((selector) => document.querySelector(selector)) };
   });
   assert.ok(m.right <= m.cw, `select right edge ${m.right} past the ${m.cw} px viewport`);
   assert.ok(m.sw <= m.cw, `page scrolls sideways: ${m.sw} > ${m.cw}`);
-  assert.ok(m.taH >= m.need - 1, `placeholder needs ${m.need} px, composer shows ${m.taH}`);
-});
-
-test('the desktop editor Send remains clickable beside the floating shell assistant', async (t) => {
-  assert.ok(CORE, 'OSHAL_CORE_DIR must name the pinned browser toolchain');
-  const { chromium } = createRequire(path.join(CORE, 'package.json'))('playwright');
-  const browser = await chromium.launch();
-  t.after(() => browser.close());
-  const tab = await browser.newPage({ viewport: { width: 1854, height: 870 } });
-  await tab.setContent(`<iframe title="Resume Studio" style="position:absolute;left:185px;top:110px;width:calc(100% - 209px);height:calc(100% - 154px);border:0"></iframe>
-    <button id="orb" style="position:fixed;right:22px;bottom:22px;width:60px;height:60px;z-index:2147483000">Jarvis</button>`);
-  const frame = tab.frames().find(f => f !== tab.mainFrame());
-  await frame.setContent(page);
-  await frame.locator('#send').evaluate(button => { document.body.dataset.resume = 'ready'; button.disabled = false; });
-  const local = await frame.locator('#send').boundingBox();
-  assert.ok(local, 'Send is visible');
-  const hit = await tab.evaluate(({ x, y, width, height }) => document.elementFromPoint(x + width / 2, y + height / 2)?.tagName, local);
-  assert.equal(hit, 'IFRAME', 'the shell assistant must not intercept the editor Send click');
-  const placeholder = await frame.locator('#msg').evaluate(ta => {
-    const cs = getComputedStyle(ta), probe = document.createElement('div');
-    Object.assign(probe.style, {position:'absolute',visibility:'hidden',width:ta.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)+'px',font:cs.font,lineHeight:cs.lineHeight,whiteSpace:'pre-wrap'});
-    probe.textContent = ta.placeholder; document.body.append(probe);
-    return {available:ta.clientHeight,needed:probe.getBoundingClientRect().height+parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom)};
-  });
-  assert.ok(placeholder.available >= placeholder.needed - 1, 'the narrow desktop editor shows its whole prompt');
+  assert.deepEqual(m.own, [], 'Career\'s concierge is the page\'s chat; it draws none of its own');
 });

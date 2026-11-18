@@ -7,6 +7,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): the main résumé document Work history reads (base_with_revision) also carries `expanded`, every client engagement and client account group (engagements.view); an edit may also add, change, move or remove a client engagement, one of its bullets, or a client account group (fields engagement, engagement-bullet and accounts, engagements.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Such a patch is refused, never fitted, when the main résumé moved after the page read it, and refused in words when it would grow the main résumé past what job scoring reads (128 KiB).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: a Work history card of four edits, two bullets under a job with none and two jobs removed, answered "item index must be an integer from 0 to 0" and changed nothing). One card means what the person read on it: each edit finds its job and its list item through card_targets.Card, made once from the profile at the card's revision, so an earlier edit of the card never renumbers a later one; a bullet, competency or skill is the one whose exact text the edit quotes, and an add that quotes none goes at the end in the order written. A refused edit says which change of the card, which job and what is wrong in words, and still changes nothing. apply_edits is split into one helper per kind of edit; an edit may also name its job's employer (roleOrg).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): the saved portfolio is read (read_section field `portfolio`) and replaced whole (an edit of field `portfolio`, portfolio.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like an engagement edit it is refused, never fitted, when the main résumé moved after the form read it; it is refused in words when it would grow the main résumé past what job scoring reads, and its refusal reads as the form's own words (error portfolio_refused) rather than a card's.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 """Model-free bounded access to the current owner's master resume."""
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ import hashlib
 import json
 import re
 
-from . import card_rebase, card_targets, engagements, portfolio, profile, work_history
+from . import card_rebase, card_targets, engagements, portfolio, profile, work_history, role_hierarchy
 from .card_targets import CardRefusal
 
 MAX_BYTES = 12 * 1024
@@ -59,6 +60,69 @@ def _portfolio_section(index, offset):
     return result
 
 
+def _section_values(raw, field, index, result):
+    """Read only the requested section from one exact owner snapshot, including recorded role metadata."""
+    doc = profile.base_document(raw)['resume']
+    if field == 'overview':
+        result['fields'] = [{'field': key, 'kind': 'text' if isinstance(value, str) else 'list',
+                             'count': len(value), 'editable': True} for key, value in doc.items()]
+        result['fields'].extend({'field': key, 'kind': 'list' if isinstance(raw.get(key, []), list) else 'unsupported',
+                                 'count': len(raw.get(key, [])) if isinstance(raw.get(key, []), list) else None,
+                                 'editable': False} for key in QUALIFICATIONS)
+        values = [{'index': n, 'title': role['title'], 'org': role['org'], 'span': role['span'],
+                   'start': role['start'], 'end': role['end'], **{key: role.get(key, '') for key in ('id', *role_hierarchy.FIELDS)},
+                   'bullets': len(role['bullets']), 'stories': len(role['stories'])}
+                  for n, role in enumerate(doc['experience'])]
+    elif field == 'experience':
+        if index >= len(doc['experience']):
+            raise ValueError('role index is outside the current profile')
+        role = doc['experience'][index]
+        result['role'] = {key: role[key] for key in ('title', 'org', 'span', 'start', 'end')}
+        result['role'].update({key: role.get(key, '') for key in ('id', *role_hierarchy.FIELDS)})
+        result['role']['index'] = index
+        values = role['bullets']
+    else:
+        if index:
+            raise ValueError('role index must be zero for this section')
+        values = raw.get(field, []) if field in QUALIFICATIONS else doc[field]
+        if field in QUALIFICATIONS and (not isinstance(values, list) or any(not isinstance(item, str) for item in values)):
+            raise ValueError('this qualification section needs a supported list of source statements')
+    return values
+
+
+def _section_page(result, values, offset, limit):
+    """Fit the section into the existing byte/item bounds without truncating an item."""
+    result['total'] = len(values)
+    if offset > len(values):
+        raise ValueError('offset is outside the current section')
+    if isinstance(values, str):
+        # Character offsets remain code-point boundaries, including non-ASCII text.
+        end = min(len(values), offset + 6000)
+        while end > offset:
+            trial = {**result, 'value': values[offset:end], 'nextOffset': end if end < len(values) else None,
+                     'complete': end == len(values)}
+            if len(_encoded(trial)) <= MAX_BYTES:
+                return trial
+            end = offset + (end - offset) // 2
+        if offset == len(values):
+            return {**result, 'value': '', 'nextOffset': None, 'complete': True}
+        raise ValueError('master section metadata exceeds the read limit')
+    items = []
+    end = offset
+    for n in range(offset, min(len(values), offset + limit)):
+        candidate = {'index': n, 'value': values[n]}
+        trial = {**result, 'items': [*items, candidate], 'nextOffset': n + 1,
+                 'complete': n + 1 == len(values)}
+        if len(_encoded(trial)) > MAX_BYTES:
+            break
+        items.append(candidate)
+        end = n + 1
+    if not items and offset < len(values):
+        raise ValueError('one item of this section exceeds the read limit; use the My résumé page')
+    return {**result, 'items': items, 'nextOffset': end if end < len(values) else None,
+            'complete': end == len(values)}
+
+
 def read_section(field='overview', index=0, offset=0, limit=20):
     """Return an explicitly paged, byte-bounded view from one exact profile revision."""
     try:
@@ -73,60 +137,8 @@ def read_section(field='overview', index=0, offset=0, limit=20):
         if type(limit) is not int or not 1 <= limit <= 50:
             raise ValueError('limit must be an integer from 1 to 50')
         _, raw, revision = _snapshot()
-        doc = profile.base_document(raw)['resume']
         result = {'ok': True, 'revision': revision, 'field': field, 'offset': offset}
-        if field == 'overview':
-            result['fields'] = [{'field': key, 'kind': 'text' if isinstance(value, str) else 'list',
-                                 'count': len(value), 'editable': True} for key, value in doc.items()]
-            result['fields'].extend({'field': key, 'kind': 'list' if isinstance(raw.get(key, []), list) else 'unsupported',
-                                     'count': len(raw.get(key, [])) if isinstance(raw.get(key, []), list) else None,
-                                     'editable': False} for key in QUALIFICATIONS)
-            values = [{'index': n, 'title': role['title'], 'org': role['org'], 'span': role['span'],
-                       'start': role['start'], 'end': role['end'],
-                       'bullets': len(role['bullets']), 'stories': len(role['stories'])}
-                      for n, role in enumerate(doc['experience'])]
-        elif field == 'experience':
-            if index >= len(doc['experience']):
-                raise ValueError('role index is outside the current profile')
-            role = doc['experience'][index]
-            result['role'] = {key: role[key] for key in ('title', 'org', 'span', 'start', 'end')}
-            result['role']['index'] = index
-            values = role['bullets']
-        else:
-            if index:
-                raise ValueError('role index must be zero for this section')
-            values = raw.get(field, []) if field in QUALIFICATIONS else doc[field]
-            if field in QUALIFICATIONS and (not isinstance(values, list) or any(not isinstance(item, str) for item in values)):
-                raise ValueError('this qualification section needs a supported list of source statements')
-        result['total'] = len(values)
-        if offset > len(values):
-            raise ValueError('offset is outside the current section')
-        if isinstance(values, str):
-            # Character offsets remain code-point boundaries, including non-ASCII text.
-            end = min(len(values), offset + 6000)
-            while end > offset:
-                trial = {**result, 'value': values[offset:end], 'nextOffset': end if end < len(values) else None,
-                         'complete': end == len(values)}
-                if len(_encoded(trial)) <= MAX_BYTES:
-                    return trial
-                end = offset + (end - offset) // 2
-            if offset == len(values):
-                return {**result, 'value': '', 'nextOffset': None, 'complete': True}
-            raise ValueError('master section metadata exceeds the read limit')
-        items = []
-        end = offset
-        for n in range(offset, min(len(values), offset + limit)):
-            candidate = {'index': n, 'value': values[n]}
-            trial = {**result, 'items': [*items, candidate], 'nextOffset': n + 1,
-                     'complete': n + 1 == len(values)}
-            if len(_encoded(trial)) > MAX_BYTES:
-                break
-            items.append(candidate)
-            end = n + 1
-        if not items and offset < len(values):
-            raise ValueError('one item of this section exceeds the read limit; use the My résumé page')
-        return {**result, 'items': items, 'nextOffset': end if end < len(values) else None,
-                'complete': end == len(values)}
+        return _section_page(result, _section_values(raw, field, index, result), offset, limit)
     except OSError:
         return {'ok': False, 'error': 'The master profile is unavailable. Upload a resume or restore its backup.'}
     except (ValueError, TypeError, AttributeError, KeyError) as error:
@@ -342,7 +354,9 @@ def _apply_one(raw, edit, card, changelog, touched):
 def _new_card(raw, total):
     """The card as it reads one profile: its jobs, their bullets, the competencies and the skills."""
     first = profile.base_document(raw)['resume']
-    return card_targets.Card(raw, total, {field: first[field] for field in ('competencies', 'skills')})
+    card = card_targets.Card(raw, total, {field: first[field] for field in ('competencies', 'skills')})
+    card.parent_reads = tuple(role if role is not None and not role.get('id') else None for role, _, _ in card.read)
+    return card
 
 
 def _apply_card(raw, edits, changelog, card=None, refuse=card_targets.refusal):
@@ -400,7 +414,8 @@ def apply_edits(revision, edits):
         text, raw, current = _snapshot()
         card, changelog = None, []
         expanded, held = engagements.touches(edits), portfolio.touches(edits)
-        if current != revision and (expanded or held):
+        linked = role_hierarchy.touches(edits)
+        if current != revision and (expanded or held or linked):
             # Engagement, account and portfolio edits name their place as the page read it; a moved main résumé is read again.
             return {'ok': False, 'error': 'master_changed', 'message': portfolio.MOVED if held else engagements.MOVED}
         if current != revision:

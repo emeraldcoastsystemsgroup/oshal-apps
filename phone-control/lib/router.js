@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Zero-dependency Express-compatible router fallback for standalone test execution.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: a plain middleware (use(fn)) runs for every request instead of failing on a missing pattern, so the owner check runs here as it does in the kernel's runner.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: define writable req.path/req.query properties for Express 5 compatibility and export resolveRouter() so disk Express 5 in a parent node_modules or NODE_PATH never overrides MiniRouter in raw http.createServer suites while bridge/runner.js retains its expressShim.
  */
 
 "use strict";
@@ -128,8 +129,9 @@ class MiniRouter {
     const startProcessing = () => {
       const parsedUrl = new URL(req.url, "http://localhost");
       const pathname = parsedUrl.pathname;
-      req.path = pathname;
-      req.query = Object.fromEntries(parsedUrl.searchParams.entries());
+      const query = Object.fromEntries(parsedUrl.searchParams.entries());
+      Object.defineProperty(req, "path", { value: pathname, writable: true, configurable: true });
+      Object.defineProperty(req, "query", { value: query, writable: true, configurable: true });
 
       let i = 0;
       const next = (err) => {
@@ -208,9 +210,22 @@ function createRouter() {
   return new MiniRouter();
 }
 
+function resolveRouter() {
+  try {
+    require.resolve("express");
+    return createRouter;
+  } catch {
+    try {
+      return require("express").Router;
+    } catch {
+      return createRouter;
+    }
+  }
+}
+
 function json() {
   return (req, res, next) => next();
 }
 
-module.exports = { createRouter, json, MiniRouter };
+module.exports = { createRouter, resolveRouter, json, MiniRouter };
 

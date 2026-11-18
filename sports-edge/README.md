@@ -1,5 +1,7 @@
 # Sports Edge
 
+0.12.2 makes the Concierge rail the kernel's one chat window as Sports Quant's concierge, the same window Jarvis and every other concierge use, with its model menu (change the model for one request), New conversation, Recent conversations, Files, Tap to talk, Keep trying and the kernel's own approval cards; the page draws no chat of its own. Every turn carries the board on screen as `screen_state`: the tab, the followed teams, the game in the Preview tab with its event id and the games the Games tab lists. A pick approved in the window reloads the Games or Record tab on screen, as before. It needs a kernel with `/shared/ui/js/jarvis-chat-frame.js` (`00c62f98` or later). Proven by `tests/sports-edge-one-chat-window.test.js` (Test Lab case `sports-edge-one-chat-window`) and `tests/sports-quant.test.js`.
+
 0.11.1 adds the company audience view with its family alias (ADR-164 D6): Studio, Orbit and Commons open this package's first surface, `GET /api/sports-edge/review`, with `?audience=company`, and Jarvis with `?audience=family`; the shared kit paints the followed teams and the upcoming games with a cached preview from the package's own home-summary, refusals said and never filled in; without the audience the page runs unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`.
 
 Follow a team. Really know its next game. Call it straight up or against the line.

@@ -45,6 +45,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.8 (UX audit 2026-11-06): add Board status filter chips (Active, Draft, Archived, All, default Active) and campaign search input updating the Board count, make primary buttons solid without gradient or glow, and on phone move the tab bar to a fixed opaque bottom bar (Board, Scorecard, Channels, Approvals, More -> Experiments) while stacking campaign rows as cards.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: person-facing and model-facing product references name Open Swarm; technical identifiers and URLs keep their forms. Guard: tests/product-name.test.mjs.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone the campaign list starts at 176 px (19%) instead of 357 px (39%): the page's title and tagline step aside (Today's bar names the page), and the Board's controls are two rows, search with Import (its icon) and + New, then the four status chips. Desktop unchanged. Presentation only (tools/marketing-engine.html, CSS in its 760 px phone block).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.5.11: declare `approvals:` (`/api/marketing/budget/proposals`, `/approvals`) so proposed budget changes appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`) and execute through the existing confirmed `/decide` route.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -53,7 +54,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.10
+version: 0.5.11
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -399,6 +400,16 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+approvals:
+  path: /api/marketing/budget/proposals
+  itemsPointer: /approvals
+  approve:
+    method: POST
+    path: /api/marketing/budget/proposals/{id}/decide
+  decline:
+    method: POST
+    path: /api/marketing/budget/proposals/{id}/decide
 
 testing:
   version: 1

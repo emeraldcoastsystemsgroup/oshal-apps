@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Travel form's state and hand-off text, which a live sweep found broken: the place fields carried JFK/LHR (Paris, Miami) as real values, a Hotels -> Flights round trip rebuilt the form and lost the typed VPS -> DCA, Plan a ride / Plan a meal then sent JFK -> LHR as raw JSON, the Hotels and Cars tabs replaced the no-Duffel notice with "Search to see options.", and a Rides "Plan a trip" hand-off left the flight form on its defaults. The guard EXECUTES the shipped FORMS, switchTab(), typedTrip(), tripOfferContext() and applyHandoffTrip() against a DOM double whose form rebuild resets every field to the markup's own value, as the browser does.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the cabin options carry their Duffel code as the value and read in words, so the double reads a select's first option value, and the shipped CABINS table runs with FORMS.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5 (lane CHATCORE3): the plan-trip receiver fills the form and puts the brief in the concierge window's message box (the kernel's one chat window), opening the phone sheet first.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -145,5 +146,6 @@ test('a Rides hand-off to an airport fills the flight From; any other destinatio
   p.t.switchTab('flight');
   assert.equal(p.el('f_origin').value, 'PNS', 'the flight From kept from the first hand-off');
   assert.equal(p.t.applyHandoffTrip({ notes: 'Plan dinner near the hotel' }), false, 'no destination named, nothing filled');
-  assert.match(html, /context => \{ applyHandoffTrip\(context\); set\('chatbox', brief\(context\)\);/, 'the receiver fills the form and the chat box');
+  assert.match(html, /context => \{ applyHandoffTrip\(context\); if\(window\.matchMedia && window\.matchMedia\('\(max-width:820px\)'\)\.matches && typeof toggleConcierge==='function'\) toggleConcierge\(true\); void window\.__travelChat\?\.then\(chat => chat\?\.focus\(brief\(context\)\)\); \}/,
+    'the receiver fills the form and puts the brief in the concierge window\'s message box');
 });

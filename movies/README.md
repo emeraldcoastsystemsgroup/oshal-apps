@@ -36,6 +36,25 @@ this package. `workflow.workerBot: movies-concierge` resolves against the framew
 static registry; the packaged `/chat` route reaches the same bot through
 `ctx.orchestrator` with cost captured in `chat_tasks`.
 
+## The Movie Concierge is the one chat window (1.1.8)
+
+The Ask sheet holds the kernel's one chat window as the Movie Concierge (`movies-concierge`,
+`/shared/ui/js/jarvis-chat-frame.js`), the same window every concierge is: its model menu, New
+conversation, Recent conversations, Files, Tap to talk and Keep trying. The window's Close closes the
+sheet. Before each turn it is told what the screen shows (`context.screen_state`): the view, the type
+shown, the titles on it with their keys, and the watchlist. The page draws no chat of its own and no
+longer calls `POST /api/movies/chat`, which stays for the `/chat` callers that use it.
+
+What that route did for the page is the concierge's tools: `search-titles`, `trending-titles`,
+`title-details`, `movie-tickets`, `read-watchlist`, `add-to-watchlist`, and two new routes,
+`GET /notes` (`read-movie-taste`: the viewer's remembered notes and the profile's tastes) and
+`POST /notes` (`remember-movie-taste`: keeps a taste the viewer states, grounded in their own words,
+once). After each answer the page reads the watchlist again, so a title the concierge saved shows at
+once. A plan-movie draft goes into the window's message box. Needs a kernel with
+`/shared/ui/js/jarvis-chat-frame.js` (00c62f98 or later). Guards: `tests/movies-one-chat-window.test.cjs`
+(Chromium at 1440x900 and 412x915 over the compiled routes and a kernel platform export) and
+`tests/movies-tools.test.cjs`.
+
 Movies & TV 1.1.1 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/movies-app.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
 
 <!-- oshal-rating:start -->

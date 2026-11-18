@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Model exact-payload compare-and-swap for synthetic allocation cycle transitions.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: answer GET /paper/values' statement (every saved value of the owner from a day on) instead of reading its two arguments as a connection and an account.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Model the separate exact-owner account observation table and latest-timestamp upsert.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Provide explicit timestamped synthetic quotes and broker facts for planning tests; model insert-once approval behavior.
@@ -23,6 +24,7 @@ function application(){
   if(sql.includes('oshal_trading_watchlist'))return{rows:[{symbol:'SPY'}]};
   if(sql.startsWith('SELECT'))return{rows:[...records.values()].filter(r=>r.user_sub===args[0]&&r.kind===args[1]&&(!args[2]||r.record_id===args[2])).sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,501)};
   if(sql.startsWith('INSERT')){const [record_id,user_sub,kind,payload,created_at]=args;if(sql.includes('DO NOTHING')&&records.has(user_sub+'|'+record_id))return{rows:[]};records.set(user_sub+'|'+record_id,{record_id,user_sub,kind,payload,created_at});return{rows:[]};}
+  if(sql.startsWith('UPDATE oshal_trading_portfolio_records SET payload=$1')){const [payload,owner,kind,id,expected]=args,row=records.get(owner+'|'+id);if(!row||row.kind!==kind||row.payload!==expected)return{rows:[]};records.set(owner+'|'+id,{...row,payload});return{rows:[{record_id:id}]};}
   if(sql.startsWith('DELETE')){records.delete(args[0]+'|'+args[2]);return{rows:[]};}throw Error('Unimplemented fixture SQL');
  }};
  const modules=standIns({express});modules['@/features/trading'].nativeSchwabReads=true;

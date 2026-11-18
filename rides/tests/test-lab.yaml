@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register recent-distinct: Recent trips and the destination suggestions list each trip once, newest copy first (sweep 14: one row per Show rides).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register saved-places: home and work come from the rider's profile, a missing one is asked for, and a dropoff farther than a car ride is refused.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (UX audit 2026-11-06): register trips-view (?view=history opens Trips, Ride again fills and prices the planner, Swap re-prices, the fare basis line, one assistant entry, the page follows its theme); recent-distinct re-described for the three-place Search list.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.9: register one-chat-window (the Rides Concierge is the kernel's one chat window, told the screen before each turn, its hand-off card approved in the window); commerce-bridge, surface-mobile-commerce, not-connected and audience-view expect a page with no chat of its own.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -99,7 +100,7 @@ cases:
     installation: never
   - id: commerce-bridge
     name: Rides assistant rail contract
-    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Uber only from the explicit request, selects the proposed ride before its card, and keeps its context digest under the contract cap.
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Uber only from the explicit request, sends no chat turn of its own, proposes the selected ride on a relayed request_ride, and keeps its context digest under the contract cap.
     level: unit
     runner:
       kind: node-test
@@ -109,6 +110,7 @@ cases:
     expected:
       - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
       - The only window.open is inside requestRide(); a 300-option digest stays at or under 4000 characters.
+      - The page has no message box and no POST /api/rides/chat of its own; it mounts the kernel's one chat window as rides / rides-concierge.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -120,7 +122,7 @@ cases:
     installation: never
   - id: surface-mobile-commerce
     name: Rides at phone width in Chromium
-    purpose: Drive the actual Rides surface and its vendored Leaflet map at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - destination search and priced options, a chat booking that waits for Confirm, the floating assistant's relayed ops, and the context envelopes the parent receives.
+    purpose: Drive the actual Rides surface and its vendored Leaflet map at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - destination search and priced options, a relayed booking that waits for Confirm, the floating assistant's relayed ops, and the context envelopes the parent receives.
     level: browser
     runner:
       kind: playwright
@@ -129,7 +131,7 @@ cases:
         - tests/surface.core.spec.mjs
     expected:
       - No horizontal overflow; typing a destination filters the suggestions and picking one prices four rides the page scrolls to.
-      - A chat booking selects Comfort and renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /request and opens Uber once; Cancel on a relayed proposal hands off nothing.
+      - A relayed select_ride and request_ride select Comfort and render a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /request and opens Uber once; Cancel on a relayed proposal hands off nothing.
       - The parent frame receives context envelopes with the trip, the selected ride and its fare and a submit for the confirm; the page raises no errors.
     prerequisites:
       - runner:playwright
@@ -167,7 +169,7 @@ cases:
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
       - On open the family view reads only GET /api/rides/history and /home-summary, never the map config, address lookup, fare estimate, Uber link, concierge or profile, and no saved ride opens anything.
-      - The empty, capped, unknown-summary, partial, 401, 403 and failed-read states are each named; the map page's boot, the assistant rail and the handoff and connected-actions module start only without a view.
+      - The empty, capped, unknown-summary, partial, 401, 403 and failed-read states are each named; the map page's boot, the assistant rail, the Rides Concierge window and the handoff and connected-actions module start only without a view.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -187,7 +189,7 @@ cases:
       files:
         - tests/rides-not-connected.test.js
     expected:
-      - A refused estimate, hand-off and concierge turn say the installation has no Uber rail, never that a connection can be added.
+      - A refused estimate and hand-off say the installation has no Uber rail, never that a connection can be added.
       - The estimate sends the pins whose fields still name them, and never prices a newly typed address from an old pin.
     prerequisites:
       - runner:node-test
@@ -333,6 +335,35 @@ cases:
     sideEffects: none
     isolation:
       mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: one-chat-window
+    name: The Rides Concierge is the kernel's one chat window
+    purpose: In Chromium at 1440x900 and 412x915 (touch) the shipped page over the compiled router, beside the kernel's one chat window served from
+      a kernel platform export with its stand-in kernel (scripts/one-chat-window/kernel-window.mjs), with a trip priced and Comfort picked on the page.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/rides-one-chat-window.test.js
+    expected:
+    - The builder panel holds iframe.jarvis-chat-frame (concierge=rides, bot=rides-concierge) where the page's chat was, with its model menu, Files, Tap to talk, Keep trying and conversations; the page draws no message box and sends no POST /api/rides/chat.
+    - A model picked in the window rides on the turn; the turn reaches rides-concierge with context.app rides and screen_state holding both fields, both map pins, the distance, the priced options with the selected one, and the controls.
+    - The window and its message box sit inside the builder panel at both sizes; nothing scrolls sideways; no page error; nothing leaves the loopback.
+    - On a phone the hand-off card is approved in the window, the real POST /request records the trip once and Recent trips lists it.
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    - harness:kernel-platform-export
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+      - tests/rides-routes-harness.js
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024

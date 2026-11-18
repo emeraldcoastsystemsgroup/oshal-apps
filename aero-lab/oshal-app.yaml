@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the design tools name the design fields and say each is optional ({} runs the baseline). Their schema was a bare object, so asked from Jarvis to evaluate an airfoil, the aero-designer asked for a complete design vector and ran nothing. Guarded by aero-lab/tests/design-tool-schema.test.cjs.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: UX audit (aero-lab--aero-lab): two views (Sizing & flight envelope; Vehicle record & build package with Export Build Files); one primary Run 24 h Energy Loop; closed design groups with Reset to preset; the field's own decimals with the full value on focus; one-line presets; the engine block in a popover on its badge; the analysis-document disclosure under the verdict; a phone bottom bar with the design vector as a sheet.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). Draft with AI no longer draws a chat of its own over POST /api/aero-lab/chat: it holds the kernel's one chat window as the Aero Designer (aero-designer), told the screen before each turn (the design on the sliders field by field, the loaded preset's record, the latest run). The page tells POST /api/aero-lab/draft/design its sliders before each turn, and the concierge offers a draft with the new propose-aero-draft tool (POST /api/aero-lab/draft), checked exactly as a /chat reply's draft is; the page shows it with Apply to sliders and nothing runs until Run. /chat and draft-aero-design stay for their callers. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later).
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — aero-lab ("Aero Lab")
 # Packages the validated aerosim persistent-flight simulator (5-round adversarial
@@ -43,7 +44,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.4.5
+version: 1.4.6
 status: active
 
 source:
@@ -294,6 +295,29 @@ tools:
     usageInstructions: >-
       Returns an export id + file list; files download individually from the export routes.
     routingTags: [aero, export, stl, bom]
+    tags: [aero-lab, route-backed]
+
+  # Draft with AI in the kernel's one chat window (1.4.6): the concierge's draft for the sliders on the person's screen.
+  - name: propose-aero-draft
+    displayName: Offer a Design Draft
+    type: api
+    category: engineering
+    description: Offer the person a draft of the design on their Aero Lab sliders. It shows under the chat window with Apply to sliders; nothing runs until they press Run.
+    executor: { executorType: api, apiEndpoint: "POST /api/aero-lab/draft" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        draft: { type: object, additionalProperties: { type: number }, description: "Only the fields you change, each a number inside the slider bounds, such as {\"battery_mass_kg\": 0.5}" }
+        moves: { type: object, additionalProperties: { type: string, enum: [up, down] }, description: "Each drafted field \"up\" or \"down\" against the current design, agreeing with your advice" }
+        say: { type: string, description: "One line: the change and why" }
+        said: { type: string, description: "The person's words this turn, copied exactly (a site or season they name holds the draft)" }
+      required: [draft, moves]
+    usageInstructions: >-
+      Call in the Aero Lab's chat window, where the screen lists the CURRENT DESIGN. "offered": true means the draft is on
+      the person's screen with Apply to sliders; draft_withheld or no_design carries the reason to say instead.
+    routingTags: [aero, design, drafting]
     tags: [aero-lab, route-backed]
 
   - name: draft-aero-design

@@ -1,4 +1,18 @@
 <!DOCTYPE html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | sat-ops 1.2.6 (Roger, 2026-11-16, "for the last time": every chat surface
+    is the core Jarvis chat window, with its model menu). The Sat operator section drew a chat of its own over
+    POST /api/sat/chat (a log, a message box, Ask and a Load draft button): no model menu, no conversations, no files,
+    no voice. It is now the kernel's one chat window as Sat Ops' concierge (/shared/ui/js/jarvis-chat-frame.js, the
+    bot sat-operator) in the same place, between Selected sat and Pass windows. Every turn carries what this screen
+    shows (satScreenState: the UTC clock, the fleet and catalog as listed, the conjunction screen, the selected sat and
+    its console, and the ground station and Pass windows table in the GROUND STATION / PASS WINDOWS ON SCREEN lines the
+    old request carried) as context.screen_state. A command the bot suggests is the window's approval card for
+    sat-point-command or sat-mode-command, which replaces Load draft: nothing is sent until the person presses Approve,
+    and the page reads the fleet again when the window says a Sat Ops card ran (oshal-package-tool-done). The console
+    and its own Approve dialog are unchanged; the audience views load nothing more.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -228,6 +242,9 @@
   .telemetry-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
   .telemetry-grid .k { color: var(--dim); }
   .telemetry-grid .v { font-variant-numeric: tabular-nums; text-align: right; }
+  /* The Sat operator is the one chat window (jarvis-chat-frame.js): it fills its section of the right pane. */
+  #satOperator { padding: 0; }
+  #satOperator .jarvis-chat-frame { display: block; width: 100%; height: 460px; border: 0; }
 
   /* Stack the desktop flight console when the surface is narrow. */
   @media (max-width: 1080px) {
@@ -287,6 +304,7 @@
       flex-wrap: wrap;
     }
     #view3dCtl button { min-height: 36px; }
+    #satOperator .jarvis-chat-frame { height: min(560px, 75dvh); }
     #toast { width: max-content; max-width: calc(100vw - 24px); }
     #helpModal > div { padding: 16px !important; }
   }
@@ -323,7 +341,7 @@
     <p><b>Conjunction screening</b> — pairwise SGP4 close-approach search over the catalog inside the horizon; events list TCA, refined miss distance, and relative speed. A screening aid for the sim fleet: point geometry only — no covariance, no collision probability.</p>
     <p><b>Selected sat</b> — live telemetry: mode + transition reason, pointing error, wheel momentum (with <i>dumping</i> when the rods are active), body rate, MEKF health (updates/rejections/reinits, attitude σ, gyro bias estimate).</p>
     <p><b>Command console</b> — SAFE (sticky fault floor: zero torque, never auto-exits), DETUMBLE (rate damp; auto-completes or resumes a latched target), DESAT (dump wheel momentum, then return to the latched target), POINT (slew axis + angle; the node runs SLEW→POINT with hysteresis and <i>refuses</i> while the attitude estimate is unhealthy). Every send passes an Approve dialog.</p>
-    <p><b>Sat operator (drafts only)</b> — describe intent in plain language ("point sat42-live 30° off current", "why is momentum high?"). The concierge replies and may offer a validated draft; <i>Load draft</i> only pre-fills the console — you still press the command button and Approve. It never sends anything itself.</p>
+    <p><b>Sat operator</b> — the Open Swarm chat window as Sat Ops' concierge, with its model menu, conversations, files and voice. Describe intent in plain language ("point sat42-live 30° about [1, 1, 0]", "why is momentum high?", "when is the next pass?"); it reads the fleet, the catalog and what this screen shows, including the ground station and the pass table. A command it suggests comes as a card in the conversation: nothing is sent until you press <i>Approve</i> on the card.</p>
     <p><b>Pass windows</b> — pick a catalog sat and a ground station (lat/lon/alt); predicts 24&nbsp;h of contacts (rise/set, duration, max elevation) via SGP4.</p>
     <p style="color:var(--dim); margin-top:10px">Full docs: <code>docs/apps/sat-ops.md</code> (operator guide) · <code>docs/adr/102-sat-ops-satellites-as-swarm-nodes.md</code> (architecture) · evidence: <code>docs/evidence/sat-ops-adcs-campaign-*.md</code>.</p>
   </div>
@@ -394,15 +412,8 @@
         <button class="primary" id="cmdPoint" style="margin-top:6px; width:100%">POINT (approve required)</button>
       </div>
     </section>
-    <section>
-      <h2>Sat operator (drafts only)</h2>
-      <div id="chatLog" style="max-height:170px; overflow-y:auto; font-size:12px; margin-bottom:6px"></div>
-      <div class="row">
-        <input id="chatMsg" placeholder="e.g. point sat42-live 30° off nadir">
-        <button class="primary" id="chatSend" style="flex:0 0 auto">Ask</button>
-      </div>
-      <div id="chatDraft" style="margin-top:6px"></div>
-    </section>
+    <!-- The Sat operator: the one chat window as Sat Ops' concierge (mounted by the module at the end of the page). -->
+    <section id="satOperator" aria-label="Sat operator"></section>
     <section>
       <h2>Pass windows</h2>
       <label>catalog sat</label>
@@ -995,57 +1006,84 @@ if (!window.AppView || !AppView.active()) $('passRun').onclick = async () => {
   $('passRun').disabled = false;
 };
 
-/* ── sat-operator concierge (drafts only — the approve gate sends) ───────── */
-const chatHistory = [];
-function chatLine(role, text) {
-  chatHistory.push({ role, content: text });
-  const div = document.createElement('div');
-  div.style.margin = '3px 0';
-  div.innerHTML = '<span style="color:var(--dim)">' + (role === 'user' ? 'you' : 'sat-op') + ':</span> ' + text.replace(/</g, '&lt;');
-  $('chatLog').appendChild(div);
-  $('chatLog').scrollTop = $('chatLog').scrollHeight;
+/* ── the Sat operator window's view of this screen (its turns' context.screen_state) ── */
+/** Bytes of screen text a turn carries; the kernel keeps at most 10 KiB of it. */
+const SCREEN_TEXT_BYTES = 8 * 1024;
+
+/** One pass as the Pass windows line names it: UTC "MM-DD HH:MM" with today / tomorrow / its date, length, max elevation. */
+function passWords(p, nowMs) {
+  const day = (t) => Math.floor(t / 86400000), diff = day(p.riseUtcMs) - day(nowMs);
+  const word = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : new Date(p.riseUtcMs).toISOString().slice(0, 10);
+  return 'rise ' + new Date(p.riseUtcMs).toISOString().slice(5, 16).replace('T', ' ') + ' (' + word + '), ' +
+    Math.round(p.durationS / 60) + ' min, max el ' + p.maxElevationDeg.toFixed(0) + '°';
 }
-if (!window.AppView || !AppView.active()) $('chatSend').onclick = async () => {
-  const msg = $('chatMsg').value.trim();
-  if (!msg) return;
-  $('chatMsg').value = '';
-  chatLine('user', msg);
-  $('chatSend').disabled = true;
-  try {
-    const screen = { station: { latDeg: Number($('gsLat').value), lonDeg: Number($('gsLon').value), altKm: Number($('gsAlt').value) },
-      passes: state.lastPasses || null };
-    const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1), screen }) });
-    chatLine('assistant', r.say);
-    const el = $('chatDraft');
-    if (r.draft) {
-      const d = r.draft;
-      const desc = d.command === 'point'
-        ? 'POINT ' + d.satId + ': ' + d.angleDeg + '° about [' + d.axis.x + ', ' + d.axis.y + ', ' + d.axis.z + ']'
-        : d.command.toUpperCase() + ' ' + d.satId;
-      el.innerHTML = '';
-      const btn = document.createElement('button');
-      btn.className = 'primary';
-      btn.style.width = '100%';
-      btn.textContent = 'Load draft → ' + desc;
-      btn.onclick = () => {
-        state.selected = d.satId;
-        renderFleet(); renderCatalog(); renderSelected();
-        if (d.command === 'point') {
-          $('axX').value = d.axis.x; $('axY').value = d.axis.y; $('axZ').value = d.axis.z; $('angDeg').value = d.angleDeg;
-          toast('draft loaded — review, then POINT (approve required)');
-        } else {
-          toast('draft loaded — use the ' + d.command.toUpperCase() + ' button to approve & send');
-        }
-        el.innerHTML = '';
-      };
-      el.appendChild(btn);
-    } else {
-      el.innerHTML = '';
-    }
-  } catch (e) { chatLine('assistant', '(error: ' + e.message + ')'); }
-  $('chatSend').disabled = false;
-};
-if (!window.AppView || !AppView.active()) $('chatMsg').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('chatSend').click(); });
+
+/**
+ * @description The ground station typed on screen and the Pass windows table, in the lines the old Sat operator chat
+ * request put in its prompt (GROUND STATION / PASS WINDOWS ON SCREEN), so the sat-operator answers a pass question
+ * from the table instead of asking for coordinates. A station out of range and non-finite passes are left out; at
+ * most 12 passes; the sat id keeps only safe characters.
+ * @param {number} nowMs The current time; each pass is labelled against its UTC day.
+ * @returns {string[]} Zero, one or two lines.
+ */
+function passScreenLines(nowMs) {
+  const lines = [], lat = Number($('gsLat').value), lon = Number($('gsLon').value), alt = Number($('gsAlt').value);
+  if (Number.isFinite(lat) && Math.abs(lat) <= 90 && Number.isFinite(lon) && Math.abs(lon) <= 180) {
+    lines.push('GROUND STATION (on the operator\'s screen): lat ' + lat.toFixed(2) + '°, lon ' + lon.toFixed(2) + '°' + (Number.isFinite(alt) ? ', alt ' + alt.toFixed(3) + ' km' : ''));
+  }
+  const shown = state.lastPasses, satId = String((shown && shown.satId) || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 64);
+  if (shown && satId && Array.isArray(shown.passes)) {
+    const rows = shown.passes.slice(0, 12).filter((p) => Number.isFinite(p.riseUtcMs) && Number.isFinite(p.durationS) && p.durationS >= 0 && Number.isFinite(p.maxElevationDeg));
+    lines.push(rows.length
+      ? 'PASS WINDOWS ON SCREEN for ' + satId + ' from that station (next 24 h, UTC): ' + rows.map((p) => passWords(p, nowMs)).join('; ')
+      : 'PASS WINDOWS ON SCREEN for ' + satId + ' from that station: none above the mask in the next 24 h');
+  }
+  return lines;
+}
+
+/** @description A console button as the screen shows it. @param {string} id @returns {string} */
+function buttonLine(id) { return '[button] ' + $(id).textContent.trim() + ($(id).disabled ? ' (disabled)' : ''); }
+
+/**
+ * @description What this screen shows, top to bottom, for every turn of the Sat operator window: the SIM FLEET badge and
+ * the UTC clock, the fleet and the orbit catalog as listed, the conjunction screen, the selected sat's telemetry and the
+ * command console, and the ground station and Pass windows table (passScreenLines). The kernel fences it as ON SCREEN
+ * NOW; the times on this screen are UTC, so its timezone is UTC. No document is named: the conversation is the bot's own.
+ * @returns {{screen_state: {title: string, text: string, timezone: string, truncated: boolean}}}
+ */
+function satScreenState() {
+  const now = Date.now(), lines = ['SIM FLEET — commands cannot leave simulation', 'UTC clock: ' + new Date(now).toISOString().slice(0, 19).replace('T', ' ') + 'Z'];
+  lines.push('# Fleet (attitude nodes)');
+  if (!state.fleet.length) lines.push('no heartbeats yet');
+  for (const f of state.fleet.slice(0, 24)) {
+    const t = f.telemetry, err = t && t.pointingErrorDeg;
+    lines.push(f.satId + ': ' + (f.online ? 'online' : 'offline') + ', mode ' + (t ? t.mode : 'no telemetry yet') +
+      (f.online && Number.isFinite(err) ? ', pointing error ' + err.toFixed(2) + '°' : '') + ', engine ' + f.engine);
+  }
+  lines.push('# Orbit catalog (TLE)');
+  if (!state.catalog.length) lines.push('catalog empty');
+  for (const c of state.catalog.slice(0, 24)) lines.push(c.satId + ': NORAD ' + c.satnum + (c.name ? ' · ' + c.name : ''));
+  lines.push('# Conjunction screening', 'horizon ' + $('cjHours').value + ' h, threshold ' + $('cjKm').value + ' km');
+  if (!state.events.length) lines.push($('cjOut').textContent.trim() || 'not screened yet');
+  for (const e of state.events.slice(0, 12)) {
+    lines.push(e.aId + ' ↔ ' + e.bId + ': TCA ' + new Date(e.tcaUtcMs).toISOString().slice(5, 16).replace('T', ' ') + 'Z, miss ' + e.missKm.toFixed(2) + ' km, rel v ' + e.relSpeedKmS.toFixed(2) + ' km/s');
+  }
+  lines.push('# Selected sat');
+  if (!state.selected) lines.push($('selNone').textContent.trim());
+  else {
+    for (const k of $('selTele').querySelectorAll('.k')) lines.push(k.textContent + ': ' + (k.nextElementSibling ? k.nextElementSibling.textContent : ''));
+    lines.push('# Command console', buttonLine('cmdSafe'), buttonLine('cmdDetumble'), buttonLine('cmdDesat'),
+      'point: slew axis (body) x ' + $('axX').value + ', y ' + $('axY').value + ', z ' + $('axZ').value + '; angle ' + $('angDeg').value + '°', buttonLine('cmdPoint'));
+  }
+  lines.push('# Pass windows', 'catalog sat: ' + ($('passSat').value || '(none)'), ...passScreenLines(now));
+  if (!state.lastPasses) lines.push($('passOut').textContent.trim() || 'no prediction yet');
+  let text = '', truncated = false;
+  for (const line of lines) {
+    if (new TextEncoder().encode(text + line + '\n').length > SCREEN_TEXT_BYTES) { truncated = true; break; }
+    text += line + '\n';
+  }
+  return { screen_state: { title: 'Sat Ops fleet plane', text: text.trim(), timezone: 'UTC', truncated } };
+}
 
 /* ── command buttons ─────────────────────────────────────────────────────── */
 if (!window.AppView || !AppView.active()) $('cmdSafe').onclick = () => sendCommand(state.selected, 'SAFE', { mode: 'safe' }, 'Force SAFE: zero torque, sticky until a new operator command.');
@@ -1108,6 +1146,20 @@ if(panel.open)panel.dispatchEvent(new Event('toggle'));
 <script>
 // The brief panel lives in the right pane (UX audit 2026-11-06, R3): it never floats over the globe or the map.
 (function () { var r = document.getElementById('right'), d = document.getElementById('evidenceReview'); if (r && d) r.appendChild(d); })();
+</script>
+<script type="module">
+// The full page only: under an audience view the shared kit paints instead (see the head block) and nothing more loads.
+// The Sat operator is the one chat window as Sat Ops' concierge, its bot sat-operator: each turn carries what this
+// screen shows (satScreenState), and a command it suggests is an approval card in the window, sent only on Approve.
+const PROMPTS = ['How is the fleet doing?', 'When is the next pass?', 'Any close approaches?', 'Detumble the selected sat'];
+const HELP = 'Ask about the fleet, passes and close approaches. A command it suggests comes as a card here: nothing is sent until you press Approve. Every engine is a simulator.';
+if (!window.AppView || !window.AppView.active()) {
+  const { mountJarvisChat } = await import('/shared/ui/js/jarvis-chat-frame.js');
+  mountJarvisChat(document.getElementById('satOperator'), { app: 'sat-ops', bot: 'sat-operator', title: 'Sat operator', closable: false,
+    prompts: PROMPTS.map((prompt) => ({ label: prompt, prompt })), help: HELP, chatHost: { prepare: async () => satScreenState() } });
+  // A card the person approved in the window commanded a sat: read the fleet again now, not at the next poll.
+  window.addEventListener('oshal-package-tool-done', (event) => { if (event.detail && event.detail.app === 'sat-ops') pollFleet(); });
+}
 </script>
 
 </body>

@@ -9,12 +9,12 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: pass com.oshal.remote and serverUrl in installSessionCompanionApk for zero-touch companion launch.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: support register_device Concierge actions and DPAD_UP/DPAD_DOWN/DPAD_LEFT/DPAD_RIGHT/DPAD_CENTER key aliases in ANDROID_KEY_MAP.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): the oshal Companion app is told to sign in to the page's own origin (installationOrigin); the fixed installation address it fell back to is gone.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3 (Roger, 2026-11-16/17: one concierge chat window everywhere): mount /shared/ui/js/jarvis-chat-frame.js (mountJarvisChat) as phone-control / device-concierge in #phoneConciergeWindow and #connectConciergeWindow with live device/connect screen_state, keep the seven quick-action buttons deterministic over local bridge primitives, and remove bespoke client calls to /concierge/turn.
  */
 
 import { bytesToBase64, installationOrigin, iosGestureFromDrag } from '/api/phone-control/ui/computer-link.js';
 import { executeRdpConciergeAction, rdpLabel, resolveCompanionApk, sendRdpInput, stageCompanionApk } from '/api/phone-control/ui/phone-rdp.js';
 
-const MAX_ROUNDS = 5;
 const WHEEL_THROTTLE_MS = 180;
 
 const SWIPE_VECTORS = Object.freeze({
@@ -48,26 +48,50 @@ const TV_STAGE_KEYS = Object.freeze({
   ' ': { adb: 'PLAY_PAUSE', ios: 'PlayPause', label: 'Play/Pause' }
 });
 
-function appendConciergeEntry(host, role, text) {
-  if (!host || !text) return;
-  const row = document.createElement('div');
-  row.className = `pc-concierge-entry pc-concierge-${role}`;
-  if (role !== 'step') {
-    const badge = document.createElement('strong');
-    badge.textContent = role === 'user' ? 'You: ' : 'Concierge: ';
-    row.append(badge);
+const TV_PACKAGE_ALIASES = Object.freeze({
+  oshaltv: ['com.oshal.remote'],
+  oshal: ['com.oshal.remote'],
+  youtube: ['com.amazon.firetv.youtube', 'com.google.android.youtube.tv', 'com.google.android.youtube'],
+  netflix: ['com.netflix.ninja', 'com.netflix.mediaclient'],
+  primevideo: ['com.amazon.avod'],
+  disneyplus: ['com.disney.disneyplus']
+});
+
+const APP_CATEGORIES = Object.freeze([
+  { name: 'Work & Notes', match: /note|remind|calendar|mail|clock|files|safari|chrome|docs|slack|teams|calc/i },
+  { name: 'Messages & Social', match: /message|phone|facetime|contact|whatsapp|telegram|discord|signal|social/i },
+  { name: 'Media & Photos', match: /photo|camera|music|podcast|tv|youtube|spotify|video|news|books/i },
+  { name: 'Utilities', match: /setting|map|weather|wallet|health|watch|find|home|app store|store|translate/i }
+]);
+
+const QUICK_CHIP_IDS = Object.freeze([
+  'chipOrganizeApps', 'chipReadScreen', 'chipScreenshot', 'chipOpenNotes',
+  'chipGoHome', 'conciergeSwipeLeftBtn', 'conciergeSwipeRightBtn'
+]);
+
+let chatMountPromise = null;
+
+function loadChatMount() {
+  if (!chatMountPromise) {
+    chatMountPromise = import('/shared/ui/js/jarvis-chat-frame.js')
+      .then((mod) => (typeof mod?.mountJarvisChat === 'function' ? mod.mountJarvisChat : null))
+      .catch(() => null);
   }
-  const span = document.createElement('span');
-  span.textContent = text;
-  row.append(span);
-  host.append(row);
-  host.scrollTop = host.scrollHeight;
+  return chatMountPromise;
 }
 
-function screenSignature(screen) {
-  if (!screen) return '';
-  const itemsSig = (screen.items || []).slice(0, 40).map((i) => `${i.text}@${i.nx},${i.ny}`).join('|');
-  return `${screen.frameSha256 || ''}:${itemsSig}`;
+function setConciergeStatus(ctx, state, text) {
+  const clean = String(text || '').trim();
+  state.lastReply = clean;
+  const log = ctx.$('conciergeLog');
+  if (log) log.textContent = clean;
+}
+
+function setChipsDisabled(ctx, disabled) {
+  for (const id of QUICK_CHIP_IDS) {
+    const btn = ctx.$(id);
+    if (btn) btn.disabled = disabled;
+  }
 }
 
 function refusalAdvice(reply) {
@@ -93,15 +117,6 @@ async function readPhoneScreenMap(ctx, phone) {
   const reply = await ctx.phoneCommand(phone, verb, args, 'read screen', 'Read phone screen text');
   return reply || { ok: false, error: 'offline', message: ctx.$('stageStatus').textContent || 'Device unavailable.' };
 }
-
-const TV_PACKAGE_ALIASES = Object.freeze({
-  oshaltv: ['com.oshal.remote'],
-  oshal: ['com.oshal.remote'],
-  youtube: ['com.amazon.firetv.youtube', 'com.google.android.youtube.tv', 'com.google.android.youtube'],
-  netflix: ['com.netflix.ninja', 'com.netflix.mediaclient'],
-  primevideo: ['com.amazon.avod'],
-  disneyplus: ['com.disney.disneyplus']
-});
 
 function resolveAndroidPkg(apps, rawName) {
   const wanted = String(rawName || '').trim();
@@ -133,18 +148,6 @@ async function executePhoneAction(ctx, phone, action, state) {
     const pkg = resolveAndroidPkg(ctx.view.apps || [], action.name) || action.name;
     const reply = await ctx.phoneCommand(phone, 'adb-launch', { serial: phone.address, package: pkg }, 'open app', `Open ${action.name}`);
     return { reply, stepText: `Launched ${action.name}` };
-  }
-  if (action.kind === 'calibrate_pointer') {
-    if (phone.platform !== 'ios') return { reply: { ok: true }, stepText: 'Direct touch needs no calibration' };
-    const reply = await ctx.phoneCommand(phone, 'ble-calibrate', { address: phone.address }, 'calibrate', 'Calibrate iPhone pointer', 45000);
-    return { reply, stepText: reply?.ok ? `Calibrated pointer (${reply.profile?.span_x}×${reply.profile?.span_y})` : '' };
-  }
-  if (action.kind === 'move') {
-    const x = Number.isFinite(action.x) ? action.x : Math.round(action.nx * w);
-    const y = Number.isFinite(action.y) ? action.y : Math.round(action.ny * h);
-    const target = phone.platform === 'android' ? { serial: phone.address } : { address: phone.address };
-    const reply = await ctx.phoneCommand(phone, 'pointer-move', { platform: phone.platform, ...target, x, y, width: w, height: h }, 'pointer', `Move to ${x}, ${y}`);
-    return { reply, stepText: `Moved pointer to ${x}, ${y}` };
   }
   if (action.kind === 'tap') {
     if (phone.platform === 'ios') {
@@ -185,105 +188,167 @@ async function executeGestureOrKeyAction(ctx, phone, action, dims) {
       }, 'swipe', `Swipe ${action.direction}`);
     return { reply, stepText: `Swiped ${action.direction}` };
   }
-  if (action.kind === 'type') {
-    const reply = phone.platform === 'ios'
-      ? await ctx.phoneCommand(phone, 'ble-type', { text: action.text, enter: Boolean(action.enter) }, 'type', `Type ${action.text.length} chars`)
-      : await ctx.phoneCommand(phone, 'adb-text', { serial: phone.address, text: action.text }, 'type', `Type ${action.text.length} chars`);
-    return { reply, stepText: `Typed "${action.text.slice(0, 28)}"` };
-  }
   const reply = phone.platform === 'ios'
     ? await ctx.phoneCommand(phone, 'ble-key', { key: action.key }, 'key', `Press ${action.key}`)
     : await ctx.phoneCommand(phone, 'adb-key', { serial: phone.address, key: ANDROID_KEY_MAP[action.key] || 'HOME' }, 'key', `Press ${action.key}`);
   return { reply, stepText: `Pressed ${action.key}` };
 }
 
-function setConciergeBusy(ctx, busy) {
-  ctx.$('conciergeSendBtn').disabled = busy;
-  ctx.$('conciergeStopBtn').hidden = !busy;
-  for (const id of ['chipOrganizeApps', 'chipReadScreen', 'chipScreenshot', 'chipOpenNotes', 'chipGoHome']) {
-    ctx.$(id).disabled = busy;
-  }
+function clamp01(value, fallback = 0.5) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0.02, Math.min(0.98, Math.round(num * 1000) / 1000));
 }
 
-async function executeRoundActions(ctx, target, state, actions, log) {
-  let failed = null;
-  let mutated = false;
-  for (const action of actions) {
-    if (state.aborted) break;
-    if (action.kind === 'register_device') {
-      const saved = await ctx.app.records.savePhone({
-        name: action.name, platform: action.platform, form: action.form, address: action.address,
-        computerNodeId: target.phone?.computerNodeId || ctx.selectedComputer()?.id
+function filterAppIcons(items) {
+  const statusNoise = /^(\d{1,2}:\d{2}|5g|lte|wi-?fi|\d+%|search|q|w|e|r|t|y)$/i;
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const text = String(item?.text || '').trim();
+    const ny = Number(item?.ny ?? 0.5);
+    return text.length >= 2 && text.length <= 24 && !statusNoise.test(text) && ny > 0.08 && ny < 0.88;
+  });
+}
+
+function planClientOrganize(items) {
+  const apps = filterAppIcons(items);
+  const buckets = new Map();
+  for (const app of apps) {
+    const cat = APP_CATEGORIES.find((entry) => entry.match.test(app.text))?.name || 'Everyday Apps';
+    if (!buckets.has(cat)) buckets.set(cat, []);
+    buckets.get(cat).push(app);
+  }
+  const actions = [];
+  const summaryParts = [];
+  for (const [cat, list] of buckets.entries()) {
+    summaryParts.push(`${cat}: ${list.map((a) => a.text).join(', ')}`);
+    if (list.length >= 2 && actions.length < 3) {
+      const anchor = list[0];
+      const mover = list[1];
+      actions.push({
+        kind: 'drag_icon',
+        nx1: clamp01(mover.nx), ny1: clamp01(mover.iconNy ?? mover.ny),
+        nx2: clamp01(anchor.nx), ny2: clamp01(anchor.iconNy ?? anchor.ny),
+        label: `Group ${mover.text} with ${anchor.text} (${cat})`
       });
-      await ctx.app.load?.();
-      const dev = saved?.device || action;
-      const stepText = `Registered ${dev.name} (${dev.address})`;
-      state.steps.push({ summary: stepText, ok: true, error: null });
-      appendConciergeEntry(log, 'step', stepText);
-      mutated = true;
-      continue;
     }
-    const { reply, stepText } = await ctx.queue.press(() => (target.rdp
-      ? executeRdpConciergeAction(ctx, target.rdp, action, state)
-      : executePhoneAction(ctx, target.phone, action, state)));
-    state.steps.push({ summary: stepText || action.kind, ok: Boolean(reply?.ok), error: reply?.error || null });
-    if (!reply?.ok) { failed = reply; break; }
-    if (action.kind !== 'read_screen') {
-      mutated = true;
-      if (target.phone?.platform === 'android') ctx.scheduleFastFrame?.(260);
-    }
-    if (stepText) appendConciergeEntry(log, 'step', stepText);
   }
-  return { failed, mutated };
+  if (actions.length) actions.push({ kind: 'key', key: 'Home' });
+  const reply = summaryParts.length
+    ? `Grouped ${apps.length} visible apps (${summaryParts.join(' · ')}).`
+    : 'Read the screen, and fewer than two moveable Home Screen app labels were visible to group.';
+  return { reply, actions };
 }
 
-async function runPhonePrompt(ctx, state, rawPrompt) {
-  const prompt = String(rawPrompt || '').trim();
+function checkTargetAllowed(ctx, state) {
   const phone = ctx.selectedPhone();
   const rdp = ctx.selectedRdp();
-  const log = ctx.$('conciergeLog');
-  if (!prompt || (!phone && !rdp) || state.running) return;
+  if (state.running || (!phone && !rdp)) return null;
   if (phone && !phone.controlEnabled) {
-    appendConciergeEntry(log, 'assistant', 'Allow control is currently off for this device — switch Allow control on first.');
-    return;
+    setConciergeStatus(ctx, state, 'Allow control is currently off for this device — switch Allow control on first.');
+    return null;
   }
+  return { phone, rdp };
+}
+
+async function runTargetStep(ctx, target, action, state) {
+  const { reply, stepText } = await ctx.queue.press(() => (target.rdp
+    ? executeRdpConciergeAction(ctx, target.rdp, action, state)
+    : executePhoneAction(ctx, target.phone, action, state)));
+  state.steps.push({ summary: stepText || action.kind, ok: Boolean(reply?.ok), error: reply?.error || null });
+  if (!reply?.ok && reply?.error === 'assistive_touch_off') ctx.$('assistiveTouchBar').hidden = false;
+  if (reply?.ok && action.kind !== 'read_screen' && target.phone?.platform === 'android') ctx.scheduleFastFrame?.(260);
+  return reply;
+}
+
+async function runOrganizeChip(ctx, state) {
+  const target = checkTargetAllowed(ctx, state);
+  if (!target?.phone || target.phone.form === 'tv') return;
   state.running = true;
-  state.aborted = false;
-  ctx.$('conciergeContextRow').hidden = true;
-  setConciergeBusy(ctx, true);
-  appendConciergeEntry(log, 'user', prompt);
-  const replyOut = (text) => { state.lastReply = text; appendConciergeEntry(log, 'assistant', text); };
-  let lastSig = screenSignature(state.screen);
-  const device = rdp
-    ? { name: rdpLabel(rdp), platform: 'rdp', form: 'rdp', mirrorRunning: true }
-    : { name: phone.name, platform: phone.platform, form: phone.form || 'phone', mirrorRunning: ctx.view.mirrorRunning };
+  setChipsDisabled(ctx, true);
+  setConciergeStatus(ctx, state, 'Going to the Home Screen and reading your visible app labels…');
   try {
-    for (let round = 0; round < MAX_ROUNDS && !state.aborted; round += 1) {
-      const turn = await ctx.app.records.conciergeTurn({ mode: 'phone', prompt, round, device, screen: state.screen, history: state.steps.slice(-6) });
-      if (state.aborted) break;
-      const actions = Array.isArray(turn?.actions) ? turn.actions : [];
-      const { failed, mutated } = await executeRoundActions(ctx, { phone, rdp }, state, actions, log);
-      if (failed) {
-        if (failed.error === 'assistive_touch_off') ctx.$('assistiveTouchBar').hidden = false;
-        replyOut(refusalAdvice(failed));
-        break;
-      }
-      if (turn?.reply && (turn.done || round === MAX_ROUNDS - 1 || !actions.length)) replyOut(turn.reply);
-      if (turn?.done || !actions.length) break;
-      const nextSig = screenSignature(state.screen);
-      if (mutated && nextSig && nextSig === lastSig) {
-        replyOut('Stopped because the screen did not change after the last action.');
-        break;
-      }
-      lastSig = nextSig;
+    for (const step of [{ kind: 'key', key: 'Home' }, { kind: 'read_screen' }]) {
+      const reply = await runTargetStep(ctx, target, step, state);
+      if (!reply?.ok) { setConciergeStatus(ctx, state, refusalAdvice(reply)); return; }
     }
-    if (state.aborted) appendConciergeEntry(log, 'step', 'Stopped.');
-  } catch (error) {
-    replyOut(error?.message || 'Concierge could not complete that turn.');
+    const plan = planClientOrganize(state.screen?.items || []);
+    for (const action of plan.actions) {
+      const reply = await runTargetStep(ctx, target, action, state);
+      if (!reply?.ok) { setConciergeStatus(ctx, state, refusalAdvice(reply)); return; }
+    }
+    setConciergeStatus(ctx, state, plan.reply);
   } finally {
     state.running = false;
-    setConciergeBusy(ctx, false);
+    setChipsDisabled(ctx, false);
   }
+}
+
+async function runReadScreenChip(ctx, state) {
+  const target = checkTargetAllowed(ctx, state);
+  if (!target) return;
+  const noun = target.rdp ? 'RDP desktop' : target.phone?.form === 'tv' ? 'TV' : 'phone';
+  state.running = true;
+  setChipsDisabled(ctx, true);
+  setConciergeStatus(ctx, state, `Reading the current ${noun} screen…`);
+  try {
+    const reply = await runTargetStep(ctx, target, { kind: 'read_screen' }, state);
+    if (!reply?.ok) { setConciergeStatus(ctx, state, refusalAdvice(reply)); return; }
+    const labels = (state.screen?.items || []).slice(0, 18).map((i) => i.text).filter(Boolean);
+    setConciergeStatus(ctx, state, labels.length
+      ? `On screen right now: ${labels.join(', ')}.`
+      : `No readable labels were detected on the current ${noun} frame.`);
+  } finally {
+    state.running = false;
+    setChipsDisabled(ctx, false);
+  }
+}
+
+async function runDirectChip(ctx, state, action, pendingText, doneText) {
+  const target = checkTargetAllowed(ctx, state);
+  if (!target) return;
+  state.running = true;
+  setChipsDisabled(ctx, true);
+  setConciergeStatus(ctx, state, pendingText);
+  try {
+    const reply = await runTargetStep(ctx, target, action, state);
+    setConciergeStatus(ctx, state, reply?.ok ? doneText : refusalAdvice(reply));
+  } finally {
+    state.running = false;
+    setChipsDisabled(ctx, false);
+  }
+}
+
+function wireConciergeChips(ctx, state) {
+  const { $ } = ctx;
+  $('chipScreenshot').addEventListener('click', () => $('screenshotBtn').click());
+  $('chipOrganizeApps').addEventListener('click', () => void runOrganizeChip(ctx, state));
+  $('chipReadScreen').addEventListener('click', () => void runReadScreenChip(ctx, state));
+  $('chipOpenNotes').addEventListener('click', () => {
+    const name = ctx.selectedRdp() ? 'Terminal' : ctx.selectedPhone()?.form === 'tv' ? 'YouTube' : 'Notes';
+    const where = ctx.selectedPhone()?.form === 'tv' ? ' on your TV' : '';
+    void runDirectChip(ctx, state, { kind: 'open_app', name }, `Opening ${name}${where}…`, `Opening ${name}${where} — launched.`);
+  });
+  $('chipGoHome').addEventListener('click', () => {
+    void runDirectChip(ctx, state, { kind: 'key', key: 'Home' }, 'Returning to the Home Screen…', 'Returned to the Home Screen.');
+  });
+  $('conciergeSwipeLeftBtn').addEventListener('click', () => {
+    if (ctx.selectedRdp()) {
+      void runDirectChip(ctx, state, { kind: 'key', key: 'Escape' }, 'Sending Escape…', 'Sent Escape.');
+    } else if (ctx.selectedPhone()?.form === 'tv') {
+      void runDirectChip(ctx, state, { kind: 'open_app', name: 'oshal TV' }, 'Opening oshal TV on your TV…', 'Opening oshal TV on your TV — launched.');
+    } else {
+      void runDirectChip(ctx, state, { kind: 'swipe', direction: 'left' }, 'Swiping left…', 'Swiped left.');
+    }
+  });
+  $('conciergeSwipeRightBtn').addEventListener('click', () => {
+    if (ctx.selectedRdp()) {
+      void runDirectChip(ctx, state, { kind: 'key', key: 'Enter' }, 'Sending Enter…', 'Sent Enter.');
+    } else if (ctx.selectedPhone()?.form === 'tv') {
+      void runDirectChip(ctx, state, { kind: 'key', key: 'PlayPause' }, 'Sending Play / Pause…', 'Sent Play / Pause.');
+    } else {
+      void runDirectChip(ctx, state, { kind: 'swipe', direction: 'right' }, 'Swiping right…', 'Swiped right.');
+    }
+  });
 }
 
 function sendStageText(ctx, text, verbLabel = 'Type') {
@@ -567,6 +632,30 @@ function handleIosGestureOnStage(ctx, start, end) {
   }
 }
 
+function buildSessionScreenState(ctx, state) {
+  const phone = ctx.selectedPhone();
+  const rdp = ctx.selectedRdp();
+  const heading = ctx.$('conciergeHeading')?.textContent?.trim() || 'Phone Concierge';
+  const labels = (state.screen?.items || []).slice(0, 24).map((item) => item.text).filter(Boolean);
+  const device = rdp
+    ? { kind: 'rdp', sessionId: rdp.sessionId, name: rdpLabel(rdp), connected: rdp.connected !== false }
+    : phone
+      ? {
+        kind: 'phone', id: phone.id, name: phone.name, platform: phone.platform,
+        form: phone.form || 'phone', address: phone.address,
+        controlEnabled: Boolean(phone.controlEnabled), mirrorRunning: Boolean(ctx.view.mirrorRunning)
+      }
+      : null;
+  const lines = [
+    `[surface] ${heading}`,
+    device ? `[device] ${device.name} (${device.platform || device.kind}${device.form ? ` · ${device.form}` : ''})` : '[device] none',
+    phone ? `[control] ${phone.controlEnabled ? 'on' : 'off'}` : '',
+    labels.length ? `[on_screen] ${labels.join(', ')}` : '',
+    state.lastReply ? `[status] ${state.lastReply}` : ''
+  ].filter(Boolean);
+  return { tab: heading, device, labels, text: lines.join('\n') };
+}
+
 function renderConciergeCard(ctx) {
   const { $ } = ctx;
   const phone = ctx.selectedPhone();
@@ -580,7 +669,6 @@ function renderConciergeCard(ctx) {
   $('conciergeSub').textContent = rdp
     ? `Ask about ${rdpLabel(rdp)} or request an action.`
     : `Ask about ${phone.name} or request an action.`;
-  $('conciergeInput').placeholder = 'Ask or describe an action…';
   $('chipOrganizeApps').hidden = Boolean(tv || rdp);
   $('chipReadScreen').textContent = (tv || rdp) ? "What's on screen?" : 'Read screen';
   $('chipOpenNotes').textContent = rdp ? 'Open Terminal' : tv ? 'Open YouTube' : 'Open Notes';
@@ -588,73 +676,16 @@ function renderConciergeCard(ctx) {
   $('conciergeSwipeRightBtn').textContent = rdp ? 'Press Enter' : tv ? 'Play / Pause' : 'Swipe right';
 }
 
-async function attachLiveScreenContext(ctx, state) {
-  const { $ } = ctx;
-  const rdp = ctx.selectedRdp();
-  if (rdp) {
-    const snap = await sendRdpInput(ctx, rdp, { action: 'snapshot' }, 'Read RDP screen');
-    if (!snap?.ok) return;
-    state.screen = snap;
-    $('conciergeContextText').textContent = `Screen context attached (${snap.items?.length || 0} labels)`;
-    $('conciergeContextRow').hidden = false;
-    return;
-  }
-  const phone = ctx.selectedPhone();
-  if (!phone) return;
-  const res = await readPhoneScreenMap(ctx, phone);
-  if (!res?.ok) { ctx.status(res?.message || 'Could not read screen context yet.'); return; }
-  state.screen = res;
-  $('conciergeContextText').textContent = `Screen context attached (${res.items?.length || 0} labels)`;
-  $('conciergeContextRow').hidden = false;
-}
-
-function toggleSpeakLastReply(ctx, state) {
-  const synth = globalThis.speechSynthesis;
-  const Utter = globalThis.SpeechSynthesisUtterance;
-  const btn = ctx.$('conciergeSpeakBtn');
-  if (!synth || typeof Utter !== 'function') { ctx.status('Read-aloud is not supported in this browser.'); return; }
-  if (synth.speaking) { synth.cancel(); btn.setAttribute('aria-pressed', 'false'); return; }
-  const text = String(state.lastReply || '').trim();
-  if (!text) return;
-  const u = new Utter(text);
-  btn.setAttribute('aria-pressed', 'true');
-  u.onend = () => btn.setAttribute('aria-pressed', 'false');
-  u.onerror = () => btn.setAttribute('aria-pressed', 'false');
-  synth.speak(u);
-}
-
-function wireConciergeComposerExtras(ctx, state) {
-  const { $ } = ctx;
-  $('conciergeInput').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      $('conciergeForm').requestSubmit();
-    }
-  });
-  $('conciergeAttachBtn').addEventListener('click', () => void attachLiveScreenContext(ctx, state));
-  $('conciergeClearContextBtn').addEventListener('click', () => { state.screen = null; $('conciergeContextRow').hidden = true; });
-  $('conciergeSpeakBtn').addEventListener('click', () => toggleSpeakLastReply(ctx, state));
-  $('chipScreenshot').addEventListener('click', () => $('screenshotBtn').click());
-  $('conciergeStopBtn').addEventListener('click', () => { state.aborted = true; });
-  $('chipOrganizeApps').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Organize my applications'));
-  $('chipReadScreen').addEventListener('click', () => void runPhonePrompt(ctx, state, (ctx.selectedRdp() || ctx.selectedPhone()?.form === 'tv') ? "What's on screen?" : "What's on my screen?"));
-  $('chipOpenNotes').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Open Terminal' : ctx.selectedPhone()?.form === 'tv' ? 'Open YouTube' : 'Open Notes'));
-  $('chipGoHome').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Go Home'));
-  $('conciergeSwipeLeftBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Escape' : ctx.selectedPhone()?.form === 'tv' ? 'Open oshal TV' : 'Swipe left'));
-  $('conciergeSwipeRightBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Enter' : ctx.selectedPhone()?.form === 'tv' ? 'Play/Pause' : 'Swipe right'));
-}
-
 function resetConciergeForTarget(ctx, state) {
   const { $ } = ctx;
-  state.aborted = true; state.screen = null; state.steps = [];
+  state.screen = null;
+  state.steps = [];
   $('assistiveTouchBar').hidden = true;
-  $('conciergeContextRow').hidden = true;
-  globalThis.speechSynthesis?.cancel?.();
-  $('conciergeSpeakBtn').setAttribute('aria-pressed', 'false');
   const nextId = ctx.currentTargetKey();
   if (nextId === state.targetId) return;
   state.targetId = nextId;
-  $('conciergeLog').replaceChildren();
+  setConciergeStatus(ctx, state, '');
+  state.chat?.setRecord(nextId || null);
   const phone = ctx.selectedPhone();
   const rdp = ctx.selectedRdp();
   if (!phone && !rdp) return;
@@ -662,31 +693,41 @@ function resetConciergeForTarget(ctx, state) {
     ? `Ready for ${rdpLabel(rdp)}. Click or drag directly on the desktop picture, type on your keyboard, or ask RDP Concierge.`
     : phone.form === 'tv'
       ? `Ready for ${phone.name}. Click directly on the TV picture, type on your keyboard, or ask TV Concierge to open apps or control playback.`
-      : `Ready for ${phone.name}. Tap the screen directly to tap or swipe, or choose a task below.`;
-  state.lastReply = welcome;
-  appendConciergeEntry($('conciergeLog'), 'assistant', welcome);
+      : `Ready for ${phone.name}. Tap the screen directly to tap or swipe, or choose a task above.`;
+  setConciergeStatus(ctx, state, welcome);
+  state.chat?.setHelp(welcome);
+}
+
+function mountSessionChatWindow(ctx, state) {
+  const host = ctx.$('phoneConciergeWindow');
+  if (!host) return;
+  void loadChatMount().then((mountJarvisChat) => {
+    if (!mountJarvisChat) {
+      host.classList.add('assistant-unavailable');
+      return;
+    }
+    state.chat = mountJarvisChat(host, {
+      app: 'phone-control',
+      bot: 'device-concierge',
+      record: state.targetId || null,
+      title: 'Device Concierge',
+      closable: false,
+      lazy: true,
+      help: state.lastReply || 'Ask about this device or request an action.',
+      chatHost: {
+        prepare: async () => ({ screen_state: buildSessionScreenState(ctx, state) }),
+        refresh: () => ctx.app.load?.()
+      }
+    });
+  });
 }
 
 /** @description Mount the specialized Phone/TV/RDP Concierge and iOS direct-touch helpers in the session view. @param {object} ctx Stage context. @returns {object} Controller. */
 export function mountPhoneConcierge(ctx) {
-  const { $ } = ctx;
-  const state = { running: false, aborted: false, screen: null, steps: [], targetId: '', lastReply: '' };
+  const state = { running: false, screen: null, steps: [], targetId: '', lastReply: '', chat: null };
   wireScreenScrollAndQuickBar(ctx);
-  wireConciergeComposerExtras(ctx, state);
-  $('conciergeForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const prompt = $('conciergeInput').value.trim();
-    if (!prompt) return;
-    $('conciergeInput').value = '';
-    void runPhonePrompt(ctx, state, prompt);
-  });
-  $('conciergeVoiceBtn').addEventListener('click', async () => {
-    const res = await captureVoiceTranscript($('conciergeVoiceBtn'), (m) => ctx.status(m));
-    if (!res) return;
-    if (!res.ok) { ctx.status(res.message); return; }
-    $('conciergeInput').value = '';
-    void runPhonePrompt(ctx, state, res.text);
-  });
+  wireConciergeChips(ctx, state);
+  mountSessionChatWindow(ctx, state);
   return {
     onSelectTarget: () => resetConciergeForTarget(ctx, state),
     render: () => renderConciergeCard(ctx),
@@ -694,58 +735,55 @@ export function mountPhoneConcierge(ctx) {
   };
 }
 
-async function askConnectConcierge(setupCtx, customPrompt = '') {
+function buildConnectScreenState(setupCtx) {
   const { $, app } = setupCtx;
-  const log = $('connectConciergeLog');
-  const actionsHost = $('connectConciergeActions');
   const comp = setupCtx.view.node ? app.computer(setupCtx.view.node) : null;
   const savedReport = setupCtx.view.node ? app.state.reports.get(setupCtx.view.node)?.report || null : null;
-  const prompt = customPrompt || setupCtx.view.lastProblem?.message || 'Help me finish connecting my Fire Stick or phone.';
-  appendConciergeEntry(log, 'user', prompt);
-  actionsHost.replaceChildren();
-  try {
-    const turn = await app.records.conciergeTurn({
-      mode: 'connect', prompt,
-      context: {
-        step: setupCtx.view.lastProblem?.step || '',
-        selectedComputer: comp ? { id: comp.id, name: comp.name, platform: comp.platform, connected: comp.connected } : null,
-        lastBridgeReport: savedReport ? { adbReady: savedReport.adb?.ready, bleReady: Boolean(savedReport.ble?.registered), mirrorRunning: Boolean(savedReport.mirror?.running) } : null,
-        lastErrorCode: setupCtx.view.lastProblem?.code || '',
-        lastErrorMessage: setupCtx.view.lastProblem?.message || '',
-        tvAddress: $('tvAddress').value.trim(),
-        discoveredTvs: setupCtx.view.discoveredTvs || [],
-        downloadsAvailable: setupCtx.view.downloadsAvailable
-      }
-    });
-    appendConciergeEntry(log, 'assistant', turn?.reply || 'Check your computer connection and try again.');
-    for (const act of (turn?.actions || [])) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ks-btn ks-btn-sm';
-      btn.textContent = act.label || act.kind;
-      btn.addEventListener('click', () => setupCtx.runConnectAction(act.kind));
-      actionsHost.append(btn);
-    }
-  } catch (error) {
-    appendConciergeEntry(log, 'assistant', error?.message || 'Connection Concierge could not answer right now.');
-  }
+  const tvAddress = $('tvAddress')?.value?.trim() || '';
+  const rdpHost = $('rdpHost')?.value?.trim() || '';
+  const problem = setupCtx.view.lastProblem;
+  const lines = [
+    '[surface] Add a device · Connection Concierge',
+    comp ? `[computer] ${comp.name} (${comp.platform} · ${comp.connected ? 'connected' : 'offline'})` : '[computer] none selected',
+    savedReport ? `[bridge] adbReady=${Boolean(savedReport.adb?.ready)} bleReady=${Boolean(savedReport.ble?.registered)} mirrorRunning=${Boolean(savedReport.mirror?.running)}` : '',
+    tvAddress ? `[field] TV address: ${tvAddress}` : '',
+    rdpHost ? `[field] RDP host: ${rdpHost}` : '',
+    problem?.message ? `[problem] (${problem.step || 'setup'}/${problem.code || 'error'}) ${problem.message}` : ''
+  ].filter(Boolean);
+  return { tab: 'Add a device', computer: comp?.name || null, tvAddress, rdpHost, problem: problem || null, text: lines.join('\n') };
 }
 
 /** @description Mount the Connection Troubleshooting Concierge inside #connectSheet. @param {object} setupCtx Setup context. @returns {object} Controller. */
 export function mountConnectConcierge(setupCtx) {
   const { $ } = setupCtx;
+  const connectState = { chat: null };
+  const host = $('connectConciergeWindow');
+  if (host) {
+    void loadChatMount().then((mountJarvisChat) => {
+      if (!mountJarvisChat) {
+        host.classList.add('assistant-unavailable');
+        return;
+      }
+      connectState.chat = mountJarvisChat(host, {
+        app: 'phone-control',
+        bot: 'device-concierge',
+        record: 'connect',
+        title: 'Connection Concierge',
+        closable: false,
+        lazy: true,
+        help: 'Ask about Android Wireless Debugging, Fire TV ADB, Bluetooth OSHAL-KB, AirPlay mirroring, or RDP setup.',
+        chatHost: {
+          prepare: async () => ({ screen_state: buildConnectScreenState(setupCtx) }),
+          refresh: () => setupCtx.app.load?.()
+        }
+      });
+    });
+  }
   $('askConnectConciergeBtn').addEventListener('click', () => {
     $('connectConciergeDetails').open = true;
     $('connectConciergeCard').scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-    void askConnectConcierge(setupCtx);
-  });
-  $('connectConciergeForm').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const q = $('connectConciergeInput').value.trim();
-    if (!q) return;
-    $('connectConciergeInput').value = '';
-    $('connectConciergeDetails').open = true;
-    void askConnectConcierge(setupCtx, q);
+    const prompt = setupCtx.view.lastProblem?.message || 'Help me finish connecting my device.';
+    connectState.chat?.focus(prompt);
   });
   return {
     flagProblem(step, code, message) {

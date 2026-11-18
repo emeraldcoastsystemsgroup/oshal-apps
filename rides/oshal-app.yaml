@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (UX audit 2026-11-06, rides-history + rides-concierge): the Trips tile's ?view=history is read: it opens Trips, one row per trip newest first (when, from → to, the estimate then) with Ride again, which fills Get a Ride and prices it. ribbon.hideAssistant: the in-page concierge is the one assistant entry. The page follows the theme it wears (the parent-token copy that froze the first theme's palette is gone). Swap prices at once; the fare basis is one line under the fares; the Search list repeats no recent trip and shows three places plus More places; on a phone the map comes first.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7 (UX audit 2026-11-06, rides-concierge + rides-history): add a phone "Where to?" field directly under the map above the ride options, edit saved Home and Work places in a Settings dialog, and withhold unconfigured Home/Work presets instead of saying "Use saved home if configured".
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Release 1.5.8 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.9 (Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu): Get a Ride's builder panel no longer draws a chat of its own over POST /api/rides/chat. In the same place it holds the kernel's one chat window as the Rides Concierge (rides-concierge), with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying; before each turn it is told the screen (context.screen_state: the pickup and destination fields, both map pins, the distance, the priced options with the selected one and the controls). The concierge prices a trip with estimate-ride and makes the Uber link with the prepare-ride-booking approval card, whose approval reloads Recent trips; its replies no longer fill the form or move the pins, which price and hand off a trip as before. ribbon.hideAssistant stays: the window is this app's one assistant entry. Routes, tools and bindings are unchanged. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later). Guard: rides/tests/rides-one-chat-window.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — rides ("Get a Ride" Uber Rides Concierge)
@@ -78,7 +79,7 @@ description: >-
   AI transportation concierge on a real map — set pickup and destination by pin or
   address, see the measured distance, compare Uber ride types, and hand off a ready
   Uber ride link. Other swarm bots can ask it to plan a trip.
-version: 1.5.8
+version: 1.5.9
 status: active
 
 source:
@@ -275,7 +276,7 @@ ribbon:
     - logs
     - operations
   hideChatPanel: true
-  # One assistant entry (UX audit 2026-11-06): the in-page concierge; the shell's own orb stays off here.
+  # One assistant entry (UX audit 2026-11-06): the in-page concierge (since 1.5.9 the kernel's one chat window); the shell's own orb stays off here.
   hideAssistant: true
   defaultView: rides-concierge
 

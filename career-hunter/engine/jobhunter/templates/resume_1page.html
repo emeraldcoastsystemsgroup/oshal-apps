@@ -1,3 +1,7 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+-->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Resume (1-page) {{ contact.name }}</title>
 <style>
@@ -24,6 +28,10 @@
   .main h2 { font-family:"Georgia","Cambria",serif; font-size:10pt; letter-spacing:.3px; color:#16304F;
              margin:8px 0 4px; padding-bottom:2px; border-bottom:1.5px solid #d6dee8; break-after:avoid; }
   .summary { margin:4px 0 1px; color:#2b3946; }
+  .role-child { margin-left: 0.25in; }
+  .role-child ul { padding-left: 0.175in; }
+  .engagement-label { margin-left: 0.25in; font-weight: bold; break-after: avoid; page-break-after: avoid; }
+  .role-h, .role ul { break-before: avoid; page-break-before: avoid; }
   .role { margin-bottom:5px; break-inside:avoid; }
   .role-h { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
   .rt { font-weight:700; color:#16222e; font-size:9.6pt; } .ro { color:#3d4b5a; font-size:9.2pt; font-weight:600; }
@@ -55,7 +63,8 @@
     <div class="summary">{{ r.summary }}</div>
     <h2>Professional Experience</h2>
     {% for e in recent %}
-    <div class="role">
+    {% if e.group_heading %}<div class="engagement-label">{{ e.group_heading }}</div>{% endif %}
+  <div class="role{% if e.parent_role_id %} role-child{% endif %}">
       <div class="role-h">
         <div><span class="rt">{{ e.title }}</span><span class="ro">, {{ e.org }}</span></div>
         <div class="rs">{{ e.span }}</div>

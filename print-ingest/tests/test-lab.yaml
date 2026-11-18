@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register description (sweep 11): the manifest, catalog and README describe an inbound virtual printer that cannot print to a printer.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (T11): register printed-collect (POST /printed/collect over the real compiled router and a stand-in kernel queue) and printed-row (the page's printed row and its collect-then-list start).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register phone-first-screen (lane mobilesweep2).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Register shelf-ops-undo: version-controlled publisher ops.mjs and undo.py require explicit receipt/tenant/publisher arguments, carry zero hardcoded UUIDs or home paths, and run dry-run plans safely.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -153,4 +154,26 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: shelf-ops-undo
+    name: Shelf publisher ops and undo scripts keep receipt and tenant paths as arguments
+    purpose: Verify print-ingest/scripts/ops.mjs and print-ingest/scripts/undo.py embed zero personal UUIDs or home paths, refuse missing receipt/tenant arguments, and compute exact dry-run removal plans over synthetic receipts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/shelf-ops-undo.test.cjs
+    expected:
+      - Neither scripts/ops.mjs nor scripts/undo.py embeds developer home paths or hardcoded UUID literals, and print-ingest/README.md documents the incremental shelf-update and undo commands.
+      - undo.py refuses missing --receipt or --tenant arguments and computes exact dry-run chunk removal counts for both books and shelf modes against a synthetic psql stub.
+      - ops.mjs resolves explicit --record, --token-file, and session-file arguments and performs a dry-run remove-person without mutating or printing credentials.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Temporary receipt and fake docker directory removed on teardown.
+    limits:
+      timeoutMs: 15000
     installation: never

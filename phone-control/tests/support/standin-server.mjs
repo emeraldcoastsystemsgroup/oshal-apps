@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Stand-in HTTP server that serves phone-control UI assets from phone-control/tools/ and answers every fetch() URL the page's scripts call with realistic stand-in JSON.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: no machine path. The kernel's shared files come from OSHAL_KERNEL_ROOT when it is set and are answered empty when it is not, so the suite runs in a bare checkout; phone-home.js is served.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.10.0 (T27; Roger, 2026-11-10: "we should be able to rename connections"): PATCH /api/computers/{id} keeps a given name as the kernel does and refuses an empty or over-long one with {refused, detail}.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: answer /api/jarvis/ with a lightweight HTML frame document when OSHAL_KERNEL_ROOT serves jarvis-chat-frame.js.
  */
 
 import { createRequire } from 'node:module';
@@ -228,6 +229,11 @@ function jsonResponse(res, data, status = 200) {
 }
 
 function handleAsset(req, res) {
+  if (req.url.startsWith('/api/jarvis/?') || req.url === '/api/jarvis/' || req.url === '/api/jarvis') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Concierge</title></head><body></body></html>');
+    return true;
+  }
   if (req.url === '/api/phone-control/ui' || req.url === '/api/phone-control/ui/') {
     const html = readFileSync(join(TOOLS_DIR, 'phone-control.html'), 'utf-8');
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

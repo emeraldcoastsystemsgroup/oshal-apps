@@ -11,15 +11,17 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: the concierge found wording an earlier approved card had added no longer there). Two ways a Word document that is behind the main résumé could undo an approved change, both shown on a made-up profile in tests/career-work-history-keeps.test.mjs: (1) syncDocument left a document that was behind only on job headings or dates lines as it was ('kept'), so the next change's bullets never reached it and the save before the next concierge turn on My résumé wrote the older bullets back; it now brings such a document up to date, as open() already did, since nothing typed is lost. (2) modelToResume put each document job's bullets into the job at the same place, so a document made before a card removed two jobs and added two wrote the removed jobs' bullets into the new ones; a document job must now be the main résumé's job at that place (its heading, its dates line or its bullets agree), or the save is refused in words with Use my work history.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "the resume concierge the resume tab and the database ... i dont think they are working together well. i cant use the tools to update my resume and see it in the resume tab after adding experience"). The main résumé is the one source of truth and this document is a view of it. The document kept no record of which main résumé it was made from, so one that was only behind read as "typed": it was never updated again, and the save before a concierge turn wrote its older bullets back over an approved change (tests/career-resume-one-source.test.mjs shows both on the earlier file). Now the document names the main résumé revision it was made from (the id of its first page, which typing never changes), and settle() is the one way every page brings the two together: a document that is only behind is rewritten from the main résumé; text typed in it is saved into the main résumé, merged field by field and bullet by bullet with what changed there meanwhile (mergeLists), and never lost; a document Career cannot place (made before this version and unlike any kept version) is left alone until the person presses Save to main résumé or Use my work history; and a document near AI Office's 100-revision limit is replaced by a fresh one. open(), saveToMaster() and follow() all go through it.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). createHost takes `header`, `onRow` and `onScroll`: the editor opens with ?header=host|editor (AI Office 2.20.6), so on a phone My résumé draws the document's one bar and AI Office draws no app row of its own; rowOwner() hands the row back on a wider screen, press() presses the row's own buttons (Edit, Undo, Redo, Export, the document menu, Your documents), and the page hears the row's state and the document's scroll. Messages go only to and from the editor's frame on this origin.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
  */
 (function (root) {
   'use strict';
   const TITLE = 'Master resume (Career)';
+  const H = root.CareerRoleHierarchy || (typeof require === 'function' ? require('./career-role-hierarchy.js') : null);
   const OFFICE = '/api/presentations/editor';
   const CAREER = '/api/career-hunter';
   // The first page's id names the main résumé revision the document was made from; AI Office keeps a page's id while
   // a person types, takes any text of at most 80 characters, and shows it nowhere.
-  const MARK = 'career-', DIGEST = /^[a-f0-9]{64}$/;
+  const MARK = 'career2-', OLD_MARK = 'career-', DIGEST = /^[a-f0-9]{64}$/;
   // AI Office refuses a revision past 100; a document is replaced by a fresh one before a person's own save could meet that.
   const ROLL_AT = 95;
   const SECTIONS = Object.freeze({ summary: 'Summary', competencies: 'Core competencies', skills: 'Skills',
@@ -39,6 +41,28 @@
   const heading = (text) => para(text, { style: 'heading1', look: { fontSize: 13, bold: true, color: '#1f3a5f' }, before: 12, after: 4 });
   const roleLine = (role) => [role && role.title, role && role.org].filter(Boolean).join(' — ');
 
+  /** Keep each independent role identified through grouped layout and plain-text/Word export. */
+  function roleBlocks({ role, index, child, heading: label }) {
+    const out = [], title = para(roleLine(role), { style: 'heading2', look: { fontSize: 11.5, bold: true }, before: 6, after: 1 });
+    title.id = role.id || 'career-index:' + index; title.keepWithNext = Boolean(role.span || strings(role.bullets).length);
+    if (child) title.indentLeft = 18;
+    if (label) {
+      const group = para(label, { look: { bold: true }, before: 4, after: 2 });
+      group.id = 'career-label-' + index; group.indentLeft = 18; group.keepWithNext = true; out.push(group);
+    }
+    out.push(title);
+    if (role.span) {
+      const dates = para(role.span, { look: { italic: true, color: '#475569', align: 'right' }, after: 3 });
+      dates.keepWithNext = strings(role.bullets).length > 0; out.push(dates);
+    }
+    strings(role.bullets).forEach((item) => {
+      const block = para(item, { list: 'bullet', after: 2 });
+      if (child) block.indentLeft = 30.6;
+      out.push(block);
+    });
+    return out;
+  }
+
   /**
    * @description Lay the master resume out as one Word document: the name as its title, the headline
    * under it, then one Heading 1 per section, each role as a Heading 2 with its dates and its bullets.
@@ -50,6 +74,7 @@
    */
   function resumeToModel(resume, meta, revision) {
     const r = resume || {}, blocks = [];
+    const mark = (r.experience || []).some(role => role.id) ? MARK : OLD_MARK;
     if (meta && meta.name) blocks.push(para(meta.name, { style: 'title', look: { fontSize: 20, bold: true }, after: 2 }));
     blocks.push(para(r.headline || '', { style: 'heading2', look: { fontSize: 12, bold: true, color: '#334155' }, after: 8 }));
     blocks.push(heading(SECTIONS.summary));
@@ -60,11 +85,7 @@
     blocks.push(heading(SECTIONS.skills));
     blocks.push(para(strings(r.skills).join(' · ')));
     blocks.push(heading(SECTIONS.experience));
-    for (const role of Array.isArray(r.experience) ? r.experience : []) {
-      blocks.push(para(roleLine(role), { style: 'heading2', look: { fontSize: 11.5, bold: true }, before: 6, after: 1 }));
-      if (role.span) blocks.push(para(role.span, { look: { italic: true, color: '#475569' }, after: 3 }));
-      strings(role.bullets).forEach((item) => blocks.push(para(item, { list: 'bullet', after: 2 })));
-    }
+    for (const row of H.ordered(Array.isArray(r.experience) ? r.experience : [])) blocks.push(...roleBlocks(row));
     for (const key of ['education', 'certifications']) {
       const items = strings(r[key]);
       if (items.length) { blocks.push(heading(SECTIONS[key])); items.forEach((item) => blocks.push(para(item))); }
@@ -73,7 +94,7 @@
     blocks.push(para(r.clearance || ''));
     return { version: 1, kind: 'docx', title: TITLE, pageWidth: 612, pageHeight: 792,
       margins: { top: 54, right: 54, bottom: 54, left: 54 }, header: '', footer: '',
-      pages: [{ id: DIGEST.test(String(revision)) ? MARK + revision : uid(), name: 'Page 1', background: '#ffffff', blocks }] };
+      pages: [{ id: mark + (DIGEST.test(String(revision)) ? revision : uid()), name: 'Page 1', background: '#ffffff', blocks }] };
   }
 
   /**
@@ -82,14 +103,15 @@
    */
   function revisionOf(model) {
     const id = model && Array.isArray(model.pages) && model.pages[0] ? String(model.pages[0].id || '') : '';
-    return id.startsWith(MARK) && DIGEST.test(id.slice(MARK.length)) ? id.slice(MARK.length) : '';
+    const mark = id.startsWith(MARK) ? MARK : OLD_MARK;
+    return id.startsWith(mark) && DIGEST.test(id.slice(mark.length)) ? id.slice(mark.length) : '';
   }
 
   /** Read the document's paragraphs into the sections the master resume has. */
   function readSections(model) {
     const blocks = (model && Array.isArray(model.pages) ? model.pages : []).flatMap((page) => page.blocks || [])
       .filter((block) => block.type === 'paragraph');
-    const found = { lead: [], summary: [], competencies: [], skills: [], clearance: [], education: [], certifications: [], roles: [], extra: [] };
+    const found = { lead: [], summary: [], competencies: [], skills: [], clearance: [], education: [], certifications: [], roles: [], extra: [], labels: [] };
     let section = null;
     for (const block of blocks) {
       const text = (block.runs || []).map((item) => item.text).join('').trim();
@@ -100,7 +122,8 @@
       }
       if (!section) { if (block.style !== 'title' && text) found.lead.push(text); continue; }
       if (section === 'experience') {
-        if (block.style === 'heading2') { found.roles.push({ heading: text, bullets: [] }); continue; }
+        if (block.style !== 'heading2' && String(block.id).startsWith('career-label-')) { found.labels.push(text); continue; }
+        if (block.style === 'heading2') { found.roles.push({ identity: block.id, indent: block.indentLeft || 0, heading: text, bullets: [] }); continue; }
         const role = found.roles[found.roles.length - 1];
         if (role && block.list !== 'none' && text) role.bullets.push(text);
         else if (role && text && role.span == null) role.span = text;
@@ -109,6 +132,22 @@
       if (section !== 'extra' && text) found[section].push(text);
     }
     return found;
+  }
+
+  /** New documents use exact saved IDs; an absent or duplicated ID never falls back to a position. */
+  function documentRoles(model, found, roles) {
+    if (!String(model?.pages?.[0]?.id || '').startsWith(MARK)) return { rows: found.roles, legacy: true };
+    const rows = roles.map((role, index) => {
+      const identity = role.id || 'career-index:' + index;
+      const matches = found.roles.filter(item => item.identity === identity);
+      return matches.length === 1 && (role.id || squash(matches[0].heading) === squash(roleLine(role))) ? matches[0] : null;
+    });
+    if (rows.some(row => !row) || new Set(rows).size !== rows.length) {
+      const at = Math.max(0, rows.findIndex(row => !row));
+      return { error: `Job ${at + 1} in this document is "${found.roles[at]?.heading || ''}" and job ${at + 1} in your Work history is "${roleLine(roles[at])}". `
+        + 'Press Use my work history to refresh it; the saved job identity differs and nothing was saved.' };
+    }
+    return { rows, legacy: false };
   }
 
   /** Keep the master's own wording when only whitespace differs, so an untouched field is never "changed". */
@@ -145,9 +184,12 @@
       return { notes, error: `This document has ${found.roles.length} job${found.roles.length === 1 ? '' : 's'} and your Work history has ${roles.length}. `
         + 'Press Use my work history to bring the document up to date; add or remove jobs on the Work history page.' };
     }
-    const other = found.roles.findIndex((role, index) => !sameJob(role, roles[index]));
+    const mapped = documentRoles(model, found, roles);
+    if (mapped.error) return { notes, error: mapped.error };
+    const readRoles = mapped.rows;
+    const other = readRoles.findIndex((role, index) => (mapped.legacy || !roles[index].id) && !sameJob(role, roles[index]));
     if (other >= 0) {
-      return { notes, error: `Job ${other + 1} in this document is "${found.roles[other].heading}" and job ${other + 1} in your Work history is "${roleLine(roles[other])}". `
+      return { notes, error: `Job ${other + 1} in this document is "${readRoles[other].heading}" and job ${other + 1} in your Work history is "${roleLine(roles[other])}". `
         + 'Press Use my work history to bring the document up to date; add, remove or move jobs on the Work history page.' };
     }
     const resume = JSON.parse(JSON.stringify(prior));
@@ -156,7 +198,7 @@
     resume.competencies = keepList(found.competencies, prior.competencies);
     resume.skills = readSkills(found.skills, prior.skills);
     resume.clearance = keep(found.clearance.join(' '), prior.clearance || '');
-    found.roles.forEach((role, index) => {
+    readRoles.forEach((role, index) => {
       resume.experience[index].bullets = keepList(role.bullets, roles[index].bullets);
       if (squash(role.heading) !== squash(roleLine(roles[index]))) {
         notes.push(`The job heading "${role.heading}" stays in this document only: change a job's title, employer and dates on the Work history page.`);
@@ -181,10 +223,7 @@
     const mapped = modelToResume(model, master);
     if (mapped.error) return 'jobs';
     if (!sameResume(mapped.resume, master)) return 'typed';
-    const roles = Array.isArray(master && master.experience) ? master.experience : [];
-    const found = readSections(model).roles;
-    return found.every((role, index) => squash(role.heading) === squash(roleLine(roles[index]))
-      && squash(role.span || '') === squash(roles[index].span || '')) ? 'same' : 'headings';
+    return headingsMatch(model, master) ? 'same' : 'headings';
   }
 
   /** @description Whether two master resumes agree on every field the document can change. */
@@ -222,6 +261,10 @@
 
   /** The place in `roles` of the job that is `role`: the same title and employer (and months, when two share both). */
   function twinIndex(role, roles) {
+    if (role.id) {
+      const exact = roles.map((other, index) => other.id === role.id ? index : -1).filter(index => index >= 0);
+      return exact.length === 1 ? exact[0] : -1;
+    }
     let hits = roles.map((other, index) => index).filter((index) => roles[index].title === role.title && roles[index].org === role.org);
     if (hits.length > 1) hits = hits.filter((index) => roles[index].start === role.start && roles[index].end === role.end);
     return hits.length === 1 ? hits[0] : -1;
@@ -256,9 +299,14 @@
 
   /** Whether every job heading and dates line of the document is the main résumé's. */
   function headingsMatch(model, master) {
-    const roles = Array.isArray(master && master.experience) ? master.experience : [], found = readSections(model).roles;
-    return found.length === roles.length && found.every((role, index) => squash(role.heading) === squash(roleLine(roles[index]))
-      && squash(role.span || '') === squash(roles[index].span || ''));
+    const roles = Array.isArray(master && master.experience) ? master.experience : [], found = readSections(model);
+    const mapped = documentRoles(model, found, roles);
+    if (mapped.error || found.roles.length !== roles.length) return false;
+    const layout = H.ordered(roles);
+    return mapped.rows.every((role, index) => squash(role.heading) === squash(roleLine(roles[index]))
+      && squash(role.span || '') === squash(roles[index].span || '') && role.indent === (roles[index].parent_role_id ? 18 : 0))
+      && JSON.stringify(found.labels) === JSON.stringify(layout.map(row => row.heading).filter(Boolean))
+      && (mapped.legacy || layout.every((row, index) => found.roles[index].identity === (row.role.id || 'career-index:' + row.index)));
   }
 
   /**

@@ -10,6 +10,8 @@
  *   rows with one caption line, Home · Search · Watchlist views, Movies · TV chips, the literal search placeholder, an empty
  *   watchlist that says so, and the concierge as a sheet with suggested prompts that never sits under the title sheet.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the manifest's ribbon.hideAssistant keeps the shell orb off the Ask sheet's Send button.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8 (lane CHATCORE3): the Ask sheet holds the kernel's one chat window (movies-concierge), whose own Close
+ *   closes the sheet; the two to four suggested prompts are the window's, and the page has no message box of its own.
  */
 'use strict';
 const test = require('node:test');
@@ -45,13 +47,13 @@ test('Search is its own view with a literal placeholder for the title search it 
   assert.ok(body.indexOf('id="q"') > body.indexOf('id="view-search"') && body.indexOf('id="q"') < body.indexOf('id="view-watchlist"'));
 });
 
-test('the concierge is a sheet with two to four suggested prompts, opened from Ask, and the mood box left browse', () => {
+test('the concierge is the one chat window in a sheet opened from Ask, with two to four suggested prompts and no message box of the page\'s own', () => {
   const ask = body.slice(body.indexOf('id="askModal"'), body.indexOf('id="toast"'));
-  assert.match(ask, /id="chatq"/);
-  assert.match(ask, /id="sendBtn"/);
-  const prompts = (ask.match(/<button type="button" class="chip">/g) || []).length;
-  assert.ok(prompts >= 2 && prompts <= 4, `${prompts} suggested prompts`);
-  assert.ok(body.indexOf('id="chatq"') > body.indexOf('id="askModal"'), 'the mood box lives in the sheet only');
+  assert.match(ask, /<div class="asksheet" id="moviesConcierge" role="dialog" aria-modal="true" aria-label="Movie Concierge"><\/div>/);
+  assert.doesNotMatch(HTML, /id="chatq"|id="sendBtn"|\$\{API\}\/chat`/, 'no message box or chat request of the page\'s own');
+  assert.match(HTML, /mountJarvisChat\(host,\{app:'movies',bot:'movies-concierge',title:'Movie Concierge',closable:true,lazy:true,onClose:\(\)=>window\.closeAsk\(\)/);
+  const prompts = JSON.parse(/const PROMPTS=(\[[^\]]*\]);/.exec(HTML)[1].replace(/'/g, '"'));
+  assert.ok(prompts.length >= 2 && prompts.length <= 4, `${prompts.length} suggested prompts`);
   assert.match(body, /id="askBtn" aria-haspopup="dialog">Ask<\/button>/);
 });
 

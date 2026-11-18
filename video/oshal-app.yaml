@@ -51,6 +51,7 @@
 # 30 | maintainer@emeraldcoastsystemsgroup.com | 1.14.1 (RP-ALL-01): remove the duplicate greyed Summarize planned chip from the Video Concierge panel so only the kernel's live Summarize and Suggest improvements prompt chips appear.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: person-facing and model-facing product references name Open Swarm; technical identifiers remain unchanged. Guard: tests/product-name.test.js.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): on a phone the editor's Concierge sheet holds the one Jarvis chat window, and the window's own Close now closes that sheet too, so the editor takes the next tap instead of the window. Presentation only: no route, tool, binding or permission change. Guard: tests/video-one-chat-window.test.mjs.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: claim Today's concierge entry synchronously when editor.html parses (editor-concierge-early.js under the existing editor/assets/:asset allowlist) and honor any Concierge press that arrives while Video's 15 ES modules are still loading, so switching to create-video inside Create never flashes Create's floating ball or collapses an early press into zero open windows. No permission, tool or catalog binding change. Guard: tests/video-one-chat-window.test.mjs.
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -80,7 +81,7 @@ rating:
       degrade: disable
 displayName: Video Studio
 description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
-version: 1.14.3
+version: 1.14.4
 status: active
 lastingStorage: true
 chatBot: video-editor

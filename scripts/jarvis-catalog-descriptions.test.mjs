@@ -12,6 +12,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0: a Finance tool says it reads the saved aggregate (last sync, saved finance evidence) or names the caller whose own records it reads or changes; finance_facts and finance-summary still read the saved aggregate only, and no Finance tool reports investment performance.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Calendar Preparation 1.4.1 names the product Open Swarm in what a person reads (Roger, 2026-11-13: the UI says "Open Swarm"; technical identifiers keep oshal), so the change tool's description is held to "one event the person added in Open Swarm".
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Calendar Preparation 1.5.0 says it shows the person's upcoming Google Calendar events live (Roger, 2026-11-15: "I put a calendar event on my Google calendar and its not showing on the landing home"); the description said it synced them explicitly, which is no longer how a person sees them.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Retire the `lists` store package reference now that personal lists live natively in `oshal-kernel`; Shopping (`purchasing`) remains the sole store application keeping the grocery and shopping list, and Smart Home continues to state that the grocery list is Shopping's.
  *
  * Plain `node --test` suite; js-yaml comes from the store toolchain.
  */
@@ -128,8 +129,8 @@ test('Calendar Preparation says plainly that it adds, changes and cancels meetin
   assert.ok(text.split(/\s+/).length <= 45, 'a product description, not a word list');
 });
 
-test('one application keeps the grocery list: Shopping says so and orders from it, Smart Home and Lists say it is Shopping\'s', () => {
-  const shopping = manifest('purchasing'), home = manifest('home'), lists = manifest('lists');
+test('one application keeps the grocery list: Shopping says so and orders from it, Smart Home says it is Shopping\'s', () => {
+  const shopping = manifest('purchasing'), home = manifest('home');
   assert.match(described(shopping), /Keeps your grocery and shopping list and makes the grocery order from it/, described(shopping));
   const shoppingTools = tools(shopping);
   assert.match(shoppingTools.get('shopping-order') || '', /"order the groceries"/, 'a declared tool makes the order the description promises');
@@ -142,9 +143,6 @@ test('one application keeps the grocery list: Shopping says so and orders from i
   }
   const mealTool = home.tools.find((tool) => tool.name === 'home-fridge-meal-cart');
   assert.ok(!mealTool.inputSchema.properties.action.enum.some((action) => /cart/.test(action)), 'Smart Home\'s tool takes no grocery action');
-
-  assert.match(described(lists), /Your grocery and shopping list is not kept here: Shopping keeps it and makes the grocery order from it/, described(lists));
-  for (const [name, description] of tools(lists)) assert.doesNotMatch(description, /grocer|shopping/i, `${name} is about the person's other lists`);
 
   // No other application in the store says it keeps a grocery or shopping list.
   const keepers = fs.readdirSync(ROOT, { withFileTypes: true })

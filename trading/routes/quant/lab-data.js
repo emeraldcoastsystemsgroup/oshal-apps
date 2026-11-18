@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the process copy of archived day prices is removed. It never hit: the kernel runs every non-GET call from a caller who can write, to a package with lasting storage such as Trading, in a fresh process (crates/host-process/src/host.rs), so nothing kept in memory reached the next call (blue, 1.61.3 proofs: 25 stock answers made 37 World archive reads). Each answer reads the archive once, as before 1.61.3.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: archived day prices are kept in the process for ten minutes per name and window (createArchiveCache), and only the names not kept are read. The kernel's World archive read is the whole cost of a stock answer without Schwab (blue, 2026-11-17: 220 to 430 ms most times, 1.8 to 2.0 s the first time a name is read after a while), and Trading serves one call at a time. The prices are the archive's public market data, the same for every caller; past days never change, and today's last price is at most ten minutes old.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read the caller's whole Trading configuration once (connected, and whether this kernel reads option chains).
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The quant lab's price reads: the caller's own Schwab daily candles when a Schwab login is connected (read in parallel, at most six names, inside one short budget so Trading is never held up), otherwise the World archive's recorded day prices, always labelled as archived. Never invented: a name with no data says why.
@@ -13,9 +14,6 @@ const MAX_NAMES = 6;
 const READ_BUDGET_MS = 2500;
 /** The World archive keeps day prices for at most a year. */
 const ARCHIVE_MAX_DAYS = 365;
-/** How long a name's archived day prices are kept in the process, and how many name-and-window copies at most. */
-const ARCHIVE_KEEP_MS = 10 * 60000;
-const ARCHIVE_KEEP_ENTRIES = 400;
 const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
 const SCHWAB_NOTE = 'Daily candles from your own Schwab connection (open, high, low, close and volume).';
 const ARCHIVE_NOTE = 'Archived prices from the World archive: the last price it recorded each New York trading day (Yahoo chart, collected on its own schedule), not official exchange closes, no highs or lows, at most a year, and a day the collector missed is absent. Connect Schwab for full daily candles.';
@@ -131,64 +129,23 @@ function columnsFromArchive(rows) {
 }
 
 /**
- * @description The process's copy of archived day prices per name and window, kept ten minutes (oldest dropped past
- * the cap). Archive prices are public market data, the same for every caller, so one copy serves everyone.
- * @returns {{get:Function, put:Function, size:Function}} get(symbol, days, now), put(symbol, days, rows, now), size().
- */
-function createArchiveCache() {
-  const kept = new Map();
-  return {
-    get(symbol, days, now) {
-      const hit = kept.get(`${symbol}:${days}`);
-      return hit && now - hit.at < ARCHIVE_KEEP_MS ? hit.rows : null;
-    },
-    put(symbol, days, rows, now) {
-      kept.delete(`${symbol}:${days}`);
-      kept.set(`${symbol}:${days}`, { rows, at: now });
-      while (kept.size > ARCHIVE_KEEP_ENTRIES) kept.delete(kept.keys().next().value);
-    },
-    size: () => kept.size,
-  };
-}
-
-/**
- * @description The archived day rows per name: the process's kept copies, and one kernel read for the names not kept.
- * @param {object} deps - {intent, time, archive?}.
- * @param {string[]} symbols - Tickers.
- * @param {number} days - Window.
- * @returns {Promise<{byName:Map<string, Array>, error:string|null}>} Rows per name, and why the read failed if it did.
- */
-async function archiveRows(deps, symbols, days) {
-  const cache = deps.archive || null, now = cache ? deps.time() : 0, byName = new Map();
-  for (const symbol of symbols) { const rows = cache && cache.get(symbol, days, now); if (rows) byName.set(symbol, rows); }
-  const wanted = symbols.filter((symbol) => !byName.has(symbol));
-  if (!wanted.length) return { byName, error: null };
-  let answer;
-  try { answer = await deps.intent('prices.series', { symbols: wanted, interval: 'day', days }); }
-  catch (err) { return { byName, error: String((err && err.message) || err).slice(0, 160) }; }
-  for (const [key, rows] of Object.entries((answer && answer.series) || {})) {
-    const symbol = String(key).toUpperCase();
-    byName.set(symbol, rows);
-    if (cache && Array.isArray(rows) && rows.length) cache.put(symbol, days, rows, now);
-  }
-  return { byName, error: null };
-}
-
-/**
- * @description Read each name's archived day prices: kept copies first, then one kernel read for the rest.
- * @param {object} deps - {intent, time, archive?}.
+ * @description Read each name's archived day prices in one kernel read.
+ * @param {object} deps - {intent}.
  * @param {string[]} symbols - Tickers (at most 50, the kernel's bound; questions ask for six at most).
  * @param {number} sessions - Sessions wanted.
  * @returns {Promise<{series:Map<string, object>, missing:Array<{symbol:string, reason:string}>}>} Columns per name, and the names without.
  */
 async function archiveSeries(deps, symbols, sessions) {
   const days = Math.min(ARCHIVE_MAX_DAYS, Math.max(2, Math.ceil((sessions * 365) / 252) + 5));
-  const { byName, error } = await archiveRows(deps, symbols, days);
+  let answer;
+  try { answer = await deps.intent('prices.series', { symbols, interval: 'day', days }); }
+  catch (err) { return { series: new Map(), missing: symbols.map((symbol) => ({ symbol, reason: `The World archive could not be read: ${String((err && err.message) || err).slice(0, 160)}` })) }; }
+  const byName = new Map(Object.entries((answer && answer.series) || {}).map(([k, v]) => [String(k).toUpperCase(), v]));
   const series = new Map(), missing = [];
   for (const symbol of symbols) {
     const columns = columnsFromArchive(byName.get(symbol));
     if (columns.dates.length) series.set(symbol, { ...columns, source: 'world-archive' });
-    else missing.push({ symbol, reason: error && !byName.has(symbol) ? `The World archive could not be read: ${error}` : 'No Schwab login is connected, and the World archive has no recorded prices for it (it tracks the default trading universe).' });
+    else missing.push({ symbol, reason: 'No Schwab login is connected, and the World archive has no recorded prices for it (it tracks the default trading universe).' });
   }
   return { series, missing };
 }
@@ -228,4 +185,4 @@ function alignCloses(list) {
   return { dates, closes: list.map((s) => { const at = new Map(s.dates.map((d, i) => [d, s.closes[i]])); return dates.map((d) => at.get(d)); }) };
 }
 
-module.exports = { MAX_NAMES, READ_BUDGET_MS, ARCHIVE_KEEP_MS, SCHWAB_NOTE, ARCHIVE_NOTE, parseSymbols, schwabConnected, tradingConfig, historyDaysFor, columnsFromBars, columnsFromArchive, createArchiveCache, loadPrices, lastSessions, alignCloses };
+module.exports = { MAX_NAMES, READ_BUDGET_MS, SCHWAB_NOTE, ARCHIVE_NOTE, parseSymbols, schwabConnected, tradingConfig, historyDaysFor, columnsFromBars, columnsFromArchive, loadPrices, lastSessions, alignCloses };

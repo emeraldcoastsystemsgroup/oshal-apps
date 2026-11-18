@@ -261,3 +261,23 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: approvals-probe
+    name: Stream posts in review project onto the cross-application approvals probe
+    purpose: Verify Switchboard declares approvals on /api/switchboard/streams/posts and projects only in_review posts with transition descriptors.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-approvals-probe.test.js
+    expected:
+      - oshal-app.yaml declares approvals.path = /api/switchboard/streams/posts and itemsPointer = /approvals.
+      - formatStreamApprovals includes only in_review posts and emits approve and reject transition actions.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

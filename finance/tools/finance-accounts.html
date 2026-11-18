@@ -5,6 +5,7 @@
  SEQ | AUTHOR | DESCRIPTION
  -----------------------------------------------------------------------------
  1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Accounts, how money data gets into Finance with no bank connection. Net worth with what you have and what you owe, each account with its balance, the date it is true for and where it came from, and every statement brought in with Undo. "Bring in a statement": choose the CSV, OFX or QFX file downloaded from the bank's website (or paste the statement's text), pick the account or name a new one, and Preview shows what would be added (how many are new, how many are already in Finance, which lines could not be read) before anything is; "Add N transactions" adds them (in parts while there are more), and the same file twice adds nothing. "Add an account" types an account and its balance. Linked banks stay under More. Reads /api/finance/ledger only; nothing here moves money or links a bank.
+ 2 | maintainer@emeraldcoastsystemsgroup.com | Keep statement/manual accounts distinct from linked-bank snapshots and open the existing bank section through Finance’s current frame.
 -->
 <html lang="en">
 <head>
@@ -19,6 +20,7 @@
     <div><h1>Accounts</h1><p class="fr-sub">What you have and what you owe, from your statements and the balances you type.</p></div>
     <div class="fr-actions"><button type="button" class="fr-primary" id="frImportOpen">Bring in a statement</button><button type="button" id="frAddOpen">Add an account</button></div>
   </div>
+  <section class="fr-card" id="frBankScope"><p>Statement and manual accounts are shown here. Your linked bank snapshots stay separate.</p><a class="fr-link" style="color:inherit" id="frOpenBanks" href="/api/finance/">Open bank accounts</a></section>
   <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
 
   <section class="fr-card" id="frImport" hidden aria-labelledby="frImportH">
@@ -62,6 +64,9 @@
   'use strict';
   var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
   var state = { accounts: [], preview: null, input: null };
+  $('frOpenBanks').addEventListener('click', function (event) {
+    try { if (window.parent !== window && window.parent.location.pathname === '/api/finance/app') { event.preventDefault(); F.go('finance-home'); } } catch (_) { /* another origin keeps the ordinary link */ }
+  });
 
   function paintWorth(worth) {
     var cells = [['What you have', worth && worth.assets], ['What you owe', worth && worth.liabilities], ['Net worth', worth && worth.net]];

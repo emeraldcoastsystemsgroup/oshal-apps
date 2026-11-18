@@ -26,6 +26,10 @@
  *            | decides `connected`, routes pass the kernel sentinel, and the surface never claims a key it cannot see.
  * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | UX audit (FIX-BROKEN): the concierge printed its raw JSON envelope. The reply is now parsed
  *            | by the package's own movies-envelope module (fenced, prose-wrapped or bare); an unreadable envelope is a plain apology.
+ * 2026-11-17 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8 (lane CHATCORE3: the concierge is the kernel's one chat window). The
+ *            | window's bot reaches what the page's chat route held through tools over these routes; two are new: GET /notes
+ *            | (the remembered notes and the profile's tastes, for read-movie-taste) and POST /notes (remember-movie-taste: a
+ *            | note the viewer states, grounded in their own words, kept once). Guard: tests/movies-tools.test.cjs.
  *
  * @module movies-routes
  */
@@ -320,6 +324,29 @@ export function createMoviesRoutes(ctx: AppContext): Router {
        RETURNING *`,
       [sub, b.displayName ?? null, b.favoriteGenres ?? null, b.services ?? null, b.notes ?? null, b.onboarded ?? null]);
     res.json({ profile: r.rows[0] });
+  }));
+
+  // ── Taste notes: what the concierge keeps about this viewer (the one chat window's read-movie-taste and remember-movie-taste) ──
+  router.get('/notes', viewer(async (_req, res, sub) => {
+    const profile = await loadProfile(pool, sub);
+    res.json({ notes: await store.loadNotes(sub, 50),
+      profile: { favoriteGenres: profile.favorite_genres || [], services: profile.services || [], notes: profile.notes || null } });
+  }));
+
+  // Keep a taste the viewer states. Body: { note, said }: said is the viewer's own words, and the note is kept only when they
+  // state it (one of its words of four letters or more is in them), and only once.
+  router.post('/notes', viewer(async (req, res, sub) => {
+    const note = String(req.body?.note || '').trim(), said = String(req.body?.said || '').trim();
+    if (!note || note.length > 200 || !said || said.length > 2000) {
+      res.status(400).json({ error: 'note_and_said_required', message: 'Name the note (200 characters at most) and the words the viewer said.' });
+      return;
+    }
+    const words = said.toLowerCase();
+    const stated = (note.toLowerCase().match(/[a-z0-9]{4,}/g) || []).some((word) => words.includes(word));
+    const kept = (await store.loadNotes(sub, 200)).map((saved: string) => String(saved).trim().toLowerCase());
+    const remembered = stated && !kept.includes(note.toLowerCase()) ? [note] : [];
+    for (const fresh of remembered) await store.saveNote(sub, fresh);
+    res.json({ remembered });
   }));
 
   // ── Conversational concierge (brain runs on the bot via the orchestrator) ──

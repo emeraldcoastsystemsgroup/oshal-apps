@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.2: the Geocoding host (maps.googleapis.com) answers the reverse lookup for coordinates with the same synthetic address; `reverse(url)` scripts it.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the Uber Eats provider double and the curated menu are gone. fakePlaces is a recording fetch shaped like Google Places (New): the test address resolves to one place, a restaurant search answers three restaurants as Google returns them (display name objects, price-level enums, opening hours, photo resource names), a place lookup by id and a photo media call answer too, and an override can refuse (status + body), throw (the kernel's missing-key sentence) or script the answers. The pool answers the profile, the hand-off rows and the history. The compiled ./places and ./uber-link modules are served real, so the routes' behaviour over them is what the tests see.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.7: the concierge store double keeps each diner's saved notes and loadNotes answers the seeded notes plus that diner's own saved ones, as the real store reads back what saveNote wrote, so a test can see a note saved by one call (POST /notes) hold the next search, and see one diner's notes stay away from another.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.8: the reply check is its own router (createEatsReplyCheckRoutes, POST / of its mount), loaded beside the main one; the store double's saved notes are shared by every store instance, as rows in one table are, and store() is still the main router's.
  */
 'use strict';
 const fs = require('node:fs');
@@ -125,7 +126,7 @@ function fakePool(seed = {}) {
 
 /** The shared conversation store the route uses, as an in-memory double. */
 class FakeConciergeStore {
-  constructor() { this.messages = []; this.notes = []; this.saved = new Map(); FakeConciergeStore.last = this; }
+  constructor() { this.messages = []; this.notes = []; this.saved = FakeConciergeStore.saved || (FakeConciergeStore.saved = new Map()); FakeConciergeStore.last = this; }
   async ensureConversation() { return 'conv-1'; }
   async addMessage(conversationId, sub, role, content) { this.messages.push({ conversationId, sub, role, content }); }
   async loadHistory() { return []; }
@@ -148,6 +149,7 @@ function loadRoutes(opts = {}) {
   const places = opts.places || fakePlaces();
   const prompts = [];
   FakeConciergeStore.seedNotes = opts.notes || [];
+  FakeConciergeStore.saved = new Map();
   const router = {
     get(p, h) { handlers.get.set(p, h); return this; },
     post(p, h) { handlers.post.set(p, h); return this; },
@@ -185,6 +187,8 @@ function loadRoutes(opts = {}) {
   new Function('require', 'module', 'exports', '__filename', '__dirname', fs.readFileSync(ROUTE_FILE, 'utf8'))(
     shimRequire, mod, mod.exports, ROUTE_FILE, path.dirname(ROUTE_FILE));
   mod.exports.resetCaches();
+  // The reply check's own mount answers POST / (registered first, so store() stays the main router's store).
+  if (mod.exports.createEatsReplyCheckRoutes) mod.exports.createEatsReplyCheckRoutes({ pool, appPackageDir: PKG, fetch: places.fetch });
   const mounted = mod.exports.createEatsRoutes({ pool, appPackageDir: PKG, fetch: places.fetch });
   return { handlers, pool, places, prompts, exports: mod.exports, router: mounted, store: () => FakeConciergeStore.last };
 }

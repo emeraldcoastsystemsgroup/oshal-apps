@@ -17,11 +17,12 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Publish an executable whole-text command shape and real approval-card semantics in the actual model-visible tool description.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.2 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: on a phone the Concierge sheet holds the one Jarvis chat window, and the window's own Close (editor-concierge:hide) now closes that sheet too so the editor takes the next tap, both standalone and inside Create (create-motion-studio). Presentation only: no route, tool, permission, migration or catalog change. Guard: tests/motion-one-chat-window.test.mjs.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
 description: "Edit saved motion compositions with selectable layers, video and audio clips, motion blur, native properties, inline captions, keyframes, masks and photos."
-version: 0.4.2
+version: 0.4.3
 runtime: process
 lastingStorage: true
 status: active

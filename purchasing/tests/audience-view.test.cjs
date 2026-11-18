@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the Shopping family view over a stub kit and a stub fetch: on open it reads exactly /lists, the active list's /items and /home-summary and never the catalog (search, deals, resolve), the concierge or the profile; the active list is the oldest active one and an archived list is never picked; pending lines carry quantity, price and when, purchased lines are left out, other lists are tiles; the no-list, empty-list, unknown-summary, partial, 401, 403 and failed-read states are each named; the one action opens the cockpit entry. The dashboard script itself is run against a stub DOM to prove its tab router does not start under a view (?view=deals fetches nothing) while it still opens the tab and reads the deals feed without one, and with no kit at all.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The concierge chat page, Shopping's first surface (the one the Studio, Orbit, Commons and Jarvis shells frame), gains its own company and family views, so this suite covers it beside the dashboard: the page is the manifest's first ui.static entry and the route serves it; the kit follows the theme bootstrap once and the viewport-pinned body scrolls under a view; the boot names this application and exactly company and family; the block parses, has one fetch site on /api/purchasing and no write, new tab or HTML from data. Behaviour runs the head block against the package's REAL handlers (the compiled router's GET /lists and GET /lists/:id/items over a stub pool, the home-summary route over another, every body JSON round-tripped): exactly the three reads and only SELECTs; the company cart table newest first with the counted quantity, unit and line price, and a total equal to the routes' own cart-totals module on edge lines (float cents, a quantity over ten, an oversized price); the lists table with the cart's list marked; the family list in the dashboard's words; no list, an empty list, a partial or failed summary, more lines than the table shows, the real 401, a 403 and the real 500 with its raw database message each named. The page's own scripts are run against a stub DOM to prove that under either view the concierge start reads nothing (the list-creating GET /cart and the Walmart deals feed included), the assistant rail is not attached and no handoff listener or connected-actions mount runs, while without a view and without the kit every start step still runs.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05 (shop-lists, shop-concierge): List is Shopping's one screen, so the dashboard (?view=lists) is the manifest's first and only ui.static entry and the shells frame it; the chat page stays served and keeps its company and family views. The dashboard start is one readiness read (GET /deals) and the list, gated on the kit as before, with no tab router; as the first surface it also paints its list card for the company audience the all-inclusive shells frame it with.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Shopping 1.5.1: verify shopping-chat.html's one-chat-window mount (jarvis-chat-frame.js -> shoppingConcierge as purchasing / shopping-concierge) stays off under company and family audience views and mounts cleanly without a view.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -492,6 +493,25 @@ async function runChatRail(kit) {
   return calls;
 }
 
+async function runChatConcierge(kit) {
+  const imported = [], mounted = [];
+  const src = chatScript("getElementById('shoppingConcierge')").replace(/await import\('([^']+)'\)/g, "await __import('$1')");
+  const importStub = (spec) => {
+    imported.push(spec);
+    return Promise.resolve({
+      mountJarvisChat: (host, options) => {
+        mounted.push({ host: host.id, ...options });
+        return { focus() {} };
+      },
+    });
+  };
+  const win = { AppView: kit };
+  const doc = { getElementById: (id) => ({ id, classList: { add() {} } }) };
+  await new AsyncFunction('window', 'document', 'AppView', 'console', '__import', src)(win, doc, kit, { warn() {} }, importStub);
+  await win.__shoppingChat;
+  return { imported, mounted };
+}
+
 /**
  * @description Run the handoff module script (its static imports stripped) against stub modules and a stub DOM.
  * @param {object|undefined} kit What window.AppView is.
@@ -515,13 +535,19 @@ test('chat page: under either view the concierge start reads nothing (the list-c
   assert.doesNotMatch(chat, /^boot\(\);$/m, 'no ungated start is left');
 });
 
-test('chat page: under either view the assistant rail is not attached and no handoff listener or connected-actions mount runs; without one they all do', async () => {
+test('chat page: under either view the assistant rail, concierge window and handoff stay off; without one they all mount', async () => {
   for (const audience of CHAT_AUDIENCES) {
     assert.deepEqual(await runChatRail(kitSays(audience)), { imports: 0, attached: 0, ready: 0 }, audience);
+    assert.deepEqual(await runChatConcierge(kitSays(audience)), { imported: [], mounted: [] }, audience);
     assert.deepEqual(await runChatHandoff(kitSays(audience)), { handoffs: 0, mounted: 0 }, audience);
   }
-  assert.deepEqual(await runChatRail(kitSays(null)), { imports: 2, attached: 1, ready: 1 });
-  assert.deepEqual(await runChatRail(undefined), { imports: 2, attached: 1, ready: 1 });
-  assert.deepEqual(await runChatHandoff(kitSays(null)), { handoffs: 1, mounted: 1 });
-  assert.deepEqual(await runChatHandoff(undefined), { handoffs: 1, mounted: 1 });
+  for (const kit of [kitSays(null), undefined]) {
+    assert.deepEqual(await runChatRail(kit), { imports: 2, attached: 1, ready: 1 });
+    const concierge = await runChatConcierge(kit);
+    assert.deepEqual(concierge.imported, ['/shared/ui/js/jarvis-chat-frame.js']);
+    assert.deepEqual(concierge.mounted.map(({ host, app, bot, closable, lazy }) => ({ host, app, bot, closable, lazy })),
+      [{ host: 'shoppingConcierge', app: 'purchasing', bot: 'shopping-concierge', closable: false, lazy: true }]);
+    assert.equal(typeof concierge.mounted[0].chatHost.prepare, 'function');
+    assert.deepEqual(await runChatHandoff(kit), { handoffs: 1, mounted: 1 });
+  }
 });

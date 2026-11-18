@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: surface Swarm-enrolled Android phones and TVs in Phones & TVs (#phoneRail), render their live screen frames and phone/TV controls in #deviceFrame, and fall back to connected Swarm-enrolled Android nodes when a saved Android record's local ADB bridge is offline.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the first screen's rows and their details moved to phone-home.js (a tree: each computer with its phones, TVs and programs under it); this file keeps the session.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11, a Fire TV on Prime Video: the page showed an old Marquee picture and the concierge said "The phone is not connected"): every command and every picture read goes through sendWithReconnect, so a TV or phone the computer's adb lost is reconnected once before anything is reported; a device still not connected is named with its kind, its computer and Sync; the device's stored picture is shown only with a note that it is not live, and it no longer clears the reason the live read failed.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: preserve mounted iframe.jarvis-chat-frame state across render cycles by skipping redundant DOM reparenting when conciergeCard already sits in its target container.
  */
 
 import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp, isAndroidNode, isTvNode, sendWithReconnect, notConnectedWords, storedPictureNote } from '/api/phone-control/ui/computer-link.js';
@@ -145,6 +146,12 @@ function closeRowMenu(ctx) {
   ctx.view.menuTrigger = null;
 }
 
+function placeIn(parent, ...nodes) {
+  for (const node of nodes) {
+    if (node && node.parentElement !== parent) parent.append(node);
+  }
+}
+
 function syncSessionPlacement(ctx) {
   const { $, desktopMedia, app } = ctx;
   const desktop = desktopMedia.matches;
@@ -154,21 +161,21 @@ function syncSessionPlacement(ctx) {
     $('controlBar'), $('pointerPad'), $('computerPointerSection'), $('sessionFeaturesSection')
   ];
   if (desktop && !sheetOpen) {
-    $('railConciergeBody').append($('conciergeCard'), $('computerConciergeCard'));
-    $('railControlsDynamic').append(...controls);
-    $('railControlsBody').append($('screenTextCard'), $('historyCard'));
+    placeIn($('railConciergeBody'), $('conciergeCard'), $('computerConciergeCard'));
+    placeIn($('railControlsDynamic'), ...controls);
+    placeIn($('railControlsBody'), $('screenTextCard'), $('historyCard'));
   } else {
-    $('sessionSheetControlsSlot').append(...controls);
+    placeIn($('sessionSheetControlsSlot'), ...controls);
     if (desktop) {
-      $('railConciergeBody').append($('conciergeCard'), $('computerConciergeCard'));
-      $('sessionSheetDetails').append($('screenTextCard'), $('historyCard'));
+      placeIn($('railConciergeBody'), $('conciergeCard'), $('computerConciergeCard'));
+      placeIn($('sessionSheetDetails'), $('screenTextCard'), $('historyCard'));
     } else {
-      $('sessionSheetDetails').append($('conciergeCard'), $('computerConciergeCard'), $('screenTextCard'), $('historyCard'));
+      placeIn($('sessionSheetDetails'), $('conciergeCard'), $('computerConciergeCard'), $('screenTextCard'), $('historyCard'));
     }
   }
   const computer = ctx.selectedComputer();
   const workHost = desktop && computer ? $('desktopAssistSlot') : $('computerActions');
-  workHost.append($('workOnIt'));
+  placeIn(workHost, $('workOnIt'));
 }
 
 function setSheetOpenUI(ctx, open) {

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Collapsible right-rail Sports Quant Concierge client (F22/F24): surface-bridge context publishing, quick prompt chips, voice/TTS composer controls, inline sports-quant bot requests, and approval-card presentation for confirm-gated actions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.12.2 (Roger, 2026-11-16, "for the last time": every concierge is the core Jarvis chat window, with its model menu). The rail no longer draws a chat of its own (its log, message box, prompt chips, microphone and speaker buttons and fallback approval card are gone): it holds the kernel's one chat window as Sports Quant's concierge (/shared/ui/js/jarvis-chat-frame.js), with its model menu, New conversation, Recent conversations, Files, Tap to talk, Keep trying, Read replies aloud and the kernel's own cards. The board the old rail sent as context keys the kernel never read (activeTab, followedTeams, currentEventId, upcomingGamesCount) now rides on every turn as screen_state, in words: the tab, the followed teams, the game in the Preview tab with its event id, and the games the Games tab lists. After a turn, and after a card the person approves in the window, the Games or Record tab on screen is read again, as before. The three starter prompts and the help line are handed to the window; its Close hides the rail and the header's Concierge button brings it back. The surface context the page publishes to the shell is unchanged.
  */
 (function initSportsQuantConcierge() {
   'use strict';
@@ -12,46 +13,77 @@
 
   var BOT_NAME = 'sports-quant';
   var APP_ID = 'sports-edge';
-  var APP_LABEL = 'Sports Edge';
+  var TITLE = 'Sports Quant';
+  var HELP = 'Ask Sports Quant about tonight’s lines, model vs book edge, closing-line value, or outlier-trimmed ROI. Pick actions require your approval.';
+  var PROMPTS = ['Which games have edge tonight?', 'Does the model hold up without top winners?', 'Summarize recent pick ROI'];
+  var TABS = { teams: 'My Teams', games: 'Games', preview: 'Preview', fantasy: 'Fantasy', record: 'Record' };
   var rail = document.getElementById('conciergeRail');
   var toggleBtn = document.getElementById('conciergeToggle');
-  var closeBtn = document.getElementById('conciergeClose');
-  var logEl = document.getElementById('conciergeLog');
-  var formEl = document.getElementById('conciergeForm');
-  var inputEl = document.getElementById('conciergeInput');
-  var sendBtn = document.getElementById('conciergeSend');
-  var attachBtn = document.getElementById('conciergeAttach');
-  var speakerBtn = document.getElementById('conciergeSpeaker');
-  var micBtn = document.getElementById('conciergeMic');
-  var noticeEl = document.getElementById('conciergeNotice');
-  var contextRow = document.getElementById('conciergeContextRow');
-  if (!rail || !toggleBtn || !logEl || !formEl || !inputEl) return;
+  if (!rail || !toggleBtn) return;
 
-  var sessionId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('se-' + Date.now());
-  var busy = false;
-  var lastReply = '';
-  var attachBoardSnapshot = false;
-  var mediaRecorder = null;
   var bridgeClient = null;
 
   function setOpen(open) {
     document.body.setAttribute('data-concierge', open ? 'open' : 'closed');
     toggleBtn.setAttribute('aria-expanded', String(Boolean(open)));
-    if (open) setTimeout(function () { inputEl.focus(); }, 30);
   }
 
-  function currentBoardContext() {
+  function activeTab() {
     var activeTabBtn = document.querySelector('nav button[aria-selected="true"]');
-    var activeTab = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'games';
+    return activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'games';
+  }
+
+  /** The board as the shell's surface bridge has always received it (ambient state for the shell, not a chat turn). */
+  function currentBoardContext() {
     var st = window.state || {};
     var followed = Array.isArray(st.followed) ? st.followed.map(function (f) { return f.league + ':' + f.team; }) : [];
     return {
       app: APP_ID,
-      activeTab: activeTab,
+      activeTab: activeTab(),
       followedTeams: followed,
       currentEventId: st.currentEvent || null,
       upcomingGamesCount: Array.isArray(st.games) ? st.games.length : 0,
     };
+  }
+
+  function followedLine(st) {
+    var teams = Array.isArray(st.followed) ? st.followed : [];
+    if (!teams.length) return 'Followed teams: none yet.';
+    return 'Followed teams (' + teams.length + '): ' + teams.slice(0, 60).map(function (f) {
+      var name = f.displayName && f.displayName !== f.team ? ' (' + f.displayName + ')' : '';
+      return String(f.league || '').toUpperCase() + ' ' + f.team + name;
+    }).join('; ') + '.';
+  }
+
+  /** What the Games tab lists: its games, or the words it shows in their place (never a count it did not read). */
+  function gamesLine() {
+    var list = document.getElementById('gamelist');
+    var rows = list ? list.querySelectorAll('.gamerow').length : 0;
+    if (rows) return 'Games tab: ' + rows + ' upcoming game' + (rows === 1 ? '' : 's') + ' for the followed teams.';
+    var words = list ? String(list.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    if (!words || /^loading/i.test(words)) return 'Games tab: the upcoming games are not read yet.';
+    return 'Games tab: no upcoming games listed. It says: ' + words.slice(0, 400);
+  }
+
+  function eventLine(st) {
+    var g = st.currentEvent;
+    if (!g || typeof g !== 'object') return 'Game in the Preview tab: none yet (a game opens there from the Games tab).';
+    var when = g.date ? new Date(g.date) : null;
+    var day = when && isFinite(when.getTime())
+      ? when.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    return 'Game in the Preview tab: ' + [g.awayTeam + ' @ ' + g.homeTeam, String(g.league || 'nfl').toUpperCase(),
+      'event ' + g.eventId, day, g.venue].filter(Boolean).join(', ') + '.';
+  }
+
+  /** The board on screen, handed to the window before every turn: the kernel reads it as what the person sees. */
+  function screenState() {
+    var st = window.state || {};
+    var tab = TABS[activeTab()] || activeTab();
+    var zone = '';
+    try { zone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_e) { zone = ''; }
+    var screen = { title: 'Sports Edge', tab: tab, text: ['Sports Edge, ' + tab + ' tab.', followedLine(st), gamesLine(), eventLine(st)].join('\n') };
+    if (zone) screen.timezone = zone;
+    return screen;
   }
 
   function publishBridgeContext() {
@@ -68,43 +100,7 @@
     }).catch(function () { /* standalone mode */ });
   }
 
-  function authHeaders(extra) {
-    var h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
-    try {
-      var tok = window.sessionStorage.getItem('oshal.token');
-      if (tok) h.Authorization = 'Bearer ' + tok;
-    } catch (_e) { /* sandboxed storage */ }
-    return h;
-  }
-
-  function requestJson(method, url, body, extraHeaders) {
-    var opts = { method: method, credentials: 'same-origin', headers: authHeaders(extraHeaders) };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    return fetch(url, opts).then(function (r) {
-      return r.text().then(function (txt) {
-        var parsed = {};
-        try { parsed = txt ? JSON.parse(txt) : {}; } catch (_e) { parsed = { error: txt || ('HTTP ' + r.status) }; }
-        if (!r.ok) throw new Error(parsed.message || parsed.reason || parsed.error || ('HTTP ' + r.status));
-        return parsed;
-      });
-    });
-  }
-
-  function appendMessage(text, isUser) {
-    var art = document.createElement('article');
-    art.className = 'concierge-msg ' + (isUser ? 'concierge-user' : 'concierge-reply');
-    var who = document.createElement('span');
-    who.className = 'concierge-speaker';
-    who.textContent = isUser ? 'You' : 'Sports Quant';
-    var p = document.createElement('p');
-    p.textContent = text;
-    art.appendChild(who);
-    art.appendChild(p);
-    logEl.appendChild(art);
-    logEl.scrollTop = logEl.scrollHeight;
-    return art;
-  }
-
+  /** What a turn or an approved card may have changed: the Games or Record tab the person is looking at. */
   function refreshHostBoard() {
     try {
       if (typeof window.loadGames === 'function' && !document.getElementById('tab-games').hidden) window.loadGames();
@@ -112,210 +108,33 @@
     } catch (_e) { /* host refresh optional */ }
   }
 
-  function renderFallbackCard(proposal, host) {
-    var card = document.createElement('section');
-    card.className = 'concierge-approval-card';
-    card.setAttribute('role', 'region');
-    card.setAttribute('aria-label', 'Action requiring your approval');
-    var title = document.createElement('h3');
-    title.className = 'concierge-approval-title';
-    title.textContent = APP_LABEL + ' · ' + String(proposal.tool || 'record_pick').replace(/_/g, ' ');
-    var desc = document.createElement('p');
-    desc.className = 'concierge-approval-desc';
-    desc.textContent = proposal.description || ('Confirm ' + JSON.stringify(proposal.arguments || {}));
-    var actions = document.createElement('div');
-    actions.className = 'concierge-approval-actions';
-    var okBtn = document.createElement('button');
-    okBtn.type = 'button';
-    okBtn.className = 'concierge-approve-btn';
-    okBtn.textContent = 'Approve';
-    var cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'concierge-cancel-btn';
-    cancelBtn.textContent = 'Cancel';
-    var statusLine = document.createElement('p');
-    statusLine.className = 'concierge-notice';
-    function settle(kind) {
-      okBtn.disabled = true;
-      cancelBtn.disabled = true;
-      var path = '/api/jarvis/package-tools/' + kind;
-      requestJson('POST', path, { proposalId: proposal.id }, { 'x-oshal-package-tool': '1' }).then(function () {
-        statusLine.textContent = kind === 'execute' ? 'Approved and recorded.' : 'Cancelled.';
-        window.dispatchEvent(new CustomEvent('oshal-package-tool-done', { detail: { proposalId: proposal.id, outcome: kind } }));
-        if (kind === 'execute') refreshHostBoard();
-      }).catch(function (err) {
-        statusLine.textContent = err.message || 'Could not complete approval.';
-        okBtn.disabled = false;
-        cancelBtn.disabled = false;
+  function mountWindow() {
+    import('/shared/ui/js/jarvis-chat-frame.js').then(function (mod) {
+      mod.mountJarvisChat(rail, {
+        app: APP_ID, bot: BOT_NAME, title: TITLE, lazy: true,
+        prompts: PROMPTS.map(function (prompt) { return { label: prompt, prompt: prompt }; }), help: HELP,
+        chatHost: {
+          prepare: function () { return Promise.resolve({ screen_state: screenState() }); },
+          refresh: function () { refreshHostBoard(); return Promise.resolve(); },
+        },
+        onClose: function () { setOpen(false); },
       });
-    }
-    okBtn.addEventListener('click', function () { settle('execute'); });
-    cancelBtn.addEventListener('click', function () { settle('decline'); });
-    actions.appendChild(okBtn);
-    actions.appendChild(cancelBtn);
-    card.appendChild(title);
-    card.appendChild(desc);
-    card.appendChild(actions);
-    card.appendChild(statusLine);
-    host.appendChild(card);
-  }
-
-  function resolveProposal(ref) {
-    if (ref && typeof ref === 'object' && ref.tool && ref.id) return Promise.resolve(ref);
-    var id = typeof ref === 'string' ? ref : (ref && (ref.id || ref.proposalId));
-    if (!id) return Promise.resolve(null);
-    return requestJson('GET', '/api/jarvis/package-tools/proposals/' + encodeURIComponent(id))
-      .then(function (r) { return r.proposal || r; });
-  }
-
-  function presentProposals(result) {
-    var refs = (Array.isArray(result.packageToolProposals) ? result.packageToolProposals : [result.packageToolProposal]).filter(Boolean);
-    if (!refs.length) return Promise.resolve(0);
-    return Promise.all(refs.slice(0, 5).map(resolveProposal)).then(function (items) {
-      var proposals = items.filter(Boolean);
-      if (!proposals.length) return 0;
-      var host = document.createElement('div');
-      logEl.appendChild(host);
-      if (typeof window.oshalPresentPackageTools === 'function') {
-        window.oshalPresentPackageTools({ packageToolProposals: proposals }, host, { appName: APP_LABEL });
-      } else {
-        proposals.forEach(function (p) { renderFallbackCard(p, host); });
-      }
-      logEl.scrollTop = logEl.scrollHeight;
-      return proposals.length;
+    }).catch(function () {
+      rail.textContent = 'The Sports Quant conversation could not be loaded. Reload the page to try again.';
     });
-  }
-
-  function renderContextChip() {
-    contextRow.innerHTML = '';
-    if (!attachBoardSnapshot) return;
-    var ctx = currentBoardContext();
-    var pill = document.createElement('span');
-    pill.className = 'concierge-context-pill';
-    pill.textContent = 'Board: ' + ctx.activeTab + (ctx.followedTeams.length ? (' (' + ctx.followedTeams.join(', ') + ')') : '');
-    var rm = document.createElement('button');
-    rm.type = 'button';
-    rm.setAttribute('aria-label', 'Remove attached board context');
-    rm.textContent = '×';
-    rm.addEventListener('click', function () { attachBoardSnapshot = false; renderContextChip(); });
-    pill.appendChild(rm);
-    contextRow.appendChild(pill);
-  }
-
-  function updateControls() {
-    sendBtn.disabled = busy;
-    if (speakerBtn) speakerBtn.disabled = !lastReply;
-  }
-
-  function sendPrompt(rawText) {
-    var message = String(rawText || '').trim();
-    if (!message || busy) return;
-    setOpen(true);
-    busy = true;
-    updateControls();
-    var ctx = currentBoardContext();
-    var outgoing = attachBoardSnapshot ? (message + '\nActive Sports Edge context: ' + JSON.stringify(ctx)) : message;
-    appendMessage(message, true);
-    inputEl.value = '';
-    noticeEl.textContent = 'Sports Quant is checking lines and ledger…';
-    requestJson('POST', '/api/swarm/bots/' + BOT_NAME + '/ask', {
-      message: outgoing, context: ctx, sessionId: sessionId,
-    }).then(function (res) {
-      if (typeof res.sessionId === 'string') sessionId = res.sessionId;
-      lastReply = String(res.reply || res.answer || '').trim();
-      appendMessage(lastReply || 'Review the proposed action below.', false);
-      return presentProposals(res);
-    }).then(function (cardCount) {
-      noticeEl.textContent = cardCount ? 'Review and approve or cancel the action above.' : '';
-      attachBoardSnapshot = false;
-      renderContextChip();
-    }).catch(function (err) {
-      noticeEl.textContent = err.message || 'Sports Quant could not complete that request.';
-    }).then(function () {
-      busy = false;
-      updateControls();
-    });
-  }
-
-  function toggleSpeech() {
-    if (!lastReply || !window.speechSynthesis) return;
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      speakerBtn.setAttribute('aria-pressed', 'false');
-      return;
-    }
-    var u = new SpeechSynthesisUtterance(lastReply);
-    u.onend = function () { speakerBtn.setAttribute('aria-pressed', 'false'); };
-    speakerBtn.setAttribute('aria-pressed', 'true');
-    window.speechSynthesis.speak(u);
-  }
-
-  function toggleMic() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-      noticeEl.textContent = 'Voice input is unavailable in this browser.';
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      var chunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      micBtn.setAttribute('aria-pressed', 'true');
-      noticeEl.textContent = 'Listening… click mic again to transcribe.';
-      mediaRecorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      mediaRecorder.onstop = function () {
-        micBtn.setAttribute('aria-pressed', 'false');
-        stream.getTracks().forEach(function (t) { t.stop(); });
-        var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-        var reader = new FileReader();
-        reader.onloadend = function () {
-          var b64 = String(reader.result || '').split(',')[1] || '';
-          requestJson('POST', '/api/voice/transcribe', { audio: b64, mimeType: blob.type }).then(function (r) {
-            if (r && r.text) inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + r.text.trim();
-            noticeEl.textContent = '';
-          }).catch(function (err) { noticeEl.textContent = err.message || 'Voice transcription unavailable.'; });
-        };
-        reader.readAsDataURL(blob);
-      };
-      mediaRecorder.start();
-    }).catch(function () { noticeEl.textContent = 'Microphone permission was not granted.'; });
   }
 
   document.body.classList.add('has-concierge');
   setOpen(window.innerWidth >= 960);
+  mountWindow();
 
   toggleBtn.addEventListener('click', function () {
     setOpen(document.body.getAttribute('data-concierge') !== 'open');
   });
-  if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
-  if (attachBtn) attachBtn.addEventListener('click', function () {
-    attachBoardSnapshot = !attachBoardSnapshot;
-    renderContextChip();
-  });
-  if (speakerBtn) speakerBtn.addEventListener('click', toggleSpeech);
-  if (micBtn) micBtn.addEventListener('click', toggleMic);
-
-  Array.prototype.forEach.call(rail.querySelectorAll('[data-concierge-prompt]'), function (chip) {
-    chip.addEventListener('click', function () { sendPrompt(chip.getAttribute('data-concierge-prompt')); });
-  });
-
-  formEl.addEventListener('submit', function (e) {
-    e.preventDefault();
-    sendPrompt(inputEl.value);
-  });
-  inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      sendPrompt(inputEl.value);
-    }
-  });
-
   Array.prototype.forEach.call(document.querySelectorAll('nav button'), function (b) {
     b.addEventListener('click', function () { setTimeout(publishBridgeContext, 20); });
   });
+  // An approved card in the window is announced on this page (the mount passes the window's event on).
   window.addEventListener('oshal-package-tool-done', refreshHostBoard);
-  updateControls();
   connectSurfaceBridge();
 })();

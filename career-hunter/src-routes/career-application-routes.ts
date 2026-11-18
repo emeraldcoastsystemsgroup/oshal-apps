@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Persist the authenticated manual completion in the authoritative Apply V2 ledger before updating its Career projections.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Export the deterministic ticket key and the one-application creator (1.27.0) so the Test Lab application seam (career-test-lab-applications.ts) plants its marked application through the same ticket and row writes the queue uses, never a copy of them. createApplication takes an optional Test Lab tag that it records as the ticket's `test_lab_tag` metadata, the only mark the seam's removal accepts; an unscored posting's ticket says so instead of printing a missing fit. The enqueue path passes no tag and is unchanged.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount, asOfDate, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /applications.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Project `status === 'approval_required'` rows as `approvals` on `GET /api/career-hunter/applications` for the cross-application Approvals screen (`/cockpit/?screen=approvals`).
  */
 
 /**
@@ -367,6 +368,27 @@ async function denyApplication(ctx: AppContext, req: Request, res: Response): Pr
   }
 }
 
+/** @description Project `approval_required` application rows onto cross-application approval items. */
+export function formatCareerApprovals(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => row && row.status === 'approval_required' && Number.isSafeInteger(Number(row.posting_id)) && Number(row.posting_id) > 0)
+    .map((row) => {
+      const id = String(Number(row.posting_id));
+      const company = String(row.company || '').trim();
+      const title = String(row.title || '').trim() || `Posting #${id}`;
+      return {
+        id,
+        category: 'Job application',
+        title: company ? `${title} · ${company}` : title,
+        summary: 'Ready for your approval before Career submits this application.',
+        createdAt: row.updated_at || null,
+        openHref: '/cockpit/?app=intelligent-career&screen=career-hunter--career-board',
+        approve: { method: 'POST', path: `/api/career-hunter/applications/${id}/approve`, body: {}, label: 'Approve' },
+        decline: { method: 'POST', path: `/api/career-hunter/applications/${id}/deny`, body: {}, label: 'Decline' },
+      };
+    });
+}
+
 function decorateApplicationRows(userSub: string, rows: Record<string, unknown>[]) {
   const nowMs = Date.now(), signals = new Map<number, { applied_at?: string | null }>();
   let db: ReturnType<typeof openUserDb> = null;
@@ -391,7 +413,7 @@ function decorateApplicationRows(userSub: string, rows: Record<string, unknown>[
         companySentCount: companySent.countForCompany(counts, row.company),
         ...companySent.applicationAgeFields(appliedAt, nowMs) };
     });
-    return { applications, asOfDate: companySent.asOfDateString(nowMs) };
+    return { applications, asOfDate: companySent.asOfDateString(nowMs), approvals: formatCareerApprovals(applications) };
   } finally { try { db?.close(); } catch { /* ignore close error */ } }
 }
 

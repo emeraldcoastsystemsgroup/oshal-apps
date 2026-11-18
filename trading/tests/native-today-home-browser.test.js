@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The first screen (1.57.0) in Chromium at desktop and phone width, over the shipped trading.html, the shipped ui scripts and the shipped accounts, status, portfolio and paper route handlers on a fixture host with invented accounts. It proves what opening the screen requests (saved records and the job list, no /portfolio read, no write), that each card answers its three questions with a source and a time and carries one button and no control that can change money, that each button lands on the existing screen and section it names, that the former landing is one tap away and whole, what the screen says when the saved-record read fails, and that an armed paper account still gets its job switched on by the page's existing keeper and nothing else. No broker, no kernel, no real account.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: these cards are the Accounts screen's Trading status tab (the screen opens on the portfolio overview), so each case opens ?view=accounts&sub=status and, after going back to Accounts, presses that tab; the host's paper router also serves the shipped GET /values the overview reads. Every earlier check stays.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Assert evidence-derived idle, paused and simulation headlines and dated plan targets through both real-page widths, retaining every navigation, keeper and no-mutation guard.
  */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os');
@@ -131,19 +132,19 @@ test('opening the screen reads saved records and the job list, and each card ans
   assert.deepEqual([...new Set(h.calls())].sort(),['GET /api/trading/accounts','GET /api/trading/paper/books','GET /api/trading/paper/today','GET /api/trading/quant/status','GET /api/trading/status','GET /api/v1/agent/schedules'],
    'the screen asks for its saved records and the job list; the roster and the keeper ask for what they asked before; nothing asks for /portfolio or /summary');
   assert.deepEqual(h.state.sql.filter(text=>!/^\s*SELECT\b/.test(text)),[],'opening the screen sends no statement that is not a SELECT');
-  assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? Yes\. 2 of 2 accounts set to trade are running\.\s+Today so far: 0 orders sent, 0 filled on connected accounts\. 0 simulated trades\.\s+Recorded value of connected accounts: \$31,204\.18 from each account's last check; newest Nov 12, 1:45 PM, oldest Nov 12, 1:45 PM\./);
+  assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? No new orders recorded\. 1 connected account: 1 idle at the last check\. Automatic-order setting on: 1 of 1\. 1 simulation armed\.\s+Today so far: The saved broker lists show 0 orders entered and 0 fills\. 0 simulated trades\.\s+Recorded value of connected accounts: \$31,204\.18 from each account's last check; newest Nov 12, 1:45 PM, oldest Nov 12, 1:45 PM\./);
   const cards=page.locator('#homeCards [data-story]');assert.equal(await cards.count(),3);
   const real=cards.nth(0),text=await real.innerText();
-  assert.match(text,/Example margin ···0001\s+CONNECTED ACCOUNT\s+RUNNING\s*MOSTLY PARKED/i);
-  assert.match(text,/Runs "Example monthly trend"\.\s+The watcher checked it at Nov 12, 1:49 PM, 1 minute ago\. Holdings match the plan\.\s+Approval active until Dec 2/);
+  assert.match(text,/Example margin ···0001\s+CONNECTED ACCOUNT\s+IDLE\s*Plan: 60% BIL · Oct 30/i);
+  assert.match(text,/Runs "Example monthly trend"\.\s+Recorded check Nov 12, 1:45 PM, 5 minutes ago\. The recorded allocation cycle completed\. Compare its targets with the retained holdings below\.\s+Automatic-order setting: on\.\s+Approval active until Dec 2/);
   assert.deepEqual(await real.locator('[data-story-part]').evaluateAll(parts=>parts.map(p=>p.getAttribute('data-story-part'))),['plan','today','value']);
   assert.match(text,/Treasury bills \(BIL\) 60% · SPY 20% · GLD 20%\s+2 of this strategy's 5 funds are in the plan\. The rest of the plan is in BIL, the strategy's fallback fund\./);
   assert.match(text,/This strategy keeps a fund while its latest month-end close is above its ten-month average\. The share of a fund that is not is held in BIL\./);
-  assert.match(text,/No orders sent\. The last check found holdings already match the plan\.\s+Last fill: Bought 41 BIL at \$91\.52 \(Nov 3, 10:05 AM\)\./);
+  assert.match(text,/No orders sent\. The recorded allocation cycle completed\. Compare its targets with the retained holdings below\.\s+Last fill: Bought 41 BIL at \$91\.52 \(Nov 3, 10:05 AM\)\./);
   assert.match(text,/\$31,204\.18 at Nov 12, 1:45 PM · down \$12\.40 since the last record of Nov 11\.\s+Prices of what it holds\s+-\$14\.90\s+Cash in or out, other than trades\s+\+\$2\.50/);
   for(const part of await real.locator('[data-story-part]').all())assert.ok(await part.locator('.story-src time[datetime]').count()>=1,'every part names a source and a time');
   const paper=cards.nth(2),simulated=await paper.innerText();
-  assert.match(simulated,/Example paper account\s+SIMULATED MONEY\s+RUNNING\s*PARKED/i);assert.match(simulated,/No simulated trades\. This account trades when the monthly decision changes\./);
+  assert.match(simulated,/Example paper account\s+SIMULATED MONEY\s+RUNNING\s*Plan: 100% BIL · Oct 30/i);assert.match(simulated,/No simulated trades\. This account trades when the monthly decision changes\./);
   assert.match(simulated,/This simulation counts prices only\. It does not add the interest or dividends a fund pays/);
   assert.match(await cards.nth(1).innerText(),/Paper \(reference book\)\s+SIMULATED MONEY\s+NOT STARTED/i);
   for(const card of await cards.all()){assert.equal(await card.locator('button').count(),1,'one button per card');assert.ok(await card.locator('a').count()<=1,'at most one link per card');}
@@ -180,7 +181,7 @@ test('the former landing is one tap away and whole, and only then is the broker 
 });
 
 const LANDINGS=[
- ['RUNNING','See the last check',()=>({}),{},'#nativeStatusEvidence'],
+ ['IDLE','See the last check',()=>({}),{},'#nativeStatusEvidence'],
  ['NEEDS YOU','See what is waiting',()=>({watch:{lastError:'Synthetic quote failure',lastRunAt:'2026-11-12T18:49:30.000Z'}}),{},'#nativeStatusEvidence'],
  ['NOT RUNNING','Go to the watcher switch',()=>({}),{watcher:{status:'suspended',reason:'owner_paused'}},'.native-schedule-bar'],
  ['UNKNOWN','Check this account',()=>({receipt:{observedAt:'2026-11-12T17:00:00.000Z'}}),{},'[data-native-management="refresh"]'],
@@ -236,7 +237,7 @@ test('an account the broker lists with no saved record gets a card that says so,
  const text=await card.innerText();
  assert.match(text,/Account ···0001\s+CONNECTED ACCOUNT\s+NOT SET UP/i);assert.match(text,/No strategy is set to run on this account\./);
  assert.match(text,/No value is recorded for this account\.\s+\$31,204\.18 at Nov 12, 1:50 PM, read from your broker by this page\.\s+Source: your broker, read by this page/);
- assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? Yes\. 1 of 1 account set to trade is running\./);
+ assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? No automatic strategy enabled\. 1 connected account: 1 not set up\. Automatic-order setting on: 0 of 1\. 1 simulation armed\./);
  assert.doesNotMatch(await page.locator('#homeTop').innerText(),/Recorded value/,'a value this page read is never called a recorded value');
  await card.getByRole('button',{name:'Set up this account',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#nativeStrategySettings')?.open===true);assert.deepEqual(errors,[]);await close();
@@ -264,12 +265,12 @@ test('an armed paper account whose job is off: the page\'s existing keeper switc
  assert.deepEqual(h.calls().filter(line=>!line.startsWith('GET ')),['POST /api/v1/agent/schedules/job-paper/activate'],'the one mutation is the keeper\'s existing activation of the person\'s own paper job');
  assert.deepEqual(h.state.sql.filter(text=>!/^\s*SELECT\b/.test(text)),[],'no statement but SELECT');
  await page.locator('#refreshBtn').click();await page.locator('#homeCards [data-story="paper|example-paper"] .story-chip',{hasText:/^RUNNING$/}).waitFor();
- assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? Yes\. 1 of 1 account set to trade is running\./);assert.deepEqual(errors,[]);await close();
+ assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? Simulation only\. No connected accounts are shown\. 1 simulation armed\./);assert.deepEqual(errors,[]);await close();
  off();h.state.refuseActivation=true;h.state.requests.length=0;
  ({page,errors,close}=await open(browser,h,412));await settled(page);
  const card=page.locator('#homeCards [data-story="paper|example-paper"]');
  assert.match(await card.innerText(),/NOT RUNNING[\s\S]*Armed, but the paper job is not switched on\. Nothing trades\./);
- assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? No\. 0 of 1 account set to trade are running\./);
+ assert.match(await page.locator('#homeTop').innerText(),/Is it trading\? Simulation only\. No connected accounts are shown\. 1 simulation armed\./);
  assert.equal(await card.locator('button').innerText(),'See passes and fills');
  assert.deepEqual(h.calls().filter(line=>!line.startsWith('GET ')),['POST /api/v1/agent/schedules/job-paper/activate']);assert.deepEqual(errors,[]);await close();
 });

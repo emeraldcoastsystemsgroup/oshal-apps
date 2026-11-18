@@ -1,0 +1,4330 @@
+[
+ {
+  "id": "wikipedia-expected-value",
+  "title": "Expected value",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385865607 of 2026-11-15",
+  "link": "https://en.wikipedia.org/w/index.php?title=Expected+value&oldid=1385865607",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   1
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-random-walk-hypothesis",
+  "title": "Random walk hypothesis",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1378704873 of 2026-10-05",
+  "link": "https://en.wikipedia.org/w/index.php?title=Random+walk+hypothesis&oldid=1378704873",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   2
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-volatility-finance",
+  "title": "Volatility (finance)",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1372481846 of 2026-08-31",
+  "link": "https://en.wikipedia.org/w/index.php?title=Volatility+%28finance%29&oldid=1372481846",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   3,
+   7
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-normal-distribution",
+  "title": "Normal distribution",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1382495450 of 2026-10-29",
+  "link": "https://en.wikipedia.org/w/index.php?title=Normal+distribution&oldid=1382495450",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   4
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-log-normal-distribution",
+  "title": "Log-normal distribution",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1383345849 of 2026-11-02",
+  "link": "https://en.wikipedia.org/w/index.php?title=Log-normal+distribution&oldid=1383345849",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   4,
+   5
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-rate-of-return",
+  "title": "Rate of return",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1375646200 of 2026-09-19",
+  "link": "https://en.wikipedia.org/w/index.php?title=Rate+of+return&oldid=1375646200",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   5
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-present-value",
+  "title": "Present value",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385940776 of 2026-11-16",
+  "link": "https://en.wikipedia.org/w/index.php?title=Present+value&oldid=1385940776",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   6
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-sharpe-ratio",
+  "title": "Sharpe ratio",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1368876746 of 2026-08-11",
+  "link": "https://en.wikipedia.org/w/index.php?title=Sharpe+ratio&oldid=1368876746",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   8
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-volatility-tax",
+  "title": "Volatility tax",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1382602195 of 2026-10-29",
+  "link": "https://en.wikipedia.org/w/index.php?title=Volatility+tax&oldid=1382602195",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   9
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-pearson-correlation-coefficient",
+  "title": "Pearson correlation coefficient",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1382504642 of 2026-10-29",
+  "link": "https://en.wikipedia.org/w/index.php?title=Pearson+correlation+coefficient&oldid=1382504642",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   10
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-diversification-finance",
+  "title": "Diversification (finance)",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385420052 of 2026-11-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Diversification+%28finance%29&oldid=1385420052",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   11
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-efficient-frontier",
+  "title": "Efficient frontier",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1380191750 of 2026-10-14",
+  "link": "https://en.wikipedia.org/w/index.php?title=Efficient+frontier&oldid=1380191750",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   12
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-modern-portfolio-theory",
+  "title": "Modern portfolio theory",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384829069 of 2026-11-10",
+  "link": "https://en.wikipedia.org/w/index.php?title=Modern+portfolio+theory&oldid=1384829069",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   11,
+   12
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-beta-finance",
+  "title": "Beta (finance)",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1382103567 of 2026-10-26",
+  "link": "https://en.wikipedia.org/w/index.php?title=Beta+%28finance%29&oldid=1382103567",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   13
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-capital-asset-pricing-model",
+  "title": "Capital asset pricing model",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1381488369 of 2026-10-22",
+  "link": "https://en.wikipedia.org/w/index.php?title=Capital+asset+pricing+model&oldid=1381488369",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   14
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-kelly-criterion",
+  "title": "Kelly criterion",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1383241796 of 2026-11-01",
+  "link": "https://en.wikipedia.org/w/index.php?title=Kelly+criterion&oldid=1383241796",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   15
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-monte-carlo-methods-in-finance",
+  "title": "Monte Carlo methods in finance",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1362663476 of 2026-07-05",
+  "link": "https://en.wikipedia.org/w/index.php?title=Monte+Carlo+methods+in+finance&oldid=1362663476",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   16
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-geometric-brownian-motion",
+  "title": "Geometric Brownian motion",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1354252393 of 2026-05-15",
+  "link": "https://en.wikipedia.org/w/index.php?title=Geometric+Brownian+motion&oldid=1354252393",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   16,
+   5
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-fat-tailed-distribution",
+  "title": "Fat-tailed distribution",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1381815515 of 2026-10-24",
+  "link": "https://en.wikipedia.org/w/index.php?title=Fat-tailed+distribution&oldid=1381815515",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   17
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-value-at-risk",
+  "title": "Value at risk",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1375554220 of 2026-09-18",
+  "link": "https://en.wikipedia.org/w/index.php?title=Value+at+risk&oldid=1375554220",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   18
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-expected-shortfall",
+  "title": "Expected shortfall",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1381126660 of 2026-10-20",
+  "link": "https://en.wikipedia.org/w/index.php?title=Expected+shortfall&oldid=1381126660",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   18
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-backtesting",
+  "title": "Backtesting",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1361592196 of 2026-06-28",
+  "link": "https://en.wikipedia.org/w/index.php?title=Backtesting&oldid=1361592196",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   19
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-linear-regression",
+  "title": "Linear regression",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384521760 of 2026-11-08",
+  "link": "https://en.wikipedia.org/w/index.php?title=Linear+regression&oldid=1384521760",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   20
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-statistical-hypothesis-test",
+  "title": "Statistical hypothesis test",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1386094219 of 2026-11-16",
+  "link": "https://en.wikipedia.org/w/index.php?title=Statistical+hypothesis+test&oldid=1386094219",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   21
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-mean-reversion-finance",
+  "title": "Mean reversion (finance)",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1354199064 of 2026-05-14",
+  "link": "https://en.wikipedia.org/w/index.php?title=Mean+reversion+%28finance%29&oldid=1354199064",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   22
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-ornstein-uhlenbeck-process",
+  "title": "Ornstein–Uhlenbeck process",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1378158857 of 2026-10-03",
+  "link": "https://en.wikipedia.org/w/index.php?title=Ornstein%E2%80%93Uhlenbeck+process&oldid=1378158857",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   22,
+   43
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-momentum-investing",
+  "title": "Momentum investing",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384426591 of 2026-11-08",
+  "link": "https://en.wikipedia.org/w/index.php?title=Momentum+investing&oldid=1384426591",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   23
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-value-premium",
+  "title": "Value premium",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384722261 of 2026-11-09",
+  "link": "https://en.wikipedia.org/w/index.php?title=Value+premium&oldid=1384722261",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   24
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 1
+ },
+ {
+  "id": "wikipedia-value-investing",
+  "title": "Value investing",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385957838 of 2026-11-16",
+  "link": "https://en.wikipedia.org/w/index.php?title=Value+investing&oldid=1385957838",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   24
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-size-premium",
+  "title": "Size premium",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385464771 of 2026-11-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Size+premium&oldid=1385464771",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   25
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 1
+ },
+ {
+  "id": "wikipedia-fama-french-three-factor-model",
+  "title": "Fama–French three-factor model",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1375136758 of 2026-09-16",
+  "link": "https://en.wikipedia.org/w/index.php?title=Fama%E2%80%93French+three-factor+model&oldid=1375136758",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   24,
+   25,
+   26
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-low-volatility-anomaly",
+  "title": "Low-volatility anomaly",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1377205156 of 2026-09-28",
+  "link": "https://en.wikipedia.org/w/index.php?title=Low-volatility+anomaly&oldid=1377205156",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   27
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-factor-investing",
+  "title": "Factor investing",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384718297 of 2026-11-09",
+  "link": "https://en.wikipedia.org/w/index.php?title=Factor+investing&oldid=1384718297",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   28
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-black-scholes-model",
+  "title": "Black–Scholes model",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385522830 of 2026-11-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Black%E2%80%93Scholes+model&oldid=1385522830",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   29,
+   32
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-implied-volatility",
+  "title": "Implied volatility",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1383956024 of 2026-11-05",
+  "link": "https://en.wikipedia.org/w/index.php?title=Implied+volatility&oldid=1383956024",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   30
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-put-call-parity",
+  "title": "Put–call parity",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1371091504 of 2026-08-24",
+  "link": "https://en.wikipedia.org/w/index.php?title=Put%E2%80%93call+parity&oldid=1371091504",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   31
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-delta-neutral",
+  "title": "Delta neutral",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2024,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1257048961 of 2024-11-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Delta+neutral&oldid=1257048961",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   32
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-greeks-finance",
+  "title": "Greeks (finance)",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385886346 of 2026-11-15",
+  "link": "https://en.wikipedia.org/w/index.php?title=Greeks+%28finance%29&oldid=1385886346",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   33
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-bid-ask-spread",
+  "title": "Bid–ask spread",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1339662753 of 2026-02-21",
+  "link": "https://en.wikipedia.org/w/index.php?title=Bid%E2%80%93ask+spread&oldid=1339662753",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   34,
+   48
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-order-book",
+  "title": "Order book",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1343328613 of 2026-03-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Order+book&oldid=1343328613",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   34
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 2
+ },
+ {
+  "id": "wikipedia-binomial-options-pricing-model",
+  "title": "Binomial options pricing model",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1369582428 of 2026-08-15",
+  "link": "https://en.wikipedia.org/w/index.php?title=Binomial+options+pricing+model&oldid=1369582428",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   35
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-volatility-smile",
+  "title": "Volatility smile",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1381771153 of 2026-10-24",
+  "link": "https://en.wikipedia.org/w/index.php?title=Volatility+smile&oldid=1381771153",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   36
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-autoregressive-conditional-heteroskedasticity",
+  "title": "Autoregressive conditional heteroskedasticity",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384691659 of 2026-11-09",
+  "link": "https://en.wikipedia.org/w/index.php?title=Autoregressive+conditional+heteroskedasticity&oldid=1384691659",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   37,
+   38
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-risk-parity",
+  "title": "Risk parity",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1380036842 of 2026-10-13",
+  "link": "https://en.wikipedia.org/w/index.php?title=Risk+parity&oldid=1380036842",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   40
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-black-litterman-model",
+  "title": "Black–Litterman model",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1383230771 of 2026-11-01",
+  "link": "https://en.wikipedia.org/w/index.php?title=Black%E2%80%93Litterman+model&oldid=1383230771",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   41
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 1
+ },
+ {
+  "id": "wikipedia-arbitrage-pricing-theory",
+  "title": "Arbitrage pricing theory",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1375357471 of 2026-09-17",
+  "link": "https://en.wikipedia.org/w/index.php?title=Arbitrage+pricing+theory&oldid=1375357471",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   42
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "wikipedia-statistical-arbitrage",
+  "title": "Statistical arbitrage",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1378535949 of 2026-10-04",
+  "link": "https://en.wikipedia.org/w/index.php?title=Statistical+arbitrage&oldid=1378535949",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   43
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-pairs-trade",
+  "title": "Pairs trade",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1376298840 of 2026-09-23",
+  "link": "https://en.wikipedia.org/w/index.php?title=Pairs+trade&oldid=1376298840",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   43
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-cointegration",
+  "title": "Cointegration",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1383141794 of 2026-11-01",
+  "link": "https://en.wikipedia.org/w/index.php?title=Cointegration&oldid=1383141794",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   43
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-overfitting",
+  "title": "Overfitting",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1374396766 of 2026-09-11",
+  "link": "https://en.wikipedia.org/w/index.php?title=Overfitting&oldid=1374396766",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   44,
+   19
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-data-dredging",
+  "title": "Data dredging",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1384326593 of 2026-11-07",
+  "link": "https://en.wikipedia.org/w/index.php?title=Data+dredging&oldid=1384326593",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   44,
+   21
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-market-maker",
+  "title": "Market maker",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1385610523 of 2026-11-14",
+  "link": "https://en.wikipedia.org/w/index.php?title=Market+maker&oldid=1385610523",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   45,
+   46
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 4
+ },
+ {
+  "id": "wikipedia-market-impact",
+  "title": "Market impact",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1380716297 of 2026-10-17",
+  "link": "https://en.wikipedia.org/w/index.php?title=Market+impact&oldid=1380716297",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   49
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 3
+ },
+ {
+  "id": "wikipedia-kalman-filter",
+  "title": "Kalman filter",
+  "authors": [
+   "Wikipedia contributors"
+  ],
+  "year": 2026,
+  "venue": "Wikipedia, The Free Encyclopedia, revision 1386046021 of 2026-11-16",
+  "link": "https://en.wikipedia.org/w/index.php?title=Kalman+filter&oldid=1386046021",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://en.wikipedia.org/w/api.php?action=query&meta=siteinfo&siprop=rightsinfo&format=json (rightsinfo: Creative Commons Attribution-Share Alike 4.0)"
+  },
+  "ideas": [
+   50
+  ],
+  "changes": "plain-text extract; formulas kept as LaTeX; references and later sections omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "quantecon-pv",
+  "title": "Present Values",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/pv.md at 72ae33d877de of 2026-05-31",
+  "link": "https://intro.quantecon.org/pv.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/pv.html (page footer)"
+  },
+  "ideas": [
+   6
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "quantecon-lln-clt-intro",
+  "title": "LLN and CLT",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/lln_clt_intro.md at 4fb9454cffeb of 2026-10-09",
+  "link": "https://intro.quantecon.org/lln_clt_intro.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/lln_clt_intro.html (page footer)"
+  },
+  "ideas": [
+   4,
+   16
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 6
+ },
+ {
+  "id": "quantecon-heavy-tails",
+  "title": "Heavy-Tailed Distributions",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/heavy_tails.md at 4fb9454cffeb of 2026-10-09",
+  "link": "https://intro.quantecon.org/heavy_tails.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/heavy_tails.html (page footer)"
+  },
+  "ideas": [
+   17,
+   4
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 7
+ },
+ {
+  "id": "quantecon-monte-carlo",
+  "title": "Monte Carlo and Option Pricing",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/monte_carlo.md at 4fb9454cffeb of 2026-10-09",
+  "link": "https://intro.quantecon.org/monte_carlo.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/monte_carlo.html (page footer)"
+  },
+  "ideas": [
+   16,
+   29
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "quantecon-simple-linear-regression",
+  "title": "Simple Linear Regression Model",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/simple_linear_regression.md at a09db424c816 of 2026-08-12",
+  "link": "https://intro.quantecon.org/simple_linear_regression.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/simple_linear_regression.html (page footer)"
+  },
+  "ideas": [
+   20
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "quantecon-ar1-processes",
+  "title": "AR(1) Processes",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "A First Course in Quantitative Economics with Python (QuantEcon), lectures/ar1_processes.md at d4e57aef8b72 of 2026-08-03",
+  "link": "https://intro.quantecon.org/ar1_processes.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://intro.quantecon.org/ar1_processes.html (page footer)"
+  },
+  "ideas": [
+   22,
+   2
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 5
+ },
+ {
+  "id": "quantecon-kalman",
+  "title": "A First Look at the Kalman Filter",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "Intermediate Quantitative Economics with Python (QuantEcon), lectures/kalman.md at 4d82fffbb128 of 2026-11-03",
+  "link": "https://python.quantecon.org/kalman.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://python.quantecon.org/kalman.html (page footer)"
+  },
+  "ideas": [
+   50
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 7
+ },
+ {
+  "id": "quantecon-black-litterman",
+  "title": "Two Modifications of Mean-Variance Portfolio Theory",
+  "authors": [
+   "Thomas J. Sargent",
+   "John Stachurski"
+  ],
+  "year": 2026,
+  "venue": "Advanced Quantitative Economics with Python (QuantEcon), lectures/black_litterman.md at 6ad797a9fb67 of 2026-11-04",
+  "link": "https://python-advanced.quantecon.org/black_litterman.html",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://python-advanced.quantecon.org/black_litterman.html (page footer)"
+  },
+  "ideas": [
+   41,
+   12,
+   14
+  ],
+  "changes": "prose and formulas kept; code cells, figures and exercises omitted; split into passages",
+  "documents": 9
+ },
+ {
+  "id": "falces-marin-2022",
+  "title": "A reinforcement learning approach to improve the performance of the Avellaneda-Stoikov market-making algorithm",
+  "authors": [
+   "Javier Falces Marin",
+   "David Díaz Pardo de Vera",
+   "Eduardo Lopez Gonzalo"
+  ],
+  "year": 2022,
+  "venue": "PLOS ONE",
+  "link": "https://doi.org/10.1371/journal.pone.0277042",
+  "doi": "10.1371/journal.pone.0277042",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0277042&type=manuscript (the article's own license element)"
+  },
+  "ideas": [
+   45,
+   46,
+   48
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 9
+ },
+ {
+  "id": "blau-whitby-2017",
+  "title": "Range-based volatility, expected stock returns, and the low volatility anomaly",
+  "authors": [
+   "Benjamin M. Blau",
+   "Ryan J. Whitby"
+  ],
+  "year": 2017,
+  "venue": "PLOS ONE",
+  "link": "https://doi.org/10.1371/journal.pone.0188517",
+  "doi": "10.1371/journal.pone.0188517",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0188517&type=manuscript (the article's own license element)"
+  },
+  "ideas": [
+   27,
+   7
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 8
+ },
+ {
+  "id": "naimy-2021",
+  "title": "The predictive capacity of GARCH-type models in measuring the volatility of crypto and world currencies",
+  "authors": [
+   "Viviane Naimy",
+   "Omar Haddad",
+   "Gema Fernández-Avilés",
+   "Rim El Khoury"
+  ],
+  "year": 2021,
+  "venue": "PLOS ONE",
+  "link": "https://doi.org/10.1371/journal.pone.0245904",
+  "doi": "10.1371/journal.pone.0245904",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0245904&type=manuscript (the article's own license element)"
+  },
+  "ideas": [
+   37,
+   38,
+   18
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 8
+ },
+ {
+  "id": "carta-conversano-2020",
+  "title": "Practical Implementation of the Kelly Criterion: Optimal Growth Rate, Number of Trades, and Rebalancing Frequency for Equity Portfolios",
+  "authors": [
+   "Andrea Carta",
+   "Claudio Conversano"
+  ],
+  "year": 2020,
+  "venue": "Frontiers in Applied Mathematics and Statistics",
+  "link": "https://doi.org/10.3389/fams.2020.577050",
+  "doi": "10.3389/fams.2020.577050",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://www.frontiersin.org/journals/applied-mathematics-and-statistics/articles/10.3389/fams.2020.577050/xml/nlm (the article's own license element)"
+  },
+  "ideas": [
+   15,
+   12,
+   16
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 10
+ },
+ {
+  "id": "watorek-2021",
+  "title": "Financial Return Distributions: Past, Present, and COVID-19",
+  "authors": [
+   "Marcin Wątorek",
+   "Jarosław Kwapień",
+   "Stanisław Drożdż"
+  ],
+  "year": 2021,
+  "venue": "Entropy",
+  "link": "https://doi.org/10.3390/e23070884",
+  "doi": "10.3390/e23070884",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8303836/fullTextXML (the article's own license element)"
+  },
+  "ideas": [
+   17,
+   4
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 8
+ },
+ {
+  "id": "zulfiqar-gulzar-2021",
+  "title": "Implied volatility estimation of bitcoin options and the stylized facts of option pricing",
+  "authors": [
+   "Noshaba Zulfiqar",
+   "Saqib Gulzar"
+  ],
+  "year": 2021,
+  "venue": "Financial Innovation",
+  "link": "https://doi.org/10.1186/s40854-021-00280-y",
+  "doi": "10.1186/s40854-021-00280-y",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8418903/fullTextXML (the article's own license element)"
+  },
+  "ideas": [
+   30,
+   36,
+   29
+  ],
+  "changes": "abstract and body text kept; tables, figures and references omitted; split into passages",
+  "documents": 8
+ },
+ {
+  "id": "touzo-2021",
+  "title": "Information thermodynamics of financial markets: the Glosten-Milgrom model",
+  "authors": [
+   "Léo Touzo",
+   "Matteo Marsili",
+   "Don Zagier"
+  ],
+  "year": 2021,
+  "venue": "J. Stat. Mech. (2021) 033407 (arXiv preprint text), arXiv:2010.01905v2",
+  "link": "https://arxiv.org/abs/2010.01905",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://arxiv.org/abs/2010.01905 (licence link on the abstract page)"
+  },
+  "ideas": [
+   47,
+   48,
+   45
+  ],
+  "changes": "text extracted from the PDF; references omitted; split into passages",
+  "documents": 9
+ },
+ {
+  "id": "kuhn-lorenz-2024",
+  "title": "Insider trading in discrete time Kyle games",
+  "authors": [
+   "Christoph Kühn",
+   "Christopher Lorenz"
+  ],
+  "year": 2024,
+  "venue": "Mathematics and Financial Economics 19, 39-66 (arXiv preprint text), arXiv:2312.00904v2",
+  "link": "https://arxiv.org/abs/2312.00904",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://arxiv.org/abs/2312.00904 (licence link on the abstract page)"
+  },
+  "ideas": [
+   47,
+   49
+  ],
+  "changes": "text extracted from the PDF; references omitted; split into passages",
+  "documents": 7
+ },
+ {
+  "id": "min-moallemi-maglaras-2022",
+  "title": "Risk-sensitive optimal execution via a conditional value-at-risk objective",
+  "authors": [
+   "Seungki Min",
+   "Ciamac C. Moallemi",
+   "Costis Maglaras"
+  ],
+  "year": 2022,
+  "venue": "arXiv preprint, arXiv:2201.11962v1",
+  "link": "https://arxiv.org/abs/2201.11962",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://arxiv.org/abs/2201.11962 (licence link on the abstract page)"
+  },
+  "ideas": [
+   49,
+   18
+  ],
+  "changes": "text extracted from the PDF; references omitted; split into passages",
+  "documents": 8
+ },
+ {
+  "id": "barzykin-2025",
+  "title": "Optimal quoting under adverse selection and price reading",
+  "authors": [
+   "Alexander Barzykin",
+   "Philippe Bergault",
+   "Olivier Guéant",
+   "Malo Lemmel"
+  ],
+  "year": 2025,
+  "venue": "arXiv preprint, arXiv:2508.20225v6",
+  "link": "https://arxiv.org/abs/2508.20225",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://arxiv.org/abs/2508.20225 (licence link on the abstract page)"
+  },
+  "ideas": [
+   45,
+   46,
+   47
+  ],
+  "changes": "text extracted from the PDF; references omitted; split into passages",
+  "documents": 9
+ },
+ {
+  "id": "milstein-2024",
+  "title": "Neural Augmented Kalman Filtering with Bollinger Bands for Pairs Trading",
+  "authors": [
+   "Amit Milstein",
+   "Guy Revach",
+   "Haiqin Deng",
+   "Hai Morgenstern",
+   "Nir Shlezinger"
+  ],
+  "year": 2024,
+  "venue": "IEEE Transactions on Signal Processing 72, 1974-1988 (arXiv preprint text), arXiv:2210.15448v2",
+  "link": "https://arxiv.org/abs/2210.15448",
+  "doi": null,
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/",
+   "allowsFullText": true,
+   "evidence": "https://arxiv.org/abs/2210.15448 (licence link on the abstract page)"
+  },
+  "ideas": [
+   43,
+   50,
+   22
+  ],
+  "changes": "text extracted from the PDF; references omitted; split into passages",
+  "documents": 7
+ },
+ {
+  "id": "toth-2011",
+  "title": "Anomalous price impact and the critical nature of liquidity in financial markets",
+  "authors": [
+   "Bence Tóth",
+   "Yves Lempérière",
+   "Cyril Deremble",
+   "Joachim de Lataillade",
+   "Julien Kockelkoren",
+   "Jean-Philippe Bouchaud"
+  ],
+  "year": 2011,
+  "venue": "Physical Review X 1, 021006",
+  "link": "https://doi.org/10.1103/PhysRevX.1.021006",
+  "doi": "10.1103/PhysRevX.1.021006",
+  "kind": "full-text",
+  "licence": {
+   "name": "CC BY 3.0",
+   "url": "https://creativecommons.org/licenses/by/3.0/",
+   "allowsFullText": true,
+   "evidence": "https://api.crossref.org/works/10.1103/PhysRevX.1.021006 (publisher's licence record)"
+  },
+  "ideas": [
+   49,
+   34,
+   45
+  ],
+  "changes": "text extracted from the publisher's PDF (archived copy); references omitted; split into passages",
+  "documents": 9
+ },
+ {
+  "id": "openstax-principles-finance-2e",
+  "title": "Principles of Finance 2e",
+  "authors": [
+   "Julie Dahlquist",
+   "Rainford Knight"
+  ],
+  "year": 2026,
+  "venue": "OpenStax, Rice University (textbook, second edition)",
+  "link": "https://openstax.org/details/books/principles-finance-2e",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "CC BY-NC-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   1,
+   5,
+   6,
+   7,
+   10,
+   11,
+   13,
+   14,
+   20
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bernoulli-1954",
+  "title": "Exposition of a New Theory on the Measurement of Risk",
+  "authors": [
+   "Daniel Bernoulli"
+  ],
+  "year": 1954,
+  "venue": "Econometrica 22(1), 23-36 (English translation by Louise Sommer of the 1738 Latin original, Specimen Theoriae Novae de Mensura Sortis, Commentarii Academiae Scientiarum Imperialis Petropolitanae vol. 5)",
+  "link": "https://doi.org/10.2307/1909829",
+  "doi": "10.2307/1909829",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   1,
+   11,
+   15
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bachelier-1900",
+  "title": "Théorie de la spéculation",
+  "authors": [
+   "Louis Bachelier"
+  ],
+  "year": 1900,
+  "venue": "Annales scientifiques de l'École Normale Supérieure, 3e série, 17, 21-86",
+  "link": "https://doi.org/10.24033/asens.476",
+  "doi": "10.24033/asens.476",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   3,
+   4,
+   29
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fama-1965",
+  "title": "The Behavior of Stock-Market Prices",
+  "authors": [
+   "Eugene F. Fama"
+  ],
+  "year": 1965,
+  "venue": "Journal of Business 38(1), 34-105",
+  "link": "https://doi.org/10.1086/294743",
+  "doi": "10.1086/294743",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   4,
+   17,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fama-1970",
+  "title": "Efficient Capital Markets: A Review of Theory and Empirical Work",
+  "authors": [
+   "Eugene F. Fama"
+  ],
+  "year": 1970,
+  "venue": "Journal of Finance 25(2), 383-417",
+  "link": "https://doi.org/10.1111/j.1540-6261.1970.tb00518.x",
+  "doi": "10.1111/j.1540-6261.1970.tb00518.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "lo-mackinlay-1988",
+  "title": "Stock Market Prices Do Not Follow Random Walks: Evidence from a Simple Specification Test",
+  "authors": [
+   "Andrew W. Lo",
+   "A. Craig MacKinlay"
+  ],
+  "year": 1988,
+  "venue": "Review of Financial Studies 1(1), 41-66",
+  "link": "https://doi.org/10.1093/rfs/1.1.41",
+  "doi": "10.1093/rfs/1.1.41",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   3,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "jpmorgan-reuters-1996",
+  "title": "RiskMetrics—Technical Document",
+  "authors": [
+   "J.P. Morgan",
+   "Reuters"
+  ],
+  "year": 1996,
+  "venue": "J.P. Morgan (Morgan Guaranty Trust Company) and Reuters, New York; 4th edition, December 1996",
+  "link": "https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   3,
+   4,
+   5,
+   7,
+   18
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "diebold-et-al-1998",
+  "title": "Scale Models",
+  "authors": [
+   "Francis X. Diebold",
+   "Andrew Hickman",
+   "Atsushi Inoue",
+   "Til Schuermann"
+  ],
+  "year": 1998,
+  "venue": "Risk 11, 104-107 (condensed version of Wharton Financial Institutions Center working paper 97-34, Converting 1-Day Volatility to h-Day Volatility: Scaling by Root-h is Worse than You Think)",
+  "link": "https://economics.sas.upenn.edu/pier/working-paper/1997/converting-1-day-volatility-h-day-volatility-scaling-worse-you-think",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   3,
+   7,
+   37
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "parkinson-1980",
+  "title": "The Extreme Value Method for Estimating the Variance of the Rate of Return",
+  "authors": [
+   "Michael Parkinson"
+  ],
+  "year": 1980,
+  "venue": "Journal of Business 53(1), 61-65",
+  "link": "https://doi.org/10.1086/296071",
+  "doi": "10.1086/296071",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "garman-klass-1980",
+  "title": "On the Estimation of Security Price Volatilities from Historical Data",
+  "authors": [
+   "Mark B. Garman",
+   "Michael J. Klass"
+  ],
+  "year": 1980,
+  "venue": "Journal of Business 53(1), 67-78",
+  "link": "https://doi.org/10.1086/296072",
+  "doi": "10.1086/296072",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "sharpe-1966",
+  "title": "Mutual Fund Performance",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1966,
+  "venue": "Journal of Business 39(1, Part 2), 119-138",
+  "link": "https://doi.org/10.1086/294846",
+  "doi": "10.1086/294846",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   8,
+   14
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "sharpe-1994",
+  "title": "The Sharpe Ratio",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1994,
+  "venue": "Journal of Portfolio Management 21(1), 49-58",
+  "link": "https://doi.org/10.3905/jpm.1994.409501",
+  "doi": "10.3905/jpm.1994.409501",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   3,
+   8
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "lo-2002",
+  "title": "The Statistics of Sharpe Ratios",
+  "authors": [
+   "Andrew W. Lo"
+  ],
+  "year": 2002,
+  "venue": "Financial Analysts Journal 58(4), 36-52",
+  "link": "https://doi.org/10.2469/faj.v58.n4.2453",
+  "doi": "10.2469/faj.v58.n4.2453",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   3,
+   8,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "booth-fama-1992",
+  "title": "Diversification Returns and Asset Contributions",
+  "authors": [
+   "David G. Booth",
+   "Eugene F. Fama"
+  ],
+  "year": 1992,
+  "venue": "Financial Analysts Journal 48(3), 26-32",
+  "link": "https://doi.org/10.2469/faj.v48.n3.26",
+  "doi": "10.2469/faj.v48.n3.26",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   5,
+   9,
+   11
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "markowitz-1952",
+  "title": "Portfolio Selection",
+  "authors": [
+   "Harry M. Markowitz"
+  ],
+  "year": 1952,
+  "venue": "Journal of Finance 7(1), 77-91",
+  "link": "https://doi.org/10.1111/j.1540-6261.1952.tb01525.x",
+  "doi": "10.1111/j.1540-6261.1952.tb01525.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   10,
+   11,
+   12
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "merton-1972",
+  "title": "An Analytic Derivation of the Efficient Portfolio Frontier",
+  "authors": [
+   "Robert C. Merton"
+  ],
+  "year": 1972,
+  "venue": "Journal of Financial and Quantitative Analysis 7(4), 1851-1872",
+  "link": "https://doi.org/10.2307/2329621",
+  "doi": "10.2307/2329621",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   11,
+   12
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "statman-1987",
+  "title": "How Many Stocks Make a Diversified Portfolio?",
+  "authors": [
+   "Meir Statman"
+  ],
+  "year": 1987,
+  "venue": "Journal of Financial and Quantitative Analysis 22(3), 353-363",
+  "link": "https://doi.org/10.2307/2330969",
+  "doi": "10.2307/2330969",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   10,
+   11
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "choueifaty-coignard-2008",
+  "title": "Toward Maximum Diversification",
+  "authors": [
+   "Yves Choueifaty",
+   "Yves Coignard"
+  ],
+  "year": 2008,
+  "venue": "Journal of Portfolio Management 35(1), 40-51",
+  "link": "https://doi.org/10.3905/JPM.2008.35.1.40",
+  "doi": "10.3905/JPM.2008.35.1.40",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   10,
+   11
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "sharpe-1963",
+  "title": "A Simplified Model for Portfolio Analysis",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1963,
+  "venue": "Management Science 9(2), 277-293",
+  "link": "https://doi.org/10.1287/mnsc.9.2.277",
+  "doi": "10.1287/mnsc.9.2.277",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   20,
+   28
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "sharpe-1964",
+  "title": "Capital Asset Prices: A Theory of Market Equilibrium under Conditions of Risk",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1964,
+  "venue": "Journal of Finance 19(3), 425-442",
+  "link": "https://doi.org/10.1111/j.1540-6261.1964.tb02865.x",
+  "doi": "10.1111/j.1540-6261.1964.tb02865.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   12,
+   13,
+   14
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "lintner-1965",
+  "title": "The Valuation of Risk Assets and the Selection of Risky Investments in Stock Portfolios and Capital Budgets",
+  "authors": [
+   "John Lintner"
+  ],
+  "year": 1965,
+  "venue": "Review of Economics and Statistics 47(1), 13-37",
+  "link": "https://doi.org/10.2307/1924119",
+  "doi": "10.2307/1924119",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   14
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "jensen-1968",
+  "title": "The Performance of Mutual Funds in the Period 1945–1964",
+  "authors": [
+   "Michael C. Jensen"
+  ],
+  "year": 1968,
+  "venue": "Journal of Finance 23(2), 389-416",
+  "link": "https://doi.org/10.1111/j.1540-6261.1968.tb00815.x",
+  "doi": "10.1111/j.1540-6261.1968.tb00815.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   14,
+   20,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "kelly-1956",
+  "title": "A New Interpretation of Information Rate",
+  "authors": [
+   "John L. Kelly Jr."
+  ],
+  "year": 1956,
+  "venue": "Bell System Technical Journal 35(4), 917-926",
+  "link": "https://doi.org/10.1002/j.1538-7305.1956.tb03809.x",
+  "doi": "10.1002/j.1538-7305.1956.tb03809.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   1,
+   5,
+   15
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "thorp-2006",
+  "title": "The Kelly Criterion in Blackjack, Sports Betting, and the Stock Market",
+  "authors": [
+   "Edward O. Thorp"
+  ],
+  "year": 2006,
+  "venue": "Chapter 9 in Handbook of Asset and Liability Management, Vol. 1: Theory and Methodology (S. A. Zenios and W. T. Ziemba, eds.), Elsevier/North-Holland, 385-428",
+  "link": "https://doi.org/10.1016/S1872-0978(06)01009-X",
+  "doi": "10.1016/S1872-0978(06)01009-X",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   1,
+   9,
+   15
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "boyle-1977",
+  "title": "Options: A Monte Carlo Approach",
+  "authors": [
+   "Phelim P. Boyle"
+  ],
+  "year": 1977,
+  "venue": "Journal of Financial Economics 4(3), 323-338",
+  "link": "https://doi.org/10.1016/0304-405X(77)90005-8",
+  "doi": "10.1016/0304-405X(77)90005-8",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   16,
+   29
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "glasserman-2003",
+  "title": "Monte Carlo Methods in Financial Engineering",
+  "authors": [
+   "Paul Glasserman"
+  ],
+  "year": 2003,
+  "venue": "Springer, New York; 1st edition (series: Stochastic Modelling and Applied Probability)",
+  "link": "https://doi.org/10.1007/978-0-387-21617-1",
+  "doi": "10.1007/978-0-387-21617-1",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   16,
+   18,
+   29,
+   33
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "mandelbrot-1963",
+  "title": "The Variation of Certain Speculative Prices",
+  "authors": [
+   "Benoit Mandelbrot"
+  ],
+  "year": 1963,
+  "venue": "Journal of Business 36(4), 394-419",
+  "link": "https://doi.org/10.1086/294632",
+  "doi": "10.1086/294632",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   4,
+   17
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "cont-2001",
+  "title": "Empirical Properties of Asset Returns: Stylized Facts and Statistical Issues",
+  "authors": [
+   "Rama Cont"
+  ],
+  "year": 2001,
+  "venue": "Quantitative Finance 1(2), 223-236",
+  "link": "https://doi.org/10.1080/713665670",
+  "doi": "10.1080/713665670",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   4,
+   7,
+   17,
+   37
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "kupiec-1995",
+  "title": "Techniques for Verifying the Accuracy of Risk Measurement Models",
+  "authors": [
+   "Paul H. Kupiec"
+  ],
+  "year": 1995,
+  "venue": "Journal of Derivatives 3(2), 73-84",
+  "link": "https://doi.org/10.3905/jod.1995.407942",
+  "doi": "10.3905/jod.1995.407942",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   18,
+   19,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "christoffersen-1998",
+  "title": "Evaluating Interval Forecasts",
+  "authors": [
+   "Peter F. Christoffersen"
+  ],
+  "year": 1998,
+  "venue": "International Economic Review 39(4), 841-862",
+  "link": "https://doi.org/10.2307/2527341",
+  "doi": "10.2307/2527341",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   18,
+   19,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "artzner-et-al-1999",
+  "title": "Coherent Measures of Risk",
+  "authors": [
+   "Philippe Artzner",
+   "Freddy Delbaen",
+   "Jean-Marc Eber",
+   "David Heath"
+  ],
+  "year": 1999,
+  "venue": "Mathematical Finance 9(3), 203-228",
+  "link": "https://doi.org/10.1111/1467-9965.00068",
+  "doi": "10.1111/1467-9965.00068",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   11,
+   18
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "white-2000",
+  "title": "A Reality Check for Data Snooping",
+  "authors": [
+   "Halbert White"
+  ],
+  "year": 2000,
+  "venue": "Econometrica 68(5), 1097-1126",
+  "link": "https://doi.org/10.1111/1468-0262.00152",
+  "doi": "10.1111/1468-0262.00152",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   19,
+   21,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "newey-west-1987",
+  "title": "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix",
+  "authors": [
+   "Whitney K. Newey",
+   "Kenneth D. West"
+  ],
+  "year": 1987,
+  "venue": "Econometrica 55(3), 703-708",
+  "link": "https://doi.org/10.2307/1913610",
+  "doi": "10.2307/1913610",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   20,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "ljung-box-1978",
+  "title": "On a Measure of Lack of Fit in Time Series Models",
+  "authors": [
+   "Greta M. Ljung",
+   "George E. P. Box"
+  ],
+  "year": 1978,
+  "venue": "Biometrika 65(2), 297-303",
+  "link": "https://doi.org/10.1093/biomet/65.2.297",
+  "doi": "10.1093/biomet/65.2.297",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "jarque-bera-1987",
+  "title": "A Test for Normality of Observations and Regression Residuals",
+  "authors": [
+   "Carlos M. Jarque",
+   "Anil K. Bera"
+  ],
+  "year": 1987,
+  "venue": "International Statistical Review 55(2), 163-172",
+  "link": "https://doi.org/10.2307/1403192",
+  "doi": "10.2307/1403192",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   4,
+   17,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "dickey-fuller-1979",
+  "title": "Distribution of the Estimators for Autoregressive Time Series with a Unit Root",
+  "authors": [
+   "David A. Dickey",
+   "Wayne A. Fuller"
+  ],
+  "year": 1979,
+  "venue": "Journal of the American Statistical Association 74(366), 427-431",
+  "link": "https://doi.org/10.1080/01621459.1979.10482531",
+  "doi": "10.1080/01621459.1979.10482531",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   21,
+   22
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "poterba-summers-1988",
+  "title": "Mean Reversion in Stock Prices: Evidence and Implications",
+  "authors": [
+   "James M. Poterba",
+   "Lawrence H. Summers"
+  ],
+  "year": 1988,
+  "venue": "Journal of Financial Economics 22(1), 27-59",
+  "link": "https://doi.org/10.1016/0304-405X(88)90021-9",
+  "doi": "10.1016/0304-405X(88)90021-9",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   21,
+   22
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "jegadeesh-1990",
+  "title": "Evidence of Predictable Behavior of Security Returns",
+  "authors": [
+   "Narasimhan Jegadeesh"
+  ],
+  "year": 1990,
+  "venue": "Journal of Finance 45(3), 881-898",
+  "link": "https://doi.org/10.1111/j.1540-6261.1990.tb05110.x",
+  "doi": "10.1111/j.1540-6261.1990.tb05110.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   22,
+   23
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "uhlenbeck-ornstein-1930",
+  "title": "On the Theory of the Brownian Motion",
+  "authors": [
+   "George E. Uhlenbeck",
+   "Leonard S. Ornstein"
+  ],
+  "year": 1930,
+  "venue": "Physical Review 36(5), 823-841",
+  "link": "https://doi.org/10.1103/PhysRev.36.823",
+  "doi": "10.1103/PhysRev.36.823",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   2,
+   22
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "jegadeesh-titman-1993",
+  "title": "Returns to Buying Winners and Selling Losers: Implications for Stock Market Efficiency",
+  "authors": [
+   "Narasimhan Jegadeesh",
+   "Sheridan Titman"
+  ],
+  "year": 1993,
+  "venue": "Journal of Finance 48(1), 65-91",
+  "link": "https://doi.org/10.1111/j.1540-6261.1993.tb04702.x",
+  "doi": "10.1111/j.1540-6261.1993.tb04702.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   23
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "carhart-1997",
+  "title": "On Persistence in Mutual Fund Performance",
+  "authors": [
+   "Mark M. Carhart"
+  ],
+  "year": 1997,
+  "venue": "Journal of Finance 52(1), 57-82",
+  "link": "https://doi.org/10.1111/j.1540-6261.1997.tb03808.x",
+  "doi": "10.1111/j.1540-6261.1997.tb03808.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   20,
+   23,
+   26,
+   28
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "moskowitz-ooi-pedersen-2012",
+  "title": "Time Series Momentum",
+  "authors": [
+   "Tobias J. Moskowitz",
+   "Yao Hua Ooi",
+   "Lasse Heje Pedersen"
+  ],
+  "year": 2012,
+  "venue": "Journal of Financial Economics 104(2), 228-250",
+  "link": "https://doi.org/10.1016/j.jfineco.2011.11.003",
+  "doi": "10.1016/j.jfineco.2011.11.003",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   23,
+   39
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "daniel-moskowitz-2016",
+  "title": "Momentum Crashes",
+  "authors": [
+   "Kent Daniel",
+   "Tobias J. Moskowitz"
+  ],
+  "year": 2016,
+  "venue": "Journal of Financial Economics 122(2), 221-247",
+  "link": "https://doi.org/10.1016/j.jfineco.2015.12.002",
+  "doi": "10.1016/j.jfineco.2015.12.002",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   23,
+   39
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "basu-1977",
+  "title": "Investment Performance of Common Stocks in Relation to Their Price-Earnings Ratios: A Test of the Efficient Market Hypothesis",
+  "authors": [
+   "Sanjoy Basu"
+  ],
+  "year": 1977,
+  "venue": "Journal of Finance 32(3), 663-682",
+  "link": "https://doi.org/10.1111/j.1540-6261.1977.tb01979.x",
+  "doi": "10.1111/j.1540-6261.1977.tb01979.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   14,
+   24
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "banz-1981",
+  "title": "The Relationship between Return and Market Value of Common Stocks",
+  "authors": [
+   "Rolf W. Banz"
+  ],
+  "year": 1981,
+  "venue": "Journal of Financial Economics 9(1), 3-18",
+  "link": "https://doi.org/10.1016/0304-405X(81)90018-0",
+  "doi": "10.1016/0304-405X(81)90018-0",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   14,
+   25
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fama-french-1992",
+  "title": "The Cross-Section of Expected Stock Returns",
+  "authors": [
+   "Eugene F. Fama",
+   "Kenneth R. French"
+  ],
+  "year": 1992,
+  "venue": "Journal of Finance 47(2), 427-465",
+  "link": "https://doi.org/10.1111/j.1540-6261.1992.tb04398.x",
+  "doi": "10.1111/j.1540-6261.1992.tb04398.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   14,
+   20,
+   24,
+   25
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fama-french-1993",
+  "title": "Common Risk Factors in the Returns on Stocks and Bonds",
+  "authors": [
+   "Eugene F. Fama",
+   "Kenneth R. French"
+  ],
+  "year": 1993,
+  "venue": "Journal of Financial Economics 33(1), 3-56",
+  "link": "https://doi.org/10.1016/0304-405X(93)90023-5",
+  "doi": "10.1016/0304-405X(93)90023-5",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   20,
+   24,
+   25,
+   26,
+   28
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "lakonishok-shleifer-vishny-1994",
+  "title": "Contrarian Investment, Extrapolation, and Risk",
+  "authors": [
+   "Josef Lakonishok",
+   "Andrei Shleifer",
+   "Robert W. Vishny"
+  ],
+  "year": 1994,
+  "venue": "Journal of Finance 49(5), 1541-1578",
+  "link": "https://doi.org/10.1111/j.1540-6261.1994.tb04772.x",
+  "doi": "10.1111/j.1540-6261.1994.tb04772.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   24
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "haugen-heins-1975",
+  "title": "Risk and the Rate of Return on Financial Assets: Some Old Wine in New Bottles",
+  "authors": [
+   "Robert A. Haugen",
+   "A. James Heins"
+  ],
+  "year": 1975,
+  "venue": "Journal of Financial and Quantitative Analysis 10(5), 775-784",
+  "link": "https://doi.org/10.2307/2330270",
+  "doi": "10.2307/2330270",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   14,
+   27
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "ang-et-al-2006",
+  "title": "The Cross-Section of Volatility and Expected Returns",
+  "authors": [
+   "Andrew Ang",
+   "Robert J. Hodrick",
+   "Yuhang Xing",
+   "Xiaoyan Zhang"
+  ],
+  "year": 2006,
+  "venue": "Journal of Finance 61(1), 259-299",
+  "link": "https://doi.org/10.1111/j.1540-6261.2006.00836.x",
+  "doi": "10.1111/j.1540-6261.2006.00836.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   27,
+   28
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "baker-bradley-wurgler-2011",
+  "title": "Benchmarks as Limits to Arbitrage: Understanding the Low-Volatility Anomaly",
+  "authors": [
+   "Malcolm Baker",
+   "Brendan Bradley",
+   "Jeffrey Wurgler"
+  ],
+  "year": 2011,
+  "venue": "Financial Analysts Journal 67(1), 40-54",
+  "link": "https://doi.org/10.2469/faj.v67.n1.4",
+  "doi": "10.2469/faj.v67.n1.4",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   27
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "frazzini-pedersen-2014",
+  "title": "Betting Against Beta",
+  "authors": [
+   "Andrea Frazzini",
+   "Lasse Heje Pedersen"
+  ],
+  "year": 2014,
+  "venue": "Journal of Financial Economics 111(1), 1-25",
+  "link": "https://doi.org/10.1016/j.jfineco.2013.10.005",
+  "doi": "10.1016/j.jfineco.2013.10.005",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   14,
+   27
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "rosenberg-1974",
+  "title": "Extra-Market Components of Covariance in Security Returns",
+  "authors": [
+   "Barr Rosenberg"
+  ],
+  "year": 1974,
+  "venue": "Journal of Financial and Quantitative Analysis 9(2), 263-274",
+  "link": "https://doi.org/10.2307/2330104",
+  "doi": "10.2307/2330104",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   28
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fama-macbeth-1973",
+  "title": "Risk, Return, and Equilibrium: Empirical Tests",
+  "authors": [
+   "Eugene F. Fama",
+   "James D. MacBeth"
+  ],
+  "year": 1973,
+  "venue": "Journal of Political Economy 81(3), 607-636",
+  "link": "https://doi.org/10.1086/260061",
+  "doi": "10.1086/260061",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   13,
+   14,
+   20,
+   21
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "ross-1976",
+  "title": "The Arbitrage Theory of Capital Asset Pricing",
+  "authors": [
+   "Stephen A. Ross"
+  ],
+  "year": 1976,
+  "venue": "Journal of Economic Theory 13(3), 341-360",
+  "link": "https://doi.org/10.1016/0022-0531(76)90046-6",
+  "doi": "10.1016/0022-0531(76)90046-6",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   28,
+   42
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "chen-roll-ross-1986",
+  "title": "Economic Forces and the Stock Market",
+  "authors": [
+   "Nai-Fu Chen",
+   "Richard Roll",
+   "Stephen A. Ross"
+  ],
+  "year": 1986,
+  "venue": "Journal of Business 59(3), 383-403",
+  "link": "https://doi.org/10.1086/296344",
+  "doi": "10.1086/296344",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   28,
+   42
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "black-scholes-1973",
+  "title": "The Pricing of Options and Corporate Liabilities",
+  "authors": [
+   "Fischer Black",
+   "Myron Scholes"
+  ],
+  "year": 1973,
+  "venue": "Journal of Political Economy 81(3), 637-654",
+  "link": "https://doi.org/10.1086/260062",
+  "doi": "10.1086/260062",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   29,
+   32,
+   33
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "merton-1973",
+  "title": "Theory of Rational Option Pricing",
+  "authors": [
+   "Robert C. Merton"
+  ],
+  "year": 1973,
+  "venue": "Bell Journal of Economics and Management Science 4(1), 141-183",
+  "link": "https://doi.org/10.2307/3003143",
+  "doi": "10.2307/3003143",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   29,
+   31,
+   32,
+   33
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "latane-rendleman-1976",
+  "title": "Standard Deviations of Stock Price Ratios Implied in Option Prices",
+  "authors": [
+   "Henry A. Latané",
+   "Richard J. Rendleman Jr."
+  ],
+  "year": 1976,
+  "venue": "Journal of Finance 31(2), 369-381",
+  "link": "https://doi.org/10.1111/j.1540-6261.1976.tb01892.x",
+  "doi": "10.1111/j.1540-6261.1976.tb01892.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   29,
+   30
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "stoll-1969",
+  "title": "The Relationship between Put and Call Option Prices",
+  "authors": [
+   "Hans R. Stoll"
+  ],
+  "year": 1969,
+  "venue": "Journal of Finance 24(5), 801-824",
+  "link": "https://doi.org/10.1111/j.1540-6261.1969.tb01694.x",
+  "doi": "10.1111/j.1540-6261.1969.tb01694.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   31
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "leland-1985",
+  "title": "Option Pricing and Replication with Transactions Costs",
+  "authors": [
+   "Hayne E. Leland"
+  ],
+  "year": 1985,
+  "venue": "Journal of Finance 40(5), 1283-1301",
+  "link": "https://doi.org/10.1111/j.1540-6261.1985.tb02383.x",
+  "doi": "10.1111/j.1540-6261.1985.tb02383.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   29,
+   32,
+   33
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "hull-2018",
+  "title": "Options, Futures, and Other Derivatives",
+  "authors": [
+   "John C. Hull"
+  ],
+  "year": 2018,
+  "venue": "Pearson; 10th edition (copyright 2018)",
+  "link": "https://openlibrary.org/works/OL2691210W",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   29,
+   30,
+   31,
+   32,
+   33,
+   35,
+   36
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "cox-ross-rubinstein-1979",
+  "title": "Option Pricing: A Simplified Approach",
+  "authors": [
+   "John C. Cox",
+   "Stephen A. Ross",
+   "Mark Rubinstein"
+  ],
+  "year": 1979,
+  "venue": "Journal of Financial Economics 7(3), 229-263",
+  "link": "https://doi.org/10.1016/0304-405X(79)90015-1",
+  "doi": "10.1016/0304-405X(79)90015-1",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   29,
+   32,
+   35
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "rubinstein-1994",
+  "title": "Implied Binomial Trees",
+  "authors": [
+   "Mark Rubinstein"
+  ],
+  "year": 1994,
+  "venue": "Journal of Finance 49(3), 771-818",
+  "link": "https://doi.org/10.1111/j.1540-6261.1994.tb00079.x",
+  "doi": "10.1111/j.1540-6261.1994.tb00079.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   30,
+   35,
+   36
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "dupire-1994",
+  "title": "Pricing with a Smile",
+  "authors": [
+   "Bruno Dupire"
+  ],
+  "year": 1994,
+  "venue": "Risk 7(1), 18-20 (January 1994)",
+  "link": "https://www.risk.net/derivatives/equity-derivatives/1500211/pricing-with-a-smile",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   30,
+   36
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "engle-1982",
+  "title": "Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation",
+  "authors": [
+   "Robert F. Engle"
+  ],
+  "year": 1982,
+  "venue": "Econometrica 50(4), 987-1007",
+  "link": "https://doi.org/10.2307/1912773",
+  "doi": "10.2307/1912773",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   37
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bollerslev-1986",
+  "title": "Generalized Autoregressive Conditional Heteroskedasticity",
+  "authors": [
+   "Tim Bollerslev"
+  ],
+  "year": 1986,
+  "venue": "Journal of Econometrics 31(3), 307-327",
+  "link": "https://doi.org/10.1016/0304-4076(86)90063-1",
+  "doi": "10.1016/0304-4076(86)90063-1",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   37
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "glosten-jagannathan-runkle-1993",
+  "title": "On the Relation between the Expected Value and the Volatility of the Nominal Excess Return on Stocks",
+  "authors": [
+   "Lawrence R. Glosten",
+   "Ravi Jagannathan",
+   "David E. Runkle"
+  ],
+  "year": 1993,
+  "venue": "Journal of Finance 48(5), 1779-1801",
+  "link": "https://doi.org/10.1111/j.1540-6261.1993.tb05128.x",
+  "doi": "10.1111/j.1540-6261.1993.tb05128.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   37,
+   38
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "moreira-muir-2017",
+  "title": "Volatility-Managed Portfolios",
+  "authors": [
+   "Alan Moreira",
+   "Tyler Muir"
+  ],
+  "year": 2017,
+  "venue": "Journal of Finance 72(4), 1611-1644",
+  "link": "https://doi.org/10.1111/jofi.12513",
+  "doi": "10.1111/jofi.12513",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   39
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "harvey-et-al-2018",
+  "title": "The Impact of Volatility Targeting",
+  "authors": [
+   "Campbell R. Harvey",
+   "Edward Hoyle",
+   "Russell Korgaonkar",
+   "Sandy Rattray",
+   "Matthew Sargaison",
+   "Otto Van Hemert"
+  ],
+  "year": 2018,
+  "venue": "Journal of Portfolio Management 45(1), 14-33",
+  "link": "https://doi.org/10.3905/jpm.2018.45.1.014",
+  "doi": "10.3905/jpm.2018.45.1.014",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   17,
+   39
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "qian-2005",
+  "title": "Risk Parity Portfolios: Efficient Portfolios Through True Diversification",
+  "authors": [
+   "Edward Qian"
+  ],
+  "year": 2005,
+  "venue": "PanAgora Asset Management research paper, September 2005",
+  "link": "https://www.panagora.com/assets/PanAgora-Risk-Parity-Portfolios-Efficient-Portfolios-Through-True-Diversification.pdf",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   11,
+   40
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "maillard-roncalli-teiletche-2010",
+  "title": "The Properties of Equally Weighted Risk Contribution Portfolios",
+  "authors": [
+   "Sébastien Maillard",
+   "Thierry Roncalli",
+   "Jérôme Teïletche"
+  ],
+  "year": 2010,
+  "venue": "Journal of Portfolio Management 36(4), 60-70",
+  "link": "https://doi.org/10.3905/jpm.2010.36.4.060",
+  "doi": "10.3905/jpm.2010.36.4.060",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   11,
+   40
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "asness-frazzini-pedersen-2012",
+  "title": "Leverage Aversion and Risk Parity",
+  "authors": [
+   "Clifford S. Asness",
+   "Andrea Frazzini",
+   "Lasse H. Pedersen"
+  ],
+  "year": 2012,
+  "venue": "Financial Analysts Journal 68(1), 47-59",
+  "link": "https://doi.org/10.2469/faj.v68.n1.1",
+  "doi": "10.2469/faj.v68.n1.1",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   14,
+   27,
+   40
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "black-litterman-1992",
+  "title": "Global Portfolio Optimization",
+  "authors": [
+   "Fischer Black",
+   "Robert Litterman"
+  ],
+  "year": 1992,
+  "venue": "Financial Analysts Journal 48(5), 28-43",
+  "link": "https://doi.org/10.2469/faj.v48.n5.28",
+  "doi": "10.2469/faj.v48.n5.28",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   12,
+   14,
+   41
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "he-litterman-1999",
+  "title": "The Intuition Behind Black-Litterman Model Portfolios",
+  "authors": [
+   "Guangliang He",
+   "Robert Litterman"
+  ],
+  "year": 1999,
+  "venue": "Goldman Sachs Investment Management Research (Goldman Sachs Asset Management), December 1999",
+  "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=334304",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   41
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "engle-granger-1987",
+  "title": "Co-Integration and Error Correction: Representation, Estimation, and Testing",
+  "authors": [
+   "Robert F. Engle",
+   "Clive W. J. Granger"
+  ],
+  "year": 1987,
+  "venue": "Econometrica 55(2), 251-276",
+  "link": "https://doi.org/10.2307/1913236",
+  "doi": "10.2307/1913236",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   21,
+   22,
+   43
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "gatev-goetzmann-rouwenhorst-2006",
+  "title": "Pairs Trading: Performance of a Relative-Value Arbitrage Rule",
+  "authors": [
+   "Evan Gatev",
+   "William N. Goetzmann",
+   "K. Geert Rouwenhorst"
+  ],
+  "year": 2006,
+  "venue": "Review of Financial Studies 19(3), 797-827",
+  "link": "https://doi.org/10.1093/rfs/hhj020",
+  "doi": "10.1093/rfs/hhj020",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   19,
+   22,
+   43
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "avellaneda-lee-2010",
+  "title": "Statistical Arbitrage in the US Equities Market",
+  "authors": [
+   "Marco Avellaneda",
+   "Jeong-Hyun Lee"
+  ],
+  "year": 2010,
+  "venue": "Quantitative Finance 10(7), 761-782",
+  "link": "https://doi.org/10.1080/14697680903124632",
+  "doi": "10.1080/14697680903124632",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   22,
+   28,
+   43
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bailey-lopez-de-prado-2014",
+  "title": "The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting, and Non-Normality",
+  "authors": [
+   "David H. Bailey",
+   "Marcos López de Prado"
+  ],
+  "year": 2014,
+  "venue": "Journal of Portfolio Management 40(5), 94-107",
+  "link": "https://doi.org/10.3905/jpm.2014.40.5.094",
+  "doi": "10.3905/jpm.2014.40.5.094",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   8,
+   19,
+   21,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bailey-et-al-2014",
+  "title": "Pseudo-Mathematics and Financial Charlatanism: The Effects of Backtest Overfitting on Out-of-Sample Performance",
+  "authors": [
+   "David H. Bailey",
+   "Jonathan M. Borwein",
+   "Marcos López de Prado",
+   "Qiji Jim Zhu"
+  ],
+  "year": 2014,
+  "venue": "Notices of the American Mathematical Society 61(5), 458-471",
+  "link": "https://doi.org/10.1090/noti1105",
+  "doi": "10.1090/noti1105",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   19,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "bailey-et-al-2016",
+  "title": "The Probability of Backtest Overfitting",
+  "authors": [
+   "David H. Bailey",
+   "Jonathan M. Borwein",
+   "Marcos López de Prado",
+   "Qiji Jim Zhu"
+  ],
+  "year": 2016,
+  "venue": "Journal of Computational Finance 20(4), 39-69 (published online September 2016, the date in the DOI record; print issue dated April 2017, the year often cited)",
+  "link": "https://doi.org/10.21314/JCF.2016.322",
+  "doi": "10.21314/JCF.2016.322",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   19,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "harvey-liu-zhu-2016",
+  "title": "… and the Cross-Section of Expected Returns",
+  "authors": [
+   "Campbell R. Harvey",
+   "Yan Liu",
+   "Heqing Zhu"
+  ],
+  "year": 2016,
+  "venue": "Review of Financial Studies 29(1), 5-68",
+  "link": "https://doi.org/10.1093/rfs/hhv059",
+  "doi": "10.1093/rfs/hhv059",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   21,
+   28,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "demsetz-1968",
+  "title": "The Cost of Transacting",
+  "authors": [
+   "Harold Demsetz"
+  ],
+  "year": 1968,
+  "venue": "Quarterly Journal of Economics 82(1), 33-53",
+  "link": "https://doi.org/10.2307/1882244",
+  "doi": "10.2307/1882244",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   34,
+   45,
+   48
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "roll-1984",
+  "title": "A Simple Implicit Measure of the Effective Bid-Ask Spread in an Efficient Market",
+  "authors": [
+   "Richard Roll"
+  ],
+  "year": 1984,
+  "venue": "Journal of Finance 39(4), 1127-1139",
+  "link": "https://doi.org/10.1111/j.1540-6261.1984.tb03897.x",
+  "doi": "10.1111/j.1540-6261.1984.tb03897.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   34,
+   48
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "corwin-schultz-2012",
+  "title": "A Simple Way to Estimate Bid-Ask Spreads from Daily High and Low Prices",
+  "authors": [
+   "Shane A. Corwin",
+   "Paul Schultz"
+  ],
+  "year": 2012,
+  "venue": "Journal of Finance 67(2), 719-760",
+  "link": "https://doi.org/10.1111/j.1540-6261.2012.01729.x",
+  "doi": "10.1111/j.1540-6261.2012.01729.x",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   7,
+   34
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "amihud-2002",
+  "title": "Illiquidity and Stock Returns: Cross-Section and Time-Series Effects",
+  "authors": [
+   "Yakov Amihud"
+  ],
+  "year": 2002,
+  "venue": "Journal of Financial Markets 5(1), 31-56",
+  "link": "https://doi.org/10.1016/S1386-4181(01)00024-6",
+  "doi": "10.1016/S1386-4181(01)00024-6",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   34,
+   49
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "ho-stoll-1981",
+  "title": "Optimal Dealer Pricing under Transactions and Return Uncertainty",
+  "authors": [
+   "Thomas Ho",
+   "Hans R. Stoll"
+  ],
+  "year": 1981,
+  "venue": "Journal of Financial Economics 9(1), 47-73",
+  "link": "https://doi.org/10.1016/0304-405X(81)90020-9",
+  "doi": "10.1016/0304-405X(81)90020-9",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   45,
+   46,
+   48
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "avellaneda-stoikov-2008",
+  "title": "High-Frequency Trading in a Limit Order Book",
+  "authors": [
+   "Marco Avellaneda",
+   "Sasha Stoikov"
+  ],
+  "year": 2008,
+  "venue": "Quantitative Finance 8(3), 217-224",
+  "link": "https://doi.org/10.1080/14697680701381228",
+  "doi": "10.1080/14697680701381228",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   45,
+   46,
+   48
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "gueant-lehalle-fernandez-tapia-2013",
+  "title": "Dealing with the Inventory Risk: A Solution to the Market Making Problem",
+  "authors": [
+   "Olivier Guéant",
+   "Charles-Albert Lehalle",
+   "Joaquin Fernandez-Tapia"
+  ],
+  "year": 2013,
+  "venue": "Mathematics and Financial Economics 7(4), 477-507",
+  "link": "https://doi.org/10.1007/s11579-012-0087-0",
+  "doi": "10.1007/s11579-012-0087-0",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   45,
+   46
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "glosten-milgrom-1985",
+  "title": "Bid, Ask and Transaction Prices in a Specialist Market with Heterogeneously Informed Traders",
+  "authors": [
+   "Lawrence R. Glosten",
+   "Paul R. Milgrom"
+  ],
+  "year": 1985,
+  "venue": "Journal of Financial Economics 14(1), 71-100",
+  "link": "https://doi.org/10.1016/0304-405X(85)90044-3",
+  "doi": "10.1016/0304-405X(85)90044-3",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   34,
+   45,
+   47,
+   48
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "kyle-1985",
+  "title": "Continuous Auctions and Insider Trading",
+  "authors": [
+   "Albert S. Kyle"
+  ],
+  "year": 1985,
+  "venue": "Econometrica 53(6), 1315-1335",
+  "link": "https://doi.org/10.2307/1913210",
+  "doi": "10.2307/1913210",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   47,
+   49
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "almgren-chriss-2001",
+  "title": "Optimal Execution of Portfolio Transactions",
+  "authors": [
+   "Robert Almgren",
+   "Neil Chriss"
+  ],
+  "year": 2001,
+  "venue": "Journal of Risk 3(2), 5-39 (often cited as 2000)",
+  "link": "https://doi.org/10.21314/JOR.2001.041",
+  "doi": "10.21314/JOR.2001.041",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   49
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "almgren-et-al-2005",
+  "title": "Direct Estimation of Equity Market Impact",
+  "authors": [
+   "Robert Almgren",
+   "Chee Thum",
+   "Emmanuel Hauptmann",
+   "Hong Li"
+  ],
+  "year": 2005,
+  "venue": "Risk 18(7), 57-62 (published in Risk under the headline Equity market impact)",
+  "link": "https://www.risk.net/derivatives/structured-products/1500270/equity-market-impact",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   49
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "kalman-1960",
+  "title": "A New Approach to Linear Filtering and Prediction Problems",
+  "authors": [
+   "Rudolf E. Kalman"
+  ],
+  "year": 1960,
+  "venue": "Journal of Basic Engineering 82(1), 35-45 (Transactions of the ASME, Series D)",
+  "link": "https://doi.org/10.1115/1.3662552",
+  "doi": "10.1115/1.3662552",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   50
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "harvey-1990",
+  "title": "Forecasting, Structural Time Series Models and the Kalman Filter",
+  "authors": [
+   "Andrew C. Harvey"
+  ],
+  "year": 1990,
+  "venue": "Cambridge University Press; 1st edition (often cited as 1989; the publisher's DOI record dates the print edition February 1990)",
+  "link": "https://doi.org/10.1017/CBO9781107049994",
+  "doi": "10.1017/CBO9781107049994",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   20,
+   50
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "fisher-1930",
+  "title": "The Theory of Interest, as Determined by Impatience to Spend Income and Opportunity to Invest It",
+  "authors": [
+   "Irving Fisher"
+  ],
+  "year": 1930,
+  "venue": "Macmillan, New York; 1st edition",
+  "link": "https://openlibrary.org/works/OL1460746W",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   5,
+   6
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "williams-1938",
+  "title": "The Theory of Investment Value",
+  "authors": [
+   "John Burr Williams"
+  ],
+  "year": 1938,
+  "venue": "Harvard University Press, Cambridge, MA; 1st edition",
+  "link": "https://openlibrary.org/works/OL1343926W",
+  "doi": null,
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   6
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "boyd-vandenberghe-2004",
+  "title": "Convex Optimization",
+  "authors": [
+   "Stephen Boyd",
+   "Lieven Vandenberghe"
+  ],
+  "year": 2004,
+  "venue": "Cambridge University Press (the authors also host a free PDF for personal use at https://web.stanford.edu/~boyd/cvxbook/)",
+  "link": "https://doi.org/10.1017/CBO9780511804441",
+  "doi": "10.1017/CBO9780511804441",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   12,
+   11,
+   20
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "durrett-2019",
+  "title": "Probability: Theory and Examples",
+  "authors": [
+   "Rick Durrett"
+  ],
+  "year": 2019,
+  "venue": "Cambridge University Press, 5th edition (Cambridge Series in Statistical and Probabilistic Mathematics)",
+  "link": "https://doi.org/10.1017/9781108591034",
+  "doi": "10.1017/9781108591034",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   1,
+   2,
+   3,
+   4,
+   16,
+   22
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ },
+ {
+  "id": "hastie-tibshirani-friedman-2009",
+  "title": "The Elements of Statistical Learning: Data Mining, Inference, and Prediction",
+  "authors": [
+   "Trevor Hastie",
+   "Robert Tibshirani",
+   "Jerome Friedman"
+  ],
+  "year": 2009,
+  "venue": "Springer, 2nd edition (Springer Series in Statistics; the authors host a free PDF at https://hastie.su.domains/ElemStatLearn/)",
+  "link": "https://doi.org/10.1007/978-0-387-84858-7",
+  "doi": "10.1007/978-0-387-84858-7",
+  "kind": "summary",
+  "licence": {
+   "name": "copyright of its publisher or authors (not openly licensed)",
+   "url": null,
+   "allowsFullText": false,
+   "evidence": "the work is not openly licensed for commercial reuse; only our summary is kept"
+  },
+  "ideas": [
+   20,
+   21,
+   19,
+   44
+  ],
+  "changes": "summary written for this library; no text of the work is stored",
+  "documents": 1
+ }
+]

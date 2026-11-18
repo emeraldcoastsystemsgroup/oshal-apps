@@ -1,5 +1,16 @@
 # Eats — OSHAL app package
 
+1.5.8 gives the one chat window's replies the after-check the page's own chat gave its replies. `replyCheck`
+(`{path, label, unavailable}`) names `POST /api/eats/reply-check`, Eats' own reply check, mounted on its own
+(`createEatsReplyCheckRoutes`) so the route is exact: a kernel that reads it calls it as the person, read only, after
+each turn of the Eats concierge (the window, and Jarvis's hand-off to Eats) with the person's words and the bot's reply,
+and shows the line it answers under the reply, labelled "Allergy check". The reply never waits for it; when the check
+could not run, its unavailable line is shown and spoken instead. A dish the reply names that usually carries one of the diner's allergies or diet
+(saved notes, the profile, or said in those words), in a sentence that does not itself warn, is said on that line
+("Allergy and diet check: Pad Thai usually contains peanuts (you avoid peanuts). Ask the restaurant before ordering
+it."), so the check no longer rests on the persona alone. The route only reads; an older kernel ignores the key.
+Proven by `tests/eats-reply-check.test.js` (Test Lab case `reply-check`).
+
 1.5.7 puts the allergy guard in the tools and makes the Eats Concierge the kernel's one chat window. Before, only the
 page's own chat route (`POST /api/eats/chat`) held back a restaurant named for an allergen the diner avoids; the
 `search-restaurants` tool (which the Eats concierge and Jarvis's hand-off to Eats call) and `open-uber-eats` went

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Surface plain-words Job Apply chosen-device refusals as HTTP 409 so Career shows why the selected device cannot start an application.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach asOfDate, companySentCount and tracked-application age fields on GET /submission-queue.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve per-press pictures only to their original owner with a digest check on every read.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Expose owner-only unknown resolution and hash-checked retained browser pictures.
@@ -99,7 +100,11 @@ function createCareerSubmissionRoutes(ctx){
     res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');
     const sub=callerSub(req);if(!sub)return res.status(401).json({error:'unauthorized'});
     try{await handler(req,res,sub,userPaths(sub).userDir);}
-    catch(e){const known=e instanceof queue.SubmissionError||e instanceof drafts.DraftError;res.status(known?e.status:503).json({error:known?e.message:'Submission service unavailable; your existing intent is retained.',code:e.code||'submission_unavailable'});}
+    catch(e){
+      const deviceRefused=e?.code==='apply_device_unavailable';
+      const known=e instanceof queue.SubmissionError||e instanceof drafts.DraftError||deviceRefused;
+      res.status(deviceRefused?409:known?e.status:503).json({error:known?e.message:'Submission service unavailable; your existing intent is retained.',code:deviceRefused?'apply_device_unavailable':(e.code||'submission_unavailable')});
+    }
   };
   router.get('/submission-queue',run(async(_req,res,sub,dir)=>{
     const nowMs=Date.now();let db=null,counts=new Map();

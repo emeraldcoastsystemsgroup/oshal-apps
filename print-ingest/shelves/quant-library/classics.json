@@ -1,0 +1,1829 @@
+[
+ {
+  "id": "bernoulli-1954",
+  "title": "Exposition of a New Theory on the Measurement of Risk",
+  "authors": [
+   "Daniel Bernoulli"
+  ],
+  "year": 1954,
+  "venue": "Econometrica 22(1), 23-36 (English translation by Louise Sommer of the 1738 Latin original, Specimen Theoriae Novae de Mensura Sortis, Commentarii Academiae Scientiarum Imperialis Petropolitanae vol. 5)",
+  "doi": "10.2307/1909829",
+  "link": "https://doi.org/10.2307/1909829",
+  "kind": "paper",
+  "ideas": [
+   1,
+   11,
+   15
+  ],
+  "summary": "Bernoulli asked why sensible people refuse to pay much to play a coin-tossing game whose average payout is infinite (the St. Petersburg puzzle posed by his cousin Nicolas), and why people buy insurance that costs more than the average loss it covers. His answer was that what matters is not the money an outcome brings but how useful that money is to the person, and an extra coin means less to someone who already has many. He proposed that the benefit of a small gain is inversely proportional to the wealth already held, which makes the usefulness of wealth grow like its logarithm. The rule: instead of ranking a gamble by its expected value, the sum of p_i * x_i over outcomes, rank it by its expected log-wealth, the sum of p_i * log(W + x_i), where W is current wealth; a risky prospect is worth the sure amount that gives the same expected log-wealth. Under this rule the St. Petersburg game is worth only a modest sum, insurance can make sense for both buyer and seller, and a merchant does better by splitting goods across several ships. He also credited Gabriel Cramer with a similar idea reached independently. Caveat: Karl Menger later showed that games with even faster-growing payouts defeat log utility too, and Kahneman and Tversky's prospect theory found that people judge gains and losses relative to a reference point rather than total wealth, so the log rule is a useful norm rather than a description of behavior."
+ },
+ {
+  "id": "bachelier-1900",
+  "title": "Théorie de la spéculation",
+  "authors": [
+   "Louis Bachelier"
+  ],
+  "year": 1900,
+  "venue": "Annales scientifiques de l'École Normale Supérieure, 3e série, 17, 21-86",
+  "doi": "10.24033/asens.476",
+  "link": "https://doi.org/10.24033/asens.476",
+  "kind": "paper",
+  "ideas": [
+   2,
+   3,
+   4,
+   29
+  ],
+  "summary": "In his doctoral thesis, supervised by Henri Poincaré, Bachelier asked whether the movements of French government bond prices on the Paris exchange could be described with probability theory. He assumed that at any moment the speculator's expected gain is zero, so a price is as likely to move for as against a trader, and that a price change over a period is the sum of many small independent shocks. From this he derived, five years before Einstein's 1905 work on Brownian motion, what is now called a random walk in continuous time: the probability of each future price follows a bell curve centred on today's price, and its spread widens with the square root of the time elapsed. Rule: standard deviation of the price change over t days = sigma * sqrt(t), so quadrupling the horizon only doubles the typical move. He used these results to value options and other conditional contracts and compared his figures with prices quoted in the market. Economists largely ignored the thesis until Leonard Savage and Paul Samuelson drew attention to it in the 1950s. Caveat: his model lets prices become negative and makes the size of moves independent of the price level; Samuelson and others replaced it with geometric (log-price) Brownian motion, and Mandelbrot later showed that real price changes contain far more extreme moves than the bell curve allows."
+ },
+ {
+  "id": "fama-1965",
+  "title": "The Behavior of Stock-Market Prices",
+  "authors": [
+   "Eugene F. Fama"
+  ],
+  "year": 1965,
+  "venue": "Journal of Business 38(1), 34-105",
+  "doi": "10.1086/294743",
+  "link": "https://doi.org/10.1086/294743",
+  "kind": "paper",
+  "ideas": [
+   2,
+   4,
+   17,
+   21
+  ],
+  "summary": "Fama's doctoral study asked two questions about the daily prices of the thirty stocks in the Dow Jones Industrial Average: are successive price changes independent of one another, as the random-walk model says, and what shape does the distribution of those changes have? Using serial correlation coefficients, runs tests and filter rules (trading rules that buy after a rise of a set percentage and sell after a fall), he found that past changes carried almost no usable information about future changes, and that the filter rules did not beat simply buying and holding once trading costs were counted. On shape, the distributions were more peaked in the middle and had far more very large moves than a normal (bell-curve) distribution, which he read as support for Mandelbrot's stable Paretian hypothesis. Random-walk rule: price tomorrow = price today + an independent random step, so charts of past prices cannot forecast the next step. The paper set the empirical agenda that grew into the efficient-market hypothesis. Caveat: later studies with larger samples and sharper tests found small but statistically reliable patterns, such as short-term reversals in individual stocks and momentum over several months, and the infinite-variance stable model was largely abandoned because the variance of returns appears finite and long-horizon returns look closer to normal."
+ },
+ {
+  "id": "fama-1970",
+  "title": "Efficient Capital Markets: A Review of Theory and Empirical Work",
+  "authors": [
+   "Eugene F. Fama"
+  ],
+  "year": 1970,
+  "venue": "Journal of Finance 25(2), 383-417",
+  "doi": "10.1111/j.1540-6261.1970.tb00518.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1970.tb00518.x",
+  "kind": "paper",
+  "ideas": [
+   2,
+   21
+  ],
+  "summary": "This review defined an efficient market as one in which prices always fully reflect the information available, and organised two decades of evidence around three versions of the claim. The weak form says past prices and returns cannot be used to earn excess returns; the semi-strong form adds all public information, such as earnings or stock-split announcements; the strong form adds information held privately by insiders or professionals. Fama concluded that the weak and semi-strong forms were well supported: serial correlations were tiny, trading rules failed after costs, and event studies showed prices adjusting quickly to news. The strong form held for professional money managers, whose funds did not beat the market on average, but failed for corporate insiders and for stock-exchange specialists with privileged access to order information. Rule: E[return(t+1) | information at t] = equilibrium expected return, so returns in excess of that are a fair game with zero mean. Fama noted that testing this needs a model of what returns should be, so every test is also a test of that model, a point later called the joint-hypothesis problem. Caveat: Grossman and Stiglitz argued that perfectly efficient markets are impossible because nobody would then pay to gather information, and later decades produced many apparent anomalies (size, value, momentum) whose interpretation still turns on the joint hypothesis."
+ },
+ {
+  "id": "lo-mackinlay-1988",
+  "title": "Stock Market Prices Do Not Follow Random Walks: Evidence from a Simple Specification Test",
+  "authors": [
+   "Andrew W. Lo",
+   "A. Craig MacKinlay"
+  ],
+  "year": 1988,
+  "venue": "Review of Financial Studies 1(1), 41-66",
+  "doi": "10.1093/rfs/1.1.41",
+  "link": "https://doi.org/10.1093/rfs/1.1.41",
+  "kind": "paper",
+  "ideas": [
+   2,
+   3,
+   21
+  ],
+  "summary": "Lo and MacKinlay asked whether weekly U.S. stock returns are consistent with a random walk, using a test built on how variance grows with the measurement horizon. If prices follow a random walk, the variance of a q-week return is exactly q times the variance of a one-week return, the variance counterpart of the square-root-of-time rule for volatility. Their statistic is the variance ratio VR(q) = Var(q-period return) / (q * Var(1-period return)), which equals 1 under a random walk; values above 1 mean returns tend to continue, values below 1 mean they tend to reverse. They derived versions of the test that remain valid when volatility changes over time, which matters for financial data. Using weekly returns from the early 1960s to the mid-1980s, they rejected the random walk for market indexes and size-sorted portfolios: weekly returns were positively autocorrelated, most strongly for portfolios of small stocks, while individual stocks showed slightly negative autocorrelation. They argued that infrequent trading of some stocks could not by itself explain the pattern. The variance ratio became a standard tool for testing predictability at different horizons. Caveat: later work attributed much of the index autocorrelation to stale prices of thinly traded stocks and other trading frictions, and the effect has been weaker in more recent data."
+ },
+ {
+  "id": "jpmorgan-reuters-1996",
+  "title": "RiskMetrics—Technical Document",
+  "authors": [
+   "J.P. Morgan",
+   "Reuters"
+  ],
+  "year": 1996,
+  "venue": "J.P. Morgan (Morgan Guaranty Trust Company) and Reuters, New York; 4th edition, December 1996",
+  "doi": null,
+  "link": "https://www.msci.com/documents/10199/5915b101-4206-4ba0-aee2-3449d5c7e95a",
+  "kind": "report",
+  "ideas": [
+   3,
+   4,
+   5,
+   7,
+   18
+  ],
+  "summary": "This document explained the RiskMetrics method that J.P. Morgan first published in 1994 and made freely available, together with daily data sets of volatilities and correlations, so that any institution could measure market risk the same way. The practical question was how a bank can turn thousands of positions in bonds, stocks, currencies and commodities into one number for the loss it might face over a day or a month. The answer combined a few simple choices. Returns are measured as log (continuously compounded) price changes. Volatility is estimated with an exponentially weighted moving average that gives recent days more weight: variance today = 0.94 * variance yesterday + 0.06 * yesterday's squared return for daily data, with a decay factor of 0.97 for the monthly horizon. Returns are treated as conditionally normal, so the 95 percent value at risk is 1.65 standard deviations of the portfolio's value change, with positions combined through a correlation matrix. Volatility for longer horizons is scaled by the square root of time, a rule the document itself says to apply with caution. Caveat: conditional normality understates how often large losses occur, square-root scaling misleads when volatility clusters, and value at risk says nothing about how large losses are once the threshold is passed, which later pushed regulators and risk managers toward expected shortfall."
+ },
+ {
+  "id": "diebold-et-al-1998",
+  "title": "Scale Models",
+  "authors": [
+   "Francis X. Diebold",
+   "Andrew Hickman",
+   "Atsushi Inoue",
+   "Til Schuermann"
+  ],
+  "year": 1998,
+  "venue": "Risk 11, 104-107 (condensed version of Wharton Financial Institutions Center working paper 97-34, Converting 1-Day Volatility to h-Day Volatility: Scaling by Root-h is Worse than You Think)",
+  "doi": null,
+  "link": "https://economics.sas.upenn.edu/pier/working-paper/1997/converting-1-day-volatility-h-day-volatility-scaling-worse-you-think",
+  "kind": "paper",
+  "ideas": [
+   3,
+   7,
+   37
+  ],
+  "summary": "Risk managers often turn a one-day volatility into a ten-day or longer figure by multiplying it by the square root of the horizon, as bank regulators and RiskMetrics did. Diebold, Hickman, Inoue and Schuermann asked when that shortcut is valid. The rule sigma(h days) = sqrt(h) * sigma(1 day) is exact only when daily returns are independent and identically distributed. Real daily returns show volatility clustering, which they modelled with a GARCH(1,1) process, and under such a process volatility drifts back toward its long-run level as the horizon lengthens. Scaling a one-day estimate by sqrt(h) carries today's unusually high or low volatility all the way out to the long horizon, so the scaled figures swing far more than true long-horizon volatility does. Their worked comparisons showed that the resulting errors can be large, which is the point of the working paper's title. They recommended modelling volatility directly at the horizon that matters, or using formulas for aggregating GARCH processes over time (due to Drost and Nijman), rather than scaling mechanically. Caveat: the alternative depends on the GARCH model being correctly specified, and later research found that when returns contain jumps, square-root scaling can instead understate long-horizon tail risk, so the direction of the error depends on the true process."
+ },
+ {
+  "id": "parkinson-1980",
+  "title": "The Extreme Value Method for Estimating the Variance of the Rate of Return",
+  "authors": [
+   "Michael Parkinson"
+  ],
+  "year": 1980,
+  "venue": "Journal of Business 53(1), 61-65",
+  "doi": "10.1086/296071",
+  "link": "https://doi.org/10.1086/296071",
+  "kind": "paper",
+  "ideas": [
+   7
+  ],
+  "summary": "Parkinson asked whether the daily high and low prices that markets record could estimate volatility better than closing prices alone. If a price follows a random walk without drift, the range between the highest and lowest price during a period carries more information about the variance than the net change from one close to the next, because it reflects the whole path rather than just two points on it. Using the known distribution of the range of Brownian motion, he derived the estimator: variance per period = (1 / (4 * ln 2)) * the average over periods of (ln(High / Low))^2. For the same number of days, this estimate has a much smaller sampling error than the usual close-to-close estimator, so far fewer observations are needed for a given precision, which is valuable because volatility changes over time and old data become less relevant. Volatility is the square root of this variance and can be annualized like any other estimate. The idea showed that cheap, widely published data contained more information about risk than standard practice was using. Caveat: the method assumes continuous trading, no overnight gaps and no drift; because recorded highs and lows come from discrete trades and miss moves while the market is closed, it tends to understate true volatility, which motivated later refinements by Garman and Klass, Rogers and Satchell, and Yang and Zhang."
+ },
+ {
+  "id": "garman-klass-1980",
+  "title": "On the Estimation of Security Price Volatilities from Historical Data",
+  "authors": [
+   "Mark B. Garman",
+   "Michael J. Klass"
+  ],
+  "year": 1980,
+  "venue": "Journal of Business 53(1), 67-78",
+  "doi": "10.1086/296072",
+  "link": "https://doi.org/10.1086/296072",
+  "kind": "paper",
+  "ideas": [
+   7
+  ],
+  "summary": "Garman and Klass asked how to get the most accurate volatility estimate from the four prices commonly reported for each trading day: open, high, low and close. Building on Parkinson's range estimator and assuming the log price follows a driftless random walk, they derived combinations of these prices that minimise the sampling variance of the estimate, and showed that the best ones are several times more efficient than using closing prices alone, so a few weeks of data can do the work of months. The version most used in practice is: daily variance = 0.5 * (ln(High / Low))^2 - (2 * ln 2 - 1) * (ln(Close / Open))^2, averaged over days. The first term uses the intraday range, and the second removes the part of the range that the open-to-close move already explains. They also discussed how to handle the hours when the market is closed, since an overnight jump between one close and the next open is invisible to the intraday prices and must be measured separately. Caveat: like Parkinson's estimator, it assumes continuous trading and no drift, so it is biased when prices trend strongly or trade infrequently; Rogers and Satchell (1991) and Yang and Zhang (2000) proposed estimators that allow for drift and opening jumps, and the choice of estimator matters most for illiquid assets."
+ },
+ {
+  "id": "sharpe-1966",
+  "title": "Mutual Fund Performance",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1966,
+  "venue": "Journal of Business 39(1, Part 2), 119-138",
+  "doi": "10.1086/294846",
+  "link": "https://doi.org/10.1086/294846",
+  "kind": "paper",
+  "ideas": [
+   8,
+   14
+  ],
+  "summary": "Sharpe asked how to judge whether a mutual fund manager did a good job, given that a fund can earn more simply by taking more risk. Drawing on the new capital asset pricing theory, he proposed the reward-to-variability ratio, now called the Sharpe ratio: SR = (average fund return - risk-free interest rate) / standard deviation of the fund's return. The numerator is the reward for bearing risk and the denominator is the total risk taken, so the ratio measures excess return per unit of volatility. A fund with a higher ratio lets an investor, by mixing it with borrowing or lending, get a better return for any chosen level of risk. He applied the measure to annual returns of 34 open-end mutual funds over 1954 to 1963 and compared it with Treynor's measure, which uses sensitivity to the market instead of total volatility. Most funds did worse than the Dow Jones Industrial Average on this basis, rankings showed only partial persistence, and funds with higher expense ratios tended to perform worse, suggesting that the average manager did not add enough to cover costs. Caveat: standard deviation treats gains and losses alike and assumes returns are roughly normal; strategies that sell options, or returns that are smoothed, can show a flattering ratio that hides crash risk, and estimated ratios carry large sampling error."
+ },
+ {
+  "id": "sharpe-1994",
+  "title": "The Sharpe Ratio",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1994,
+  "venue": "Journal of Portfolio Management 21(1), 49-58",
+  "doi": "10.3905/jpm.1994.409501",
+  "link": "https://doi.org/10.3905/jpm.1994.409501",
+  "kind": "paper",
+  "ideas": [
+   3,
+   8
+  ],
+  "summary": "Almost thirty years after introducing the measure, Sharpe wrote this article to state precisely what it is, when it should be used and how it is often misused. He defined it on the differential return, d = fund return - benchmark return (the benchmark is usually a riskless asset but can be another portfolio), so the ratio = average of d / standard deviation of d. He distinguished the ex ante version, built from forecasts and used to choose investments, from the ex post version computed from history. He showed that if differential returns are independent over time, the ratio grows with the square root of the measurement interval, so a monthly ratio is multiplied by sqrt(12) to annualize, and ratios must be compared over the same interval. He stressed that ranking by the ratio is right when the investor will hold just one of the candidates, combined with borrowing or lending, but not when the candidate will be added to an existing portfolio, because its correlation with that portfolio then matters. When the benchmark is another risky portfolio, the same calculation gives what is often called an information ratio. Caveat: the sqrt(12) annualization fails when returns are autocorrelated, as Lo (2002) showed, and the ratio says nothing about skewness, fat tails or how many strategies were tried before the reported one was chosen."
+ },
+ {
+  "id": "lo-2002",
+  "title": "The Statistics of Sharpe Ratios",
+  "authors": [
+   "Andrew W. Lo"
+  ],
+  "year": 2002,
+  "venue": "Financial Analysts Journal 58(4), 36-52",
+  "doi": "10.2469/faj.v58.n4.2453",
+  "link": "https://doi.org/10.2469/faj.v58.n4.2453",
+  "kind": "paper",
+  "ideas": [
+   3,
+   8,
+   21
+  ],
+  "summary": "Lo asked how accurate a Sharpe ratio estimated from historical returns really is. Because the mean and the standard deviation are both estimated from a finite sample, the ratio itself is a noisy statistic, and Lo derived its sampling distribution. For returns that are independent and identically distributed, the standard error of the estimated ratio is SE ~ sqrt((1 + 0.5 * SR^2) / T), where SR is the ratio per period and T is the number of observations; this lets an analyst put a confidence interval around a reported figure. He then showed what happens when returns are serially correlated, as is common for hedge funds whose holdings are illiquid or whose reported returns are smoothed: the usual practice of multiplying a monthly ratio by sqrt(12) to annualize can be badly wrong, and with positive autocorrelation it overstates the annual ratio. He gave a corrected scaling factor that depends on the autocorrelations and applied it to mutual fund and hedge fund data, showing that rankings of funds can change after the correction. Caveat: the formulas rely on large-sample approximations; later work by Mertens and by Opdyke showed that skewness and fat tails also widen the error, and none of these corrections accounts for selection among many tested strategies, which the deflated Sharpe ratio later addressed."
+ },
+ {
+  "id": "booth-fama-1992",
+  "title": "Diversification Returns and Asset Contributions",
+  "authors": [
+   "David G. Booth",
+   "Eugene F. Fama"
+  ],
+  "year": 1992,
+  "venue": "Financial Analysts Journal 48(3), 26-32",
+  "doi": "10.2469/faj.v48.n3.26",
+  "link": "https://doi.org/10.2469/faj.v48.n3.26",
+  "kind": "paper",
+  "ideas": [
+   5,
+   9,
+   11
+  ],
+  "summary": "Booth and Fama asked how each asset in a portfolio contributes to the portfolio's compound (geometric) growth rate, which is what an investor's wealth actually experiences over time. They used the approximation that a compound return is about equal to the average (arithmetic) return minus half the variance: compound return ~ mean - variance / 2. Because diversification pushes portfolio variance below the weighted average of the assets' variances while leaving the average return unchanged, a regularly rebalanced portfolio compounds faster than the weighted average of its assets' compound returns. They called the gap the diversification return: 0.5 * (weighted average of asset variances - portfolio variance). They then showed how to split this among the assets, so that an asset's contribution to portfolio growth equals its own compound return plus a term that is larger when the asset is volatile but only weakly correlated with the rest of the portfolio. This explains why adding a volatile asset with a modest compound return can still raise a portfolio's compound growth, and why volatility is a drag on compounding in the first place. Caveat: the extra growth relies on rebalancing back to fixed weights and on the variance approximation, which loosens for large returns; later work stressed that it does not raise expected arithmetic returns, and it shrinks after trading costs and taxes."
+ },
+ {
+  "id": "markowitz-1952",
+  "title": "Portfolio Selection",
+  "authors": [
+   "Harry M. Markowitz"
+  ],
+  "year": 1952,
+  "venue": "Journal of Finance 7(1), 77-91",
+  "doi": "10.1111/j.1540-6261.1952.tb01525.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1952.tb01525.x",
+  "kind": "paper",
+  "ideas": [
+   10,
+   11,
+   12
+  ],
+  "summary": "Markowitz asked how an investor should choose a portfolio, and rejected the then-common advice to put money where the expected return is highest, because that rule would never recommend diversification. He proposed that investors care about two things: the expected return of the whole portfolio and its variance, which measures how widely results can scatter. The portfolio's expected return is the weighted average of the assets' expected returns, but its variance depends on how the assets move together: portfolio variance = the sum over every pair of assets i and j of w_i * w_j * covariance(i, j). Because covariances, not just individual variances, drive total risk, combining assets that are not perfectly correlated reduces risk without necessarily giving up return, which is the mathematical case for diversification. The investor should consider only efficient portfolios, those with the least variance for a given expected return (or the most return for a given variance), and pick among them according to his or her taste for risk. He illustrated the efficient set geometrically for three and four securities. Caveat: in practice the inputs must be estimated, and the optimizer leans heavily on assets whose expected returns happen to be overestimated; later studies found that estimated mean-variance portfolios often do no better out of sample than simple equal weighting, and variance counts upside surprises as risk."
+ },
+ {
+  "id": "merton-1972",
+  "title": "An Analytic Derivation of the Efficient Portfolio Frontier",
+  "authors": [
+   "Robert C. Merton"
+  ],
+  "year": 1972,
+  "venue": "Journal of Financial and Quantitative Analysis 7(4), 1851-1872",
+  "doi": "10.2307/2329621",
+  "link": "https://doi.org/10.2307/2329621",
+  "kind": "paper",
+  "ideas": [
+   11,
+   12
+  ],
+  "summary": "Merton asked for an exact mathematical description of the efficient frontier when investors may buy, or sell short, any amount of each risky asset, replacing the graphs and numerical searches used before. Using calculus with constraints, he showed that the minimum possible variance for a target expected return mu is a quadratic function of mu. Writing V for the covariance matrix, m for the vector of expected returns and 1 for a vector of ones, define a = 1'V^-1 1, b = 1'V^-1 m, c = m'V^-1 m and d = a * c - b^2; then the smallest variance = (a * mu^2 - 2 * b * mu + c) / d. On a chart of standard deviation against expected return this frontier is a hyperbola, and its leftmost point, the global minimum-variance portfolio, has variance 1 / a and expected return b / a. He proved that every frontier portfolio is a mix of any two distinct frontier portfolios (two-fund separation), and that adding a riskless asset turns the frontier into a straight line starting at the risk-free rate, the line on which capital market theory is built. The closed form makes it easy to see how the frontier responds to changes in the inputs. Caveat: the formula requires unrestricted short selling and known means and covariances; with no-short-sale limits a numerical solver is needed, and errors in estimating m dominate real applications."
+ },
+ {
+  "id": "statman-1987",
+  "title": "How Many Stocks Make a Diversified Portfolio?",
+  "authors": [
+   "Meir Statman"
+  ],
+  "year": 1987,
+  "venue": "Journal of Financial and Quantitative Analysis 22(3), 353-363",
+  "doi": "10.2307/2330969",
+  "link": "https://doi.org/10.2307/2330969",
+  "kind": "paper",
+  "ideas": [
+   10,
+   11
+  ],
+  "summary": "Statman asked how many randomly chosen stocks an investor needs before further diversification stops being worthwhile. Earlier work, notably Evans and Archer (1968), suggested that about ten stocks captured most of the benefit. Statman compared the marginal benefit of adding a stock, lower portfolio risk, valued by how much extra expected return the investor could earn by borrowing or lending to get back to the original risk level, with its marginal cost, the extra transaction costs compared with a low-cost index fund. For an equally weighted portfolio of n stocks, variance = average covariance + (average variance - average covariance) / n, so the stock-specific part of risk fades like 1/n while market-wide risk remains. Under his assumptions, diversification kept paying for itself well beyond ten stocks: he concluded that a well-diversified portfolio of randomly chosen stocks needs at least 30 stocks for an investor who borrows and at least 40 for one who lends. Caveat: the answer depends on how volatile individual stocks are relative to the market, and Campbell, Lettau, Malkiel and Xu (2001) found that idiosyncratic volatility had risen over time, implying that around 50 stocks were needed for similar diversification in their later sample; studies focused on long-horizon shortfall risk suggest even more."
+ },
+ {
+  "id": "choueifaty-coignard-2008",
+  "title": "Toward Maximum Diversification",
+  "authors": [
+   "Yves Choueifaty",
+   "Yves Coignard"
+  ],
+  "year": 2008,
+  "venue": "Journal of Portfolio Management 35(1), 40-51",
+  "doi": "10.3905/JPM.2008.35.1.40",
+  "link": "https://doi.org/10.3905/JPM.2008.35.1.40",
+  "kind": "paper",
+  "ideas": [
+   10,
+   11
+  ],
+  "summary": "Choueifaty and Coignard asked how to build an equity portfolio that is as diversified as possible without forecasting returns. They defined the diversification ratio of a long-only portfolio: DR = (sum of each weight * that asset's volatility) / (volatility of the portfolio). The numerator is what the portfolio's risk would be if all assets were perfectly correlated, so DR equals 1 for a single stock and rises as holdings offset one another. The most diversified portfolio is the one that maximises DR. They showed it has a distinctive property: every asset held has the same correlation with the portfolio, and any asset left out is more highly correlated with the portfolio than those included. Maximising DR is equivalent to maximising the Sharpe ratio if every asset's expected return is proportional to its volatility, so the method amounts to assuming that all stocks offer the same return per unit of risk. In their backtests on U.S. and euro-area stock universes, the portfolio delivered higher Sharpe ratios than market-capitalisation-weighted indexes and compared well with minimum-variance portfolios. Caveat: the authors' firm, TOBAM, manages funds built on this method; the backtest advantage depends on the period, universe and constraints chosen, and the portfolio can concentrate in a small number of weakly correlated holdings."
+ },
+ {
+  "id": "sharpe-1963",
+  "title": "A Simplified Model for Portfolio Analysis",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1963,
+  "venue": "Management Science 9(2), 277-293",
+  "doi": "10.1287/mnsc.9.2.277",
+  "link": "https://doi.org/10.1287/mnsc.9.2.277",
+  "kind": "paper",
+  "ideas": [
+   13,
+   20,
+   28
+  ],
+  "summary": "Markowitz's method needed a covariance for every pair of securities, which for a hundred stocks means nearly five thousand numbers and, in 1963, expensive computer time. Sharpe asked whether a simpler description of how securities move together could give nearly the same portfolios at a fraction of the cost. He assumed each security's return is linked to a single common index, such as the level of the stock market, plus an independent part of its own: return_i = a_i + b_i * index return + e_i, where the e terms of different securities are uncorrelated. Then the covariance of two securities is just b_i * b_j * variance(index), so the analyst needs only an intercept, a slope and a residual variance for each security plus the index's mean and variance, roughly 3n + 2 inputs instead of n(n - 1)/2 covariances. He showed that the computation became dramatically faster and that the resulting portfolios were close to those of the full model in a test example. The slope b_i, estimated by regressing a security's returns on the index, is what became known as beta. Caveat: the assumption that the residuals are uncorrelated is false in practice, because industry and style effects make stocks co-move beyond the market, which led to multi-factor models such as Rosenberg's, and estimated betas drift over time."
+ },
+ {
+  "id": "sharpe-1964",
+  "title": "Capital Asset Prices: A Theory of Market Equilibrium under Conditions of Risk",
+  "authors": [
+   "William F. Sharpe"
+  ],
+  "year": 1964,
+  "venue": "Journal of Finance 19(3), 425-442",
+  "doi": "10.1111/j.1540-6261.1964.tb02865.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1964.tb02865.x",
+  "kind": "paper",
+  "ideas": [
+   12,
+   13,
+   14
+  ],
+  "summary": "Sharpe asked what asset prices must look like if every investor chooses portfolios the way Markowitz recommended. He assumed investors care only about expected return and risk, agree on the probabilities, and can borrow or lend freely at one riskless interest rate. Then everyone holds the same combination of risky assets, mixed with borrowing or lending to suit their taste for risk, so in equilibrium that combination must be the whole market, and efficient portfolios lie on a straight line from the riskless rate (the capital market line). For individual assets only the part of risk that moves with the market is rewarded, because the rest can be diversified away. In the notation that later became standard: expected return of asset i = risk-free rate + beta_i * (expected market return - risk-free rate), where beta_i = covariance(asset i, market) / variance(market). The model, reached independently by Lintner, Mossin and Treynor, gave finance its first equilibrium theory of risk and return and the language of systematic versus diversifiable risk. Caveat: tests from the 1970s onward found the relation between beta and average return much flatter than predicted, Fama and French (1992) found little relation at all once size and value were accounted for, and Roll (1977) argued that the model cannot be tested properly because the true market portfolio is unobservable."
+ },
+ {
+  "id": "lintner-1965",
+  "title": "The Valuation of Risk Assets and the Selection of Risky Investments in Stock Portfolios and Capital Budgets",
+  "authors": [
+   "John Lintner"
+  ],
+  "year": 1965,
+  "venue": "Review of Economics and Statistics 47(1), 13-37",
+  "doi": "10.2307/1924119",
+  "link": "https://doi.org/10.2307/1924119",
+  "kind": "paper",
+  "ideas": [
+   13,
+   14
+  ],
+  "summary": "Lintner asked how a risk-averse investor should choose a stock portfolio when riskless lending and borrowing are available, and what that implies for stock prices and for companies' investment decisions. He showed that the best mix of risky stocks does not depend on the investor's wealth or attitude to risk; only the split between that mix and the riskless asset changes, a separation result that extends James Tobin's earlier work. If all investors share the same forecasts, prices must adjust until each stock's expected excess return is proportional to its covariance with the total market portfolio: expected return_i - risk-free rate = (market price of risk) * covariance(return_i, market return). This is algebraically the same as the beta form of the capital asset pricing model, so the paper, together with Sharpe (1964) and Mossin (1966), is one of the founding statements of the CAPM. He also drew out implications for how firms should evaluate risky investment projects and for the role of diversification within stock portfolios. Caveat: the model assumes unlimited borrowing at the riskless rate and identical forecasts; Fischer Black's 1972 zero-beta version drops the borrowing assumption and fits the flatter empirical risk-return line better, yet the CAPM's central prediction, that beta alone explains average returns, has fared poorly in tests."
+ },
+ {
+  "id": "jensen-1968",
+  "title": "The Performance of Mutual Funds in the Period 1945–1964",
+  "authors": [
+   "Michael C. Jensen"
+  ],
+  "year": 1968,
+  "venue": "Journal of Finance 23(2), 389-416",
+  "doi": "10.1111/j.1540-6261.1968.tb00815.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1968.tb00815.x",
+  "kind": "paper",
+  "ideas": [
+   13,
+   14,
+   20,
+   21
+  ],
+  "summary": "Jensen asked whether professional mutual fund managers earned more than they should have, given the risk they took, and whether any individual fund showed true forecasting skill. Using the capital asset pricing model as the yardstick, he regressed each fund's excess return on the market's excess return: fund return - risk-free rate = alpha + beta * (market return - risk-free rate) + error. Beta captures the market risk the fund chose to take, and the intercept alpha, now called Jensen's alpha, is the average return beyond what that risk explains; a manager with genuine skill should show a positive alpha. Applied to 115 mutual funds over 1945 to 1964, the average alpha was negative after expenses, and even when expenses were added back the funds on average did not beat a buy-and-hold market portfolio of the same risk. Few funds had significantly positive alphas, and no more than chance alone would produce. He concluded that the funds showed little evidence of forecasting prices well enough to cover their costs. Caveat: alpha depends on the benchmark, and Roll later showed that an inefficient market proxy can create or hide alpha; managers who time the market have changing betas that bias the regression; and later multi-factor models attribute much apparent alpha to exposure to size, value and momentum."
+ },
+ {
+  "id": "kelly-1956",
+  "title": "A New Interpretation of Information Rate",
+  "authors": [
+   "John L. Kelly Jr."
+  ],
+  "year": 1956,
+  "venue": "Bell System Technical Journal 35(4), 917-926",
+  "doi": "10.1002/j.1538-7305.1956.tb03809.x",
+  "link": "https://doi.org/10.1002/j.1538-7305.1956.tb03809.x",
+  "kind": "paper",
+  "ideas": [
+   1,
+   5,
+   15
+  ],
+  "summary": "Kelly, an engineer at Bell Labs, asked how a gambler should bet when a private wire, possibly noisy, reports the outcomes of games before the betting closes. Maximising expected wealth would mean staking everything on each tip, which leads to ruin as soon as one tip is wrong. Kelly instead asked which betting policy makes wealth grow fastest over many repeated bets, and showed that the answer is to bet a fixed fraction of current wealth chosen to maximise the expected logarithm of wealth. For an even-money bet won with probability p and lost with probability q = 1 - p, the growth rate per bet is G(f) = p * log(1 + f) + q * log(1 - f), which is largest at f* = p - q; the general form for odds of b to 1, usually quoted as the Kelly formula, is f* = (bp - q) / b. He also showed that the maximum growth rate equals the rate at which the wire transmits information, in Claude Shannon's sense, linking gambling to information theory. The logarithm in his argument comes from compounding over repeated bets, not from a theory of utility. Caveat: full Kelly betting produces deep and long drawdowns and assumes the probabilities are known exactly; when p is overestimated it overbets, so practitioners usually stake a fraction of the Kelly amount, and Paul Samuelson argued that maximising growth is not the right goal for every investor."
+ },
+ {
+  "id": "thorp-2006",
+  "title": "The Kelly Criterion in Blackjack, Sports Betting, and the Stock Market",
+  "authors": [
+   "Edward O. Thorp"
+  ],
+  "year": 2006,
+  "venue": "Chapter 9 in Handbook of Asset and Liability Management, Vol. 1: Theory and Methodology (S. A. Zenios and W. T. Ziemba, eds.), Elsevier/North-Holland, 385-428",
+  "doi": "10.1016/S1872-0978(06)01009-X",
+  "link": "https://doi.org/10.1016/S1872-0978(06)01009-X",
+  "kind": "paper",
+  "ideas": [
+   1,
+   9,
+   15
+  ],
+  "summary": "Thorp, who used card counting to beat blackjack in the early 1960s and later ran investment partnerships, explains how the Kelly criterion works when real money is at stake. The question is how much of one's capital to risk on each favourable opportunity. The criterion says: choose the fraction f of wealth that maximises the expected logarithm of wealth, which in the long run outgrows any essentially different strategy and tends to reach a wealth target fastest. For a single bet at even odds the fraction equals the edge, p - q. For an asset with expected return mu and volatility sigma, and a riskless rate r, the continuous-time answer is f* = (mu - r) / sigma^2, and the resulting growth rate is r + (mu - r)^2 / (2 * sigma^2). A position's growth rate behaves like mean - variance / 2, which shows the drag volatility puts on compounding: betting about twice the Kelly fraction brings growth back down to the riskless rate, and betting more pushes it lower still, eventually below zero. Thorp works through blackjack, sports betting and stock-market examples and recommends betting less than full Kelly when estimates are uncertain. Caveat: the attractive properties are long-run results; over realistic horizons full Kelly carries a high chance of large drawdowns, and errors in mu or sigma are magnified because the fraction depends on their ratio."
+ },
+ {
+  "id": "boyle-1977",
+  "title": "Options: A Monte Carlo Approach",
+  "authors": [
+   "Phelim P. Boyle"
+  ],
+  "year": 1977,
+  "venue": "Journal of Financial Economics 4(3), 323-338",
+  "doi": "10.1016/0304-405X(77)90005-8",
+  "link": "https://doi.org/10.1016/0304-405X(77)90005-8",
+  "kind": "paper",
+  "ideas": [
+   16,
+   29
+  ],
+  "summary": "Boyle asked how to value options when no neat formula exists, and showed that random simulation could do the job. The idea rests on risk-neutral valuation: under the conditions of the Black-Scholes argument, an option's price equals its expected payoff computed as if the underlying asset grew at the riskless rate, discounted at that rate. So one can simulate many possible paths of the asset price under that assumption, compute the option's payoff on each path, average the payoffs and discount: price ~ exp(-r * T) * (1/N) * the sum of payoffs over N simulated paths. Because the error of such an average shrinks only like 1/sqrt(N), Boyle showed how variance-reduction techniques cut the number of simulations needed, notably control variates, which use a related quantity with a known answer to correct the estimate, and antithetic sampling, which pairs each random draw with its mirror image. He illustrated the method on European call options and checked it against known analytical prices, while stressing its flexibility for more complicated payoffs and price processes. Caveat: the simple version handles options exercised only at maturity; options with early exercise, such as American puts, resisted simulation for two decades until regression-based methods, notably Longstaff and Schwartz (2001), made them practical, and convergence remains slow without variance reduction."
+ },
+ {
+  "id": "glasserman-2003",
+  "title": "Monte Carlo Methods in Financial Engineering",
+  "authors": [
+   "Paul Glasserman"
+  ],
+  "year": 2003,
+  "venue": "Springer, New York; 1st edition (series: Stochastic Modelling and Applied Probability)",
+  "doi": "10.1007/978-0-387-21617-1",
+  "link": "https://doi.org/10.1007/978-0-387-21617-1",
+  "kind": "book",
+  "ideas": [
+   16,
+   18,
+   29,
+   33
+  ],
+  "summary": "Glasserman's book is the standard graduate reference on using random simulation to price derivatives and measure risk. It addresses a recurring question: when a price or a risk figure is an expected value that no formula delivers, how can simulation estimate it accurately and quickly? The book covers generating random numbers and correlated normal variables; simulating Brownian motion and the stochastic differential equations of asset prices and interest rates, including discretisation schemes such as Euler and Milstein and their errors; variance-reduction methods (control variates, antithetic sampling, stratification, importance sampling); quasi-Monte Carlo methods that replace random points with evenly spread low-discrepancy sequences; estimating price sensitivities (the Greeks) by finite differences, pathwise derivatives and likelihood-ratio weights; pricing American options; and risk-management applications such as estimating value at risk and the probability of large portfolio losses. The rule that runs through it: a Monte Carlo estimate is an average of N independent samples, and its standard error = sample standard deviation / sqrt(N), so halving the error takes four times the work unless the variance is reduced. Caveat: it assumes graduate-level probability, and some major later advances, such as multilevel Monte Carlo (Giles, 2008) and adjoint algorithmic differentiation for fast Greeks, appeared after it was published."
+ },
+ {
+  "id": "mandelbrot-1963",
+  "title": "The Variation of Certain Speculative Prices",
+  "authors": [
+   "Benoit Mandelbrot"
+  ],
+  "year": 1963,
+  "venue": "Journal of Business 36(4), 394-419",
+  "doi": "10.1086/294632",
+  "link": "https://doi.org/10.1086/294632",
+  "kind": "paper",
+  "ideas": [
+   2,
+   4,
+   17
+  ],
+  "summary": "Mandelbrot asked whether the Gaussian (bell-curve) model of price changes, used since Bachelier, actually fits speculative prices. Studying cotton prices over long periods, along with some data on wheat, railroad stocks and interest rates, he found far too many very large changes for a normal distribution: the tails were heavy and fell off like a power law, Probability(|change| > x) roughly proportional to x^(-alpha), rather than with the bell curve's much faster decay. He proposed modelling price changes with stable Paretian (Lévy-stable) distributions, a family that includes the normal as the special case alpha = 2; for cotton he estimated alpha at about 1.7. With alpha below 2 the variance is infinite, so sample variances never settle down as more data arrive, and the shape of the distribution is the same whatever the time interval, so daily and monthly changes look alike after rescaling. He also observed that large changes tend to be followed by large changes, an early description of volatility clustering. The paper started the study of fat tails in finance. Caveat: later evidence showed that the variance of returns appears finite, with tail exponents typically around 3, and that returns over longer horizons look closer to normal, which contradicts stable laws; models with finite variance, fat tails and changing volatility now fit better."
+ },
+ {
+  "id": "cont-2001",
+  "title": "Empirical Properties of Asset Returns: Stylized Facts and Statistical Issues",
+  "authors": [
+   "Rama Cont"
+  ],
+  "year": 2001,
+  "venue": "Quantitative Finance 1(2), 223-236",
+  "doi": "10.1080/713665670",
+  "link": "https://doi.org/10.1080/713665670",
+  "kind": "paper",
+  "ideas": [
+   4,
+   7,
+   17,
+   37
+  ],
+  "summary": "Cont asked which statistical properties of asset returns are so common across markets, instruments and periods that any realistic model should reproduce them, and why they are hard to measure precisely. He listed a set of stylized facts. Linear autocorrelations of returns are essentially zero, except over very short intraday horizons. Return distributions have heavy tails, with a tail exponent usually between two and five, so the variance is finite but extreme moves are much more frequent than under a normal distribution. Large losses tend to be bigger than large gains. Over longer horizons returns look more nearly normal (aggregational Gaussianity). Volatility clusters: turbulent periods bunch together, and the autocorrelation of absolute or squared returns stays positive and decays slowly over weeks and months. Even after correcting for volatility clustering with GARCH-type models, the remaining shocks still have fat tails. Volatility tends to rise after prices fall (the leverage effect), and trading volume moves with volatility. Rule of thumb: corr(r_t, r_(t+k)) ~ 0, but corr(|r_t|, |r_(t+k)|) > 0 and fades slowly as k grows, so the direction of returns is hard to predict while their size is partly predictable. He also explained why estimating tail exponents and long-range dependence from finite samples is tricky. Caveat: these are descriptive regularities rather than explanations; estimates vary with method and sample, and the facts are weaker or different in some asset classes and eras."
+ },
+ {
+  "id": "kupiec-1995",
+  "title": "Techniques for Verifying the Accuracy of Risk Measurement Models",
+  "authors": [
+   "Paul H. Kupiec"
+  ],
+  "year": 1995,
+  "venue": "Journal of Derivatives 3(2), 73-84",
+  "doi": "10.3905/jod.1995.407942",
+  "link": "https://doi.org/10.3905/jod.1995.407942",
+  "kind": "paper",
+  "ideas": [
+   18,
+   19,
+   21
+  ],
+  "summary": "Kupiec asked how a bank or a regulator can tell, from a record of past trading results, whether a value-at-risk model is accurate. If a 99 percent one-day VaR model is right, losses should exceed the VaR on about 1 percent of days, and the number of such exceptions over T days follows a binomial distribution. His proportion-of-failures test compares the observed exception rate x / T with the promised rate p through a likelihood ratio: LR = -2 * ln[(1 - p)^(T - x) * p^x] + 2 * ln[(1 - x/T)^(T - x) * (x/T)^x], which is approximately chi-squared with one degree of freedom when the model is correct. He also proposed a test based on how long it takes until the first exception occurs. His main finding was sobering: with the samples typically available, such as one year of daily data, these tests have little power, so an accurate model and a seriously flawed one often cannot be told apart, especially at high confidence levels where exceptions are rare. Caveat: the test checks only how many exceptions occur, not whether they cluster in time or how large the losses beyond the VaR were; Christoffersen (1998) added a test for clustering, and later work also tests the size of losses in the tail."
+ },
+ {
+  "id": "christoffersen-1998",
+  "title": "Evaluating Interval Forecasts",
+  "authors": [
+   "Peter F. Christoffersen"
+  ],
+  "year": 1998,
+  "venue": "International Economic Review 39(4), 841-862",
+  "doi": "10.2307/2527341",
+  "link": "https://doi.org/10.2307/2527341",
+  "kind": "paper",
+  "ideas": [
+   18,
+   19,
+   21
+  ],
+  "summary": "Christoffersen asked how to judge forecasts that give a range rather than a single number, such as a value-at-risk threshold that losses should breach only 1 percent of the time. He pointed out that a good interval forecast must do two things: be breached at the promised rate on average (correct unconditional coverage), and have breaches that are unpredictable rather than bunched together in turbulent periods (independence). A model that ignores volatility clustering can hit the right average rate yet fail in exactly the periods that matter most. He proposed likelihood-ratio tests for each property and a combined test of conditional coverage. The independence test treats the sequence of breaches as a two-state Markov chain and asks whether the chance of a breach today depends on whether there was one yesterday. Rule: LR(conditional coverage) = LR(unconditional coverage) + LR(independence), compared with a chi-squared distribution with two degrees of freedom. The framework became a standard part of backtesting risk models alongside Kupiec's test. Caveat: the first-order Markov test detects only day-to-day clustering and has low power against other forms of dependence; later duration-based tests examine the time between breaches, and, like Kupiec's test, it checks how often losses breach the threshold rather than how large they are."
+ },
+ {
+  "id": "artzner-et-al-1999",
+  "title": "Coherent Measures of Risk",
+  "authors": [
+   "Philippe Artzner",
+   "Freddy Delbaen",
+   "Jean-Marc Eber",
+   "David Heath"
+  ],
+  "year": 1999,
+  "venue": "Mathematical Finance 9(3), 203-228",
+  "doi": "10.1111/1467-9965.00068",
+  "link": "https://doi.org/10.1111/1467-9965.00068",
+  "kind": "paper",
+  "ideas": [
+   11,
+   18
+  ],
+  "summary": "Artzner, Delbaen, Eber and Heath asked what properties a sensible measure of financial risk, such as a capital requirement, should have, and whether value at risk has them. They proposed four axioms. Translation invariance: adding an amount of cash to a position reduces its risk by that amount. Subadditivity: risk(X + Y) <= risk(X) + risk(Y), so merging or diversifying positions never creates extra risk. Positive homogeneity: doubling a position doubles its risk. Monotonicity: if one position always loses less than another, it is no riskier. A measure satisfying all four is called coherent. They showed that value at risk can fail subadditivity, so a VaR-based limit can sometimes be reduced just by splitting a portfolio into pieces, and that VaR ignores what happens beyond its cut-off. Coherent measures correspond to taking the worst expected loss over a set of scenarios or probability models, and tail averages such as the expected loss beyond the VaR level are coherent alternatives under standard conditions. Regulators later moved market-risk capital from VaR toward expected shortfall in the Basel trading-book reforms. Caveat: positive homogeneity ignores the extra cost of liquidating large positions, which led to convex risk measures, and expected shortfall is harder to backtest than VaR because it is not elicitable."
+ },
+ {
+  "id": "white-2000",
+  "title": "A Reality Check for Data Snooping",
+  "authors": [
+   "Halbert White"
+  ],
+  "year": 2000,
+  "venue": "Econometrica 68(5), 1097-1126",
+  "doi": "10.1111/1468-0262.00152",
+  "link": "https://doi.org/10.1111/1468-0262.00152",
+  "kind": "paper",
+  "ideas": [
+   19,
+   21,
+   44
+  ],
+  "summary": "White asked how to tell whether the best of many forecasting models or trading rules is genuinely better than a simple benchmark, or merely the luckiest of the batch. When the same data are searched repeatedly, the top performer's results are inflated by chance, a problem known as data snooping. His Reality Check tests the null hypothesis that none of the models considered beats the benchmark. For each model k it computes the average performance advantage over the benchmark, f_k; the test statistic is V = max over k of sqrt(n) * f_k, and its distribution under the null is obtained by resampling the data with a stationary bootstrap that preserves short-term dependence. Rule: judge the winning strategy against the distribution of the best result one would expect from the whole set of strategies tried, not against a single-test threshold, so the p-value accounts for every model searched. He illustrated the method with a large set of forecasting models for stock index returns, and it was soon applied to technical trading rules by Sullivan, Timmermann and White (1999). Caveat: the test needs a record of every model tried, and Hansen (2005) showed that including many poor or irrelevant models makes it overly conservative, proposing the Superior Predictive Ability test instead; stepwise methods by Romano and Wolf identify which individual models outperform."
+ },
+ {
+  "id": "newey-west-1987",
+  "title": "A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix",
+  "authors": [
+   "Whitney K. Newey",
+   "Kenneth D. West"
+  ],
+  "year": 1987,
+  "venue": "Econometrica 55(3), 703-708",
+  "doi": "10.2307/1913610",
+  "link": "https://doi.org/10.2307/1913610",
+  "kind": "paper",
+  "ideas": [
+   20,
+   21
+  ],
+  "summary": "Newey and West asked how to compute reliable standard errors for regression estimates when the errors are both heteroskedastic (their variance changes over time) and autocorrelated (correlated with nearby errors), as happens with overlapping multi-period returns or persistent economic data. Ordinary least-squares standard errors assume neither problem and can then be far too small, making weak results look significant. Earlier corrections that simply summed estimated autocovariances could produce a negative variance, which is meaningless. Their estimator weights the autocovariances so that the result is always positive semi-definite. In words: the long-run variance S = Gamma_0 + the sum over lags j = 1 to L of (1 - j / (L + 1)) * (Gamma_j + Gamma_j'), where Gamma_j is the estimated covariance between terms j periods apart and the declining Bartlett weights 1 - j / (L + 1) shrink the more distant lags. The estimator is consistent when the lag window L grows slowly with the sample size. Standard errors computed this way, known as HAC (heteroskedasticity and autocorrelation consistent) or simply Newey-West standard errors, became a default in empirical finance, including in Fama-MacBeth and return-predictability regressions. Caveat: results depend on the chosen lag length, which later work by Andrews (1991) and by Newey and West (1994) made data-driven, and in small samples with highly persistent regressors the standard errors are still too small, so tests reject too often."
+ },
+ {
+  "id": "ljung-box-1978",
+  "title": "On a Measure of Lack of Fit in Time Series Models",
+  "authors": [
+   "Greta M. Ljung",
+   "George E. P. Box"
+  ],
+  "year": 1978,
+  "venue": "Biometrika 65(2), 297-303",
+  "doi": "10.1093/biomet/65.2.297",
+  "link": "https://doi.org/10.1093/biomet/65.2.297",
+  "kind": "paper",
+  "ideas": [
+   2,
+   21
+  ],
+  "summary": "Ljung and Box asked how to check, with a single number, whether a time series, or the residuals of a fitted model, still contain autocorrelation. Box and Pierce (1970) had proposed adding up the squared sample autocorrelations over the first h lags, but in samples of realistic size that statistic tended to come out too small, so it missed real dependence. Ljung and Box corrected each term for the number of observations behind it: Q = n * (n + 2) * the sum over k = 1 to h of r_k^2 / (n - k), where n is the sample size and r_k the lag-k sample autocorrelation. If the series is white noise, Q approximately follows a chi-squared distribution with h degrees of freedom (reduced by the number of estimated ARMA parameters when testing residuals), and their simulations showed this approximation is much closer than the one for the earlier statistic. In finance the test is applied to returns to look for predictability, which would contradict a random walk, and to squared returns to look for volatility clustering. Caveat: the chi-squared reference assumes independent observations under the null; with volatility clustering, as in most return series, the test rejects too often unless a robust version is used, and the answer can depend on the number of lags h chosen."
+ },
+ {
+  "id": "jarque-bera-1987",
+  "title": "A Test for Normality of Observations and Regression Residuals",
+  "authors": [
+   "Carlos M. Jarque",
+   "Anil K. Bera"
+  ],
+  "year": 1987,
+  "venue": "International Statistical Review 55(2), 163-172",
+  "doi": "10.2307/1403192",
+  "link": "https://doi.org/10.2307/1403192",
+  "kind": "paper",
+  "ideas": [
+   4,
+   17,
+   21
+  ],
+  "summary": "Jarque and Bera asked for a simple and powerful test of whether observations, or the residuals of a regression, come from a normal distribution. Working within the broad Pearson family of distributions, they derived a Lagrange multiplier test that depends only on the sample skewness S and kurtosis K: JB = (n / 6) * (S^2 + (K - 3)^2 / 4). A normal distribution has skewness 0 and kurtosis 3, so large values of JB signal departures from normality; under normality JB is approximately chi-squared with two degrees of freedom, so the 5 percent critical value is about 5.99. Their simulations showed the test had good power against a range of non-normal alternatives compared with other common tests. The test first appeared in a short 1980 note by the same authors in Economics Letters; the 1987 paper gives the full derivation and evidence. In finance it is routinely applied to returns and nearly always rejects normality for daily data because of fat tails. Caveat: the chi-squared approximation is poor in small samples, so exact or simulated critical values are needed; sample skewness and kurtosis are very sensitive to a few outliers; and a rejection says only that the data are not normal, not which distribution to use instead."
+ },
+ {
+  "id": "dickey-fuller-1979",
+  "title": "Distribution of the Estimators for Autoregressive Time Series with a Unit Root",
+  "authors": [
+   "David A. Dickey",
+   "Wayne A. Fuller"
+  ],
+  "year": 1979,
+  "venue": "Journal of the American Statistical Association 74(366), 427-431",
+  "doi": "10.1080/01621459.1979.10482531",
+  "link": "https://doi.org/10.1080/01621459.1979.10482531",
+  "kind": "paper",
+  "ideas": [
+   21,
+   22
+  ],
+  "summary": "Dickey and Fuller asked how to test whether a time series has a unit root, meaning it behaves like a random walk whose shocks never fade, or is stationary, meaning it tends to return to a mean. In the model y_t = rho * y_(t-1) + e_t, a unit root means rho = 1, while rho below 1 implies mean reversion. Equivalently, one regresses the change, Delta y_t = (rho - 1) * y_(t-1) + e_t, and asks whether the coefficient on the lagged level is zero. The difficulty is that under the unit-root null the usual t-statistic does not follow Student's t distribution, so standard tables reject too often. Dickey and Fuller derived the correct limiting distributions of the estimator and its t-statistic, for models without a constant, with a constant, and with a constant and a time trend, and provided critical values computed by simulation. Rule: reject a unit root only when the t-statistic is more negative than the Dickey-Fuller critical value, about -2.86 at 5 percent when a constant is included, rather than the familiar normal value of -1.65. The augmented version, which adds lagged changes to absorb short-run correlation, followed in later work. In finance the test is used on spreads and prices to check for mean reversion, for example in pairs trading. Caveat: it has low power against slow mean reversion in short samples, and structural breaks can make a stationary series look like a random walk (Perron, 1989)."
+ },
+ {
+  "id": "poterba-summers-1988",
+  "title": "Mean Reversion in Stock Prices: Evidence and Implications",
+  "authors": [
+   "James M. Poterba",
+   "Lawrence H. Summers"
+  ],
+  "year": 1988,
+  "venue": "Journal of Financial Economics 22(1), 27-59",
+  "doi": "10.1016/0304-405X(88)90021-9",
+  "link": "https://doi.org/10.1016/0304-405X(88)90021-9",
+  "kind": "paper",
+  "ideas": [
+   2,
+   21,
+   22
+  ],
+  "summary": "Poterba and Summers asked whether stock prices contain transitory components, temporary deviations from fundamental value that eventually reverse, and why such components would be hard to detect. They first showed that standard tests have little statistical power: a sizeable but slowly fading component could hide in return data for decades. They then applied variance-ratio tests to long histories of U.S. stock returns and to data from 17 other countries. Under a random walk the variance of k-period returns equals k times the one-period variance; they found returns positively autocorrelated over short horizons and negatively autocorrelated over horizons of several years, the signature of mean reversion. Their estimates implied that transitory components account for a large share of return variance, and they argued that changes in required returns driven by risk would struggle to explain such swings, pointing instead to slowly decaying price fads. Rule: variance ratio = Var(k-period return) / (k * Var(1-period return)); values below 1 at long horizons indicate mean reversion. Caveat: the evidence is statistically weak and leans heavily on the 1926-1946 period, which includes the Great Depression; Kim, Nelson and Startz found little mean reversion after 1946, and small-sample biases in long-horizon tests can create the appearance of reversion where none exists."
+ },
+ {
+  "id": "jegadeesh-1990",
+  "title": "Evidence of Predictable Behavior of Security Returns",
+  "authors": [
+   "Narasimhan Jegadeesh"
+  ],
+  "year": 1990,
+  "venue": "Journal of Finance 45(3), 881-898",
+  "doi": "10.1111/j.1540-6261.1990.tb05110.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1990.tb05110.x",
+  "kind": "paper",
+  "ideas": [
+   2,
+   22,
+   23
+  ],
+  "summary": "Jegadeesh asked whether monthly returns on individual U.S. stocks can be predicted from their own past returns. Using data from the 1930s to the 1980s, he estimated how each stock's return relates to its returns in previous months and then formed portfolios based on the predicted returns. He found a strong negative relation between a stock's return in one month and its return in the next, known as short-term reversal, and a positive relation with returns about a year earlier, a pattern that foreshadowed the momentum effect. Portfolios of the stocks with the highest predicted returns beat those with the lowest by a wide and statistically significant margin, which rejected the hypothesis that individual stock prices follow random walks. Rule: in a regression of this month's return on the returns of each of the previous twelve months, the lag-1 coefficient is negative and the lag-12 coefficient positive; so last month's biggest losers tend to outperform next month, and ranking stocks by prior one-month return and taking the opposite side earns a spread. The paper helped establish that predictability in individual stocks differs by horizon: reversal over a month, continuation over a year. Caveat: later work showed that much of the one-month reversal reflects bid-ask bounce, illiquidity and short-lived price pressure, so it shrinks sharply after trading costs and is much weaker among large, liquid stocks."
+ },
+ {
+  "id": "uhlenbeck-ornstein-1930",
+  "title": "On the Theory of the Brownian Motion",
+  "authors": [
+   "George E. Uhlenbeck",
+   "Leonard S. Ornstein"
+  ],
+  "year": 1930,
+  "venue": "Physical Review 36(5), 823-841",
+  "doi": "10.1103/PhysRev.36.823",
+  "link": "https://doi.org/10.1103/PhysRev.36.823",
+  "kind": "paper",
+  "ideas": [
+   2,
+   22
+  ],
+  "summary": "Uhlenbeck and Ornstein, two physicists, asked how the velocity and position of a small particle jostled by molecules (Brownian motion) evolve over time once friction is taken into account. Einstein's earlier theory treated the particle's displacement as a pure random walk; they modelled its velocity as being continually pulled back toward zero by friction while receiving random kicks. In the notation finance later adopted, the process is dX = theta * (mu - X) * dt + sigma * dW: over a short interval, X moves back toward its long-run mean mu at a speed proportional to its distance from it, plus a random shock. Its key properties: deviations decay exponentially on average, with a half-life of ln(2) / theta; the process settles into a stationary normal distribution with variance sigma^2 / (2 * theta); and the correlation between values decays exponentially with the time between them. Over long times the particle's position still spreads out like a random walk. Finance borrowed this Ornstein-Uhlenbeck process as the standard model of mean reversion, for interest rates (Vasicek, 1977), commodity prices and the spreads between related securities in pairs trading. Caveat: applying it to markets assumes a constant mean and speed of reversion; in finite samples the estimated speed is biased upward, so mean reversion can look stronger than it is, and real spreads can stop reverting when the economic link between assets breaks."
+ },
+ {
+  "id": "jegadeesh-titman-1993",
+  "title": "Returns to Buying Winners and Selling Losers: Implications for Stock Market Efficiency",
+  "authors": [
+   "Narasimhan Jegadeesh",
+   "Sheridan Titman"
+  ],
+  "year": 1993,
+  "venue": "Journal of Finance 48(1), 65-91",
+  "doi": "10.1111/j.1540-6261.1993.tb04702.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1993.tb04702.x",
+  "kind": "paper",
+  "ideas": [
+   23
+  ],
+  "summary": "Jegadeesh and Titman asked whether investors could profit by buying the stocks that had risen most over the past several months and selling those that had fallen most, in contrast with earlier studies that emphasised reversals over very short and very long horizons. Each month they ranked U.S. stocks by their returns over the previous 3 to 12 months, bought the top tenth and sold the bottom tenth, and held the positions for 3 to 12 months, overlapping portfolios formed in different months. Over 1965 to 1989 these strategies earned significant positive returns, and the profits were not explained by the stocks' market risk or by delayed reactions to common factors. Part of the gain reversed over the following two years, which they read as evidence of a delayed price response to firm-specific information rather than compensation for risk. Returns around subsequent earnings announcements showed a similar pattern. Rule: momentum return = return of the top tenth of stocks ranked by past 3-to-12-month return - return of the bottom tenth, with positions held for months rather than days. The finding became one of the most widely replicated anomalies, documented in many countries and asset classes. Caveat: high turnover means trading costs eat into momentum profits, and the strategy is prone to sudden severe crashes, especially when markets rebound sharply after a fall."
+ },
+ {
+  "id": "carhart-1997",
+  "title": "On Persistence in Mutual Fund Performance",
+  "authors": [
+   "Mark M. Carhart"
+  ],
+  "year": 1997,
+  "venue": "Journal of Finance 52(1), 57-82",
+  "doi": "10.1111/j.1540-6261.1997.tb03808.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1997.tb03808.x",
+  "kind": "paper",
+  "ideas": [
+   20,
+   23,
+   26,
+   28
+  ],
+  "summary": "Carhart asked whether mutual funds that did well in one year keep doing well, as earlier studies had suggested, and whether that persistence reflects managers' skill. He built a database of funds from 1962 to 1993 that includes funds that later closed or merged, avoiding survivor bias. To measure performance he extended the Fama-French three-factor model with a fourth factor for one-year stock momentum: fund return - risk-free rate = alpha + b * market excess return + s * SMB + h * HML + p * momentum + error, where SMB is small-minus-big, HML is high-minus-low book-to-market and the momentum factor is past-year winners minus losers. He found that the apparent persistence among top funds is largely explained by their exposure to momentum stocks, often simply from holding last year's winners, and by differences in expenses and trading costs, not by stock-picking skill. The one robust persistence was at the bottom: the worst funds tended to stay poor. His four-factor model became a standard benchmark for evaluating fund managers and equity strategies. Caveat: the factors are empirical choices rather than consequences of a theory, and later evidence, such as bootstrap studies of fund alphas, suggests that a small number of managers may have genuine skill even though the average fund does not."
+ },
+ {
+  "id": "moskowitz-ooi-pedersen-2012",
+  "title": "Time Series Momentum",
+  "authors": [
+   "Tobias J. Moskowitz",
+   "Yao Hua Ooi",
+   "Lasse Heje Pedersen"
+  ],
+  "year": 2012,
+  "venue": "Journal of Financial Economics 104(2), 228-250",
+  "doi": "10.1016/j.jfineco.2011.11.003",
+  "link": "https://doi.org/10.1016/j.jfineco.2011.11.003",
+  "kind": "paper",
+  "ideas": [
+   23,
+   39
+  ],
+  "summary": "Moskowitz, Ooi and Pedersen asked whether an asset's own past return predicts its future return, as distinct from the usual cross-sectional momentum that compares assets with one another. Studying 58 liquid futures and forward contracts on equity indexes, currencies, commodities and government bonds over several decades, they found that an asset's excess return over the past 12 months positively predicted its return in the following month, with the effect lasting up to about a year and partly reversing afterwards. They called this time series momentum. A diversified strategy that goes long each contract whose past-year return was positive and short each whose return was negative, with every position scaled to the same target volatility, earned substantial returns with little exposure to standard asset-pricing factors, and did especially well during extreme market moves, including 2008. Rule: position = sign(past 12-month excess return) * (target volatility / estimated volatility of the asset). They linked the pattern to initial under-reaction followed by delayed over-reaction, and used futures-market position data to show that speculators tend to ride the trends while hedgers take the other side. Caveat: later studies argued that the evidence of predictability for individual assets is weaker than the pooled results suggest and that much of the strategy's performance comes from the volatility scaling, and trend-following funds went through a long weak stretch in the 2010s."
+ },
+ {
+  "id": "daniel-moskowitz-2016",
+  "title": "Momentum Crashes",
+  "authors": [
+   "Kent Daniel",
+   "Tobias J. Moskowitz"
+  ],
+  "year": 2016,
+  "venue": "Journal of Financial Economics 122(2), 221-247",
+  "doi": "10.1016/j.jfineco.2015.12.002",
+  "link": "https://doi.org/10.1016/j.jfineco.2015.12.002",
+  "kind": "paper",
+  "ideas": [
+   23,
+   39
+  ],
+  "summary": "Daniel and Moskowitz asked when momentum strategies suffer their rare but devastating losses, and whether those losses can be anticipated. Studying U.S. equities back to 1927 as well as other markets and asset classes, they found that momentum crashes happen in panic states: after a prolonged market decline, while volatility is high, and at the moment the market rebounds sharply, as in 1932 and 2009. The mechanism is that after a fall the loser portfolio is full of beaten-down, high-beta stocks, so a long-winners, short-losers position is effectively short the market; when the market jumps, the losers jump most and the strategy loses heavily. In these states its payoff resembles that of a short call option on the market. Because both the bear-market condition and high volatility can be observed in advance, the authors built a dynamic strategy that scales the momentum position each month by its forecast mean divided by its forecast variance, cutting exposure in panic states and adding it in calm ones. Rule: weight on momentum = c * (forecast momentum return / forecast momentum variance), with the constant c setting overall risk. This substantially raised the Sharpe ratio relative to static momentum, with similar results across markets. Caveat: the forecasts of momentum's mean rest on a modest number of crash episodes, gains are smaller after trading costs and real-time estimation, and a simpler rule that scales by momentum's own recent volatility (Barroso and Santa-Clara, 2015) captures much of the benefit."
+ },
+ {
+  "id": "basu-1977",
+  "title": "Investment Performance of Common Stocks in Relation to Their Price-Earnings Ratios: A Test of the Efficient Market Hypothesis",
+  "authors": [
+   "Sanjoy Basu"
+  ],
+  "year": 1977,
+  "venue": "Journal of Finance 32(3), 663-682",
+  "doi": "10.1111/j.1540-6261.1977.tb01979.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1977.tb01979.x",
+  "kind": "paper",
+  "ideas": [
+   14,
+   24
+  ],
+  "summary": "Basu asked whether a stock's price-earnings (P/E) ratio, a piece of public information, could be used to earn returns beyond those justified by risk, which would contradict the semi-strong form of market efficiency. Using NYSE industrial firms from 1957 to 1971, he formed portfolios each year by ranking stocks on their P/E ratios and tracked their later performance. The low-P/E portfolios earned higher average returns than the high-P/E portfolios, and the difference remained after adjusting for risk with capital asset pricing model measures such as Jensen's alpha and the Sharpe and Treynor ratios. He also considered whether transaction costs, search costs and taxes would remove the advantage, concluding that a gap probably remained for some investors. Rule behind the value idea: stocks priced cheaply relative to their earnings (low P/E, or equivalently a high earnings yield, E/P = 1 / (P/E)) have tended to outperform expensive ones on average. He interpreted the result as evidence that the information in P/E ratios was not fully reflected in prices. Caveat: low-P/E stocks also tend to be smaller and more distressed, so later studies debated whether the effect is separate from the size effect; Fama and French (1992) found that book-to-market captures much of it; whether the premium compensates for risk or reflects mispricing is still contested; and value premiums were notably weak in the 2010s."
+ },
+ {
+  "id": "banz-1981",
+  "title": "The Relationship between Return and Market Value of Common Stocks",
+  "authors": [
+   "Rolf W. Banz"
+  ],
+  "year": 1981,
+  "venue": "Journal of Financial Economics 9(1), 3-18",
+  "doi": "10.1016/0304-405X(81)90018-0",
+  "link": "https://doi.org/10.1016/0304-405X(81)90018-0",
+  "kind": "paper",
+  "ideas": [
+   14,
+   25
+  ],
+  "summary": "Banz asked whether a firm's size, measured by the market value of its common stock, helps explain average stock returns once risk is accounted for with the capital asset pricing model. Using NYSE common stocks from 1936 to 1975, he estimated a model in which expected return depends on beta and on the firm's relative market value. Smaller firms had, on average, higher risk-adjusted returns than larger firms, which became known as the size effect, and the effect had been present for at least forty years. It was not linear: it was concentrated among the very smallest firms, with little difference between average-sized and large firms. Rule: expected return = risk-free rate + beta * market premium + an extra term that is larger the smaller the firm's market value, so in that sample small capitalisation predicted higher returns. Banz was careful to say he could not tell whether size itself mattered or whether it stood in for some unknown factor correlated with size, but he concluded that the result was evidence the CAPM was misspecified. Caveat: the size premium largely faded after the early 1980s, has been concentrated in the smallest and least liquid stocks and in January, and later work argues that much of it reflects illiquidity or poor-quality firms; it shows up more reliably when firm quality is controlled for."
+ },
+ {
+  "id": "fama-french-1992",
+  "title": "The Cross-Section of Expected Stock Returns",
+  "authors": [
+   "Eugene F. Fama",
+   "Kenneth R. French"
+  ],
+  "year": 1992,
+  "venue": "Journal of Finance 47(2), 427-465",
+  "doi": "10.1111/j.1540-6261.1992.tb04398.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1992.tb04398.x",
+  "kind": "paper",
+  "ideas": [
+   13,
+   14,
+   20,
+   24,
+   25
+  ],
+  "summary": "Fama and French asked which characteristics of stocks actually explain why some earn higher average returns than others, putting the capital asset pricing model's beta in a contest with size, earnings yield, leverage and the book-to-market ratio. Using NYSE, AMEX and NASDAQ stocks from 1963 to 1990, they estimated betas carefully, forming portfolios on both size and pre-ranking beta so that beta's effect could be separated from size's, and ran Fama-MacBeth cross-sectional regressions of monthly returns on the characteristics. Once size was controlled for, beta showed essentially no relation to average return. Two easily measured variables, market equity (size) and the ratio of book equity to market equity, together captured the cross-sectional variation in average returns and absorbed the roles of leverage and earnings yield: small stocks and stocks with high book-to-market (value stocks) earned higher average returns. Rule: in monthly regressions return_i = c0 + c1 * ln(size_i) + c2 * ln(book-to-market_i) + error, the average c1 was negative and c2 positive, while beta added nothing. They suggested these variables might proxy for risk, perhaps related to financial distress. Caveat: critics argued the results could reflect data-snooping or survivorship bias in accounting data, that beta's relation to returns reappears with longer samples or annual returns, and whether the value and size premiums reward risk or reflect mispricing remains disputed."
+ },
+ {
+  "id": "fama-french-1993",
+  "title": "Common Risk Factors in the Returns on Stocks and Bonds",
+  "authors": [
+   "Eugene F. Fama",
+   "Kenneth R. French"
+  ],
+  "year": 1993,
+  "venue": "Journal of Financial Economics 33(1), 3-56",
+  "doi": "10.1016/0304-405X(93)90023-5",
+  "link": "https://doi.org/10.1016/0304-405X(93)90023-5",
+  "kind": "paper",
+  "ideas": [
+   20,
+   24,
+   25,
+   26,
+   28
+  ],
+  "summary": "Fama and French asked whether a few common risk factors could explain the returns on stocks and bonds over time, following their finding that size and book-to-market predict average stock returns. They built factor-mimicking portfolios: SMB (small minus big), the return on small-company stocks minus that on large-company stocks, and HML (high minus low), the return on high book-to-market (value) stocks minus low book-to-market (growth) stocks, alongside the stock market's excess return; for bonds they added TERM (long-term minus short-term government bonds) and DEF (corporate minus government bonds). In time-series regressions on 25 portfolios sorted by size and book-to-market, the three stock factors explained most of the variation in returns, often with R-squared above 0.9, and left intercepts close to zero, meaning the model largely captured the differences in average returns. Rule (three-factor model): excess return = alpha + b * (market return - risk-free rate) + s * SMB + h * HML + error, with alpha near zero when the model prices the asset correctly. The bond factors captured common variation in bond returns, and stock returns were linked to bond returns through those shared bond-market factors. The model became the standard benchmark for measuring abnormal returns. Caveat: it fails to explain momentum and later-documented patterns related to profitability and investment, which led to four- and five-factor models, and whether SMB and HML are true risk factors or labels for mispricing remains debated."
+ },
+ {
+  "id": "lakonishok-shleifer-vishny-1994",
+  "title": "Contrarian Investment, Extrapolation, and Risk",
+  "authors": [
+   "Josef Lakonishok",
+   "Andrei Shleifer",
+   "Robert W. Vishny"
+  ],
+  "year": 1994,
+  "venue": "Journal of Finance 49(5), 1541-1578",
+  "doi": "10.1111/j.1540-6261.1994.tb04772.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1994.tb04772.x",
+  "kind": "paper",
+  "ideas": [
+   24
+  ],
+  "summary": "Lakonishok, Shleifer and Vishny asked why value strategies, which buy stocks with low prices relative to earnings, cash flow or book value, or with low past sales growth, had outperformed glamour stocks, and whether the extra return was simply compensation for risk. Using U.S. stocks from the late 1960s to around 1990, they confirmed that value portfolios earned substantially higher returns, with the strongest results when two measures were combined, such as a low price-to-cash-flow ratio and low past sales growth. They then tested the risk explanation directly: value stocks did not underperform in the states of the world where risk should hurt, such as falling markets and recessions, and if anything did relatively well. Their explanation was behavioural: investors extrapolate past growth too far into the future, overpaying for firms that have grown fast and underpricing firms that have done poorly, while the later growth of the two groups turned out much closer than prices had implied. Rule: rank stocks on ratios such as cash flow / price or book value / market value and on past sales growth, then buy the cheap, slow-growth group and avoid the expensive, fast-growth group whose prices embed over-optimistic extrapolation. Caveat: Fama and French countered that value stocks carry distress risk that these tests miss, the risk-versus-mispricing debate is unresolved, and value strategies suffered a long and deep drawdown in the 2010s, so the premium is far from guaranteed."
+ },
+ {
+  "id": "haugen-heins-1975",
+  "title": "Risk and the Rate of Return on Financial Assets: Some Old Wine in New Bottles",
+  "authors": [
+   "Robert A. Haugen",
+   "A. James Heins"
+  ],
+  "year": 1975,
+  "venue": "Journal of Financial and Quantitative Analysis 10(5), 775-784",
+  "doi": "10.2307/2330270",
+  "link": "https://doi.org/10.2307/2330270",
+  "kind": "paper",
+  "ideas": [
+   14,
+   27
+  ],
+  "summary": "Haugen and Heins asked whether riskier stocks and portfolios have actually earned higher returns, as the theory of a positive risk-return trade-off predicts. Using several decades of U.S. stock data up to the early 1970s, they formed portfolios with different levels of risk, measured by the variance of monthly returns and by beta, and compared their realised average returns. They found no support for the idea that the market rewarded bearing this risk: over the long run, portfolios with lower variance earned average returns at least as high as, and often higher than, their riskier counterparts. Since a positive risk premium is central to both portfolio theory and the capital asset pricing model, they argued that this conventional assumption deserved rethinking. Rule of the low-volatility anomaly: theory says average return should rise with risk, but across stock portfolios the slope of average return on volatility or beta has been about zero or negative. The paper drew limited attention for many years but anticipated the later literature on low-risk investing, and Haugen went on to advocate low-volatility strategies. Caveat: the portfolio construction and statistics were simple by later standards; subsequent studies confirmed the pattern with better methods but found it concentrated among the most volatile, often small and illiquid, stocks, and partly linked to exposures such as value, profitability and interest-rate sensitivity."
+ },
+ {
+  "id": "ang-et-al-2006",
+  "title": "The Cross-Section of Volatility and Expected Returns",
+  "authors": [
+   "Andrew Ang",
+   "Robert J. Hodrick",
+   "Yuhang Xing",
+   "Xiaoyan Zhang"
+  ],
+  "year": 2006,
+  "venue": "Journal of Finance 61(1), 259-299",
+  "doi": "10.1111/j.1540-6261.2006.00836.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.2006.00836.x",
+  "kind": "paper",
+  "ideas": [
+   7,
+   27,
+   28
+  ],
+  "summary": "Ang, Hodrick, Xing and Zhang asked whether volatility, both market-wide and stock-specific, is priced in the cross-section of U.S. stock returns. First, they measured each stock's sensitivity to daily changes in market volatility, using changes in the VXO implied-volatility index as a proxy. Stocks whose returns rise when market volatility jumps act as insurance against bad times, and these stocks earned lower average returns, consistent with investors paying for protection against volatility risk. Second, and more surprisingly, stocks with high idiosyncratic volatility, measured as the standard deviation of the daily residuals e in r - r_f = a + b * MKT + s * SMB + h * HML + e over the past month, had very low subsequent average returns, so the most volatile group did markedly worse than the least volatile. This idiosyncratic volatility puzzle was not explained by size, book-to-market, momentum, liquidity, trading volume, coskewness or dispersion in analysts' forecasts. Rule: in their sample, high recent stock-specific volatility predicted low, not high, future returns. The paper became a cornerstone of the low-risk anomaly literature. Caveat: later work found the result sensitive to methodological choices such as portfolio weighting and how volatility is measured, explained part of it by short-term return reversal and by investors' taste for lottery-like stocks with extreme daily gains, and found that expected, rather than lagged, idiosyncratic volatility can relate positively to returns."
+ },
+ {
+  "id": "baker-bradley-wurgler-2011",
+  "title": "Benchmarks as Limits to Arbitrage: Understanding the Low-Volatility Anomaly",
+  "authors": [
+   "Malcolm Baker",
+   "Brendan Bradley",
+   "Jeffrey Wurgler"
+  ],
+  "year": 2011,
+  "venue": "Financial Analysts Journal 67(1), 40-54",
+  "doi": "10.2469/faj.v67.n1.4",
+  "link": "https://doi.org/10.2469/faj.v67.n1.4",
+  "kind": "paper",
+  "ideas": [
+   13,
+   27
+  ],
+  "summary": "Baker, Bradley and Wurgler asked why the low-volatility anomaly, the long-standing tendency of low-risk stocks to earn returns as high as or higher than high-risk stocks, has persisted even though it is well known. Using U.S. stock data from the late 1960s to 2008, they confirmed that portfolios of low-volatility and low-beta stocks delivered both lower risk and higher returns than portfolios of high-volatility and high-beta stocks. They offered a two-part explanation. On the demand side, many investors are drawn to volatile stocks because of a preference for lottery-like payoffs, a tendency to treat exciting success stories as typical (representativeness) and overconfidence, which bids up their prices. On the supply side, the professionals who could correct the mispricing are judged against capitalisation-weighted benchmarks; for a manager judged by information ratio = (return - index return) / tracking error, buying low-beta stocks adds tracking error and tends to lag in rising markets, so the benchmark itself discourages exploiting the anomaly, a limit to arbitrage. Rule: a fixed benchmark mandate makes low-risk stocks look unattractive to managers even when they offer a better return per unit of absolute risk. Caveat: the evidence is historical and partly overlaps with value, profitability and interest-rate exposures, and the popularity of low-volatility funds after this paper may have reduced the premium by raising the valuations of low-risk stocks."
+ },
+ {
+  "id": "frazzini-pedersen-2014",
+  "title": "Betting Against Beta",
+  "authors": [
+   "Andrea Frazzini",
+   "Lasse Heje Pedersen"
+  ],
+  "year": 2014,
+  "venue": "Journal of Financial Economics 111(1), 1-25",
+  "doi": "10.1016/j.jfineco.2013.10.005",
+  "link": "https://doi.org/10.1016/j.jfineco.2013.10.005",
+  "kind": "paper",
+  "ideas": [
+   13,
+   14,
+   27
+  ],
+  "summary": "Frazzini and Pedersen asked why high-beta assets have earned less than the capital asset pricing model predicts, and proposed an answer based on borrowing limits. Many investors, such as individuals, pension funds and mutual funds, cannot or will not borrow. To reach a higher return target they overweight risky, high-beta assets instead of leveraging safe ones, which pushes up the prices of high-beta assets and lowers their future returns, flattening the relation between beta and return. Their model predicts the effect is stronger when funding is tight. To test it they built a betting-against-beta (BAB) factor: a portfolio that holds low-beta assets leveraged up to a beta of 1 and shorts high-beta assets scaled down to a beta of 1, so its overall market exposure is about zero. Rule: BAB return = (1 / beta_low) * (low-beta excess return) - (1 / beta_high) * (high-beta excess return). The factor earned significant risk-adjusted returns in U.S. equities, in many international stock markets, and in Treasury bonds, corporate bonds and futures, and its returns were lower when funding conditions worsened, as the theory predicts. Caveat: Novy-Marx and Velikov (2022) argued that much of BAB's performance comes from unusual construction choices, including rank weighting and beta shrinkage that overweight tiny stocks, and that implementable versions earn much less; others attribute the pattern to time-varying betas."
+ },
+ {
+  "id": "rosenberg-1974",
+  "title": "Extra-Market Components of Covariance in Security Returns",
+  "authors": [
+   "Barr Rosenberg"
+  ],
+  "year": 1974,
+  "venue": "Journal of Financial and Quantitative Analysis 9(2), 263-274",
+  "doi": "10.2307/2330104",
+  "link": "https://doi.org/10.2307/2330104",
+  "kind": "paper",
+  "ideas": [
+   13,
+   28
+  ],
+  "summary": "Rosenberg asked how to describe the way security returns move together more accurately than the single-index (market) model, which assumes that, once the market's influence is removed, stocks are unrelated. He showed that returns share substantial extra-market components of covariance: stocks in the same industry, or with similar characteristics, move together beyond what the market factor explains, so the single-index model misstates portfolio risk. He proposed representing these shared movements with a modest number of common factors tied to industries and company characteristics, which lets the full covariance matrix be estimated with far fewer free parameters than estimating every pair separately. Rule: return_i = the sum over factors k of (exposure of stock i to factor k) * (return of factor k) + specific return_i, so the covariance matrix = exposures * factor covariance * exposures transposed + a diagonal matrix of stock-specific variances. In related work he predicted exposures such as beta from fundamental company descriptors rather than from each stock's own price history. Rosenberg founded Barra, whose commercial multi-factor risk models built on this approach and became an industry standard for measuring portfolio risk. Caveat: the choice of factors and descriptors involves judgment, factor structures shift over time, and such models tend to underestimate risk in crises, when correlations rise suddenly and stock-specific risks start moving together."
+ },
+ {
+  "id": "fama-macbeth-1973",
+  "title": "Risk, Return, and Equilibrium: Empirical Tests",
+  "authors": [
+   "Eugene F. Fama",
+   "James D. MacBeth"
+  ],
+  "year": 1973,
+  "venue": "Journal of Political Economy 81(3), 607-636",
+  "doi": "10.1086/260061",
+  "link": "https://doi.org/10.1086/260061",
+  "kind": "paper",
+  "ideas": [
+   13,
+   14,
+   20,
+   21
+  ],
+  "summary": "Fama and MacBeth asked whether the capital asset pricing model's main predictions hold in NYSE data: that expected return rises linearly with beta, that nothing besides beta (such as beta squared or a stock's own residual risk) matters systematically, and that the reward for bearing beta risk is positive. Their method became a standard tool. Each month they ran a cross-sectional regression of returns on estimated betas and the other variables, producing a series of monthly slope estimates; they then averaged each slope over time and judged its significance with a t-statistic computed from the month-to-month variation of the estimates. Rule: t-statistic = average of the monthly slopes / (standard deviation of the monthly slopes / sqrt(number of months)). To reduce errors in the estimated betas they grouped stocks into portfolios ranked on betas estimated in an earlier period. Over 1935 to 1968 they found a positive average relation between beta and return, no systematic effect of beta squared or residual risk, and an intercept above the riskless rate, which fits Black's zero-beta version of the model better than the original. Caveat: the standard errors ignore the fact that betas are themselves estimated (Shanken's 1992 correction addresses this) and are biased when regression residuals are correlated over time, and data after 1963 showed a much flatter relation between beta and return."
+ },
+ {
+  "id": "ross-1976",
+  "title": "The Arbitrage Theory of Capital Asset Pricing",
+  "authors": [
+   "Stephen A. Ross"
+  ],
+  "year": 1976,
+  "venue": "Journal of Economic Theory 13(3), 341-360",
+  "doi": "10.1016/0022-0531(76)90046-6",
+  "link": "https://doi.org/10.1016/0022-0531(76)90046-6",
+  "kind": "paper",
+  "ideas": [
+   28,
+   42
+  ],
+  "summary": "Ross asked whether a theory of asset prices could be built without the strong assumptions of the capital asset pricing model, such as mean-variance preferences and an observable market portfolio. He assumed only that returns are generated by a linear factor model, return_i = expected return_i + the sum over k of b_ik * f_k + e_i, where the f_k are a few common factors with zero mean, the b_ik are each asset's sensitivities to them, and the e_i are asset-specific shocks that wash out in large, diversified portfolios. If investors could form a portfolio with no net cost and no factor exposure that still earned a positive expected return, that would be close to an arbitrage. Ruling out such opportunities forces expected returns to line up with factor sensitivities: expected return_i ~ lambda_0 + the sum over k of b_ik * lambda_k, where lambda_0 is the riskless (or zero-beta) rate and lambda_k is the risk premium per unit of exposure to factor k. The arbitrage pricing theory thus explains why only common, undiversifiable risks should carry a premium, without singling out the market portfolio. Caveat: the theory does not say what the factors are or how many there are, so empirical versions choose them by statistics or economic judgment, and the pricing relation is approximate and may fail for a few assets, which Shanken argued limits how well it can be tested."
+ },
+ {
+  "id": "chen-roll-ross-1986",
+  "title": "Economic Forces and the Stock Market",
+  "authors": [
+   "Nai-Fu Chen",
+   "Richard Roll",
+   "Stephen A. Ross"
+  ],
+  "year": 1986,
+  "venue": "Journal of Business 59(3), 383-403",
+  "doi": "10.1086/296344",
+  "link": "https://doi.org/10.1086/296344",
+  "kind": "paper",
+  "ideas": [
+   28,
+   42
+  ],
+  "summary": "Chen, Roll and Ross asked which economic forces are priced in the stock market, turning the arbitrage pricing theory's abstract factors into concrete macroeconomic ones. They argued that stock prices should respond to news that changes expected cash flows or discount rates, and constructed unexpected changes in several variables: industrial production growth, expected inflation, unanticipated inflation, the spread between low-grade and high-grade corporate bond yields (a gauge of the default risk premium), and the spread between long-term and short-term government bond yields (the term structure). Using the Fama-MacBeth two-step method, they estimated each stock portfolio's sensitivity to these surprises and tested whether those sensitivities explained average returns over 1958 to 1984. Industrial production, changes in the risk premium and twists in the yield curve were significantly priced, with weaker evidence for the inflation measures, while the stock market index, aggregate consumption and oil prices added no separate pricing power once the economic factors were included. Rule: expected return = risk-free rate + the sum over factors of (sensitivity to each macroeconomic surprise) * (premium for that surprise). Caveat: later re-examinations found the evidence fragile to the sample period and to how test portfolios and betas are formed, and macroeconomic factors explain only a small part of the month-to-month movement of individual stock returns."
+ },
+ {
+  "id": "black-scholes-1973",
+  "title": "The Pricing of Options and Corporate Liabilities",
+  "authors": [
+   "Fischer Black",
+   "Myron Scholes"
+  ],
+  "year": 1973,
+  "venue": "Journal of Political Economy 81(3), 637-654",
+  "doi": "10.1086/260062",
+  "link": "https://doi.org/10.1086/260062",
+  "kind": "paper",
+  "ideas": [
+   29,
+   32,
+   33
+  ],
+  "summary": "Black and Scholes asked how to price an option on a stock using only quantities that can be observed, without knowing investors' attitudes to risk or the stock's expected return. They assumed the stock price follows a lognormal random walk with constant volatility, the interest rate is constant, there are no dividends, transaction costs or limits on borrowing and short selling, and trading is continuous. Under those conditions, a position combining the stock and the option in the right ratio is momentarily riskless, so it must earn the riskless rate, and that requirement pins down the option's price through a differential equation. The solution for a European call is C = S * N(d1) - K * exp(-r * T) * N(d2), with d1 = [ln(S / K) + (r + sigma^2 / 2) * T] / (sigma * sqrt(T)) and d2 = d1 - sigma * sqrt(T), where S is the stock price, K the strike, T the time to expiry, r the interest rate, sigma the volatility and N the standard normal cumulative distribution. The hedge ratio, delta = N(d1), says how many shares offset one option, the basis of delta hedging. The paper also noted that a company's shares can be viewed as a call option on the firm's assets, opening the way to pricing corporate debt. Caveat: real volatility is not constant, prices jump, and hedging is discrete and costly; since the 1987 crash, market prices imply different volatilities for different strikes (the smile), which the model cannot produce."
+ },
+ {
+  "id": "merton-1973",
+  "title": "Theory of Rational Option Pricing",
+  "authors": [
+   "Robert C. Merton"
+  ],
+  "year": 1973,
+  "venue": "Bell Journal of Economics and Management Science 4(1), 141-183",
+  "doi": "10.2307/3003143",
+  "link": "https://doi.org/10.2307/3003143",
+  "kind": "paper",
+  "ideas": [
+   29,
+   31,
+   32,
+   33
+  ],
+  "summary": "Merton asked which properties of option prices follow merely from the absence of dominance, meaning no security is held if another pays at least as much in every state and more in some, and then gave the Black-Scholes model a rigorous continuous-time foundation and several extensions. From dominance alone he derived bounds that any rational price must satisfy, for example that a call on a non-dividend-paying stock is worth at least max(0, S - K * exp(-r * T)), and showed that an American call on such a stock should never be exercised early, so it is worth the same as a European call. He clarified put-call parity, C - P = S - K * exp(-r * T) for European options, and explained why it does not hold exactly for American options, where early exercise of the put matters. Using Ito calculus, he re-derived the Black-Scholes formula under weaker conditions and extended it to stochastic interest rates, continuously paid dividends, and options whose payoff depends on the price path, such as down-and-out barrier options. The partial derivatives of his pricing formulas with respect to price, time, volatility and the interest rate are the sensitivities traders now call the Greeks. Caveat: the extensions keep the assumptions of continuous trading, no transaction costs and price paths without jumps; real markets violate these, and Merton himself added jumps in a 1976 paper."
+ },
+ {
+  "id": "latane-rendleman-1976",
+  "title": "Standard Deviations of Stock Price Ratios Implied in Option Prices",
+  "authors": [
+   "Henry A. Latané",
+   "Richard J. Rendleman Jr."
+  ],
+  "year": 1976,
+  "venue": "Journal of Finance 31(2), 369-381",
+  "doi": "10.1111/j.1540-6261.1976.tb01892.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1976.tb01892.x",
+  "kind": "paper",
+  "ideas": [
+   7,
+   29,
+   30
+  ],
+  "summary": "Latané and Rendleman asked whether option prices reveal what the market expects a stock's future volatility to be. Since the Black-Scholes formula gives an option price for any assumed volatility, it can be run backwards: find the volatility that makes the formula's price equal the observed market price. They computed these implied standard deviations for options traded on the newly opened Chicago Board Options Exchange and combined the values from several options on the same stock into one weighted average, giving more weight to options whose prices are most sensitive to volatility. Rule: implied volatility = the sigma that solves Black-Scholes price(sigma) = market price, found numerically because no closed-form inverse exists. They found that these implied volatilities predicted subsequent realised volatility better than standard deviations computed from past returns, suggesting that option prices carry information beyond the historical record. This helped establish implied volatility as a market quantity in its own right, now quoted directly for many options and summarised in indexes such as the VIX. Caveat: different strikes and maturities on the same stock imply different volatilities (the smile), so any single implied figure depends on which options are averaged and how; implied volatility also contains a risk premium, and for index options it has typically exceeded the volatility later realised."
+ },
+ {
+  "id": "stoll-1969",
+  "title": "The Relationship between Put and Call Option Prices",
+  "authors": [
+   "Hans R. Stoll"
+  ],
+  "year": 1969,
+  "venue": "Journal of Finance 24(5), 801-824",
+  "doi": "10.1111/j.1540-6261.1969.tb01694.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1969.tb01694.x",
+  "kind": "paper",
+  "ideas": [
+   31
+  ],
+  "summary": "Stoll asked how the prices of puts and calls on the same stock should relate to each other in the over-the-counter options market of the 1960s, where dealers created one kind of option from the other through transactions known as conversions. He showed that a put can be manufactured from a call and the stock (and vice versa), together with borrowing or lending, so that, absent arbitrage, the call price minus the put price must equal the stock price minus the present value of the strike price. Rule (put-call parity, European form without dividends): C - P = S - K / (1 + r)^T. If the relationship were violated, a trader could buy the cheap side, sell the expensive side and lock in a riskless profit. He then examined prices quoted by put and call dealers and found that they broadly conformed to the relationship once the costs of financing and trading were taken into account. Parity means that a call price and the cost of carrying the stock are enough to determine the matching put price, and it underlies how traders build synthetic positions. Caveat: the exact equality holds only for options that can be exercised solely at expiry; Merton (1973) showed that with American options early exercise turns it into a pair of bounds, and in practice dividends, borrowing costs and short-sale constraints create persistent deviations."
+ },
+ {
+  "id": "leland-1985",
+  "title": "Option Pricing and Replication with Transactions Costs",
+  "authors": [
+   "Hayne E. Leland"
+  ],
+  "year": 1985,
+  "venue": "Journal of Finance 40(5), 1283-1301",
+  "doi": "10.1111/j.1540-6261.1985.tb02383.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1985.tb02383.x",
+  "kind": "paper",
+  "ideas": [
+   29,
+   32,
+   33
+  ],
+  "summary": "Leland asked how options can be priced and replicated when every trade costs money. In the Black-Scholes world the hedge is adjusted continuously, but with proportional transaction costs continuous trading would cost an unlimited amount, while infrequent rebalancing leaves hedging errors. Leland proposed rebalancing at fixed intervals of length dt and showed that the costs can be approximately absorbed by using an adjusted volatility in the Black-Scholes formula: adjusted sigma^2 = sigma^2 * (1 + sqrt(2 / pi) * k / (sigma * sqrt(dt))), where k is the round-trip proportional transaction cost. For someone replicating a long option position, which is how a writer hedges a short one, the volatility is raised, so the price including expected costs is above the frictionless Black-Scholes price, and the gap grows with the cost rate and with the rebalancing frequency. He argued that with this adjustment the hedging error tends to vanish as the rebalancing interval shrinks. The result gave practitioners a simple way to build transaction costs into option prices and into the portfolio-insurance strategies of the time. Caveat: later analysis (Kabanov and Safarian, 1997) showed that the hedging error does not fully vanish when the cost rate is held fixed as rebalancing becomes more frequent, the adjustment breaks down for payoffs that are not convex, and utility-based models with optimal rather than fixed-interval rebalancing perform better."
+ },
+ {
+  "id": "hull-2018",
+  "title": "Options, Futures, and Other Derivatives",
+  "authors": [
+   "John C. Hull"
+  ],
+  "year": 2018,
+  "venue": "Pearson; 10th edition (copyright 2018)",
+  "doi": null,
+  "link": "https://openlibrary.org/works/OL2691210W",
+  "kind": "book",
+  "ideas": [
+   29,
+   30,
+   31,
+   32,
+   33,
+   35,
+   36
+  ],
+  "summary": "Hull's textbook is the standard introduction to derivatives for students and practitioners, covering how futures, forwards, swaps and options work, how they are priced and how their risks are managed. It answers a practical question: given a derivative's contract terms and market data, what is it worth and how will its value respond as markets move? Topics include forward and futures pricing by cost of carry, interest rate and currency swaps, properties of stock options such as put-call parity, binomial trees, the Black-Scholes-Merton model, implied volatility and volatility smiles, numerical methods, exotic options, credit derivatives, value at risk and interest rate models. A central chapter defines the Greeks, the sensitivities used for hedging: delta = change in option value per unit change in the underlying price (N(d1) for a European call under Black-Scholes), gamma = rate of change of delta, vega = sensitivity to volatility, theta = sensitivity to the passage of time, and rho = sensitivity to the interest rate. The book shows how traders keep a portfolio delta-neutral by trading the underlying asset and use other options to control gamma and vega, and why hedges must be rebalanced as these sensitivities change. Caveat: it is a textbook that summarises market practice rather than original research, and the 10th edition predates the 2021-2023 retirement of LIBOR, so later editions should be consulted for interest-rate benchmarks and discounting conventions."
+ },
+ {
+  "id": "cox-ross-rubinstein-1979",
+  "title": "Option Pricing: A Simplified Approach",
+  "authors": [
+   "John C. Cox",
+   "Stephen A. Ross",
+   "Mark Rubinstein"
+  ],
+  "year": 1979,
+  "venue": "Journal of Financial Economics 7(3), 229-263",
+  "doi": "10.1016/0304-405X(79)90015-1",
+  "link": "https://doi.org/10.1016/0304-405X(79)90015-1",
+  "kind": "paper",
+  "ideas": [
+   29,
+   32,
+   35
+  ],
+  "summary": "Cox, Ross and Rubinstein asked whether the economics of option pricing could be shown without the advanced mathematics of the Black-Scholes derivation. They modelled the stock price as moving, in each short period, either up by a factor u or down by a factor d. With one period left, a call can be replicated exactly by holding delta shares and borrowing, where delta = (C_up - C_down) / (S_up - S_down), so the option must cost the same as that replicating portfolio. The resulting price can be written as an expected payoff under special probabilities: option value = [p * C_up + (1 - p) * C_down] / R, with p = (R - d) / (u - d) and R = 1 + the riskless rate per period. Investors' actual beliefs about up and down moves drop out, which is the essence of risk-neutral valuation. Working backward through a tree of many periods prices options of any maturity, and checking at each node whether immediate exercise is worth more handles American options. Choosing u = exp(sigma * sqrt(dt)) and d = 1 / u makes the tree's answer converge to the Black-Scholes price as the number of steps grows. Caveat: convergence is slow and oscillates as the number of steps changes, so many steps or smoothing tricks are needed, and a constant-volatility tree cannot match the volatility smile seen in markets, which motivated implied trees."
+ },
+ {
+  "id": "rubinstein-1994",
+  "title": "Implied Binomial Trees",
+  "authors": [
+   "Mark Rubinstein"
+  ],
+  "year": 1994,
+  "venue": "Journal of Finance 49(3), 771-818",
+  "doi": "10.1111/j.1540-6261.1994.tb00079.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1994.tb00079.x",
+  "kind": "paper",
+  "ideas": [
+   30,
+   35,
+   36
+  ],
+  "summary": "Rubinstein asked how to build an option-pricing tree that agrees with the prices actually observed in the market, after noting that the Black-Scholes model, which had fitted S&P 500 index options reasonably well before the October 1987 crash, no longer did afterwards. Since the crash, index options with low strike prices have traded at much higher implied volatilities than those with high strikes, a pattern called the smile or skew, which means the market assigns more probability to large falls than a lognormal distribution does. Rubinstein's method first infers, from a set of option prices with the same expiration, the risk-neutral probabilities P_j of the index ending at each level j that stay closest to lognormal starting guesses Q_j, for example by minimising the sum of (P_j - Q_j)^2, while matching the observed prices. He then constructs a recombining binomial tree consistent with that distribution, assuming that all paths leading to the same final node are equally likely. Rule: the market's option prices fix the probabilities at the end of the tree, and working backward fills in the rest, so American and exotic options can be priced consistently with the observed smile. Caveat: the method fits a single expiration and relies on a strong assumption about path probabilities; Derman and Kani and Dupire generalised it to many maturities, and models of this local-volatility type predict smile movements that are inconsistent with how markets actually behave, which hurts their hedges."
+ },
+ {
+  "id": "dupire-1994",
+  "title": "Pricing with a Smile",
+  "authors": [
+   "Bruno Dupire"
+  ],
+  "year": 1994,
+  "venue": "Risk 7(1), 18-20 (January 1994)",
+  "doi": null,
+  "link": "https://www.risk.net/derivatives/equity-derivatives/1500211/pricing-with-a-smile",
+  "kind": "paper",
+  "ideas": [
+   30,
+   36
+  ],
+  "summary": "Dupire asked whether the volatility smile, the fact that options on the same asset with different strikes and maturities imply different volatilities, can be reproduced by a model in which the asset price still follows a single-factor diffusion. He showed that it can, and that the answer is unique: if European call prices are known for all strikes K and maturities T, there is exactly one local volatility function sigma(S, t), depending on the asset price and time, consistent with all of them. With no dividends and a constant interest rate r, the formula is sigma_local^2(K, T) = [dC/dT + r * K * dC/dK] / [0.5 * K^2 * d2C/dK2], where C(K, T) is the surface of call prices and the derivatives are partial derivatives. The denominator is tied to the risk-neutral probability density of the asset at T, which Breeden and Litzenberger had shown can be read from the curvature of call prices across strikes. Once calibrated, the local volatility model prices exotic options consistently with the market for standard options. Dupire's continuous-time result appeared in the same year as Derman and Kani's tree-based version. Caveat: the formula requires a smooth, arbitrage-free interpolation of market quotes and is numerically unstable for far-out strikes; local volatility also predicts that the smile shifts the opposite way to what is observed when the asset price moves (Hagan and co-authors, 2002), which led to stochastic volatility models such as SABR for hedging."
+ },
+ {
+  "id": "engle-1982",
+  "title": "Autoregressive Conditional Heteroscedasticity with Estimates of the Variance of United Kingdom Inflation",
+  "authors": [
+   "Robert F. Engle"
+  ],
+  "year": 1982,
+  "venue": "Econometrica 50(4), 987-1007",
+  "doi": "10.2307/1912773",
+  "link": "https://doi.org/10.2307/1912773",
+  "kind": "paper",
+  "ideas": [
+   7,
+   37
+  ],
+  "summary": "Engle asked how to model a time series whose uncertainty changes over time, so that forecasts come with error bands that widen in turbulent periods and narrow in calm ones. Standard models assumed that the variance of shocks was constant. He proposed autoregressive conditional heteroskedasticity (ARCH), in which today's variance depends on the size of recent shocks: h_t = alpha_0 + alpha_1 * e_(t-1)^2 + ... + alpha_q * e_(t-q)^2, where e is the unexpected part of the series and h_t is the variance expected for period t given the past. A large surprise yesterday raises the variance expected today, so big moves cluster together while their direction stays unpredictable. He showed how to estimate the model by maximum likelihood and provided a simple test for ARCH effects: regress squared residuals on their own lags and compare the sample size times the R-squared with a chi-squared distribution. Applied to inflation in the United Kingdom, the model showed that inflation uncertainty varied substantially over time. It was soon applied to financial returns, where volatility clustering is pronounced, and Engle shared the 2003 Nobel prize in economics for this work. Caveat: capturing the slow decay of volatility needs many lags, which GARCH addressed; ARCH treats good and bad news symmetrically; and with normally distributed shocks it still underestimates the fat tails of returns."
+ },
+ {
+  "id": "bollerslev-1986",
+  "title": "Generalized Autoregressive Conditional Heteroskedasticity",
+  "authors": [
+   "Tim Bollerslev"
+  ],
+  "year": 1986,
+  "venue": "Journal of Econometrics 31(3), 307-327",
+  "doi": "10.1016/0304-4076(86)90063-1",
+  "link": "https://doi.org/10.1016/0304-4076(86)90063-1",
+  "kind": "paper",
+  "ideas": [
+   7,
+   37
+  ],
+  "summary": "Bollerslev asked how to make Engle's ARCH model more economical. Pure ARCH models often needed many lagged squared shocks to describe how slowly volatility fades, with many parameters to estimate and constrain. Bollerslev's generalized ARCH (GARCH) adds lags of the conditional variance itself, so a short formula captures long memory in volatility. The workhorse GARCH(1,1) is h_t = omega + alpha * e_(t-1)^2 + beta * h_(t-1): today's variance is a constant plus a fraction of yesterday's squared surprise plus a fraction of yesterday's variance. The process is stationary if alpha + beta < 1, its long-run average variance is omega / (1 - alpha - beta), and alpha + beta measures how persistent volatility shocks are. He set out the conditions for the model to be well behaved, showed how to estimate it by maximum likelihood, and applied it to U.S. inflation. GARCH(1,1) became the default volatility model in finance, and the exponentially weighted moving average used by RiskMetrics is the special case with omega = 0 and alpha + beta = 1. Caveat: fitted values of alpha + beta are often very close to 1, which may reflect structural breaks rather than true persistence; the model responds equally to good and bad news, which GJR and EGARCH variants correct; and normally distributed shocks understate tail risk, which is why Student-t versions are common."
+ },
+ {
+  "id": "glosten-jagannathan-runkle-1993",
+  "title": "On the Relation between the Expected Value and the Volatility of the Nominal Excess Return on Stocks",
+  "authors": [
+   "Lawrence R. Glosten",
+   "Ravi Jagannathan",
+   "David E. Runkle"
+  ],
+  "year": 1993,
+  "venue": "Journal of Finance 48(5), 1779-1801",
+  "doi": "10.1111/j.1540-6261.1993.tb05128.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1993.tb05128.x",
+  "kind": "paper",
+  "ideas": [
+   37,
+   38
+  ],
+  "summary": "Glosten, Jagannathan and Runkle asked how the expected excess return on U.S. stocks relates to their volatility, a question on which earlier studies disagreed. They argued that the standard GARCH-in-mean model was too restrictive and modified it in several ways: allowing seasonal patterns, letting the nominal interest rate help predict volatility, and, most influentially, letting positive and negative surprises affect future volatility differently. Their asymmetric volatility equation is h_t = omega + alpha * e_(t-1)^2 + gamma * I_(t-1) * e_(t-1)^2 + beta * h_(t-1), where I_(t-1) equals 1 if the previous surprise was negative and 0 otherwise, so a bad-news shock raises volatility by (alpha + gamma) times its square while a good-news shock raises it by alpha times its square. In monthly U.S. data they found that negative surprises raised volatility while positive surprises tended to lower it, that volatility was less persistent than standard models suggested, and, with these modifications, that the conditional expected excess return was negatively related to conditional volatility, contrary to the simple notion that higher risk always brings a higher expected return. The asymmetric equation is now known as GJR-GARCH. Caveat: the estimated sign of the risk-return relation depends heavily on the model specification and conditioning information, and other studies using different methods have found a positive relation, so the question remains unsettled."
+ },
+ {
+  "id": "moreira-muir-2017",
+  "title": "Volatility-Managed Portfolios",
+  "authors": [
+   "Alan Moreira",
+   "Tyler Muir"
+  ],
+  "year": 2017,
+  "venue": "Journal of Finance 72(4), 1611-1644",
+  "doi": "10.1111/jofi.12513",
+  "link": "https://doi.org/10.1111/jofi.12513",
+  "kind": "paper",
+  "ideas": [
+   7,
+   39
+  ],
+  "summary": "Moreira and Muir asked whether investors can improve returns by taking less risk when volatility is high and more when it is low. If expected returns rose in proportion to volatility, cutting exposure in turbulent times would sacrifice return; they found instead that, in the short run, volatility rises much more than expected returns do. Their strategy scales a factor's return each month by the inverse of its realised variance over the previous month: managed return(t+1) = (c / previous month's variance) * factor return(t+1), with the constant c chosen so that the managed and original portfolios have the same overall volatility. Applied to the stock market and to factors such as value, momentum, profitability, return on equity, investment, betting against beta and the currency carry trade, the volatility-managed versions produced positive alphas relative to the unmanaged factors and raised the market's Sharpe ratio, with especially large gains for momentum. They argued that this is hard to reconcile with standard asset-pricing models in which risk premiums rise sharply in bad times. Rule: reduce exposure when recent volatility is high and increase it when volatility is low. Caveat: Cederburg and co-authors (2020) found that the improvements largely disappear for most factors in realistic out-of-sample implementations, and trading costs and leverage limits reduce the gains further."
+ },
+ {
+  "id": "harvey-et-al-2018",
+  "title": "The Impact of Volatility Targeting",
+  "authors": [
+   "Campbell R. Harvey",
+   "Edward Hoyle",
+   "Russell Korgaonkar",
+   "Sandy Rattray",
+   "Matthew Sargaison",
+   "Otto Van Hemert"
+  ],
+  "year": 2018,
+  "venue": "Journal of Portfolio Management 45(1), 14-33",
+  "doi": "10.3905/jpm.2018.45.1.014",
+  "link": "https://doi.org/10.3905/jpm.2018.45.1.014",
+  "kind": "paper",
+  "ideas": [
+   7,
+   17,
+   39
+  ],
+  "summary": "Harvey, Hoyle, Korgaonkar, Rattray, Sargaison and Van Hemert, mostly practitioners at the asset manager Man Group, asked what volatility targeting actually does for different assets: does scaling a position to keep its volatility near a constant target improve risk-adjusted returns, and does it reduce extreme outcomes? Using long histories of equities, government bonds, credit, currencies and commodities, they compared buy-and-hold positions with versions rescaled each period by target volatility divided by a recent volatility estimate. Rule: position size = target volatility / forecast volatility, so exposure falls when markets turn turbulent. For risk assets such as equities and credit, targeting raised Sharpe ratios, which they linked to the leverage effect: volatility tends to rise when prices fall, so cutting exposure as volatility rises avoids part of the losses. For bonds, currencies and commodities the effect on Sharpe ratios was small. Across all asset classes, however, volatility targeting reduced the likelihood of extreme returns, trimming the left tail and making realised volatility more stable over time. Caveat: the method reacts to volatility only after it has risen, so it cannot shield a position from a sudden gap or a crash that arrives out of a calm market; frequent rebalancing costs money; and the results depend on the choice of volatility estimator and target."
+ },
+ {
+  "id": "qian-2005",
+  "title": "Risk Parity Portfolios: Efficient Portfolios Through True Diversification",
+  "authors": [
+   "Edward Qian"
+  ],
+  "year": 2005,
+  "venue": "PanAgora Asset Management research paper, September 2005",
+  "doi": null,
+  "link": "https://www.panagora.com/assets/PanAgora-Risk-Parity-Portfolios-Efficient-Portfolios-Through-True-Diversification.pdf",
+  "kind": "report",
+  "ideas": [
+   11,
+   40
+  ],
+  "summary": "Qian asked whether the traditional balanced portfolio, about 60 percent stocks and 40 percent bonds, is as diversified as it looks. Measuring each asset's contribution to total portfolio risk rather than its share of capital, he showed that because stocks are far more volatile than bonds, over 90 percent of such a portfolio's risk comes from stocks, so its returns are dominated by the stock market. He coined the term risk parity for portfolios in which each asset class contributes equally to total risk. Rule: the risk contribution of asset i = w_i * (covariance of asset i with the portfolio) / portfolio volatility; these contributions add up to the portfolio's volatility, and a risk-parity portfolio sets them equal. With two assets this means weights exactly in inverse proportion to their volatilities, so bonds receive far more capital than in a 60/40 mix, and the approach extends to other asset classes such as commodities. Because an unlevered risk-parity portfolio has low risk and low return, leverage is applied to bring it to the desired risk level, and Qian argued that the result can deliver a higher return per unit of risk than the traditional mix. Caveat: the paper comes from an asset manager that offers risk-parity funds; the strategy's historical success depended on leveraged bonds during a long period of falling interest rates, and in 2022, when stocks and bonds fell together as rates rose, risk-parity funds suffered large losses."
+ },
+ {
+  "id": "maillard-roncalli-teiletche-2010",
+  "title": "The Properties of Equally Weighted Risk Contribution Portfolios",
+  "authors": [
+   "Sébastien Maillard",
+   "Thierry Roncalli",
+   "Jérôme Teïletche"
+  ],
+  "year": 2010,
+  "venue": "Journal of Portfolio Management 36(4), 60-70",
+  "doi": "10.3905/jpm.2010.36.4.060",
+  "link": "https://doi.org/10.3905/jpm.2010.36.4.060",
+  "kind": "paper",
+  "ideas": [
+   11,
+   40
+  ],
+  "summary": "Maillard, Roncalli and Teïletche asked what mathematical properties the equally weighted risk contribution (ERC) portfolio has, the portfolio in which every asset contributes the same amount to total risk. With weights w and covariance matrix Sigma, portfolio volatility sigma(w) splits exactly into contributions w_i * (Sigma * w)_i / sigma(w), and the ERC portfolio sets all of these equal. They proved that for a long-only portfolio such a portfolio exists and is unique, and that its volatility lies between those of two familiar portfolios: sigma(minimum variance) <= sigma(ERC) <= sigma(equal weights). ERC is therefore a middle ground between minimising risk, which tends to concentrate in a few low-volatility assets, and naive equal weighting, which ignores risk altogether. When all pairwise correlations are equal, ERC weights are simply proportional to 1 / volatility. They also showed that ERC is the minimum-variance portfolio subject to the sum of the logarithms of the weights staying above a threshold, a constraint that keeps the weights spread out, and gave numerical algorithms and examples for the general case. Caveat: ERC ignores expected returns and is optimal in the Sharpe-ratio sense only under special conditions, such as equal Sharpe ratios and constant correlations; results depend on covariance estimates and on how the investable universe is divided into assets, since splitting one asset class into several changes its share of the risk budget."
+ },
+ {
+  "id": "asness-frazzini-pedersen-2012",
+  "title": "Leverage Aversion and Risk Parity",
+  "authors": [
+   "Clifford S. Asness",
+   "Andrea Frazzini",
+   "Lasse H. Pedersen"
+  ],
+  "year": 2012,
+  "venue": "Financial Analysts Journal 68(1), 47-59",
+  "doi": "10.2469/faj.v68.n1.1",
+  "link": "https://doi.org/10.2469/faj.v68.n1.1",
+  "kind": "paper",
+  "ideas": [
+   14,
+   27,
+   40
+  ],
+  "summary": "Asness, Frazzini and Pedersen asked why risk parity portfolios, which balance risk across asset classes and then apply leverage, have historically outperformed traditional portfolios such as 60 percent stocks and 40 percent bonds, and whether there is an economic reason to expect this. Their argument is leverage aversion: many investors cannot or will not borrow, so when they want higher expected returns they tilt toward riskier assets such as stocks instead of leveraging safer ones. That demand pushes up the prices of risky assets and lowers their risk-adjusted returns, making the relation between risk and return flatter than standard theory predicts. A risk parity investor willing to use leverage holds more of the safer, relatively under-priced assets and so can earn a higher return per unit of risk. Rule: levered return = L * (portfolio return - risk-free rate) + risk-free rate, so leverage scales excess return and risk together and keeps the Sharpe ratio; if the risk-return line is too flat, the better portfolio is a higher-Sharpe-ratio, lower-risk mix scaled up with leverage. Using U.S. data from 1926 to 2010, they found that a risk parity portfolio of stocks and bonds had a higher Sharpe ratio than both the market portfolio and the 60/40 portfolio, with similar results in global data. Caveat: the long backtest includes decades of falling interest rates that favoured leveraged bonds; leverage brings financing costs and margin risk; and Anderson, Bianchi and Goldberg (2012) found that realistic trading and financing costs erode much of the advantage."
+ },
+ {
+  "id": "black-litterman-1992",
+  "title": "Global Portfolio Optimization",
+  "authors": [
+   "Fischer Black",
+   "Robert Litterman"
+  ],
+  "year": 1992,
+  "venue": "Financial Analysts Journal 48(5), 28-43",
+  "doi": "10.2469/faj.v48.n5.28",
+  "link": "https://doi.org/10.2469/faj.v48.n5.28",
+  "kind": "paper",
+  "ideas": [
+   12,
+   14,
+   41
+  ],
+  "summary": "Black and Litterman asked why mean-variance optimisation so rarely produced sensible portfolios in practice, and how to fix it. When investors plug in their own estimates of expected returns, optimisers recommend extreme, unstable positions that swing wildly with small changes in inputs, because the inputs are noisy. Their solution starts from a neutral reference point: the expected returns that would make the global market-capitalisation portfolio optimal, found by reverse optimisation, implied returns = risk-aversion coefficient * covariance matrix * market weights. The investor then states views, absolute or relative (for example, that one country's bonds will beat another's by a stated margin), each with a confidence level. The model blends the equilibrium returns with the views, weighting each by its precision, in the manner of Bayesian updating: blended returns = [(tau * Sigma)^-1 + P' * Omega^-1 * P]^-1 * [(tau * Sigma)^-1 * Pi + P' * Omega^-1 * Q], where Pi holds the equilibrium returns, P and Q describe the views, Omega their uncertainty and tau scales the uncertainty of the equilibrium estimate. The optimiser then produces portfolios that depart from market weights only in the direction of the views, by amounts that reflect confidence. They illustrated the approach with a global portfolio of bonds, equities and currencies. Caveat: tau and Omega are hard to choose and change results materially, and the starting point assumes that the market portfolio is efficient, as in the capital asset pricing model."
+ },
+ {
+  "id": "he-litterman-1999",
+  "title": "The Intuition Behind Black-Litterman Model Portfolios",
+  "authors": [
+   "Guangliang He",
+   "Robert Litterman"
+  ],
+  "year": 1999,
+  "venue": "Goldman Sachs Investment Management Research (Goldman Sachs Asset Management), December 1999",
+  "doi": null,
+  "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=334304",
+  "kind": "report",
+  "ideas": [
+   41
+  ],
+  "summary": "He and Litterman asked why the Black-Litterman model behaves as it does, aiming to give portfolio managers intuition rather than new theory. They showed that, without constraints, the model's optimal portfolio has a simple structure: it equals the market-capitalisation portfolio, scaled down slightly to reflect uncertainty about the equilibrium returns, plus a weighted sum of portfolios that each represent one of the investor's views. Rule: optimal weights = (market weights + P' * Lambda) / (1 + tau), where each column of P' is the portfolio expressing one view and Lambda contains the weights placed on those view portfolios. A view receives more weight when it departs further from what equilibrium already implies, when the investor's confidence in it is higher, and when it is less correlated with the other views; a view that agrees with equilibrium changes nothing, and with no views the investor simply holds the market. They walked through worked examples with several national equity markets to show how changing the strength of, or confidence in, a view tilts the portfolio. This made it easy to check that a model portfolio actually reflects the manager's intentions. Caveat: the clean result assumes no constraints and a known covariance matrix; the meaning and choice of tau and of view confidences remain debated, and later work, such as Idzorek's, proposed more intuitive ways to specify confidence."
+ },
+ {
+  "id": "engle-granger-1987",
+  "title": "Co-Integration and Error Correction: Representation, Estimation, and Testing",
+  "authors": [
+   "Robert F. Engle",
+   "Clive W. J. Granger"
+  ],
+  "year": 1987,
+  "venue": "Econometrica 55(2), 251-276",
+  "doi": "10.2307/1913236",
+  "link": "https://doi.org/10.2307/1913236",
+  "kind": "paper",
+  "ideas": [
+   21,
+   22,
+   43
+  ],
+  "summary": "Engle and Granger asked how to model economic series that wander like random walks individually but appear tied together over the long run, such as consumption and income, or short and long interest rates. They defined cointegration: two non-stationary series are cointegrated if some linear combination of them is stationary, so their spread keeps returning to a stable relationship even though each series drifts. The Granger representation theorem shows that cointegrated series can be written in error-correction form: each period, part of the previous deviation from the long-run relationship is corrected, so the size of the deviation helps predict future changes. They proposed a two-step procedure: estimate the long-run relation by ordinary least squares, y_t = a + b * x_t + u_t, then test whether the residual u_t is stationary with a Dickey-Fuller-type test using special critical values, and, if it is, use the lagged residual in an error-correction model of the changes. Rule: spread_t = y_t - b * x_t is mean-reverting when y and x are cointegrated, even though y and x are not. This framework is the formal basis for pairs and spread trading. Engle and Granger shared the 2003 Nobel prize in economics. Caveat: the two-step test has low power, results can depend on which variable is placed on the left, it finds at most one relationship (Johansen's method handles several), and cointegration between securities can break when the economics behind it changes."
+ },
+ {
+  "id": "gatev-goetzmann-rouwenhorst-2006",
+  "title": "Pairs Trading: Performance of a Relative-Value Arbitrage Rule",
+  "authors": [
+   "Evan Gatev",
+   "William N. Goetzmann",
+   "K. Geert Rouwenhorst"
+  ],
+  "year": 2006,
+  "venue": "Review of Financial Studies 19(3), 797-827",
+  "doi": "10.1093/rfs/hhj020",
+  "link": "https://doi.org/10.1093/rfs/hhj020",
+  "kind": "paper",
+  "ideas": [
+   19,
+   22,
+   43
+  ],
+  "summary": "Gatev, Goetzmann and Rouwenhorst asked whether pairs trading, a strategy long used on Wall Street trading desks, actually makes money, and what explains its returns. Their rule is simple and avoids fitting a model. In a 12-month formation period, each stock's price series is normalised to a cumulative total-return index and paired with the stock whose index stays closest to it, measured by the sum of squared differences. In the following six-month trading period, when a pair's spread, the gap between their normalised prices, exceeds 2 * its historical standard deviation, the strategy buys the loser and sells the winner, closing the position when the prices cross again or the period ends. Applied to U.S. stocks from 1962 to 2002, the best pairs portfolios earned annualised excess returns of up to about 11 percent, comfortably above conservative estimates of transaction costs, and the profits were not explained by simple short-term reversal. They interpreted the profits as a reward to arbitrageurs for enforcing the law of one price between close substitutes. Rule: trade the spread between two historically similar stocks when it is unusually wide, betting that it will close. Caveat: profits declined in the later years of the sample, and studies of more recent data found that after realistic trading costs the returns are modest; the distance rule has no model of why a spread should close, so pairs can drift apart permanently."
+ },
+ {
+  "id": "avellaneda-lee-2010",
+  "title": "Statistical Arbitrage in the US Equities Market",
+  "authors": [
+   "Marco Avellaneda",
+   "Jeong-Hyun Lee"
+  ],
+  "year": 2010,
+  "venue": "Quantitative Finance 10(7), 761-782",
+  "doi": "10.1080/14697680903124632",
+  "link": "https://doi.org/10.1080/14697680903124632",
+  "kind": "paper",
+  "ideas": [
+   22,
+   28,
+   43
+  ],
+  "summary": "Avellaneda and Lee asked how a model-driven statistical arbitrage strategy in U.S. equities can be built and how such strategies performed. Each stock's daily return is split into a part explained by common factors and an idiosyncratic residual. The factors come either from principal component analysis of the stock correlation matrix (eigenportfolios) or from sector exchange-traded funds. The cumulative residual of each stock is modelled as a mean-reverting Ornstein-Uhlenbeck process, and each stock gets an s-score: how many equilibrium standard deviations its residual sits from its estimated mean. Rule: s = (X(t) - m) / sigma_eq; sell the stock and hedge with the factors when s is well above zero, buy when it is well below, close the trade when s returns near zero, and trade only stocks whose residuals revert quickly enough. Backtests from the late 1990s to 2007 showed attractive Sharpe ratios for the principal-component version, somewhat lower ones for the sector-ETF version, and weaker performance after the early 2000s; measuring signals in trading time, using volume information, improved results. They also analysed August 2007, when many quantitative equity funds lost money at once as similar positions were unwound. Caveat: the backtests assume modest transaction costs and involve design choices made with hindsight, and crowding by funds running similar strategies leaves such portfolios exposed to sudden simultaneous deleveraging, as August 2007 showed."
+ },
+ {
+  "id": "bailey-lopez-de-prado-2014",
+  "title": "The Deflated Sharpe Ratio: Correcting for Selection Bias, Backtest Overfitting, and Non-Normality",
+  "authors": [
+   "David H. Bailey",
+   "Marcos López de Prado"
+  ],
+  "year": 2014,
+  "venue": "Journal of Portfolio Management 40(5), 94-107",
+  "doi": "10.3905/jpm.2014.40.5.094",
+  "link": "https://doi.org/10.3905/jpm.2014.40.5.094",
+  "kind": "paper",
+  "ideas": [
+   8,
+   19,
+   21,
+   44
+  ],
+  "summary": "Bailey and López de Prado asked how to judge a backtested Sharpe ratio when it was selected as the best of many attempts. Trying many strategy variations raises the highest Sharpe ratio found even if none has real skill, and short samples, skewed returns and fat tails make the estimate less reliable still. Their deflated Sharpe ratio corrects for both problems. First, estimate the Sharpe ratio one would expect from the best of N independent trials with no skill: expected maximum SR ~ sqrt(variance of the trials' Sharpe ratios) * [(1 - gamma) * Z^-1(1 - 1/N) + gamma * Z^-1(1 - 1/(N * e))], where gamma ~ 0.5772 is the Euler-Mascheroni constant and Z^-1 is the inverse of the standard normal distribution. Second, compute the probability that the observed ratio beats that hurdle, adjusting for the sample length T, skewness and kurtosis: DSR = Z[(SR - SR_0) * sqrt(T - 1) / sqrt(1 - skewness * SR + (kurtosis - 1) / 4 * SR^2)], where SR_0 is the expected maximum and Z the standard normal distribution. A DSR close to 1, such as above 0.95, suggests the result is unlikely to be a statistical fluke. They argued that researchers should record and report the number of trials behind every backtest. Caveat: the method needs the number of effectively independent trials and the variance of their Sharpe ratios, which are rarely recorded and hard to estimate when trials are correlated, and it relies on large-sample approximations."
+ },
+ {
+  "id": "bailey-et-al-2014",
+  "title": "Pseudo-Mathematics and Financial Charlatanism: The Effects of Backtest Overfitting on Out-of-Sample Performance",
+  "authors": [
+   "David H. Bailey",
+   "Jonathan M. Borwein",
+   "Marcos López de Prado",
+   "Qiji Jim Zhu"
+  ],
+  "year": 2014,
+  "venue": "Notices of the American Mathematical Society 61(5), 458-471",
+  "doi": "10.1090/noti1105",
+  "link": "https://doi.org/10.1090/noti1105",
+  "kind": "paper",
+  "ideas": [
+   19,
+   44
+  ],
+  "summary": "Bailey, Borwein, López de Prado and Zhu, writing for mathematicians, asked how easy it is to produce an impressive-looking investment backtest by accident. They showed that if a researcher tries enough variations of a strategy on the same historical data, a high in-sample Sharpe ratio is almost guaranteed even when every variation has zero true skill. They derived the minimum backtest length (MinBTL): the number of years of data needed so that the best of N independent zero-skill configurations is not expected to reach a given annualised Sharpe ratio. Approximately, MinBTL < 2 * ln(N) / (E[max Sharpe])^2, so the data required grows with the logarithm of the number of trials; for example, with five years of data, trying more than about 45 independent configurations makes an annualised Sharpe ratio of 1 expected from luck alone. They also argued that when returns have memory, such as mean reversion, overfit strategies tend to do worse than zero out of sample, because the chosen parameters chase patterns that then reverse. They called on journals and investment firms to require disclosure of the number of trials behind any backtest. Caveat: the formulas assume independent trials and normally distributed returns, so with correlated trials the effective number is smaller than the raw count; the bound says how likely a fluke is but not whether a particular strategy is overfit, which their later probability-of-backtest-overfitting method addressed."
+ },
+ {
+  "id": "bailey-et-al-2016",
+  "title": "The Probability of Backtest Overfitting",
+  "authors": [
+   "David H. Bailey",
+   "Jonathan M. Borwein",
+   "Marcos López de Prado",
+   "Qiji Jim Zhu"
+  ],
+  "year": 2016,
+  "venue": "Journal of Computational Finance 20(4), 39-69 (published online September 2016, the date in the DOI record; print issue dated April 2017, the year often cited)",
+  "doi": "10.21314/JCF.2016.322",
+  "link": "https://doi.org/10.21314/JCF.2016.322",
+  "kind": "paper",
+  "ideas": [
+   19,
+   44
+  ],
+  "summary": "Bailey, Borwein, López de Prado and Zhu asked how to estimate the probability that the strategy configuration chosen as best in a backtest is overfit, meaning that its in-sample rank owes more to noise than to skill. They argued that the usual hold-out approach, testing on one reserved slice of data, is unreliable for backtests because that slice is arbitrary and small. Their method, combinatorially symmetric cross-validation (CSCV), starts from a matrix of returns for all N configurations tried over T periods. The rows are split into S equal blocks; for every way of choosing half the blocks as the in-sample set, with the rest as the out-of-sample set, they find the configuration with the best in-sample performance and record its relative rank out of sample. Rule: PBO = the fraction of these splits in which the in-sample winner ranks below the median out of sample (equivalently, the logit of its relative rank falls below zero). A PBO near 0 means the selection process tends to pick genuinely better configurations; near 0.5 or above, the selection is no better than chance. The same calculations show how much performance typically degrades from in-sample to out-of-sample and how often the chosen strategy loses money. Caveat: the method needs a full record of every configuration tried and assumes performance is comparable across blocks of time, so serial dependence and regime changes can distort the estimate, and a low PBO alone does not mean the chosen strategy will be profitable."
+ },
+ {
+  "id": "harvey-liu-zhu-2016",
+  "title": "… and the Cross-Section of Expected Returns",
+  "authors": [
+   "Campbell R. Harvey",
+   "Yan Liu",
+   "Heqing Zhu"
+  ],
+  "year": 2016,
+  "venue": "Review of Financial Studies 29(1), 5-68",
+  "doi": "10.1093/rfs/hhv059",
+  "link": "https://doi.org/10.1093/rfs/hhv059",
+  "kind": "paper",
+  "ideas": [
+   21,
+   28,
+   44
+  ],
+  "summary": "Harvey, Liu and Zhu asked how many of the hundreds of factors claimed to explain the cross-section of stock returns are likely to be real. They catalogued 316 factors proposed in published research and working papers, with the pace of new proposals accelerating in recent decades, and argued that with so much testing on the same data the usual standard of statistical significance, a t-statistic above about 2, is far too lenient: some factors will clear it by luck alone. Using multiple-testing frameworks from statistics that control either the family-wise error rate (Bonferroni, Holm) or the false discovery rate (Benjamini, Hochberg and Yekutieli), and allowing for tests that were run but never published, they estimated how the significance hurdle should rise over time as more factors are tried. Rule: with M tests, the Bonferroni method requires each p-value < 0.05 / M; in their calibration, a newly proposed factor should clear a t-statistic of about 3.0 rather than 2.0, and the threshold should keep rising as research continues. Under these standards a large share of published factors would be judged likely false discoveries, and the authors suggested that many claimed findings in financial economics are probably false. Caveat: the adjusted thresholds depend on assumptions about the unobserved number of tests and their correlation, and later work, such as Jensen, Kelly and Pedersen (2023), argued with Bayesian methods that most factors replicate reasonably well once their economic similarity is taken into account."
+ },
+ {
+  "id": "demsetz-1968",
+  "title": "The Cost of Transacting",
+  "authors": [
+   "Harold Demsetz"
+  ],
+  "year": 1968,
+  "venue": "Quarterly Journal of Economics 82(1), 33-53",
+  "doi": "10.2307/1882244",
+  "link": "https://doi.org/10.2307/1882244",
+  "kind": "paper",
+  "ideas": [
+   34,
+   45,
+   48
+  ],
+  "summary": "Demsetz asked what it costs to trade a stock and what determines that cost. Beyond brokerage commissions, a trader who wants to buy or sell right away must accept the price offered by someone standing ready to trade, paying a little above or receiving a little below the prevailing value. He argued that the bid-ask spread is the price of this immediacy: dealers and specialists stand ready to trade at any time, and the spread is how they are paid for providing that service. Rule: spread = ask - bid, and the cost of an immediate round trip, buying and then selling, is about one spread, so one side costs roughly spread / 2. Using New York Stock Exchange data, he found that spreads were narrower for stocks with more trading activity, consistent with economies of scale, since frequent trading lowers the cost and the waiting time of matching buyers with sellers, and he stressed that competition from other traders' orders limits how wide spreads can become. The paper launched the economic study of how trading mechanisms set transaction costs, now called market microstructure. Caveat: Demsetz focused on the cost of supplying immediacy and processing orders; later theories showed that the spread also compensates dealers for inventory risk (Ho and Stoll) and for losses to better-informed traders (Glosten and Milgrom), components his framework did not model, and modern electronic markets have very different cost structures."
+ },
+ {
+  "id": "roll-1984",
+  "title": "A Simple Implicit Measure of the Effective Bid-Ask Spread in an Efficient Market",
+  "authors": [
+   "Richard Roll"
+  ],
+  "year": 1984,
+  "venue": "Journal of Finance 39(4), 1127-1139",
+  "doi": "10.1111/j.1540-6261.1984.tb03897.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.1984.tb03897.x",
+  "kind": "paper",
+  "ideas": [
+   34,
+   48
+  ],
+  "summary": "Roll asked whether the effective bid-ask spread, the trading cost actually paid, can be inferred from a series of transaction prices alone, without quote data. In an efficient market where the underlying value follows a random walk, trades fall unpredictably at the bid or at the ask, so recorded prices bounce up and down by the spread. That bounce creates negative correlation between successive price changes: a trade at the ask tends to be followed by a lower recorded price, and a trade at the bid by a higher one. If buys and sells are equally likely and the spread s is constant, the covariance of successive price changes equals -s^2 / 4. Rule: estimated spread = 2 * sqrt(-covariance of consecutive price changes). He applied the measure to daily and weekly returns of U.S. stocks and found that the implied spreads were related to firm size as expected, with smaller firms showing larger spreads. Its appeal is that it needs nothing but prices, so it can be used where quotes are unavailable, such as in long historical data. Caveat: when the sample covariance is positive, which happens often, especially with daily data, the formula has no real solution; the estimate is noisy and is biased when new information arrives with trades, when quotes adjust to inventory, or when order flow is persistent. Later estimators, such as Hasbrouck's Bayesian version and the Corwin-Schultz high-low method, address some of these problems."
+ },
+ {
+  "id": "corwin-schultz-2012",
+  "title": "A Simple Way to Estimate Bid-Ask Spreads from Daily High and Low Prices",
+  "authors": [
+   "Shane A. Corwin",
+   "Paul Schultz"
+  ],
+  "year": 2012,
+  "venue": "Journal of Finance 67(2), 719-760",
+  "doi": "10.1111/j.1540-6261.2012.01729.x",
+  "link": "https://doi.org/10.1111/j.1540-6261.2012.01729.x",
+  "kind": "paper",
+  "ideas": [
+   7,
+   34
+  ],
+  "summary": "Corwin and Schultz asked how to estimate the bid-ask spread from daily high and low prices, which exist for long histories and many markets where quote data do not. Their insight is that the daily high is usually a trade at the ask and the daily low a trade at the bid, so the ratio of high to low reflects both the stock's volatility and its spread. The two components behave differently over time: the volatility part of the squared log range grows in proportion to the length of the interval, while the spread part does not. Comparing the price range over single days with the range over two consecutive days therefore lets the two be separated. Rule: with beta = the sum over the two days of [ln(High / Low)]^2 and gamma = [ln(two-day High / two-day Low)]^2, set alpha = (sqrt(2 * beta) - sqrt(beta)) / (3 - 2 * sqrt(2)) - sqrt(gamma / (3 - 2 * sqrt(2))); the spread is then S = 2 * (exp(alpha) - 1) / (1 + exp(alpha)). Compared with spreads measured from intraday trade and quote data, their estimator was more accurate in their tests than other low-frequency measures, including Roll's. Caveat: it can produce negative estimates, which are usually set to zero; overnight price moves must be adjusted for; and it is least reliable for very liquid stocks, where the spread is tiny relative to volatility, and in markets with infrequent trading."
+ },
+ {
+  "id": "amihud-2002",
+  "title": "Illiquidity and Stock Returns: Cross-Section and Time-Series Effects",
+  "authors": [
+   "Yakov Amihud"
+  ],
+  "year": 2002,
+  "venue": "Journal of Financial Markets 5(1), 31-56",
+  "doi": "10.1016/S1386-4181(01)00024-6",
+  "link": "https://doi.org/10.1016/S1386-4181(01)00024-6",
+  "kind": "paper",
+  "ideas": [
+   34,
+   49
+  ],
+  "summary": "Amihud asked whether a simple measure of illiquidity, computable from daily data available over long periods, explains differences in stock returns across stocks and over time. His measure, ILLIQ, is the average over days of the absolute return divided by the dollar trading volume: ILLIQ = average of |daily return| / daily dollar volume. It captures how much the price moves per dollar traded, a rough gauge of price impact in the spirit of Kyle's lambda. Using NYSE stocks from the 1960s to the late 1990s, he found that across stocks, more illiquid stocks earned higher average returns, consistent with investors demanding compensation for trading costs. Over time, higher expected market illiquidity went with higher expected excess returns, while unexpected increases in illiquidity lowered stock prices at the time, and these effects were stronger for small stocks. Rule: illiquidity is priced; investors require a premium to hold assets that are costly to trade, and a rise in market-wide illiquidity hurts prices, especially those of small, illiquid stocks. The measure became one of the most widely used liquidity proxies because it needs only returns and volume. Caveat: ILLIQ mixes volatility with liquidity and is strongly related to firm size; its level drifts with inflation and with the growth of trading volume, so it must be rescaled over time; and comparisons with high-frequency benchmarks find that it captures price impact better than it captures spreads."
+ },
+ {
+  "id": "ho-stoll-1981",
+  "title": "Optimal Dealer Pricing under Transactions and Return Uncertainty",
+  "authors": [
+   "Thomas Ho",
+   "Hans R. Stoll"
+  ],
+  "year": 1981,
+  "venue": "Journal of Financial Economics 9(1), 47-73",
+  "doi": "10.1016/0304-405X(81)90020-9",
+  "link": "https://doi.org/10.1016/0304-405X(81)90020-9",
+  "kind": "paper",
+  "ideas": [
+   45,
+   46,
+   48
+  ],
+  "summary": "Ho and Stoll asked how a dealer who stands ready to buy and sell a stock should set the prices at which it buys (the bid) and sells (the ask). The dealer faces two kinds of uncertainty: buy and sell orders arrive randomly, at rates that depend on how attractive the quotes are, and any inventory the dealer accumulates can lose value because the stock's return is uncertain. Solving for the quotes that maximise the dealer's expected utility of wealth over a trading horizon, they found that the spread compensates for the risk of holding inventory: it widens with the dealer's risk aversion, the variance of the stock's return and the size of transactions, depends on the time remaining in the horizon, and reflects how strongly order arrivals respond to the quotes. Inventory affects where the quotes sit rather than how wide they are: a dealer who has accumulated too much stock lowers both bid and ask to attract buyers and discourage further sellers, and raises both when short. Rule: bid = reservation price - half-spread and ask = reservation price + half-spread, where the reservation price shifts against the inventory held and the half-spread reflects risk and order-flow conditions. This model of inventory risk is a direct ancestor of modern market-making algorithms such as Avellaneda and Stoikov's. Caveat: it assumes a single monopolistic dealer and no informed traders; empirical studies find that inventory costs explain only part of observed spreads, with adverse selection and order-processing costs accounting for the rest."
+ },
+ {
+  "id": "avellaneda-stoikov-2008",
+  "title": "High-Frequency Trading in a Limit Order Book",
+  "authors": [
+   "Marco Avellaneda",
+   "Sasha Stoikov"
+  ],
+  "year": 2008,
+  "venue": "Quantitative Finance 8(3), 217-224",
+  "doi": "10.1080/14697680701381228",
+  "link": "https://doi.org/10.1080/14697680701381228",
+  "kind": "paper",
+  "ideas": [
+   45,
+   46,
+   48
+  ],
+  "summary": "Avellaneda and Stoikov asked how a market maker in an electronic limit order book should place its buy and sell quotes to earn the spread while controlling the risk of the inventory it accumulates. They assumed the mid-price follows a random walk with volatility sigma, that the market maker's orders are filled at rates that fall exponentially with their distance from the mid-price, lambda(delta) = A * exp(-k * delta), and that the market maker maximises the expected exponential utility, with risk aversion gamma, of wealth at a horizon T. The solution has two parts. First, a reservation price, the market maker's own valuation adjusted for inventory: r = s - q * gamma * sigma^2 * (T - t), where s is the mid-price and q the inventory, so a market maker who is long values the stock below the mid. Second, a total spread around that reservation price: delta_ask + delta_bid = gamma * sigma^2 * (T - t) + (2 / gamma) * ln(1 + gamma / k). Quotes are placed symmetrically around r, so inventory skews them, encouraging trades that bring inventory back toward zero. Simulations showed that this inventory-aware quoting gave lower profit variance than quoting symmetrically around the mid-price. Caveat: the model assumes constant volatility and fill rates, no adverse selection from informed traders and no limit on inventory, and its dependence on a fixed end time is unnatural for continuous trading; Guéant, Lehalle and Fernandez-Tapia later solved a bounded-inventory version with stable quotes."
+ },
+ {
+  "id": "gueant-lehalle-fernandez-tapia-2013",
+  "title": "Dealing with the Inventory Risk: A Solution to the Market Making Problem",
+  "authors": [
+   "Olivier Guéant",
+   "Charles-Albert Lehalle",
+   "Joaquin Fernandez-Tapia"
+  ],
+  "year": 2013,
+  "venue": "Mathematics and Financial Economics 7(4), 477-507",
+  "doi": "10.1007/s11579-012-0087-0",
+  "link": "https://doi.org/10.1007/s11579-012-0087-0",
+  "kind": "paper",
+  "ideas": [
+   45,
+   46
+  ],
+  "summary": "Guéant, Lehalle and Fernandez-Tapia asked how to solve exactly the market maker's quoting problem posed by Avellaneda and Stoikov when inventory must stay within limits. They kept the same ingredients (a Brownian mid-price with volatility sigma, fill rates A * exp(-k * delta) falling with a quote's distance delta from the mid, and risk aversion gamma) and added a maximum position size. After a change of variables, the nonlinear equations for the optimal quotes reduce to a system of linear ordinary differential equations with a closed-form solution involving a matrix exponential. Far from the end of the horizon the quotes settle to stationary values that depend only on inventory, removing the arbitrary time dependence of the earlier model. Their closed-form approximation: each quote sits a base distance (1 / gamma) * ln(1 + gamma / k) from the mid, plus or minus an inventory adjustment in units of u = sqrt(sigma^2 * gamma / (2 * k * A) * (1 + gamma / k)^(1 + k / gamma)); the total spread is about twice the base distance plus one u, and the midpoint of the quotes shifts against an inventory of q by about q * u. At the position limit the market maker stops quoting on the side that would breach it. Caveat: the model still assumes Brownian prices, exponential fill rates, constant parameters and no adverse selection; real use needs careful calibration of A and k, and it leaves out fees, tick sizes and queue position, which matter in practice."
+ },
+ {
+  "id": "glosten-milgrom-1985",
+  "title": "Bid, Ask and Transaction Prices in a Specialist Market with Heterogeneously Informed Traders",
+  "authors": [
+   "Lawrence R. Glosten",
+   "Paul R. Milgrom"
+  ],
+  "year": 1985,
+  "venue": "Journal of Financial Economics 14(1), 71-100",
+  "doi": "10.1016/0304-405X(85)90044-3",
+  "link": "https://doi.org/10.1016/0304-405X(85)90044-3",
+  "kind": "paper",
+  "ideas": [
+   34,
+   45,
+   47,
+   48
+  ],
+  "summary": "Glosten and Milgrom asked why a bid-ask spread would exist even if dealers had no costs and bore no inventory risk. In their model a competitive, risk-neutral specialist trades one unit at a time with a sequence of traders, some of whom know the asset's true value while others trade for reasons unrelated to information. Because the specialist cannot tell who is informed, every buy order is partly bad news: it is more likely to come from someone who knows the value is high. The specialist therefore sets the ask equal to the expected value of the asset given that a buy order has arrived, and the bid equal to its expected value given that a sell order has arrived. Rule: ask = E[value | buy order], bid = E[value | sell order], so the spread is a pure adverse-selection cost, wider when more traders are informed or when their private information matters more. What the specialist loses to informed traders is recovered from uninformed ones. Transaction prices follow a martingale, and as trading reveals information they converge toward the true value. If informed trading is too prevalent, the spread can become so wide that trade stops altogether. Caveat: the model allows only single-unit trades and ignores inventory and processing costs; empirical decompositions find adverse selection is one important component of spreads alongside others, and modern electronic market makers face it in the form of fast, well-informed order flow."
+ },
+ {
+  "id": "kyle-1985",
+  "title": "Continuous Auctions and Insider Trading",
+  "authors": [
+   "Albert S. Kyle"
+  ],
+  "year": 1985,
+  "venue": "Econometrica 53(6), 1315-1335",
+  "doi": "10.2307/1913210",
+  "link": "https://doi.org/10.2307/1913210",
+  "kind": "paper",
+  "ideas": [
+   47,
+   49
+  ],
+  "summary": "Kyle asked how an insider with private information about an asset's value should trade, and how prices come to reflect that information. In his model a single risk-neutral insider knows the asset's value, noise traders submit random orders, and competitive market makers see only the combined order flow and set the price equal to the asset's expected value given that flow. The insider trades strategically, hiding orders among the noise traders. In the single-auction equilibrium, the insider's order is proportional to the gap between the true value and the prior price, and the price moves linearly with net order flow: price change = lambda * (insider order + noise orders), with lambda = (standard deviation of value) / (2 * standard deviation of noise trading). Half of the insider's information ends up in the price. Lambda measures price impact, and its inverse, market depth, is the order flow needed to move the price by one unit; markets are deeper when there is more noise trading. In the continuous-trading version the insider trades gradually, so that information enters the price at a steady rate and is fully reflected by the end, while depth stays constant over time. Rule: price impact is linear in signed order flow, scaled by how much private information exists relative to noise trading. Caveat: the linear impact relies on normal distributions and a single risk-neutral insider; empirical studies of large orders find impact rising roughly with the square root of size, and real markets have many competing informed traders."
+ },
+ {
+  "id": "almgren-chriss-2001",
+  "title": "Optimal Execution of Portfolio Transactions",
+  "authors": [
+   "Robert Almgren",
+   "Neil Chriss"
+  ],
+  "year": 2001,
+  "venue": "Journal of Risk 3(2), 5-39 (often cited as 2000)",
+  "doi": "10.21314/JOR.2001.041",
+  "link": "https://doi.org/10.21314/JOR.2001.041",
+  "kind": "paper",
+  "ideas": [
+   49
+  ],
+  "summary": "Almgren and Chriss asked how to break a large order into smaller trades over a fixed period so as to balance two opposing costs: trading quickly moves the price against you (market impact), while trading slowly leaves the unexecuted position exposed to random price moves. They modelled the price as a random walk with volatility sigma and two kinds of impact: permanent impact, which shifts the price for the rest of the period in proportion to the amount traded, and temporary impact, which affects only the current trade in proportion to the trading rate. For a trader who minimises expected cost plus lambda times the variance of cost, the optimal schedule has a closed form: holdings at time t = X * sinh(kappa * (T - t)) / sinh(kappa * T), where X is the initial position, T the deadline and kappa ~ sqrt(lambda * sigma^2 / eta), with eta the temporary-impact coefficient. A risk-neutral trader (lambda = 0) trades at a constant rate, the familiar time-weighted schedule, while a more risk-averse trader sells faster at the start. Varying lambda traces an efficient frontier of trading strategies in expected cost and variance, analogous to Markowitz's frontier for portfolios. The model became the standard starting point for execution algorithms. Caveat: impact is assumed linear and constant, whereas empirical studies of large orders find concave impact, roughly growing with the square root of size, that partly decays after trading stops; later models add this transient impact and order-book dynamics."
+ },
+ {
+  "id": "almgren-et-al-2005",
+  "title": "Direct Estimation of Equity Market Impact",
+  "authors": [
+   "Robert Almgren",
+   "Chee Thum",
+   "Emmanuel Hauptmann",
+   "Hong Li"
+  ],
+  "year": 2005,
+  "venue": "Risk 18(7), 57-62 (published in Risk under the headline Equity market impact)",
+  "doi": null,
+  "link": "https://www.risk.net/derivatives/structured-products/1500270/equity-market-impact",
+  "kind": "paper",
+  "ideas": [
+   49
+  ],
+  "summary": "Almgren, Thum, Hauptmann and Li asked how the market impact of large stock orders depends on order size, trading speed and the stock's characteristics, using a large data set of actual institutional orders executed by Citigroup's U.S. equity trading desks. Building on the Almgren-Chriss framework, they separated permanent impact, the lasting price shift that remains after an order is complete, from temporary impact, the extra cost paid while trading, and estimated how each scales. They found permanent impact roughly linear in order size measured as a fraction of daily volume, scaled by the stock's volatility and adjusted for how often its shares turn over, and temporary impact growing with the trading rate raised to a power of about 3/5. Rule: temporary cost per share ~ eta * sigma * (shares traded per unit time / daily volume)^(3/5), where sigma is daily volatility, so trading twice as fast raises the cost per share by roughly 50 percent rather than doubling it. The results were designed to feed directly into optimal trade-scheduling algorithms and into pre-trade and post-trade cost estimates. Caveat: the estimates come from one broker's order flow over a limited period, and many later studies using other data find impact closer to a square-root law (an exponent of 1/2) in total order size, with impact partly decaying after execution, so the exact exponent and functional form remain debated."
+ },
+ {
+  "id": "kalman-1960",
+  "title": "A New Approach to Linear Filtering and Prediction Problems",
+  "authors": [
+   "Rudolf E. Kalman"
+  ],
+  "year": 1960,
+  "venue": "Journal of Basic Engineering 82(1), 35-45 (Transactions of the ASME, Series D)",
+  "doi": "10.1115/1.3662552",
+  "link": "https://doi.org/10.1115/1.3662552",
+  "kind": "paper",
+  "ideas": [
+   50
+  ],
+  "summary": "Kalman asked how to estimate the current state of a system that cannot be observed directly, such as a vehicle's position and velocity, from a stream of noisy measurements, and how to predict its future state. Earlier Wiener filtering handled such problems in the frequency domain for stationary processes and was cumbersome to compute. Kalman restated the problem in state-space form: a hidden state evolves linearly with random disturbances, x_t = F * x_(t-1) + w_t, and each observation is a linear function of the state plus noise, y_t = H * x_t + v_t. The best linear estimate can then be computed recursively, needing only the previous estimate and its uncertainty rather than the whole history. Each step predicts the state and its error covariance P, then corrects the prediction with the new observation: gain K = P * H' * (H * P * H' + R)^-1, and updated estimate = prediction + K * (observation - predicted observation), where R is the covariance of the measurement noise. When the noise is Gaussian this estimate is the best possible, not merely the best linear one. The filter guided spacecraft navigation in the Apollo programme; in finance it is used to track time-varying betas and hedge ratios, to estimate unobserved trends and to fit term-structure models. Caveat: it is optimal only for linear models with known noise covariances; misspecified noise levels degrade it, and nonlinear problems need extended, unscented or particle filters."
+ },
+ {
+  "id": "harvey-1990",
+  "title": "Forecasting, Structural Time Series Models and the Kalman Filter",
+  "authors": [
+   "Andrew C. Harvey"
+  ],
+  "year": 1990,
+  "venue": "Cambridge University Press; 1st edition (often cited as 1989; the publisher's DOI record dates the print edition February 1990)",
+  "doi": "10.1017/CBO9781107049994",
+  "link": "https://doi.org/10.1017/CBO9781107049994",
+  "kind": "book",
+  "ideas": [
+   20,
+   50
+  ],
+  "summary": "Harvey's book asks how to model and forecast economic time series by breaking them into components with direct interpretations, such as trend, seasonal pattern, cycle and irregular noise, each allowed to change randomly over time, rather than fitting the more abstract ARIMA models of the Box-Jenkins approach. These structural time series models are written in state-space form, so the Kalman filter delivers estimates of the unobserved components, the likelihood used to estimate the model's variances (through the prediction-error decomposition), smoothed estimates that use the full sample, and forecasts with error bands. The simplest example is the local level model: y_t = mu_t + e_t, with mu_t = mu_(t-1) + n_t, where the level mu wanders as a random walk and is observed with noise. Rule: the ratio q = variance(n) / variance(e), the signal-to-noise ratio, determines how quickly the estimated level adapts to new data; in steady state the Kalman filter for this model is equivalent to exponential smoothing with a weight set by q. The book also covers model selection, diagnostic testing, explanatory variables and interventions, and multivariate extensions, with applications to economic data. Caveat: it is a technical econometrics text; later computational and Bayesian methods, such as those in Durbin and Koopman's state-space book, broadened the toolkit; and for financial returns, which are close to unpredictable, these methods help more with tracking hidden quantities than with forecasting prices."
+ },
+ {
+  "id": "fisher-1930",
+  "title": "The Theory of Interest, as Determined by Impatience to Spend Income and Opportunity to Invest It",
+  "authors": [
+   "Irving Fisher"
+  ],
+  "year": 1930,
+  "venue": "Macmillan, New York; 1st edition",
+  "doi": null,
+  "link": "https://openlibrary.org/works/OL1460746W",
+  "kind": "book",
+  "ideas": [
+   5,
+   6
+  ],
+  "summary": "Fisher asked what determines the rate of interest, and answered that it balances two forces: people's impatience to spend income now rather than later, and the opportunities available to invest, giving up income today for more income in the future. In his framework the value of any capital asset is the present value of the income it is expected to produce, discounted at the market rate of interest: present value = the sum over years t of income_t / (1 + r)^t, so a payment of 110 due in one year is worth 100 today at a 10 percent rate. He showed, in what is now called the Fisher separation theorem, that with a perfect capital market a firm's or person's choice of investments can be made by maximising present value, separately from preferences about when to consume, because borrowing and lending can reshape the timing of consumption. He also distinguished nominal from real interest, restating his earlier relation between interest and expected inflation: (1 + nominal rate) = (1 + real rate) * (1 + expected inflation), or approximately nominal rate ~ real rate + expected inflation. The book laid the foundations for discounted cash flow valuation and for the modern treatment of interest in economics. Caveat: real capital markets are imperfect, and borrowing and lending rates differ; empirical studies find nominal rates do not move one-for-one with expected inflation in the short run; and behavioural research shows people discount the future inconsistently rather than at one steady rate."
+ },
+ {
+  "id": "williams-1938",
+  "title": "The Theory of Investment Value",
+  "authors": [
+   "John Burr Williams"
+  ],
+  "year": 1938,
+  "venue": "Harvard University Press, Cambridge, MA; 1st edition",
+  "doi": null,
+  "link": "https://openlibrary.org/works/OL1343926W",
+  "kind": "book",
+  "ideas": [
+   6
+  ],
+  "summary": "Williams asked how to determine the intrinsic value of a stock or bond, as distinct from its market price, and answered with the rule of present worth: an investment is worth the present value of the cash it will pay its owners. For a stock that means dividends: value = the sum over years t of dividend_t / (1 + r)^t, where r is the investor's required rate of return. Earnings matter only insofar as they lead to dividends, since retained earnings add value only if they produce larger dividends later. He developed formulas for companies whose dividends grow at different rates in different phases, and his approach leads directly to the constant-growth formula later popularised by Myron Gordon: value = next year's dividend / (r - g), valid when the growth rate g is below r. He also stated a law of the conservation of investment value: the total value of a company does not depend on how its capitalisation is divided between bonds and stocks, an idea that anticipated the Modigliani-Miller theorem. The book, based on his doctoral thesis, made the dividend discount model the core of fundamental valuation, and Harry Markowitz has said that reading it prompted his work on portfolio selection. Caveat: values are extremely sensitive to the assumed discount and growth rates, especially when g is close to r; long-run dividend forecasts are highly uncertain; and many companies pay no dividends, so practitioners substitute free cash flows."
+ },
+ {
+  "id": "boyd-vandenberghe-2004",
+  "title": "Convex Optimization",
+  "authors": [
+   "Stephen Boyd",
+   "Lieven Vandenberghe"
+  ],
+  "year": 2004,
+  "venue": "Cambridge University Press (the authors also host a free PDF for personal use at https://web.stanford.edu/~boyd/cvxbook/)",
+  "doi": "10.1017/CBO9780511804441",
+  "link": "https://doi.org/10.1017/CBO9780511804441",
+  "kind": "book",
+  "ideas": [
+   12,
+   11,
+   20
+  ],
+  "summary": "A graduate textbook on optimization problems whose every local optimum is also global: the objective is convex and the feasible set is convex. It teaches how to recognize and reformulate such problems (linear, quadratic, second-order cone and semidefinite programs), the duality theory that certifies an answer is optimal, and the interior-point algorithms that solve them reliably. For a quant it is the mathematics under portfolio construction. Choosing weights w to minimize portfolio variance w'Sw for a required expected return, with the weights summing to one and any linear limits on positions, is a convex quadratic program; the book uses this mean-variance problem as a worked example of a quadratic program and of a risk-return trade-off, and solving it for every required return traces the efficient frontier. Its chapters on approximation and statistical estimation treat least squares, regularized regression and maximum likelihood as convex problems, which is the fitting machinery behind regression and factor models. Rule to remember: when the objective and the constraints are convex, any local minimum is the global minimum, and the dual problem gives a bound that proves it. Caveat: the book proves how to solve a stated problem, not that the inputs are right; expected returns estimated from short histories are noisy, so optimized weights can swing wildly unless the inputs are shrunk or the weights constrained. The authors host a free PDF of the book for personal use; this library keeps only this summary."
+ },
+ {
+  "id": "durrett-2019",
+  "title": "Probability: Theory and Examples",
+  "authors": [
+   "Rick Durrett"
+  ],
+  "year": 2019,
+  "venue": "Cambridge University Press, 5th edition (Cambridge Series in Statistical and Probabilistic Mathematics)",
+  "doi": "10.1017/9781108591034",
+  "link": "https://doi.org/10.1017/9781108591034",
+  "kind": "book",
+  "ideas": [
+   1,
+   2,
+   3,
+   4,
+   16,
+   22
+  ],
+  "summary": "A graduate probability textbook built on measure theory. It proves the laws of large numbers (the average of many independent draws settles on the expected value), the central limit theorem (a sum of many small independent shocks is close to normally distributed, which is why the bell curve appears so often), and then develops random walks, martingales, Markov chains, ergodic theorems and Brownian motion. A martingale is the mathematical model of a fair game: given everything known today, the expected value of tomorrow's price equals today's, which is the formal version of the random-walk view of prices. For the quant ideas here it supplies the rigorous footing for expected value, the random walk, the square-root-of-time rule, the bell curve as a limit, mean-reverting Markov processes and Monte Carlo simulation, whose averages converge because of the law of large numbers. Rule to remember: for n independent, identically distributed returns with finite variance s^2, their sum has standard deviation s * sqrt(n) and is approximately normal when n is large; averaging N simulated paths shrinks the Monte Carlo error like 1 / sqrt(N). Caveat: every theorem holds only under its assumptions, such as independence and finite variance; daily returns are fat-tailed and their volatility clusters, so the normal approximation can be poor in the tails, and the book teaches mathematics rather than market evidence. The author hosts a free PDF of the fifth edition; this library keeps only this summary."
+ },
+ {
+  "id": "hastie-tibshirani-friedman-2009",
+  "title": "The Elements of Statistical Learning: Data Mining, Inference, and Prediction",
+  "authors": [
+   "Trevor Hastie",
+   "Robert Tibshirani",
+   "Jerome Friedman"
+  ],
+  "year": 2009,
+  "venue": "Springer, 2nd edition (Springer Series in Statistics; the authors host a free PDF at https://hastie.su.domains/ElemStatLearn/)",
+  "doi": "10.1007/978-0-387-84858-7",
+  "link": "https://doi.org/10.1007/978-0-387-84858-7",
+  "kind": "book",
+  "ideas": [
+   20,
+   21,
+   19,
+   44
+  ],
+  "summary": "A standard reference on statistical learning written by three Stanford statisticians. It covers linear regression and its regularized forms (ridge regression and the lasso), classification, basis expansions and splines, kernel methods, model assessment and selection, additive models and trees, boosting, neural networks, support vector machines, nearest neighbours, random forests, ensembles, unsupervised learning and problems with more variables than observations. For quant research its central lesson is honest model assessment: the error a model makes on the data it was fit to understates the error it will make on new data, so a model must be judged on data it never saw, by holding data out or by cross-validation, and searching through many models makes the best one look better than it is, which is the same trap as backtest overfitting. It also lays out least squares, the assumptions behind regression standard errors and tests, and how shrinkage trades a little bias for a large cut in variance. Rule to remember: expected prediction error = irreducible noise + bias^2 + variance; a more flexible model lowers bias and raises variance, and the best model balances the two. Caveat: most of its methods assume observations are independent; prices form a time series, so ordinary cross-validation that shuffles days lets the future leak into the past, and finance needs validation that respects time order. The authors host a free PDF of the second edition; this library keeps only this summary."
+ }
+]

@@ -6,7 +6,10 @@
     "3 | maintainer@emeraldcoastsystemsgroup.com | Register Calendar 1.3.0's own and Google event suites and its Add to Google Calendar card suite.",
     "4 | maintainer@emeraldcoastsystemsgroup.com | Register the role template coverage rule (a template maps its own application and every required application).",
     "5 | maintainer@emeraldcoastsystemsgroup.com | Register Calendar 1.4.0's meeting change and cancel suites (routes, cards, the ask-which conversation).",
-    "6 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2: register the phone first-screen browser guards of Vids, Drone Ops, Print Inbox and Travel (job home-summary), Scene Studio and the Harvest Siting Console."
+    "6 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2: register the phone first-screen browser guards of Vids, Drone Ops, Print Inbox and Travel (job home-summary), Scene Studio and the Harvest Siting Console.",
+    "7 | maintainer@emeraldcoastsystemsgroup.com | Lane CHATCORE3 (travel 1.3.5): register Travel's one-chat-window browser guard (job home-summary).",
+    "8 | maintainer@emeraldcoastsystemsgroup.com | Lane CHATCORE3 (aero-lab 1.4.6): register Aero Lab's Draft with AI browser guard (job home-summary).",
+    "9 | maintainer@emeraldcoastsystemsgroup.com | Register the own-first-screen + one-concierge structural guard and the Create ten-editor Chromium concierge browser guard in job store-bots."
   ],
   "commands": [
     ".|node --test scripts/check-catalog.test.mjs",
@@ -115,8 +118,6 @@
     "program-instructions|node --test \"tests/*.test.cjs\"",
     "career-coaching|node --test \"tests/*.test.cjs\"",
     "career-coaching|node --test tests/browser/coaching-page.browser.cjs",
-    "lists|node --test \"tests/*.test.cjs\"",
-    "lists|node --test tests/browser/lists-page.browser.cjs",
     "social|node --test \"tests/*.test.cjs\"",
     "movies|node --test \"tests/*.test.cjs\"",
     "spotify|node --test \"tests/*.test.cjs\"",
@@ -131,7 +132,11 @@
     ".|node --test drone/tests/drone-phone-first-screen.test.cjs",
     ".|node --test print-ingest/tests/print-phone-first-screen.test.cjs",
     ".|node --test travel/tests/travel-phone-first-screen.test.js",
+    ".|node --test travel/tests/travel-one-chat-window.test.js",
+    ".|node --test aero-lab/tests/aero-one-chat-window.test.cjs",
     "scene-studio|node --test tests/scene-phone-first-screen.browser.test.cjs",
-    "ocean-lab|node --test tests/harvest-phone-first-screen.test.cjs"
+    "ocean-lab|node --test tests/harvest-phone-first-screen.test.cjs",
+    ".|node --test scripts/concierge-and-first-screen-guard.test.mjs",
+    ".|node --test scripts/create-concierge-browser.test.mjs"
   ]
 }

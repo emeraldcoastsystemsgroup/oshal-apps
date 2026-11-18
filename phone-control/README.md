@@ -46,6 +46,8 @@ Version 1.20.1 says it in words. A device you have not saved, or one that is not
 
 Version 1.20.2: **Your devices** scrolls under a finger and a mouse wheel again (the html and body rule added in 1.3.0 kept a list taller than the screen from moving). On a screen narrower than 900 px the page also ends with room under its last row, so every row's buttons can be scrolled clear of the floating Jarvis button. Checked in Chromium at 412x915 with touch by `tests/phone-control-phone-scroll.test.cjs`.
 
+Version 1.20.3: **Phone / TV / RDP Concierge** and **Connection Concierge** mount the kernel's one chat window (`/shared/ui/js/jarvis-chat-frame.js`) as `device-concierge` with live device and setup `screen_state`, verified in Chromium at `1440x900` and `412x915` by `tests/phone-control-one-chat-window.test.cjs`.
+
 ## How it works
 
 The page sends each command to a computer of yours that runs oshal Node with **Let Jarvis control this computer**

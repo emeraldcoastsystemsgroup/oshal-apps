@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5 (UX audit 2026-11-06): the Movie Concierge parses its reply in the package (movies-envelope.js), fenced or prose-wrapped, so the raw JSON envelope is never shown; an unreadable envelope is a plain apology. The title sheet is opaque with legible synopsis ink in every theme, and accent buttons take the theme's on-accent ink. Browse is a media home: a hero from Trending with Where to watch as the one primary and + Watchlist beside it, poster rows captioned title · year, Home · Search · Watchlist views (a bottom bar on a phone), Movies and TV chips, and the concierge as a sheet with suggested prompts; the inner header and the TMDB chip left browse.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): ribbon.hideAssistant: the in-page Ask sheet is the one assistant entry; on the trial at 1440x900 the shell's orb sat on the sheet's Send button.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7 (concierge audit T15, the store's PENDING list): movies-concierge runs inline under the same UUID b00b0000-0000-0000-0000-000000000001 and is the chatBot, as Create's create-editor and the eats, rides and shopping concierges are. Declared as a dedicated-node bot it was answered only as a plain completion, and a Jarvis request to plan or make something stayed with the assistant because this workflow application named no chatBot. Its persona follows Create's pattern (plain prose, runtime harness claude-code; no ```tool_call fence, as this package declares no route tools) and returns the Ask sheet's reply object when the chat route asks for it. ribbon.hideAssistant still keeps the in-page Ask sheet the one assistant entry. No route, tool or permission changed.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The Ask sheet no longer draws a chat of its own over POST /api/movies/chat: it holds the kernel's one chat window as the Movie Concierge (movies-concierge), told the screen before each turn (the view, the titles on it with their keys, the type shown, the watchlist). What the page's chat route gave the concierge in its prompt (the TMDB candidates, the profile, the remembered notes, the watchlist) and did on its reply (saving watchlist keys and notes) are now its tools over the package's own routes: search-titles, trending-titles, title-details, movie-tickets, read-watchlist, add-to-watchlist, read-movie-taste and remember-movie-taste (new GET and POST /api/movies/notes). The persona names them. ribbon.hideAssistant stays. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — movies ("Movies & TV")
@@ -47,7 +48,7 @@ description: >-
   AI movies & TV concierge — search films and shows, see where they're streaming,
   watch trailers, get recommendations, build a watchlist, and find showtimes. Other
   swarm bots can ask it what to watch or where to watch it.
-version: 1.1.7
+version: 1.1.8
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -103,6 +104,154 @@ guestTier: blocked
 egress:
   - host: api.themoviedb.org
     credential: { connector: tmdb, query: api_key }
+
+# The Movie Concierge's tools (1.1.8): the one chat window's bot reaches the catalog, the watchlist and the viewer's tastes
+# through the package's own routes, as the person. Reads and the watchlist add run at once, as the page's chat did.
+tools:
+  - name: search-titles
+    displayName: Search Movies and Shows
+    type: api
+    category: media
+    description: Search real movies and TV shows by title, person or mood (The Movie Database); each result has its key for the other tools.
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/search?q={input.query}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        query: { type: string, description: "A title, a person or a few words of what the viewer wants" }
+      required: [query]
+    usageInstructions: >-
+      Use the returned items as the only titles: each has key ("movie:603"), id, mediaType, title, year, overview,
+      rating and genres. A 409 not_configured means the movie database is not connected here; say so.
+    routingTags: [movies, tv, search]
+    skills: [title-search]
+    tags: [movies, route-backed]
+
+  - name: trending-titles
+    displayName: Trending This Week
+    type: api
+    category: media
+    description: The movies and shows trending this week (The Movie Database).
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/trending" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: Use for "what is popular", "what's new" or an open request with nothing to search for.
+    routingTags: [movies, tv, trending]
+    skills: [movie-tv-discovery]
+    tags: [movies, route-backed]
+
+  - name: title-details
+    displayName: Title Details and Where to Watch
+    type: api
+    category: media
+    description: One title in full - details, where it streams, rents or sells in the viewer's region, its trailer, titles like it and a tickets link for a movie.
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/title?type={input.mediaType}&id={input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        mediaType: { type: string, enum: [movie, tv], description: "The title's mediaType" }
+        id: { type: integer, description: "The title's id" }
+      required: [mediaType, id]
+    usageInstructions: >-
+      Call with the mediaType and id of a title from search-titles, trending-titles or the screen. where.link is the
+      where-to-watch page; where.flatrate lists the subscription services. Never claim to play or buy anything.
+    routingTags: [movies, tv, streaming]
+    skills: [where-to-watch-streaming]
+    tags: [movies, route-backed]
+
+  - name: movie-tickets
+    displayName: Find Showtimes
+    type: api
+    category: media
+    description: A Fandango search link for a movie's showtimes and tickets near a place; the viewer picks a theater and pays there.
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/tickets?title={input.title}&location={input.location}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, description: "The movie's title" }
+        location: { type: string, description: "A city or ZIP code; omit when the viewer named none" }
+      required: [title]
+    usageInstructions: Give the viewer the returned url; OSHAL never sells tickets.
+    routingTags: [movies, showtimes, tickets]
+    skills: [showtimes-handoff]
+    tags: [movies, route-backed]
+
+  - name: read-watchlist
+    displayName: Read the Watchlist
+    type: api
+    category: media
+    description: The titles on the viewer's watchlist, newest first.
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/watchlist" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: Use before recommending, so a title already saved is not offered as new.
+    routingTags: [movies, watchlist]
+    skills: [watchlist-curation]
+    tags: [movies, route-backed]
+
+  - name: add-to-watchlist
+    displayName: Add to Watchlist
+    type: api
+    category: media
+    description: Save a title to the viewer's watchlist.
+    executor: { executorType: api, apiEndpoint: "POST /api/movies/watchlist" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        key: { type: string, description: "The title's key, such as movie:603" }
+        title: { type: string }
+        year: { type: string }
+        mediaType: { type: string, enum: [movie, tv] }
+        id: { type: integer }
+        posterUrl: { type: string }
+        tmdbUrl: { type: string }
+      required: [key, title]
+    usageInstructions: Call when the viewer asks to save a title, with the fields its search or details result gave; say it was added only from the result.
+    routingTags: [movies, watchlist]
+    skills: [watchlist-curation]
+    tags: [movies, route-backed]
+
+  - name: read-movie-taste
+    displayName: Read the Viewer's Tastes
+    type: api
+    category: media
+    description: What the concierge keeps about this viewer - remembered notes and the profile's favorite genres and streaming services.
+    executor: { executorType: api, apiEndpoint: "GET /api/movies/notes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: Read before recommending; weight picks toward the services the viewer has.
+    routingTags: [movies, preferences]
+    skills: [movie-taste-learning]
+    tags: [movies, route-backed]
+
+  - name: remember-movie-taste
+    displayName: Remember a Taste
+    type: api
+    category: media
+    description: Keep a taste the viewer states (a genre, a show they loved, a service they have) for later picks.
+    executor: { executorType: api, apiEndpoint: "POST /api/movies/notes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        note: { type: string, description: "The short note to keep, such as \"loves slow-burn sci-fi\"" }
+        said: { type: string, description: "The viewer's own words this turn that state it, copied exactly" }
+      required: [note, said]
+    usageInstructions: Call when the viewer states a taste worth keeping, with said copied from their own words; a note their words do not state is not kept.
+    routingTags: [movies, preferences]
+    skills: [movie-taste-learning]
+    tags: [movies, route-backed]
 
 # Compiled-JS route (built from src-routes/ by `oshal-app build`). One OIDC mount;
 # every route resolves the viewer sub itself; the surface serves from this
@@ -171,7 +320,7 @@ ribbon:
     - logs
     - operations
   hideChatPanel: true
-  # One assistant entry (UX audit 2026-11-06): the in-page Ask sheet is the concierge, so the shell's orb is withheld here;
+  # One assistant entry (UX audit 2026-11-06): the in-page Ask sheet is the concierge (since 1.1.8 the kernel's one chat window), so the shell's orb is withheld here;
   # it sat on the sheet's Send button at 1440x900. Remove this line to bring the orb back.
   hideAssistant: true
   defaultView: movies-concierge

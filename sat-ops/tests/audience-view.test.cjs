@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Sat Ops company view asserted as behaviour over the package's REAL routes: GET /fleet and GET /catalog from routes/sat-routes.js (loaded with only express and the framework aliases stubbed, recording fakes of the fleet registry and the TLE catalog), their answers JSON round-tripped as Express serializes them. On open the view makes exactly those two reads and both routes only list the in-memory registries; it never asks for a track, a pass window, a conjunction screen, the concierge or a node command. The simulated fleet paints as four stats (sim nodes, recent and stale heartbeats, orbits loaded), a title ladder, a fleet table of each node's last report (engine, heartbeat, mode, pointing error, wheel momentum, last heard; recent nodes first) and an orbit catalog table joined to its attitude nodes by sat id (newest registration first). Odd rows, a catalog that could not be read (the fleet still shows), signed out, refused, the fleet route's failure, an unreadable answer and an unreachable server each read as what they are. Every top-level start step of the full page's main script and its connected-actions script is gated: under the view they bind nothing, read nothing and start no poll or render loop; without it they run.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Await the actual compiled fleet/catalog handlers before reading their response; retain legacy synchronous registry assertions and verify asynchronous native facade parity without writes.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.6: the Sat operator is the kernel's one chat window, so the main script no longer wires a chat of its own (its Ask button and message box are gone: eighteen gated start steps, no keydown listener, no chatSend handler). The page's own module, run against a stub document with a stub mount, mounts and loads nothing under a view and fetches nothing; without the audience, or without the kit, it loads /shared/ui/js/jarvis-chat-frame.js and mounts the window into #satOperator as Sat Ops' concierge (sat-operator, no Close, four starter prompts, its screen on every turn) and listens for a Sat Ops card that ran.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -336,15 +337,45 @@ function runMain(activeView) {
 
 test('every top-level start step of the main script is gated: under the view it binds, reads and starts nothing; without it the page starts', () => {
   const steps = MAIN.split('\n').filter((line) => /^[^\s}/)\]]/.test(line) && !/^(function |async function |let |const |var |'use strict')/.test(line));
-  assert.equal(steps.length, 20, 'the camera, catalog, screening, pass, concierge, command and help wiring plus the boot');
+  assert.equal(steps.length, 18, 'the camera, catalog, screening, pass, command and help wiring plus the boot (the Sat operator is the one chat window)');
   assert.deepEqual(steps.filter((line) => !line.startsWith(GATE)), [], 'each top-level start step carries the gate');
   assert.deepEqual(runMain('company'), { listeners: [], clicks: [], reads: [], timers: 0 });
   assert.deepEqual(runMain(null), {
-    listeners: ['mousedown', 'mousemove', 'mouseup', 'wheel', 'keydown', 'click'],
-    clicks: ['btnAutoRot', 'btnFrame', 'catAdd', 'catSeed', 'cjRun', 'passRun', 'chatSend', 'cmdSafe', 'cmdDetumble', 'cmdDesat', 'cmdPoint', 'btnHelp', 'helpClose'],
+    listeners: ['mousedown', 'mousemove', 'mouseup', 'wheel', 'click'],
+    clicks: ['btnAutoRot', 'btnFrame', 'catAdd', 'catSeed', 'cjRun', 'passRun', 'cmdSafe', 'cmdDetumble', 'cmdDesat', 'cmdPoint', 'btnHelp', 'helpClose'],
     reads: ['GET /api/sat/fleet', 'GET /api/sat/catalog'],
     timers: 2,
   });
+});
+
+/**
+ * @description Run the page's own module (the last block) against a stub document and a stub mount, so its start step,
+ * mounting the one chat window, is asserted under a view, without a view and without the kit. Any fetch is a failure.
+ * @param {string|null|undefined} activeView What AppView.active() answers; undefined means no kit at all.
+ * @returns {Promise<object[]>} Every mount the page asked for (the host's id and the options), with the modules it loaded
+ *   and the window events it listened for.
+ */
+async function runModule(activeView) {
+  const marker = '<script type="module">', open = html.lastIndexOf(marker), loads = [], listens = [];
+  assert.ok(open > html.lastIndexOf('<script>'), 'the module is the page\x27s last block');
+  const src = html.slice(open + marker.length, html.indexOf('</script>', open)).replace(/await import\(('[^']+')\)/, 'await load($1)');
+  const mounts = [], kit = activeView === undefined ? undefined : { active: () => activeView };
+  const AsyncFunction = (async () => {}).constructor;
+  await new AsyncFunction('window', 'AppView', 'document', 'fetch', 'load', src)({ AppView: kit, addEventListener: (type) => listens.push(type) }, kit,
+    { getElementById: (id) => ({ id }) }, () => { throw new Error('the page fetched on load'); },
+    async (url) => { loads.push(url); return { mountJarvisChat: (host, options) => mounts.push({ host: host.id, ...options }) }; });
+  return Object.assign(mounts, { loads, listens });
+}
+
+test('under an audience view the module mounts and loads nothing; without the audience, or without the kit, the Sat operator is the one chat window', async () => {
+  const under = await runModule('company');
+  assert.deepEqual([under.length, under.loads, under.listens], [0, [], []]);
+  const full = await runModule(null), [mounted] = full;
+  assert.deepEqual(full.loads, ['/shared/ui/js/jarvis-chat-frame.js']);
+  assert.deepEqual([mounted.host, mounted.app, mounted.bot, mounted.closable, mounted.prompts.length], ['satOperator', 'sat-ops', 'sat-operator', false, 4]);
+  assert.equal(typeof mounted.chatHost.prepare, 'function', 'each turn asks the page for its screen');
+  assert.deepEqual(full.listens, ['oshal-package-tool-done'], 'a Sat Ops card that ran makes the page read the fleet again');
+  assert.equal((await runModule(undefined)).length, 1);
 });
 
 /**

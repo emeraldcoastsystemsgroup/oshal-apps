@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Collapsible right-rail Fantasy Quant Concierge client (F22/F24): surface-bridge context publishing, quick prompt chips, voice/TTS composer controls, inline fantasy-quant bot requests, and approval-card presentation for confirm-gated lineup/waiver actions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger, 2026-11-16, "for the last time": every concierge is the core Jarvis chat window, with its model menu). The rail no longer draws a chat of its own (its log, message box, prompt chips, attach, microphone and speaker buttons and fallback approval card are gone): it holds the kernel's one chat window as Fantasy Quant's concierge (/shared/ui/js/jarvis-chat-frame.js), with its model menu, New conversation, Recent conversations, Files, Tap to talk, Keep trying, Read replies aloud and the kernel's own cards. The context the old rail sent as keys the kernel never read (activeView, activeBoard, selectedLeague) now rides on every turn as screen_state, in words: the view (This week or League setup), the board (Lineup, Season, Waivers or Trades), the league on screen with the ids the Fantasy Quant tools take (manualId or leagueId, and the season), the leagues in the League menu, and the board's own words (its headings, figures and table rows; on League setup its sections and the walkthrough's step). After a turn, and after a card the person approves in the window, the board on screen is read again, as an approved card did before. The three starter prompts and the help line are handed to the window; its Close hides the rail and the header's Concierge button brings it back. Under an audience view nothing mounts, as before. The surface context the page publishes to the shell is unchanged.
  */
 (function initFantasyQuantConcierge() {
   'use strict';
@@ -12,44 +13,110 @@
 
   var BOT_NAME = 'fantasy-quant';
   var APP_ID = 'fantasy-football';
-  var APP_LABEL = 'Fantasy Football';
+  var TITLE = 'Fantasy Quant';
+  var HELP = 'Ask Fantasy Quant who to start at flex, best waiver wire upgrades, or your weekly win-probability swing. Lineup and waiver changes require your approval.';
+  var PROMPTS = ['Who should I start at flex?', 'Best waiver wire upgrades', 'Matchup win probability breakdown'];
+  var BOARDS = { lineup: 'Lineup', season: 'Season', waivers: 'Waivers', trades: 'Trades' };
+  /** Characters of the board's own words handed over with a turn (the kernel keeps 10 KiB of a screen). */
+  var BOARD_CHARS = 6000;
   var rail = document.getElementById('conciergeRail');
   var toggleBtn = document.getElementById('conciergeToggle');
-  var closeBtn = document.getElementById('conciergeClose');
-  var logEl = document.getElementById('conciergeLog');
-  var formEl = document.getElementById('conciergeForm');
-  var inputEl = document.getElementById('conciergeInput');
-  var sendBtn = document.getElementById('conciergeSend');
-  var attachBtn = document.getElementById('conciergeAttach');
-  var speakerBtn = document.getElementById('conciergeSpeaker');
-  var micBtn = document.getElementById('conciergeMic');
-  var noticeEl = document.getElementById('conciergeNotice');
-  var contextRow = document.getElementById('conciergeContextRow');
-  if (!rail || !toggleBtn || !logEl || !formEl || !inputEl) return;
+  if (!rail || !toggleBtn) return;
 
-  var sessionId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('ff-' + Date.now());
-  var busy = false;
-  var lastReply = '';
-  var attachBoardSnapshot = false;
-  var mediaRecorder = null;
   var bridgeClient = null;
 
   function setOpen(open) {
     document.body.setAttribute('data-concierge', open ? 'open' : 'closed');
     toggleBtn.setAttribute('aria-expanded', String(Boolean(open)));
-    if (open) setTimeout(function () { inputEl.focus(); }, 30);
   }
 
-  function currentBoardContext() {
+  function activeView() {
     var setup = document.getElementById('setupView');
-    var activeView = (setup && !setup.hidden) ? 'setup' : 'week';
+    return (setup && !setup.hidden) ? 'setup' : 'week';
+  }
+
+  function shownBoard() {
+    return Object.prototype.hasOwnProperty.call(BOARDS, window.shownKind) ? window.shownKind : 'lineup';
+  }
+
+  /** The board as the shell's surface bridge has always received it (ambient state for the shell, not a chat turn). */
+  function currentBoardContext() {
     var sel = typeof window.selectedLeague === 'function' ? window.selectedLeague() : null;
     return {
       app: APP_ID,
-      activeView: activeView,
+      activeView: activeView(),
       activeBoard: window.shownKind || 'lineup',
       selectedLeague: sel,
     };
+  }
+
+  function squash(words) {
+    return String(words == null ? '' : words).replace(/\s+/g, ' ').trim();
+  }
+
+  /** The League menu's choice in the words it shows, with the ids the Fantasy Quant tools take. */
+  function leagueLine(view) {
+    var sel = typeof window.selectedLeague === 'function' ? window.selectedLeague() : null;
+    if (!sel) return 'League on screen: none yet (no league is saved; League setup adds one).';
+    var menu = document.getElementById('fLeagueSel');
+    var option = menu && menu.selectedIndex >= 0 ? menu.options[menu.selectedIndex] : null;
+    var how = sel.source === 'manual' ? 'a league typed in by hand, manualId ' : 'an ESPN league, leagueId ';
+    return (view === 'setup' ? 'League chosen on This week: ' : 'League on screen: ') + squash(option ? option.textContent : sel.id) +
+      '; ' + how + sel.id + ', season ' + sel.season + '.';
+  }
+
+  function leaguesLine() {
+    var menu = document.getElementById('fLeagueSel');
+    var names = menu ? Array.prototype.map.call(menu.options, function (o) { return squash(o.textContent); }).filter(Boolean) : [];
+    return names.length ? 'Leagues in the League menu (' + names.length + '): ' + names.join('; ') + '.' : '';
+  }
+
+  /** One line of the board: a figure as "label: value", a table row with " / " between its cells, else its words. */
+  function boardPart(node) {
+    if (node.classList.contains('linebox')) {
+      var k = node.querySelector('.k'), v = node.querySelector('.v');
+      return squash(k ? k.textContent : '') + ': ' + squash(v ? v.textContent : '');
+    }
+    if (node.tagName === 'TR') return Array.prototype.map.call(node.children, function (cell) { return squash(cell.textContent); }).filter(Boolean).join(' / ');
+    return squash(node.textContent);
+  }
+
+  /** The board's own words, as the person reads them: headings, figures, table rows and notes, in page order. */
+  function boardWords() {
+    var body = document.getElementById('lineupBody');
+    if (!body) return 'nothing yet.';
+    var lines = Array.prototype.map.call(body.querySelectorAll('h2, h3, .linebox, tr, p'), boardPart).filter(Boolean);
+    if (!lines.length) lines = [squash(body.textContent) || 'nothing yet.'];
+    var kept = [], used = 0;
+    for (var i = 0; i < lines.length; i += 1) {
+      if (used + lines[i].length + 1 > BOARD_CHARS) { kept.push('(' + (lines.length - i) + ' more lines of the board are not sent here.)'); break; }
+      kept.push(lines[i]);
+      used += lines[i].length + 1;
+    }
+    return kept.join('\n');
+  }
+
+  /** League setup in words: its sections and, when the walkthrough is open, which step it is on. */
+  function setupLines() {
+    var setup = document.getElementById('setupView');
+    if (!setup) return [];
+    var heads = Array.prototype.map.call(setup.querySelectorAll('.card > h2'), function (h) { return squash(h.textContent); }).filter(Boolean);
+    var lines = heads.length ? ['Sections: ' + heads.join('; ') + '.'] : [];
+    var wrap = document.getElementById('mFormWrap'), step = document.getElementById('mStepLine'), head = document.querySelector('#mForm .mhead');
+    if (wrap && !wrap.hidden && step) lines.push('League walkthrough open: ' + squash(head ? head.textContent : 'Add a league') + ', ' + squash(step.textContent) + '.');
+    return lines;
+  }
+
+  /** The screen, handed to the window before every turn: the kernel reads it as what the person sees. */
+  function screenState() {
+    var view = activeView(), board = BOARDS[shownBoard()];
+    var lines = [view === 'setup' ? 'Fantasy Football, League setup view.' : 'Fantasy Football, This week view, ' + board + ' board.', leagueLine(view)];
+    var menu = leaguesLine();
+    if (menu) lines.push(menu);
+    lines = lines.concat(view === 'setup' ? setupLines() : ['Board on screen:', boardWords()]);
+    var screen = { title: 'Fantasy Football', tab: view === 'setup' ? 'League setup' : board, text: lines.join('\n') };
+    try { var zone = Intl.DateTimeFormat().resolvedOptions().timeZone; if (zone) screen.timezone = zone; } catch (_e) { /* no zone known */ }
+    return screen;
   }
 
   function publishBridgeContext() {
@@ -66,43 +133,7 @@
     }).catch(function () { /* standalone mode */ });
   }
 
-  function authHeaders(extra) {
-    var h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
-    try {
-      var tok = window.sessionStorage.getItem('oshal.token');
-      if (tok) h.Authorization = 'Bearer ' + tok;
-    } catch (_e) { /* sandboxed storage */ }
-    return h;
-  }
-
-  function requestJson(method, url, body, extraHeaders) {
-    var opts = { method: method, credentials: 'same-origin', headers: authHeaders(extraHeaders) };
-    if (body !== undefined) opts.body = JSON.stringify(body);
-    return fetch(url, opts).then(function (r) {
-      return r.text().then(function (txt) {
-        var parsed = {};
-        try { parsed = txt ? JSON.parse(txt) : {}; } catch (_e) { parsed = { error: txt || ('HTTP ' + r.status) }; }
-        if (!r.ok) throw new Error(parsed.message || parsed.reason || parsed.error || ('HTTP ' + r.status));
-        return parsed;
-      });
-    });
-  }
-
-  function appendMessage(text, isUser) {
-    var art = document.createElement('article');
-    art.className = 'concierge-msg ' + (isUser ? 'concierge-user' : 'concierge-reply');
-    var who = document.createElement('span');
-    who.className = 'concierge-speaker';
-    who.textContent = isUser ? 'You' : 'Fantasy Quant';
-    var p = document.createElement('p');
-    p.textContent = text;
-    art.appendChild(who);
-    art.appendChild(p);
-    logEl.appendChild(art);
-    logEl.scrollTop = logEl.scrollHeight;
-    return art;
-  }
-
+  /** What a turn or an approved card may have changed: the board on screen, read again. */
   function refreshHostBoard() {
     try {
       var l = typeof window.selectedLeague === 'function' ? window.selectedLeague() : null;
@@ -114,205 +145,29 @@
     } catch (_e) { /* host refresh optional */ }
   }
 
-  function renderFallbackCard(proposal, host) {
-    var card = document.createElement('section');
-    card.className = 'concierge-approval-card';
-    card.setAttribute('role', 'region');
-    card.setAttribute('aria-label', 'Action requiring your approval');
-    var title = document.createElement('h3');
-    title.className = 'concierge-approval-title';
-    title.textContent = APP_LABEL + ' · ' + String(proposal.label || proposal.tool || 'lineup action').replace(/_/g, ' ');
-    var desc = document.createElement('p');
-    desc.className = 'concierge-approval-desc';
-    desc.textContent = proposal.cardText || proposal.description || ('Confirm ' + JSON.stringify(proposal.arguments || {}));
-    var actions = document.createElement('div');
-    actions.className = 'concierge-approval-actions';
-    var okBtn = document.createElement('button');
-    okBtn.type = 'button';
-    okBtn.className = 'concierge-approve-btn';
-    okBtn.textContent = 'Approve';
-    var cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'concierge-cancel-btn';
-    cancelBtn.textContent = 'Cancel';
-    var statusLine = document.createElement('p');
-    statusLine.className = 'concierge-notice';
-    function settle(kind) {
-      okBtn.disabled = true;
-      cancelBtn.disabled = true;
-      var path = '/api/jarvis/package-tools/' + kind;
-      requestJson('POST', path, { proposalId: proposal.id }, { 'x-oshal-package-tool': '1' }).then(function () {
-        statusLine.textContent = kind === 'execute' ? 'Approved and applied.' : 'Cancelled.';
-        window.dispatchEvent(new CustomEvent('oshal-package-tool-done', { detail: { proposalId: proposal.id, outcome: kind } }));
-        if (kind === 'execute') refreshHostBoard();
-      }).catch(function (err) {
-        statusLine.textContent = err.message || 'Could not complete approval.';
-        okBtn.disabled = false;
-        cancelBtn.disabled = false;
+  function mountWindow() {
+    import('/shared/ui/js/jarvis-chat-frame.js').then(function (mod) {
+      if (!mod || typeof mod.mountJarvisChat !== 'function') throw new Error('no chat window here');
+      mod.mountJarvisChat(rail, {
+        app: APP_ID, bot: BOT_NAME, title: TITLE, lazy: true,
+        prompts: PROMPTS.map(function (prompt) { return { label: prompt, prompt: prompt }; }), help: HELP,
+        chatHost: {
+          prepare: function () { return Promise.resolve({ screen_state: screenState() }); },
+          refresh: function () { refreshHostBoard(); return Promise.resolve(); },
+        },
+        onClose: function () { setOpen(false); },
       });
-    }
-    okBtn.addEventListener('click', function () { settle('execute'); });
-    cancelBtn.addEventListener('click', function () { settle('decline'); });
-    actions.appendChild(okBtn);
-    actions.appendChild(cancelBtn);
-    card.appendChild(title);
-    card.appendChild(desc);
-    card.appendChild(actions);
-    card.appendChild(statusLine);
-    host.appendChild(card);
-  }
-
-  function resolveProposal(ref) {
-    if (ref && typeof ref === 'object' && ref.tool && ref.id) return Promise.resolve(ref);
-    var id = typeof ref === 'string' ? ref : (ref && (ref.id || ref.proposalId));
-    if (!id) return Promise.resolve(null);
-    return requestJson('GET', '/api/jarvis/package-tools/proposals/' + encodeURIComponent(id))
-      .then(function (r) { return r.proposal || r; });
-  }
-
-  function presentProposals(result) {
-    var refs = (Array.isArray(result.packageToolProposals) ? result.packageToolProposals : [result.packageToolProposal]).filter(Boolean);
-    if (!refs.length) return Promise.resolve(0);
-    return Promise.all(refs.slice(0, 5).map(resolveProposal)).then(function (items) {
-      var proposals = items.filter(Boolean);
-      if (!proposals.length) return 0;
-      var host = document.createElement('div');
-      logEl.appendChild(host);
-      if (typeof window.oshalPresentPackageTools === 'function') {
-        window.oshalPresentPackageTools({ packageToolProposals: proposals }, host, { appName: APP_LABEL });
-      } else {
-        proposals.forEach(function (p) { renderFallbackCard(p, host); });
-      }
-      logEl.scrollTop = logEl.scrollHeight;
-      return proposals.length;
+    }).catch(function () {
+      rail.textContent = 'The Fantasy Quant conversation could not be loaded. Reload the page to try again.';
     });
-  }
-
-  function renderContextChip() {
-    contextRow.innerHTML = '';
-    if (!attachBoardSnapshot) return;
-    var ctx = currentBoardContext();
-    var pill = document.createElement('span');
-    pill.className = 'concierge-context-pill';
-    var lg = ctx.selectedLeague ? (ctx.selectedLeague.source + ':' + ctx.selectedLeague.id) : 'no league';
-    pill.textContent = 'Board: ' + ctx.activeBoard + ' (' + lg + ')';
-    var rm = document.createElement('button');
-    rm.type = 'button';
-    rm.setAttribute('aria-label', 'Remove attached board context');
-    rm.textContent = '×';
-    rm.addEventListener('click', function () { attachBoardSnapshot = false; renderContextChip(); });
-    pill.appendChild(rm);
-    contextRow.appendChild(pill);
-  }
-
-  function updateControls() {
-    sendBtn.disabled = busy;
-    if (speakerBtn) speakerBtn.disabled = !lastReply;
-  }
-
-  function sendPrompt(rawText) {
-    var message = String(rawText || '').trim();
-    if (!message || busy) return;
-    setOpen(true);
-    busy = true;
-    updateControls();
-    var ctx = currentBoardContext();
-    var outgoing = attachBoardSnapshot ? (message + '\nActive Fantasy Football context: ' + JSON.stringify(ctx)) : message;
-    appendMessage(message, true);
-    inputEl.value = '';
-    noticeEl.textContent = 'Fantasy Quant is evaluating projections and win probability…';
-    requestJson('POST', '/api/swarm/bots/' + BOT_NAME + '/ask', {
-      message: outgoing, context: ctx, sessionId: sessionId,
-    }).then(function (res) {
-      if (typeof res.sessionId === 'string') sessionId = res.sessionId;
-      lastReply = String(res.reply || res.answer || '').trim();
-      appendMessage(lastReply || 'Review the proposed action below.', false);
-      return presentProposals(res);
-    }).then(function (cardCount) {
-      noticeEl.textContent = cardCount ? 'Review and approve or cancel the action above.' : '';
-      attachBoardSnapshot = false;
-      renderContextChip();
-    }).catch(function (err) {
-      noticeEl.textContent = err.message || 'Fantasy Quant could not complete that request.';
-    }).then(function () {
-      busy = false;
-      updateControls();
-    });
-  }
-
-  function toggleSpeech() {
-    if (!lastReply || !window.speechSynthesis) return;
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      speakerBtn.setAttribute('aria-pressed', 'false');
-      return;
-    }
-    var u = new SpeechSynthesisUtterance(lastReply);
-    u.onend = function () { speakerBtn.setAttribute('aria-pressed', 'false'); };
-    speakerBtn.setAttribute('aria-pressed', 'true');
-    window.speechSynthesis.speak(u);
-  }
-
-  function toggleMic() {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
-      noticeEl.textContent = 'Voice input is unavailable in this browser.';
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
-      var chunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      micBtn.setAttribute('aria-pressed', 'true');
-      noticeEl.textContent = 'Listening… click mic again to transcribe.';
-      mediaRecorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      mediaRecorder.onstop = function () {
-        micBtn.setAttribute('aria-pressed', 'false');
-        stream.getTracks().forEach(function (t) { t.stop(); });
-        var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-        var reader = new FileReader();
-        reader.onloadend = function () {
-          var b64 = String(reader.result || '').split(',')[1] || '';
-          requestJson('POST', '/api/voice/transcribe', { audio: b64, mimeType: blob.type }).then(function (r) {
-            if (r && r.text) inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + r.text.trim();
-            noticeEl.textContent = '';
-          }).catch(function (err) { noticeEl.textContent = err.message || 'Voice transcription unavailable.'; });
-        };
-        reader.readAsDataURL(blob);
-      };
-      mediaRecorder.start();
-    }).catch(function () { noticeEl.textContent = 'Microphone permission was not granted.'; });
   }
 
   document.body.classList.add('has-concierge');
   setOpen(window.innerWidth >= 960);
+  mountWindow();
 
   toggleBtn.addEventListener('click', function () {
     setOpen(document.body.getAttribute('data-concierge') !== 'open');
-  });
-  if (closeBtn) closeBtn.addEventListener('click', function () { setOpen(false); });
-  if (attachBtn) attachBtn.addEventListener('click', function () {
-    attachBoardSnapshot = !attachBoardSnapshot;
-    renderContextChip();
-  });
-  if (speakerBtn) speakerBtn.addEventListener('click', toggleSpeech);
-  if (micBtn) micBtn.addEventListener('click', toggleMic);
-
-  Array.prototype.forEach.call(rail.querySelectorAll('[data-concierge-prompt]'), function (chip) {
-    chip.addEventListener('click', function () { sendPrompt(chip.getAttribute('data-concierge-prompt')); });
-  });
-
-  formEl.addEventListener('submit', function (e) {
-    e.preventDefault();
-    sendPrompt(inputEl.value);
-  });
-  inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-      e.preventDefault();
-      sendPrompt(inputEl.value);
-    }
   });
 
   document.addEventListener('click', function (e) {
@@ -323,7 +178,7 @@
   document.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'fLeagueSel') setTimeout(publishBridgeContext, 30);
   });
+  // An approved card in the window is announced on this page (the mount passes the window's event on).
   window.addEventListener('oshal-package-tool-done', refreshHostBoard);
-  updateControls();
   connectSurfaceBridge();
 })();

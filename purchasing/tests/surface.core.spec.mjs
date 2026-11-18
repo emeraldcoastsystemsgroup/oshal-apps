@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Shopping commerce smoke in real Chromium at 390 x 844, the actual surface iframed by a parent page over the compiled router: no horizontal overflow; a search fills a grid the page scrolls to the end of; two grid adds show the server's exact total and send no price; a chat checkout renders the shared client's confirm card with no hand-off POST and no window.open until Confirm, which fires exactly one POST /checkout and opens the Walmart link once; a relayed custom checkout from the floating assistant shows the same card and Cancel hands off nothing; a relayed add_product and set_field land through the page's own functions; the parent receives `context` envelopes carrying the cart total and `submit` for the confirm; no page errors.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The fixture now applies the native admission rule, so GET /cart answers a fresh shopper listId null instead of creating the list. The first grid add must create the default list through exactly one POST /lists before its item POST, and no GET in the whole session may attempt a SQL write.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Shopping 1.5.1: shopping-chat.html mounts the kernel's one chat window (tested end-to-end in tests/shopping-one-chat-window.test.js), so this commerce-rail smoke fulfills /api/jarvis/ with a stand-in document and drives the checkout confirm card through a relayed checkout op.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express, playwright and the shared bridge client.
  * Not part of the store-CI wildcard; run locally:
@@ -30,6 +31,7 @@ test.before(async () => {
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await context.route('**/*', (route) => (new URL(route.request().url()).origin === f.origin ? route.continue() : route.abort()));
+  await context.route((url) => url.origin === f.origin && url.pathname === '/api/jarvis/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><meta charset="utf-8"><title>Shopping Concierge</title>' }));
   await context.addInitScript(() => { window.__opened = []; window.open = (...args) => { window.__opened.push(args.map(String)); return null; }; });
   page = await context.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -81,10 +83,8 @@ test('two grid adds show the exact server total, and no price leaves the browser
   assert.match(await frame.locator('#cartMeta').innerText(), /2 cart lines/);
 });
 
-test('a chat checkout is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
-  f.setReply({ say: 'Your cart is ready.', show: [], add: [], remember: [], checkout: true });
-  await frame.fill('#chatInput', 'check out please');
-  await frame.click('#chatSend');
+test('a relayed checkout is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
+  await relay({ op: 'custom', name: 'checkout', data: {} });
   const card = frame.locator('#bridgeOptions .bridge-propose');
   await card.waitFor();
   assert.match(await card.innerText(), /2 items totalling \$4\.90/);

@@ -13,6 +13,7 @@
   9 | maintainer@emeraldcoastsystemsgroup.com | The steps are painted again once the shared editor has mounted: the character list can finish first, and the Saved source panel (Reload saved source) then showed under New character with no character chosen.
   10 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
   11 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01 and design-standard sweep: add multi-photo Upload photos from this device (file picker, drag-and-drop, modal crop/framing canvas, per-photo captioning, owner-scoped preview thumbnails) in Step 2 Dataset while keeping Send-to import alongside; align controls, radii, type scale, focus rings, overscroll, inline discard confirmation, and phone Back drawer dismissal with DS-00..DS-45.
+  12 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: LoRA Studio carries its own concierge, the kernel's one Jarvis chat window (createRegisteredEditorAssistant as lora-director), starting closed at every width so Today hides its floating ball and its bar's Concierge (and the phone's bottom bar Concierge) opens LoRA Studio's own window both standalone and inside Create (create-lora). New character start and the phone character list name no document so general character and model turns reach lora-director directly; selecting a saved character hands over its UUID, subject and revision; + New character steps aside while a phone sheet or panel is open.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="studio" data-ds-first-action="tap">
 <head>
@@ -253,7 +254,8 @@
   .lora-row .avatar{flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:18px}
   .lora-row .nm{display:block;font-weight:600;font-size:16px}
   .lora-row .tg{display:block;color:var(--muted);font-size:12px;margin-top:2px}
-  .lora-fab{position:fixed;right:16px;bottom:calc(56px + 76px + env(safe-area-inset-bottom,0px));z-index:31;min-height:48px;padding:0 20px;border-radius:20px;color:var(--text-on-accent,#fff)}
+  .lora-fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:31;min-height:48px;padding:0 20px;border-radius:20px;color:var(--text-on-accent,#fff)}
+  .ef-editor:is([data-editor-panel=ai],[data-editor-panel=navigation],[data-editor-panel=properties],[data-editor-sheet]) .lora-fab{display:none!important}
 
   dialog.lora-upload-sheet{background:var(--panel);color:var(--text);border:1px solid var(--ctrl-line);border-radius:20px;padding:16px;width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow-y:auto}
   dialog.lora-upload-sheet::backdrop{background:rgba(15,23,42,.48)}
@@ -532,14 +534,14 @@ finally {
     notifySource();
 } }
 async function prepareLoraSource() { document.activeElement?.blur(); await loraEditor?.flushPending(); if (creationDraft || !SEL)
-    throw Error('Save the new character before asking about its saved source.'); for (let attempt = 0; attempt < 3 && sourceDirty(); attempt++) {
+    return null; for (let attempt = 0; attempt < 3 && sourceDirty(); attempt++) {
     if (identityDirty())
         await saveIdentitySource();
     if (captionDirty())
         await saveCaptionSource(false);
 } if (sourceDirty() || !identitySource)
     throw Error('Finish the current source edit before asking the assistant.'); return { app: 'lora', screen: 'source-editor', surface: 'lora-source', recordId: identitySource.characterId, title: identitySource.displayName, selection: sourceSelection(), digest: 'Owned identity metadata and dataset caption source. Captions must be applied by the signed worker before training; trained weights remain immutable.', can: [], customOps: [], fields: { available: true, readOnly: !identitySource.canConfigure, revision: sourceRevision(), subject: SEL, ...(captionObject ? { imageId: captionObject.id, captionStatus: captionObject.caption_status ?? 'applied' } : {}) } }; }
-async function refreshLoraSource(expected) { if (expected?.recordId && expected.recordId !== identitySource?.characterId)
+async function refreshLoraSource(expected) { if (!SEL || creationDraft || (expected?.recordId && expected.recordId !== identitySource?.characterId))
     return; if (sourceDirty())
     throw Error('The assistant changed saved source while you were editing. Your draft remains here.'); const subject = SEL, before = JSON.stringify({ selection: sourceSelection(), revision: sourceRevision() }); const [identity, dataset] = await Promise.all([api('/characters/' + encodeURIComponent(subject) + '/editor'), api('/dataset?subject=' + encodeURIComponent(subject))]); if (SEL !== subject || before !== JSON.stringify({ selection: sourceSelection(), revision: sourceRevision() }) || sourceDirty())
     throw Error('The source changed while loading. Your draft remains here.'); if (!identity.ok || !dataset.ok)
@@ -584,27 +586,43 @@ function wirePhoneDrawerHistory(root){
   }).observe(root,{attributes:true,attributeFilter:['data-editor-panel','data-editor-sheet']});
   window.addEventListener('popstate',()=>{
     if(!open()){pushed=false;return;}
-    closing=true;pushed=false;loraEditor?.showPanel(null);root.removeAttribute('data-editor-sheet');closing=false;
+    closing=true;pushed=false;
+    if(root.dataset.editorPanel==='ai')loraAssistant?.element.dispatchEvent(new CustomEvent('editor-concierge:hide',{bubbles:true}));
+    else loraEditor?.showPanel(null);
+    root.removeAttribute('data-editor-sheet');closing=false;
   });
 }
 async function mountLoraWorkspace(){
-  const{createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
+  const[{createEditorFoundation},{createRegisteredEditorAssistant},{registerDocumentSession}]=await Promise.all([
+    import('/shared/ui/js/editor-foundation.js'),
+    import('/shared/ui/js/editor-assistant.js'),
+    import('/shared/ui/js/document-handoff.js'),
+  ]);
   const root=document.querySelector('.split'),navigation=root.querySelector('.left'),viewport=root.querySelector('.right'),inspector=document.createElement('section');
   const noFacts=document.createElement('p');noFacts.id='noFacts';noFacts.className='hint';noFacts.textContent='Choose a character to see its facts.';
   inspector.className='lora-inspector';inspector.append(noFacts,$('actions'));root.append(inspector);mountSourceControls();
-  loraEditor=createEditorFoundation({root,navigation,navigationLabel:'Characters',viewport,inspector,header:document.querySelector('.top'),
+  registerDocumentSession({app:'lora',prepare:prepareLoraSource,refresh:refreshLoraSource});
+  loraAssistant=await createRegisteredEditorAssistant({
+    app:'lora',bot:'lora-director',title:'LoRA Studio AI partner',root,
+    getState:()=>({...loraSourceState(),documentId:creationDraft||!SEL?null:(identitySource?.characterId??SEL)}),
+    getSelection:sourceSelection,
+  });
+  const conciergeHelp=loraAssistant.element.querySelector('.ef-assistant-help');
+  if(conciergeHelp)conciergeHelp.textContent='Ask about your characters, models or open dataset captions. Saved edits sync before each message.';
+  loraEditor=createEditorFoundation({root,ai:loraAssistant.element,navigation,navigationLabel:'Characters',viewport,inspector,header:document.querySelector('.top'),
     getState:loraSourceState,getSelection:sourceSelection,getProperties:characterProperties,applyProperty:applyCharacterProperty,actions:{save:async()=>{if(creationDraft||!SEL)return saveCharacter({preventDefault(){}});if(identityDirty())await saveIdentitySource();if(captionDirty())await saveCaptionSource(false);}}});
+  loraAssistant.element.dispatchEvent(new CustomEvent('editor-concierge:hide',{bubbles:true}));
+  if(document.activeElement?.closest?.('.ef-panes'))document.activeElement.blur();
   wirePhoneDrawerHistory(root);
   root.addEventListener('input',notifySource);root.addEventListener('change',notifySource);root.addEventListener('editor-foundation:draft',notifySource);
   paintSteps(); // the list may have painted before the shared editor finished mounting the saved-source panel
-  const{registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'lora',prepare:prepareLoraSource,refresh:refreshLoraSource});
   import('/api/lora/ui/photo-upload.mjs').then(({mountPhotoUpload})=>mountPhotoUpload({
     getSubject:()=>SEL,
     getDefaultCaption:()=>$('datasetCaption').value.trim()||(CHARS.find(c=>c.subject===SEL)?.trigger_word||''),
     showStatus:(kind,msg)=>showResult(kind,msg),
     onUploaded:async(_count,msg)=>{showResult('ok',msg);if(SEL)await loadDataset(SEL);},
   })).catch(()=>{});
-  window.addEventListener('pagehide',event=>{if(!event.persisted)loraEditor.destroy();},{once:true});
+  window.addEventListener('pagehide',event=>{if(!event.persisted){loraAssistant?.destroy();loraEditor.destroy();}},{once:true});
 }
 const ARTIFACT_REF = (()=>{
   try{

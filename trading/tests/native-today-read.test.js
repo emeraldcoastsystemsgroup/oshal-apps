@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Follow only the unchanged version-one authority closure while the candidate has separately declared roots.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | GET /paper/today (1.57.0), on invented accounts: it sends SELECT statements only, opens no transaction and calls no kernel intent; it says from saved records whether an account runs and how much of its plan is the strategy's fallback, what was sent and filled today in New York time, and why the value moved in two parts that add up; a receipt for another account or strategy, an unreadable list and a missing figure stay unknown; another person's rows never appear; and none of its files joins the order-authority set.
  */
 'use strict';
@@ -145,9 +146,11 @@ test('paper accounts answer from their own ledgers: the plan, today, a prices-on
 });
 
 test('none of the read\'s files joins the order-authority set, and the manifest sources are unchanged',()=>{
- const manifest=fs.readFileSync(path.join(ROOT,'oshal-app.yaml'),'utf8');
- assert.match(manifest,/orderAuthority:\s*\n\s*sources:\s*\n\s*-\s*routes\/trading-native-management\.js\s*\n\s*-\s*routes\/live\/management\.js\s*\n/);
- const seen=new Set(),pending=['routes/trading-native-management.js','routes/live/management.js'];
+ const yaml=require(require.resolve('js-yaml',{paths:[process.env.STORE_CI_TOOLCHAIN||path.resolve(ROOT,'../scripts/toolchain/node_modules')]}));
+ const manifest=yaml.load(fs.readFileSync(path.join(ROOT,'oshal-app.yaml'),'utf8'));
+ const sources=manifest.orderAuthority?.versions?.['1']?.sources;
+ assert.deepEqual(sources,['routes/trading-native-management.js','routes/live/management.js']);
+ const seen=new Set(),pending=[...sources];
  while(pending.length){
   const rel=pending.pop();if(seen.has(rel))continue;seen.add(rel);
   for(const m of fs.readFileSync(path.join(ROOT,rel),'utf8').matchAll(/\brequire[ \t\r\n]*\([ \t\r\n]*(['"])(\.[^'"\n]+)['"][ \t\r\n]*\)/g)){

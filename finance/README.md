@@ -94,7 +94,7 @@ real numbers into Finance by downloading a statement file from their bank's webs
   and does not pay the bill.
 - **Spending**: money in, money out, and left to spend once a plan is set; categories against the plan.
 - **Goals**: **Set aside** and **Take back** are recorded in Finance; no money moves.
-- **Home** opens with **Where you stand** (`GET /api/finance/day`): three steps on a first run, otherwise net worth,
+- **Home** opens with **Statement and manual records** (`GET /api/finance/day`): three steps on a first run, otherwise net worth,
   bills due, the month's money out and the new transactions.
 - The bar: Home, Accounts, Transactions, Bills, Spending, Goals, Trades, More (Bank accounts, Connections, World,
   Markets, Recap). Trades and every earlier screen are unchanged.
@@ -106,6 +106,18 @@ real numbers into Finance by downloading a statement file from their bank's webs
   transactionsComplete false, so the facts and the brief withhold spending totals rather than treat a statement's
   days as the whole window. Sync and Request analysis are unchanged. Demo data (`FINANCE_DEMO_DATA`) also writes its
   sample household as records, marked Sample data.
+
+### Saved bank activity (1.8.3)
+
+Bank snapshots and statement/manual records stay separate. A saved summary rebuilt from statement/manual
+records is never labelled or listed again as bank activity. **View saved bank activity** on Home opens
+**Transactions**, where a read-only bank section shows the last saved snapshot's source and time, provider-window
+coverage and at most 25 recent available entries. That list is not the entire bank history. Each amount needs its
+own currency; missing money or units remain unknown. **Refresh saved view** only reads the saved snapshot;
+**Open bank accounts** leads to the existing bank page and its explicit Sync action. Account links, data and
+categories are not copied into editable records. The statement/manual month, category, review and import actions
+keep working on those records only. A failed or timed-out bank read does not report an empty bank history and
+does not start Sync or analysis. Reauthentication repair remains a separate unimplemented follow-up.
 
 Tests: `tests/ledger-*.test.cjs`, `tests/sample-ledger.test.cjs`, `tests/day-records.test.cjs` (a disposable PostgreSQL
 named by `OSHAL_TEST_POSTGRES`), `tests/record-pages.test.cjs`, and `tests/browser/record-pages.browser.test.cjs`

@@ -44,6 +44,7 @@
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: on a multi-day energy loop the 'min SOC' label still crossed the rising curve: the valleys are too narrow for any spot beside the dot, and the fallback drew it there anyway. Candidates now reach 120 px either side, and when none is clear the label goes in the strip above the plot, right-aligned and keyed by a dot in the mark's colour. Guard: tests/aero-chart-labels.test.cjs.
  * 2026-10-13 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: with no engine the page showed the person the host's install command ('on the kernel host run aero-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES') and a README path. A missing or unreachable engine is now one sentence (ENGINE_DOWN: not answering on this installation); a module mid-upgrade is still the engine's own sentence. Guard: tests/aero-engine-down-words.test.cjs.
  * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the design vector is closed groups with Reset to preset each and the Site & season quick fills inside their group; number fields show the field's decimals (full value on focus); a preset shows its one-line description while its provenance note still goes to the designer chat.
+ * 2026-11-17 07:30:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3): Draft with AI is the kernel's one chat window (mounted by the page), not a box of this script's own over POST /chat. window.aeroLabWindow hands it each turn: beforeTurn() tells POST /draft/design the sliders (a draft is checked against them) and returns the screen (aeroScreen: the view, the design field by field, the loaded preset's record and the latest run, screenRecord); afterTurn() reads a draft the concierge offered (GET /draft) and shows it with Apply to sliders (showDraft), which clears it (DELETE /draft). Nothing runs until the person presses Run. Guard: tests/aero-one-chat-window.test.cjs.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -66,7 +67,6 @@
     caps: null,          // last GET /capabilities response
     bounds: null,        // engine bounds { field: [min,max] } when provided
     busy: false,
-    chat: [],            // [{ role, content }]
     rerenders: [],       // thunks re-run on theme change (charts repaint with new series steps)
   };
 
@@ -1104,36 +1104,52 @@
     }
   }
 
-  /* ── chat (Draft with AI) ─────────────────────────────────────────────── */
+  /* ── Draft with AI: the kernel's one chat window (1.4.6) ──────────────── */
 
   /**
-   * @description Send a message to the aero-designer concierge. The reply's say
-   * text joins the log; a returned draft is previewed field-by-field and applied
-   * to the sliders only on an explicit click — never auto-run.
-   * @returns {Promise<void>} Resolves when the exchange settles.
+   * @description What the concierge window is told this screen shows before each turn (context.screen_state, the
+   * kernel's screen-snapshot shape): the view, the design on the sliders field by field (the CURRENT DESIGN a draft
+   * starts from) and what the engine recorded on screen (screenRecord).
+   * @returns {{title: string, tab: string, text: string}} The snapshot.
    */
-  async function sendChat() {
-    const input = $('chatInput');
-    const typed = input.value.trim();
-    if (!typed || state.busy) return;
-    input.value = '';
-    addMsg('user', typed);
-    state.chat.push({ role: 'user', content: typed });
-    const msg = typed + screenRecord();
-    const btn = $('chatSend');
-    btn.disabled = true;
+  function aeroScreen() {
+    const tab = document.body.dataset.view === 'vehicle' ? 'Vehicle record & build package' : 'Sizing & flight envelope';
+    const lines = ['# CURRENT DESIGN (the sliders; a draft starts from these)'];
+    for (const f of D.fields) lines.push(f.k + ' = ' + state.design[f.k] + (f.unit && f.unit !== '—' ? ' ' + f.unit : '') + ' (' + f.label + ')');
+    const record = screenRecord().trim();
+    if (record) lines.push(...record.split('\n'));
+    return { title: 'Aero Lab: ' + tab, tab, text: lines.join('\n').slice(0, 9000) };
+  }
+
+  /**
+   * @description Before each concierge turn: tell the route the design on the sliders (the draft is checked against
+   * it) and hand the window this screen. A route that cannot take the design still lets the turn go; no draft can be
+   * offered for it then.
+   * @returns {Promise<{screen_state: object}>} The turn's context.
+   */
+  async function beforeTurn() {
+    try { await api('POST', '/draft/design', { design: { ...state.design } }); }
+    catch (err) { console.warn('[aero-lab] the sliders were not sent with this turn:', errText(err)); }
+    return { screen_state: aeroScreen() };
+  }
+
+  /**
+   * @description After each concierge answer: a draft the concierge offered for these sliders is shown with Apply to
+   * sliders. Nothing runs.
+   * @returns {Promise<void>} Resolves when the offered draft is read.
+   */
+  async function afterTurn() {
     try {
-      const r = await api('POST', '/chat', { message: msg, history: state.chat.slice(-8), design: { ...state.design } });
-      addMsg('bot', r.say || '(no reply)');
-      state.chat.push({ role: 'assistant', content: r.say || '' });
-      if (r.draft && typeof r.draft === 'object' && Array.isArray(r.changes)) showDraft(r.changes);
-      else $('draftBox').style.display = 'none';
+      const r = await api('GET', '/draft');
+      if (r.draft && Array.isArray(r.draft.changes)) {
+        showDraft(r.draft.changes);
+        $('draftBox').scrollIntoView({ block: 'nearest' });
+      }
     } catch (err) {
-      addMsg('bot', errText(err));
-    } finally {
-      btn.disabled = false;
+      console.warn('[aero-lab] the offered draft could not be read:', errText(err));
     }
   }
+  window.aeroLabWindow = Object.freeze({ beforeTurn, afterTurn, screen: aeroScreen });
 
   // screen-record:start
   /**
@@ -1157,16 +1173,6 @@
     return '\n\nWHAT THIS SCREEN SHOWS (recorded by the engine; base any draft on these numbers and do not propose a change they already show is too small):\n' + lines.join('\n');
   }
   // screen-record:end
-
-  /** @description Append a chat bubble. @param {string} who - 'user'|'bot'. @param {string} text - Content. @returns {void} */
-  function addMsg(who, text) {
-    const log = $('chatLog');
-    const m = document.createElement('div');
-    m.className = 'msg ' + who;
-    m.textContent = text;
-    log.appendChild(m);
-    log.scrollTop = log.scrollHeight;
-  }
 
   /**
    * @description Preview a concierge draft as the fields it changes against the sliders
@@ -1198,6 +1204,7 @@
       $('presetNote').textContent = 'AI draft applied to the sliders — the engine has not judged it yet. Press Run.';
       $('runStatus').textContent = 'draft applied — press Run';
       box.style.display = 'none';
+      void api('DELETE', '/draft').catch((err) => console.warn('[aero-lab] the applied draft was not cleared:', errText(err)));
     });
   }
 
@@ -1217,8 +1224,6 @@
     $('btnScreen').addEventListener('click', runScreen);
     $('btnMission').addEventListener('click', runMission);
     $('btnExport').addEventListener('click', runExport);
-    $('chatSend').addEventListener('click', sendChat);
-    $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
     // Cockpit theme changes: surface-theme.js flips data-theme live; storage covers other tabs.
     new MutationObserver(repaintCharts).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     window.addEventListener('storage', repaintCharts);

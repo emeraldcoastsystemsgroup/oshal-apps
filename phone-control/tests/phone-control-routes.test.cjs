@@ -35,6 +35,7 @@
  * 30 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.20.0 and oshal_phone_front.py among the served bridge files (an application opened, listed and read in front on a Roku or a Samsung TV); every other guard is unchanged.
  * 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: every not-found answer of the package says in words what is missing beside its code: each device route with a device nobody saved (the TV apps route behind phone-control-tv-apps answered only {"error":"device_not_found"} on blue, 2026-11-14) and with another person's device, which reads the same; a capture, a transfer, a bridge file and a page file that are not there. Bridge metadata 1.20.1.
  * 32 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.20.2 (the release that makes Your devices scroll on a phone); every other guard is unchanged.
+ * 33 | maintainer@emeraldcoastsystemsgroup.com | Expect bridge metadata 1.20.3 (Device and Connection Concierge mount the kernel's one chat window); every other guard is unchanged.
  */
 'use strict';
 
@@ -251,7 +252,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.20.2');
+  assert.equal(manifest.version, '1.20.3');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_apps.py', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_front.py', 'oshal_phone_lan.py', 'oshal_phone_links.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_play.py'
   ]);

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the handlers no longer carry a process copy of archived prices; it never hit for a caller who can write, whose every non-GET call runs in a fresh process.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: the lab's handlers keep one process copy of archived day prices (createArchiveCache), so a second question on the same names reads nothing from the World archive.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: interactive lab routes never reach the network: the bill rate and the factors come from the cached copy (or "unavailable right now" with the reason), so a reference host that never answers cannot hold up Trading. The handlers' default deps carry no fetch.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Real reference data: risk, factors, frontier and Kelly use the latest 3-month Treasury bill rate (FRED, labelled) unless the question gives one; the factors view adds the official Fama-French three factors; a new options route reads the caller's real Schwab option chain (the kernel's trading.chains) and says plainly when there is none.
@@ -6,7 +7,7 @@
  */
 'use strict';
 const store = require('./store');
-const { parseSymbols, loadPrices, lastSessions, alignCloses, tradingConfig, createArchiveCache } = require('./lab-data');
+const { parseSymbols, loadPrices, lastSessions, alignCloses, tradingConfig } = require('./lab-data');
 const { VIEWS, DEFAULT_SESSIONS, PROXIES, riskView, behaviorView, volatilityView, liquidityView, factorsView, officialFactorsView } = require('./lab-stock');
 const { famaFrenchDaily, riskFreeFor } = require('./lab-reference');
 const { optionsView } = require('./lab-options');
@@ -252,7 +253,7 @@ async function overfittingHandler(deps, sub) {
  * @returns {Object<string, Function>} Handlers.
  */
 function labHandlers(ctx, overrides = {}) {
-  const deps = { pool: ctx.pool, intent: (name, input) => ctx.intent(name, input), time: () => Date.now(), archive: createArchiveCache(), ...overrides };
+  const deps = { pool: ctx.pool, intent: (name, input) => ctx.intent(name, input), time: () => Date.now(), ...overrides };
   const bind = (fn) => (sub, req) => fn(deps, sub, req);
   return { explain: bind(explainHandler), calculate: bind(calculateHandler), stock: bind(stockHandler), portfolio: bind(portfolioHandler), pair: bind(pairHandler), simulate: bind(simulateHandler), options: bind(optionsHandler), overfitting: bind(overfittingHandler) };
 }

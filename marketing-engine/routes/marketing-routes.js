@@ -7,6 +7,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial marketing-engine API (/api/marketing, oidc): campaign CRUD + sanitized import (import never arms spend/consent — series-pump rule), per-channel consent PUT (428-gated standing authorization), inline-bot drafts/research/launch-checklist via executeBotOrInline (hosted-brain aware), the consent→cap→confirm(428)→rail→run-ledger publish chain (LinkedIn/Mastodon connector actions, Bluesky fixed op, Resend email — honest 409/503 degradation), scorecard read/rebuild, experiment lifecycle, budget-proposal decisions, UTM builder. Pure gates come from ./marketing-model.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Type the pool via AppContext['pool'] instead of importing a QueryablePool that core never exported — the ambient stub compiled standalone but broke the shared whole-store framework build for every sibling package.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Split at the 800-line decomposition threshold, with no behavior change: the shared constants, helpers and lazy DDL moved to ./marketing-support, the inline-bot turn runner and prompts to ./marketing-bots, the publish rails plus the consent→cap→confirm gate and the channel consent PUT to ./marketing-publish, the campaign/content handlers to ./marketing-campaigns, and the scorecard/experiment/budget/UTM handlers to ./marketing-measure. This module is now imports plus createMarketingRoutes, registering the same twenty routes in the same order.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Project pending (`status = 'proposed'`) budget proposals as `approvals` on `GET /api/marketing/budget/proposals` for the cross-application Approvals screen (`/cockpit/?screen=approvals`).
  *
  * @module marketing-routes
  */
@@ -44,6 +45,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.formatBudgetApprovals = formatBudgetApprovals;
 exports.createMarketingRoutes = createMarketingRoutes;
 const express_1 = require("express");
 const path = __importStar(require("path"));
@@ -51,6 +53,28 @@ const marketing_support_1 = require("./marketing-support");
 const marketing_publish_1 = require("./marketing-publish");
 const marketing_campaigns_1 = require("./marketing-campaigns");
 const marketing_measure_1 = require("./marketing-measure");
+/** @description Map proposed budget-ledger rows into cross-application approval items. */
+function formatBudgetApprovals(proposals) {
+    return proposals
+        .filter((row) => row && row.status === 'proposed' && row.entry_id)
+        .map((row) => {
+        const id = String(row.entry_id);
+        const field = String(row.field || 'budget');
+        const next = String(row.new_value ?? '');
+        const prev = row.old_value != null && String(row.old_value) !== '' ? ` (from ${String(row.old_value)})` : '';
+        const ch = row.channel ? ` · ${String(row.channel)}` : '';
+        return {
+            id,
+            category: 'Budget proposal',
+            title: `${field === 'budget_monthly_usd' ? 'Monthly budget' : field}: ${next}${prev}`,
+            summary: `Proposed by ${String(row.proposed_by || 'analyst')}${ch}`,
+            createdAt: row.created_at || null,
+            openHref: '/cockpit/?app=marketing-engine',
+            approve: { method: 'POST', path: `/api/marketing/budget/proposals/${encodeURIComponent(id)}/decide`, body: { decision: 'approve', confirm: true }, label: 'Approve' },
+            decline: { method: 'POST', path: `/api/marketing/budget/proposals/${encodeURIComponent(id)}/decide`, body: { decision: 'reject' }, label: 'Decline' },
+        };
+    });
+}
 // ---------------------------------------------------------------------------
 // Schema + factory
 // ---------------------------------------------------------------------------
@@ -91,7 +115,7 @@ function createMarketingRoutes(ctx) {
     router.patch('/experiments/:id', (0, marketing_support_1.authed)(ctx, marketing_measure_1.patchExperiment));
     router.get('/budget/proposals', (0, marketing_support_1.authed)(ctx, async (c, sub, _req, res) => {
         const proposals = await (0, marketing_support_1.rows)(c.pool, 'SELECT * FROM oshal_marketing_budget_ledger WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 100', [sub]);
-        res.json({ proposals });
+        res.json({ proposals, approvals: formatBudgetApprovals(proposals) });
     }));
     router.post('/budget/proposals/:id/decide', (0, marketing_support_1.authed)(ctx, marketing_measure_1.decideBudgetProposal));
     return router;

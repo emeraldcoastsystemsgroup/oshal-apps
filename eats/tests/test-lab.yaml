@@ -20,6 +20,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (UX audit 2026-11-06): register address-saved (a first profile save carries empty lists, so the address sticks; the page saves a typed address once), remembered-clean (state notes leave the list, a repeated note is listed once, Forget removes every copy) and one-home (the Restaurants tile merged into Order Food, ?view=browse opens it on its results, one assistant entry, the page follows its theme).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: register phone-first-screen (lane mobilesweep1).
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: register allergy-tools (the restaurant search, the Uber Eats hand-off and the new remember tool hold by the diner's saved allergies for every caller) and one-chat-window (the Eats Concierge is the kernel's one chat window, told the screen, its hand-off cards approved in it). allergy-surface is retired with the page's own chat it drove (the route's allergy-check line stays guarded by allergens); commerce-bridge, surface-mobile-commerce, not-connected and address-saved expect a page with no chat of its own.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.5.8: register reply-check (Eats' reply check, which the kernel calls after each concierge turn, flags a peanut dish the bot named for a diner with a saved peanut allergy).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -405,6 +406,32 @@ cases:
       - POST /order refuses Peanut Palace with 409 allergy_conflict, no link and nothing recorded, and hands Thai Garden off.
       - POST /notes keeps a stated allergy and the next search holds by it; a note the person did not state is not kept; another diner's search is untouched.
       - The manifest binds search-restaurants, open-uber-eats (an approval) and remember-eats-note to these routes, with avoid declared.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/eats-routes-harness.js
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: reply-check
+    name: A dish the concierge names is checked against the diner's allergies after the turn
+    purpose: >-
+      Through the compiled routes, the call the kernel makes after each turn of the Eats concierge (manifest replyCheck: the
+      person's words and the bot's reply, as that person), for diners with a saved, profile or stated peanut allergy.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-reply-check.test.js
+    expected:
+      - A reply naming Pad Thai for a diner with a saved peanut allergy is answered with the line "Allergy and diet check - Pad Thai usually contains peanuts (you avoid peanuts)", and the check only reads.
+      - The profile's diet and an allergy said in the person's words flag the same way.
+      - A reply that warns in the same sentence, a diner with nothing saved and another diner's notes give no line; a call with no reply is refused.
+      - The manifest names replyCheck path /api/eats/reply-check with its label and unavailable line, and mounts that exact POST route (createEatsReplyCheckRoutes).
     prerequisites:
       - runner:node-test
     sideEffects: none

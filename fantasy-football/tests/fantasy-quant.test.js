@@ -8,15 +8,17 @@
  *      zero SQL writes (`persist: false`, zero `ff_calls` / `ff_weeks` mutations on GET).
  *   2. `POST /quant/set-lineup` and `POST /quant/apply-waiver` update the caller's hand-typed
  *      league starters/roster/FAAB cleanly and refuse cross-owner or already-rostered mutations.
- *   3. `oshal-app.yaml`, `personas/fantasy-quant.yaml`, and `tools/fantasy-football.html` bind
- *      `fantasy-quant` and gate both mutation tools behind `defaultAuthMode: ask` and
- *      `requiresApproval: true`.
+ *   3. `oshal-app.yaml` and `personas/fantasy-quant.yaml` bind `fantasy-quant` and gate both
+ *      mutation tools behind `defaultAuthMode: ask` and `requiresApproval: true`, and the page's
+ *      Concierge rail (`tools/fantasy-football.html`, `tools/concierge.js`) is the kernel's one chat
+ *      window as fantasy-quant's concierge.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — read-only FLEX start-sit, waivers, matchup breakdown, hand-typed lineup/waiver mutations, and Fantasy Quant manifest/persona/approval-gate assertions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.2: the Concierge rail is the kernel's one chat window (Roger, 2026-11-16: every concierge is the core Jarvis chat window). The page keeps the rail and draws no chat of its own; concierge.js mounts /shared/ui/js/jarvis-chat-frame.js as fantasy-football's concierge for fantasy-quant with the starter prompts and the screen as screen_state, and sends no turn of its own. The browser proof is tests/fantasy-one-chat-window.test.js.
  */
 
 'use strict';
@@ -151,12 +153,21 @@ test('manifest and persona bind fantasy-quant and gate lineup and waiver mutatio
   const manifest = fs.readFileSync(path.join(PKG_DIR, 'oshal-app.yaml'), 'utf8');
   const persona = fs.readFileSync(path.join(PKG_DIR, 'personas', 'fantasy-quant.yaml'), 'utf8');
   const html = fs.readFileSync(path.join(PKG_DIR, 'tools', 'fantasy-football.html'), 'utf8');
+  const concierge = fs.readFileSync(path.join(PKG_DIR, 'tools', 'concierge.js'), 'utf8');
   assert.match(manifest, /^chatBot:\s*fantasy-quant$/m);
   assert.match(manifest, /name:\s*fantasy_quant_set_lineup[\s\S]*?defaultAuthMode:\s*ask[\s\S]*?requiresApproval:\s*true/);
   assert.match(manifest, /name:\s*fantasy_quant_apply_waiver[\s\S]*?defaultAuthMode:\s*ask[\s\S]*?requiresApproval:\s*true/);
   assert.match(manifest, /name:\s*fantasy_quant_start_sit[\s\S]*?defaultAuthMode:\s*auto[\s\S]*?requiresApproval:\s*false/);
   assert.match(persona, /^name:\s*fantasy-quant$/m);
   assert.match(persona, /fantasy_quant_start_sit/);
-  assert.match(html, /id="conciergeRail"/);
-  assert.match(html, /Who should I start at flex\?/);
+  // The rail is the one chat window: the page draws no transcript or message box, and every turn is the window's.
+  assert.match(html, /<aside id="conciergeRail" class="concierge-rail" aria-label="Fantasy Quant"><\/aside>/);
+  assert.doesNotMatch(html, /conciergeLog|conciergeInput|jarvis-package-tools\.js/);
+  assert.match(concierge, /import\('\/shared\/ui\/js\/jarvis-chat-frame\.js'\)/);
+  assert.match(concierge, /var BOT_NAME = 'fantasy-quant';/);
+  assert.match(concierge, /var APP_ID = 'fantasy-football';/);
+  assert.match(concierge, /mountJarvisChat\(rail, \{\s*app: APP_ID, bot: BOT_NAME,/);
+  assert.match(concierge, /Who should I start at flex\?/);
+  assert.match(concierge, /prepare: function \(\) \{ return Promise\.resolve\(\{ screen_state: screenState\(\) \}\); \}/);
+  assert.doesNotMatch(concierge, /\/api\/swarm\/bots\/|fetch\(|\/api\/voice\/transcribe/, 'the page sends no chat turn of its own');
 });

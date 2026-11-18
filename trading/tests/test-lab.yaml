@@ -1,3 +1,7 @@
+# CHANGE LOG: 45 | maintainer@emeraldcoastsystemsgroup.com | 1.62.3: register approvals-readonly-guard (`tests/native-approvals-readonly.test.js`).
+# CHANGE LOG: 44 | maintainer@emeraldcoastsystemsgroup.com | 1.62.2: quant-library states the persona's source line (copied from the passage's own line, a summary said as one, the last lines of the answer, only for what this turn recalled) and the one citation grade the live proof and the bot-fast replay share, which the persona's line passes for every shelf work.
+# CHANGE LOG: 43 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (1.61.4 renumbered after 1.62.0): quant-lab no longer states a process copy of archived prices; the copy is removed because it never hit (a caller who can write gets a fresh process for every non-GET call). quant-lab-playbook states that every options question starts with trading_quant_options.
+# CHANGE LOG: 42 | maintainer@emeraldcoastsystemsgroup.com | Register quant-library (1.62.0; file tests/native-quant-library, named so the store's trading test command runs it): the trading concierge imports Print's quant library and the person's own Private to me filings read only (kernel K1), the shelf's every licence passes the shelf check, the fixed questions find the right work in the top three, and the persona cites what recall brought.
 # CHANGE LOG: 41 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: quant-lab states the process copy of archived day prices (ten minutes, shared, only missing names read); quant-lab-playbook states that trading_quant_run is the desk's own pass and never an answer, that explain computes nothing and is followed by the tool it names, that the lab tools work without Schwab, and that no lab answer names trading_quant_run.
 # CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: quant-reference-options states that every reference read asks the kernel to end it within the budget with the plain agent, the kernel-shaped silent-host guard (the abort signal ends nothing, only timeoutMs does; the desk run with its read over inside 2 seconds), and that nothing is read on a kernel whose fetch cannot end a read early.
 # CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: quant-reference-options states the cache-only interactive reads, the desk pass's bounded refresh with its rest after a failure, the Treasury bill-rate source, and the silent-host guard (every lab route and the desk run under 2 seconds); quant-lab-playbook states the explain-first rule.
@@ -46,6 +50,7 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | jobs-start-themselves: the exact list of Trading jobs allowed to start by themselves.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Register paper-strategy-landing: with no brokerage connected the Strategies landing lists the person's paper accounts with their strategy, state and paths onward, keeps the dead-end copy only for a failed paper read, and never replaces a live account's strategy controls.
 # -----------------------------------------------------------------------------
+# CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | 1.62.4: register candidate continuity and versioned-authority cases while preserving every quant and read-only approval case.
 version: 1
 cases:
   - id: research-handoff-summary
@@ -1835,13 +1840,13 @@ cases:
 
   - id: account-values-upsert
     name: Five-minute account value observations upsert without referencing EXCLUDED in WHERE
-    purpose: Prove recordAccountValue and watch/tick five-minute sampling keep EXCLUDED strictly inside DO UPDATE SET, succeed against native package SQL rules and disposable PostgreSQL, and leave orderAuthority declarations untouched.
+    purpose: Prove recordAccountValue and watch/tick five-minute sampling keep EXCLUDED strictly inside DO UPDATE SET, succeed against native package SQL rules and disposable PostgreSQL, and preserve the exact original version-one order authority.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/native-account-values-upsert.test.js] }
     expected:
       - No route SQL statement in trading references EXCLUDED outside an ON CONFLICT DO UPDATE SET assignment list.
       - Repeated same-day five-minute observations insert once, update when observed_at advances, and ignore older or equal timestamps across ISO timezone formats.
-      - Order authority declarations in oshal-app.yaml remain anchored to routes/trading-native-management.js and routes/live/management.js.
+      - Version one remains anchored to routes/trading-native-management.js and routes/live/management.js with its original twenty-nine-file digest; account observations add no declared root or changed approved bytes in any supported version.
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Roll back disposable PostgreSQL transaction or discard isolated records. }
@@ -1919,7 +1924,7 @@ cases:
       - A connected account reports its plan with the share held in the strategy's fallback fund, today's orders and fills in New York time by who sent them, and a value change in two parts that add up to the cent.
       - An unreadable order list is unknown, never empty or zero; a receipt for another account or strategy is dropped; nothing outside the listed fields is sent.
       - One person never receives another person's accounts; paper accounts answer from their own ledgers on a prices-only basis and archived ones are left out.
-      - None of the read's files joins the order-authority set, and the manifest's orderAuthority sources are unchanged.
+      - None of the read's files joins any supported order-authority version, and version one's roots and exact digest stay unchanged.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Discard the per-case in-memory records and ledgers. }
@@ -2141,7 +2146,6 @@ cases:
       - Names, days, paths, horizon, view and method are bounded; a slow Schwab read is answered without inside the read budget; the largest questions answer within two seconds.
       - Risk parity equalizes contributions, Black-Litterman views move the posterior, a tied pair is cointegrated with a Kalman hedge ratio near 1, and the desk's overfitting report needs its history and finds a real edge (low PBO).
       - The lab names only trading.config, trading.bars, trading.quotes and prices.series and has no order path.
-      - Archived day prices are kept in the process ten minutes per name and window and shared by every caller: the same names read nothing, a new name reads only itself, a shorter window is its own copy, a name the archive lacks is asked again, and the kept answer equals the read one.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -2161,6 +2165,7 @@ cases:
       - trading_quant_run is described as the desk's own pass in Trading's single process that answers no question, and the playbook never uses it to get prices, a rate or an answer.
       - Explain computes nothing and is followed by the tool it names when the question names a stock, a portfolio or numbers; the stock, portfolio, pair, simulate and calculate tools work without Schwab.
       - No lab answer (the overfitting check's not-ready answers, an unavailable rate) names trading_quant_run.
+      - Every options question starts with trading_quant_options, in the persona and in the tool's own instructions, even when no Schwab login seems connected.
     prerequisites: [runner:node-test, dependency:js-yaml]
     sideEffects: none
     isolation: { mode: none }
@@ -2186,4 +2191,84 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 60000 }
+    installation: never
+  - id: quant-library
+    name: The quant reads a real finance library through the engine's knowledge rail and cites it
+    purpose: Read the Trades and Print manifests, the curated shelf Print files (print-ingest/shelves/quant-library) and the concierge persona together; grade the fixed questions with the kernel's own lexical ranking.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-library.test.js] }
+    expected:
+      - Trades (no authorization catalog) declares uses rag, Print as an optional dependency, and exactly two read-only imports for trading-concierge, Print's tenant quant-library and the person's own my-knowledge, each matching Print's export; no library tool, the original version-one roots/digest remain exact, and no newer quant research joins any supported authority version.
+      - Print exports exactly one shelf for trading-concierge (its destination id is bot:<agentId>) and declares Trades and the concierge as optional.
+      - The shelf holds real texts and records (at least 60 full-text works, 80 summaries, 400 passages), every full text under CC BY, CC BY-SA or CC0 read at build time, OpenStax Principles of Finance (CC BY-NC-SA) as a summary only, and a passage for every one of the fifty ideas.
+      - The shelf check refuses a full text whose licence does not allow it (NonCommercial or unknown), a passage without its citation line and a passage longer than one kernel chunk.
+      - Every fixed question (34, over 30 ideas) brings a passage of a work that explains its idea into the top three under the kernel's lexical ranking.
+      - The persona ends a library answer with one source line per passage it used, copied from the passage's own QUANT LIBRARY line (title, authors and year; SUMMARY or FULL TEXT; the link), adds "This source is a summary in our own words, not the work's text." after a summary and the licence after a full text, puts any offer before the source lines, writes a source line only for a passage this turn recalled, and ignores passages that do not bear on the question.
+      - One citation grade (tests/live/quant-library-questions.mjs) serves the live proof and the bot-fast replay, and a reply cites a work when it names its title and one of its authors, and a summary only when it says so; a link alone, an author and a year alone, or a work for another idea do not count. The persona's source line, filled from every shelf work's own line, passes that grade.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: approvals-readonly-guard
+    name: Intelligent Trades approvals probe is strictly read-only and leaves orderAuthority untouched
+    purpose: Verify trading declares approvals on /api/trading/approvals-queue, emits only Open in Intelligent Trades with zero approve/decline descriptors, and keeps the 29-file orderAuthority closure digest identical.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-approvals-readonly.test.js] }
+    expected:
+      - oshal-app.yaml declares approvals.path = /api/trading/approvals-queue and itemsPointer = /approvals.
+      - Every emitted item carries openHref = /cockpit/?app=intelligent-trades, openLabel = Open in Intelligent Trades, readOnly = true, and neither approve nor decline.
+      - Rejected database queries log at ERROR and respond 503 instead of returning an empty approvals list.
+      - The approved version-one closure stays at 29 files and digest 49adb4981cf33da65776bb214d6445e3b895a2fb3c5d134c3462cea83d98a117; the read-only approvals probe and mount entry join no supported authority version.
+    prerequisites: [runner:node-test, dependency:js-yaml]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: continuity-decision-core
+    name: Candidate allocation goals conserve approved work and verified funding
+    purpose: Exercise pure candidate goals, event-dated protective exclusions and owner-scoped cycle persistence using synthetic evidence; this suite does not establish native order admission.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-continuity-goals.test.js, tests/native-continuity-protection.test.js, tests/native-continuity-cycles.test.js] }
+    expected:
+      - Losses and changed prices reduce only unsubmitted goals; filled costs count once and temporary cash does not erase a goal.
+      - Prepared order quantities stay exact and malformed numeric or retained evidence cannot create an executable quantity.
+      - Protective fills remain excluded until a completed signal incorporates their event time, regardless of observation or approval refresh.
+      - Exact owner-bound cycle snapshots reject stale replacements and repeated revisions without scanning historical cycles.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Discard isolated synthetic SQL records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: continuity-candidate-routes
+    name: Explicitly adopted synthetic accounts exercise candidate continuity
+    purpose: Run shipped handlers with synthetic native terms and locally adopted fixture watches; no production generation, migration or trading authority is asserted.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-continuity-automation.test.js, tests/native-continuity-residuals.test.js, tests/native-continuity-protected-routes.test.js, tests/native-continuity-version.test.js] }
+    expected:
+      - A five-thousand-dollar mid-cycle loss executes the fresh affordable residual without changing the approved cap.
+      - Temporary cash shortfalls resume with bounded chunks; completed signals stay completed and working, partial or unknown commitments are not duplicated.
+      - Completed protected buys stay complete; unfinished protected remainders wait for a new signal, including across approval fingerprints.
+      - Existing watches retain legacy execution and unsupported or mismatched candidate admission fails before order preparation.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close fixture listeners and discard synthetic account records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: versioned-order-authority
+    name: Versioned order code preserves the exact legacy approval closure
+    purpose: Verify independent version declarations, the retained production v1 source digest, and mutations of each candidate or legacy module without changing any account or approval.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-authority-versions.test.js] }
+    expected:
+      - Version one retains its original two roots, twenty-nine-file closure and exact native digest.
+      - Version two names its monitor and decision modules; every candidate-only mutation changes only its own authority.
+      - Changing any original closure file changes the v1 digest; flat and versioned v1 declarations hash identically.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Discard in-memory source mutations. }
+    limits: { timeoutMs: 30000 }
     installation: never

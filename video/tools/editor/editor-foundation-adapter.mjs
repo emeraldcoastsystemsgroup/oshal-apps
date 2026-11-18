@@ -6,6 +6,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): wire live Stickers, Filters, Speed, Effects, Chroma key, Remove background, Stabilize, Auto captions, Voice, Sound effects and 720p/1080p/4K 30/60fps Export controls in place of planned placeholders while preserving RP-ALL-01 Summarize.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.1 (RP-ALL-01): remove duplicate greyed Summarize planned control from Video's Concierge panel because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work). On a phone the Concierge sheet holds the one Jarvis chat window, whose own Close says editor-concierge:hide from the pane. The editor shell hears that on a desktop, but the sheet sits outside the shell, so the Close left the sheet over the editor and the next tap landed on the window. The sheet now closes on that event too, as AI Office's does.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: load shared editor modules in parallel and honor any Concierge press recorded by editor-concierge-early.js while Video's editor modules were still loading so Today's bar opens Video's own concierge instead of swallowing an early press.
  */
 import * as timeline from './timeline-model.mjs';
 import {applyMultitrack} from './multitrack-model.mjs';
@@ -117,7 +118,8 @@ export function createVidsClipGenerator(doc,layers){
 }
 
 export async function bindVideoFoundation(adapter){
- const {createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js'),{plannedControl}=await import('/shared/ui/js/planned-control.js'),$=id=>document.getElementById(id);
+ const [{createEditorFoundation},{plannedControl},{createRegisteredEditorAssistant}]=await Promise.all([
+  import('/shared/ui/js/editor-foundation.js'),import('/shared/ui/js/planned-control.js'),import('/shared/ui/js/editor-assistant.js')]),$=id=>document.getElementById(id);
  const root=document.body,main=document.querySelector('main.workspace'),media=main.querySelector('.media'),preview=main.querySelector('.preview'),legacy=main.querySelector('.inspector'),advanced=main.querySelector('.multitrack'),output=main.querySelector('.export');
  const inspector=document.createElement('div'),track=document.createElement('div'),hold=make('div','');hold.hidden=true;inspector.className='video-extra-tools';track.className='video-timeline';
  inspector.append(disclosure('Add titles and music',legacy),disclosure('Track, keyframe and caption tools',advanced));
@@ -128,13 +130,16 @@ export async function bindVideoFoundation(adapter){
  const contextMatches=context=>context.documentId===(adapter.state.projectId??'draft:'+adapter.state.draftEpoch)&&context.revision===adapter.state.revision&&JSON.stringify(context.selection)===JSON.stringify(currentSelection());
  let foundation;
  const getState=()=>({documentId:adapter.state.projectId??'draft:'+adapter.state.draftEpoch,revision:adapter.state.revision,title:adapter.doc().name,dirty:adapter.dirty(),busy:adapter.state.busy,readOnly:!adapter.editable(),canUndo:adapter.state.history.canUndo(),canRedo:adapter.state.history.canRedo(),error:$('error').hidden?null:$('error').textContent});
- const {createRegisteredEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
  const assistant=await createRegisteredEditorAssistant({app:'video',bot:'video-editor',title:'Video AI partner',root,getState:()=>{const value=getState();return{...value,dirty:value.dirty||foundation?.hasPending()};},getSelection:currentSelection});
+ const early=window.__videoConciergeEarly,outerChat=early?.outerDoc?.getElementById('chatPanel');
+ const wantedConcierge=document.documentElement.dataset.videoConcierge==='wanted'||Boolean(outerChat&&!outerChat.classList.contains('collapsed'));
+ delete document.documentElement.dataset.videoConcierge;
  foundation=createEditorFoundation({root,navigationLabel:'Media',ai:assistant.element,header:document.querySelector('header.bar'),navigation:media,viewport:preview,inspector,timeline:track,status:document.querySelector('.status-strip'),
   getState,getSelection:currentSelection,getProperties:()=>videoProperties(adapter.doc(),adapter.selection()),
   applyProperty:(key,value,context)=>{if(!contextMatches(context))throw new Error('The selected timeline object changed. Select it again.');if(!adapter.apply(current=>editVideoProperty(current,adapter.selection(),key,value)))throw new Error($('error').textContent||'This timeline edit was refused.');},actions:{save:adapter.save,undo:adapter.undo,redo:adapter.redo}});
+ early?.release(false);
  main.hidden=true;root.classList.add('video-foundation');
- // One assistant entry (DS-33): the editor opens with its concierge closed; the tool row or the Today header opens it.
+ // One assistant entry (DS-33): the editor opens with its concierge closed unless Concierge was pressed while modules loaded.
  root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide'));
  const layers=createLayers(document),vidsClip=createVidsClipGenerator(document,layers),wide=()=>!matchMedia('(max-width:800px)').matches,act=work=>async()=>{try{await work();}catch(error){$('error').textContent=error.message;$('error').hidden=false;}};
  const rp=createRpSheets({doc:document,adapter,exporter:adapter.exporter,layers,make,act,setStatus:adapter.setStatus});
@@ -213,5 +218,6 @@ export async function bindVideoFoundation(adapter){
   const kind=clip?(isVideoClip?'clip-video':'clip-audio'):'main';if(kind!==rowKind||!row.children.length){rowKind=kind;row.replaceChildren(...(clip?clipTools(isVideoClip):mainTools()));}
   const shellOwns=root.querySelector('.ef-panes [aria-controls$="-concierge"]')?.hidden;row.querySelector('.video-concierge')?.classList.toggle('video-phone-only',Boolean(shellOwns));
   foundation.refresh();assistant.refresh();};
+ if(wantedConcierge)await openConcierge();
  return{...foundation,destroy:()=>{assistant.destroy();foundation.destroy();},refresh,layers,confirmDelete};
 }

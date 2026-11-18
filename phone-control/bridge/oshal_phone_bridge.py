@@ -36,6 +36,7 @@
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: ships oshal_phone_front.py (lan-control launch_app, list_apps, active_app on a Roku or Samsung TV).
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.20.1 (refusal sentences on the package's routes); version metadata only.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.20.2 (Your devices scrolls on a phone); version metadata only.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | Follow package 1.20.3 (Device and Connection Concierge mount the kernel's one chat window); version metadata only.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -49,7 +50,7 @@ import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.20.2'
+VERSION = '1.20.3'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',

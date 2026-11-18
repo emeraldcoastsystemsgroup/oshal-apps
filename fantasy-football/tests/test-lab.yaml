@@ -12,6 +12,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register slot-names: the Projected starters Slot column names each ESPN slot (QB, WR, FLEX), never the raw id (sweep 14).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (F22): register fantasy-quant (read-only FLEX start-sit, waivers, matchup breakdown, and confirm-gated mutations) and fantasy-quant-browser (collapsible Fantasy Quant Concierge rail across 1440x900 and 412x915).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register phone-wizard (lane mobilesweep2).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger, 2026-11-16: every concierge is the core Jarvis chat window): the Concierge rail is the kernel's one chat window. Register fantasy-one-chat-window (the window in the rail at 1440x900 and 412x915 touch, the model pick on the turn, the view, board, league and board words on context.screen_state, an approved lineup card reloading the board) in place of fantasy-quant-browser, whose suite is retired with the rail's own chat it tested; fantasy-quant also expects the mount.
 version: 1
 cases:
   - id: package-readiness
@@ -788,6 +789,7 @@ cases:
       - GET /quant/start-sit, /quant/waivers, and /quant/matchup return numeric projections, floor/ceiling, posture, and FAAB bids with zero DB writes.
       - POST /quant/set-lineup and /quant/apply-waiver enforce ownership and update starters, roster, and FAAB only when invoked.
       - Manifest and persona bind fantasy-quant and require approval before lineup or waiver mutations.
+      - The page keeps the Concierge rail and draws no chat of its own; concierge.js mounts the kernel's one chat window as fantasy-football's concierge for fantasy-quant with the starter prompts and the screen as screen_state, and sends no turn of its own.
     prerequisites:
       - runner:node-test
       - fixture:core-checkout
@@ -803,30 +805,34 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
-  - id: fantasy-quant-browser
-    name: Chromium proof for collapsible Fantasy Quant Concierge rail
+  - id: fantasy-one-chat-window
+    name: The Concierge rail is the one chat window as Fantasy Quant's concierge
     purpose: >-
-      Verify in headless Chromium at 1440x900 and 412x915 across light-blue and midnight themes that the Fantasy Quant
-      Concierge rail collapses cleanly, pins its composer flush to the bottom, answers numeric FLEX starts, and gates mutations.
+      Drive the shipped page in headless Chromium at 1440x900 and at 412x915 on a touch screen, with the kernel's one
+      chat window served from a kernel platform export (OSHAL_KERNEL_PLATFORM; refused, never skipped, without one), a
+      scripted model and page-shaped Fantasy Football reads. Intelligent Sports opens the same page.
     level: browser
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/fantasy-quant-browser.test.cjs
+        - tests/fantasy-one-chat-window.test.js
     expected:
-      - Right rail opens on desktop, collapses via close and toggle buttons, and starts closed on 412x915 with zero horizontal overflow.
-      - Composer stays bottom-pinned with zero outer rail scrollbar, >= 4.5:1 button contrast, numeric FLEX replies, and approval card gating.
+      - The rail holds the window (concierge=fantasy-football, bot=fantasy-quant), which fills it (the right column at full height on a desktop, the whole screen on a phone) and shows its model menu, Files, Tap to talk, Keep trying and New and Recent conversations.
+      - A model picked for the request rides on the turn, which reaches fantasy-quant's door as fantasy-football with the screen on context.screen_state - the view, the board, the league on screen with its manualId or leagueId and season, the leagues in the League menu and the board's own words - and without the old rail's activeView, activeBoard and selectedLeague keys.
+      - The page draws no transcript, composer or chat request of its own, nothing scrolls sideways, no page error; the window's Close hides the rail and the Concierge button brings the same conversation back.
+      - A set_lineup card runs only after Approve, once, and the board of the hand-typed league on screen is read again.
     prerequisites:
       - runner:node-test
-      - fixture:core-checkout
       - runtime:store-pinned-toolchain
       - runtime:chromium
+      - harness:kernel-platform-export
     sideEffects: none
     isolation:
       mode: disposable
+      cleanup: Stop the fixture server.
     limits:
-      timeoutMs: 60000
+      timeoutMs: 120000
     installation: never
   - id: phone-wizard
     name: The league walkthrough keeps Continue clear of the Jarvis button on a phone

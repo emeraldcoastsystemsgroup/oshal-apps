@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (nothing implements /api/rdp/sessions): the Connect sheet case proves the button and its Username, Password and Domain fields are not shown, the Any RDP Host steps point at Check RDP port, Check RDP port still answers through the bridge, and the sheet makes no /api/rdp/sessions request (red on 1.5.0, which showed the button). The session viewer kept for that backend is now reached from a listed session (the page's own oshal.pc.hasRdp path) instead of the hidden button, with the same click, dictation, voice Concierge and APK push assertions.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1 (Roger, 2026-11-11: a Fire TV on Prime Video, an old Marquee picture on the page, "The phone is not connected" from the TV Concierge): in Chromium, a TV whose computer lost it is reconnected by the page with one connect and shows a live picture with no note; a TV that does not answer keeps its own app's stored picture under a note that it is not live, with the TV's name, the computer and Sync, and the concierge says the same and never "phone".
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Select the saved TV by its device kind instead of subtitle wording while preserving all reconnect and stored-picture assertions.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: serve /shared/ui/js/jarvis-chat-frame.js in standalone asset stub and trigger #chipReadScreen in the RDP session snapshot case now that bespoke #conciergeVoiceBtn is replaced by the shared chat window's #mic.
  */
 'use strict';
 
@@ -104,9 +105,12 @@ function serveSharedAsset(req, res) {
     res.end(':root { --bg-primary: #ffffff; --text-primary: #0f172a; --text-secondary: #475569; --accent-primary: #2563eb; } [hidden] { display: none !important; } body { margin: 0; }');
     return true;
   }
-  if (req.url === '/shared/ui/js/surface-bridge-client.js' || req.url === '/shared/ui/js/surface-theme.js' || req.url === '/ui/kernel/table.js') {
+  if (req.url === '/shared/ui/js/surface-bridge-client.js' || req.url === '/shared/ui/js/surface-theme.js' || req.url === '/shared/ui/js/jarvis-chat-frame.js' || req.url === '/ui/kernel/table.js') {
     res.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' });
-    res.end(req.url.endsWith('surface-bridge-client.js') ? 'export function createSurfaceBridgeClient(){ return { attach(){}, emitContext(){} }; }' : '');
+    const body = req.url.endsWith('surface-bridge-client.js')
+      ? 'export function createSurfaceBridgeClient(){ return { attach(){}, emitContext(){} }; }'
+      : req.url.endsWith('jarvis-chat-frame.js') ? 'export {};' : '';
+    res.end(body);
     return true;
   }
   return false;
@@ -523,7 +527,7 @@ test('A listed RDP session (the viewer kept for a future backend) streams frames
   await page.locator('#readScreen').click();
   await page.waitForFunction(() => document.getElementById('screenTextBody').textContent.includes('Netflix'));
   await page.locator('#railTabConcierge').click();
-  await page.locator('#conciergeVoiceBtn').click();
+  await page.locator('#chipReadScreen').click();
   await page.waitForFunction(() => document.getElementById('conciergeLog').textContent.includes('Netflix'));
 
   assert.ok(rdpInputs.some((i) => i.action === 'click' && Number.isFinite(i.x) && Number.isFinite(i.y)));

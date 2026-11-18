@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.2, §3.3, §4.3, §4.4, §4.10, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved the editor opens on a blank untitled 1920×1080, 10 s, 30 fps composition whose one primary, Add layer, sits on the empty stage; the composition is saved at its first edit.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: replace Video, Audio and Motion blur placeholders with live Video… and Audio… imports, audio mute/levels controls with keyframe diamonds, composition motion-blur shutter controls, and per-layer motion-blur switches.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1 (RP-ALL-01): remove duplicate greyed Summarize planned control from Motion Studio's Concierge panel because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: on a phone the Concierge sheet holds the one Jarvis chat window, whose own Close button dispatches editor-concierge:hide from the pane inside the modal dialog (outside the editor shell); close the sheet on editor-concierge:hide so the editor takes the next tap.
  */
 const number = (key, label, value, group = 'Transform', unit = '') => ({ key, label, value, type: 'number', step: 'any', group, unit });
 const readable = value => typeof value === 'number' && Number.isFinite(value);
@@ -320,7 +321,10 @@ function wireMenusAndActions(ctx) {
   };
   async function openConcierge() {
     if (wide()) { if (root.dataset.editorConcierge === 'open') root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide')); else getFoundation()?.showPanel('ai'); return; }
-    await sheet('Concierge', [assistant.element]); assistant.element.querySelector('textarea')?.focus({ preventScroll: true });
+    const layer = layers.create('Concierge', 'ds-sheet');
+    layer.dialog.addEventListener('editor-concierge:hide', () => void layers.close(layer.dialog));
+    await layers.open(layer, { nodes: [assistant.element] });
+    assistant.element.querySelector('textarea')?.focus({ preventScroll: true });
   }
   const tools = {
     layers: tool('Layers', '☰', () => sheet('Layers', [navigation])), add: tool('Add', '+', button => addMenu(button)),

@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: More leads with Master record (everything saved), the read-only page with every role, bullet, skill and history record.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 12. With no résumé the editor panel, its Send button, the phone's Edit with AI bar and the More button are not shown, at both sizes; they appear once the upload has been read. With a résumé the panel says "This is your main résumé. Each application starts from it.", its heading and example are in plain words with no vendor's product in them, and "MASTER resume", "durable profile" and "reaches in" are gone. When the résumé check gives no answer the editor shows as it did before.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the picker says Main résumé and More says Download my data and Other experience.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): the page has no résumé editor of its own (no panel, transcript, text box or Send); Career's concierge is its chat (tests/career-hunter-one-chat-window.test.mjs drives it). With no résumé neither the More button nor Edit with AI is shown, at both sizes, and they arrive with the résumé; with a résumé the banner names the main résumé and says every new application starts from it; on a phone Edit with AI asks for Career's concierge, and where it cannot load (this fixture serves no shared assistant) the page says so in words; when the résumé check gives no answer an empty main résumé opens ready to edit, as before.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,8 +40,9 @@ for (const [name, size] of [['phone', PHONE], ['desktop', DESKTOP]]) {
       await upload.waitFor();
       assert.equal(await page.locator('#save').isVisible(), false, 'no Save without a résumé');
       assert.deepEqual(await page.locator('.ck-primary:visible').allInnerTexts(), ['Upload your résumé (PDF or DOCX)']);
+      assert.deepEqual(await page.evaluate(() => ['.chat', '#log', '#msg', '#send'].filter((selector) => document.querySelector(selector))), [], 'the page draws no chat of its own');
       const nothingToEdit = async (when) => {
-        for (const [what, selector] of [['the editor panel', '.chat'], ['its Send button', '#send'], ['its text box', '#msg'], ['the More button', '#moreBtn'], ['the Edit with AI bar', '#aiBar']]) {
+        for (const [what, selector] of [['the More button', '#moreBtn'], ['the Edit with AI bar', '#aiBar']]) {
           assert.equal(await page.locator(selector).isVisible(), false, `${what} is not shown ${when}`);
         }
         assert.deepEqual(await page.locator('button:visible').allInnerTexts(), when === 'while it is read' ? [] : ['Upload your résumé (PDF or DOCX)'], `the only button ${when}`);
@@ -54,52 +56,53 @@ for (const [name, size] of [['phone', PHONE], ['desktop', DESKTOP]]) {
       const post = calls.find((c) => c.method === 'POST' && c.path === '/api/career-hunter/resume/upload');
       assert.ok(post, 'the résumé went to the upload route');
       assert.match(String(post.body), /name="resume"; filename="resume.pdf"/);
-      // The résumé has been read: the page's own six-second check finds it, and the editor arrives with it.
+      // The résumé has been read: the page's own six-second check finds it, and what edits it arrives with it.
       state.indexed = true; state.indexing = false;
       await page.clock.runFor(6500);
       await page.locator('.sheet h1').waitFor();
       await page.locator('#moreBtn').waitFor();
       if (size === PHONE) await page.getByRole('button', { name: 'Edit with AI' }).waitFor();
-      else assert.equal(await page.locator('.chat').isVisible(), true, 'the editor panel arrives with the résumé');
+      else assert.equal(await page.locator('#save').isVisible(), true, 'Save arrives with the résumé');
     } finally { await context.close(); }
   });
 }
 
-test('with a résumé the editor is there and speaks plainly', async () => {
+test('with a résumé the page speaks plainly and draws no chat of its own', async () => {
   const state = { indexed: true, indexing: false };
-  const { page, context } = await openScreen(browser, 'career-resume-studio.html', career(state), DESKTOP);
+  const { page, context, calls } = await openScreen(browser, 'career-resume-studio.html', career(state), DESKTOP);
   try {
     await page.locator('.sheet h1').waitFor();
-    assert.equal(await page.locator('.chat').isVisible(), true);
-    assert.equal((await page.locator('.chat header').innerText()).replace(/\s+/g, ' '), 'Résumé editor · tell it what to change');
-    await page.locator('#log .msg.sys', { hasText: 'This is your main résumé. Each application starts from it.' }).waitFor();
-    const example = await page.locator('#msg').getAttribute('placeholder');
-    assert.equal(example, 'e.g. put my team-lead work first; shorten the second bullet');
+    assert.deepEqual(await page.evaluate(() => ['.chat', '#log', '#msg', '#send'].filter((selector) => document.querySelector(selector))), [], 'Career\'s concierge is the page\'s chat');
+    assert.equal(await page.locator('#docIdentityBadge').textContent(), 'Main résumé');
+    assert.match(await page.locator('#docIdentityDetail').textContent(), /every new application starts here/);
     assert.equal(await page.locator('#moreBtn').isVisible(), true);
     assert.deepEqual(await page.locator('#pick option').allTextContents(), ['No tailored résumés yet', '⭐ Main résumé']);
-    assert.doesNotMatch(await page.locator('body').innerText() + example, /MASTER resume|durable profile|reaches in|SAP|DevOps/);
+    assert.doesNotMatch(await page.locator('body').innerText(), /MASTER resume|durable profile|reaches in|SAP|DevOps/);
+    assert.ok(!calls.some((c) => c.path.startsWith('/api/career-hunter/resume/guide')), 'nothing goes to the résumé editor\'s own chat route');
   } finally { await context.close(); }
 });
 
-test('phone, with a résumé: Edit with AI opens the editor', async () => {
+test('phone, with a résumé: Edit with AI asks for Career\'s concierge, and says so in words where it cannot load', async () => {
   const state = { indexed: true, indexing: false };
   const { page, context } = await openScreen(browser, 'career-resume-studio.html', career(state), PHONE);
   try {
     await page.locator('.sheet h1').waitFor();
     await page.getByRole('button', { name: 'Edit with AI' }).tap();
-    await page.locator('#send').waitFor();
-    assert.equal(await page.locator('.chat').isVisible(), true);
+    // This fixture serves no shared assistant, so the concierge cannot load: the press is never a dead one.
+    await page.waitForFunction(() => /concierge could not load/.test(document.querySelector('#status').textContent));
+    assert.equal(await page.getByRole('button', { name: 'Edit with AI' }).isVisible(), true, 'Edit with AI is there to try again');
   } finally { await context.close(); }
 });
 
-test('when the résumé check gives no answer, an empty master opens with its editor as before', async () => {
+test('when the résumé check gives no answer, an empty main résumé opens ready to edit, as before', async () => {
   const state = { indexed: false, indexing: false, stateFails: true };
   const { page, context, calls } = await openScreen(browser, 'career-resume-studio.html', career(state), DESKTOP);
   try {
-    await page.locator('.chat').waitFor();
+    await page.locator('body[data-resume=ready]').waitFor({ state: 'attached' });
     assert.ok(calls.some((c) => c.path === '/api/career-hunter/resume/state'));
     assert.equal(await page.locator('#noProfile').isVisible(), false);
-    assert.equal(await page.locator('#send').isVisible(), true);
+    assert.equal(await page.locator('#moreBtn').isVisible(), true);
+    assert.equal(await page.locator('#save').isVisible(), true);
   } finally { await context.close(); }
 });
 

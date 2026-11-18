@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove a refused Resume Studio save shows the route's own reason in the editor log, so a merge cannot drop it again.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 13: the LinkedIn profile page shows its state in words (Draft, not draft); the wait for a loaded plan follows.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): a refused save's reason says main résumé.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): Resume Studio has no résumé editor of its own, so the unsaved résumé edit is the floating Jarvis's draft edit (the page's surface bridge), there is no composer text to keep, and a refused save's reason is told beside Save (role=alert), where the page has said it since the UX audit of 2026-11-06. The Career bot double still answers a résumé editor turn only by failing: the page sends none.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -147,11 +148,14 @@ async function begin(page) {
   });
 }
 
-/** The person asks the studio's own editor for a change; it lands in the page, unsaved. */
+/** An edit lands in the page, unsaved: the floating Jarvis's draft edit through the page's surface bridge, once the
+ *  page has finished opening the résumé (an edit sent while it loads is not taken). */
+async function bridgeSummary(page, text) {
+  await page.waitForFunction(() => readyDocument());
+  await page.evaluate((summary) => document.dispatchEvent(new CustomEvent('surface-bridge:custom', { detail: { name: 'resume_action', data: { actions: [{ op: 'set_summary', text: summary }] } } })), text);
+}
 async function editSummary(page, text) {
-  resumeEdits.push(text);
-  await page.locator('#msg').fill('Rewrite the summary');
-  await page.locator('#send').click();
+  await bridgeSummary(page, text);
   await page.locator('#sheet .summary', { hasText: text }).waitFor();
 }
 
@@ -191,11 +195,9 @@ test('resume: edits the person has not saved survive a refresh that finds the as
   await page.locator('#sheet .summary', { hasText: 'Seasoned platform lead.' }).waitFor();
   await begin(page);
   await editSummary(page, 'Still my draft');
-  await page.locator('#msg').fill('half-typed request');
   await conciergeSummary('bob', 'Saved by the concierge');
   await assert.rejects(page.evaluate(() => window.documentHandoff.refresh()), /unsaved edits are still here/);
   assert.match(await page.locator('#sheet .summary').textContent(), /Still my draft/);
-  assert.equal(await page.locator('#msg').inputValue(), 'half-typed request');
   assert.match(await page.locator('#status').textContent(), /unsaved edits are still here/);
   assert.equal(await masterSummary('bob'), 'Saved by the concierge');
 });
@@ -205,10 +207,9 @@ test('resume: a refused save tells the person the reason the route gave', { time
   const page = await openStudio(t, 'erin', 'career-resume-studio.html', '/api/career-hunter/resume-studio');
   await page.locator('#sheet .summary', { hasText: 'Seasoned platform lead.' }).waitFor();
   // Over the real route's master document limit, so the 413 and its words come from the route itself.
-  await page.evaluate(() => { state.resume.summary = 'x'.repeat(100_000); });
+  await bridgeSummary(page, 'x'.repeat(100_000));
   await page.locator('#save').click();
-  await page.waitForFunction(() => document.querySelector('#status').textContent === 'save failed');
-  assert.equal((await page.locator('#log .msg.sys').allTextContents()).at(-1), 'Save failed: main résumé payload too large');
+  await page.getByRole('alert').getByText('Save failed: main résumé payload too large').waitFor();
   assert.equal(await masterSummary('erin'), 'Seasoned platform lead.', 'the refused document was not stored');
 });
 

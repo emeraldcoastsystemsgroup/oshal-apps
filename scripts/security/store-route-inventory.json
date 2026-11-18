@@ -139,8 +139,6 @@
     "kalshi|routes/kalshi-routes.js|createKalshiRoutes|/api/kalshi|service-or-oidc|machine-write",
     "kalshi|routes/package-smoke.js|createPackageSmokeRoutes|/api/kalshi/_smoke|service|no-sql-write",
     "life|routes/package-smoke.js|createPackageSmokeRoutes|/api/life/_smoke|service|no-sql-write",
-    "lists|routes/lists-routes.mjs|createListsRoutes|/api/lists|oidc|machine-write",
-    "lists|routes/package-smoke.js|createPackageSmokeRoutes|/api/lists/_smoke|service|no-sql-write",
     "little-monsters|routes/education-calendar-routes.js|createEducationCalendarRoutes|/api/education|oidc|machine-write",
     "little-monsters|routes/education-routes.js|createEducationRoutes|/api/education|oidc|machine-write",
     "little-monsters|routes/education-voice-routes.js|createEducationVoiceRoutes|/api/education|oidc|no-sql-write",

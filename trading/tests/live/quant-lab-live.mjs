@@ -8,6 +8,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the risk and factors answers must name their risk-free rate's source (the Treasury bill rate via FRED, or the reason zero was used) and carry the official Fama-French factors or the reason they are absent; the options route must answer the made-up person (no Schwab) that no chain is shown; one more concierge question (implied volatility) must run trading_quant_options. The receipt records whether the slot reached FRED and the French library.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: every lab route must answer within 2 seconds (the 1.61.0 run saw 20); before the risk and factors checks the desk's own run (POST /api/trading/quant/run) loads the reference data, at most three passes of under 2 seconds each, and the receipt records what each pass loaded; the risk answer must then name the Treasury bill rate or say why it is unavailable right now.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: after the direct checks the first stock question is asked again; the archived prices are kept in Trading's process by then, so the repeat must answer well inside 2 seconds (recorded as `repeat`, against the first answer's time).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the repeated stock question is dropped with the process copy it was meant to show; the copy never hit (each non-GET call from a caller who can write runs in a fresh process).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the first answer that reads prices may take 2.5 seconds: it can wait on the World archive's cold read after an idle stretch (1,917 ms of a 2,131 ms answer on blue, 06:02Z), which the coordinator accepted on 2026-11-17 (kernel docs/backlog/world-archive-price-read.md). Every other answer keeps the 2-second bar, and each fact records its bar.
  * -----------------------------------------------------------------------------
  *
  * usage: node trading/tests/live/quant-lab-live.mjs <base http://127.0.0.1:38798> <slot oshald.env> <out folder>
@@ -147,9 +149,15 @@ async function loadReferences(origin, person) {
 /** @description Call every lab route directly as the person. @param {string} origin Kernel. @param {object} person Person. @returns {Promise<void>} */
 async function directChecks(origin, person) {
   await loadReferences(origin, person);
+  let pricesRead = false;
   for (const [method, route, body, holds] of DIRECT) {
     const answer = await request(origin, person.sessions[0], method, route, body ? { body } : {});
-    const fact = { route: route.replace('/api/trading/quant/lab', 'lab'), view: body && body.view, status: answer.status, ms: answer.ms, source: answer.body && answer.body.source, sessions: answer.body && answer.body.sessions };
+    // The first answer that reads prices may wait on the World archive's cold read after an idle stretch (about 2 s,
+    // accepted 2026-11-17 and filed as the kernel's docs/backlog/world-archive-price-read.md); every other answer
+    // stays under 2 seconds.
+    const readsPrices = /\/lab\/(stock|portfolio|pair|simulate)$/.test(route), bar = readsPrices && !pricesRead ? 2500 : 2000;
+    if (readsPrices) pricesRead = true;
+    const fact = { route: route.replace('/api/trading/quant/lab', 'lab'), view: body && body.view, status: answer.status, ms: answer.ms, bar, source: answer.body && answer.body.source, sessions: answer.body && answer.body.sessions };
     if (answer.body && answer.body.riskFree) fact.riskFree = answer.body.riskFree.source;
     if (answer.body && answer.body.result && answer.body.result.official) fact.officialFactors = answer.body.result.official.unavailable || `${answer.body.result.official.days} days to ${answer.body.result.official.to}`;
     if (body && ['risk', 'factors'].includes(body.view) && !(answer.body && answer.body.riskFree && answer.body.riskFree.source)) failed('the risk-free rate names its source', fact);
@@ -158,13 +166,9 @@ async function directChecks(origin, person) {
     let ok = false;
     try { ok = answer.status === 200 && Boolean(holds(answer.body)); } catch { ok = false; }
     if (!ok) failed('direct route', { ...fact, body: JSON.stringify(answer.body).slice(0, 300) });
-    if (answer.ms > 2000) failed('direct route over 2 seconds', fact);
+    if (answer.ms > bar) failed(`direct route over ${bar / 1000} seconds`, fact);
     if (body && body.view === 'risk' && !(answer.body && answer.body.riskFree && /U\.S\. Treasury|unavailable right now/.test(answer.body.riskFree.source))) failed('the risk answer names the Treasury bill rate or why it is unavailable', fact);
   }
-  const [method, route, body] = DIRECT.find(([, r, b]) => b && b.view === 'risk'), repeat = await request(origin, person.sessions[0], method, route, { body });
-  receipt.repeat = { route: 'lab/stock', view: 'risk', status: repeat.status, ms: repeat.ms, first: (receipt.direct.find((d) => d.view === 'risk') || {}).ms };
-  say('repeat', receipt.repeat);
-  if (repeat.status !== 200 || repeat.ms > 1000) failed('the repeated stock question answers from the kept prices, well inside 2 seconds', receipt.repeat);
 }
 
 /** @description The answer a tool returned, from its receipt (the observation's body), when the receipt carries one. @param {object} run Receipt. @returns {object|null} Body. */

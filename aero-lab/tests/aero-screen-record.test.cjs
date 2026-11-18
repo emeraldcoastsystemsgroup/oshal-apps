@@ -8,81 +8,75 @@
  *   latest verdict card, and the real compiled POST /chat route must put them in the aero-designer prompt. Before, only
  *   the sliders went, and the concierge proposed 0.5 kg for the Tier-1 sketch whose record on the same page says ~0.694 kg
  *   is the smallest battery that closes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3): Draft with AI is the kernel's one chat window, so what the
+ *   screen records travels in the screen the window is told of (aeroScreen), not appended to a message for POST /chat. The
+ *   surface's own aeroScreen, screenRecord, beforeTurn and afterTurn, run as shipped with a stub DOM: the screen carries
+ *   the sliders field by field, the loaded preset's recorded verdict and boundary and the latest verdict with its run
+ *   status; beforeTurn sends the sliders to POST /draft/design and hands the window that screen; afterTurn shows only the
+ *   changed fields of the draft the concierge offered (GET /draft) and nothing when none was offered.
  */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Module = require('node:module');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const page = fs.readFileSync(path.join(__dirname, '..', 'tools', 'aero-lab.js'), 'utf8');
 const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'aero-lab.html'), 'utf8');
 const TIER1_NOTE = html.match(/key: 'tier1'[\s\S]*?note: '([^']*)'/)[1];
+const FIELDS = [{ k: 'battery_mass_kg', label: 'Battery mass', unit: 'kg' }, { k: 'aspect_ratio', label: 'Aspect ratio', unit: '—' }];
 
-/** sendChat through the end of the code before addMsg, exactly as shipped (screenRecord included when present). */
+/** aeroScreen through screenRecord, exactly as shipped (beforeTurn and afterTurn between them). */
 function surfaceCode() {
-  const start = page.indexOf('async function sendChat()');
-  const end = page.indexOf('/** @description Append a chat bubble.');
-  assert.ok(start > 0 && end > start, 'sendChat precedes addMsg in the surface');
+  const start = page.indexOf('function aeroScreen()');
+  const end = page.indexOf('// screen-record:end');
+  assert.ok(start > 0 && end > start, 'aeroScreen precedes the screen record in the surface');
   return page.slice(start, end);
 }
 
-/** Run the surface's sendChat once with a stub DOM; returns the body it posted to /chat. */
-async function send(state, typed, dom = {}) {
-  const els = { chatInput: { value: typed }, chatSend: {}, draftBox: { style: {} }, verdictCard: { textContent: '' }, runStatus: { textContent: '' }, ...dom };
+/** Run the surface's window hooks once with a stub DOM; returns them, what they posted and the drafts they showed. */
+function surface(state, dom = {}, answers = {}) {
+  const els = { verdictCard: { textContent: '' }, runStatus: { textContent: '' }, draftBox: { scrollIntoView() {} }, ...dom };
   const posted = [];
-  const api = async (method, url, body) => { posted.push({ method, url, body }); return { say: 'ok', draft: null }; };
-  const run = new Function('state', '$', 'api', 'addMsg', 'showDraft', 'errText', surfaceCode() + '\nreturn sendChat();');
-  await run(state, (id) => els[id], api, () => {}, () => {}, String);
-  assert.equal(posted.length, 1);
-  assert.equal(posted[0].url, '/chat');
-  return posted[0].body;
+  const shown = [];
+  const api = async (method, url, body) => { posted.push({ method, url, body }); return answers[`${method} ${url}`] || {}; };
+  const win = {};
+  const doc = { body: { dataset: { view: dom.view || 'sizing' } } };
+  const run = new Function('state', '$', 'api', 'showDraft', 'errText', 'D', 'window', 'document', surfaceCode() + '\nreturn { aeroScreen, beforeTurn, afterTurn };');
+  const hooks = run(state, (id) => els[id], api, (changes) => shown.push(changes), String, { fields: FIELDS }, win, doc);
+  return { ...hooks, posted, shown, win };
 }
 
-const baseState = () => ({ chat: [], busy: false, design: { battery_mass_kg: 0.4 } });
+const baseState = () => ({ busy: false, design: { battery_mass_kg: 0.4, aspect_ratio: 12 } });
 
-test('the loaded preset\'s recorded verdict and boundary travel with the question', async () => {
-  const state = { ...baseState(), presetRecord: { name: 'Tier-1 sketch', note: TIER1_NOTE } };
-  const body = await send(state, 'Smallest battery change that closes this?');
-  assert.match(body.message, /^Smallest battery change that closes this\?\n\nWHAT THIS SCREEN SHOWS/);
-  assert.match(body.message, /Recorded boundary: ~0\.694 kg battery is the smallest single change that closes/);
-  assert.deepEqual(state.chat, [{ role: 'user', content: 'Smallest battery change that closes this?' }, { role: 'assistant', content: 'ok' }],
-    'the conversation keeps what the person typed');
+test('the screen the window is told of carries the sliders and the loaded preset\'s recorded verdict and boundary', () => {
+  const screen = surface({ ...baseState(), presetRecord: { name: 'Tier-1 sketch', note: TIER1_NOTE } }).aeroScreen();
+  assert.deepEqual([screen.title, screen.tab], ['Aero Lab: Sizing & flight envelope', 'Sizing & flight envelope']);
+  const lines = screen.text.split('\n');
+  assert.deepEqual(lines.slice(0, 3), ['# CURRENT DESIGN (the sliders; a draft starts from these)', 'battery_mass_kg = 0.4 kg (Battery mass)', 'aspect_ratio = 12 (Aspect ratio)']);
+  assert.ok(lines.some((line) => /^WHAT THIS SCREEN SHOWS/.test(line)), screen.text);
+  assert.match(screen.text, /Recorded boundary: ~0\.694 kg battery is the smallest single change that closes/);
 });
 
-test('a verdict on screen travels with its run status; nothing recorded adds nothing', async () => {
-  const state = { ...baseState(), verdictShown: true };
-  const body = await send(state, 'Why not?', {
+test('a verdict on screen travels with its run status; nothing recorded adds nothing', () => {
+  const shown = surface({ ...baseState(), verdictShown: true }, {
     verdictCard: { textContent: 'closed ✕  admissible ✕\n min SOC 0.0500  usable margin 0.9270' },
     runStatus: { textContent: 'evaluate done' },
-  });
-  assert.match(body.message, /Latest engine run on this screen \(evaluate done\): closed ✕ admissible ✕ min SOC 0\.0500 usable margin 0\.9270$/);
-  assert.equal((await send(baseState(), 'Hello')).message, 'Hello');
+  }).aeroScreen();
+  assert.match(shown.text, /Latest engine run on this screen \(evaluate done\): closed ✕ admissible ✕ min SOC 0\.0500 usable margin 0\.9270$/);
+  assert.equal(surface(baseState()).aeroScreen().text.split('\n').length, 3, 'the sliders alone');
+  assert.equal(surface(baseState(), { view: 'vehicle' }).aeroScreen().tab, 'Vehicle record & build package');
 });
 
-test('the real POST /chat route puts the recorded boundary in the aero-designer prompt', async () => {
-  const body = await send({ ...baseState(), presetRecord: { name: 'Tier-1 sketch', note: TIER1_NOTE } }, 'Close it');
-  const STUBS = {
-    express: { Router: () => { const routes = {}; const add = (m) => (p, ...f) => { routes[`${m} ${p}`] = f[f.length - 1]; }; return { routes, get: add('GET'), post: add('POST'), put: add('PUT'), delete: add('DELETE'), use() {} }; } },
-    '@/shared/logger': { createChildLogger: () => ({ error() {}, info() {}, warn() {}, debug() {} }) },
-  };
-  const original = Module._load;
-  Module._load = function (request, ...rest) {
-    if (Object.prototype.hasOwnProperty.call(STUBS, request)) return STUBS[request];
-    return original.call(this, request, ...rest);
-  };
-  try {
-    const routes = require('../routes/aero-lab-routes.js');
-    const prompts = [];
-    const ctx = { orchestrator: { processMessage: async (_id, prompt) => { prompts.push(prompt); return { response: '{"say":"ok","draft":null}' }; } } };
-    const adapter = { capabilities: async () => ({ capabilities: { hybrid: false }, bounds: null }), engineStatus: () => ({ present: false }) };
-    const router = routes.createAeroLabRoutes({ adapter, ctx });
-    await new Promise((resolve) => {
-      const res = { status() { return this; }, json() { resolve(); return this; } };
-      router.routes['POST /chat']({ body: { ...body, design: { ...routes.DEFAULT_DESIGN, battery_mass_kg: 0.4 } }, oidc: { user: { sub: 'p1' } } }, res);
-    });
-    assert.equal(prompts.length, 1);
-    assert.match(prompts[0], /Designer: Close it\n\nWHAT THIS SCREEN SHOWS[\s\S]*~0\.694 kg battery is the smallest single change that closes/);
-  } finally { Module._load = original; }
+test('beforeTurn sends the sliders and hands the window the screen; afterTurn shows only an offered draft\'s changes', async () => {
+  const changes = [{ field: 'battery_mass_kg', from: 0.4, to: 0.6, move: 'up' }];
+  const hooks = surface(baseState(), {}, { 'GET /draft': { draft: { say: 'More battery.', draft: { battery_mass_kg: 0.6 }, changes } } });
+  const context = await hooks.beforeTurn();
+  assert.deepEqual(hooks.posted[0], { method: 'POST', url: '/draft/design', body: { design: { battery_mass_kg: 0.4, aspect_ratio: 12 } } });
+  assert.deepEqual(context, { screen_state: hooks.aeroScreen() });
+  await hooks.afterTurn();
+  assert.deepEqual(hooks.shown, [changes]);
+  const none = surface(baseState(), {}, { 'GET /draft': { draft: null } });
+  await none.afterTurn();
+  assert.deepEqual(none.shown, [], 'nothing offered, nothing shown');
 });

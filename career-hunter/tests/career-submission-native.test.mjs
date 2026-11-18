@@ -121,5 +121,20 @@ test('missing optional press pictures do not request an absent native artifact',
   const tickets={createTicket:async()=>({ticketId}),getTicketWork:async()=>[{id:workId,executor:'browser-form-v1',state:'completed',presses,pressesAllowed:4}],
     getAcceptedWork:async()=>({answer:JSON.stringify(answer)}),getAcceptedArtifact:async()=>{throw Error('accepted artifact is unavailable');}};
   await native.bind(dir,item.id,tickets,'owner');const saved=await native.sync(dir,item.id,tickets,()=>assert.fail());
-  assert.equal(saved.status,'needs_you');assert.deepEqual(saved.pressPictures,[]);assert.equal(saved.presses.length,1);
+  assert.equal(saved.status,'needs_you');assert.deepEqual(saved.pressPictures,[]);assert.deepEqual(saved.presses.length,1);
+});
+
+test('typed apply_device_unavailable kernel refusal surfaces as a 409 SubmissionError by code only, never by text prefix',async t=>{
+  const dir=setup(t),review=native.review(material),{item}=native.approve(dir,material,{approved:true,packetDigest:review.packetDigest});
+  let coded=true;
+  const tickets={createTicket:async()=>({ticketId}),startTicket:async()=>{
+    throw coded?Object.assign(new Error('Offline laptop alpha-desk.'),{code:'apply_device_unavailable'}):new Error('apply_device_unavailable: uncoded text');
+  }};
+  await native.bind(dir,item.id,tickets,'owner');
+  await assert.rejects(
+    native.start(dir,item.id,tickets),
+    err=>err instanceof queue.SubmissionError&&err.code==='apply_device_unavailable'&&err.status===409&&err.message==='Offline laptop alpha-desk.'
+  );
+  coded=false;
+  await assert.rejects(native.start(dir,item.id,tickets),err=>!(err instanceof queue.SubmissionError));
 });

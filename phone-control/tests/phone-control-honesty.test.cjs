@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Pin the restored native downloads entry and actual Install or update Orbit label, preserving all button, version, source and ownership guards.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Include the mounted native relay module in the existing exact route/catalog guard without relaxing its assertions.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.18.0: scan the mounted Fire TV guide module (routes/phone-control-remote-guides.js) with the others. Its catalog binding without its route in this list made the guard count 45 bindings for 44 routes; the assertions are unchanged.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: align the raw bridge source-bytes check with lib/bridge-files.js MAX_SOURCE_BYTES (240 KiB) while keeping the 100 KiB gzipped install-command ceiling unchanged.
  */
 'use strict';
 
@@ -250,7 +251,7 @@ test('every file the package needs has an extension the kernel stages into the p
 test('the bridge fits its one install command and its version is the package version', async () => {
   const sizes = ['oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py']
     .map((name) => fs.statSync(path.join(PKG, 'bridge', name)).size);
-  assert.ok(sizes.reduce((a, b) => a + b, 0) < 200 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
+  assert.ok(sizes.reduce((a, b) => a + b, 0) < 240 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
   const { bridgeManifest } = require(path.join(PKG, 'lib', 'bridge-files.js'));
   const link = await import(path.join(PKG, 'tools', 'computer-link.js'));
   assert.ok(link.installCommand(bridgeManifest(PKG)).length < 100 * 1024, 'gzipped install command fits well under 100 KiB');

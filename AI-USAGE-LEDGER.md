@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 90 packages, 90 rated, 0 unrated.
+Coverage: 89 packages, 89 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -99,7 +99,6 @@ Coverage: 90 packages, 90 rated, 0 unrated.
 | job-apply | 64 / 256 (declared) | job-application-ticket | job application submission | T4 | none | disable | not yet measured | none recorded |
 | kalshi | 32 / 128 (declared) | quant-walkthrough | question | T2 | hosted | template | not yet measured | none recorded |
 | life | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
-| lists | 32 / 128 (declared) | lists-concierge | concierge answer | T1 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | lecture-study-materials | lecture study pack | T2 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | lecture-recording-pipeline | lecture recording ticket | T4 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | study-set-generation | flashcard set or quiz | T2 | none | disable | not yet measured | none recorded |

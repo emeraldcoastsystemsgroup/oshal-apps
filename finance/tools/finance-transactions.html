@@ -5,6 +5,7 @@
  SEQ | AUTHOR | DESCRIPTION
  -----------------------------------------------------------------------------
  1 | maintainer@emeraldcoastsystemsgroup.com | Finance 1.7.0 (Lane FINH1b, 2026-11-14): Transactions, every line of the person's own records for a month, the new ones (not yet looked at) first. Per line: change its category (and, if they want, for every line from that merchant), mark it looked at, say "Not mine"; a line can be typed by hand. The month picker lists the months the records cover. Reads and writes /api/finance/ledger only; nothing here moves money.
+ 2 | maintainer@emeraldcoastsystemsgroup.com | Show the caller’s dated saved bank activity read-only beside statement/manual entries, with independent window coverage, latest25 display bound and explicit row currency.
 -->
 <html lang="en">
 <head>
@@ -20,6 +21,14 @@
     <div class="fr-actions"><label>Month<select id="frMonth"></select></label><button type="button" class="fr-primary" id="frReviewAll" hidden>Mark all as looked at</button><button type="button" id="frAddOpen">Add one by hand</button></div>
   </div>
   <div id="frNotice" class="fr-notice" hidden role="status" aria-live="polite"></div>
+  <section class="fr-card" id="frBankActivity" aria-labelledby="frBankH" data-state="loading">
+    <div class="fr-head"><h2 id="frBankH">Saved bank activity</h2><button id="frBankRefresh" type="button">Refresh saved view</button></div>
+    <p class="fr-sub" id="frBankSource" role="status" aria-live="polite">Reading the saved bank snapshot…</p>
+    <p class="fr-sub" id="frBankCoverage"></p><p class="fr-sub" id="frBankDisplay"></p>
+    <ul class="fr-list" id="frBankRows"></ul>
+    <p class="fr-sub">These bank entries are read-only. Categories and review actions below apply to statement and manual records.</p>
+    <a class="fr-link" style="color:inherit" id="frOpenBanks" href="/api/finance/">Open bank accounts</a>
+  </section>
   <section class="fr-card" id="frAdd" hidden aria-labelledby="frAddH">
     <h2 id="frAddH">Add a transaction</h2>
     <div class="fr-form">
@@ -40,6 +49,7 @@
   'use strict';
   var F = window.FinanceRecords, el = F.el, $ = function (id) { return document.getElementById(id); };
   var state = { month: '', fresh: [] };
+  var bank = { read: 0, controller: null, disposed: false };
 
   function change(t, body, button, words) {
     return F.press(button, function () { return F.api('/ledger/transactions/' + encodeURIComponent(t.id), Object.assign({ today: F.today() }, body)).then(function () { F.say(words); return load(state.month); }); });
@@ -72,9 +82,9 @@
       $('frMonth').replaceChildren.apply($('frMonth'), months.map(function (x) { return el('option', { value: x, text: F.monthWords(x), selected: x === r.month }); }));
       var list = (r.transactions || []).slice().sort(function (a, b) { return (a.review === 'new' ? 0 : 1) - (b.review === 'new' ? 0 : 1) || String(b.date).localeCompare(String(a.date)); });
       state.fresh = list.filter(function (t) { return t.review === 'new'; });
-      $('frCounts').textContent = F.monthWords(r.month) + ': ' + r.counts.total + ' transactions, ' + r.counts.toReview + ' new to look at.';
+      $('frCounts').textContent = 'Statement and manual records · ' + F.monthWords(r.month) + ': ' + r.counts.total + ' transactions, ' + r.counts.toReview + ' new to look at.';
       $('frReviewAll').hidden = !state.fresh.length;
-      $('frList').replaceChildren.apply($('frList'), list.length ? list.map(row) : [el('li', { class: 'fr-empty', text: 'No transactions this month. Bring in a statement on Accounts.' })]);
+      $('frList').replaceChildren.apply($('frList'), list.length ? list.map(row) : [el('li', { class: 'fr-empty', text: 'No transactions this month in your statement and manual records. Bring in a statement on Accounts.' })]);
     }).catch(function (err) { F.say(err.message, true); });
   }
   function next(month) { var y = Number(month.slice(0, 4)), mo = Number(month.slice(5, 7)) + 1; if (mo > 12) { mo = 1; y += 1; } return y + '-' + String(mo).padStart(2, '0'); }
@@ -84,6 +94,86 @@
       $('frAddAccount').replaceChildren.apply($('frAddAccount'), (r.accounts || []).filter(function (a) { return a.state === 'open'; }).map(function (a) { return el('option', { value: a.id, text: a.name }); }));
     }).catch(function () { /* the form says so when it is used */ });
   }
+
+  function count(value) { return Number.isSafeInteger(value) && value >= 0; }
+  function coverageRow(c) {
+    if (!c || typeof c.institution !== 'string' || !c.institution.trim() || c.institution.length > 200 || !count(c.returned) || c.returned > 2000 || !Number.isInteger(c.pages) || c.pages < 0 || c.pages > 4 || c.returned > c.pages * 500) return null;
+    if (c.total !== null && (!count(c.total) || c.total < c.returned)) return null;
+    if (c.state === 'complete' && c.reason === null && c.total === c.returned && c.pages === Math.max(1, Math.ceil(c.returned / 500))) return c;
+    if (c.state === 'partial' && c.reason === 'page_limit' && c.pages === 4 && c.returned === 2000 && c.total > c.returned) return c;
+    return c.state === 'unknown' ? c : null;
+  }
+  function bankCoverage(aggregate, rows, intact) {
+    var c = aggregate.transactionCoverage;
+    if (!intact || !c || !Array.isArray(c.institutions) || !c.institutions.length || !count(c.returned) || !count(c.total)) return 'Coverage unknown. This recent list does not establish a complete history.';
+    var parts = c.institutions.map(coverageRow);
+    var known = parts.every(function (part) { return part && part.state !== 'unknown'; });
+    var returned = known ? parts.reduce(function (sum, part) { return sum + part.returned; }, 0) : null;
+    var total = known ? parts.reduce(function (sum, part) { return sum + part.total; }, 0) : null;
+    var derived = known && parts.some(function (part) { return part.state === 'partial'; }) ? 'partial' : 'complete';
+    if (!known || !count(total) || returned !== c.returned || total !== c.total || rows.length > returned || c.state !== derived || aggregate.transactionsComplete !== (derived === 'complete')) return 'Coverage unknown. This recent list does not establish a complete history.';
+    var days = Number.isInteger(aggregate.transactionWindowDays) && aggregate.transactionWindowDays > 0 && aggregate.transactionWindowDays <= 366 ? ' over ' + aggregate.transactionWindowDays + ' days' : '; window length unknown';
+    return 'Provider window: ' + derived + ' — ' + returned + ' of ' + total + ' transactions reported' + days + '.';
+  }
+  function bankAmount(t) {
+    if (!Number.isFinite(t.amount) || typeof t.currency !== 'string' || !/^[A-Z]{3}$/.test(t.currency)) return 'Unknown amount or currency';
+    return (t.amount < 0 ? 'In ' : t.amount > 0 ? 'Out ' : '') + new Intl.NumberFormat(undefined, { style: 'currency', currency: t.currency, currencyDisplay: 'code' }).format(Math.abs(t.amount));
+  }
+  function bankRow(t) {
+    var name = typeof t.name === 'string' ? t.name.slice(0, 240) : 'Transaction';
+    var institution = typeof t.institution === 'string' ? t.institution.slice(0, 200) : 'Institution unknown';
+    var stamp = typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date) ? new Date(t.date + 'T12:00:00Z') : null;
+    var date = stamp && Number.isFinite(stamp.getTime()) && stamp.toISOString().slice(0, 10) === t.date ? F.dateWords(t.date) : '';
+    return el('li', { class: 'fr-row' }, [el('div', { class: 'fr-main' }, [el('strong', { text: name }), el('div', { class: 'fr-sub', text: (date || 'Date unknown') + ' · ' + institution })]), el('span', { class: 'fr-amount', text: bankAmount(t) })]);
+  }
+  function paintBank(answer) {
+    var aggregate = answer && answer.aggregate;
+    if (!aggregate || typeof aggregate !== 'object' || Array.isArray(aggregate)) throw new Error('Unreadable saved snapshot');
+    if (aggregate.ledger === true || aggregate.sourceEnvironment === 'imported') {
+      $('frBankH').textContent = 'Bank activity';
+      $('frBankSource').textContent = 'This saved summary belongs to statement and manual records; it is not a bank snapshot.';
+      $('frBankCoverage').textContent = 'Bank coverage cannot be established from these records.'; $('frBankDisplay').textContent = '';
+      $('frBankRows').replaceChildren(el('li', { class: 'fr-empty', text: 'Use your statement and manual entries below.' }));
+      $('frBankActivity').dataset.state = 'ready'; return;
+    }
+    var raw = aggregate.recentTransactions;
+    var rows = Array.isArray(raw) ? raw.filter(function (t) { return t && typeof t === 'object' && !Array.isArray(t); }) : [];
+    var env = aggregate.sourceEnvironment;
+    var source = env === 'sandbox' ? 'Test bank data' : env === 'production' ? 'Bank data' : env === 'sample' ? 'Sample data' : 'Source unknown';
+    $('frBankH').textContent = env === 'sandbox' || env === 'production' ? 'Saved bank activity' : env === 'sample' ? 'Saved sample activity' : 'Saved activity';
+    var date = answer.syncedAt ? new Date(answer.syncedAt) : null;
+    $('frBankSource').textContent = source + ' · ' + (date && Number.isFinite(date.getTime()) ? 'Snapshot saved ' + date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Snapshot date unknown') + '. Your bank may have newer information.';
+    var coverage = bankCoverage(aggregate, rows, Array.isArray(raw) && raw.length === rows.length); $('frBankCoverage').textContent = coverage;
+    $('frBankDisplay').textContent = 'Showing ' + Math.min(25, rows.length) + ' available recent saved ' + (rows.length === 1 ? 'entry' : 'entries') + '. This list is not your entire bank history.';
+    var empty = /Provider window: complete — 0 of 0/.test(coverage) ? 'No transactions in the provider-reported window.' : 'No recent entries are available in this saved list; this does not mean no bank activity.';
+    $('frBankRows').replaceChildren.apply($('frBankRows'), rows.length ? rows.slice(0, 25).map(bankRow) : [el('li', { class: 'fr-empty', text: empty })]);
+    $('frBankActivity').dataset.state = 'ready';
+  }
+  function loadBank() {
+    var read = ++bank.read;
+    if (bank.controller) bank.controller.abort();
+    bank.controller = new AbortController(); $('frBankRefresh').disabled = true;
+    var controller = bank.controller, timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; controller.abort(); }, 15000);
+    $('frBankActivity').dataset.state = 'loading';
+    return fetch('/api/finance/summary', { credentials: 'include', cache: 'no-store', headers: { accept: 'application/json' }, signal: bank.controller.signal })
+      .then(function (r) { if (!r.ok) { var error = new Error('Saved read failed'); error.status = r.status; throw error; } return r.json(); })
+      .then(function (answer) { if (!bank.disposed && read === bank.read) paintBank(answer); })
+      .catch(function (error) {
+        if (bank.disposed || read !== bank.read || error.name === 'AbortError' && !timedOut) return;
+        $('frBankActivity').dataset.state = 'unavailable';
+        $('frBankSource').textContent = error.status === 404 ? 'No saved bank snapshot yet. Open bank accounts to link or Sync.' : 'Saved bank activity could not be read. Your statement and manual records are still shown below.';
+        $('frBankCoverage').textContent = 'Coverage unknown.'; $('frBankDisplay').textContent = '';
+        $('frBankRows').replaceChildren();
+      }).finally(function () { clearTimeout(timer); if (read === bank.read) { bank.controller = null; $('frBankRefresh').disabled = false; } });
+  }
+  $('frBankRefresh').addEventListener('click', loadBank);
+  $('frOpenBanks').addEventListener('click', function (event) {
+    try { if (window.parent !== window && window.parent.location.pathname === '/api/finance/app') { event.preventDefault(); F.go('finance-home'); } } catch (_) { /* another origin keeps the ordinary link */ }
+  });
+  window.addEventListener('pagehide', function () { bank.disposed = true; bank.read++; if (bank.controller) bank.controller.abort(); });
+  window.addEventListener('pageshow', function (event) { if (event.persisted) { bank.disposed = false; loadBank(); } });
+  loadBank();
 
   $('frMonth').addEventListener('change', function () { load($('frMonth').value); });
   $('frAddOpen').addEventListener('click', function () { $('frAdd').hidden = !$('frAdd').hidden; });

@@ -24,6 +24,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register overview-layout (UX audit 2026-11-05): the read-only overview, the brief under the tiles, Assets and Liabilities, Linked banks as its own screen.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register finance-app and finance-app-browser (1.5.0): Finance opens as its own application - its own bar, the menu's sections inside the page, and a Home that shows each finance application's summary and the finance jobs with last run, result and next run.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: register phone-orb (lane mobilesweep1).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3: existing application/record browser cases cover source-separated saved bank activity, explicit units/window coverage/cap 25, nested navigation and held-read recovery with no bank-to-ledger posting.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -405,7 +406,7 @@ cases:
     - A section opens inside the page, the address keeps it across a reload, and Bank accounts keeps its Overview and Linked banks views.
     - A phone gets a bottom bar with controls at least 44 x 44 and no sideways scroll; inside the cockpit the cockpit's header and menu are hidden for this frame and restored when it is removed.
     - The page makes GET requests only.
-    - Home opens with Where you stand - three steps and Add your first account on a first run, otherwise net worth, bills due, the month's money out and the new transactions with their sources - and its buttons open those pages.
+    - Home names Statement and manual records separately from the dated bank snapshot; an empty ledger offers statement/manual entry, and View saved bank activity opens Transactions inside Finance. Missing bank currency stays unknown. Existing day figures and buttons retain their source and date.
     - A summary that does not answer is said in words and the other summaries and the jobs still show.
     - Inside a page with the cockpit's own layout the Concierge's chat panel is hidden only while closed; opened, it sits beside Finance on a computer (at least 300 px, the page keeps the rest) and covers the screen as a sheet on a phone.
     prerequisites:
@@ -693,6 +694,8 @@ cases:
     - Recurring lists the utility with what it costs a year and that it is in Bills; Mark to cancel says Finance cancels nothing; Review again and Keep answer it.
     - A second preview of the same file is not listed among the statements brought in; a closed goal is deleted from Closed goals; after Undo Paid lists no matching payment, and the bill is stopped with No longer due and deleted from Ended, each asked twice.
     - On a phone no record page scrolls sideways and every button is at least 44 px tall.
+    - Saved bank activity uses the real compiled saved-summary route, independently of editable statement/manual rows; shows source/date/provider-window coverage and at most 25 recent rows; refuses missing amounts or units, distinguishes complete-empty from unknown/partial, and never posts bank rows to the ledger or relabels a statement-built summary as bank activity.
+    - A held reply cannot paint after pagehide; a 15-second saved-read timeout restores manual refresh without Sync or automatic retry.
     prerequisites:
     - runner:node-test
     - dependency:playwright

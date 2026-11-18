@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save is enabled only with an unsaved change (a freshly loaded packet keeps it disabled until an edit), and a failed read is told in the page's alert line instead of the status caption.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11: the page marks on its body whether a résumé exists (the editor panel waits for one), so the document double has a body; the Save button reads Save master résumé.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the Save button says Save main résumé.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): the page has no résumé editor of its own any more (no send, no POST /resume/guide; Career's concierge changes a saved résumé through the document handoff). The pending-guide case is now a pending save: while it runs the picker, Save, another résumé and a bridge edit wait, and the save carries this job's résumé and its whole cover. A malformed bridge edit claims nothing in the status line. The document double has a documentElement, where the page declares the open résumé for the concierge.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,12 +26,12 @@ function editor(fetcher,search='') {
   const nodes=new Map(),events={},contexts=[],requests=[],navigations=[];
   const $=id=>{if(!nodes.has(id))nodes.set(id,element(id));return nodes.get(id);};
   const context={console,URLSearchParams,location:{search},CareerJobActions:{openApplication:(...args)=>navigations.push(args)},window:{__bridge:{emitContext:c=>contexts.push(c)},addEventListener(){}},
-    document:{body:{dataset:{}},getElementById:$,querySelector:()=>$('applicationNav'),createElement:()=>element(),addEventListener:(name,fn)=>{events[name]=fn;}},
+    document:{body:{dataset:{}},documentElement:{dataset:{}},getElementById:$,querySelector:()=>$('applicationNav'),createElement:()=>element(),addEventListener:(name,fn)=>{events[name]=fn;}},
     fetch:async(url,options={})=>{const req={url,method:options.method||'GET',body:options.body&&JSON.parse(options.body)};requests.push(req);return fetcher(req);}};
   vm.createContext(context);vm.runInContext(source,context);
-  const api=vm.runInContext('({loadDoc,send,save,state:()=>state})',context);
+  const api=vm.runInContext('({loadDoc,save,state:()=>state})',context);
   const custom=actions=>events['surface-bridge:custom']({detail:{name:'resume_action',data:{actions}}});
-  return {$,api,requests,contexts,custom,navigations};
+  return {$,api,requests,contexts,custom,navigations,record:()=>context.document.documentElement.dataset.careerRecord};
 }
 const master={resume:{headline:'Master profile',experience:[{title:'Recorded role',org:'Recorded employer',span:'2020–2024',bullets:['Recorded work']}]},cover:{},meta:{name:'Fixture'}};
 const packet={resume:{headline:'Job packet',summary:'Recorded experience',skills:['Python']},cover:{paragraphs:['Recorded cover']},meta:{title:'Fixture role',company:'Fixture company'}};
@@ -58,18 +59,19 @@ test('failed document reads and empty selection leave no previous draft availabl
   await e.api.loadDoc('');assert.equal(e.api.state().postingId,null);assert.equal(e.$('pick').disabled,false);
 });
 
-test('pending guide/save operations keep the selected packet and full cover, and edited status survives completion',async()=>{
-  const guide=deferred(),save=deferred();
-  const e=editor(req=>req.url.includes('/jobs?')?response({jobs:[]}):req.url.endsWith('/guide')?guide.promise:req.url.endsWith('/save')?save.promise:response(packet),'?id=225');await tick();
-  e.$('msg').value='Tighten only the headline';const editing=e.api.send();
-  assert.equal(e.$('pick').disabled,true);assert.equal(e.$('save').disabled,true);assert.deepEqual([...e.contexts.at(-1).can],['notify']);
-  await e.api.loadDoc('master');await e.api.save();e.custom([{op:'set_headline',text:'Late bridge edit'}]);
-  assert.equal(e.api.state().postingId,225);assert.equal(e.api.state().resume.headline,'Job packet');
-  guide.resolve(response({actions:[{op:'set_headline',text:'Concise packet'}],reply:'Tightened the headline.'}));await editing;
+test('a pending save keeps the selected packet and its full cover, and the page has no résumé editor of its own',async()=>{
+  assert.doesNotMatch(source,/\/resume\/guide/,'nothing goes to the résumé editor\'s own chat route');
+  const save=deferred();
+  const e=editor(req=>req.url.includes('/jobs?')?response({jobs:[]}):req.url.endsWith('/save')?save.promise:response(packet),'?id=225');await tick();
+  assert.equal(e.record(),'225','the page declares the tailored résumé it has open, for the concierge');
+  e.custom([{op:'set_headline',text:'Concise packet'}]);
   assert.equal(e.api.state().resume.headline,'Concise packet');assert.match(e.$('status').textContent,/edited/);
-  const saving=e.api.save();await e.api.loadDoc('master');e.custom([{op:'set_headline',text:'Change during save'}]);
-  const writes=e.requests.filter(r=>r.method==='POST');assert.equal(writes.length,2);
-  assert.equal(writes[1].body.postingId,225);assert.equal(writes[1].body.resume.headline,'Concise packet');assert.deepEqual(writes[1].body.cover,packet.cover);
+  const saving=e.api.save();
+  assert.equal(e.$('pick').disabled,true);assert.equal(e.$('save').disabled,true);assert.deepEqual([...e.contexts.at(-1).can],['notify']);
+  await e.api.loadDoc('master');e.custom([{op:'set_headline',text:'Change during save'}]);
+  assert.equal(e.api.state().postingId,225);assert.equal(e.api.state().resume.headline,'Concise packet');
+  const writes=e.requests.filter(r=>r.method==='POST');assert.equal(writes.length,1);
+  assert.equal(writes[0].body.postingId,225);assert.equal(writes[0].body.resume.headline,'Concise packet');assert.deepEqual(writes[0].body.cover,packet.cover);
   save.resolve(response({ok:true}));await saving;
   assert.match(e.$('status').textContent,/PDF re-rendered/);assert.equal(e.$('pick').disabled,false);assert.equal(e.api.state().postingId,225);
 });
@@ -82,9 +84,9 @@ test('a deep-linked packet missing from the generated feed remains selected when
 
 test('malformed bridge actions cannot crash preview, claim an edit, or change master role anchors',async()=>{
   const e=editor(req=>req.url.includes('/jobs?')?response({jobs:[]}):response(master));await tick();
-  const before=JSON.stringify(e.api.state().resume),log=e.$('log').children.length;
+  const before=JSON.stringify(e.api.state().resume),said=e.$('status').textContent;
   assert.doesNotThrow(()=>e.custom([{op:'set_skills',items:'not a list'},{op:'unknown',text:'new'},{op:'update_experience',index:1,title:'Invented title',bullets:['Changed work']}]));
-  assert.equal(JSON.stringify(e.api.state().resume),before);assert.equal(e.$('log').children.length,log);
+  assert.equal(JSON.stringify(e.api.state().resume),before);assert.equal(e.$('status').textContent,said,'no edit is claimed');assert.equal(e.$('save').disabled,true,'nothing to save');
   e.custom([{op:'set_headline',text:'Recorded headline'}]);assert.equal(e.api.state().resume.headline,'Recorded headline');assert.match(e.$('status').textContent,/edited by Jarvis/);
 });
 

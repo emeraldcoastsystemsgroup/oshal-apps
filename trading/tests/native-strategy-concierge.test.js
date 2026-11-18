@@ -1,11 +1,12 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Check all declared authority versions without expanding the unchanged legacy closure.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The concierge's strategy tools are research-only route reads and writes (save, backtest, read with each account's assigned strategy), the analyst is authorized for them and hands the switch to the owner's Strategies screen, and the declared order authority covers every module that submits or manages a broker order while pages, research routes and the persona stay outside it, following the same literal-require rules the kernel applies.
  */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {application}=require('./support/native-portfolio-host');
 const root=path.resolve(__dirname,'..');
-const yamlRoots=[__dirname,path.resolve(__dirname,'../../scripts/toolchain'),...(process.env.OSHAL_FRAMEWORK?[path.resolve(process.env.OSHAL_FRAMEWORK)]:[])];
+const yamlRoots=[...(process.env.STORE_CI_TOOLCHAIN?[process.env.STORE_CI_TOOLCHAIN]:[]),__dirname,path.resolve(__dirname,'../../scripts/toolchain'),...(process.env.OSHAL_FRAMEWORK?[path.resolve(process.env.OSHAL_FRAMEWORK)]:[])];
 const yaml=require(require.resolve('js-yaml',{paths:yamlRoots}));
 const manifest=yaml.load(fs.readFileSync(path.join(root,'oshal-app.yaml'),'utf8'));
 const tools=new Map(manifest.tools.map(t=>[t.name,t]));
@@ -78,9 +79,10 @@ function files(dir){return fs.readdirSync(path.join(root,dir),{withFileTypes:tru
 const READS=new Set(['list','mandate.status','protection.status','tickets']);
 
 test('approvals cover every module that submits or manages broker orders and nothing presentational',()=>{
- const sources=manifest.orderAuthority?.sources;
- assert.deepEqual(sources,['routes/trading-native-management.js','routes/live/management.js']);
- const covered=closure(sources);
+ const versions=manifest.orderAuthority?.versions;
+ assert.deepEqual(versions?.['1']?.sources,['routes/trading-native-management.js','routes/live/management.js']);
+ const covered=new Set(Object.values(versions).flatMap(version=>[...closure(version.sources)]));
+ assert.equal(closure(versions['1'].sources).size,29,'candidate registration cannot expand legacy authority');
  for(const file of files('routes').filter(f=>/\.(c?js)$/.test(f))){
   const intents=[...fs.readFileSync(path.join(root,file),'utf8').matchAll(/trading\.orders\.([a-z_.]*[a-z_])?/g)].map(m=>m[1]||'');
   if(intents.some(name=>!READS.has(name)))assert.ok(covered.has(file),file+' submits or manages broker orders outside the approved code');

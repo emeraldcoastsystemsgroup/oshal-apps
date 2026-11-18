@@ -7,17 +7,11 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade F): the app's only screen was a dead-end stub whose brief form went nowhere. The form and its hand-off receiver are gone, the ledger-contract paragraph and "Open the app to begin" are no longer shown, and the one primary is Open in Career, where submissions are prepared and followed. The tile left the Apps menu; this route stays for hand-offs. Guard: tests/review-page.test.cjs.
   2 | maintainer@emeraldcoastsystemsgroup.com | Buttons on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06): body-size labels at 600 (15px on a desktop with a fine pointer), 44px, 16px sides, radius m, a solid secondary fill with the control edge, one line; the audience kit's .av-btn keeps the kit's own height, spacing and wrapping.
   3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: UX design-standard sweep (D1=glass, D2=c, job-apply--job-apply-review): DS-00 collection contract, surface-glass.css, scale radii ({10,14}) and font sizes ({12,14,15,18,24}), 44px primary link and sortable table headers, hidden duplicate H1 when framed, and withheld zero counters when empty.
+  4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: Replace ticket/run stub with the single Job Apply connected-device setting screen (GET/PUT /api/apply-operator/workers). Shows "None connected" with step-by-step Open Swarm Orbit setup instructions when 0 devices are enrolled, and radio device cards + Save device when 1+ devices exist, while keeping the company/family AppView head block and Open in Career link intact.
 -->
-<html lang="en" data-theme="midnight" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Submission Review</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<html lang="en" data-theme="light-blue" data-ds-category="settings" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Job Apply</title><link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
-<!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in account's
-     OWN submission runs (active, failed or unknown, manually marked, verified in 24 hours and in 5 days, and the newest
-     three runs with their company, state and last update) from the SAME GET /api/job-apply/home-summary the full page
-     reads, painted by the shared kit in the company grammar. On open it makes only that one read, an owner-scoped
-     SELECT under the caller's session. It never fetches connected-actions offers, binds no handoff listener and writes
-     nothing (this page has no write; retrying a submission is Career's job). Any other request runs the full
-     Submission Review page below unchanged. -->
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
 <script src="/shared/ui/js/app-view.js"></script>
 <script>
@@ -32,16 +26,12 @@
   }
   function refused(res) { return res.status === 401 || res.status === 403; }
   function openFull() { window.location.assign(window.location.pathname); }
-  // A run item carries the route's two continuation offers; the trailing ledger, partial and no-work notes carry none.
   function isRun(item) { return Array.isArray(item.actions) && item.actions.length > 0; }
-  // A run item's detail is '<company> / <state> / <updated>' (routes/home-summary.js): updated is an ISO instant or the route's
-  // own 'date unavailable'; the company is clipped text that may itself contain a slash, so state and updated are read from the end.
   function parse(detail) {
     var parts = String(detail || '').split(' / ');
     if (parts.length < 3) return { company: parts.join(' / '), state: '', updated: '' };
     return { company: parts.slice(0, -2).join(' / '), state: parts[parts.length - 2], updated: parts[parts.length - 1] };
   }
-  // The route sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that source failed.
   function count(value) { return typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : null; }
   function metrics(body) { return body.metrics || body.tiles || []; }
   function value(body, id) { var m = metrics(body).filter(function (x) { return x.id === id; })[0]; return m ? count(m.value) : null; }
@@ -55,7 +45,6 @@
     if (five > 0) return plural(five, 'verified submission', 'verified submissions') + ' in 5 days';
     return runs.length ? 'No submission runs active' : 'No submission runs yet';
   }
-  // Failed or unknown runs want attention; a verified count is the one figure backed by retained confirmation evidence.
   function tone(id, n) {
     if (n === null) return 'warn';
     if (n === 0) return null;
@@ -90,25 +79,152 @@
         stats: stats(res.body), sections: [runsSection(runs, partial), notesSection(items)] };
     });
   }
-  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
   A.boot({ app: 'job-apply', escapeLabel: 'Open Job Apply in the cockpit', audiences: { company: company, family: company } });
 })();
 </script>
 <style>
-:root{--accent:var(--ds-accent,var(--accent-primary,#2563eb));--ink:var(--ds-ink,var(--text-primary,#142034));--muted:var(--ds-ink-2,var(--text-muted,#52627a));--border:var(--ds-line,var(--border-color,#d4deec))}*{box-sizing:border-box}html,body{margin:0;overscroll-behavior:contain}body{background:var(--bg-primary,#f6f8fc);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:1180px;min-height:100dvh;margin:auto;padding:20px 16px}html.in-shell header h1{display:none}header{margin-bottom:16px}h1{font-size:24px;line-height:1.25;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:18px;line-height:1.3;margin:0 0 12px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hint{color:var(--muted);font-size:14px;margin:0 0 10px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}#metrics[hidden],[hidden]{display:none!important}.metric,.panel{border:1px solid var(--border);border-radius:14px;background:var(--bg-card,#ffffff)}.metric{padding:14px}.metric strong{display:block;font-size:24px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1fr;gap:20px}.panel{padding:20px;min-width:0}button,a{font:inherit}button,a.primary{font:var(--ds-text-body,400 16px/24px system-ui,sans-serif);font-weight:600;color:var(--ds-ink,var(--ink));background:var(--ds-surface-2,var(--bg-tertiary,#eef3fa));border:1px solid var(--ds-line-control,var(--border-color,#b8c7dc));border-radius:var(--ds-radius-m,10px);padding:0 16px;cursor:pointer;text-decoration:none;backdrop-filter:none;background-image:none;box-shadow:none}button:where(:not(.av-btn)),a.primary{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin:4px 8px 4px 0;white-space:nowrap}button:hover{background:var(--ds-surface-3,var(--bg-card-hover,#e2eaf5))}button:disabled{opacity:1;color:var(--ds-ink-disabled,var(--muted));background:var(--ds-surface-2,var(--bg-tertiary,#eef3fa));cursor:not-allowed}.primary,a.primary{background:var(--ds-accent,var(--accent-primary,#2563eb));border-color:var(--ds-accent,var(--accent-primary,#2563eb));color:var(--ds-on-accent,var(--text-on-accent,#ffffff));font-weight:600}.primary:hover,a.primary:hover{background:var(--ds-accent,var(--accent-primary,#2563eb));box-shadow:inset 0 0 0 1px var(--ds-on-accent,#fff)}a{color:var(--accent)}button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}@media(max-width:720px){main{padding:12px}.panel{padding:16px}}
-.table-scroll{overflow:auto}.records{width:100%;border-collapse:collapse;font-size:14px}.records th{text-align:left;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 10px;border-bottom:1px solid var(--border);white-space:nowrap}.records td{padding:10px;border-bottom:1px solid var(--border);vertical-align:top}.records strong.item{display:inline;font-size:inherit;font-weight:600}.records td:last-child{white-space:nowrap}#records>p.hint{margin:10px 0 0;line-height:1.5}.records th .ks-sort{all:unset;display:inline-flex;align-items:center;gap:5px;min-height:44px;cursor:pointer;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}.records th .ks-sort::after{content:'';border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:5px solid currentColor;opacity:.28}.records th[aria-sort] .ks-sort::after{opacity:1;color:var(--accent)}.records th[aria-sort=descending] .ks-sort::after{transform:rotate(180deg)}
-</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><h1>Submission Review</h1><p class="hint">Submissions are prepared and followed in Career.</p><a class="primary" id="openCareer" href="/cockpit/?app=career-hunter&amp;screen=career-submission-activity" target="_top">Open in Career</a></header><div id="metrics" aria-label="Saved work metrics" hidden></div><div class="layout"><section class="panel" data-ds-work data-no-glass><h2>Recorded work</h2><div id="records">Loading…</div><button id="refresh" hidden>Refresh</button></section></div></main><script type="module">
-// The full page only: under an audience view the shared kit paints instead (see the head script), so no handoff listener
-// is bound, no connected-actions offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+:root{--accent:var(--ds-accent,var(--accent-primary,#2563eb));--ink:var(--ds-ink,var(--text-primary,#142034));--muted:var(--ds-ink-2,var(--text-muted,#52627a));--border:var(--ds-line,var(--border-color,#d4deec));--surface:var(--ds-surface,var(--bg-card,#ffffff));--surface-2:var(--ds-surface-2,var(--bg-tertiary,#eef3fa))}*{box-sizing:border-box}html,body{margin:0;overscroll-behavior:contain;overflow-x:hidden}body{background:var(--bg-primary,#f6f8fc);color:var(--ink);font:15px/1.5 system-ui,sans-serif}main{max-width:760px;min-height:100dvh;margin:auto;padding:24px 16px}html.in-shell header h1{display:none}header{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px}header .heading-copy{flex:1 1 260px;min-width:0}h1{font-size:24px;line-height:1.25;letter-spacing:-.02em;margin:0 0 6px}h2{font-size:18px;line-height:1.3;margin:0 0 8px}.hint{color:var(--muted);font-size:14px;margin:0}[hidden]{display:none!important}.panel{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:20px;min-width:0}button,a.btn,a.primary{font:var(--ds-text-body,400 15px/22px system-ui,sans-serif);font-weight:600;color:var(--ds-ink,var(--ink));background:var(--ds-surface-2,var(--surface-2));border:1px solid var(--ds-line-control,var(--border-color,#b8c7dc));border-radius:var(--ds-radius-m,10px);padding:0 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:44px;white-space:nowrap}button:hover,a.btn:hover{background:var(--ds-surface-3,var(--bg-card-hover,#e2eaf5))}button:disabled{color:var(--ds-ink-disabled,var(--muted));background:var(--ds-surface-2,var(--surface-2));cursor:not-allowed}button.primary,a.primary{background:var(--accent);border-color:var(--accent);color:var(--ds-on-accent,var(--text-on-accent,#ffffff))}button:focus-visible,a:focus-visible,.device-card:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.device-list{display:grid;gap:10px;margin:16px 0;border:0;padding:0}.device-card{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer}.device-card[data-checked="true"]{border-color:var(--accent);background:var(--surface-2)}.device-main{display:flex;align-items:center;gap:12px;min-width:0;flex:1}.device-main input{width:20px;height:20px;margin:0;flex:0 0 auto;accent-color:var(--accent)}.device-text{min-width:0}.device-name{display:block;font-weight:600;overflow-wrap:anywhere}.device-meta{display:block;font-size:13px;color:var(--muted)}.badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}.badge[data-ready="true"]{color:#0f5132;background:#e6f4ea;border-color:#b7dfb9}.badge[data-ready="false"]{color:#7a4f01;background:#fff4db;border-color:#f0d493}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.steps{margin:12px 0 16px;padding-left:20px;font-size:14px;color:var(--ink)}.steps li{margin-bottom:6px}.status-banner{margin-top:14px;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);font-size:14px}.status-banner[data-error="true"]{border-color:#dc2626;color:#991b1b;background:#fef2f2}@media(max-width:600px){main{padding:14px 12px}.panel{padding:16px}.actions button,.actions a{flex:1 1 auto}}
+</style></head><body><main>
+  <header>
+    <div class="heading-copy">
+      <h1>Job Apply</h1>
+      <p class="hint">Choose which connected device Career and Jarvis use when applying to jobs.</p>
+    </div>
+    <a class="btn" id="openCareer" href="/cockpit/?app=career-hunter&amp;screen=career-submission-activity" target="_top">Open in Career</a>
+  </header>
+  <section class="panel" id="deviceSettingCard" data-ds-work data-no-glass>
+    <h2>Connected device that applies to jobs</h2>
+    <p class="hint" id="settingLead">Applications you approve in Career or ask Jarvis to submit run on the connected computer you choose here.</p>
+    <div id="loadingState" class="hint" role="status">Checking your connected devices…</div>
+    <div id="noneConnected" hidden>
+      <h2 style="margin-top:14px">None connected</h2>
+      <p class="hint">No computer or browser worker is connected to your account yet. Connect one to let Career and Jarvis fill and submit approved applications from your own browser:</p>
+      <ol class="steps">
+        <li>Open <strong>Devices</strong> and install <strong>Open Swarm Orbit</strong> on the computer you want to apply from.</li>
+        <li>Sign in with your account and turn on <strong>Let Jarvis control this computer</strong> in Open Swarm Orbit.</li>
+        <li>Return here and choose that computer as your Job Apply device.</li>
+      </ol>
+      <div class="actions">
+        <a class="primary" id="connectDeviceLink" href="/cockpit/tools/devices.html" target="_top">Connect a device</a>
+        <button type="button" id="refreshEmpty">Check again</button>
+      </div>
+    </div>
+    <div id="deviceControls" hidden>
+      <fieldset class="device-list" id="deviceList" aria-label="Connected devices"></fieldset>
+      <div class="actions">
+        <button type="button" class="primary" id="saveDevice">Save device</button>
+        <button type="button" id="clearDevice" hidden>Clear choice</button>
+        <button type="button" id="refreshDevices">Check again</button>
+      </div>
+    </div>
+    <p id="deviceStatus" class="status-banner" role="status" hidden></p>
+  </section>
+</main><script type="module">
 if (!window.AppView || !AppView.active()) {
-const framed=(()=>{try{return window.self!==window.top;}catch(_){return true;}})();
-if(framed)document.documentElement.classList.add('in-shell');
-const app="job-apply",refreshBtn=document.querySelector('#refresh');
-/* The ledger contract and the empty-account line are not shown on this page. */
-const HIDDEN_NOTE=/^(Uses the authoritative Apply V2 ledger|No saved work yet\. Open the app to begin\.)/;
-const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
-async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();const mList=(data.metrics||[]).filter(m=>m.value!=='0');for(const m of mList){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}metrics.hidden=!mList.length;const rows=[],notes=[];for(const item of data.items||[]){if(HIDDEN_NOTE.test(String(item.text||'')))continue;const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}refreshBtn.hidden=!rows.length;if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');}wrap.append(table);list.append(wrap);if(window.KernelTable)window.KernelTable.enhance(list);}else if(!notes.length){const p=document.createElement('p');p.className='hint';p.textContent='No submission runs yet.';list.append(p);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();metrics.hidden=true;}}
-refreshBtn.addEventListener('click',refresh);
-await refresh();
+  const framed = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
+  if (framed) document.documentElement.classList.add('in-shell');
+  const el = id => document.querySelector('#' + id);
+  const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
+  let state = { workers: [], selectedDeviceId: null, selectedDeviceName: null, selectionConfigured: false, draftId: '' };
+
+  function describeWorker(w) {
+    const kind = w.kind === 'orbit' ? 'Open Swarm Orbit computer' : 'Browser worker';
+    const plat = w.platform ? ' · ' + w.platform : '';
+    const seen = w.lastSeenAt ? ' · seen ' + w.lastSeenAt : '';
+    const badge = w.available ? 'Connected' : (w.connected && w.canControl === false ? 'Control off' : 'Offline');
+    return { name: w.hostname || w.id || 'Connected computer', detail: kind + plat + seen, badge };
+  }
+
+  function showBanner(text, isError = false) {
+    const box = el('deviceStatus');
+    box.hidden = !text;
+    box.textContent = text || '';
+    box.setAttribute('data-error', isError ? 'true' : 'false');
+  }
+
+  function buildDeviceCard(w) {
+    const id = String(w.id || w.clientId || ''), item = describeWorker(w);
+    const label = document.createElement('label');
+    label.className = 'device-card';
+    label.setAttribute('data-checked', String(state.draftId === id));
+    const main = document.createElement('span'), radio = document.createElement('input'), copy = document.createElement('span');
+    main.className = 'device-main';
+    radio.type = 'radio'; radio.name = 'applyDevice'; radio.value = id; radio.checked = state.draftId === id;
+    radio.addEventListener('change', () => { state.draftId = id; renderDevices(); });
+    copy.className = 'device-text';
+    const name = document.createElement('span'), detail = document.createElement('span'), badge = document.createElement('span');
+    name.className = 'device-name'; name.textContent = item.name;
+    detail.className = 'device-meta'; detail.textContent = localInstants(item.detail || '');
+    badge.className = 'badge'; badge.setAttribute('data-ready', String(Boolean(w.available))); badge.textContent = item.badge;
+    copy.append(name, detail); main.append(radio, copy); label.append(main, badge);
+    return label;
+  }
+
+  function renderDevices() {
+    el('loadingState').hidden = true;
+    const list = state.workers || [];
+    el('noneConnected').hidden = list.length > 0;
+    el('deviceControls').hidden = list.length === 0;
+    el('clearDevice').hidden = !state.selectionConfigured;
+    const host = el('deviceList');
+    host.replaceChildren();
+    if (!list.length) { showBanner('', false); return; }
+    for (const w of list) host.append(buildDeviceCard(w));
+    el('saveDevice').disabled = !state.draftId;
+  }
+
+  function applyPayload(data, savedNow = false) {
+    const workers = Array.isArray(data.workers) ? data.workers : [];
+    const configured = Boolean(data.selectionConfigured && data.selectedDeviceId);
+    const initial = configured ? data.selectedDeviceId : (workers.find(w => w.available)?.id || workers[0]?.id || '');
+    state = { workers, selectedDeviceId: data.selectedDeviceId || null, selectedDeviceName: data.selectedDeviceName || null,
+      selectionConfigured: configured, draftId: String(initial || '') };
+    renderDevices();
+    if (!workers.length) return;
+    if (configured) {
+      const chosen = workers.find(w => String(w.id || w.clientId) === String(data.selectedDeviceId));
+      const name = data.selectedDeviceName || chosen?.hostname || data.selectedDeviceId;
+      if (chosen && !chosen.available) showBanner(`Chosen device (${name}) is offline or has control turned off right now. Applications pause until it reconnects or you choose another device.`, true);
+      else showBanner(`${savedNow ? 'Saved. ' : ''}Career and Jarvis will apply to jobs using ${name}.`, false);
+    } else {
+      showBanner('Select a connected device and press Save device so Career and Jarvis use it when applying.', false);
+    }
+  }
+
+  async function loadDevices() {
+    try {
+      const res = await fetch('/api/apply-operator/workers', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.detail || 'Connected devices could not be checked right now.');
+      applyPayload(data, false);
+    } catch (err) {
+      el('loadingState').hidden = true;
+      showBanner(err.message, true);
+    }
+  }
+
+  async function saveChoice(deviceId) {
+    el('saveDevice').disabled = true;
+    try {
+      const res = await fetch('/api/apply-operator/workers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || data.error || 'Could not save your Job Apply device.');
+      applyPayload(data, Boolean(deviceId));
+    } catch (err) {
+      el('saveDevice').disabled = !state.draftId;
+      showBanner(err.message, true);
+    }
+  }
+
+  el('saveDevice').addEventListener('click', () => { if (state.draftId) void saveChoice(state.draftId); });
+  el('clearDevice').addEventListener('click', () => { void saveChoice(''); });
+  el('refreshEmpty').addEventListener('click', () => { void loadDevices(); });
+  el('refreshDevices').addEventListener('click', () => { void loadDevices(); });
+  await loadDevices();
 }
 </script></body></html>

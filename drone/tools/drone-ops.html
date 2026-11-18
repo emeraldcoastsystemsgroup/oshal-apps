@@ -26,7 +26,19 @@
      5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: the
        no-drone card started 306 px down a 915 px phone, 33%, in the middle of an empty map under a two-row header): on a
        phone with no drone the header is one row (the provider pill only repeated NO DRONE and the battery read –%) and the
-       card sits at the top of the map under the view control. The desktop is unchanged. Presentation only. -->
+       card sits at the top of the map under the view control. The desktop is unchanged. Presentation only.
+     6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2 (Roger, 2026-11-16, "for the last time": every chat surface is the
+       core Jarvis chat window, with its model menu). The Operator chat in the Plan view drew a chat of its own over
+       POST /api/drone/chat (a log, a message box, Send and an Execute draft button): no model menu, no conversations, no
+       files, no voice. It is now the kernel's one chat window as Drone Ops' concierge (/shared/ui/js/jarvis-chat-frame.js,
+       the bot drone-operator) in the same place, after Missions. Every turn carries what this screen shows
+       (droneScreenState: the Fleet list, the selected drone's telemetry and home, the geofence, the saved missions, the
+       mission builder and the map) as context.screen_state, the facts the old request made the route put in its prompt.
+       After a turn the page reads its missions again and draws on the map the draft the turn saved (draft-drone-mission
+       saves it as the old chat did); flying a mission stays Execute in Missions, with its own dialogs, or the window's
+       approval card for execute-drone-mission, and the page reads missions, fleet and show again when a Drone Ops card
+       ran (oshal-package-tool-done). With no drone registered the window's help line says nothing can be drafted or flown
+       yet. The page no longer reads GET /api/drone/conversation; routes, tools and the persona are unchanged. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
      flight plans (how many, which are not flown yet, the latest ones with their shape and where each one stands) from
      the SAME GET /api/drone/missions the full page reads, plus two counts of GET /api/drone/home-summary (plans started
@@ -213,10 +225,9 @@
   .events { max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
   .ev { color: var(--dr-muted); }
   .ev.warn { color: var(--dr-warn); } .ev.alert { color: var(--dr-bad); font-weight: 600; }
-  .chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; margin-bottom: 8px; }
-  .msg { padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; }
-  .msg.user { background: var(--dr-surface-2); border: 1px solid var(--dr-line); align-self: flex-end; max-width: 92%; }
-  .msg.bot { background: color-mix(in srgb, var(--dr-accent) 12%, var(--dr-surface)); border: 1px solid var(--dr-line); align-self: flex-start; max-width: 92%; }
+  /* The Operator chat is the one chat window (jarvis-chat-frame.js): it fills its panel in the Plan view. */
+  #operatorChat { color: var(--dr-muted); font-size: 12px; }
+  #operatorChat .jarvis-chat-frame { display: block; width: 100%; height: 460px; border: 0; border-radius: 8px; }
   .toast {
     position: absolute; top: 12px; right: 12px; max-width: 46%; z-index: 5;
     background: var(--dr-surface); border: 1px solid var(--dr-bad); color: var(--dr-text);
@@ -279,6 +290,7 @@
     .mission-row canvas { max-width: 100%; height: auto; }
     .wp-list { max-height: none; overflow: visible; }
     .panel-box, .mission-row, .wp-list li, code { overflow-wrap: anywhere; }
+    #operatorChat .jarvis-chat-frame { height: min(560px, 75dvh); }
   }
 </style>
 <style>
@@ -467,11 +479,8 @@
       </div>
       <div class="panel-box">
         <h2>Operator chat — drafts only, you approve every flight</h2>
-        <div class="chat-log" id="chatLog"></div>
-        <div class="row">
-          <input id="chatInput" type="text" class="wide" placeholder='e.g. "fly a 100m box at 40m and come home"'>
-          <button class="btn primary" onclick="sendChat()">Send</button>
-        </div>
+        <!-- The one chat window as Drone Ops' concierge (mounted by the module at the end of the page). -->
+        <div id="operatorChat" aria-label="Operator chat"></div>
       </div>
       </div>
       <div class="panel-box" id="eventBox">
@@ -496,7 +505,6 @@ let preview = { on: false, playing: false, t: 0, speed: 4, last: 0, lastMs: 0 };
 let shownMission = null;     // mission plan overlaid on the map
 let lastEventSeq = 0;
 let mode = 'plan';
-let conversationId = null;
 let fleetList = [];          // all drones from GET /fleet
 let selDrone = 'alpha';      // command target
 let showStatus = null;       // GET /show/status snapshot (the conductor)
@@ -759,11 +767,7 @@ function applyFleetAvailability(r) {
     b.disabled = !!fleetUnavailable; b.title = fleetUnavailable ? offHint : b.dataset.hint;
   });
   $('modeGoto').disabled = !!fleetUnavailable;
-  // The operator chat drafts against a drone's fence and home; with none there is nothing it could draft.
-  const chatOff = fleetUnavailable ? 'The operator chat drafts flights for a registered drone; none is registered with this installation.' : '';
-  $('chatInput').disabled = !!chatOff; $('chatInput').title = chatOff;
-  if (chatOff) $('chatInput').placeholder = 'Register a drone node or flight simulator to draft a flight';
-  for (const b of document.querySelectorAll('button[onclick="sendChat()"]')) { b.disabled = !!chatOff; b.title = chatOff; }
+  // The operator chat (the one chat window) says it in its help line: syncOperatorChat, after every fleet read.
   // The server validates every saved mission against the fence; with none there is nothing a save could pass.
   // Save as timeline saves the same fenced waypoints, so it is off for the same reason (keeping its own hint when on).
   const noFence = !r || !r.fence;
@@ -779,6 +783,7 @@ async function pollState() {
     const r = await api('/fleet');
     fleetList = r.fleet || [];
     applyFleetAvailability(r);
+    syncOperatorChat();
     fence = r.fence || fence;
     if (!fleetList.find((f) => f.droneId === selDrone) && fleetList.length) selDrone = fleetList[0].droneId;
     // Every airborne drone paints a trail, not just the selected one.
@@ -1693,56 +1698,135 @@ function renderShowStatus() {
   }
 }
 
-// ── Operator chat (drafts only) ──────────────────────────────────────────────
-function addMsg(cls, text) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + cls;
-  div.textContent = text;
-  $('chatLog').appendChild(div);
-  $('chatLog').scrollTop = $('chatLog').scrollHeight;
-  return div;
+// ── Operator chat: the one chat window (the module at the end of the page mounts it) ──
+/** Bytes of screen text a turn carries; the kernel keeps at most 10 KiB of it. */
+const SCREEN_TEXT_BYTES = 8 * 1024;
+/** The window's help line and starters while a drone is registered, and while none is. */
+const CHAT_HELP = 'Say what to fly and it is drafted inside the geofence and saved under Missions. Nothing flies until you press Execute in Missions or Approve its card here.';
+const CHAT_PROMPTS = ['Fly a 100 m box at 40 m and come home', 'Survey a 200 m square at 30 m', 'Plan a formation for every online drone', 'How is the fleet doing?'];
+const NO_DRONE_CHAT_HELP = 'No drone or flight simulator is registered here, so nothing can be drafted or flown yet.';
+const NO_DRONE_CHAT_PROMPTS = ['Why can\'t I fly a drone here?', 'What does Drone Ops do?'];
+/** What the window was last told: 'drone' or 'none' ('' before it is there). */
+let chatTold = '';
+/** Saved missions when the window's turn began, so a draft the turn saved can be drawn after it. */
+let missionsBeforeTurn = null;
+
+/**
+ * @description Tell the operator chat window its help line and starters for the drone state on screen, once per change:
+ * with no drone registered it says nothing can be drafted or flown yet. Runs after every fleet read and once when the
+ * module has mounted the window.
+ * @returns {void}
+ */
+function syncOperatorChat() {
+  const chat = window.droneOperatorChat, told = fleetUnavailable ? 'none' : 'drone';
+  if (!chat || told === chatTold) return;
+  chatTold = told;
+  chat.setHelp(fleetUnavailable ? NO_DRONE_CHAT_HELP : CHAT_HELP);
+  chat.setPrompts((fleetUnavailable ? NO_DRONE_CHAT_PROMPTS : CHAT_PROMPTS).map((prompt) => ({ label: prompt, prompt })));
 }
-async function sendChat() {
-  const input = $('chatInput');
-  const message = input.value.trim();
-  if (!message) return;
-  input.value = '';
-  addMsg('user', message);
-  const pending = addMsg('bot', '…');
-  try {
-    const r = await api('/chat', { method: 'POST', body: JSON.stringify({ message, conversationId, droneId: selDrone }) });
-    conversationId = r.conversationId || conversationId;
-    pending.textContent = r.reply;
-    if (r.noDrone) return;
-    if (r.draft) {
-      shownMission = r.draft.plan;
-      draw();
-      await loadMissions();
-      const btn = document.createElement('button');
-      btn.className = 'btn small primary';
-      btn.style.marginTop = '6px';
-      btn.textContent = Array.isArray(r.draft.plan.assignments)
-        ? 'Execute FLEET draft "' + r.draft.plan.name + '" (' + r.draft.plan.assignments.length + ' drones)'
-        : 'Execute draft "' + r.draft.plan.name + '"';
-      btn.onclick = () => executeMission(r.draft.missionId, r.draft.plan.name);
-      pending.appendChild(document.createElement('br'));
-      pending.appendChild(btn);
-    } else if (r.draftErrors && r.draftErrors.length) {
-      pending.textContent += '\n(draft rejected: ' + r.draftErrors.join('; ') + ')';
-    }
-  } catch (e) { pending.textContent = 'The operator chat could not answer just now. Nothing was drafted or flown; try again in a moment.'; }
+/** @description A value with its unit as the panels show it, or – when the telemetry has none. @returns {string} */
+function shownValue(value, digits, unit) { return Number.isFinite(value) ? value.toFixed(digits) + unit : '–'; }
+/** @description A WGS-84 point with six decimals, as the route's prompt writes one. @returns {string} */
+function shownPoint(p) { return p.lat.toFixed(6) + ', ' + p.lon.toFixed(6); }
+/**
+ * @description One drone of the Fleet list: kind, embedded or node, online, status, battery and home; a drone whose
+ * position this account may not see shows no home.
+ * @param {object} f - A GET /fleet row. @returns {string}
+ */
+function fleetScreenLine(f) {
+  const t = f.telemetry, parts = [f.kind || 'sim', f.remote ? 'node' : 'embedded', f.online ? 'online' : 'OFFLINE'];
+  if (t) {
+    parts.push(t.status);
+    if (Number.isFinite(t.batteryPct)) parts.push('battery ' + t.batteryPct.toFixed(0) + '%');
+    parts.push(t.home ? 'home ' + shownPoint(t.home) : 'position withheld');
+  }
+  return f.droneId + (f.droneId === selDrone ? ' (selected)' : '') + ': ' + parts.join(', ');
 }
-if (!window.AppView || !AppView.active()) $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+/** @description The selected drone's telemetry as its panels show it, and where it is when this account may see that. @returns {string[]} */
+function selectedScreenLines() {
+  const f = selInfo();
+  if (!f) return [];
+  // The fleet row's telemetry is always this drone's own (the panels' copy can trail a new selection by one read).
+  const t = f.telemetry || null, lines = ['# Selected drone: ' + selDrone];
+  if (!t) return lines.concat(f.online ? 'no telemetry yet' : 'OFFLINE');
+  lines.push('Telemetry: ' + [t.status, 'altitude ' + (t.position ? shownValue(t.position.alt, 1, ' m') : 'withheld'),
+    'speed ' + shownValue(t.groundSpeedMps, 1, ' m/s'), shownValue(t.distanceFromHomeM, 0, ' m') + ' from home',
+    'heading ' + (Number.isFinite(t.headingDeg) ? t.headingDeg + '°' : '–'), 'battery ' + shownValue(t.batteryPct, 0, '%'),
+    'mission ' + (t.mission ? (t.mission.index + 1) + '/' + t.mission.total : '–')].join(', '));
+  lines.push(t.position && t.home ? 'Position ' + shownPoint(t.position) + '; home (launch point) ' + shownPoint(t.home) : 'Position and home: withheld for this account');
+  if (t.failsafe) lines.push('FAILSAFE: ' + t.failsafe);
+  return lines;
+}
+/** @description The geofence the server validates every plan against. @returns {string} */
+function fenceScreenLine() {
+  const min = Number.isFinite(fence.minAltM) ? fence.minAltM : null, max = Number.isFinite(fence.maxAltM) ? fence.maxAltM : null;
+  return '# Geofence: within ' + fence.maxRadiusM + ' m of home' + (min !== null || max !== null ? ', altitude ' + (min === null ? 0 : min) + '–' + (max === null ? '?' : max) + ' m' : '');
+}
+/** @description A saved mission as the Missions list shows it: name, shape, state and where it came from. @returns {string} */
+function missionScreenLine(m) {
+  const p = m.plan || {};
+  const shape = p.kind === 'show' && Array.isArray(p.cues)
+    ? 'SHOW · ' + p.cues.length + ' cues' + (p.cues[0] && Array.isArray(p.cues[0].slots) ? ' · ' + p.cues[0].slots.length + ' drones' : '')
+    : Array.isArray(p.assignments) ? 'FLEET · ' + p.assignments.length + ' drones' : (Array.isArray(p.waypoints) ? p.waypoints.length : '?') + ' waypoints';
+  return m.name + ': ' + shape + ' · ' + m.status + ' · ' + m.source;
+}
+/** @description The mission builder: its name and altitude fields and the points drawn per drone. @returns {string[]} */
+function builderScreenLines() {
+  const ids = draftIds(), lines = ['# Mission builder: name "' + $('missionName').value + '", altitude ' + $('wpAlt').value + ' m'];
+  if (!ids.length) lines.push('no waypoints drawn yet');
+  for (const id of ids) lines.push(id + ': ' + drafts[id].length + ' points drawn');
+  return lines;
+}
+/**
+ * @description What this screen shows, for every turn of the operator chat window (its context.screen_state): the rail's
+ * view and the map view, why there is no drone when there is none, the Fleet list, the selected drone's telemetry and
+ * home, the geofence, the saved missions (the newest ten, as the old chat's route told its planner), the mission
+ * builder, the mission drawn on the map and the show's state. A withheld position stays withheld. No document is named:
+ * the conversation is the bot's own.
+ * @returns {{screen_state: {title: string, tab: string, text: string, truncated: boolean}}}
+ */
+function droneScreenState() {
+  const tab = $('tabPlan').getAttribute('aria-selected') === 'true' ? 'Plan' : 'Fly';
+  const view = document.querySelector('.mode-toggle [aria-pressed="true"]'), missions = loadMissions._cache || [];
+  const lines = ['Drone Ops, ' + tab + ' view; map: ' + (view ? view.textContent.trim() : 'Plan waypoints')];
+  if (fleetUnavailable) lines.push('No drone connected: ' + fleetUnavailable);
+  lines.push('# Fleet', ...(fleetList.length ? fleetList.slice(0, 24).map(fleetScreenLine) : ['no drones']), ...selectedScreenLines());
+  if (fence) lines.push(fenceScreenLine());
+  lines.push('# Missions (newest first)', ...(missions.length ? missions.slice(0, 10).map(missionScreenLine) : ['none saved']), ...builderScreenLines());
+  if (shownMission && shownMission.name) lines.push('On the map: ' + shownMission.name);
+  if ($('showStatus').textContent.trim()) lines.push('# Fleet show: ' + $('showStatus').textContent.trim());
+  let text = '', truncated = false;
+  for (const line of lines) {
+    if (new TextEncoder().encode(text + line + '\n').length > SCREEN_TEXT_BYTES) { truncated = true; break; }
+    text += line + '\n';
+  }
+  return { screen_state: { title: 'Drone Ops', tab, text: text.trim(), truncated } };
+}
+/** @description The screen for a turn of the window, noting which missions were saved before it. @returns {object} */
+function beforeOperatorTurn() {
+  missionsBeforeTurn = new Set((loadMissions._cache || []).map((m) => m.mission_id));
+  return droneScreenState();
+}
+/**
+ * @description After a turn of the window: read the saved missions again and draw on the map the newest draft the turn
+ * saved (draft-drone-mission saves it as the old chat did), as the old chat drew its reply's draft; then the fleet.
+ * @returns {Promise<void>}
+ */
+async function afterOperatorTurn() {
+  const before = missionsBeforeTurn;
+  missionsBeforeTurn = null;
+  await loadMissions();
+  const made = before && (loadMissions._cache || []).find((m) => !before.has(m.mission_id) && m.source === 'concierge');
+  if (made) { shownMission = made.plan; draw(); }
+  pollState();
+}
+/** @description A Drone Ops card the person approved in the window ran (it flew a mission): read missions, fleet and show again. @returns {void} */
+function afterOperatorCard() { loadMissions(); pollState(); pollShow(); }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-// The full page only (see the gate note above wireCamera): no chat history read, no fleet, mission, pattern, event,
-// show or capture poll and no interval starts behind an audience view.
+// The full page only (see the gate note above wireCamera): no fleet, mission, pattern, event, show or capture poll and
+// no interval starts behind an audience view.
 if (!window.AppView || !AppView.active()) (async function boot() {
-  try {
-    const conv = await api('/conversation');
-    conversationId = conv.conversationId;
-    (conv.messages || []).forEach((m) => addMsg(m.role === 'assistant' ? 'bot' : 'user', m.content));
-  } catch (e) { /* fresh thread */ }
   await pollState();
   await loadMissions();
   await loadPatterns();
@@ -1758,7 +1842,7 @@ if (!window.AppView || !AppView.active()) (async function boot() {
 </script>
 
 <style>/* Prepare a diagnostic brief opens from Brief in the app row (UX audit 2026-11-06): over the canvas on a wide screen, so the
-   rail's chat, Send and Event log stay uncovered; a full-width sheet on a phone. Closed, it takes no space and covers nothing. */
+   rail's operator chat and Event log stay uncovered; a full-width sheet on a phone. Closed, it takes no space and covers nothing. */
 .handoff-dock:not([open]){display:none}
 .handoff-dock>summary{display:none}
 .handoff-dock[open]{position:fixed;left:16px;top:72px;z-index:1000;width:min(380px,calc(100vw - 32px))}
@@ -1802,6 +1886,26 @@ if(panel.open)panel.dispatchEvent(new Event('toggle'));
   sync(); window.addEventListener('resize', sync);
   window.addEventListener('pagehide', () => { try { outer.style.removeProperty('--oshal-app-bottom-inset'); } catch (_) {} });
 })();
+</script>
+<script type="module">
+// The full page only: under an audience view the shared kit paints instead (see the head block) and nothing more loads.
+// The Operator chat is the one chat window as Drone Ops' concierge, its bot drone-operator: each turn carries what this
+// screen shows (beforeOperatorTurn), after it the page reads its missions and draws the draft the turn saved
+// (afterOperatorTurn), and a card the person approved there makes the page read missions, fleet and show again. It loads
+// once the Plan view shows it. A kernel without the window gets a plain line in its place, never a page error.
+if (!window.AppView || !window.AppView.active()) {
+  const host = document.getElementById('operatorChat');
+  let mountJarvisChat = null;
+  try { ({ mountJarvisChat } = await import('/shared/ui/js/jarvis-chat-frame.js')); } catch (_) { mountJarvisChat = null; }
+  if (typeof mountJarvisChat !== 'function') host.textContent = 'The operator chat needs the Open Swarm chat window, which this installation does not have yet.';
+  else {
+    window.droneOperatorChat = mountJarvisChat(host, { app: 'drone', bot: 'drone-operator', title: 'Drone operator', closable: false, lazy: true,
+      chatHost: { prepare: async () => window.beforeOperatorTurn(), refresh: async () => window.afterOperatorTurn() } });
+    if (typeof window.syncOperatorChat === 'function') window.syncOperatorChat();
+    // A card the person approved in the window flew a mission: read missions, fleet and show again now, not at the next poll.
+    window.addEventListener('oshal-package-tool-done', (event) => { if (event.detail && event.detail.app === 'drone') window.afterOperatorCard(); });
+  }
+}
 </script>
 
 </body>

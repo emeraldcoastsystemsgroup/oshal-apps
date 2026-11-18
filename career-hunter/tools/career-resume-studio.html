@@ -24,6 +24,8 @@
   32 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1 (Roger, from his phone, 2026-11-14: "in edit and then concierge the screen is putting the text box at the top above the thread"). The résumé editor's conversation reads as every chat does: its heading, the thread filling the panel and scrolling, and the text box with Send last, under the newest message. Entry 3 had put the text box beside the heading, above the thread. On a phone the editor is a sheet between Career's bars (the frame's two measures), no longer one that began under the row of tabs and hid its own heading there; Close the editor is in the sheet's heading, where this page's other sheet has its close, and the Edit with AI bar is away while the sheet is open, so the text box rests on Career's bottom bar. The thread shows the newest message when the sheet opens, after Send, when a reply arrives and when the window changes height (a phone keyboard, a turned screen), unless the person has scrolled up to read. Guard: tests/career-resume-editor-composer.test.mjs.
   33 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Add an unmistakable active-document identity banner (#docIdentity) above the résumé showing Main résumé (Synced with Work history · revision) vs Tailored résumé (For <Role> · <Company>, with a one-click Back to main résumé button).
   34 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"; the résumé began half way down a 412 px screen under Career's bar, two lines of tabs, the picker row, a status line, the banner and AI Office's own app row). On a phone the main résumé's document has ONE bar of 52 px, as Google Docs and Word give it: the résumé's name (the picker) with its save state in small type under it, Edit while the document is open to read (Undo and Redo once editing), Save, then More. AI Office draws no app row of its own here (it opens with ?header=host, AI Office 2.20.6): the bar presses that row's buttons, "Unsaved changes" from it shows under the name, and More holds its Export, its document menu (version history, rename and the rest) and Your AI Office documents, each one tap further than before. The banner's words for the main résumé (Synced with Work history, its revision) are the top of More on a phone; a tailored résumé keeps its banner with Back to main résumé, and a computer or tablet keeps the page as it was. Once the person scrolls into the résumé, Career's bar and the row of pages slide away and the document has the screen under its own bar; scrolling back up brings them back. Guard: tests/browser/career-resume-header-phone.test.cjs.
+  35 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying). The page no longer draws a résumé editor of its own (its heading, transcript, text box and Send, each turn sent to POST /resume/guide). A job's tailored résumé, and the main résumé where AI Office is not available, are changed by asking Career's concierge, the kernel's one chat window: Career's Concierge in its bar on a computer (no longer hidden on this view), Edit with AI on a phone, which opens that concierge (mounting it first where Career's frame did not). The page declares the open document on <html data-career-record>, so the window opens that document's own conversation; its registered handoff saves an edit not yet saved before each turn and reads the résumé again after the turn and after an approved card; a tailored résumé's context names the tools that read and change it (career_documents, and career_resume_save on a card). The notes the editor's thread carried are in the status line or beside Save. After the save before a turn, Save follows what is still unsaved (it was left on with nothing to save). Guard: tests/career-hunter-one-chat-window.test.mjs.
+  36 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -49,13 +51,11 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 14px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  /* One row, the window's height: the résumé and the editor's thread each scroll inside it, so the editor's text box stays at its foot. */
-  .wrap { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: minmax(0, 1fr); height: 100dvh; }
+  /* One column and one row, the window's height: the résumé scrolls inside it. Career's concierge, the one chat window,
+     is beside it on a computer and over it on a phone. */
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100dvh; }
   /* minmax(0, …) and the select's max-width keep a long resume name from widening the page past a phone's edge
-     (the select ran to 487 px in a 412 px viewport); the composer grows to show its two-line placeholder whole. */
-  @media (max-width: 880px) {
-    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 45dvh; }
-  }
+     (the select ran to 487 px in a 412 px viewport). */
   .preview { min-width: 0; }
   #pick { flex: 1 1 200px; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
   /* Preview pane */
@@ -79,6 +79,9 @@
   .sheet .comp { display: flex; flex-wrap: wrap; gap: 6px; }
   .sheet .comp span { background: #eef4f0; color: #2f7d5f; border-radius: 10px; padding: 2px 9px; font-size: 12px; }
   .sheet .exp { margin: 0 0 12px; }
+  .sheet .exp-child { margin-left: 0.25in; }
+  .sheet .exp-child ul { padding-left: 0.175in; }
+  .sheet .engagement-label { margin-left: 0.25in; font-weight: 600; break-after: avoid; }
   .sheet .exp .er { display: flex; justify-content: space-between; font-weight: 600; }
   .sheet .exp .org { color: #5b6b7d; font-size: 13px; margin-bottom: 4px; }
   .sheet ul { margin: 4px 0 0; padding-left: 18px; }
@@ -86,19 +89,6 @@
   /* ADR-141 D7: the evidence sits under the claim it proves, visibly secondary to it. */
   .sheet li.story { list-style: none; margin: 2px 0 6px -8px; padding: 4px 8px;
     border-left: 2px solid #c9d6e4; color: #45566a; font-size: 12px; }
-  /* Chat pane */
-  .chat { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; }
-  .chat header { padding: 14px 16px; border-bottom: 1px solid var(--line); font-weight: 600; display: flex; gap: 8px; align-items: center; }
-  .chat header small { color: var(--muted); font-weight: 400; }
-  #aiClose { display: none; } /* Close the editor belongs to the phone's sheet */
-  .log { flex: 1; overflow: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; }
-  .msg.you { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
-  .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); }
-  .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
-  .composer { padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
-  .composer textarea { flex: 1; resize: none; height: 66px; background: var(--card); color: var(--text);
-    border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; }
   .cover-preview { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
   #err { flex-basis: 100%; margin: 0; padding: 10px 12px; border: 1px solid var(--ds-bad); border-radius: var(--ds-radius-m); color: var(--ds-ink); background: var(--ds-surface); }
@@ -110,9 +100,8 @@
   #aiBar { display: none; }
   #aiBar[hidden] { display: none !important; }
   #noProfile[hidden] { display: none; }
-  /* Until a résumé exists there is nothing to edit: no editor panel, no Edit with AI bar, no More menu. */
-  body:not([data-resume=ready]) :is(.chat, #aiBar, #moreBtn, #docIdentity) { display: none !important; }
-  body:not([data-resume=ready]) .wrap { grid-template-columns: minmax(0, 1fr); }
+  /* Until a résumé exists there is nothing to edit: no Edit with AI bar, no More menu. */
+  body:not([data-resume=ready]) :is(#aiBar, #moreBtn, #docIdentity) { display: none !important; }
   .doc-identity { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
     max-width: 760px; margin: 0 auto 12px; padding: 8px 12px; border-radius: var(--ds-radius-m, 10px);
     border: 1px solid var(--ds-edge, var(--line)); background: var(--ds-surface-2, var(--panel)); color: var(--ds-ink, var(--text)); font-size: 14px; }
@@ -125,34 +114,28 @@
   .doc-identity[data-doc-kind=tailored] .doc-identity-badge { background: color-mix(in srgb, var(--ds-warn, var(--accent)) 18%, var(--ds-surface, var(--card)));
     color: color-mix(in srgb, var(--ds-warn, var(--accent)) 72%, var(--ds-ink, var(--text))); }
   body[data-view=office] .doc-identity { max-width: none; margin: 0 0 8px; }
-  /* The master resume as a Word document: AI Office's editor fills the page under one app row, and its
-     own Concierge (docked on a desktop, a sheet on a phone) replaces Career's resume editor panel. */
+  /* The main résumé as a Word document: AI Office's editor fills the page under one app row, and Career's
+     Concierge in its bar is the assistant (Edit with AI is not offered here). */
   html, body { overscroll-behavior: contain; }
   .office-host[hidden] { display: none; }
   body[data-view=office] .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100dvh; }
-  body[data-view=office] .chat, body[data-view=office] #aiBar { display: none !important; }
+  body[data-view=office] #aiBar { display: none !important; }
   body[data-view=office] .preview { display: flex; flex-direction: column; overflow: hidden; padding: 8px 12px 0; }
   body[data-view=office] .toolbar { margin-bottom: 8px; flex-wrap: nowrap; }
   body[data-view=office] #pick { min-width: 0; flex: 0 1 auto; }
   .office-host { flex: 1; min-height: 0; background: var(--ds-surface, #fff); border: 1px solid var(--ds-hairline, var(--line)); border-radius: 10px 10px 0 0; overflow: hidden; }
   #officeFrame { display: block; width: 100%; height: 100%; border: 0; }
   @media (max-width: 880px) {
-    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100dvh - 64px); }
-    /* The editor is a sheet between Career's bars (the frame's two measures; neither without the frame): its heading and
-       Close the editor, the thread filling it, the text box last. No height is fixed, so a shorter window (a keyboard) keeps the text box. */
-    .chat { position: fixed; left: 0; right: 0; bottom: var(--cf-bottom, 0px); top: max(12dvh, var(--cf-top, 0px)); z-index: 20; border: 1px solid var(--ds-edge);
-      border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-surface); box-shadow: var(--ds-elev-float); }
-    .chat:not(.open) { display: none; }
-    .chat header { min-height: 56px; padding: 6px 8px 6px 16px; }
-    .chat header small { display: none; }
-    #aiClose { display: inline-flex; margin-left: auto; }
-    body:has(.chat.open) #aiBar { display: none; }
+    /* Room at the foot for Edit with AI, which opens Career's concierge (the one chat window) on this résumé. */
+    .wrap { height: calc(100dvh - 64px); }
     #aiBar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; height: 64px; padding: 10px 12px; gap: 8px; z-index: 21;
       background: var(--ds-page); border-top: 1px solid var(--ds-hairline); }
     #aiBar .ck-btn { flex: 1; }
     .preview { padding: 14px; }
     .sheet { padding: 24px 20px; }
   }
+  /* The bar is away while the concierge is open: the concierge is over the résumé, between Career's bars. */
+  html[data-career-concierge=open] #aiBar { display: none; }
   #historyNote { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--ds-ink); }
   #historyNote[hidden] { display: none; }
   /* What the banner says about the open résumé, at the top of More where the document's one bar holds it (a phone). */
@@ -239,16 +222,8 @@
     <div id="officeHost" class="office-host" hidden></div>
     <div id="empty" class="empty">Pick a résumé to start editing. The ⭐ main résumé is the one each application
       starts from, and you can always edit it. A résumé written for one job comes from My jobs.
-      Then tell the editor what to change ("tighten the summary", "lead the third bullet with the outcome") and
-      watch it update.</div>
-  </div>
-  <div class="chat">
-    <header>Résumé editor <small>· tell it what to change</small><button type="button" class="ck-btn" id="aiClose">Close the editor</button></header>
-    <div id="log" class="log"></div>
-    <div class="composer">
-      <textarea id="msg" placeholder="e.g. put my team-lead work first; shorten the second bullet" disabled></textarea>
-      <button id="send" disabled>Send</button>
-    </div>
+      Then ask the concierge for a change ("tighten the summary", "lead the third bullet with the outcome"),
+      approve it, and see it here.</div>
   </div>
 </div>
 <div id="aiBar"><button type="button" class="ck-btn" id="aiOpen" aria-expanded="false">Edit with AI</button></div>
@@ -276,10 +251,11 @@
 </dialog>
 <!-- Surface bridge: publish WHAT IS OPEN so the floating Jarvis can talk about this resume, and
      accept the edits he sends back. Jarvis drives edits as custom{name:'resume_action'} carrying
-     the same whitelisted action shape the concierge emits, so both assistants land through the one
-     applyAction() below — there is no second edit path to keep in sync. ES module; hands the client
-     to the main script through window. Degrades silently: if the bridge module is unavailable the
-     studio behaves exactly as it did before. -->
+     the whitelisted action shape applyAction() below takes, into the draft, which Save keeps.
+     Career's concierge changes a saved résumé by its own tools, on a card, and the page reads it
+     again (the document handoff below). ES module; hands the client to the main script through
+     window. Degrades silently: if the bridge module is unavailable the studio behaves exactly as
+     it did before. -->
 <script type="module">
   import { createSurfaceBridgeClient } from '/shared/ui/js/surface-bridge-client.js';
   const bridge = createSurfaceBridgeClient({ app: 'career-hunter' });
@@ -289,14 +265,17 @@
 </script>
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script src="/api/career-hunter/static/career-navigation.js"></script>
+<script src="/api/career-hunter/static/career-role-hierarchy.js"></script>
 <script src="/api/career-hunter/static/career-resume-office.js"></script>
 <script src="/api/career-hunter/static/career-change-bar.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
 const API = '/api/career-hunter';
-let state = { postingId: null, resume: null, cover: null, history: [] };
+let state = { postingId: null, resume: null, cover: null };
 let documentEpoch = 0;
+/* Why the main résumé opened in the classic view, said once it is open (AI Office's Word editor was not available). */
+let classicReason = '';
 let documentBusy = '';
 // Shared document handoff: the saved document's fingerprint, the count of edits applied in this page,
 // whether any of them is not yet saved, and the load or save in flight.
@@ -305,6 +284,11 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 function setStatus(t){ $('status').textContent = t || ''; $('status').title = t || ''; }
+/* The document this page has open, declared for Career's concierge (career-concierge.mjs): its window opens that
+   document's own conversation, the main résumé's or a job's tailored résumé's. '' when none is open. */
+function declareRecord(id){
+  if (id) document.documentElement.dataset.careerRecord = String(id); else delete document.documentElement.dataset.careerRecord;
+}
 // The main résumé's exact revision (GET /resume/doc answers it): the change the concierge makes is undone back to it.
 let masterRevision = '';
 const PHONE = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 720px)') : { matches: false, addEventListener() {} };
@@ -424,7 +408,7 @@ async function openOffice(j){
   try { masterRevision = j.revision || ''; await office.open(j); takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true; }
   catch (e) {
     officeView(false);
-    add('sys', 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.');
+    classicReason = 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.';
     return false;
   }
 }
@@ -461,21 +445,10 @@ async function fetchDoc(id){
   if (!res.ok) throw new Error('This résumé could not be read (HTTP ' + res.status + ').');
   return res.json();
 }
-/* The newest message stays in view when the thread's box changes height (the sheet opening, a phone keyboard or a turned
-   screen resizing the window). A person who has scrolled up to read is left where they are: atNewest follows their own
-   scrolling, and a scroll event that arrives after the box has changed, before it is measured again, says nothing about it. */
-let atNewest = true, threadHeight = 0;
-function toNewest(){ const log = $('log'); log.scrollTop = log.scrollHeight; atNewest = true; }
-function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); toNewest(); }
-$('log').addEventListener('scroll', () => { const log = $('log'); if (log.clientHeight === threadHeight) atNewest = log.scrollHeight - log.scrollTop - log.clientHeight < 8; });
-if (typeof ResizeObserver === 'function') new ResizeObserver(() => { threadHeight = $('log').clientHeight; if (atNewest) toNewest(); }).observe($('log'));
-
-// One document owns each in-flight read/edit/save; a loading picker may move on,
-// while an edit or save keeps the current selection until its reply settles.
+// One document owns each in-flight read or save; a loading picker may move on,
+// while a save keeps the current selection until its reply settles.
 function setDocumentBusy(phase){
   documentBusy = phase;
-  const blocked = Boolean(phase) || !state.postingId;
-  ['msg','send'].forEach(id => { $(id).disabled = blocked; });
   syncSave();
   $('pick').disabled = Boolean(phase && phase !== 'loading');
   publishContext();
@@ -499,7 +472,9 @@ function selectLoadedDocument(){
 // Pure and DOM-free on purpose, so the layout this function decides is provable without a browser.
 function expHtml(experience){
   const story = (s) => `<li class="story">${s.title ? `<b>${esc(s.title)}</b> ` : ''}${esc(s.story)}</li>`;
-  return (experience || []).map((e) => {
+  const rows = typeof CareerRoleHierarchy === 'object' ? CareerRoleHierarchy.ordered(experience || [])
+    : (experience || []).map(role => { if (role.parent_role_id) throw Error('Load the résumé relationship view again.'); return {role}; });
+  return rows.map(({role:e,child,heading}) => {
     const stories = (e.stories || []).filter((s) => s && s.story);
     const placed = new Set();
     const items = (e.bullets || []).map((b) => {
@@ -508,7 +483,8 @@ function expHtml(experience){
       return `<li>${esc(b)}</li>` + mine.map(story).join('');
     }).join('');
     const stranded = stories.filter((s) => !placed.has(s)).map(story).join('');
-    return `<div class="exp"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
+    return (heading ? `<div class="engagement-label">${esc(heading)}</div>` : '')
+      + `<div class="exp${child ? ' exp-child' : ''}"><div class="er"><span>${esc(e.title)}</span><span>${esc(e.span)}</span></div>`
       + `<div class="org">${esc(e.org)}</div><ul>${items}${stranded}</ul></div>`;
   }).join('');
 }
@@ -631,8 +607,7 @@ function publishContext(){
 }
 
 // Jarvis's edits arrive as a custom op re-dispatched by the bridge client as a DOM event. They go
-// through the SAME applyAction the concierge's actions use, so a Jarvis edit and a concierge edit
-// are indistinguishable downstream — including needing Save to persist.
+// through applyAction into the draft, and need Save (or the save before an assistant's next turn) to persist.
 document.addEventListener('surface-bridge:custom', (evt) => {
   const detail = evt.detail || {};
   // The floating assistant's panel iframe is created lazily, so it asks for a snapshot when it
@@ -651,7 +626,6 @@ document.addEventListener('surface-bridge:custom', (evt) => {
   markEdited();
   renderPreview();
   publishContext();                                   // the assistant's next turn sees its own edit
-  add('sys', `Jarvis edited this résumé (${applied} change${applied === 1 ? '' : 's'}). Save to keep it.`);
   setStatus('edited by Jarvis — Save to re-render the PDF');
 });
 
@@ -678,7 +652,7 @@ async function loadList(){
 function openDoc(id){ opening = loadDoc(id); return opening; }
 /* An empty master is what a person with no indexed résumé gets; /resume/state says which. */
 function hasContent(r){ return Boolean(r && (r.headline || r.summary || (r.experience || []).length || (r.skills || []).length || (r.competencies || []).length)); }
-/* Nothing to edit until a résumé exists: the editor panel, the Edit with AI bar and the More menu wait for it. */
+/* Nothing to edit until a résumé exists: the Edit with AI bar and the More menu wait for it. */
 function setResumeReady(on){ document.body.dataset.resume = on ? 'ready' : 'none'; }
 /* An empty master is either no résumé yet (the empty state) or, when /resume/state says otherwise or gives no answer, an editable one as before. */
 function checkProfile(){ resumeState().then((s) => { if (s && (!s.hasResume || s.indexing)) watchIndexing(); else setResumeReady(true); }); }
@@ -686,21 +660,18 @@ function checkProfile(){ resumeState().then((s) => { if (s && (!s.hasResume || s
 async function loadDoc(id){
   if (documentBusy && documentBusy !== 'loading') return;
   const epoch = ++documentEpoch, isMaster = id === 'master';
-  state = {postingId:null,resume:null,cover:null,history:[]}; window.__meta = {};
+  state = {postingId:null,resume:null,cover:null}; window.__meta = {}; classicReason = '';
   $('sheet').hidden = true; $('sheet').innerHTML = ''; $('empty').hidden = false;
   $('empty').textContent = id ? 'Loading the selected résumé…' : 'Choose a résumé to edit.';
-  $('log').innerHTML = ''; $('msg').value = '';
   for (const link of ['pdf','coverPdf']) { $(link).style.display = 'none'; $(link).removeAttribute('href'); }
   setDocumentBusy(id ? 'loading' : ''); setStatus(id ? 'loading…' : '');
-  if (!id) return;
+  if (!id) { declareRecord(''); return; }
   try {
     const j = await fetchDoc(id); if (epoch !== documentEpoch) return;
-    state = {postingId:isMaster ? 'master' : Number(id),resume:j.resume || {},cover:j.cover || {},history:[]};
+    state = {postingId:isMaster ? 'master' : Number(id),resume:j.resume || {},cover:j.cover || {}};
     docRevision = revisionOf(j); dirty = false; if (isMaster) masterRevision = j.revision || '';
-    window.__meta = j.meta || {}; selectLoadedDocument();
-    add('sys', isMaster
-      ? 'This is your main résumé. Each application starts from it.'
-      : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
+    window.__meta = j.meta || {}; selectLoadedDocument(); declareRecord(state.postingId);
+    // The banner above the résumé names it: the main résumé, or the job a tailored résumé is for.
     renderPreview(); publishContext(); showError(''); $('save').hidden = false;
     if (isMaster && !hasContent(state.resume)) checkProfile(); else setResumeReady(true);
     $('save').textContent = isMaster ? 'Save main résumé' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
@@ -711,36 +682,14 @@ async function loadDoc(id){
       $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
       if (coverHtml(state.cover)) { $('coverPdf').href = `${API}/resume?id=${encodeURIComponent(id)}&kind=cover`; $('coverPdf').style.display = 'inline-block'; }
     }
-    setStatus('');
+    setStatus(classicReason);
   } catch (_) {
     if (epoch === documentEpoch) {
       $('empty').textContent = 'The selected résumé could not be loaded.';
-      setStatus('');
+      setStatus(''); declareRecord('');
       showError('Couldn\u2019t load this résumé. Choose it again in the list to retry.');
     }
   } finally { if (epoch === documentEpoch) setDocumentBusy(''); }
-}
-
-async function send(){
-  const text = $('msg').value.trim(); if (!text || !readyDocument()) return;
-  const doc = state, epoch = documentEpoch;
-  $('msg').value = ''; add('you', text); doc.history.push({role:'you',text});
-  setDocumentBusy('guiding'); setStatus('thinking…');
-  try {
-    const res = await fetch(`${API}/resume/guide`, {method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({postingId:doc.postingId,message:text,resume:doc.resume,cover:doc.cover,history:doc.history})});
-    const j = await res.json(); if (state !== doc || epoch !== documentEpoch) return;
-    if (!res.ok || j.error) { add('bot','That edit could not be prepared. Your draft is unchanged.'); setStatus('edit failed'); }
-    else {
-      const applied = (Array.isArray(j.actions) ? j.actions : []).filter(applyAction).length;
-      if (applied) markEdited();
-      renderPreview(); publishContext(); add('bot',j.reply || (applied ? 'Updated the draft.' : 'No supported edits returned.'));
-      doc.history.push({role:'bot',text:j.reply || ''});
-      setStatus(applied ? 'edited — Save to keep these changes' : 'no document changes');
-    }
-  } catch (_) {
-    if (state === doc && epoch === documentEpoch) { add('bot','That edit could not be prepared. Your draft is unchanged.'); setStatus('edit failed'); }
-  } finally { if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
 }
 
 // Save through the one existing route, then re-read the saved document so the page and the handoff
@@ -777,15 +726,14 @@ async function save(){
     if (isMaster) {
       const log = (j.changelog || []).join('; ');
       showError(''); setStatus(j.changed ? 'Saved' : 'no changes to save');
-      add('sys', j.changed ? ('Updated your main résumé: ' + (log || 'saved.')) : 'No changes to save: your main résumé already matches.');
+      if (j.changed && log) $('status').title = 'Updated your main résumé: ' + log;
     } else {
       showError(j.ok ? '' : 'Couldn\u2019t save. Try again.'); setStatus(j.ok ? 'Saved — PDF re-rendered' : '');
-      add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
       if(j.ok&&window.parent!==window&&typeof window.parent?.postMessage==='function')window.parent.postMessage({type:'career-documents-saved',postingId:doc.postingId},location.origin);
       if(j.ok&&applicationContext)CareerJobActions.openApplication(Number(doc.postingId),false,'documents');
     }
   } catch (e) {
-    setStatus(''); add('sys', e.message);
+    setStatus('');
     showError(/no career profile/i.test(e.message) ? 'Couldn\u2019t save: there is no career profile yet. Upload your résumé first.' : 'Couldn\u2019t save. ' + e.message + ' Try again.');
   }
   finally { saving = null; if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
@@ -807,7 +755,7 @@ async function prepareDocumentHandoff(){
   if (officeOpen()) { setStatus('saving the document into your main résumé before the assistant reads…'); await saveOffice(true); setStatus('saved for the assistant'); }
   for (let attempt = 0; dirty && attempt < 3; attempt++) {
     $('save').disabled = true; setStatus('saving your edits before the assistant reads…');
-    try { saving = persist(); await saving; } finally { saving = null; $('save').disabled = false; }
+    try { saving = persist(); await saving; } finally { saving = null; syncSave(); }
     setStatus('saved for the assistant');
   }
   if (dirty) throw new Error('Your latest résumé edits could not be saved, so the assistant was not given this résumé.');
@@ -817,7 +765,10 @@ async function prepareDocumentHandoff(){
     fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length,
       ...(officeOpen() ? { officeDocument: office.documentId(), mainRevision: masterRevision,
         document: ['jobs', 'unsure'].includes(office.state()) ? 'differs from the main résumé; the person chooses Use my work history or Save to main résumé on this page' : 'shows the main résumé',
-        editWith: 'career_resume_patch; this screen saved what was typed in the document into the main résumé just now and puts the approved change into the document at once' } : {}) } };
+        editWith: 'career_resume_patch; this screen saved what was typed in the document into the main résumé just now and puts the approved change into the document at once' } : {}),
+      // A job's tailored résumé is read and changed by the concierge's own tools, as its persona says (the page reads it again after).
+      ...(isMaster ? {} : { tools: 'career_documents career_resume_save',
+        editWith: 'career_documents reads this job\'s saved résumé and cover letter; career_resume_save with this posting id and both whole changes them on a card and makes the PDF again' }) } };
 }
 
 async function refreshDocumentHandoff(expected){
@@ -840,7 +791,7 @@ async function refreshDocumentHandoff(expected){
   if (dirty) throw new Error('The assistant saved a change to this résumé while you were editing. Your unsaved edits are still here: Save keeps yours, or pick the résumé again to load the saved version.');
   state.resume = fresh.resume || {}; state.cover = fresh.cover || {}; window.__meta = fresh.meta || window.__meta; docRevision = revision;
   renderPreview(); publishContext();
-  add('sys', 'Updated with the change the assistant saved.'); setStatus('updated from the assistant');
+  setStatus('updated from the assistant');
 }
 
 /* Undo of a change the concierge made: only while the document still says what that change left (nothing typed since). */
@@ -874,8 +825,6 @@ $('backToMaster').addEventListener('click', () => {
   try { history.replaceState(null, '', location.pathname); } catch (_) {}
   $('pick').value = 'master'; openDoc('master');
 });
-$('send').addEventListener('click', send);
-$('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);
 $('replaceMaster').addEventListener('click', async () => {
   if (!officeOpen() || documentBusy) return;
@@ -931,16 +880,16 @@ $('resumeFile').addEventListener('change', async (event) => {
     showError('Couldn\u2019t upload your résumé: ' + e.message + '. Choose a PDF or DOCX and try again.');
   } finally { $('uploadBtn').disabled = false; $('uploadBtn').textContent = 'Upload your résumé (PDF or DOCX)'; event.target.value = ''; }
 });
-/* The phone's editor sheet. Edit with AI opens it on the newest message; Close the editor, in its heading, closes it.
-   The bar is away while the sheet is open, so focus goes to the sheet's close, and back to the bar's button after. */
-function showEditor(open){
-  document.querySelector('.chat').classList.toggle('open', open);
-  $('aiOpen').setAttribute('aria-expanded', String(open));
-  if (open) toNewest();
-  $(open ? 'aiClose' : 'aiOpen').focus();
-}
-$('aiOpen').addEventListener('click', () => showEditor(true));
-$('aiClose').addEventListener('click', () => showEditor(false));
+/* Edit with AI (a phone's way to the concierge on this page) opens Career's concierge, the one chat window, on the
+   résumé that is open: the page hands it over (registerDocumentSession above), so an edit not yet saved is saved
+   before each turn and an approved change is read back. Where Career's frame did not give the page its concierge (a
+   host that frames it without Career's bar), it is mounted first. The focus comes back here when it closes. */
+$('aiOpen').addEventListener('click', async () => {
+  try {
+    const { openCareerConcierge } = await import('/api/career-hunter/static/career-concierge.mjs');
+    if (!(await openCareerConcierge(window, $('aiOpen')))) setStatus('The concierge could not open here. Reload this page to try again.');
+  } catch (_) { setStatus('The concierge could not load. Press Edit with AI to try again, or reload this page.'); }
+});
 (function wireMaterialsSheet(){
   const sheet = $('materialsSheet'), openBtn = $('openMaterials'), fileIn = $('matFiles'), dropLabel = $('matDropLabel'), out = $('matOut');
   if (!sheet || !openBtn || typeof sheet.showModal !== 'function') return;

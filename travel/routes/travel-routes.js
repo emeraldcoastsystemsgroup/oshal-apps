@@ -34,6 +34,11 @@
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows the installation. The chat turn probes the Duffel `status`; where it answers mode not_connected (no Duffel connector exists on the native kernel) the turn runs no search (a search there refuses 503 and fails the call), opens no fare watch, and the prompt says fares cannot be searched or watched here and never tells the traveller to connect Duffel. Three-letter airport codes are read as IATA codes (VPS was taken for a server). Guard: tests/travel-chat-rail.test.js.
  * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Search handoff with no Duffel rail. "Find me flights from Seattle to Denver next Friday" answered that nothing could be searched: the native kernel has no Duffel provider and refuses every search. Where its status says not_connected (asked once per process), flights, hotels and cars answer the Google Flights, Booking.com and Kayak search links for the exact trip (./travel-handoff) with no items and no prices, and each answer carries the note that no fares are searched here. Guard: tests/travel-search-handoff.test.js.
  * 2026-11-03 | maintainer@emeraldcoastsystemsgroup.com | Duffel is back on the native kernel. Flight search goes through the kernel's fenced egress (./duffel-egress): the manifest declares api.duffel.com with the kernel-held `duffel` key as the bearer token, so the package never holds it; hotels and cars stay search links. Where no key is configured every search is the search link, as before. A Duffel test-mode key's offers come back as source duffel-test with a note, the concierge must call them test fares, and they are never written to the swarm price history; a failed search answers its link with the reason. Guard: tests/travel-duffel-egress.test.js.
+ * 2026-11-17 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5 (lane CHATCORE3: the concierge is the kernel's one chat window). The
+ *            | window's bot reaches what the page's chat route held through tools over these routes; two are new: GET /notes
+ *            | (the remembered notes and the profile's travel preferences, for read-travel-notes) and POST /notes
+ *            | (remember-travel-note: a note the traveller states, grounded in their own words, kept once). Guard:
+ *            | tests/travel-tools.test.js.
  *
  * @module travel-routes
  */
@@ -396,6 +401,30 @@ function createTravelRoutes(ctx) {
         res.json({ profile: r.rows[0] });
     }));
     // ── Conversational concierge (brain runs on the bot via the orchestrator) ──
+    // ── Travel notes: what the concierge keeps about this traveller (the one chat window's read-travel-notes and remember-travel-note) ──
+    router.get('/notes', traveller(async (_req, res, sub) => {
+        const profile = await loadProfile(pool, sub);
+        const notes = (await pool.query(`SELECT note FROM travel_feedback WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 50`, [sub])).rows.map((r) => r.note);
+        res.json({ notes, profile: { homeAirport: profile.home_airport || null, preferredCabin: profile.preferred_cabin || 'economy',
+                preferredAirlines: profile.preferred_airlines || [], hotelBrands: profile.hotel_brands || [], avoid: profile.avoid || [], notes: profile.notes || null } });
+    }));
+    // Keep a note the traveller states. Body: { note, said }: said is the traveller's own words, and the note is kept only when
+    // they state it (one of its words of four letters or more is in them), and only once.
+    router.post('/notes', traveller(async (req, res, sub) => {
+        const note = String(req.body?.note || '').trim(), said = String(req.body?.said || '').trim();
+        if (!note || note.length > 200 || !said || said.length > 2000) {
+            res.status(400).json({ error: 'note_and_said_required', message: 'Name the note (200 characters at most) and the words the traveller said.' });
+            return;
+        }
+        const words = said.toLowerCase();
+        const stated = (note.toLowerCase().match(/[a-z0-9]{4,}/g) || []).some((word) => words.includes(word));
+        const kept = (await pool.query(`SELECT note FROM travel_feedback WHERE user_sub = $1`, [sub])).rows.map((r) => String(r.note).trim().toLowerCase());
+        const remembered = stated && !kept.includes(note.toLowerCase()) ? [note] : [];
+        for (const fresh of remembered) {
+            await pool.query(`INSERT INTO travel_feedback (user_sub, note) VALUES ($1,$2) ON CONFLICT (user_sub, lower(note)) DO NOTHING`, [sub, fresh]);
+        }
+        res.json({ remembered });
+    }));
     router.post('/chat', traveller(async (req, res, sub) => {
         const message = String(req.body?.message || '').trim();
         if (!message) {

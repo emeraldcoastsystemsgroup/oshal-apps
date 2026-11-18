@@ -14,6 +14,7 @@
   11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): device features are every person's for their own devices, so the card an account reads when it may only open the page no longer says they are the administrator's; it says what the account cannot do and whom to ask.
   12 | maintainer@emeraldcoastsystemsgroup.com | Give Your devices a clear purpose and searchable connection list; existing session and Add a device actions stay in place.
   13 | maintainer@emeraldcoastsystemsgroup.com | Offer native Orbit installation and exact registered-device links before optional Linux bridge setup; connection and control stay distinct.
+  14 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3 (Roger, 2026-11-16/17: one concierge chat window everywhere): replace the bespoke session and Connect concierge forms with the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js, phone-control / device-concierge) while keeping direct 1-click device task chips.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -207,7 +208,6 @@
                   <button type="button" class="pc-rail-close" id="closeConciergeRailBtn" aria-label="Hide concierge" title="Hide concierge">×</button>
                 </header>
                 <p class="ks-help pc-concierge-help" id="conciergeSub">Ask about this device or request an action.</p>
-                <div id="conciergeLog" class="pc-concierge-log" role="log" aria-label="Device conversation" aria-live="polite"></div>
                 <div class="pc-concierge-chips" role="group" aria-label="Quick concierge prompts">
                   <button type="button" class="ks-btn ks-btn-sm pc-pill-chip" id="chipReadScreen">Read screen</button>
                   <button type="button" class="ks-btn ks-btn-sm pc-pill-chip" id="chipScreenshot">Screenshot</button>
@@ -217,23 +217,8 @@
                   <button type="button" class="ks-btn ks-btn-sm pc-pill-chip" id="conciergeSwipeLeftBtn">Swipe left</button>
                   <button type="button" class="ks-btn ks-btn-sm pc-pill-chip" id="conciergeSwipeRightBtn">Swipe right</button>
                 </div>
-                <div id="conciergeComposer" class="pc-composer-card">
-                  <div id="conciergeContextRow" class="pc-composer-context" hidden>
-                    <span id="conciergeContextText"></span>
-                    <button type="button" class="pc-composer-icon pc-context-clear" id="conciergeClearContextBtn" aria-label="Remove screen context">×</button>
-                  </div>
-                  <form id="conciergeForm" class="pc-composer-form">
-                    <label class="pc-sr-only" for="conciergeInput">Ask Phone Concierge</label>
-                    <textarea id="conciergeInput" rows="2" maxlength="600" placeholder="Ask or describe an action…"></textarea>
-                    <div class="pc-composer-controls">
-                      <button type="button" class="pc-composer-icon" id="conciergeAttachBtn" aria-label="Attach current screen context" title="Attach current screen context">+</button>
-                      <button type="button" class="pc-composer-icon" id="conciergeSpeakBtn" aria-label="Read latest reply aloud" title="Read latest reply aloud" aria-pressed="false"><svg class="pc-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14"/></svg></button>
-                      <button type="button" class="pc-composer-icon" id="conciergeVoiceBtn" aria-label="Speak to Concierge" title="Speak to Concierge" aria-pressed="false"><svg class="pc-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/></svg></button>
-                      <button type="button" class="ks-btn ks-btn-sm pc-composer-stop" id="conciergeStopBtn" hidden>Stop</button>
-                      <button type="submit" class="pc-composer-send" id="conciergeSendBtn">Send</button>
-                    </div>
-                  </form>
-                </div>
+                <div id="conciergeLog" class="pc-concierge-status" role="status" aria-live="polite"></div>
+                <div id="phoneConciergeWindow" class="pc-concierge-window" aria-label="Device Concierge"></div>
               </section>
 
               <section class="ks-card pc-concierge-card pc-computer-concierge" id="computerConciergeCard" aria-labelledby="computerConciergeHeading" hidden>
@@ -798,15 +783,7 @@
           <summary id="connectConciergeCard">Connection Concierge — Help me connect</summary>
           <div class="pc-collapsible-body">
             <p class="ks-help">Troubleshooting Fire Stick ADB debugging, Wi-Fi discovery, APK installation, Android pairing, Bluetooth OSHAL-KB or AirPlay mirroring.</p>
-            <div id="connectConciergeLog" class="pc-concierge-log" role="log" aria-live="polite"></div>
-            <div id="connectConciergeActions" class="pc-chip-row" role="group" aria-label="Suggested connection fixes"></div>
-            <form id="connectConciergeForm" class="ks-form pc-row-form">
-              <div class="ks-field">
-                <label class="pc-sr-only" for="connectConciergeInput">Describe connection issue</label>
-                <input id="connectConciergeInput" type="text" autocomplete="off" maxlength="600" placeholder="Describe what happened on your TV or phone…" />
-              </div>
-              <button type="submit" class="ks-btn" id="connectConciergeSendBtn">Ask</button>
-            </form>
+            <div id="connectConciergeWindow" class="pc-connect-concierge-window" aria-label="Connection Concierge"></div>
           </div>
         </details>
       </div>

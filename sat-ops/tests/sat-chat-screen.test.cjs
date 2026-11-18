@@ -9,6 +9,10 @@
  *   the page sends its station and last prediction with every chat turn.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 8: on 2026-10-12 at 16:3x UTC the concierge called the 10-12 18:38 pass 'tomorrow'. The prompt
  *   carries a NOW (UTC) line and each pass on screen is labelled today / tomorrow / its date against the current UTC day.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: the page's chat is the kernel's one chat window (no POST /chat of its own). The page case now
+ *   runs the page's own passScreenLines against the same station and prediction and asserts it writes exactly the lines the
+ *   route's screenContextLines builds (GROUND STATION / PASS WINDOWS ON SCREEN, each pass labelled today / tomorrow / its
+ *   date), which every window turn carries on context.screen_state (satScreenState), so the persona's rules still read them.
  */
 'use strict';
 const test = require('node:test');
@@ -86,11 +90,28 @@ test('bad page input is dropped, bounded and stripped', () => {
   assert.equal((many[0].match(/rise /g) || []).length, 12);
 });
 
-test('the page sends its station and last prediction with every chat turn', () => {
+/** @returns {string} The source of one top-level function of the page's main script, by name. */
+function pageFunction(html, name) {
+  const start = html.indexOf(`\nfunction ${name}(`);
+  assert.ok(start >= 0, `the page declares ${name}`);
+  return html.slice(start, html.indexOf('\n}\n', start) + 3);
+}
+
+test('every window turn carries the station and last prediction in exactly the lines the route built for its chat', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'sat-ops.html'), 'utf8');
   assert.match(html, /state\.lastPasses = \{ satId, passes: rep\.passes\.map/);
-  assert.match(html, /JSON\.stringify\(\{ message: msg, history: chatHistory\.slice\(0, -1\), screen \}\)/);
-  assert.match(html, /station: \{ latDeg: Number\(\$\('gsLat'\)\.value\), lonDeg: Number\(\$\('gsLon'\)\.value\), altKm: Number\(\$\('gsAlt'\)\.value\) \}/);
+  assert.match(html, /chatHost: \{ prepare: async \(\) => satScreenState\(\) \}/, 'each turn of the window asks the page for its screen');
+  assert.match(pageFunction(html, 'satScreenState'), /\.\.\.passScreenLines\(now\)/, 'and the screen carries the station and pass lines');
+  assert.doesNotMatch(html, /api\('\/chat'/, 'the page sends no chat request of its own');
+  const lines = (fields, lastPasses, at) => new Function('$', 'state', `${pageFunction(html, 'passWords')}${pageFunction(html, 'passScreenLines')}return passScreenLines;`)(
+    (id) => ({ value: fields[id] }), { lastPasses })(at);
+  const typed = { gsLat: '30.4', gsLon: '-86.6', gsAlt: '0.01' };
+  for (const at of [Date.parse('2026-10-12T04:00:00Z'), Date.parse('2026-10-11T23:00:00Z'), Date.parse('2026-10-10T09:00:00Z')]) {
+    assert.deepEqual(lines(typed, SCREEN.passes, at), screenContextLines(SCREEN, at));
+  }
+  assert.deepEqual(lines(typed, null, RISE), screenContextLines({ station: SCREEN.station }, RISE));
+  assert.deepEqual(lines(typed, { satId: 'sat-a', passes: [] }, RISE), screenContextLines({ station: SCREEN.station, passes: { satId: 'sat-a', passes: [] } }, RISE));
+  assert.deepEqual(lines({ gsLat: '91', gsLon: '0', gsAlt: '0' }, null, RISE), [], 'a station out of range is left out');
 });
 
 test('the prompt names the current UTC day and labels each pass against it', async () => {

@@ -39,6 +39,60 @@ Three rules keep that from becoming a mess:
 3. **Fan-out is never silent.** The form lists every destination a copy will land in; approving one
    is not approving three.
 
+## Shelves: curated documents filed the same way
+
+A shelf is a curated set of documents Print files for a bot through its own intake and approval, so the engine's
+knowledge rail holds them like any approved print. `shelves/quant-library/` is the quant library that Intelligent
+Trades' trading-concierge reads (binding `quant-library`, tenant scope, audience `intelligent-trades/trading-concierge`).
+
+- `sources.json` names every source; `build_shelf.py <shelf-dir> <cache-dir>` fetches each once, reads its licence on the
+  official page at build time, and writes `works.json` (one record per work, licence and where it was read),
+  `documents.jsonl` (passages of at most 450 words, each starting with its citation line) and `shelf.json`.
+- Full text only under CC BY, CC BY-SA or CC0. NonCommercial or NoDerivatives texts and copyrighted classics are a record
+  plus a summary in our own words (`classics.json`), with the link. `shelf-check.cjs` refuses anything else.
+- `node scripts/load-shelf.mjs shelves/quant-library <base> <session-token-file>` files it as a publisher (Print's publisher
+  role and access to Intelligent Trades), re-runnable: a passage already filed is skipped, never filed twice. Run it as one
+  person per installation; another publisher's filing would be a second copy.
+- `shelves/eval-hybrid.mjs` grades `questions.json` with the local embedding model, the way recall ranks.
+
+### Publisher account, shelf updates, and undo
+
+`scripts/ops.mjs` and `scripts/undo.py` keep publisher provisioning, incremental shelf updates, and `oshal_compare_exchange`
+undo operations under version control while taking receipt, session, and token file paths as arguments:
+
+- **Provision a dedicated shelf publisher once per installation** (`kernel` viewer, `intelligent-trades` viewer, Print `publisher`):
+  ```bash
+  node print-ingest/scripts/ops.mjs make-person <blue|production> publisher \
+    --subject=quant-library-publisher --name="Quant library publisher" \
+    --kernel-tier=viewer --trades=viewer \
+    --record=<state-dir>/people/publisher.json --token-file=<token-file>
+  node print-ingest/scripts/ops.mjs give-role <blue|production> publisher print-ingest publisher \
+    --record=<state-dir>/people/publisher.json
+  ```
+- **Update the shelf incrementally** (unchanged passages report `"already"`; new or edited passages file once):
+  ```bash
+  node print-ingest/scripts/ops.mjs signin <blue|production> publisher <session-file> \
+    --record=<state-dir>/people/publisher.json
+  node print-ingest/scripts/load-shelf.mjs print-ingest/shelves/quant-library <base-url> <session-file> --dry-run
+  node print-ingest/scripts/load-shelf.mjs print-ingest/shelves/quant-library <base-url> <session-file> \
+    --receipt=<shelf-load-receipt.json>
+  node print-ingest/scripts/ops.mjs signout <blue|production> <session-file>
+  ```
+- **Verify recall as the publisher** (temporary `editor` standing for one turn, then restored to `viewer`):
+  ```bash
+  node print-ingest/scripts/ops.mjs kernel-tier <blue|production> publisher editor --record=<state-dir>/people/publisher.json
+  node print-ingest/scripts/ops.mjs signin <blue|production> publisher <session-file> --record=<state-dir>/people/publisher.json
+  node print-ingest/scripts/ops.mjs ask <blue|production> <session-file> trading-concierge <answer.json> "Explain the Sharpe ratio and what it leaves out."
+  node print-ingest/scripts/ops.mjs kernel-viewer <blue|production> publisher --record=<state-dir>/people/publisher.json
+  node print-ingest/scripts/ops.mjs signout <blue|production> <session-file>
+  ```
+- **Undo (dry run by default; pass `--apply` to execute):**
+  ```bash
+  python3 print-ingest/scripts/undo.py books --receipt <my-knowledge-books.json> [--apply]
+  python3 print-ingest/scripts/undo.py shelf --slot <blue|production> --publisher <principal-uuid> --tenant <tenant-uuid> [--expect <count>] [--apply]
+  node print-ingest/scripts/ops.mjs remove-person <blue|production> publisher --record=<state-dir>/people/publisher.json [--apply]
+  ```
+
 ## What it does not do
 
 - **A bot corpus is routing, not privacy.** Anything filed there is readable by every signed-in

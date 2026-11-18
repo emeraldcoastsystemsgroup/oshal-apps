@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  29 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Job preparation & submission points to Job Apply to choose which connected computer sends approved applications, keeping the four guarded workflow button names intact.
   28 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): the Saved-job preparation card says what a background preparation does with other experience: each job is prepared with its own choice, or with the one the person prepared their last application with, and until they have chosen once, Career asks first and the job waits (career-workflow-settings.js says how many wait). Words only. Guard: tests/career-prepare-other-experience-route.test.mjs.
   27 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: the address /settings?section=<name> opens that section as #<name> does. Today passes a page only its query, never its hash, so My jobs' Set your home link (?section=matching) lands on What I'm looking for, where Matching area is, inside Today too; ‹ Settings clears both.
   26 | maintainer@emeraldcoastsystemsgroup.com | The nightly matching line reads a settled night's receipt (version 2) in words: scored on three runs each, close calls not settled yet, could not be read, no usable answer, not reached yet, and whether tonight's pass continues. A version-1 receipt reads as before.
@@ -197,7 +198,7 @@ input[type=checkbox]{width:22px;height:22px}
     <h2>Job preparation &amp; submission</h2>
     <p class="hint" id="operationModeStatus" role="status">Checking available automation controls…</p>
     <div id="nativeWorkflow" hidden>
-      <p class="hint">Nightly matching refreshes your fits. In My jobs, press <b>Prepare application</b> on a job to write its résumé and cover letter with you. On its Send step, <b>Open the employer’s form</b>, apply, and press <b>I applied</b>; with a computer connected, <b>Send it for me from my computer</b> is offered there too. Email updates watch for replies to the applications you have recorded.</p>
+      <p class="hint">Nightly matching refreshes your fits. In My jobs, press <b>Prepare application</b> on a job to write its résumé and cover letter with you. On its Send step, <b>Open the employer’s form</b>, apply, and press <b>I applied</b>; with a computer connected, <b>Send it for me from my computer</b> is offered there too, using the connected device you choose in <a href="/cockpit/?app=job-apply" target="_top">Job Apply</a>. Email updates watch for replies to the applications you have recorded.</p>
       <a class="btn" href="/api/career-hunter/board-native">Open My jobs</a>
     </div>
   </div>

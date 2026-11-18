@@ -9,6 +9,13 @@
     one line (its provenance note still goes to the designer chat). The engine block is a popover on the engine badge.
     The analysis-document disclosure sits under the verdict, painted with the page tokens. On a phone: verdict and
     charts first, the design vector a sheet from a bottom bar (Design · Results · Verdict · More). No run changed.
+  2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis
+    chat window, with its model menu): Draft with AI no longer draws a chat of its own over POST /api/aero-lab/chat. In the
+    same place, under the design vector (on a phone in the Design sheet), it holds the kernel's one chat window as the Aero
+    Designer (aero-designer), with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep
+    trying. Before each turn the page tells the route its sliders and the window the screen (the design field by field,
+    the loaded preset's record, the latest run); a draft the concierge offers with propose-aero-draft shows under the
+    window with Apply to sliders, as before. Nothing runs until Run.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -113,17 +120,14 @@
   .site-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .site-chips button { font-size: 11px; padding: 3px 8px; }
 
-  /* chat */
-  #chatLog { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-  .msg { font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); white-space: pre-wrap; }
-  .msg.user { background: var(--panel2); align-self: flex-end; max-width: 92%; }
-  .msg.bot  { background: var(--bg); align-self: flex-start; max-width: 92%; }
+  /* Draft with AI (1.4.6): the kernel's one chat window, at a fixed height under the design vector. */
+  .concierge-window { height: 560px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel2); }
+  .concierge-window .jarvis-chat-frame { width: 100%; height: 100%; border: 0; display: block; }
+  .concierge-window.assistant-unavailable { height: auto; padding: 10px; color: var(--dim); font-size: 12px; line-height: 1.45; }
   #draftBox { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 8px; margin: 6px 0; font-size: 11.5px; }
   #draftBox table { width: 100%; border-collapse: collapse; margin: 4px 0; }
   #draftBox td { padding: 1px 4px; font-variant-numeric: tabular-nums; }
   #draftBox td:last-child { text-align: right; }
-  .chat-row { display: flex; gap: 6px; }
-  .chat-row button { flex: none; }
 
   /* run bar */
   #runBar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
@@ -291,12 +295,9 @@
     </section>
     <section>
       <h2>Draft with AI</h2>
-      <div id="chatLog"></div>
+      <!-- The Aero Designer (1.4.6): the kernel's one chat window, mounted by the module script at the end of the page. -->
+      <div class="concierge-window" id="aeroConcierge"></div>
       <div id="draftBox" style="display:none"></div>
-      <div class="chat-row">
-        <input id="chatInput" type="text" placeholder="e.g. a hand-launch craft that survives a Seattle winter night" />
-        <button id="chatSend">Send</button>
-      </div>
       <div class="note" style="margin-top:4px">Drafts pre-fill the sliders. Nothing runs until you press Run.</div>
     </section>
   </div>
@@ -507,6 +508,30 @@ const tileText=(el)=>{if(!el)return '';const flat=(n)=>String(n.textContent||'')
 document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+[["verdictCard","Verdict"],["fingerprint","Engine"],["runStatus","Run status"]].map(([id,label])=>label+': '+(tileText(document.getElementById(id))||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});
 await mountConnectedActions({element:document.getElementById('labActions'),app:"aero-lab",contextForOffer:()=>({title:"aero-lab simulation review",notes:notes.value})});
 })().catch(()=>{document.getElementById('labReviewState').textContent='Connected actions are unavailable.';});
+</script>
+
+<!-- The Aero Designer (1.4.6): the kernel's one chat window as this application's concierge, the same window every
+     concierge is, with its model menu, conversations, Files, Tap to talk and Keep trying. Titled "Designer" so its message
+     box's "Ask Designer…" fits the 320 px design column on one line. It is Draft with AI: before each
+     turn the page tells the route its sliders and the window the screen (aeroLabWindow.beforeTurn in app.js); after each
+     answer a draft the concierge offered shows under it with Apply to sliders (aeroLabWindow.afterTurn). -->
+<script type="module">
+const host=document.getElementById('aeroConcierge');
+const PROMPTS=['A hand-launch craft that survives a Seattle winter night','What battery would close this design?','Why does this design not close?'];
+const HELP='Tell me the craft you want, or ask about the design on your sliders. I draft changes for you to apply; nothing runs until you press Run.';
+window.__aeroChat=(async()=>{
+  try{
+    const {mountJarvisChat}=await import('/shared/ui/js/jarvis-chat-frame.js');
+    return mountJarvisChat(host,{app:'aero-lab',bot:'aero-designer',title:'Designer',closable:false,lazy:true,
+      prompts:PROMPTS.map(prompt=>({label:prompt,prompt})),help:HELP,
+      chatHost:{prepare:()=>window.aeroLabWindow.beforeTurn(),refresh:()=>window.aeroLabWindow.afterTurn()}});
+  }catch(err){
+    host.classList.add('assistant-unavailable');
+    host.textContent='Draft with AI needs Open Swarm\'s chat window, which this installation does not serve. The sliders, presets and runs work without it.';
+    console.warn('[aero-lab] concierge window unavailable',err&&err.message);
+    return null;
+  }
+})();
 </script>
 
 </body>

@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4 review fix: register ops-chat-turn-contract (tests/ops-chat-turn-contract.test.cjs: whole marked packets within the window limit, correlated Ask settlement, shared Stop ends the console request, no staging after an access clear).
+# 43 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: register ops-one-chat-window (tests/ops-one-chat-window.test.cjs: Cloud & SSH commands, Console and Pod console mount jarvis-chat-frame.js as ops-rca-specialist, and Today opens ops-concierge, at 1440x900 and 412x915 touch).
 # 42 | maintainer@emeraldcoastsystemsgroup.com | 1.9.3: register phone-first-screen (lane mobilesweep2).
 # 41 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name (tests/product-name.test.cjs: person-facing copy names the product Open Swarm; technical identifiers keep oshal; OSHAL Node component wording stays unchanged).
 # 40 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (closed sideEffects enum on cases 28..43, quoted flow-mapping cleanup strings containing commas, <=1000-character purpose summaries on monitor-enroll-prepare and monitor-enroll-otlp, and quoted colon-containing expectation on monitor-enroll-token-controls).
@@ -976,4 +978,32 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: ops-one-chat-window
+    name: Specialist screens and Today open the kernel's one chat window
+    purpose: "Guard 1.9.4: verify in Chromium at 1440x900 and 412x915 (touch) that Cloud & SSH commands, Console and Pod console mount /shared/ui/js/jarvis-chat-frame.js as intelligent-operations / ops-rca-specialist with live screen_state and review-only command staging, and Today opens ops-concierge."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ops-one-chat-window.test.cjs] }
+    expected:
+      - Cloud & SSH commands, Console and Pod console frame /api/jarvis/ as ops-rca-specialist with model selection, pass screen_state, and never auto-execute proposed commands.
+      - Today (/cockpit/?app=intelligent-operations&screen=operations-estate) opens the one chat window bound to ops-concierge with zero page errors.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:express, dependency:js-yaml, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: ops-chat-turn-contract
+    name: Specialist window turns settle correctly
+    purpose: "Guard the 1.9.4 review fixes in Chromium over the real page and the kernel window with a held provider: an over-limit packet arrives as whole JSON with marked omissions, an outer Ask settles only from its own turn, the shared Stop ends a console request without local planning or Kubernetes reads, and a late direct reply after an access clear stages nothing."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ops-chat-turn-contract.test.cjs] }
+    expected:
+      - The packet turn is at most 4000 characters, parses as JSON with its closing fields, marks each cut, and the status names the omission.
+      - A direct window turn settling first leaves the outer Ask waiting; the outer Ask then stages its own command.
+      - After the shared Stop no confirmation or Kubernetes read follows, and the next typed kubectl request runs.
+      - A direct reply landing after a 403 records clear stages no proposal.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:express, dependency:js-yaml, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never

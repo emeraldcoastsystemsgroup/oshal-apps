@@ -7,6 +7,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Review exact job documents and applicant facts in place, then publish approval, bind and start one recoverable native submission intent.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain exact native writer-busy refusals while retaining explicit submission recovery and every other error.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: approveAndStart(postingId, packetDigest) is the approve, bind and start that reviewAndSubmit always made, now named so My jobs' bulk Send runs the same three writes after the person confirmed the list. reviewAndSubmit is unchanged in what it asks and sends.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: workers() accepts the person's chosen Open Swarm Orbit computer from GET /api/apply-operator/workers alongside bound browser workers, never falls back silently when an explicit choice is offline, and reviewDialog names the chosen computer.
  */
 (()=>{
   'use strict';const BASE='/api/career-hunter',BOT='cb000000-0000-0000-0000-000000000004';
@@ -33,7 +34,9 @@
     });
     return ()=>{dialog.showModal();try{history.pushState({dsSheet:key},'');pushed=true;}catch{}};
   }
-  function reviewDialog(packet,ready){
+  function reviewDialog(packet,availability){
+    const ready=typeof availability==='object'?Boolean(availability?.available):Boolean(availability);
+    const deviceName=typeof availability==='object'?(availability?.selectedDeviceName||''):'';
     return new Promise(resolve=>{
       const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');
       dialog.style.cssText='width:min(700px,calc(100vw - 32px));max-height:85dvh;box-sizing:border-box;overflow:auto;padding:24px;border:1px solid var(--ds-edge,#ccd1df);border-radius:14px;color:var(--ds-ink,var(--text,#202538));background:var(--ds-surface,var(--surface,#fff))';
@@ -46,10 +49,11 @@
       }
       const facts=text('dl','',dialog);facts.style.cssText='display:grid;grid-template-columns:minmax(100px,1fr) 2fr;gap:8px 16px;overflow-wrap:anywhere';
       for(const [key,value]of Object.entries(packet.profile)){text('dt',key.replace(/([a-z])([A-Z])/g,'$1 $2'),facts);text('dd',value,facts).style.margin='0';}
+      text('dt','Your computer',facts);text('dd',ready?(deviceName?deviceName+' (ready)':'Ready'):'Not connected',facts).style.margin='0';
       const footer=text('div','',dialog);footer.style.cssText='display:flex;justify-content:flex-end;gap:12px;margin-top:24px;position:sticky;bottom:0;background:inherit;padding-top:12px';
       const cancel=text('button','Cancel',footer),approve=text('button','Approve and submit',footer);
       cancel.type='button';approve.type='button';cancel.className='ck-tertiary';approve.className='ck-primary';approve.disabled=!ready;
-      if(!ready){text('p','Connect a browser worker before authorizing submission. You can still review both documents.',dialog);}
+      if(!ready){text('p','Connect your chosen device in Job Apply before authorizing submission. You can still review both documents.',dialog);}
       let settled=false;const done=value=>{if(settled)return;settled=true;if(dialog.open)dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);approve.onclick=()=>done(true);
       const openDialog=wireModalBack(dialog,'submitReview',()=>done(false));
       dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);openDialog();
@@ -104,7 +108,7 @@
   async function reviewAndSubmit(postingId){
     const packet=await request('/submission-review/'+encodeURIComponent(postingId));
     const availability=await workers().catch(()=>({available:false}));
-    if(!await reviewDialog(packet,availability.available))return null;
+    if(!await reviewDialog(packet,availability))return null;
     const started=await approveAndStart(postingId,packet.packetDigest);
     if(window.CareerJobActions)await window.CareerJobActions.monitor(true).catch(()=>{});
     return started;
@@ -163,8 +167,13 @@
   }
   async function workers(){
     const response=await fetch('/api/apply-operator/workers',{cache:'no-store'});if(!response.ok)throw Error('Browser workers unavailable');
-    const raw=await response.json(),workers=(raw.workers||[]).filter(w=>w.boundBots?.includes(BOT));
-    const ready=workers.find(w=>w.available);return {...raw,workers,available:!!ready,defaultClientId:ready?.clientId||null};
+    const raw=await response.json(),workers=(raw.workers||[]).filter(w=>w.boundBots?.includes(BOT)||w.kind==='orbit');
+    const configured=Boolean(raw.selectionConfigured&&raw.selectedDeviceId);
+    const chosen=configured?workers.find(w=>String(w.id||w.clientId)===String(raw.selectedDeviceId)):null;
+    const ready=configured?(chosen?.available?chosen:null):workers.find(w=>w.boundBots?.includes(BOT)&&w.available);
+    const deviceName=raw.selectedDeviceName||chosen?.hostname||ready?.hostname||null;
+    return {...raw,workers,available:!!ready,defaultClientId:ready?.clientId||ready?.id||null,
+      selectedDeviceId:configured?raw.selectedDeviceId:(ready?.id||ready?.clientId||null),selectedDeviceName:deviceName,selectionConfigured:configured};
   }
   /** Whether this visit may connect a computer. A guest visit has no account for a computer to belong to, so it may not. */
   async function canConnect(){

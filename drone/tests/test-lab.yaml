@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register battery-unknown: with no drone the header battery bar is empty beside "–%" (sweep 14: it read full and green).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register flight-bar-layout (Land, Return home and Abort ALL stay on screen at 412x915 and at the bottom of the canvas at 1440x900; one exclusive map view; one no-drone empty state; no drone poll with an empty fleet). battery-unknown waits for the canvas empty state.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: register phone-first-screen (lane mobilesweep2).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: register one-chat-window (the Operator chat is the kernel's one chat window as Drone Ops' concierge, at 1440 and 412, with the screen on every turn, the saved draft drawn after the turn and a flight as its approval card); chat-no-drone expects the window's no-drone help line instead of a disabled input and Send; audience-view expects the main script without a chat of its own and the gated mount module.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -35,6 +36,7 @@ cases:
       - A plan the route marks flown reads Started, never flown, because the route writes that flag when a flight starts; the title ladder, a full 50-plan list and odd rows each read as what they are.
       - A summary count that could not be checked reads Could not check while the saved plans still show; signed out, refused, the route's own failure, an unreadable answer and an unreachable server each read as what they are.
       - Under the family view the page's main script and connected-actions script bind no listener, read nothing, start no poll and mount no offer; the full page still runs every start step.
+      - Under a view the page's own module loads and mounts nothing; without the audience, and without the kit, it loads /shared/ui/js/jarvis-chat-frame.js and mounts the one chat window into the Operator chat as Drone Ops' concierge (drone-operator, no Close, loaded once shown); a kernel without the window gets a plain line instead.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -91,7 +93,7 @@ cases:
     installation: never
   - id: chat-no-drone
     name: Operator chat with no drone registered
-    purpose: Drive the compiled POST /chat with a double of the native drone service (configured false, every read throws) and with an engine whose reads fail, and run the surface's own applyFleetAvailability.
+    purpose: Drive the compiled POST /chat (the draft-drone-mission tool) with a double of the native drone service (configured false, every read throws) and with an engine whose reads fail, and run the surface's own applyFleetAvailability and syncOperatorChat.
     level: unit
     runner:
       kind: node-test
@@ -100,7 +102,8 @@ cases:
         - tests/chat-no-drone.test.cjs
     expected:
       - Both answer 200 with noDrone true, draft null and a plain reply naming that no drone or simulator is registered; no raw executor text, no planner call, no mission row.
-      - The surface disables the chat input and Send with the reason while no drone is registered and enables them with one; a chat failure reads in plain words.
+      - While no drone is registered the operator chat window's help line says nothing can be drafted or flown yet, with its own starters, and says what a drone allows again once one is; each is told once per change.
+      - The page has no chat input, Send or chat request of its own.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -182,6 +185,33 @@ cases:
     sideEffects: none
     isolation:
       mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: one-chat-window
+    name: The Operator chat is the one chat window, with the screen on every turn
+    purpose: >-
+      Serve the shipped page with the kernel's one chat window from a kernel platform export (OSHAL_KERNEL_PLATFORM) and its
+      stand-in kernel over a local fixture server, a made-up fleet of two simulator drones and no provider; requests off the
+      loopback are refused.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/drone-one-chat-window.test.mjs
+    expected:
+      - At 1440x900 and 412x915 the Operator chat in the Plan view is the window (concierge drone, bot drone-operator) after Missions, inside the rail, with its model menu, Files, Tap to talk, Keep trying and conversations; nothing runs sideways.
+      - A model picked in the window rides on the turn; the person's words alone reach drone-operator's door with context.app drone.
+      - context.screen_state carries the Fleet list, the selected drone's telemetry and home, the geofence and the saved missions as the page shows them; no document is named.
+      - A draft the turn saved is listed under Missions and drawn on the map after the turn; the page draws no transcript, message box or Send of its own and sends no POST /api/drone/chat or GET /api/drone/conversation; no page error.
+      - A flight the bot proposes is the window's approval card; nothing flies before Approve, Approve sends exactly the held request to the mission's execute route, and the page reads its missions again for each Drone Ops card that ran.
+      - With no drone registered the window's help line says nothing can be drafted or flown yet and each turn carries the reason on its screen.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain, runtime:chromium, 'source:shared-ui']
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Stop the fixture server.
     limits:
       timeoutMs: 120000
     installation: never

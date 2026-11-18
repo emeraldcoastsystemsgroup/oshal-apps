@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The approval notice (coordinator's added scope): an approval ending within 14 days warns with the days left; one ending before the account's next trade (the market day after the Nov 30 month-end decision, or the next market day for a daily plan) says so; one ending after both is a plain date; an ended one says it ended; none, or one off for another reason, says nothing. The read names the next two months of market days.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The portfolio overview's read and arithmetic (1.58.0), on invented accounts. GET /paper/values is a registered read that refuses a caller who is not admitted, sends its one SELECT and nothing else, calls no kernel intent and stays outside the order-authority set; it groups each account's days, keeps the later record of a day, skips a row it cannot read and never answers another person's rows. The arithmetic lays values on market days and leaves a missing day as a gap (no bar across it, no line through it), handles a single day, cuts ranges back from the newest day (month ends included), adds accounts only on the days every one is recorded, counts percent from the first value in a range, and reads benchmark closes without guessing between two.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Retain the exact legacy closure and prove overview reads, arithmetic and charts join no supported order-authority version.
  */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
@@ -166,19 +167,13 @@ test('the invented portfolio: the total, today\'s change and the gap day follow 
 });
 
 test('none of the overview\'s files joins the order-authority set, and the manifest sources are unchanged',()=>{
- const manifest=fs.readFileSync(path.join(ROOT,'oshal-app.yaml'),'utf8');
- assert.match(manifest,/orderAuthority:\s*\n\s*sources:\s*\n\s*-\s*routes\/trading-native-management\.js\s*\n\s*-\s*routes\/live\/management\.js\s*\n/);
- const seen=new Set(),pending=['routes/trading-native-management.js','routes/live/management.js'];
- while(pending.length){
-  const rel=pending.pop();if(seen.has(rel))continue;seen.add(rel);
-  for(const m of fs.readFileSync(path.join(ROOT,rel),'utf8').matchAll(/\brequire[ \t\r\n]*\([ \t\r\n]*(['"])(\.[^'"\n]+)['"][ \t\r\n]*\)/g)){
-   const base=path.posix.normalize(path.posix.join(path.posix.dirname(rel),m[2]));
-   const hit=[base,base+'.js',base+'/index.js'].find(c=>fs.existsSync(path.join(ROOT,c))&&fs.statSync(path.join(ROOT,c)).isFile());
-   if(hit)pending.push(hit);
-  }
+ const authority=require('./support/order-authority');
+ const excluded=['routes/today/values.js','routes/today/read.js','routes/trading-paper-routes.js',
+  'tools/ui/view-overview.js','tools/ui/portfolio-series.js','tools/ui/portfolio-charts.js'];
+ for(const [version,sources] of Object.entries(authority.preservedLegacy(ROOT))){
+  const seen=authority.closure(ROOT,sources);
+  for(const file of excluded){assert.ok(fs.existsSync(path.join(ROOT,file)),file+' exists');assert.ok(!seen.has(file),file+' is outside version '+version);}
  }
- assert.equal(seen.size,29,'the set approvals bind to is the same twenty-nine files');
- for(const file of ['routes/today/values.js','routes/trading-paper-routes.js'])assert.ok(!seen.has(file),file+' is outside it');
 });
 
 test('an approval\'s end date: within 14 days it warns, before the next trade it says so, after both it is a plain date, and none says nothing',()=>{

@@ -1,8 +1,39 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove bounded optional paragraph indentation, keep-with-next and unchanged omitted defaults through validated atomic edits.
+ */
 import{test}from'node:test';import assert from'node:assert/strict';
 import{initial,validate,style,paragraph,plain}from'../../tools/office/model.mjs';
 import{applyOperations,newObject,patchRuns,history}from'../../tools/office/operations.mjs';
 import{workbookCalculator}from'../../tools/office/formulas.mjs';
 import{createRequire}from'node:module';import{readFileSync}from'node:fs';
+test('optional paragraph indentLeft preserves omitted shape and accepts finite point offsets through atomic edits',()=>{
+ const model=initial('docx'),page=model.pages[0],block=page.blocks[0];
+ assert.equal(Object.hasOwn(validate(model).pages[0].blocks[0],'indentLeft'),false);
+ for(const indentLeft of[0,18,30.6,144]){
+  const next=applyOperations(model,[{op:'update-block',page:page.id,id:block.id,patch:{indentLeft}}]);
+  assert.equal(next.pages[0].blocks[0].indentLeft,indentLeft);
+  assert.equal(Object.hasOwn(model.pages[0].blocks[0],'indentLeft'),false);
+ }
+});
+test('paragraph indentation rejects malformed offsets and is unavailable on other block kinds',()=>{
+ const model=initial('docx'),page=model.pages[0],block=page.blocks[0];
+ for(const indentLeft of[-1,144.01,null,'18',NaN,Infinity,undefined]){
+  assert.throws(()=>applyOperations(model,[{op:'update-block',page:page.id,id:block.id,patch:{indentLeft}}]));
+  assert.equal(Object.hasOwn(model.pages[0].blocks[0],'indentLeft'),false);
+ }
+ const table={id:crypto.randomUUID(),type:'table',rows:newObject('table').rows,indentLeft:18};
+ assert.throws(()=>applyOperations(model,[{op:'add-block',page:page.id,block:table}]),/Unsupported/);
+});
+test('optional paragraph keepWithNext is strictly boolean and omitted defaults remain absent',()=>{
+ const model=initial('docx'),page=model.pages[0],block=page.blocks[0];
+ assert.equal(Object.hasOwn(validate(model).pages[0].blocks[0],'keepWithNext'),false);
+ for(const keepWithNext of[true,false]){
+  const next=applyOperations(model,[{op:'update-block',page:page.id,id:block.id,patch:{keepWithNext}}]);
+  assert.equal(next.pages[0].blocks[0].keepWithNext,keepWithNext);
+ }
+ for(const keepWithNext of['true',1,0,null,undefined])assert.throws(()=>applyOperations(model,[{op:'update-block',page:page.id,id:block.id,patch:{keepWithNext}}]));
+ assert.equal(Object.hasOwn(model.pages[0].blocks[0],'keepWithNext'),false);
+});
 test('atomic slide edits preserve unrelated objects and reject unsupported properties without changing source',()=>{let model=initial('pptx'),page=model.pages[0].id;const object=newObject('rect');model=applyOperations(model,[{op:'add-object',page,object}]);const before=structuredClone(model),next=applyOperations(model,[{op:'update-object',page,id:object.id,patch:{x:144,fill:'#ff0000',strokeWidth:3,shadow:{color:'#000000',opacity:.3,blur:8,x:4,y:4}}}]);assert.deepEqual(next.pages[0].objects[0],before.pages[0].objects[0]);assert.equal(next.pages[0].objects[1].fill,'#ff0000');assert.deepEqual(model,before);assert.throws(()=>applyOperations(model,[{op:'update-object',page,id:object.id,patch:{x:200}},{op:'update-object',page,id:object.id,patch:{invented:true}}]),/Unsupported/);assert.deepEqual(model,before);});
 test('range formatting and replacement preserve outside text runs, Unicode and paragraph semantics',()=>{const values=[{text:'Hello ',style:style({bold:true})},{text:'world 🌍',style:style({italic:true})}],result=patchRuns(values,6,11,{color:'#0000ff'});assert.equal(plain(result),'Hello world 🌍');assert.equal(result[0].style.bold,true);assert.equal(result[1].style.italic,true);assert.equal(result[1].style.color,'#0000ff');const replaced=patchRuns(result,6,11,{},'reader');assert.equal(plain(replaced),'Hello reader 🌍');assert.equal(replaced.at(-1).style.italic,true);});
 test('workbook calculations follow dependencies, ranges, cross-sheet refs and lazy IF; cycles and unsupported functions are explicit',()=>{let model=initial('xlsx');const sheet=model.sheets[0];sheet.cells={A1:{value:2},A2:{value:3},B1:{value:'=SUM(A1:A2)*2'},B2:{value:'=IF(A1>0,B1,1/0)'},C1:{value:'=C2'},C2:{value:'=C1'},D1:{value:'=UNSUPPORTED(A1)'}};model=validate(model);let calc=workbookCalculator(model);assert.equal(calc.value('Sheet1','B1'),10);assert.equal(calc.value('Sheet1','B2'),10);assert.equal(calc.value('Sheet1','C1'),'#CYCLE!');assert.equal(calc.value('Sheet1','D1'),'#NAME?');model=applyOperations(model,[{op:'cell',sheet:sheet.id,from:'A1',value:7},{op:'add-sheet',name:'Second sheet'}]);model.sheets[1].cells.A1={value:"='Sheet1'!B1+1"};model=validate(model);calc=workbookCalculator(model);assert.equal(calc.value('Second sheet','A1'),21);});

@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5 (UX audit 2026-11-06): register the concierge-envelope and title-sheet regression cases.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5 (UX audit 2026-11-06): register the media-home case.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: register one-chat-window (the Movie Concierge is the kernel's one chat window in the Ask sheet, told the screen, closed by its own Close) and concierge-tools (what the page's chat route did is the concierge's tools: each declared over a route the router answers, named in the persona, and the new taste notes kept only as the viewer states them); media-home's concierge is the window in the sheet.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -87,7 +88,7 @@ cases:
   - id: media-home
     name: Media home leads with artwork, Search and Watchlist are views
     purpose: >-
-      Read and run the served page: a hero from Trending with Where to watch as the one primary, poster rows with one caption line, Home, Search and Watchlist views with Movies and TV chips, a literal search placeholder, and the concierge as a sheet with suggested prompts.
+      Read and run the served page: a hero from Trending with Where to watch as the one primary, poster rows with one caption line, Home, Search and Watchlist views with Movies and TV chips, a literal search placeholder, and the concierge as a sheet holding the kernel's one chat window.
     level: unit
     runner:
       kind: node-test
@@ -99,12 +100,67 @@ cases:
       - The hero is the first trending title with one primary, Where to watch, and + Watchlist as the secondary; every trending title is a poster captioned title and year.
       - Home, Search and Watchlist are views, a bottom bar on a phone; Movies and TV chips filter them; the search placeholder is Search movies and shows.
       - An empty watchlist says so in its own view.
-      - The concierge is a sheet with two to four suggested prompts; opening a title closes it and opening it closes the title sheet.
+      - The concierge is a sheet that holds the kernel's one chat window (the Movie Concierge) and no chat of the page's own; opening a title closes it and opening it closes the title sheet.
     prerequisites:
       - runner:node-test
     sideEffects: none
     isolation:
       mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: one-chat-window
+    name: The Movie Concierge is the kernel's one chat window
+    purpose: >-
+      In Chromium at 1440x900 and 412x915 the shipped Movies & TV page over the compiled router (an in-memory pool and a TMDB double
+      connected through the kernel), beside the kernel's one chat window served from a kernel platform export with its stand-in kernel.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/movies-one-chat-window.test.cjs
+    expected:
+      - Ask opens the sheet, which holds the window (concierge=movies, bot=movies-concierge) with its model menu, Files, Tap to talk, Keep trying and conversations.
+      - A turn reaches movies-concierge with context.app movies, the picked model and the screen (the view, the type shown, the trending titles with their keys, the watchlist); no POST /api/movies/chat and no message box on the page.
+      - The window and its message box sit inside the sheet and on the screen, nothing scrolls sideways, and the window's own Close closes the sheet.
+      - A title the concierge saves during a turn shows on the page's watchlist once the answer is done, without a reload.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - harness:kernel-platform-export
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/movies-routes-harness.cjs
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: concierge-tools
+    name: The Movie Concierge's tools are routes this router answers
+    purpose: >-
+      Read the manifest and persona and drive the compiled routes: what the page's chat route did for the page is the concierge's tools.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/movies-tools.test.cjs
+        - tests/movies-routes-harness.cjs
+    expected:
+      - Every tool the manifest declares names a method and path the compiled router answers, and the persona names each one.
+      - GET /notes returns the viewer's remembered notes and the profile's tastes, and no other viewer's.
+      - POST /notes keeps a taste the viewer states in their own words, once; one they did not state is not kept; a call without a note or words is refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/movies-routes-harness.cjs
     limits:
       timeoutMs: 15000
     installation: never

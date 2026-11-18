@@ -19,6 +19,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams CMS core: 8-state editorial machine (draft/in_review/approved/scheduled/published/rejected/failed/archived) with an explicit action table; edit gating (draft+in_review only); platform canon (twitter→x) and per-platform limits; fail-closed new-post/patch/schedule validators; buildPublishPlan (any empty/over-limit publishable variant rejects the WHOLE publish; instagram/threads are honest 'skipped no_binding', never fake success); runPublishPlan (exactly one send per channel, independent failures); summarizePublish (≥1 ok = published, all-fail or skipped-only = failed).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: buildPublishPlan keeps a variant's attached image (mediaRef) on its plan entry and runPublishPlan hands it to the publisher, so a Streams post with an image publishes it (X uploads it) instead of posting the text alone.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.1: add `formatStreamApprovals` projecting `in_review` stream posts onto the cross-application Approvals schema (`/cockpit/?screen=approvals`).
  *
  * @module switchboard-streams-model
  */
@@ -296,4 +297,31 @@ export function summarizePublish(
     ? (skipped.length ? 'no publishable channels (all skipped)' : 'no channels to publish')
     : failures.join('; ').slice(0, 500);
   return { anyOk: false, allOk: false, state: 'failed', error };
+}
+
+/**
+ * @description Project mapped stream posts in `in_review` state onto cross-application approval items.
+ * @param posts - Mapped stream posts for the caller.
+ * @returns Approval items with approve/reject descriptors targeting `/api/switchboard/streams/posts/:id/transition`.
+ */
+export function formatStreamApprovals(posts: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return (Array.isArray(posts) ? posts : [])
+    .filter((post) => post && post.state === 'in_review' && post.postId)
+    .map((post) => {
+      const id = String(post.postId);
+      const variants = Array.isArray(post.variants) ? post.variants as Array<{ platform?: string }> : [];
+      const channels = variants.map((v) => String(v.platform || '')).filter(Boolean).join(', ');
+      const title = String(post.title || '').trim() || String(post.body || '').trim().slice(0, 96) || id;
+      const preview = String(post.body || '').trim().slice(0, 180);
+      return {
+        id,
+        category: 'Stream post',
+        title,
+        summary: channels ? `${channels} · ${preview}` : preview,
+        createdAt: post.updatedAt || post.createdAt || null,
+        openHref: '/cockpit/?app=switchboard&screen=switchboard-streams',
+        approve: { method: 'POST', path: `/api/switchboard/streams/posts/${encodeURIComponent(id)}/transition`, body: { action: 'approve' }, label: 'Approve' },
+        decline: { method: 'POST', path: `/api/switchboard/streams/posts/${encodeURIComponent(id)}/transition`, body: { action: 'reject' }, label: 'Decline' },
+      };
+    });
 }

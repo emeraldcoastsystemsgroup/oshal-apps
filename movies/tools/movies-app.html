@@ -4,6 +4,16 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OSHAL Movies &amp; TV</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | movies 1.1.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core
+       Jarvis chat window, with its model menu): the Ask sheet no longer draws a chat of its own over POST /api/movies/chat.
+       It holds the kernel's one chat window as the Movie Concierge (movies-concierge, /shared/ui/js/jarvis-chat-frame.js),
+       with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying; the window's Close
+       closes the sheet. Before each turn the window is told what this screen shows (context.screen_state): the view, the
+       type shown, the titles on it with their keys and the watchlist. The concierge finds titles, reads the watchlist and
+       the viewer's tastes, and saves to the watchlist with its tools; once its answer is done the watchlist reads again,
+       so a title it saved shows without a reload. A plan-movie draft goes into the window's message box. The suggested
+       prompts are the window's. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what is saved to watch
@@ -260,8 +270,9 @@
   .askmodal{align-items:stretch;justify-content:flex-end;padding:0}
   .asksheet{background:var(--ds-surface,var(--bg-primary,#0a0a12));color:var(--ds-ink,var(--text-primary,var(--text)));border-left:1px solid var(--border2);
     width:min(420px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.35)}
-  .asksheet .chathead{justify-content:space-between}
-  .asksheet .msgs{flex:1;max-height:none}
+  /* 1.1.8: the sheet holds the kernel's one chat window, which fills it (its header carries the Close). */
+  .asksheet .jarvis-chat-frame{flex:1;width:100%;height:100%;min-height:0;border:0;display:block}
+  .asksheet.assistant-unavailable{padding:16px;color:var(--muted);font-size:14px;line-height:1.45;height:auto}
   .x2{appearance:none;border:0;background:transparent;color:var(--text);font-size:24px;width:44px;height:44px;border-radius:50%;cursor:pointer}
   .sugg{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px}
   .sugg[hidden]{display:none}
@@ -278,7 +289,7 @@
     .hero .copy{padding:18px}
     .hero h1{font-size:24px}
     .askmodal{align-items:flex-end;justify-content:center}
-    .asksheet{width:100%;height:auto;max-height:78vh;min-height:52vh;border-left:0;border-top:1px solid var(--border2);border-radius:18px 18px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.35)}
+    .asksheet{width:100%;height:min(82vh,760px);border-left:0;border-top:1px solid var(--border2);border-radius:18px 18px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.35);overflow:hidden}
   }
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent2);color:#fff;font-weight:700;
     padding:11px 18px;border-radius:12px;box-shadow:0 10px 30px var(--accent-glow);opacity:0;transition:.25s;pointer-events:none;z-index:80}
@@ -364,28 +375,14 @@
 
   <div class="modal" id="modal"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Title"></div></div>
   <div class="modal askmodal" id="askModal">
-    <div class="asksheet" role="dialog" aria-modal="true" aria-labelledby="askTitle">
-      <div class="chathead"><span id="askTitle">Movie Concierge</span><button type="button" class="x2" id="askClose" aria-label="Close">×</button></div>
-      <div class="msgs" id="msgs"><div class="hint">Tell me the mood, a show you liked, or the services you have.</div></div>
-      <div class="sugg" id="sugg">
-        <button type="button" class="chip">A feel-good movie for tonight</button>
-        <button type="button" class="chip">Shows like Severance</button>
-        <button type="button" class="chip">Something under two hours</button>
-      </div>
-      <div class="chatin">
-        <input id="chatq" placeholder="What are you in the mood to watch?" aria-label="Ask the Movie Concierge" />
-        <button class="btn" id="sendBtn">Send</button>
-      </div>
-    </div>
+    <!-- The Movie Concierge (1.1.8): the kernel's one chat window, mounted by the module script at the end of the page. -->
+    <div class="asksheet" id="moviesConcierge" role="dialog" aria-modal="true" aria-label="Movie Concierge"></div>
   </div>
   <div class="toast" id="toast"></div>
 
 <script>
 const API='/api/movies';
 const $=s=>document.querySelector(s);
-// Jarvis-style durable session: a stable conversation id kept client-side so the SAME thread
-// deterministically resumes after you navigate away and the iframe reloads.
-let convId=localStorage.getItem('oshalMoviesConv')||'';
 // What each view last read, so the type chips filter without another request.
 const shown={type:'all',trending:[],results:null,query:'',watchlist:[],picks:[]};
 
@@ -536,38 +533,34 @@ async function loadWatchlist(){
   drawWatchlist();
 }
 
-// ── Concierge sheet (the mood box moved here from under the posters) ─────────
-function openAsk(){closeDetail();$('#askModal').classList.add('show');document.body.style.overflow='hidden';setTimeout(()=>$('#chatq').focus(),0);}
+// ── Concierge sheet: the kernel's one chat window (1.1.8) ──────────────────────
+function openAsk(){closeDetail();$('#askModal').classList.add('show');document.body.style.overflow='hidden';setTimeout(()=>{void window.__moviesChat?.then(chat=>chat?.focus());},0);}
 function closeAsk(){$('#askModal').classList.remove('show');if(!$('#modal').classList.contains('show'))document.body.style.overflow='';}
-window.openAsk=openAsk;
-$('#askBtn').onclick=openAsk;$('#askClose').onclick=closeAsk;
+window.openAsk=openAsk;window.closeAsk=closeAsk;
+$('#askBtn').onclick=openAsk;
 $('#askModal').onclick=(e)=>{if(e.target.id==='askModal')closeAsk();};
 document.addEventListener('keydown',(e)=>{if(e.key!=='Escape')return;if($('#modal').classList.contains('show'))closeDetail();else if($('#askModal').classList.contains('show'))closeAsk();});
-document.querySelectorAll('#sugg .chip').forEach(b=>{b.onclick=()=>{$('#chatq').value=b.textContent;send();};});
-function pushMsg(role,text){
-  const m=$('#msgs');const hint=m.querySelector('.hint');if(hint)hint.remove();
-  const d=document.createElement('div');d.className='msg '+(role==='me'?'me':'bot');d.textContent=text;
-  m.appendChild(d);m.scrollTop=m.scrollHeight;return d;
+
+// What the concierge window is told this screen shows, read fresh before each turn (context.screen_state, in the kernel's
+// screen-snapshot shape): the view, the type shown and the titles on it with their keys, which its tools take.
+function titleLine(o){return [o.title,[o.year,o.mediaType==='tv'?'TV series':'Movie'].filter(Boolean).join(' · '),o.key?`key ${o.key}`:''].filter(Boolean).join(' / ');}
+function wlLine(i){return titleLine({title:i.title,year:i.year,mediaType:i.media_type,key:i.item_key||(i.media_type&&i.tmdb_id?`${i.media_type}:${i.tmdb_id}`:'')});}
+function moviesScreen(){
+  const view=['home','search','watchlist'].find(v=>!$('#view-'+v).hidden)||'home';
+  const lines=[`[button] Showing: ${shown.type==='all'?'Movies & Shows':shown.type==='tv'?'Shows':'Movies'} (on)`];
+  if(view==='home'){
+    const picks=ofType(shown.picks),trending=ofType(shown.trending);
+    if(picks.length){lines.push('# Picks for you');picks.forEach(o=>lines.push(titleLine(o)));}
+    lines.push('# Trending this week');trending.forEach(o=>lines.push(titleLine(o)));
+  }else if(view==='search'){
+    lines.push(`[field] Search movies and shows: ${$('#q').value.trim()||'(empty)'}`);
+    if(shown.results){lines.push(`# Results for "${shown.query}"`);ofType(shown.results).forEach(o=>lines.push(titleLine(o)));}
+  }
+  const saved=shown.watchlist.filter(i=>shown.type==='all'||i.media_type===shown.type);
+  lines.push(`# Watchlist (${saved.length} saved)`);saved.forEach(i=>lines.push(wlLine(i)));
+  const tab={home:'Home',search:'Search',watchlist:'Watchlist'}[view];
+  return {title:`Movies & TV: ${tab}`,tab,text:lines.join('\n').slice(0,9000)};
 }
-function pushPicks(cards){
-  const m=$('#msgs');const row=document.createElement('div');row.className='pickrow';
-  cards.forEach(o=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=caption(o);b.onclick=()=>openDetail(o.mediaType,o.id);row.appendChild(b);});
-  m.appendChild(row);m.scrollTop=m.scrollHeight;
-}
-async function send(){
-  const inp=$('#chatq');const t=inp.value.trim();if(!t)return;inp.value='';
-  $('#sugg').hidden=true;
-  pushMsg('me',t);const thinking=pushMsg('bot','…');
-  try{
-    const d=await jpost(`${API}/chat`,{message:t,conversationId:convId});
-    convId=d.conversationId||convId;if(convId)localStorage.setItem('oshalMoviesConv',convId);
-    thinking.textContent=d.reply||'…';
-    if((d.cards||[]).length){shown.picks=d.cards;$('#picksSec').hidden=!ofType(shown.picks).length;fill($('#picks'),shown.picks);pushPicks(d.cards);}
-    if((d.added||[]).length) loadWatchlist();
-  }catch(e){thinking.textContent='Sorry — something went wrong. Try again.';}
-}
-$('#sendBtn').onclick=send;
-$('#chatq').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 $('#recheck').onclick=()=>boot();
@@ -578,9 +571,6 @@ async function boot(){
   $('#appWrap').style.display=connected?'block':'none';
   if(!connected)return;
   loadTrending();loadWatchlist();
-  try{const cv=await jget(`${API}/conversation?id=${encodeURIComponent(convId||'')}`);if(cv.messages&&cv.messages.length){
-    convId=cv.conversationId;if(convId)localStorage.setItem('oshalMoviesConv',convId);$('#msgs').innerHTML='';$('#sugg').hidden=true;
-    cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
 }
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) boot();
@@ -593,7 +583,7 @@ import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
 if (!window.AppView || !AppView.active()) {
 const panel=document.getElementById('planningPanel'),draft=document.getElementById('planningDraft');
 receiveHandoff({"app":"movies","action":"plan-movie","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
-document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}if(window.openAsk)window.openAsk();const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
+document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}if(window.openAsk)window.openAsk();void window.__moviesChat?.then(chat=>chat?.focus(draft.value.trim()));document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
 const element=document.querySelector('.connected-app-actions');
 // The offers continue from a request: the concierge and search (inside #appWrap, shown only when connected) or a
 // received planning draft. With neither on screen there is nothing to hand on, so the offers stay hidden instead of
@@ -601,7 +591,33 @@ const element=document.querySelector('.connected-app-actions');
 const appWrap=document.getElementById('appWrap');
 const syncOffers=()=>{element.style.display=(appWrap.style.display==='none'&&panel.hidden)?'none':'flex';};
 syncOffers();if(typeof MutationObserver==='function'){new MutationObserver(syncOffers).observe(appWrap,{attributes:true,attributeFilter:['style']});new MutationObserver(syncOffers).observe(panel,{attributes:true,attributeFilter:['hidden']});}
-void mountConnectedActions({app:"movies",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('chatq').value.trim()||document.getElementById('q').value.trim();return notes?{title:"Plan around my movie request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
+void mountConnectedActions({app:"movies",element,contextForOffer:()=>{const notes=(panel.hidden?'':draft.value.trim())||document.getElementById('q').value.trim();return notes?{title:"Plan around my movie request",notes:notes.slice(0,2000)}:null;}}).then(()=>element.querySelectorAll('button').forEach(b=>b.classList.add('btn')));
+}
+</script>
+
+<!-- The Movie Concierge (1.1.8): the kernel's one chat window as this application's concierge, the same window every
+     concierge is, with its model menu, conversations, Files, Tap to talk and Keep trying. It sits in the Ask sheet and is
+     told this screen before each turn (moviesScreen above); after each answer the watchlist reads again (a title the
+     concierge saved with add-to-watchlist shows at once); its own Close closes the sheet. -->
+<script type="module">
+// The full page only: under an audience view no concierge is offered, so no chat window loads behind it.
+if (!window.AppView || !AppView.active()) {
+  const host=document.getElementById('moviesConcierge');
+  const PROMPTS=['A feel-good movie for tonight','Shows like Severance','Something under two hours'];
+  const HELP='Tell me the mood, a show you liked, or the services you have. I find real titles, say where they stream and keep your watchlist.';
+  // A promise of the mounted window: Ask and a plan-movie draft put the person in its message box.
+  window.__moviesChat=(async()=>{
+    try{
+      const {mountJarvisChat}=await import('/shared/ui/js/jarvis-chat-frame.js');
+      return mountJarvisChat(host,{app:'movies',bot:'movies-concierge',title:'Movie Concierge',closable:true,lazy:true,onClose:()=>window.closeAsk(),
+        prompts:PROMPTS.map(prompt=>({label:prompt,prompt})),help:HELP,chatHost:{prepare:async()=>({screen_state:window.moviesScreen()}),refresh:async()=>{await window.loadWatchlist();}}});
+    }catch(err){
+      host.classList.add('assistant-unavailable');
+      host.textContent='The Movie Concierge needs Open Swarm\'s chat window, which this installation does not serve. Search, details and the watchlist work without it.';
+      console.warn('[movies] concierge window unavailable',err&&err.message);
+      return null;
+    }
+  })();
 }
 </script>
 </body>

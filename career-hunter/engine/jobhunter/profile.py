@@ -12,6 +12,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Add the Resume Studio MASTER document mapping: base_document() (straight, model-free profile -> editor shape) and replace_resume_fields() (whitelist write-back reusing augment's backup/audit/atomic-replace rails), so the durable profile every tailored resume is generated from finally has an editor.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 D7: the master document carries each role's recorded stories with the bullet each one supports, so the Resume Studio shows the evidence under the claim it proves. Read-only — the save path is a whitelist and still cannot write a story.
 
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 """Loads the user's career_db.json and renders a compact profile for prompts."""
 from __future__ import annotations
 import json
@@ -859,16 +860,9 @@ def base_document(snapshot: dict | None = None) -> dict:
     the evidence under the claim. Returns {resume, cover, meta{master: True}}."""
     d = load() if snapshot is None else snapshot
     p = d.get("profile", {}) or {}
-    experience = [{
-        "title": r.get("title", ""),
-        "org": r.get("org", ""),
-        "span": f"{r.get('start', '')}–{r.get('end') or 'present'}",
-        # 1.61.0: the months themselves, for the Work history page (an end of '' is present).
-        "start": str(r.get("start") or ""),
-        "end": str(r.get("end") or ""),
-        "bullets": [str(b) for b in (r.get("deliverables") or [])],
-        "stories": _master_stories(r),
-    } for r in d.get("roles", []) or []]
+    from . import role_hierarchy
+    roles = d.get("roles", []) or []
+    experience = role_hierarchy.document_roles(roles, _master_stories)
     flat_skills = []
     for group in (d.get("skills", {}) or {}).values():
         flat_skills.extend(str(item) for item in (group or {}).get("items", []) or [])

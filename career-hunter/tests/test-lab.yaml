@@ -1,3 +1,8 @@
+# 114 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: existing hierarchy browser case proves direct Tab in/out, Add sub-engagement, safe identity refusal and settled save acknowledgments at phone and desktop widths.
+# 113 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: register explicit experience hierarchy, safe Word identity mapping and grouped document output.
+# 112 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: register approvals-probe: pending job applications in `approval_required` project onto the cross-application approvals probe (`/api/career-hunter/applications`, `/approvals`) with pinned `/approve` and `/deny` descriptors.
+# 111 | maintainer@emeraldcoastsystemsgroup.com | 1.68.10: register job-apply-chosen-device: Career's Send step and approval screen name the chosen Job Apply connected device ("Applies from: <Device> · Change device" and "<Device> (ready)") at 412x915 and 1440x900, and refuse fallback when the chosen device is offline.
+# 110 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: register resume-one-chat-window in place of resume-editor-composer (My résumé no longer draws a résumé editor of its own): a tailored résumé's chat is Career's concierge, the kernel's one chat window, at 1440, at 412 and with Career's frame off; the turn carries this résumé on its context in its own conversation, an edit not yet saved is saved first, and the concierge's card changes the résumé and the page shows it. plain-words-pages, resume-studio-phone and document-handoff expect the page without that editor.
 # 109 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8: register concierge-early-press: Career's Concierge pressed while its concierge is still on its way (the bar draws the button first; seconds on a busy or just-started installation) opens the concierge once it mounts instead of doing nothing; the button says it is busy meanwhile. Red on 1.68.7, where the press reached no handler (the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z).
 # 108 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7: register portfolio-edit: Other experience's saved portfolio (oss_portfolio) opens its own Edit form, reads whole with the main résumé's revision and saves whole as one main-résumé edit, backed up and audited with Undo; every reader (the list, Download my data, job scoring) sees the save; a moved main résumé, a bad field, a partial form or a save past what job scoring reads changes nothing; the list's own form no longer copies the portfolio. Red on store main 6467ca6d.
 # 107 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: register job-details-read, job-details-sheet, job-descriptions-backfill and job-details-live: a job with no description (every Torch Technologies posting on 2026-11-16) is read once from the employer's posting through the kernel's egress and kept as the person's copy; the posting sheet shows it, or says plainly why it cannot with the posting and the paste path, never "No description was provided."; the backfill re-reads one employer's empty descriptions into the shared corpus once, with a counts-only dry run.
@@ -1189,8 +1194,8 @@ cases:
     expected:
       - An unsaved resume edit and unsaved profile fields, including a typed skill, are saved before the assistant reads.
       - The context carries the record id and revision; the change saved through the same routes shows after refresh.
-      - The next manual edit reaches the next handoff; unsaved edits and the composer text survive a refresh.
-      - A refused Resume Studio save shows the route's own reason in the editor log and stores nothing.
+      - The next manual edit reaches the next handoff; unsaved edits survive a refresh.
+      - A refused Resume Studio save shows the route's own reason beside Save and stores nothing.
       - AI draft reads the saved plan with the on-screen edit; the bot turn is a named transport double.
     prerequisites: [runner:node, browser:chromium, harness:oshal-core-root, harness:career-python-contracts, fixture:postgres-35689, core:shared-theme-assets]
     sideEffects: fixture-write
@@ -1203,7 +1208,7 @@ cases:
     name: Resume Studio fits a phone
     purpose: >-
       Open the shipped Resume Studio page in headless Chromium at 412x915 with a long resume name: the select and the
-      page stay inside the viewport (the select ran to 487 px) and the composer shows its placeholder whole.
+      page stay inside the viewport (the select ran to 487 px), and the page draws no chat of its own.
     level: browser
     runner:
       kind: playwright
@@ -1211,7 +1216,7 @@ cases:
       files:
         - tests/career-resume-studio-phone.spec.mjs
     expected:
-      - The select's right edge and the page's scroll width are within 412 px; the composer is as tall as its placeholder.
+      - The select's right edge and the page's scroll width are within 412 px; the page has no editor panel, text box or Send.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -2495,8 +2500,8 @@ cases:
         - tests/career-insights-honest.test.mjs
         - tests/career-words.test.mjs
     expected:
-      - With no résumé, Resume Studio shows no editor panel, no Send button and no More button, and they arrive once the upload has been read.
-      - With a résumé the editor says This is your main résumé and each application starts from it.
+      - With no résumé, Resume Studio shows no More button and no Edit with AI, and they arrive once the upload has been read; the page draws no chat of its own.
+      - With a résumé the banner says Main résumé and that every new application starts here.
       - The LinkedIn profile page reads 1. Write, 2. Check, 3. Update LinkedIn, and a refused update leaves a line on the page saying it did not start.
       - Settings names its sections in a job seeker's words and each section still opens the controls it held.
       - Insights shows the person's own five counts under Your search, the shared numbers under their own heading, and Find jobs when the person has none.
@@ -3089,26 +3094,27 @@ cases:
       timeoutMs: 300000
       maxMemoryMb: 256
     installation: never
-  - id: resume-editor-composer
-    name: The résumé editor's text box is under its thread
+  - id: resume-one-chat-window
+    name: A tailored résumé's chat is Career's concierge, the kernel's one chat window
     purpose: >-
-      Open the shipped My résumé page with the shipped Career frame in headless Chromium at 412x915 and at 1440x900,
-      over a made-up person's tailored résumé, and hold a conversation in the page's own résumé editor: where the
-      heading, the thread, the text box and Send, Close the editor and Career's bars are, and which message is in view.
-    level: integration
+      Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window. Open the shipped My
+      résumé page on a made-up person's tailored résumé with Career's frame and concierge in headless Chromium, the
+      window served from a kernel platform export with its stand-in kernel, at 1440x900, at 412x915 with touch, and at
+      412x915 with Career's frame off; ask in the window and approve the concierge's card.
+    level: browser
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/career-resume-editor-composer.test.mjs
+        - tests/career-hunter-one-chat-window.test.mjs
     expected:
-      - The text box and Send are under the thread's newest message at both sizes, never above the thread, and nothing covers them.
-      - On a phone the sheet begins under Career's bars with its heading in sight, Close the editor is in that heading, the Edit with AI bar is away while the sheet is open, and nothing is behind Career's bottom bar.
-      - The newest message is in view after Send, after each reply, when the sheet opens after a reply that came while it was closed, and in a window 520 px tall; a person who scrolled up to read is left there when the window changes height.
-      - On a desktop the thread scrolls inside the editor's column, the text box stays at its foot and the page itself does not scroll.
-    prerequisites: [runner:node-test, fixture:store-toolchain]
+      - Career's Concierge (a computer) or Edit with AI (a phone, also with Career's frame off) opens the one chat window as career-concierge, with its model menu, Files, Tap to talk, Keep trying and conversations; the page draws no transcript, text box or Send and sends nothing to /resume/guide.
+      - A turn reaches career-concierge with the person's words alone, the model picked for it, and this résumé on its context (recordId the posting id, its title, master false, its revision, the tools career_documents and career_resume_save), in the conversation doc:career-hunter:<posting id>.
+      - An edit not yet saved is saved once before the turn; Approve on the concierge's career_resume_save card changes this résumé, and the page shows the change with nothing left unsaved.
+      - On a computer the concierge is docked beside the résumé and the page itself does not scroll; on a phone it is between Career's bars, its message box under its conversation and above the bottom bar, and its Close brings back the résumé and Edit with AI with the focus; nothing scrolls sideways, no page error, nothing leaves the loopback.
+    prerequisites: [runner:node-test, runtime:chromium, fixture:store-toolchain, harness:kernel-platform-export]
     sideEffects: none
-    isolation: {mode: disposable, cleanup: "Close the browser; every page and answer is a fixture and nothing is written."}
+    isolation: {mode: disposable, cleanup: "Close the browser and stop the fixture server; every page and answer is a fixture and nothing is written."}
     limits: {timeoutMs: 120000, maxMemoryMb: 1024}
     installation: never
   - id: unread-jobs-flow-in
@@ -3868,5 +3874,68 @@ cases:
     prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
     sideEffects: none
     isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: job-apply-chosen-device
+    name: Career Send step and approval view name the chosen Job Apply connected device and never fall back silently
+    purpose: >-
+      Drive career-application.html in Chromium at 412x915 with touch and 1440x900 over synthetic GET /api/apply-operator/workers
+      responses with two Orbit computers: verify Career names the chosen computer and withholds Send it for me when the chosen computer is offline.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-job-apply-device.test.mjs]
+    expected:
+      - With beta-laptop chosen and ready, Step 3 · Send shows Applies from beta-laptop with Change device (/cockpit/?app=job-apply), keeps Open the employer's form as the single filled button, and Approve this application shows beta-laptop (ready).
+      - When beta-laptop is offline while alpha-desk is online, Send it for me from my computer is withheld and #computerNeeded names beta-laptop.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close the browser contexts; every request is answered inside the browser."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+
+  - id: approvals-probe
+    name: Pending job applications project onto the cross-application approvals probe
+    purpose: Verify career-hunter declares approvals on /api/career-hunter/applications and projects only approval_required rows onto /approve and /deny.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/approvals-probe.test.mjs]
+    expected:
+      - oshal-app.yaml declares approvals.path = /api/career-hunter/applications and itemsPointer = /approvals.
+      - formatCareerApprovals includes only status = approval_required rows and emits POST /approve and /deny descriptors.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000}
+    installation: never
+
+  - id: experience-hierarchy
+    name: Existing client entries group under their employer without losing their records
+    purpose: Exercise explicit revision-checked relationships and grouped output on disposable career profiles.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-experience-hierarchy.test.mjs]}
+    expected:
+      - Link, unlink and Undo retain independent dates, bullets and stories; stale, cyclic, missing or ambiguous parents refuse atomically.
+      - Generated and rerendered documents carry recorded relationships and keep required parents with children.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic profiles, backups and document output."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: experience-hierarchy-browser
+    name: Work history and document output show the saved employer hierarchy
+    purpose: Inspect the shipped Work history page and grouped document mapping with synthetic entries at phone and desktop sizes.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-experience-hierarchy-browser.test.mjs]}
+    expected:
+      - Direct Tab in, Tab out and Add sub-engagement retain explicit one-level relationships, independent text, drafts and Undo at phone and desktop widths.
+      - Ambiguous identities and unavailable parents refuse without rewriting records; save readback waits for acknowledgment.
+      - Actual HTML and PDF output preserves linked groups, readable text and aligned date edges; a multi-request save keeps its originally selected parent.
+    prerequisites: [runner:node-test, runner:python, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close owned browser contexts and remove synthetic document output."}
     limits: {timeoutMs: 180000, maxMemoryMb: 1024}
     installation: never

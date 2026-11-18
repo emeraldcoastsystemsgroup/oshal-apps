@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Drone Ops family view asserted as behaviour over the package's REAL routes: GET /missions from routes/drone-routes.js (loaded with only express and the framework aliases stubbed, a stub pool) and GET /home-summary from routes/home-summary.js, their answers JSON round-tripped as Express serializes them. On open the view makes exactly those two reads and both routes only SELECT the caller's own rows; the saved plans paint as plain stats (saved, not flown yet, plans started in five days, commands turned down in five days), a title ladder, and tiles naming each plan's shape (one drone and its stops, drones flying together, a timed show), where it came from and where it stands ("started", never "flown": the route writes that flag when a flight starts), with no tile that opens, flies or changes anything. A count the summary could not check, a full 50-plan list, signed out (the route's own 401), refused (403), the route's own 500, an unreadable answer and an unreachable server each read as what they are. Every top-level start step of the full page's main script and its connected-actions script is gated: under the view they bind nothing, read nothing and start no poll; without it they run.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-169 L6: the route module now imports the kernel's locatedDevice (@/features/location); it is stubbed to "nobody" here because the family view never reads live telemetry, and the loader's unexpected-import check keeps naming any further import.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.2: the Operator chat is the kernel's one chat window, so the main script no longer wires a chat of its own (four gated start steps: camera wiring, map click, resize and the boot; no chat key listener; the boot's first read is the fleet, not GET /conversation). The page's own module, run against a stub document with a stub mount, loads and mounts nothing under a view and fetches nothing; without the audience, or without the kit, it loads /shared/ui/js/jarvis-chat-frame.js and mounts the window into #operatorChat as Drone Ops' concierge (drone-operator, no Close, loaded once shown, its screen before each turn and its missions after it) and listens for a Drone Ops card that ran; a kernel without the window (the import fails, or answers no mount) gets a plain line in the panel and no error.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -320,9 +321,47 @@ function runMain(activeView) {
 
 test('every top-level start step of the main script is gated: under the view it binds, reads and starts nothing; without it the page starts', () => {
   const steps = MAIN.split('\n').filter((line) => /^[^\s}/)]/.test(line) && !/^(function |async function |let |const |var |'use strict')/.test(line));
-  assert.deepEqual(steps.map((line) => line.startsWith(GATE)), [true, true, true, true, true], 'the five start steps (camera wiring, map click, resize, chat key, boot) each carry the gate');
+  assert.deepEqual(steps.map((line) => line.startsWith(GATE)), [true, true, true, true], 'the four start steps (camera wiring, map click, resize, boot) each carry the gate; the Operator chat is the one chat window');
   assert.deepEqual(runMain('family'), { listeners: [], reads: [], timers: 0 });
-  assert.deepEqual(runMain(null), { listeners: ['mousedown', 'mouseup', 'mousemove', 'wheel', 'dblclick', 'click', 'resize', 'keydown'], reads: ['GET /api/drone/conversation'], timers: 0 });
+  assert.deepEqual(runMain(null), { listeners: ['mousedown', 'mouseup', 'mousemove', 'wheel', 'dblclick', 'click', 'resize'], reads: ['GET /api/drone/fleet'], timers: 0 });
+});
+
+/**
+ * @description Run the page's own module (the last block) against a stub document and a stub mount, so its start step,
+ * mounting the one chat window, is asserted under a view, without a view and without the kit. Any fetch is a failure.
+ * @param {string|null|undefined} activeView What AppView.active() answers; undefined means no kit at all.
+ * @param {Function} [mount] What the window's module exports as mountJarvisChat; a function that throws stands for an
+ *   import that failed.
+ * @returns {Promise<object[]>} Every mount the page asked for (the host's id and the options), with the modules it loaded,
+ *   the window events it listened for and what the host element was left saying.
+ */
+async function runModule(activeView, mount) {
+  const marker = '<script type="module">', open = html.lastIndexOf(marker), loads = [], listens = [], host = { id: 'operatorChat', textContent: '' };
+  assert.ok(open > html.lastIndexOf('<script>'), 'the module is the page\x27s last block');
+  const src = html.slice(open + marker.length, html.indexOf('</script>', open)).replace(/await import\(('[^']+')\)/, 'await load($1)');
+  const mounts = [], kit = activeView === undefined ? undefined : { active: () => activeView };
+  const mountJarvisChat = mount || ((element, options) => { mounts.push({ host: element.id, ...options }); return { setHelp() {}, setPrompts() {} }; });
+  const AsyncFunction = (async () => {}).constructor;
+  await new AsyncFunction('window', 'AppView', 'document', 'fetch', 'load', src)({ AppView: kit, addEventListener: (type) => listens.push(type) }, kit,
+    { getElementById: (id) => (id === 'operatorChat' ? host : { id }) }, () => { throw new Error('the page fetched on load'); },
+    async (url) => { loads.push(url); if (mount === null) throw new Error('synthetic import failure'); return mount === undefined || typeof mount === 'function' ? { mountJarvisChat } : {}; });
+  return Object.assign(mounts, { loads, listens, said: host.textContent });
+}
+
+test('under an audience view the module mounts and loads nothing; without the audience, or without the kit, the Operator chat is the one chat window', async () => {
+  const under = await runModule('family');
+  assert.deepEqual([under.length, under.loads, under.listens], [0, [], []]);
+  const full = await runModule(null), [mounted] = full;
+  assert.deepEqual(full.loads, ['/shared/ui/js/jarvis-chat-frame.js']);
+  assert.deepEqual([mounted.host, mounted.app, mounted.bot, mounted.closable, mounted.lazy], ['operatorChat', 'drone', 'drone-operator', false, true]);
+  assert.deepEqual([typeof mounted.chatHost.prepare, typeof mounted.chatHost.refresh], ['function', 'function'], 'each turn asks the page for its screen, and the page reads its missions after it');
+  assert.deepEqual(full.listens, ['oshal-package-tool-done'], 'a Drone Ops card that ran makes the page read missions, fleet and show again');
+  assert.equal((await runModule(undefined)).length, 1);
+  for (const missing of [null, 'no export']) {
+    const none = await runModule(null, missing === null ? null : 'no export');
+    assert.deepEqual([none.length, none.listens], [0, []], 'a kernel without the window mounts nothing and listens for nothing');
+    assert.match(none.said, /needs the Open Swarm chat window, which this installation does not have yet/, 'and says so in the panel');
+  }
 });
 
 /**

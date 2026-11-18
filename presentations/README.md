@@ -115,6 +115,12 @@ No email, Slack, external save target, or share action was invoked. This is
 live Guide → editor → owner-local artifact proof, not live external-delivery
 proof or an assertion that unrelated Jarvis/ticket probes passed.
 
+## Paragraph indentation and heading continuity
+
+AI Office 2.20.9 preserves optional paragraph indentation and keep-with-next formatting in the editor and actual DOCX and PDF exports. Plain text retains reading order and indentation. Documents that omit these fields retain their existing layout. Oversized heading chains can split safely instead of producing empty pages.
+
+Career 1.68.12 uses these shared document fields for employer and client-engagement formatting. Install this Office release before that Career release.
+
 <!-- oshal-rating:start -->
 ## Models and requirements
 

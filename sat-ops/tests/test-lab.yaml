@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register chat-screen: the Sat Operator chat carries the on-screen ground station and pass table and answers from them (it asked for coordinates while four passes were listed).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | chat-screen also proves the prompt names the current UTC day and labels each pass today / tomorrow / its date.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register sat-register-form: the new-satellite id field starts empty under a label of its own, so the screen does not read a default as a satellite id (sweep 13).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: register one-chat-window (the Sat operator is the kernel's one chat window as Sat Ops' concierge, at 1440 and 412, with the screen on every turn and a command as its approval card); chat-screen expects the page's own lines to equal the route's on every window turn; audience-view expects the main script without a chat of its own and the gated mount module.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -32,6 +33,7 @@ cases:
       - Fed by the package's real routes, the fleet reads as four stats (sim nodes, recent and stale heartbeats, orbits loaded), a title naming the fleet's state, a fleet table of each node's last report with recent nodes first, and an orbit catalog table joined to its attitude nodes by sat id, newest registration first; no row opens, commands or changes anything.
       - Odd rows (no telemetry yet, never heard, an unknown engine, a catalog row without name or number) and a catalog that could not be read (the fleet still shows, the orbit count reads Could not check) each read as what they are; so do signed out, refused, the fleet route's failure, an unreadable answer and an unreachable server.
       - Under the company view the page's main script and connected-actions script bind no listener or click handler, read nothing, start no poll or render loop and mount no offer; the full page still runs every start step.
+      - Under a view the page's own module loads and mounts nothing; without the audience, and without the kit, it loads /shared/ui/js/jarvis-chat-frame.js and mounts the one chat window into the Sat operator section as Sat Ops' concierge (sat-operator, four starter prompts, no Close).
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -77,7 +79,7 @@ cases:
       - The ground station and the Pass windows table the page sends reach the prompt as GROUND STATION and PASS WINDOWS ON SCREEN lines, with the rule never to ask for coordinates the screen gives.
       - A turn without screen state carries no screen lines; an empty prediction says none above the mask.
       - Out-of-range or non-numeric input is dropped, at most 12 passes are kept and the sat id is stripped.
-      - The page sends its station and last prediction with every chat turn.
+      - Every turn of the Sat operator window carries the page's station and last prediction in exactly the GROUND STATION and PASS WINDOWS ON SCREEN lines the route builds, and the page sends no POST /chat of its own.
       - The prompt carries a NOW (UTC) line and each pass on screen reads today, tomorrow or its UTC date against the current UTC day (sweep 8 called a same-day pass 'tomorrow').
     prerequisites:
       - runner:node-test
@@ -106,6 +108,32 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: one-chat-window
+    name: The Sat operator is the one chat window, with the screen on every turn
+    purpose: >-
+      Serve the shipped page with the kernel's one chat window from a kernel platform export (OSHAL_KERNEL_PLATFORM) and its
+      stand-in kernel over a local fixture server, a made-up simulated fleet and no provider; requests off the loopback are
+      refused.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sat-ops-one-chat-window.test.mjs
+    expected:
+      - At 1440x900 and 412x915 the Sat operator section is the window (concierge sat-ops, bot sat-operator) between Selected sat and Pass windows, inside the right pane, with its model menu, Files, Tap to talk, Keep trying and conversations; nothing runs sideways.
+      - A model picked in the window rides on the turn; the person's words alone reach sat-operator's door with context.app sat-ops.
+      - context.screen_state carries the fleet, the catalog, the selected sat and its console, the ground station and the Pass windows table as the page shows them; no document is named.
+      - The page draws no transcript, message box or draft button of its own and sends no POST /api/sat/chat; no page error.
+      - A command the bot proposes is the window's approval card; nothing is sent before Approve, Approve sends exactly the held point command, and the page reads the fleet again for each Sat Ops card that ran.
+    prerequisites: [runner:node-test, runtime:chromium, 'source:shared-ui']
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Stop the fixture server.
+    limits:
+      timeoutMs: 120000
     installation: never
   - id: ux-layout
     name: The brief panel sits in the right pane and controls are 44px

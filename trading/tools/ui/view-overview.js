@@ -25,6 +25,7 @@
  * -----------------------------------------------------------------------------
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0, coordinator's added scope: the line under "Is it trading?" and each account card show when the account's approval ends, from GET /paper/today's saved approval. Within 14 days, or before the account's next trade, it says so plainly ("Approval ends Nov 30, before the Dec 1 trade.") with a link to Strategy settings and approval on that account's Manage strategy page, where an approval is renewed today. The link only navigates. A card is now an article whose name link covers it, so the approval link is not inside another link.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.58.0: Intelligent Trades opens on a portfolio overview (Roger, 2026-11-16: "for the landing page i should see my accounts my positions my trendlines over time per account with daily bars and comparisons"). The "Is it trading?" cards move to their own tab, Trading status, unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Present evidence-derived execution states and dated plan targets without treating an armed setting or a completed cycle as observed trading or matching holdings.
  */
 
 /* What the last paint used: both reads, the job rows, the range, the benchmark answers, the table's sort and the roster's state. */
@@ -296,7 +297,7 @@ function overviewNoHistoryHtml() {
  * @returns {string} HTML.
  */
 function overviewCardHtml(a) {
-  const tone = { 'RUNNING': 'is-running', 'NEEDS YOU': 'is-blocked', 'NOT RUNNING': 'is-blocked' }[a.chip] || '', s = a.series;
+  const tone = { 'RUNNING': 'is-running', 'ACTIVITY RECORDED': 'is-running', 'ORDER PENDING': 'is-running', 'SUBMISSION RECORDED': 'is-running', 'NEEDS YOU': 'is-blocked', 'NOT RUNNING': 'is-blocked', 'PAUSED': 'is-blocked' }[a.chip] || '', s = a.series;
   const range = OVERVIEW.range === 'ALL' ? 'all' : OVERVIEW.range;
   const deltas = s ? '<span class="pf-card-deltas"><span>' + overviewDelta(s.day && s.day.change, s.day && s.day.pct) + ' <span class="pf-when">' + esc(overviewDayWords(s.day && s.day.day)) + '</span></span><span>' +
     overviewDelta(s.span.change, s.span.pct) + ' <span class="pf-when">' + esc(range) + '</span></span></span>' : '';

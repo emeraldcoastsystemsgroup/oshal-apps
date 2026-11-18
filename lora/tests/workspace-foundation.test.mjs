@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The opens-ready case also proves no saved-source controls (Reload saved source) show before a character is chosen; red on the first stepper commit, where the list painted before the shared editor mounted that panel.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating, so the shell orb rests above it on a phone.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: serve photo-upload.mjs + upload/preview fixture routes and exercise multi-photo upload with crop aspect/zoom and per-photo captions in Step 2 Dataset.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: LoRA Studio carries its own concierge (the kernel's one Jarvis chat window as lora-director), starting closed at every width so New character step 1 keeps the work area while Today's bar Concierge and the phone's bottom bar open LoRA Studio's own window instead of Create's.
  */
 import {test,before,after} from 'node:test';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {resolve} from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url)),core=process.env.OSHAL_CORE_ROOT,platform=process.env.OSHAL_PLATFORM_ROOT;assert.ok(core&&platform,'Matching core and platform roots required.');
@@ -36,14 +37,14 @@ test('typed creation fields feed the existing Create character command and never
  assert.equal(writes.length,1);assert.equal(writes[0].subject,'new-character','a blank Subject slug is made from the Name');assert.equal(writes[0].identPrompt,'A green new character');
  assert.equal(await page.locator('[data-step="dataset"]').getAttribute('aria-current'),'step','a created character continues at 2 Dataset');assert.deepEqual(errors,[]);
 });
-test('the studio opens ready on New character step 1 with no duplicate form and no inline concierge',async t=>{
+test('the studio opens ready on New character step 1 with no duplicate form and its own concierge closed',async t=>{
  const{page,errors}=await fixture(t);await page.locator('[data-char-index]').first().waitFor();const form=page.locator('#characterForm');
  assert.equal(await form.isVisible(),true);assert.equal(await page.locator('#newCharacterTitle').textContent(),'New character');
  for(const name of ['displayName','triggerWord','identPrompt'])assert.equal(await form.locator('[name='+name+']').isVisible(),true,name+' is on step 1');
  assert.equal(await page.locator('#characterAdvanced').evaluate(node=>node.open),false,'Advanced starts closed');
  for(const name of ['subject','heroImage','negativePrompt','identityStructure','identityViolation','baseModel'])assert.equal(await page.locator('#characterAdvanced [name='+name+']').count(),1,name+' is under Advanced');
  assert.equal(await page.locator('.ef-inspector [data-editor-property]').count(),0,'Properties does not repeat the creation form');assert.equal(await page.locator('#sourceEditPanel').isVisible(),false,'no saved-source controls before a character is chosen');
- assert.equal(await page.locator('.ef-concierge').count(),0,'no inline Concierge column');assert.equal(await page.locator('.ef-tools').getByRole('button',{name:'Concierge',exact:true}).count(),0,'no Concierge pane button');
+ assert.equal(await page.locator('.ef-concierge').count(),1,'LoRA Studio carries its own concierge');assert.equal(await page.locator('.ef-concierge').isVisible(),false,'the concierge starts closed so New character keeps the work area');
  assert.equal(await page.locator('[data-step="identity"]').getAttribute('aria-current'),'step');for(const step of ['dataset','train','scorecards'])assert.equal(await page.locator('[data-step="'+step+'"]').isDisabled(),true,step+' waits for a character');
  assert.equal(await page.getByText('Select a character',{exact:false}).isVisible(),false);assert.equal(await page.locator('#characterForm label').filter({hasText:/on the worker|UTF-8|GPU worker/}).count(),0,'no worker jargon or byte limits in the labels');assert.deepEqual(errors,[]);
 });

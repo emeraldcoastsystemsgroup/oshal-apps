@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Job Apply company audience view (ADR-164 D6): the review page, its declared URL, one synthetic read-only answer shaped like GET /api/job-apply/home-summary (routes/home-summary.js: the five ledger counts as digit strings, mirrored as tiles; one item per run in the route's order, failed or unknown first then most recently updated, whose detail is '<company> / <state> / <updated iso>' with the two continuation offers attached and tone warn for a failed or unknown state; then the ledger note), and what the company view must show. updated_at is a timestamptz that reaches JSON as an ISO instant. This page has no write; the harness still answers every non-GET with 405 and records it. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.0: point the fixture at /api/job-apply/settings (#deviceSettingCard) and stub GET /api/apply-operator/workers for the full-page check.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -59,9 +60,10 @@ function runs(iso) {
 module.exports = ({ iso }) => {
   const m = metrics();
   return {
-    app: 'job-apply', file: 'job-apply/tools/review.html', url: '/api/job-apply/review', fullMarker: '#metrics .metric',
+    app: 'job-apply', file: 'job-apply/tools/review.html', url: '/api/job-apply/settings', fullMarker: '#deviceSettingCard',
     reads: {
       '/api/job-apply/home-summary': { metrics: m, tiles: m, items: runs(iso).concat([{ text: LEDGER, tone: 'neutral', fix: 'job-apply-review' }]), asOf: iso(0), partial: false },
+      '/api/apply-operator/workers': { workers: [], available: false },
     },
     audiences: {
       company: {

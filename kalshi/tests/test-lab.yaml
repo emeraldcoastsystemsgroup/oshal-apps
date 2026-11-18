@@ -439,3 +439,20 @@ cases:
     isolation: { mode: none }
     limits: { timeoutMs: 30000 }
     installation: never
+
+  - id: approvals-readonly-guard
+    name: Confirm-gated orders surface read-only in cross-application Approvals
+    purpose: >-
+      Verify Kalshi's manifest approvals probe declares zero action templates and GET /api/kalshi/approvals-queue emits
+      caller-owned waiting kalshi_orders strictly read-only with Open in Kalshi and zero approve or decline fields.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-approvals-readonly.test.js] }
+    expected:
+      - oshal-app.yaml declares /api/kalshi/approvals-queue with no approve or decline templates.
+      - Blocked kalshi_orders rows render readOnly with Open in Kalshi and zero action descriptors; live resting, pending, open, settled or canceled rows are omitted.
+      - Anonymous callers receive 401 before any SQL runs, authenticated queries scope by user_sub and blocked status, and rejected queries log at ERROR and answer 503.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never

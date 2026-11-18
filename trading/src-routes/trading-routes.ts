@@ -53,6 +53,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Mount the research-only Quant desk at /quant inside this route, so adding it changes no manifest route and suspends no person schedule.
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | Register the front-desk trading-concierge bot ID in TRADING_FACT_BOT_IDS alongside the back-office specialist bots.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | 1.61.1: Register read-only `GET /approvals-queue` (`trading-approvals-read.ts`) for `/cockpit/?screen=approvals` (`Open in Intelligent Trades` only; zero `orderAuthority` changes).
  *
  * @module trading-routes
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native portfolio review and historical research beside the account routes.
@@ -82,6 +83,7 @@ import { registerTradingResearchRoutes } from './trading-research-routes';
 // @ts-expect-error The Quant desk is plain JavaScript under routes/quant.
 import { createTradingQuantRoutes } from './quant/routes';
 import { registerTradingQuoteStreamRoutes } from './trading-quote-stream-routes';
+import { registerTradingApprovalsReadRoutes } from './trading-approvals-read';
 import { TRADING_SPECIALIST_FACT_KEYS, readTradingSpecialistFacts } from './trading-market-facts';
 
 const logger = createChildLogger({ module: 'trading-routes' });
@@ -306,6 +308,7 @@ export function createTradingRoutes(ctx: AppContext): Router {
 
   registerTradingAlgoRoutes(router, ctx);
   registerTradingTuningRoutes(router, ctx);
+  registerTradingApprovalsReadRoutes(router, ctx, logger);
 
   return router;
 }

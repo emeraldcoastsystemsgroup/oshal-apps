@@ -17,28 +17,35 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-rows (UX audit 2026-11-05): the List screen's Add an item field, row tick-off and quantity, and List as the one tile.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.0: register shopping-order (the order made from the list, on the compiled routes, with the native kernel's Walmart answer and with a rail; the grocery chain through the tools' own endpoints) and shopping-order-browser (Order on the List screen in Chromium at 412x915).
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Add explicit installation: never on shopping-order and align shopping-order-browser sideEffects/cleanup with the kernel catalog loader contract.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.1: replace retired shopping-chat-markdown with shopping-one-chat-window (Chromium proof of the kernel's one chat window on shopping-chat.html and Today's Shopping screen).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
-  - id: shopping-chat-markdown
-    name: The concierge reply renders its Markdown
-    purpose: Run the page's own showReply with a renderer double and without the kit, and read how sendChat uses it.
-    level: unit
+  - id: shopping-one-chat-window
+    name: Shopping Concierge opens the kernel's one chat window
+    purpose: Verify in Chromium at 1440x900 and 412x915 (touch) over the compiled Shopping router and a kernel platform export that shopping-chat.html and Today's Shopping screen mount the kernel's one chat window as shopping-concierge, pass screen_state, send zero bespoke POST /api/purchasing/chat turns, and refresh the cart when an approval card runs.
+    level: browser
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/shopping-chat-markdown.test.cjs
+        - tests/shopping-one-chat-window.test.js
     expected:
-      - A reply goes through SimpleChat.renderMarkdown, so **bold** is markup, not asterisks.
-      - Without the kit the reply stays plain text; the page loads /shared/ui/js/simple-chat.js once.
+      - shopping-chat.html mounts iframe.jarvis-chat-frame as purchasing / shopping-concierge with model menu, conversations, Files, Tap to talk and Keep trying, sends screen_state, and posts zero bespoke /api/purchasing/chat requests.
+      - Approving a shopping-list-add card inside the chat window stores the item once and refreshes the Cart panel.
+      - Pressing Shopping's Concierge entry inside Today (/cockpit/?app=purchasing&screen=shop-lists) opens the one chat window with shopping-concierge.
     prerequisites:
       - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+      - harness:oshal-kernel-platform
     sideEffects: none
     isolation:
-      mode: none
+      mode: disposable
+      cleanup: Close Chromium and the loopback fixture server in test.after.
     limits:
-      timeoutMs: 15000
+      timeoutMs: 120000
+      maxMemoryMb: 512
     installation: never
   - id: package-readiness
     name: Installed package readiness

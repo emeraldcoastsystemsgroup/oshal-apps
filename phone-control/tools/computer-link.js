@@ -18,6 +18,7 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0 (T79): the bridge carries oshal_phone_apps.py.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (T83): installationOrigin, the address a phone or TV is told to sign in to: the origin of the page the person opened, which is the installation they are on. The four places that push the oshal app to a device carried one installation's public address as a fallback; on another installation that would have sent the person's device to a server that is not theirs.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0 (Lane TV1): the bridge carries oshal_phone_front.py (an application opened, listed and read in front on a Roku or a Samsung TV).
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3 (Roger, 2026-11-16/17: one concierge chat window everywhere): remove the bespoke conciergeTurn client method; Phone & Device Control's session and Connect concierges mount the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js) as device-concierge.
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -432,7 +433,6 @@ export function createPackageClient({ fetchImpl = globalThis.fetch.bind(globalTh
     reports: async () => (await call('/computers/reports')).reports,
     report: (node, report) => call(`/computers/${encodeURIComponent(node)}/report`, 'POST', { report }),
     manifest: () => call('/bridge/manifest.json'),
-    conciergeTurn: (payload) => call('/concierge/turn', 'POST', payload),
     preferences: async (targetKey) => {
       const list = (await call(`/sessions/preferences${q(targetKey)}`)).preferences;
       return Array.isArray(list) ? (list[0] || {}) : (list || {});

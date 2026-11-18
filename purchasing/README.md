@@ -1,5 +1,7 @@
 # Shopping — OSHAL app package
 
+1.5.1: **Shopping's concierge surface mounts the kernel's one chat window.** `tools/shopping-chat.html` mounts `/shared/ui/js/jarvis-chat-frame.js` as `purchasing` / `shopping-concierge` (carrying `screen_state` on each turn and refreshing the Cart panel when an approval card runs) instead of shipping a bespoke chat box over `POST /api/purchasing/chat`. Proven by `tests/shopping-one-chat-window.test.js` across both `shopping-chat.html` and Today (`/cockpit/?app=purchasing&screen=shop-lists`).
+
 1.5.0: **the grocery and shopping list, and the order made from it.** A shopper has one list here. "Add eggs, bread
 and bananas to my grocery list" puts them on it (one approval card, `shopping-list-add-many`), and "order the
 groceries" makes the order from every item still to buy (`shopping-order`, `POST /api/purchasing/order`, one approval

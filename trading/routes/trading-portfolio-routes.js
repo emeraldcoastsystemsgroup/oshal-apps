@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Mount the separately declared continuity monitor without changing legacy order authority or schedules.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: ensure the default portfolio research window spans at least 252 NYSE sessions within the 370-day bound without altering orderAuthority modules.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain owner-bound account observations and register the separate read-only account detail surface.
@@ -21,6 +22,7 @@ const trading_native_management_1 = require("./trading-native-management");
 const trading_portfolio_calendar_1 = require("./trading-portfolio-calendar");
 const running = new Set();
 const accountValues = require('./trading-account-values');
+const continuity = require('../routes/live/continuity/monitor');
 function portfolioWindow(now) {
     const w = (0, trading_portfolio_calendar_1.portfolioResearchWindow)(now);
     if (!w.available || !w.latestCompletedSession || !w.suggestedStart)
@@ -90,6 +92,7 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
     };
     (0, trading_portfolio_plan_routes_1.registerPortfolioPlanRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now), witness: portfolioWitness });
     (0, trading_native_management_1.registerNativeManagementRoutes)(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
+    continuity.registerContinuityRoutes(route, ctx, { clock, selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
     accountValues.registerAccountValueRoutes(route, ctx, { selected: (owner, binding, now) => selected(ctx, owner, binding, now) });
     route('get', '/portfolio', async (_req, owner, at) => {
         const snapshot=await portfolioSnapshot(ctx, owner, at);

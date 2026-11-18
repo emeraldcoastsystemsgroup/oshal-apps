@@ -25,6 +25,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial Streams pane: posts/variants/revisions stores (lazy DDL + owner-RLS + import-dedup unique), list-with-counts + CRUD + revision snapshots on every edit, the 8-state transition endpoint, schedule (future-only), confirm-gated publish with a claim CAS (double-fire cannot double-post), per-channel results recorded on variants, honest 'skipped no_binding' for instagram/threads, idempotent imports from the LinkedIn assistant + Content Studio stores, and the opt-in due-post executor riding the same publish core as the route.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | DELETE /posts/:id {confirm:true}: the owner removes a post with its variants and revisions (live 2026-10-11 a draft could only be archived, so test posts piled up in Archived). A scheduled post or one being published right now is refused with the step to take first.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.0: the publish core passes each variant's attached image (mediaRef) to publishTo, which uploads it to X with the post; it was read and then dropped.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.7.1: expose `approvals` (`in_review` stream posts) on `GET /api/switchboard/streams/posts` for `/cockpit/?screen=approvals`.
  *
  * @module switchboard-streams-routes
  */
@@ -43,6 +44,7 @@ import {
   buildPublishPlan,
   canEdit,
   canonicalPlatform,
+  formatStreamApprovals,
   isValidNewPost,
   runPublishPlan,
   summarizePublish,
@@ -276,7 +278,8 @@ function registerList(router: Router, ctx: AppContext): void {
       const countRows = (await ctx.pool.query('SELECT state, COUNT(*)::int AS n FROM oshal_switchboard_stream_posts WHERE user_sub = $1 GROUP BY state', [sub])).rows as Array<{ state: string; n: number }>;
       const counts: Record<string, number> = Object.fromEntries((STATES as readonly string[]).map((s) => [s, 0]));
       for (const c of countRows) counts[c.state] = c.n;
-      res.json({ posts: rows.map((r) => mapPost(r, byPost.get(r.post_id) || [], Number(r.revision_count) || 0)), counts });
+      const mapped = rows.map((r) => mapPost(r, byPost.get(r.post_id) || [], Number(r.revision_count) || 0));
+      res.json({ posts: mapped, counts, approvals: formatStreamApprovals(mapped) });
     } catch (err) {
       logger.error({ err }, 'Streams list failed');
       res.status(502).json({ error: (err as Error).message });

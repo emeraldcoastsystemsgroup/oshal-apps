@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-05): real multipage PDF 1.7 renderer (styled text, highlights, lists, tables, shapes, workbook grids and embedded RGB XObject images) and UTF-8 plain-text exporter.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Position explicit paragraph text offsets in PDF and preserve logical indentation in plain text and bound keep-with-next chains to a page without changing legacy lists.
  */
 import{createRequire}from'node:module';
 import{deflateSync}from'node:zlib';
@@ -77,8 +78,12 @@ function wrapRuns(values,maxWidth){
  return lines.map(segs=>({segments:segs,width:segs.reduce((s,x)=>s+x.width,0),height:Math.max(12,...segs.map(s=>s.style.fontSize))}));
 }
 
+function prefixedRuns(values,prefix){
+ return prefix?[{text:prefix,style:values[0]?.style??{fontFamily:'Arial',fontSize:12,bold:false,italic:false,underline:false,color:'#172033',highlight:'transparent',align:'left'}},...values]:values;
+}
+
 function drawWrappedRuns(ops,values,{x,yTop,width,pageHeight,lineMult=1.3,prefix=''}){
- const runValues=prefix?[{text:prefix,style:values[0]?.style??{fontFamily:'Arial',fontSize:12,bold:false,italic:false,underline:false,color:'#172033',highlight:'transparent',align:'left'}},...values]:values;
+ const runValues=prefixedRuns(values,prefix);
  const align=values[0]?.style?.align??'left',lines=wrapRuns(runValues,Math.max(24,width));
  let cursorY=yTop;
  for(const line of lines){
@@ -126,6 +131,27 @@ function renderTableBlock(ops,rows,{x,yTop,width,pageHeight}){
  return curY-yTop;
 }
 
+function wordPrefix(block,number){return block.list==='bullet'?'\u2022 ':block.list==='number'?`${number}. `:'';}
+
+function wordBlockHeight(block,width,number){
+ if(block.type==='paragraph'){
+  const prefix=wordPrefix(block,number),offset=block.indentLeft??(prefix?12:0);
+  const lines=wrapRuns(prefixedRuns(block.runs,block.indentLeft===undefined?prefix:''),Math.max(24,width-offset));
+  return block.spacingBefore+lines.reduce((sum,line)=>sum+line.height*block.lineHeight,0)+block.spacingAfter;
+ }
+ if(block.type==='image')return block.height*Math.min(1,width/block.width)+8;
+ const colW=width/block.rows[0].length;
+ return block.rows.reduce((sum,row)=>sum+Math.max(...row.map(cell=>Math.max(20,wrapRuns(cell,Math.max(20,colW-8)).reduce((height,line)=>height+line.height*1.25,0)+8))),0)+8;
+}
+
+function wordKeepHeights(blocks,width){
+ if(!blocks.some(block=>block.keepWithNext===true))return null;
+ let number=0;
+ const heights=blocks.map(block=>{number=block.type==='paragraph'&&block.list==='number'?number+1:0;return wordBlockHeight(block,width,number);});
+ for(let index=heights.length-2;index>=0;index--)if(blocks[index].keepWithNext===true)heights[index]+=heights[index+1];
+ return heights;
+}
+
 function layoutWordPages(model,images){
  const w=model.pageWidth,h=model.pageHeight,m=model.margins,usableW=w-m.left-m.right,out=[];
  const frameOps=()=>{
@@ -136,16 +162,23 @@ function layoutWordPages(model,images){
  };
  for(const page of model.pages){
   let ops=frameOps(),y=m.top,listNum=0;
+  const keepHeights=wordKeepHeights(page.blocks,usableW);
   const ensureSpace=need=>{if(y>m.top&&y+need>h-m.bottom){out.push({width:w,height:h,ops});ops=frameOps();y=m.top;}};
-  for(const blk of page.blocks){
+  for(const[index,blk]of page.blocks.entries()){
+   if(blk.keepWithNext===true&&keepHeights[index]<=h-m.top-m.bottom)ensureSpace(keepHeights[index]);
    if(blk.type==='paragraph'){
     listNum=blk.list==='number'?listNum+1:0;
-    const prefix=blk.list==='bullet'?'\u2022 ':blk.list==='number'?`${listNum}. `:'';
-    const estLines=wrapRuns(blk.runs,Math.max(24,usableW-(prefix?14:0)));
+    const prefix=wordPrefix(blk,listNum);
+    const explicit=blk.indentLeft!==undefined,offset=explicit?blk.indentLeft:(prefix?12:0);
+    const estLines=wrapRuns(blk.runs,Math.max(24,usableW-(explicit?offset:(prefix?14:0))));
     const estH=blk.spacingBefore+estLines.reduce((s,l)=>s+l.height*blk.lineHeight,0)+blk.spacingAfter;
     ensureSpace(Math.min(estH,h-m.top-m.bottom));
     y+=blk.spacingBefore;
-    y+=drawWrappedRuns(ops,blk.runs,{x:m.left+(prefix?12:0),yTop:y,width:usableW-(prefix?12:0),pageHeight:h,lineMult:blk.lineHeight,prefix});
+    if(explicit&&prefix){
+     const markerWidth=Math.max(12.6,prefix.length*blk.runs[0].style.fontSize*.6);
+     drawWrappedRuns(ops,[{text:prefix.trimEnd(),style:{...blk.runs[0].style,align:'left'}}],{x:m.left+offset-markerWidth,yTop:y,width:markerWidth,pageHeight:h,lineMult:blk.lineHeight});
+    }
+    y+=drawWrappedRuns(ops,blk.runs,{x:m.left+offset,yTop:y,width:usableW-offset,pageHeight:h,lineMult:blk.lineHeight,prefix:explicit?'':prefix});
     y+=blk.spacingAfter;
    }else if(blk.type==='table'){
     listNum=0;ensureSpace(36);
@@ -256,6 +289,13 @@ export async function renderPdf(input){
  return assemblePdf(pages,images,model.title);
 }
 
+function indentedText(item,prefix){
+ const value=plain(item.runs);
+ if(item.indentLeft===undefined)return prefix+value;
+ const spaces=Math.round(item.indentLeft/6),padding=' '.repeat(spaces);
+ return value.split('\n').map((line,index)=>(index?padding:' '.repeat(Math.max(0,spaces-prefix.length))+prefix)+line).join('\n');
+}
+
 export function renderPlainText(input){
  const model=validate(input);
  if(model.kind==='xlsx'){
@@ -275,7 +315,7 @@ export function renderPlainText(input){
    if(item.runs){
     num=item.list==='number'?num+1:0;
     const prefix=item.list==='bullet'?'- ':item.list==='number'?`${num}. `:'';
-    lines.push(prefix+plain(item.runs));
+    lines.push(indentedText(item,prefix));
    }else if(item.type==='table'){
     num=0;
     for(const row of item.rows)lines.push(row.map(cell=>plain(cell)).join('\t'));

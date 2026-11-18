@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual Career HTML and shared theme code in Chromium, preserving drafts, print content and read-only palette changes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The title filter is always visible; there is no longer a summary to open first.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: every screen's <html> carries data-career-surface (the experience library lost it, so its colours were undefined while this proof still passed on body colours alone).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): My résumé has no résumé editor of its own, so the unsaved draft kept across a palette change is an edit on the résumé itself (the floating Jarvis's draft edit), no longer words typed in that editor's box.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,11 +88,13 @@ test('resume paper stays white while the editor follows the palette', async t =>
   await page.goto(`${fixture.origin}/api/career-hunter/resume-studio`);
   await page.locator('.sheet h1').waitFor();
   assert.equal(await page.locator('.sheet').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)');
-  await page.locator('#msg').fill('Unsaved guide request');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('surface-bridge:custom', { detail: { name: 'resume_action', data: { actions: [{ op: 'set_headline', text: 'Unsaved synthetic headline' }] } } })));
+  await page.locator('.sheet .headline', { hasText: 'Unsaved synthetic headline' }).waitFor();
   await page.evaluate(() => { localStorage.setItem('cockpit-theme', 'workspace'); window.dispatchEvent(new Event('focus')); });
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'workspace');
   assert.equal(await page.locator('.sheet').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)');
-  assert.equal(await page.locator('#msg').inputValue(), 'Unsaved guide request');
+  assert.equal(await page.locator('.sheet .headline').textContent(), 'Unsaved synthetic headline');
+  assert.equal(await page.locator('#save').isDisabled(), false, 'the draft is still unsaved');
 });
 
 test('mobile screens keep their viewport and primary controls readable', async t => {

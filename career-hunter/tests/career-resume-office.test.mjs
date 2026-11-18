@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, change 5: résumé carries its accents in the lines a person reads (the Save button, the picker, the status under the document); the expected text follows.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the words name the Work history page, which edits a job's title, employer and dates, never a "Profile" page (none exists; Roger, 2026-11-13, was sent to one). A document whose jobs are behind the main résumé but whose text matches is 'headings' (brought up to date on open), a different number of jobs is 'jobs', unsaved text is 'typed'.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Page names, judge's report 2026-11-11 (tests/career-page-names.test.mjs holds them): the document's status lines say main résumé.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep legacy flat documents readable while new grouped documents preserve stable role identity and aligned dates across repeated saves.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -215,4 +216,28 @@ test('a skill holding the separator survives an untouched round trip; an edited 
   assert.deepEqual(office.modelToResume(model, master.resume).resume.skills, ['Lean · Six Sigma', 'Kaizen']);
   setText(find(model, 'Lean · Six Sigma · Kaizen'), 'Lean · Six Sigma · Kaizen · Value streams; flow mapping');
   assert.deepEqual(office.modelToResume(model, master.resume).resume.skills.slice(-1), ['Value streams; flow mapping']);
+});
+
+
+test('legacy flat documents keep their original positional contract and revision marker', () => {
+  const master = engine('base', store('legacy-flat')), model = office.resumeToModel(master.resume, master.meta, 'b'.repeat(64));
+  model.pages[0].id = 'career-' + 'b'.repeat(64);
+  for (const block of model.pages[0].blocks) block.id = crypto.randomUUID();
+  assert.equal(office.revisionOf(model), 'b'.repeat(64));
+  assert.deepEqual(office.modelToResume(model, master.resume).resume, master.resume);
+});
+
+test('a grouped document validates with aligned dates and each heading kept with its first bullet', () => {
+  const data = structuredClone(profile);
+  data.roles[0].id = 'employer'; data.roles[1].id = 'client'; data.roles[1].parent_role_id = 'employer';
+  data.roles[0].engagements_heading = 'Selected Client Engagements';
+  const master = engine('base', store('linked-format', data));
+  const model = office.resumeToModel(master.resume, master.meta, 'c'.repeat(64));
+  const canonical = validate(model);
+  assert.equal(canonical.pages[0].blocks.find(block => block.id === 'client').indentLeft, 18);
+  const blocks = model.pages[0].blocks, child = blocks.findIndex(block => block.id === 'client');
+  assert.equal(blocks[child].indentLeft, 18); assert.equal(blocks[child].keepWithNext, true);
+  assert.equal(blocks[child + 1].runs[0].style.align, 'right'); assert.equal(blocks[child + 1].indentLeft, undefined);
+  assert.equal(blocks[child + 1].keepWithNext, true); assert.equal(blocks[child + 2].indentLeft, 30.6);
+  assert.deepEqual(office.modelToResume(model, master.resume).resume, master.resume);
 });

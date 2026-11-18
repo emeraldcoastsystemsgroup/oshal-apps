@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Shopping assistant rail under plain node: the manifest declares its surface.ops from the closed bridge vocabulary (without them the cockpit relay forwards nothing), the page loads the SHARED client and producer rather than a hand-rolled postMessage, marks its bridge fields and hosts, advertises exactly the custom ops its handler applies (each description under the contract's 600-character cap), opens Walmart from ONE place (the explicit checkout) and never from the chat reply, and its digest stays under the contract's 4000-character cap on a 40-product, 60-line cart.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Shopping 1.5.1: shopping-chat.html mounts the kernel's one chat window (mountJarvisChat as purchasing / shopping-concierge) and sends no bespoke POST /api/purchasing/chat; a relayed checkout proposes cartProposal() and only Confirm calls checkout().
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -62,13 +63,13 @@ test('the custom ops the page advertises are exactly the ones its handler applie
   assert.match(fn('publishContext'), /can: \['set_field', 'custom', 'propose', 'notify'\]/);
 });
 
-test('Walmart opens from the explicit checkout only; a chat reply becomes a confirm card', () => {
+test('Walmart opens from the explicit checkout only; the page sends no bespoke chat and a relayed checkout becomes a confirm card', () => {
   const opens = [...page.matchAll(/window\.open\(/g)];
   assert.equal(opens.length, 1, 'exactly one hand-off site');
   assert.match(fn('checkout'), /window\.open\(result\.checkoutUrl, '_blank'\)/, 'and it is the explicit checkout');
-  const chat = fn('sendChat');
-  assert.doesNotMatch(chat, /window\.open|checkoutUrl/, 'the chat reply never opens a hand-off');
-  assert.match(chat, /if \(result\.proposal\) proposeCheckout\(result\.proposal\)/);
+  assert.doesNotMatch(page, /\$\{API\}\/chat|id="chatInput"|id="chatSend"|function sendChat\(/, 'no bespoke chat turn on the page');
+  assert.match(page, /mountJarvisChat\(host, \{\s*app: 'purchasing',\s*bot: 'shopping-concierge'/, 'the concierge is the kernel\'s one chat window');
+  assert.match(fn('onBridgeCustom'), /const proposal = cartProposal\(\);\s*if \(proposal\) proposeCheckout\(proposal\);/, 'a relayed checkout proposes the current cart');
   assert.match(fn('proposeCheckout'), /op: 'propose', actionId: 'checkout'/);
   assert.doesNotMatch(fn('proposeCheckout'), /checkout\(\)|window\.open/, 'proposing never hands off');
   const click = fn('onProposalClick');

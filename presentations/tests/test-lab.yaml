@@ -23,6 +23,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): office-design-standard-browser finds the window in the phone's Concierge sheet and the desktop's docked pane, with its composer pinned at the rail's bottom.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register office-concierge-entry-browser, AI Office inside the shipped Today page as its own application and as Create's AI Office screen, where every concierge entry a person sees is pressed for real and must open AI Office's own concierge.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8: office-design-standard-browser also proves AI Office's layout around the one chat window: Generate a draft above the window and writing its starter into the window's message box, the phone's Concierge sheet giving the window all its room, and the window's own Close closing that sheet.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: existing model and format cases prove bounded paragraph indentation and heading continuity in actual editor, DOCX, PDF and text output.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -540,9 +541,10 @@ cases:
       files: [tests/office/formats.test.mjs]
     expected:
       - Exported files contain actual editable Office content; an externally changed visible file cannot silently restore stale private model metadata.
-    prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies]
-    sideEffects: none
-    isolation: {mode: none}
+      - Explicit paragraph indentation and keep-with-next preserve actual DOCX and PDF geometry; oversized chains split safely and omitted fields retain default layout.
+    prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close owned browser contexts and loopback servers; remove synthetic document output."}
     limits: {timeoutMs: 120000, maxMemoryMb: 768}
     installation: never
   - id: structured-office-persistence-and-editing

@@ -8,11 +8,13 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): the Word document on My résumé follows through CareerResumeOffice.settle, which knows the version the document was made from, so it is brought up to date after every change here whatever it missed before (it used to be left for ever once it was behind). On opening, text typed in the document and never saved is saved into the main résumé first, so this page shows it and nothing here is later written over it.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Document the raised 4,096-character per-bullet engine bound on pasted multi-sentence drafts.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): the page also draws Expanded experience (career-work-history-engagements.js): each job's card ends with the client engagements placed under it, and the summary line under the heading counts jobs, client engagements and client accounts with links to them. save() takes a step to run once a change is saved, answers whether it was, keeps the refusal's words for the form that asked, and reads the page again when the main résumé moved meanwhile (409), so the next try is made on what is saved. A job form and an engagement form are never open at once; the concierge waits for either.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Put direct Tab in, Tab out and Add sub-engagement beside existing actions while preserving one-level relationships, drafts and the revision-checked save/Undo path.
  */
 (function (win) {
   'use strict';
   var doc = win.document, W = win.CareerWorkHistory, API = W.API;
-  var state = { doc: null, revision: '', editing: null, busy: false };
+  var state = { doc: null, revision: '', editing: null, newParent: '', busy: false };
   var $ = function (id) { return doc.getElementById(id); };
 
   function el(tag, attrs, children) {
@@ -35,17 +37,57 @@
 
   async function load() {
     var answer = await request('/resume/doc?id=master');
+    if (state.editing === 'new' && state.revision && state.revision !== answer.revision) state.newParent = '';
     state.doc = answer; state.revision = typeof answer.revision === 'string' ? answer.revision : '';
     render();
     return answer;
   }
 
+  /** Tab in uses the immediately preceding displayed employer group, preserving raw record positions. */
+  function priorEmployer(index) {
+    var previous = null, ordered = win.CareerRoleHierarchy.ordered(roles());
+    for (var row of ordered) {
+      if (row.index === index) return previous;
+      if (!row.child) previous = row;
+    }
+    return null;
+  }
+  function uniqueRole(role) {
+    return !role.id || roles().filter(function (r) { return r.id === role.id; }).length === 1;
+  }
+  function hierarchyActions(role, index, editing) {
+    var child = Boolean(role.parent_role_id), previous = priorEmployer(index);
+    var owns = roles().some(function (r) { return role.id && r.parent_role_id === role.id; });
+    var ambiguous = !uniqueRole(role), targetAmbiguous = previous && !uniqueRole(previous.role);
+    var reason = ambiguous ? 'Career cannot identify this entry uniquely. Its relationship has not changed.'
+      : !child && targetAmbiguous ? 'Career cannot identify the preceding employer uniquely. Its relationship has not changed.'
+      : owns ? 'Unlink the sub-engagements before tabbing this employer in.'
+      : !child && !previous ? 'Tab in needs a preceding employer group. Move this entry below an employer first.' : '';
+    var title = role.title || 'this job', explain = editing ? ' Select the relationship, then Save.' : '';
+    return el('div', { class: 'wh-hierarchy-actions' }, [
+      el('button', { type: 'button', class: 'ck-btn', 'data-hierarchy': child ? 'out' : 'in',
+        'aria-label': (child ? 'Tab out ' : 'Tab in ') + title, text: child ? 'Tab out' : 'Tab in',
+        disabled: state.busy || (!child && (owns || !previous || ambiguous || targetAmbiguous)),
+        title: reason || (child ? 'Make this entry standalone.' : 'Place under ' + previous.role.title + '.') + explain,
+        'aria-describedby': reason ? 'wh-indent-reason-' + index : null }),
+      el('button', { type: 'button', class: 'ck-btn', 'data-hierarchy': 'add',
+        'aria-label': 'Add sub-engagement under ' + title, text: 'Add sub-engagement', disabled: state.busy || child || ambiguous,
+        title: ambiguous ? 'Career cannot identify this employer uniquely.' : child ? 'Sub-engagements cannot contain another level.' : 'Open a new independent entry under ' + title + '.' }),
+      reason ? el('p', { id: 'wh-indent-reason-' + index, class: 'wh-hierarchy-note', text: reason }) : null,
+    ]);
+  }
+  function syncHierarchy(form) {
+    var card = form.closest('.wh-job'); if (card.dataset.job === 'new') return;
+    var index = Number(card.dataset.job), old = form.querySelector('.wh-hierarchy-actions');
+    if (old) old.replaceWith(hierarchyActions(Object.assign({}, roles()[index], { parent_role_id: form.elements.parentRole.value }), index, true));
+  }
+
   function cardView(role, index) {
     var bullets = (role.bullets || []).map(function (text) { return el('li', { text: text }); });
-    return el('li', { class: 'wh-job', 'data-job': String(index) }, [
+    return el('li', { class: 'wh-job' + (role.parent_role_id ? ' wh-client-job' : ''), 'data-job': String(index) }, [
       el('div', { class: 'wh-job-head' }, [
         el('div', {}, [el('h2', { text: role.title || 'Untitled job' }), el('p', { class: 'wh-meta', text: [role.org, W.spanLabel(role.start, role.end)].filter(Boolean).join(' · ') })]),
-        el('button', { type: 'button', class: 'ck-btn wh-edit', 'data-edit': String(index), 'aria-label': 'Edit ' + (role.title || 'this job'), text: 'Edit' }),
+        el('div', { class: 'wh-role-actions' }, [el('button', { type: 'button', class: 'ck-btn wh-edit', 'data-edit': String(index), 'aria-label': 'Edit ' + (role.title || 'this job'), text: 'Edit' }), hierarchyActions(role, index, false)]),
       ]),
       bullets.length ? el('ul', { class: 'wh-bullets' }, bullets) : el('p', { class: 'wh-meta', text: 'No bullets yet.' }),
       win.CareerEngagements ? win.CareerEngagements.underJob(index) : null,
@@ -77,21 +119,39 @@
   function editorFooter(index, isNew) {
     var count = roles().length, move = !isNew && count > 1;
     return el('div', { class: 'wh-form-foot' }, [
-      el('button', { type: 'submit', class: 'ck-primary', text: isNew ? 'Add this job' : 'Save' }),
+      el('button', { type: 'submit', class: 'ck-primary', text: isNew ? (state.newParent ? 'Add sub-engagement' : 'Add this job') : 'Save' }),
       el('button', { type: 'button', class: 'ck-btn', 'data-cancel': '', text: 'Cancel' }),
       move && index > 0 ? el('button', { type: 'button', class: 'ck-btn', 'data-move': '-1', text: 'Move up' }) : null,
       move && index < count - 1 ? el('button', { type: 'button', class: 'ck-btn', 'data-move': '1', text: 'Move down' }) : null,
+      isNew ? null : hierarchyActions(roles()[index], index, true),
       isNew ? null : el('button', { type: 'button', class: 'ck-danger wh-remove', 'data-remove': '', text: 'Remove this job' }),
     ]);
+  }
+
+  /** Explicit parent selection never edits the employer, dates or bullets of either record. */
+  function relationshipFields(role, index) {
+    var all = roles(), child = Boolean(role.parent_role_id), owns = all.some(function (r) { return role.id && r.parent_role_id === role.id; });
+    var select = el('select', { id: 'wh-parent', name: 'parentRole', 'aria-label': 'Client engagement under', disabled: owns },
+      [el('option', { value: '', text: 'Standalone employer / role' })].concat(win.CareerRoleHierarchy.parents(all, index).map(function (row) {
+        var value = row.role.id || '@index:' + row.index;
+        return el('option', { value: value, selected: role.parent_role_id === value, text: [row.role.title, row.role.org].filter(Boolean).join(' — ') });
+      })));
+    var heading = el('input', { type: 'checkbox', name: 'engagementsHeading', checked: Boolean(role.engagements_heading), disabled: child });
+    select.addEventListener('change', function () { heading.disabled = Boolean(select.value); if (select.value) heading.checked = false; syncHierarchy(select.form); });
+    return el('fieldset', { class: 'wh-relationship' }, [el('legend', { text: 'Employment relationship' }),
+      el('label', { class: 'wh-label', for: 'wh-parent' }, [el('span', { text: 'Client engagement under' }), select]),
+      owns ? el('p', { class: 'wh-meta', text: 'Unlink the client engagements before placing this employer under another entry.' }) : null,
+      el('label', { class: 'wh-check' }, [heading, el('span', { text: 'Show Selected Client Engagements subheading' })])]);
   }
 
   function editor(role, index) {
     var isNew = index === 'new', current = !role.end, list = el('ol', { class: 'wh-bullet-list' },
       (role.bullets || []).map(function (text, n) { return bulletRow(text, isNew ? null : n); }));
     var field = function (name, label, value) { var id = 'wh-' + name; return el('label', { for: id, class: 'wh-label' }, [el('span', { text: label }), el('input', { id: id, name: name, maxlength: '200', required: true, value: value || '', autocomplete: 'off' })]); };
-    return el('li', { class: 'wh-job wh-editing', 'data-job': String(index) }, [el('form', { class: 'wh-form', novalidate: true, 'aria-label': isNew ? 'Add a job' : 'Edit ' + role.title }, [
-      el('h2', { text: isNew ? 'Add a job' : 'Edit job' }),
+    return el('li', { class: 'wh-job wh-editing' + (role.parent_role_id ? ' wh-client-job' : ''), 'data-job': String(index) }, [el('form', { class: 'wh-form', novalidate: true, 'aria-label': isNew ? 'Add a job' : 'Edit ' + role.title }, [
+      el('h2', { text: isNew ? (state.newParent ? 'Sub-engagement' : 'Add a job') : 'Edit job' }),
       field('title', 'Job title', role.title), field('org', 'Employer', role.org),
+      relationshipFields(role, index),
       el('div', { class: 'wh-dates' }, [monthField('start', 'Start', role.start, false), monthField('end', 'End', role.end, current)]),
       el('label', { class: 'wh-check' }, [el('input', { type: 'checkbox', name: 'current', checked: current }), el('span', { text: 'I work here now' })]),
       el('h3', { text: 'Bullets' }), list,
@@ -107,8 +167,13 @@
     $('whEmptyText').textContent = noProfile ? 'Upload your résumé on My résumé first; Career builds your work history from it. Then add or change jobs here.'
       : 'No jobs yet. Add your most recent job first.';
     $('whUpload').hidden = !noProfile; $('whAdd').hidden = noProfile;
-    var cards = jobs.map(function (role, index) { return state.editing === index ? editor(role, index) : cardView(role, index); });
-    if (state.editing === 'new') cards.unshift(editor({ title: '', org: '', start: '', end: '', bullets: [''] }, 'new'));
+    var cards = win.CareerRoleHierarchy.ordered(jobs).flatMap(function (row) {
+      var card = state.editing === row.index ? editor(row.role, row.index) : cardView(row.role, row.index);
+      var out = row.heading ? [el('li', { class: 'wh-client-heading', text: row.heading }), card] : [card];
+      if (state.editing === 'new' && state.newParent === (row.role.id || '@index:' + row.index)) out.push(newEditor());
+      return out;
+    });
+    if (state.editing === 'new' && !state.newParent) cards.unshift(newEditor());
     list.replaceChildren.apply(list, cards);
     if (win.CareerEngagements) win.CareerEngagements.render();
     $('whAdd').disabled = state.busy || state.editing != null;
@@ -116,10 +181,15 @@
     if (first && doc.activeElement === doc.body) first.focus({ preventScroll: false });
   }
 
+  function newEditor() {
+    return editor({ title: '', org: '', start: '', end: '', bullets: [''], parent_role_id: state.newParent }, 'new');
+  }
+
   function readForm(form) {
     var value = function (name) { var input = form.elements[name]; return input ? String(input.value || '').trim() : ''; };
     var current = form.elements.current.checked;
-    return { title: value('title'), org: value('org'),
+    return { title: value('title'), org: value('org'), parent_role_id: value('parentRole'),
+      engagements_heading: form.elements.engagementsHeading.checked ? win.CareerRoleHierarchy.HEADING : '',
       start: W.composeMonth(value('startYear'), value('startMonth')),
       end: current ? '' : W.composeMonth(value('endYear'), value('endMonth')),
       bullets: Array.from(form.querySelectorAll('.wh-bullet-text')).map(function (area) { return { orig: area.dataset.orig === '' ? null : Number(area.dataset.orig), text: area.value }; }) };
@@ -214,17 +284,40 @@
     button.focus();
   }
 
+  function hierarchyClick(button, index) {
+    var action = button.dataset.hierarchy, role = roles()[index], form = button.closest('form.wh-form');
+    if (!form && draftOpen()) { notice('Save or cancel the entry you are editing first.'); return; }
+    if (action === 'add') {
+      if (!uniqueRole(role)) return;
+      if (role.parent_role_id || draftOpen()) { notice('Save or cancel the entry you are editing first.'); return; }
+      state.newParent = role.id || '@index:' + index; state.editing = 'new'; render(); return;
+    }
+    var previous = priorEmployer(index), owns = roles().some(function (r) { return role.id && r.parent_role_id === role.id; });
+    if (action === 'in' && (!previous || owns || !uniqueRole(role) || !uniqueRole(previous.role))) return;
+    var parent = action === 'out' ? '' : previous.role.id || '@index:' + previous.index;
+    if (form) {
+      form.elements.parentRole.value = parent; form.elements.parentRole.dispatchEvent(new Event('change'));
+      notice('Relationship selected. Save to apply it with your other changes.'); return;
+    }
+    var edits = [], anchor = { op: 'set', field: 'role', roleIndex: index, roleTitle: role.title };
+    if (action === 'in' && role.engagements_heading) edits.push(Object.assign({}, anchor,
+      { key: 'engagements_heading', before: role.engagements_heading, value: '' }));
+    edits.push(Object.assign({}, anchor, { key: 'parent_role_id', before: role.parent_role_id || '', value: parent }));
+    save(edits, action === 'out' ? 'Made ' + role.title + ' standalone.' : 'Placed ' + role.title + ' under ' + previous.role.title + '.');
+  }
+
   function click(event) {
     var target = event.target.closest('button'); if (!target || state.busy) return;
     var card = target.closest('.wh-job'), index = card && card.dataset.job !== 'new' ? Number(card.dataset.job) : state.editing;
     if ((target.id === 'whAdd' || target.dataset.edit != null) && win.CareerEngagements && win.CareerEngagements.draftOpen()) {
       notice('Save or cancel the engagement or group you are editing first.'); return;
     }
-    if (target.id === 'whAdd') { state.editing = 'new'; render(); }
+    if (target.id === 'whAdd') { state.newParent = ''; state.editing = 'new'; render(); }
     else if (target.dataset.edit != null) { state.editing = Number(target.dataset.edit); render(); }
     else if (target.dataset.cancel != null) { state.editing = null; render(); }
     else if (target.dataset.addBullet != null) { var list = card.querySelector('.wh-bullet-list'), row = bulletRow('', null); list.append(row); row.querySelector('textarea').focus(); }
     else if (target.dataset.bullet) bulletTool(target);
+    else if (target.dataset.hierarchy) hierarchyClick(target, index);
     else if (target.dataset.move) moveJob(index, Number(target.dataset.move));
     else if (target.dataset.remove != null) removeJob(index);
   }

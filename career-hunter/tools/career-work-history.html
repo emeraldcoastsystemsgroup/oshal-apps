@@ -6,6 +6,8 @@
   -----------------------------------------------------------------------------
   2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16 20:45Z: "i can not find where to see my expanded experience.. it doesnt show anywhere ... it covers like 20 different companies over a 4 year span when i was consulting in the field"). A summary line under the heading (jobs, client engagements, client accounts, each a link), the client engagements placed under each job on its card, and Expanded experience below the jobs: the engagements not placed under a job yet with Place all under [job], Add an engagement, the client accounts by group with Add a group, and the link to a detailed work addendum kept outside Career. Engagement and group forms use the job form's fields, one column on a phone. Screen logic: career-work-history-engagements.js.
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my expierence"). Work history, under Résumé beside My résumé: one card per job (title, employer, months, bullets) in the order the résumé shows them, Add a job first, Edit opening the card as a form, a job moved or removed, every save and every change the concierge makes shown with Undo. One column on a phone with 44 px controls and 16 px fields; nothing scrolls sideways. Screen logic: career-work-history-page.js; the edits: career-work-history.js.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Keep direct hierarchy actions accessible, wrapped and at least 44 pixels on phone and desktop.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="work-history" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -26,7 +28,15 @@
   #whNotice { margin: 12px 0 0; color: var(--ds-ink-2); }
   .wh-jobs { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
   .wh-job { background: var(--ds-surface); border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); padding: 16px 18px; min-width: 0; }
-  .wh-job-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .wh-client-job { margin-left: 0.25in; }
+  .wh-client-heading { list-style: none; margin-left: 0.25in; font-weight: 600; }
+  .wh-relationship { border: 0; padding: 0; margin: 8px 0; min-width: 0; }
+  .wh-job-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .wh-job-head > div:first-child { flex: 1 1 220px; min-width: 0; }
+  .wh-role-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+  .wh-hierarchy-actions { display: contents; }
+  :is(.wh-role-actions, .wh-form-foot) button { min-width: 44px; min-height: 44px; white-space: normal; }
+  .wh-hierarchy-note { flex-basis: 100%; margin: 0; color: var(--ds-ink-2); font-size: 13px; }
   .wh-job h2 { margin: 0; font-size: 18px; line-height: 1.3; overflow-wrap: anywhere; }
   .wh-meta { margin: 2px 0 0; color: var(--ds-ink-2); overflow-wrap: anywhere; }
   .wh-bullets { margin: 10px 0 0; padding-left: 20px; }
@@ -156,6 +166,7 @@
   </form>
 </dialog>
 <script src="/api/career-hunter/static/career-navigation.js"></script>
+<script src="/api/career-hunter/static/career-role-hierarchy.js"></script>
 <script src="/api/career-hunter/static/career-resume-office.js"></script>
 <script src="/api/career-hunter/static/career-change-bar.js"></script>
 <script src="/api/career-hunter/static/career-work-history.js"></script>

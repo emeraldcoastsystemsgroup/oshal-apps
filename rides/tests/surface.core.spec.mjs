@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Rides commerce smoke in real Chromium at 390 x 844, the actual surface (with its vendored Leaflet map) iframed by a parent page over the compiled router: no horizontal overflow; typing a destination filters the suggestions, picking one prices four ride options from the deterministic estimate and the page scrolls to the last; a chat booking selects the proposed ride and renders the shared client's confirm card with no hand-off POST and no window.open until Confirm, which fires exactly one POST /request and opens Uber once; a relayed request_ride from the floating assistant shows the same card and Cancel hands off nothing; relayed select_ride, set_field and estimate land through the page's own functions; the parent receives `context` envelopes with the trip and fare and `submit` for the confirm; no page errors.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.9: the page has no chat of its own (its concierge is the kernel's one chat window, tests/rides-one-chat-window.test.js), so the booking case relays estimate (Airport), select_ride and request_ride instead of typing into the page's chat: the selected Comfort becomes the confirm card, nothing is handed off until Confirm, then exactly once. The window's own page (/api/jarvis/?concierge=rides...) is a stand-in here: this smoke is the surface's commerce rail, and the window is driven by tests/rides-one-chat-window.test.js.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express, playwright and the shared bridge client.
  * Not part of the store-CI wildcard; run locally:
@@ -15,7 +16,6 @@ import { startFixture, coreRequire } from './surface.core.fixture.mjs';
 
 let f, browser, page, frame;
 const errors = [];
-const booked = { say: 'Booking a Comfort to the airport.', pickup: 'my location', dropoff: 'Airport', rideType: 'comfort', showOptions: false, book: true, remember: [] };
 const handoffs = () => f.requests.filter((r) => r.method === 'POST' && r.path === '/api/rides/request');
 const opened = () => frame.evaluate(() => window.__opened);
 const inbox = (op) => page.evaluate((want) => window.__inbox.filter((e) => e.op === want), op);
@@ -31,6 +31,8 @@ test.before(async () => {
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await context.route('**/*', (route) => (new URL(route.request().url()).origin === f.origin ? route.continue() : route.abort()));
+  // The Rides Concierge window's own page is a stand-in (registered last, so it is matched first); its rail is not this smoke's.
+  await context.route((url) => url.origin === f.origin && url.pathname === '/api/jarvis/', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><meta charset="utf-8"><title>Rides Concierge</title>' }));
   await context.addInitScript(() => { window.__opened = []; window.open = (...args) => { window.__opened.push(args.map(String)); return null; }; });
   page = await context.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -67,10 +69,13 @@ test('at 390 px the surface fits the width; a destination search prices four rid
   assert.ok(fit.scroll <= fit.client, 'still no horizontal overflow with options');
 });
 
-test('a chat booking selects the ride and is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
-  f.setReply(booked);
-  await frame.fill('#chatInput', 'comfort to the airport, go');
-  await frame.click('#chatSend');
+test('a relayed booking selects the ride and is a confirm card: nothing is handed off until Confirm, then exactly once', async () => {
+  // The trip the page's chat used to set: Airport, priced, then Comfort selected and proposed.
+  await relay({ op: 'custom', name: 'estimate', data: { dropoff: 'Airport' } });
+  await frame.waitForFunction(() => document.querySelector('#orderSubtitle').textContent === 'my location to Airport' && document.querySelectorAll('#options .ride-card').length === 4);
+  await relay({ op: 'custom', name: 'select_ride', data: { rideType: 'comfort' } });
+  await frame.waitForFunction(() => /Comfort/.test(document.querySelector('#options .ride-card.is-selected')?.textContent || ''));
+  await relay({ op: 'custom', name: 'request_ride', data: {} });
   const card = frame.locator('#bridgeOptions .bridge-propose');
   await card.waitFor();
   assert.match(await card.innerText(), /Open Uber for Comfort from my location to Airport \(estimated \$23-30\)\?/);

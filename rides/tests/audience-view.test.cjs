@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the Get a Ride family view over a stub kit and a stub fetch: on open it reads exactly /history and /home-summary and never the map config, address lookup, fare estimate, Uber link, concierge, conversation or profile; the rides list carries destination, pickup, ride type, the saved estimate and when, and opens nothing (a saved Uber link would start a booking); places are ranked by how often they were asked for; the usual ride, the five-day count, the capped history, the empty, unknown-summary, partial, 401, 403 and failed-read states are each named; the one action opens the cockpit entry. The page's three start paths (the map page's boot, the assistant rail module, the handoff and connected-actions module) are each run against a stub DOM to prove none starts under a view and each still starts without one and without the kit.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.5.7: the full planner boot also reads /api/rides/profile for saved Home and Work places; the audience view still reads nothing from boot.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.5.9: the page's fourth start path, the Rides Concierge module, mounts the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js) as rides / rides-concierge in #ridesConcierge, without Close, loaded once shown, reading the screen before each turn; under an audience view it imports and mounts nothing.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -240,6 +241,36 @@ test('under an audience view the assistant rail is not attached; without a view,
   assert.deepEqual(await runRail('family'), { imported: [], attached: 0, events: [], bridge: false });
   for (const activeView of [null, undefined]) {
     assert.deepEqual(await runRail(activeView), { imported: ['/shared/ui/js/surface-bridge-client.js', '/shared/ui/js/surface-bridge-producer.js'], attached: 1, events: ['bridge-ready'], bridge: true });
+  }
+});
+
+/**
+ * @description Run the Rides Concierge module with its dynamic import routed to a recording stub of the window's mount.
+ * @param {string|null|undefined} activeView What AppView.active() answers; undefined leaves window.AppView absent.
+ * @returns {Promise<{ imported: string[], mounted: object[] }>} What the module imported and the mounts it made.
+ */
+async function runConcierge(activeView) {
+  const src = modules().find((m) => m.includes('jarvis-chat-frame.js'));
+  assert.ok(src && /await import\(/.test(src), 'the concierge module imports the kernel\'s one chat window');
+  const imported = [], mounted = [];
+  const importStub = (spec) => { imported.push(spec); return Promise.resolve({ mountJarvisChat: (host, options) => { mounted.push({ host: host.id, ...options }); return { focus() {} }; } }); };
+  const kit = activeView === undefined ? undefined : { active: () => activeView };
+  const win = { AppView: kit };
+  const doc = { getElementById: (id) => ({ id, classList: { add() {} } }) };
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  await new AsyncFunction('window', 'document', 'AppView', '__import', src.replace(/await import\(/g, 'await __import('))(win, doc, kit, importStub);
+  await win.__ridesChat;
+  return { imported, mounted };
+}
+
+test('under an audience view no concierge window loads; without a view, and without the kit, the one chat window mounts as Rides\' concierge', async () => {
+  assert.deepEqual(await runConcierge('family'), { imported: [], mounted: [] });
+  for (const activeView of [null, undefined]) {
+    const { imported, mounted } = await runConcierge(activeView);
+    assert.deepEqual(imported, ['/shared/ui/js/jarvis-chat-frame.js']);
+    assert.deepEqual(mounted.map(({ host, app, bot, closable, lazy }) => ({ host, app, bot, closable, lazy })),
+      [{ host: 'ridesConcierge', app: 'rides', bot: 'rides-concierge', closable: false, lazy: true }]);
+    assert.equal(typeof mounted[0].chatHost.prepare, 'function', 'the window reads the screen before each turn');
   }
 });
 

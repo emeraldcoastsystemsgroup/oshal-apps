@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Rides assistant rail under plain node: the manifest declares its surface.ops from the closed bridge vocabulary (without them the cockpit relay forwards nothing), the page loads the SHARED client and producer rather than a hand-rolled postMessage, marks pickup and destination as bridge fields and carries the options and notices hosts, advertises exactly the custom ops its handler applies (each description under the contract's 600-character cap), opens Uber from ONE place (the explicit request) and never from the chat reply, selects the proposed ride before showing the card, and keeps its digest under the contract's 4000-character cap.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.9: the page has no chat of its own; its concierge is the kernel's one chat window (mountJarvisChat as rides / rides-concierge), so the hand-off case asserts that the page sends no chat turn (no ${API}/chat, no message box), that a relayed request_ride proposes the selected ride, and that only the confirm of that card opens Uber.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -62,13 +63,13 @@ test('the custom ops the page advertises are exactly the ones its handler applie
   assert.match(handler, /estimate\(\);/, 'estimate runs the same pricing the Show rides button does');
 });
 
-test('Uber opens from the explicit request only; a chat booking selects the ride and becomes a confirm card', () => {
+test('Uber opens from the explicit request only; the page sends no chat of its own and a relayed request_ride becomes a confirm card', () => {
   const opens = [...page.matchAll(/window\.open\(/g)];
   assert.equal(opens.length, 1, 'exactly one hand-off site');
   assert.match(fn('requestRide'), /window\.open\(result\.rideUrl, '_blank'\)/, 'and it is the explicit request');
-  const chat = fn('sendChat');
-  assert.doesNotMatch(chat, /window\.open|rideUrl/, 'the chat reply never opens a hand-off');
-  assert.match(chat, /if \(result\.proposal\.rideType\) selectRide\(result\.proposal\.rideType\);\s*proposeRide\(result\.proposal\);/);
+  assert.doesNotMatch(page, /\$\{API\}\/chat|id="chatInput"|id="chatSend"|function sendChat\(/, 'no chat turn of the page\'s own');
+  assert.match(page, /mountJarvisChat\(host, \{ app: 'rides', bot: 'rides-concierge'/, 'the concierge is the kernel\'s one chat window');
+  assert.match(fn('onBridgeCustom'), /const proposal = selectedProposal\(\);\s*if \(proposal\) proposeRide\(proposal\);/, 'a relayed request_ride proposes the selected ride');
   assert.match(fn('proposeRide'), /op: 'propose', actionId: 'request_ride'/);
   assert.doesNotMatch(fn('proposeRide'), /requestRide\(\)|window\.open/, 'proposing never hands off');
   const click = fn('onProposalClick');

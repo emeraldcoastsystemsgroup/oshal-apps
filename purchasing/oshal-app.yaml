@@ -21,6 +21,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit sweep, purchasing--shop-concierge, D1=glass, D2=c): collection contract, opaque row menus with popstate Back dismissal, scale radii/typography, on-accent primary ink across themes, and 100dvh natural scroll + theme-derived tokens on shopping-chat.html.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Release 1.4.8 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0 (Roger, 2026-11-14, asked for items added to the grocery list and then "order the groceries"): Shopping keeps a person's one grocery and shopping list and makes the order from it. On the test installation the chain ended with nothing ordered: the add went to Smart Home's own list, the order was sent to both applications, and Shopping could not order a written item (checkout takes only lines matched to a Walmart product, and the native kernel runs no Walmart operation). The description now says the grocery list and the order plainly, since Jarvis picks an application from its description. shopping-order (POST /api/purchasing/order, held for the shopper's approval) makes the order from every item still to buy: each with the address that finds it at Walmart, one cart link for lines already matched to a product where the installation has that rail, and a row in the purchase history; nothing is bought or charged here. prepare-checkout is retired: it could only answer an empty cart or a refusal for a written list. The List screen has Order in place of the rail-only Checkout. Guard: tests/shopping-order.test.js.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (Roger, 2026-11-16/17: one concierge chat window everywhere): tools/shopping-chat.html mounts the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js) as shopping-concierge and sends no bespoke chat turns. Guard: tests/shopping-one-chat-window.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -69,7 +70,7 @@ description: >-
   keeps your household's shopping notes and monthly budget, and where the
   installation runs Walmart's catalog it searches products, compares prices,
   finds deals and remembers the products you usually buy.
-version: 1.5.0
+version: 1.5.1
 status: active  # active | inactive
 
 source:

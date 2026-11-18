@@ -6,16 +6,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: specialized Phone & Connection Concierge turn planner (/api/phone-control/concierge/turn) bound to device-concierge (f518c3e9-92a4-47d6-85c1-d827a93c1058) with closed phone primitives (read_screen, open_app, tap, drag_icon, swipe, type, key), Home Screen app organization planning, and Fire TV / ADB / Bluetooth / AirPlay connection diagnostics.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add register_device action primitive, DPAD_UP/DPAD_DOWN/DPAD_LEFT/DPAD_RIGHT/DPAD_CENTER key alias normalization, and multi-step D-Pad/remote sequence planning (for example "move down one and select").
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the Connection Concierge never offers Connect in console, which the page hides until an RDP session backend exists (nothing implements /api/rdp/sessions): connect_rdp is no longer an accepted action, so a model reply naming it is dropped, and an RDP question gets the setup scripts and Check RDP port (after Use this computer when none is chosen). sanitizeConnectAction is exported for its guard.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: use lib/router.js resolveRouter() for Express 5 / raw http.createServer compatibility.
  */
 
 'use strict';
 
-let createRouter;
-try {
-  createRouter = require('express').Router;
-} catch {
-  createRouter = require('../lib/router.js').createRouter;
-}
+const createRouter = require('../lib/router.js').resolveRouter();
 
 const DEVICE_CONCIERGE_AGENT = 'f518c3e9-92a4-47d6-85c1-d827a93c1058';
 const PHONE_KINDS = new Set(['read_screen', 'calibrate_pointer', 'register_device', 'open_app', 'move', 'tap', 'drag_icon', 'swipe', 'type', 'key']);

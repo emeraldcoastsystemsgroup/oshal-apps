@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: readiness reports 1.3.0 and bridge manifest serves oshal_phone_mirror.py.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: readiness reports 1.4.0, serves session-*.js UI modules, and verifies /sessions/* grant enforcement and cross-user isolation.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: readiness reports 1.4.1.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: readiness reports 1.20.3 and serves phone-concierge.js under the kernel runner with OSHAL_PACKAGE_NODE_MODULES set.
  */
 'use strict';
 
@@ -261,11 +262,11 @@ test('phone-control 1.1.0 under the kernel runner: real routes, real catalog gat
     assert.equal((await alice.readyPromise).t, 'ready');
     const smoke = await alice.callHttp('GET', '/api/phone-control/_smoke');
     assert.equal(smoke.status, 200, alice.getStderr());
-    assert.deepEqual(smoke.body, { status: 'ready', package: 'phone-control', version: '1.4.1', manifest: 'verified' });
+    assert.deepEqual(smoke.body, { status: 'ready', package: 'phone-control', version: '1.20.3', manifest: 'verified' });
     const page = await alice.callHttp('GET', '/api/phone-control/ui');
     assert.equal(page.status, 200);
     assert.match(text(page), /Pair an Android phone/);
-    for (const asset of ['computer-link.js', 'phone-stage.js', 'phone-setup.js', 'session-computer.js', 'session-media.js', 'session-collab.js', 'phone-control.js', 'phone-control.css', 'editor-handoff.mjs']) {
+    for (const asset of ['computer-link.js', 'phone-stage.js', 'phone-setup.js', 'phone-concierge.js', 'session-computer.js', 'session-media.js', 'session-collab.js', 'phone-control.js', 'phone-control.css', 'editor-handoff.mjs']) {
       assert.equal((await alice.callHttp('GET', `/api/phone-control/ui/${asset}`)).status, 200, asset);
     }
     const prefSaved = await alice.callHttp('POST', '/api/phone-control/sessions/preferences', { body: { targetKey: `computer:${NODE}`, quality: 'high', lockOnEnd: true } });

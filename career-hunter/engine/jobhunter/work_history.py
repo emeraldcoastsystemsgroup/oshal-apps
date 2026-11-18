@@ -2,6 +2,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: a card applied on a later revision than it read (card_rebase) needs the version it read: earlier_text() answers it from the same backups Undo reads, and earlier_texts() lists them newest first for the My résumé document (master_edit.earlier_documents). A job add and a bullet move tell the card what they made and moved.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my experience"): the job-level edits the Work history page and the concierge's approved patch make to the main résumé. A job's title, employer, start and end month change against their exact current text; a job is added, moved or removed; a bullet is moved. Every edit runs inside master_edit.apply_edits, so it is revision-checked, all or nothing, backed up and audited like every other main-résumé edit, and restore() is Undo: it puts back the exact earlier profile from that backup only while nothing changed after it.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: a Work history card of four edits answered "item index must be an integer from 0 to 0"): an edit finds its job and its bullet through card_targets (the exact title, and employer when named, where the concierge read it or where the card's earlier edits left it; the bullet by its exact text), so a later edit of one card is never numbered off by an earlier one. A job removal or move may repeat its place as index. A new job's place, a move's new place, a set's quoted value and a check of a touched job refuse in words that name the job.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 """Job-level (work history) edits of the owner's master profile, and Undo."""
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ import hashlib
 import json
 import re
 
-from . import card_targets, config, profile
+from . import card_targets, config, profile, role_hierarchy
 from .card_targets import CardRefusal, plural, shown
 
 ROLE_KEYS = ('title', 'org', 'start', 'end')
@@ -80,6 +81,7 @@ def _remove_or_move_role(raw: dict, edit: dict, changelog: list, card) -> bool:
         raise CardRefusal(f'it names {card.name(role)} but quotes its title as "{shown(edit["before"])}"')
     roles = raw['roles']
     if edit['op'] == 'remove':
+        role_hierarchy.refuse_parent_removal(roles, role)
         if 'to' in edit:
             raise CardRefusal(f'it removes {card.name(role)} and also gives it a new place')
         card.remember_removed(role)
@@ -103,6 +105,8 @@ def apply_role(raw: dict, edit: dict, changelog: list, touched: list, card) -> b
     @returns whether the profile changed"""
     if 'index' in edit and edit['op'] != 'add' and edit['index'] != edit.get('roleIndex'):
         raise CardRefusal(f'it names {shown(edit.get("roleTitle") or "the job", card_targets.NAME_SHOWN)} at two different places')
+    if edit['op'] == 'set' and edit.get('key') in role_hierarchy.FIELDS:
+        return role_hierarchy.apply(raw, edit, card, changelog)
     if edit['op'] == 'set':
         return _set_anchor(raw, edit, changelog, touched, card)
     if edit['op'] == 'add':

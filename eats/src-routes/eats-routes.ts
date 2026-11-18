@@ -17,6 +17,7 @@
  * ---------------------------------------------------------------------------
  * (1.0 to 1.3.6: the Uber Eats provider helper, the curated catalog, the menu-priced cart and the confirmation-gated
  * deep link; see git history.)
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.8 (the coordinator, 2026-11-17: a dish the one chat window's bot names is never checked against the diner's saved allergies afterwards; the independent review of the kernel's replyCheck: the check is an exact POST route of the application's own): createEatsReplyCheckRoutes, mounted on its own as POST /api/eats/reply-check, is Eats' reply check (manifest replyCheck). The kernel calls it as the person after each turn of the Eats concierge (the window, and Jarvis's hand-off to Eats) with the person's words and the bot's reply, and shows the line it answers under the reply: the after-check POST /chat gives its own replies (unwarnedMentions over the saved allergies and diet plus the person's words), so the safety check no longer rests on the persona alone. Guard: tests/eats-reply-check.test.js.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: the allergy guard lives in the tools, not only in the page's chat. Before, only POST /chat held back a restaurant that names an allergen the diner avoids; the restaurant search (the search-restaurants tool that the Eats concierge and Jarvis's hand-off to Eats call, and the page's Find) and the Uber Eats hand-off (open-uber-eats) went without it. Now GET and POST /search hold back by the saved allergies (remembered notes and the profile's diet) plus any the caller names for this search (avoid) and say what they held (allergy.restrictions, allergy.heldBack); POST /order refuses a held restaurant with 409 allergy_conflict and records nothing; POST /notes keeps a note the person stated (the chat's rule: the note must be grounded in the person's words), so an allergy said in the one chat window is saved for the next search. Guard: tests/eats-allergy-tools.test.js.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: a diner's first POST /profile failed with "NOT NULL constraint failed": the insert sent NULL for dietary and favorite_cuisines (NOT NULL, default '{}'), so the first saved delivery address (or Use location) never stuck and every open came up with the address empty (UX audit 2026-11-06). The proposed row always carries lists (NOT NULL is checked before ON CONFLICT, so a second save failed the same way); the update keeps the saved lists unless the body names new ones. Guard: tests/eats-address-saved.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (./place-cache, migration 041). Address resolutions, searches and restaurant cards are saved per person for Google's 30-day limit; a saved search younger than a day is served without asking Google, Refresh asks again, and at Google's quota (or with Google unreachable) the saved answer within 30 days is served with its saved time and the reason. The search is a POST (the page, the chat and the Jarvis tool), because the native kernel admits no write on a GET; GET /search still answers, reading the cache but never writing it. Guards: tests/eats-routes.test.js (the cache cases), tests/eats-place-cache.test.js.
@@ -588,6 +589,39 @@ async function askConcierge(ctx: AppContext, sub: string, prompt: string): Promi
 
 /** A bounded page size. */
 const limitOf = (value: unknown, fallback: number): number => Math.max(1, Math.min(20, Math.floor(Number(value)) || fallback));
+
+/**
+ * @description Eats' reply check, mounted on its own as the POST route /api/eats/reply-check that the manifest's
+ * replyCheck names. After each turn of the Eats concierge (the one chat window, and Jarvis's hand-off to Eats) the kernel
+ * sends the person's words and the bot's reply here, as that person and read only, and shows the line answered under the
+ * reply, labelled "Allergy check". It is the after-check POST /chat gives its own replies: a dish the reply names that
+ * usually carries one of the diner's allergies or diet (saved notes, the profile, or said in these words), in a sentence
+ * that does not itself warn. Reads only; the note is '' when nothing is found.
+ * @param ctx The app context.
+ * @returns The router: POST / with { message, reply }.
+ */
+export function createEatsReplyCheckRoutes(ctx: AppContext): Router {
+  const router = Router();
+  const pool = ctx.pool;
+  const store = new ConciergeStore(pool, 'eats');
+  router.post('/', async (req, res) => {
+    let sub: string;
+    try { sub = resolveDinerSub(req); }
+    catch (e: any) { res.status(e.status || 401).json({ error: e.message }); return; }
+    try {
+      const reply = String(req.body?.reply || ''), message = String(req.body?.message || '');
+      if (!reply.trim() || reply.length > 20000 || message.length > 8000) {
+        res.status(400).json({ error: 'reply_required', message: 'Send the bot\'s reply (20000 characters at most) and the person\'s words.' });
+        return;
+      }
+      const [profile, notes] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub)]);
+      const restrictions = dinerRestrictions([message, ...(notes || []), ...((profile && profile.dietary) || [])]);
+      const mentions = unwarnedMentions(reply, restrictions);
+      res.json({ note: allergyCheckLine(mentions), restrictions: restrictions.map((r) => r.label), mentions });
+    } catch (err: any) { logger.error({ err, path: req.path }, 'eats reply check error'); res.status(500).json({ error: err.message || 'internal error' }); }
+  });
+  return router;
+}
 
 export function createEatsRoutes(ctx: AppContext): Router {
   const router = Router();

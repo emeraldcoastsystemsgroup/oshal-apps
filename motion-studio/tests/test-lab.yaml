@@ -19,6 +19,7 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: register design-standard (the blank composition, + Add, the bottom bar, Back, composition settings, keyframe diamonds, Undo and Redo, the list and the in-page confirm); phone-start follows the new layout (Add layer is the first action, the panes come from the bottom bar).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register media-and-motion-blur (RP-MOT-01 video/audio layers and RP-MOT-02 composition and layer motion blur) and update design-standard for live Video, Audio and Motion blur controls.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | The concierge is the kernel's one chat window (kernel 00c62f98; Roger, 2026-11-16): phone-start proves the window's composer (model menu, Files, Tap to talk, Keep trying, Send) inside the sheet and the column and under the finger, in place of the old pane's Attach and Read aloud icons; common-editor-foundation's unavailable-provider turn and design-standard's live Summarize starter are in the window.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3: register one-chat-window (every concierge entry on Motion Studio, standalone and as Create's Motion Studio screen, opens Motion Studio's own chat window, and on a phone the window's own Close closes the Concierge sheet so the editor takes the next tap).
 version: 1
 cases:
   - id: storage-busy-retry
@@ -1474,4 +1475,20 @@ cases:
       fixtures: [tests/application-fixture.mjs]
       cleanup: Close only owned compositor children/listeners, temporary media directory and unique fixture schema and role.
     limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: one-chat-window
+    name: Motion Studio's Concierge opens the one chat window, and its Close gives the editor back
+    purpose: Open Motion Studio inside the shipped Today page (the kernel platform export), standalone and as Create's Motion Studio screen, and press every concierge entry a person sees with Playwright's own actionability.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/motion-one-chat-window.test.mjs]}
+    expected:
+      - At 412x915 with touch and at 1440x900 with a mouse, every visible concierge entry opens Motion Studio's own one Jarvis chat window (/api/jarvis/?concierge=motion-studio&bot=motion-editor) and delivers turns to motion-editor with context.app motion-studio.
+      - On a phone the window's own Close closes the Concierge sheet (editor-concierge:hide), leaving no modal sheet or chat window on screen, and Layers then opens on the next tap.
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser contexts and loopback fixture. Only synthetic data is used; no model is called.
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
     installation: never

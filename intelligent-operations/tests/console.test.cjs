@@ -1,9 +1,12 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: serve the kernel's one chat window in the console browser harness now that Console mounts jarvis-chat-frame.js (ops-rca-specialist). */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The largest cluster is ranked across recorded Kubernetes, EKS, GKE and AKS clusters by node count; live kubectl still names the connected cluster. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Ops console: kubectl lines map to exactly one native read (or a staged exec), tables and the computed assessment are deterministic, and in the shipped page a plain-words question is planned, every command is shown and run through the person's own connection with a fresh confirmation, the result is assessed and explained as text (never markup), an exec runs only on the person's click, a refused connection stays in the terminal while a refused identity clears it, and without the analyst a local plan still answers. */
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs');
 const C=require('../experience/console.js');
+let windowHelper=null;
+test.before(async()=>{windowHelper=await import('../../scripts/one-chat-window/kernel-window.mjs');});
 
 const NODES=[{uid:'n1',name:'lab-control-plane',ready:true,pressure:[],roles:['control-plane'],allocatable:{cpu:'4',memory:'8Gi',pods:'110'},kubelet:'v1.34.0'},{uid:'n2',name:'lab-worker',ready:true,pressure:['MemoryPressure'],roles:[],allocatable:{cpu:'3500m',memory:'16318704Ki',pods:'110'},kubelet:'v1.34.0'}];
 const PODS=[{uid:'p1',name:'web-1',namespace:'demo',phase:'Running',node:'lab-worker',ready:true,restarts:0,containers:[{name:'web',ready:true,restarts:0}]},{uid:'p2',name:'checkout-1',namespace:'demo',phase:'Running',node:'lab-worker',ready:false,restarts:9,containers:[{name:'checkout',ready:false,restarts:9,waitingReason:'CrashLoopBackOff'}]}];
@@ -42,9 +45,11 @@ async function harness({analyst=true,refuse=null,extra=[]}={}){
   const base={transport:'native_kubernetes',operation:q.params.op,observedAt:new Date().toISOString()};
   if(q.params.op==='kubernetes-list-nodes')return r.json({...base,items:NODES});if(q.params.op==='kubernetes-list-pods')return r.json({...base,items:PODS.filter(p=>p.namespace===q.body.namespace)});
   if(q.params.op==='kubernetes-exec')return r.json({...base,outcome:'completed',exitCode:0,stdout:'overlay 1.8T 34% /',stderr:''});r.status(404).json({detail:'no'});});
- app.post('/api/swarm/bots/ops-rca-specialist/ask',(q,r)=>{const m=String(q.body.message||'');asks.push(m);if(!analyst)return r.status(503).json({detail:'analyst offline'});
-  if(m.includes('console-plan-v1'))return r.json({reply:JSON.stringify({say:'Reading node readiness and sizing.',steps:[{argv:['kubectl','get','nodes','-o','wide'],reason:'nodes'},{argv:['kubectl','delete','node','lab-worker'],reason:'not allowed'}]}),sessionId:'s'});
-  return r.json({reply:'',structured:{headline:'2 nodes; lab-worker under MemoryPressure',verdict:'attention',explanation:'- **Sizing:** 7.5 cores in all.\n- <img src=x onerror="window.__owned=1"> stays text',next:[{argv:['kubectl','get','pods','-A'],reason:'what runs there'}]},sessionId:'s'});});
+ if(!analyst)app.post('/api/swarm/bots/ops-rca-specialist/ask',(q,r)=>{asks.push(String(q.body.message||''));r.status(503).json({detail:'analyst offline'});});
+ const platform=windowHelper.kernelPlatform(path.resolve(root,'../../oshal-kernel/platform'));
+ windowHelper.mountWindow(app,{platform,kernel:windowHelper.windowKernel({answer:ask=>{const m=String(ask.message||'');asks.push(m);
+  if(m.includes('console-plan-v1'))return JSON.stringify({say:'Reading node readiness and sizing.',steps:[{argv:['kubectl','get','nodes','-o','wide'],reason:'nodes'},{argv:['kubectl','delete','node','lab-worker'],reason:'not allowed'}]});
+  return {answer:'2 nodes; lab-worker under MemoryPressure',structured:{headline:'2 nodes; lab-worker under MemoryPressure',verdict:'attention',explanation:'- **Sizing:** 7.5 cores in all.\n- <img src=x onerror="window.__owned=1"> stays text',next:[{argv:['kubectl','get','pods','-A'],reason:'what runs there'}]}};}})});
  app.use((q,_r,n)=>{q.oidc={user:{sub:'alice'}};n();});
  const graph={assets:[{id:'c',provider:'kubernetes',scope:'s1',kind:'cluster',nativeId:'s1',name:'lab',health:'healthy',observedAt:'2026-10-23T00:00:00.000Z',properties:{}},{id:'p1',provider:'kubernetes',scope:'s1',kind:'pod',nativeId:'p1',name:'web-1',health:'healthy',observedAt:'2026-10-23T00:00:00.000Z',properties:{namespace:'demo'}},...extra],relationships:[],asOf:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}};
  app.use('/api/intelligent-operations',(q,r,n)=>{if(q.path==='/topology')return r.json(graph);n();},loadExperience().createOperationsExperienceRoutes({pool:f.caller('alice'),appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));

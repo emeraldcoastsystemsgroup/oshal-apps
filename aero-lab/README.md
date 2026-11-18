@@ -104,7 +104,22 @@ margins as design guidance, not flight certification.
 
 | Tile | URL | What |
 |---|---|---|
-| Aero Lab | `/api/aero-lab/app` | Design sliders + AI draft chat, real engine plots (polar, 24 h SOC, drag buildup, mass closure), verdict card, build-package export (self-served by this package) |
+| Aero Lab | `/api/aero-lab/app` | Design sliders + Draft with AI (the kernel's one chat window), real engine plots (polar, 24 h SOC, drag buildup, mass closure), verdict card, build-package export (self-served by this package) |
+
+## Draft with AI is the one chat window (1.4.6)
+
+Draft with AI, under the design vector (on a phone in the Design sheet), holds the kernel's one chat
+window as the Aero Designer (`aero-designer`, `/shared/ui/js/jarvis-chat-frame.js`): its model menu, New
+conversation, Recent conversations, Files, Tap to talk and Keep trying. Before each turn the page tells
+`POST /api/aero-lab/draft/design` its sliders and the window the screen (`context.screen_state`: the
+design field by field, the loaded preset's record, the latest run). The concierge offers a draft with
+`propose-aero-draft` (`POST /api/aero-lab/draft`), checked exactly as a `/chat` reply's draft is (merged
+over those sliders, in bounds, nothing clamped, buoyancy only with hybrid, every move's direction
+agreeing, a named site and season held). After the answer the page reads it (`GET /draft`) and shows it
+with Apply to sliders, which clears it (`DELETE /draft`). Nothing runs until Run. Both are kept in memory
+per person for the visit. `/chat` and `draft-aero-design` stay for their callers. Needs a kernel with
+`/shared/ui/js/jarvis-chat-frame.js` (00c62f98 or later). Guards: `tests/aero-one-chat-window.test.cjs`
+and `tests/aero-window-draft.test.cjs`.
 
 ## Install
 

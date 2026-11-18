@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... it would leave out my active role"): which recorded roles every generated résumé carries, in which order, and the check that holds each generation to it. The model was handed the whole profile with the current role first and left it out (5 of the 6 packets made since it was added), because the prompt let it drop roles for relevance and nothing after the model call looked. Now the prompt lists the roles to carry, and carry() puts back any the model left out, from the role's own recorded title, employer, dates and bullets, most recent first.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 """Which recorded roles a generated résumé carries, in which order, and the check that holds every generation to it.
 
 The model writes the words; this module decides which roles are on the page. A role the candidate holds now (no end
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import datetime
 import re
+from . import role_hierarchy
 
 YEARS_CARRIED = 20
 RESTORED_BULLETS = 4          # a current role the model left out comes back with up to this many recorded bullets
@@ -109,6 +111,7 @@ def plan(prof: dict, today: datetime.date | None = None) -> list:
         entries.append({"key": f"R{index + 1}", "index": index, "title": _text(role.get("title")),
                         "org": _text(role.get("org")), "span": _span(role, current), "current": current,
                         "required": _required(role, current, year), "rank": _rank(role, current)})
+    role_hierarchy.require_parents(entries, (prof or {}).get("roles") or [])
     entries.sort(key=lambda entry: entry["rank"], reverse=True)
     return entries
 
@@ -199,13 +202,13 @@ def _span_rank(span):
     return (0, end, start) if end else None
 
 
-def _ordered(experience: list, entries: list, written: int):
+def _ordered(experience: list, entries: list, written: int, matching=roles_of):
     """Most recent first, by each entry's recorded role (or its own span). An entry Career cannot date keeps its place
     after the entry before it; one the model wrote (the first `written` entries) after every datable entry it wrote,
     such as an "Early career" line, stays last."""
     found = []
     for item in experience:
-        roles = roles_of(item, entries)
+        roles = matching(item, entries)
         found.append(max(entry["rank"] for entry in roles) if roles else _span_rank(item.get("span")))
     last = max((position for position, rank in enumerate(found[:written]) if rank is not None), default=-1)
     ranks, previous = [], _UNPLACED
@@ -217,15 +220,16 @@ def _ordered(experience: list, entries: list, written: int):
     return [experience[position] for position in order], order != list(range(len(experience)))
 
 
-def _restored(entry: dict, role: dict, embargo) -> dict:
+def _restored(entry: dict, role: dict, embargo, named=False) -> dict:
     bullets = [_text(item) for item in role.get("deliverables") or [] if _text(item)]
     if embargo:
         bullets = [item for item in bullets if not any(term in item.lower() for term in embargo)]
     count = RESTORED_BULLETS if entry["current"] else RESTORED_OLDER_BULLETS
-    return {"title": entry["title"], "org": entry["org"], "span": entry["span"], "bullets": bullets[:count]}
+    return {"title": entry["title"], "org": entry["org"], "span": entry["span"], "bullets": bullets[:count],
+            **({"role": entry["key"]} if named else {})}
 
 
-def _take_misplaced(resume: dict, entries: list, carried: set) -> list:
+def _take_misplaced(resume: dict, entries: list, carried: set, matching=roles_of) -> list:
     """A required role the model wrote under another section (by its key, or its employer and title) moves back."""
     moved = []
     for section in ("additional_experience", "open_source"):
@@ -234,7 +238,7 @@ def _take_misplaced(resume: dict, entries: list, carried: set) -> list:
             continue
         kept = []
         for item in items:
-            found = roles_of(item, entries, strict=True) if isinstance(item, dict) else []
+            found = matching(item, entries, strict=True) if isinstance(item, dict) else []
             if any(entry["required"] and entry["key"] not in carried for entry in found):
                 moved.append(item)
                 carried.update(entry["key"] for entry in found)
@@ -244,11 +248,11 @@ def _take_misplaced(resume: dict, entries: list, carried: set) -> list:
     return moved
 
 
-def _present_spans(experience: list, entries: list) -> list:
+def _present_spans(experience: list, entries: list, matching=roles_of) -> list:
     """A current role's entry that names an end year says Present again, from the recorded dates."""
     fixed = []
     for item in experience:
-        for entry in roles_of(item, entries):
+        for entry in matching(item, entries):
             if entry["current"] and entry["span"] and not _SAYS_CURRENT.search(_text(item.get("span"))):
                 item["span"] = entry["span"]
                 fixed.append(entry["key"])
@@ -270,14 +274,16 @@ def carry(resume: dict, entries: list, prof: dict, embargo=()) -> dict:
     """
     experience = [item for item in resume.get("experience") or [] if isinstance(item, dict)]
     written = len(experience)
-    carried = {entry["key"] for item in experience for entry in roles_of(item, entries)}
-    moved = _take_misplaced(resume, entries, carried)
-    experience += moved
     roles = (prof or {}).get("roles") or []
+    matching = role_hierarchy.recorded_roles if role_hierarchy.has_links(roles) else roles_of
+    carried = {entry["key"] for item in experience for entry in matching(item, entries)}
+    moved = _take_misplaced(resume, entries, carried, matching)
+    experience += moved
     restored = [entry for entry in entries if entry["required"] and entry["key"] not in carried]
-    experience += [_restored(entry, roles[entry["index"]], embargo) for entry in restored]
-    spans = _present_spans(experience, entries)
-    experience, reordered = _ordered(experience, entries, written)
+    experience += [_restored(entry, roles[entry["index"]], embargo, matching is role_hierarchy.recorded_roles) for entry in restored]
+    spans = _present_spans(experience, entries, matching)
+    experience, reordered = _ordered(experience, entries, written, matching)
+    experience = role_hierarchy.packet(experience, entries, prof)
     for section in ("experience", "additional_experience", "open_source"):
         for item in experience if section == "experience" else resume.get(section) or []:
             if isinstance(item, dict):

@@ -1,5 +1,7 @@
 # Motion Studio
 
+0.4.3 closes Motion Studio's phone Concierge sheet when the one Jarvis chat window's own Close button is pressed (`editor-concierge:hide`), both standalone and as Create's Motion Studio screen (`create-motion-studio`), so the editor takes the next tap instead of leaving the modal sheet open over the workbench. Proven at 412x915 with touch and at 1440x900 by `tests/motion-one-chat-window.test.mjs` (Test Lab case `one-chat-window`).
+
 0.2.2 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
 

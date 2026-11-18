@@ -1,3 +1,4 @@
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: serve the kernel's one chat window in the browser fixtures now that Cloud & SSH commands mounts jarvis-chat-frame.js (ops-rca-specialist). */
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Guard recorded command row ⋯ menu (Copy, Run again) on Cloud & SSH commands. */
 // CHANGE LOG: ux audit p1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): the chosen tool shows only its own scope field and a hidden one is emptied; Ask is the one primary.
 /* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Only the run button for the chosen tool is offered. */
@@ -8,8 +9,14 @@
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Build the credential-shaped fixture at runtime so the public-snapshot vendor-prefix gate stays clean without narrowing it. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the command helper: closed bounded records with explicit provenance and no credentials, owner isolation and a 200-record cap in real SQL; the shipped page stages only a valid coached argv, runs a pod-exec command once through the confirmed native rail, records pasted cloud-CLI results as operator-provided, and clears on refusal. */
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{commandRun,recordCommand,commandRecords}=require('../routes/commands.js'),{proposalFrom,validArgv,awsRead,gcpRead,azureRead,endpointRegion}=require('../experience/command-helper.js');
+let windowHelper=null;
+test.before(async()=>{windowHelper=await import('../../scripts/one-chat-window/kernel-window.mjs');});
+function mountSpecialist(app,answer){
+ const platform=windowHelper.kernelPlatform(path.resolve(root,'../../oshal-kernel/platform'));
+ windowHelper.mountWindow(app,{platform,kernel:windowHelper.windowKernel({answer})});
+}
 // A credential-shaped value built at runtime: the public-snapshot gate refuses secret-shaped literals in the tree, fixtures included.
 const keyShaped=['AK','IA'].join('')+'ABCDEFGHIJKLMNOP';
 test('command records are closed, bounded, credential-free and say where they ran',()=>{
@@ -26,7 +33,7 @@ test('records stay inside the caller scope and are capped at 200 per person',asy
 test('the shipped page stages a coached command, runs pod-exec once through the confirmed rail, records pasted results and clears on refusal',async()=>{
  const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
  try{const pool=f.caller('alice'),app=express(),proofs=new Set(),effects=[];let denied=false;app.use(express.json({limit:'1mb'}));
-  app.post('/api/swarm/bots/ops-rca-specialist/ask',(req,res)=>{effects.push({op:'ask',packet:req.body.message});const packet=JSON.parse(req.body.message.slice(req.body.message.indexOf('Packet: ')+8));assert.equal(packet.executionAuthority,false);assert.equal(packet.version,'cli-helper-v1');res.json({reply:'Here is a safe check.',sessionId:'s1',structured:{say:'Here is a safe check.',command:{tool:packet.tool,argv:packet.tool==='pod-exec'?['cat','/proc/loadavg']:['aws','eks','list-clusters','--region','us-east-1'],reason:'read-only listing',readOnly:true,risk:'none',verify:'A JSON list of cluster names.'}}});});
+  mountSpecialist(app,ask=>{effects.push({op:'ask',packet:ask.message});const packet=JSON.parse(ask.message.slice(ask.message.indexOf('Packet: ')+8));assert.equal(packet.executionAuthority,false);assert.equal(packet.version,'cli-helper-v1');return {answer:'Here is a safe check.',structured:{say:'Here is a safe check.',command:{tool:packet.tool,argv:packet.tool==='pod-exec'?['cat','/proc/loadavg']:['aws','eks','list-clusters','--region','us-east-1'],reason:'read-only listing',readOnly:true,risk:'none',verify:'A JSON list of cluster names.'}}};});
   app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
   app.post('/connectors/kubernetes/actions/:op',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']));effects.push({op:req.params.op,body:req.body});res.json({transport:'native_kubernetes',operation:req.params.op,observedAt:'t',target:{namespace:'operations-demo',pod:'api-1',observedUid:'pod-uid-1',container:'api'},outcome:'completed',exitCode:0,stdout:'0.10 0.20 0.30\n',stderr:''});});
   app.use((req,res,next)=>{if(denied)return res.status(403).json({error:'denied'});req.oidc={user:{sub:'alice'}};next();});
@@ -66,7 +73,7 @@ test('only supported AWS reads map onto the signed connection, and records say s
 test('the shipped page runs a coached EKS read once through the person\'s AWS connection and refuses a region the connection does not read',async()=>{
  const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
  try{const pool=f.caller('alice'),app=express(),proofs=new Set(),effects=[];let argv=['aws','eks','list-clusters','--region','us-east-1'];app.use(express.json({limit:'1mb'}));
-  app.post('/api/swarm/bots/ops-rca-specialist/ask',(req,res)=>res.json({reply:'A read-only listing.',sessionId:'s1',structured:{say:'A read-only listing.',command:{tool:'aws',argv,reason:'list clusters',readOnly:true,risk:'none',verify:'A JSON list of cluster names.'}}}));
+  mountSpecialist(app,()=>({answer:'A read-only listing.',structured:{say:'A read-only listing.',command:{tool:'aws',argv,reason:'list clusters',readOnly:true,risk:'none',verify:'A JSON list of cluster names.'}}}));
   app.get('/connectors',(_req,res)=>res.json({connections:[{connector:'amazonaws-com-eks',account:'primary',status:'connected',shared:false}],httpServices:[{connector:'amazonaws-com-eks',configured:true,baseUrl:'https://eks.us-east-1.amazonaws.com'}]}));
   app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
   app.post('/connectors/:id/actions/:op',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']));effects.push({id:req.params.id,op:req.params.op,account:req.query.account,body:req.body});res.json({status:200,data:{clusters:['lab-a','lab-b']},transport:'native_connector_http',operation:req.params.op,pageComplete:true});});
@@ -97,7 +104,7 @@ test('only supported Google Cloud and Azure reads map onto the person\'s own con
 test('the shipped page runs a coached GKE read once through the person\'s own Google Cloud connection',async()=>{
  const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
  try{const pool=f.caller('alice'),app=express(),proofs=new Set(),effects=[];app.use(express.json({limit:'1mb'}));
-  app.post('/api/swarm/bots/ops-rca-specialist/ask',(req,res)=>res.json({reply:'A read-only listing.',sessionId:'s1',structured:{say:'A read-only listing.',command:{tool:'gcloud',argv:['gcloud','container','clusters','list','--project','acme-prod'],reason:'list clusters',readOnly:true,risk:'none',verify:'Cluster names.'}}}));
+  mountSpecialist(app,()=>({answer:'A read-only listing.',structured:{say:'A read-only listing.',command:{tool:'gcloud',argv:['gcloud','container','clusters','list','--project','acme-prod'],reason:'list clusters',readOnly:true,risk:'none',verify:'Cluster names.'}}}));
   app.get('/connectors',(_req,res)=>res.json({connections:[{connector:'gcp',account:'primary',status:'connected',shared:false}],httpServices:[{connector:'gcp',configured:true,baseUrl:'https://container.googleapis.com'}]}));
   app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
   app.post('/connectors/:id/actions/:op',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']));effects.push({id:req.params.id,op:req.params.op,body:req.body});res.json({status:200,data:{clusters:[{name:'ops',location:'us-central1'}]},transport:'native_connector_http',operation:req.params.op,pageComplete:true});});
@@ -114,7 +121,7 @@ test('the shipped page runs a coached host command once through the person\'s ow
  assert.throws(()=>commandRun({tool:'aws',argv:['aws','sts','get-caller-identity'],where:'ssh-connection',goal:'x'}));
  const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
  try{const pool=f.caller('alice'),app=express(),proofs=new Set(),effects=[];app.use(express.json({limit:'1mb'}));
-  app.post('/api/swarm/bots/ops-rca-specialist/ask',(req,res)=>{const packet=JSON.parse(req.body.message.slice(req.body.message.indexOf('Packet: ')+8));assert.equal(packet.tool,'ssh');assert.deepEqual(packet.target,{host:'web-1'});res.json({reply:'Check the service.',sessionId:'s1',structured:{say:'Check the service.',command:{tool:'ssh',argv:['systemctl','is-active','nginx'],reason:'service state',readOnly:true,risk:'none',verify:'active'}}});});
+  mountSpecialist(app,ask=>{const packet=JSON.parse(ask.message.slice(ask.message.indexOf('Packet: ')+8));assert.equal(packet.tool,'ssh');assert.deepEqual(packet.target,{host:'web-1'});return {answer:'Check the service.',structured:{say:'Check the service.',command:{tool:'ssh',argv:['systemctl','is-active','nginx'],reason:'service state',readOnly:true,risk:'none',verify:'active'}}};});
   app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
   app.post('/connectors/ssh/actions/:op',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']),'a fresh confirmation per action');effects.push({op:req.params.op,account:req.query.account,body:req.body});
    if(req.params.op==='ssh-list-hosts')return res.json({transport:'native_ssh',hosts:[{name:'web-1',address:'10.0.0.5',port:22,hostKey:'SHA256:'+'A'.repeat(43)}]});

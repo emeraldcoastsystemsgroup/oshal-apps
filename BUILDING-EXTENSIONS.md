@@ -145,6 +145,22 @@ summary:                        # ADR-145: this app's TILE on the cockpit Home v
   tilesPointer: /tiles
   itemsPointer: /items
 
+approvals:                      # optional: cross-application Approvals view (/cockpit/?screen=approvals).
+                                # Same fail-closed rules as summary: (own mount, canonical local /api/...
+                                # GET path, session-admitting route, valid RFC 6901 itemsPointer).
+                                # Packages without approvals: are simply omitted (never an error).
+                                # Inline row actions are accepted ONLY when their HTTP verb (POST/PUT/PATCH;
+                                # GET and DELETE are refused) and concrete path match the optional approve:
+                                # / decline: { method, path } templates declared here ({param} placeholders).
+                                # Intelligent Trades (trading / intelligent-trades) and Kalshi (kalshi)
+                                # are strictly read-only: they may not declare approve/decline templates,
+                                # and their rows and schedule cards show only "Open in Intelligent Trades"
+                                # or "Open in Kalshi".
+  path: /api/my-app/approvals-queue
+  itemsPointer: /approvals
+  approve: { method: POST, path: /api/my-app/items/{id}/approve }
+  decline: { method: POST, path: /api/my-app/items/{id}/decline }
+
 ui:                             # toolbar / ribbon surfaces
   static:
     - { toolName: my-home, label: My App, icon: codicon codicon-rocket, iframeUrl: /api/my-app/home, section: top }
@@ -767,9 +783,10 @@ returning up to four legacy tiles for existing group displays. See
 4. Write `routes/*.js` as compiled CommonJS exporting the named factories (§5). Self-contained
    if possible; else `@/…` imports for framework modules.
 5. Add personas/migrations/ui as the app needs.
-6. Declare `summary:` (§4) so the app reports a tile on the cockpit Home view, and
-   `readiness:` for anything the user must still set up. An app that reports nothing is
-   invisible on the landing page every user sees first.
+6. Declare `summary:` (§4) so the app reports a tile on the cockpit Home view,
+   `readiness:` for anything the user must still set up, and optional `approvals:` when
+   the app holds per-user items waiting for a yes/no in `/cockpit/?screen=approvals`. An
+   app that reports nothing is invisible on the landing page every user sees first.
 7. `node scripts/oshal-app.js validate <name>` until clean (routes-not-compiled are warnings).
 8. Publish (§8), then `install` (§7).
 

@@ -41,6 +41,25 @@ That quadruple is the operator-applied first-party fragment and does not ship in
 package. `workflow.workerBot: spotify-concierge` resolves against the framework's static
 registry; the packaged `/chat` route reaches the same bot through `ctx.orchestrator`.
 
+## The Music Concierge is the one chat window (1.1.9)
+
+The Music Concierge box under the tracks and playlists holds the kernel's one chat window
+(`spotify-concierge`, `/shared/ui/js/jarvis-chat-frame.js`), the same window every concierge is: its
+model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying. Before each
+turn it is told what the screen shows (`context.screen_state`): what is playing, the tracks shown with
+their URIs, the tracks picked for a playlist and its name, and the playlists. The page draws no chat of
+its own and no longer calls `POST /api/spotify/chat`, which stays for its callers.
+
+What that route did for the page is the concierge's tools: `music-search`, `now-playing`,
+`list-playlists`, `build-playlist` (an approval card; an approved playlist reloads Your playlists) and
+`spotify-accounts`, plus three new ones: `top-tracks`, `read-music-taste` (`GET /notes`: the listener's
+remembered notes and the profile's favorite genres and artists) and `remember-music-taste`
+(`POST /notes`: keeps a taste the listener states, grounded in their own words, once). A plan-music
+draft goes into the window's message box. A track's + (pick for a playlist) now sits above its
+artwork, which took every press before. Needs a kernel with `/shared/ui/js/jarvis-chat-frame.js`
+(00c62f98 or later). Guards: `tests/spotify-one-chat-window.test.cjs` (Chromium at 1440x900 and
+412x915 over the compiled routes and a kernel platform export) and `tests/spotify-tools.test.cjs`.
+
 Spotify 1.1.1 loads the shared theme bootstrap (`/shared/ui/css/surface-themes.css` + `/shared/ui/js/surface-theme.js`) in `tools/spotify-app.html` and derives its palette from the framework tokens with the previous colors as fallbacks, so the surface follows the operator's chosen cockpit or experience skin whether embedded or opened standalone. No route, data or permission change.
 
 <!-- oshal-rating:start -->

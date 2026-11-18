@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A refused Uber Rides call (HTTP 503: no Uber connection on this installation) is shown as "Not connected" and never as "One of these addresses did not resolve". The guard EXECUTES the shipped estimate(), requestRide() and sendChat() out of the surface against a fetch that answers 503.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The refusal copy names the installation's fact (no Uber rail, no Uber connector exists here) and never says a connection can be added; the pin helpers the surface now sends with each request load with it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | estimate() first settles the field lookups still in flight (the first-tap race, tests/rides-geocode-race.test.js), so the shipped `geocodes` state and settleGeocodes load with it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.9: the page has no chat of its own (the Rides Concierge is the kernel's one chat window, whose turns the kernel answers), so sendChat and its stubs leave this suite; the refused estimate and hand-off are still said as not connected.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -53,13 +54,12 @@ function surface(source, names, respond, extra = {}) {
   return { el, fns: sandbox.__exports, sandbox };
 }
 
-const NAMES = ['NOT_CONNECTED', 'geocodes', 'settleGeocodes', 'pinFor', 'pinParams', 'readBody', 'getJson', 'postJson', 'providerRefused', 'escapeHtml', 'estimate', 'requestRide', 'sendChat'];
+const NAMES = ['NOT_CONNECTED', 'geocodes', 'settleGeocodes', 'pinFor', 'pinParams', 'readBody', 'getJson', 'postJson', 'providerRefused', 'escapeHtml', 'estimate', 'requestRide'];
 const REFUSED = [503, { error: 'native_executor_unavailable' }];
 const toasts = [];
 const stubs = () => ({ API: '/api/rides', osm: { points: { pickup: null, dropoff: null } }, state: { pickup: 'Home', dropoff: 'Airport', options: [], selected: { type: 'UberX' } },
   updateLabels() {}, setPoint: async () => {}, renderDistance() {}, renderOptions() { throw new Error('a refusal is not a list of options'); },
-  refreshRoute() {}, toast: (text) => toasts.push(text), loadTrips() {}, addMessage: () => ({ textContent: '' }),
-  googleMapState: { enabled: false }, geocodeField: async () => null, selectRide() {}, proposeRide() {} });
+  refreshRoute() {}, toast: (text) => toasts.push(text), loadTrips() {} });
 
 test('a refused fare estimate says Uber is not connected, not that an address did not resolve', async () => {
   const page = surface(html, NAMES, () => REFUSED, stubs());
@@ -70,15 +70,10 @@ test('a refused fare estimate says Uber is not connected, not that an address di
   assert.doesNotMatch(page.el('#mapHelp').textContent, /did not resolve/);
 });
 
-test('a refused hand-off and a refused concierge turn say not connected', async () => {
+test('a refused hand-off says it was refused here', async () => {
   const page = surface(html, NAMES, () => REFUSED, stubs());
   await page.fns.requestRide();
   assert.match(toasts.pop(), /hand-off was refused/);
-  const bubble = { textContent: '' };
-  page.sandbox.addMessage = () => bubble;
-  page.el('#chatInput').value = 'to the airport';
-  await page.fns.sendChat();
-  assert.match(bubble.textContent, /no Uber connector exists here/);
 });
 
 test('the estimate sends the pins that still match their fields, and drops a pin its field no longer names', async () => {

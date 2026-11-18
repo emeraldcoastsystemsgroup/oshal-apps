@@ -12,6 +12,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: admit editor-concierge-early.js in EDITOR_ASSETS so Video's editor screen claims Today's concierge entry synchronously before its ES module graph finishes loading.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -41,7 +42,7 @@ export interface VideoEditorOptions { dataRoot?: string; prober?: MediaProber; e
 
 /** The editor screen's only files: a fixed name-to-type allowlist, never a path taken from the request. */
 const EDITOR_ASSETS: Readonly<Record<string, string>> = Object.freeze({
-  'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
+  'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-concierge-early.js': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
   'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
   'editor-effects.mjs': 'text/javascript; charset=utf-8', 'editor-stickers.mjs': 'text/javascript; charset=utf-8',
   'editor-rp-sheets.mjs': 'text/javascript; charset=utf-8',

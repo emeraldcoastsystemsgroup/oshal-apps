@@ -16,6 +16,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — outlier-trimmed ledger robustness, read-only quant HTTP endpoints, and Sports Quant manifest/persona/approval-gate assertions.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.12.2: the Concierge rail is the kernel's one chat window (Roger, 2026-11-16: every concierge is the core Jarvis chat window). The page keeps the rail and draws no chat of its own; concierge.js mounts /shared/ui/js/jarvis-chat-frame.js as sports-edge's concierge for sports-quant with the starter prompts, and sends no turn of its own. The browser proof is tests/sports-edge-one-chat-window.test.js.
  */
 
 'use strict';
@@ -237,11 +238,20 @@ test('manifest and persona bind sports-quant and require approval before recordi
   const manifest = fs.readFileSync(path.join(PKG_DIR, 'oshal-app.yaml'), 'utf8');
   const persona = fs.readFileSync(path.join(PKG_DIR, 'personas', 'sports-quant.yaml'), 'utf8');
   const html = fs.readFileSync(path.join(PKG_DIR, 'tools', 'sports-edge.html'), 'utf8');
+  const concierge = fs.readFileSync(path.join(PKG_DIR, 'tools', 'concierge.js'), 'utf8');
   assert.match(manifest, /^chatBot:\s*sports-quant$/m);
   assert.match(manifest, /name:\s*sports_edge_record_pick[\s\S]*?defaultAuthMode:\s*ask[\s\S]*?requiresApproval:\s*true/);
   assert.match(manifest, /name:\s*sports_edge_tonight[\s\S]*?defaultAuthMode:\s*auto[\s\S]*?requiresApproval:\s*false/);
   assert.match(persona, /^name:\s*sports-quant$/m);
   assert.match(persona, /sports_edge_tonight/);
-  assert.match(html, /id="conciergeRail"/);
-  assert.match(html, /Which games have edge tonight\?/);
+  // The rail is the one chat window: the page draws no transcript or message box, and every turn is the window's.
+  assert.match(html, /<aside id="conciergeRail" class="concierge-rail" aria-label="Sports Quant"><\/aside>/);
+  assert.doesNotMatch(html, /conciergeLog|conciergeInput|<textarea/);
+  assert.match(concierge, /import\('\/shared\/ui\/js\/jarvis-chat-frame\.js'\)/);
+  assert.match(concierge, /var BOT_NAME = 'sports-quant';/);
+  assert.match(concierge, /var APP_ID = 'sports-edge';/);
+  assert.match(concierge, /mountJarvisChat\(rail, \{\s*app: APP_ID, bot: BOT_NAME,/);
+  assert.match(concierge, /Which games have edge tonight\?/);
+  assert.match(concierge, /prepare: function \(\) \{ return Promise\.resolve\(\{ screen_state: screenState\(\) \}\); \}/);
+  assert.doesNotMatch(concierge, /\/api\/swarm\/bots\/|fetch\(/, 'the page sends no chat turn of its own');
 });

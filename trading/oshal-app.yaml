@@ -1,4 +1,8 @@
-# CHANGE LOG: 64 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3, from the 1.61.2 blue proof: bot-fast called trading_quant_run for two stock questions and stopped at trading_quant_explain for a calculation. trading_quant_run is described as the desk's own pass in Trading's single process that answers no question; explain says it computes nothing and that the tool it names follows; stock and calculate say when they apply, with or without Schwab; the persona drops the 1.61.x rule that sent the concierge to the desk for an unavailable rate; and no lab answer names trading_quant_run. The first stock answer took 2.2 s: the kernel's World archive read was 1,966 ms of it, so archived day prices are now kept in the process ten minutes per name. No route, schedule, migration, grant, egress or orderAuthority change.
+# CHANGE LOG: 68 | maintainer@emeraldcoastsystemsgroup.com | 1.62.3: declare read-only `approvals:` (`/api/trading/approvals-queue`, `/approvals`) for `/cockpit/?screen=approvals` (`Open in Intelligent Trades` only; zero inline approve/decline actions and zero `orderAuthority` closure changes).
+# CHANGE LOG: 67 | maintainer@emeraldcoastsystemsgroup.com | 1.62.2 (lane QUANTLIB1): the blue proof of 1.62.0 showed bot-fast recall three library passages on every library question and name its source on 3 of 8. The concierge persona now ends a library answer with one source line per passage it used, copied from the passage's own QUANT LIBRARY line (title, authors, year, SUMMARY or FULL TEXT, link), says a summary is a summary, and writes a source line only for what this turn recalled. The kernel reads one persona text for every model, so the wording is the one bot-fast follows, measured by replaying a concierge library turn to it (tests/live/quant-library-botfast-replay.mjs, 8 questions x 5: 1.62.1's text 24/40, this text 38/40 and 39/40). The live proof and the replay share one citation grade (title and author, a summary said as one). Persona and tests only: no route, tool, schedule, migration, grant, egress or orderAuthority change.
+# CHANGE LOG: 66 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (1.61.4 renumbered after 1.62.0): the process copy of archived day prices is removed (on blue, 1.61.3's 25 stock answers made 37 World archive reads: a caller who can write gets a fresh process for every non-GET call, so nothing kept in memory reaches the next call), and the 1.61.3 notes now say what happened. trading_quant_options is always called for an options question, even when no Schwab login seems connected (bot-fast answered one with no tool on blue). The live proof gives the first price-reading answer 2.5 s for the World archive's accepted cold read. No route, schedule, migration, grant, egress or orderAuthority change.
+# CHANGE LOG: 65 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (lane QUANTLIB1; Roger 2026-11-17: "does the quant have finance books and finance research papers loaded in its rag"): the trading concierge reads the quant library through the engine's knowledge rail. `uses: rag`, Print Inbox as an optional dependency, and two read-only imports for trading-concierge: Print's tenant shelf `quant-library` (curated finance texts and summaries, every licence recorded) and the person's own `my-knowledge` (books they file "Private to me"). Recall injects up to three cited passages per import into the concierge's turns; the persona cites them and says when a passage is a summary. Needs kernel K1 (db68776d): on an older kernel a catalog-free manifest with ragBindings does not load. No route, tool, schedule, migration, grant or orderAuthority change (closure unchanged).
+# CHANGE LOG: 64 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3, from the 1.61.2 blue proof: bot-fast called trading_quant_run for two stock questions and stopped at trading_quant_explain for a calculation. trading_quant_run is described as the desk's own pass in Trading's single process that answers no question; explain says it computes nothing and that the tool it names follows; stock and calculate say when they apply, with or without Schwab; the persona drops the 1.61.x rule that sent the concierge to the desk for an unavailable rate; and no lab answer names trading_quant_run. The first stock answer took 2.2 s: the kernel's World archive read was 1,966 ms of it. A process copy of archived day prices was added for that, but it never hit: the kernel runs every non-GET call from a caller who can write in a fresh process (removed in 1.62.1). No route, schedule, migration, grant, egress or orderAuthority change.
 # CHANGE LOG: 63 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2: a desk run on blue took 22.8 s although the reference read stopped waiting at 1.5 s: the kernel serves a package's outside read before it reads the package's answer and held it to its own 20-second egress timeout. Every reference read now asks the kernel to end it within the pass's budget (timeoutMs, kernel dev/native-parity), the desk reads a source only where the read can be ended in time (on an older kernel nothing is read and every answer says why), and the pass's 12-second budget now includes its refresh. The Treasury's server never answered the old User-Agent (an address in parentheses); the plain agent answers in half a second. No route, schedule, migration, grant, egress or orderAuthority change.
 # CHANGE LOG: 62 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: the blue proof's risk and factors answers took 20 seconds (FRED never answered this host) and Trading serves one call at a time, so the wait held up the stop watcher. Interactive quant tools now read only cached reference data and answer at once ("unavailable right now" with the reason); the Quant desk's own passes refresh one due source each inside 1.5 seconds. The bill rate comes from the U.S. Treasury (egress home.treasury.gov replaces fred.stlouisfed.org); the French library is asked without the Accept header it refused. trading_quant_explain leads a "what is" question so the local model calls it.
 # CHANGE LOG: 61 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the quant's real reference data and option chains: the official daily Fama-French three factors (Kenneth R. French Data Library) in the factors view, the 3-month Treasury bill rate (DTB3 via FRED) as the default risk-free rate, both cached per person and attributed, through two new egress hosts (mba.tuck.dartmouth.edu, fred.stlouisfed.org); and trading_quant_options over the caller's real Schwab option chain (the kernel's trading.chains, kernel 21e634f8), which says plainly when there is none. Still no manifest route, schedule, migration, grant or orderAuthority change.
@@ -118,6 +122,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.51.5: Trading's Turn on buttons name no spending figure. A job's cap is what is saved on its row on the Jobs screen (Roger, 2026-11-04).
 
+# CHANGE LOG: 69 | maintainer@emeraldcoastsystemsgroup.com | 1.62.4: declare separate version-two continuity execution authority, retain the exact approved version-one closure, and leave candidate execution refused without explicit native admission. No existing account adoption or schedule change.
 name: intelligent-trades
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -162,7 +167,7 @@ description: >-
   against the S&P 500; research stocks; and test strategies in a separate paper book,
   with a decision trail from signals to orders. Trading actions follow the connected
   account's supported controls. Cash equities. No crypto.
-version: 1.61.3
+version: 1.62.4
 lastingStorage: true
 status: active
 
@@ -195,7 +200,9 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [world, futures-research]   # optional World surface and opt-in scheduled Futures reviewer
+    # optional World surface, opt-in scheduled Futures reviewer, and Print Inbox, the owner of the quant library
+    # shelf the trading concierge reads (ragBindings below); absent Print, the concierge answers without it.
+    apps: [world, futures-research, print-ingest]
     tools: []
     connectors: [finnhub]   # Optional company news; the kernel retains the caller's key.
 
@@ -210,6 +217,8 @@ uses:
   - futures-archive-import
   # The research route reads the shared world index even when the World surface is absent.
   - world-data
+  # The engine's knowledge rail: recall of the quant library into trading-concierge's turns (ragBindings below).
+  - rag
   # ADR-090: the specialist-context channel. A protected bot-node run is TOOL-LESS, so the
   # controller-side fact append registered by createTradingRoutes is the accountable trading
   # bot's ONLY data channel. Declared here so a kernel that predates the channel REFUSES this
@@ -219,15 +228,41 @@ uses:
   # kernel that predates package catalogs refuses the package instead of silently ignoring them.
   - test-catalog
 
+# The quant library, read only (kernel K1: a catalog-free application may import an owner's collection into its own
+# bot, never own, write or search it). The engine recalls up to three passages per import into each trading-concierge
+# turn under the person's own key: Print's tenant shelf needs a Print role that reads it (reader or above), and
+# my-knowledge is the person's own "Private to me" filings (their books). Each library passage starts with its citation.
+ragBindings:
+  - alias: quant-library
+    owner: print-ingest
+    collection: quant-library
+    scope: tenant
+    resource: rag.bot
+    bot: {app: intelligent-trades, name: trading-concierge}
+  - alias: my-knowledge
+    owner: print-ingest
+    collection: my-knowledge
+    scope: own
+    resource: rag.private
+    bot: {app: intelligent-trades, name: trading-concierge}
+
 # The code that decides real-money orders. An owner's strategy and watcher-exit approvals bind to these
 # modules and every package file they load (the kernel follows their literal requires), not to the whole
 # package: a page, chart, research or concierge release keeps them, and a change to any followed file
 # cancels them. Every Schwab order intent is made from routes/live/; keep it that way, and keep its loads
 # literal relative requires (a computed require makes approvals bind to the whole package again).
 orderAuthority:
-  sources:
-    - routes/trading-native-management.js
-    - routes/live/management.js
+  versions:
+    "1":
+      sources:
+        - routes/trading-native-management.js
+        - routes/live/management.js
+    "2":
+      sources:
+        - routes/trading-native-management.js
+        - routes/live/management.js
+        - routes/live/continuity/monitor.js
+        - routes/live/continuity/execution.js
 
 # AI Test Lab catalog: the readiness smoke and the ADR-052 addendum parity suites (T1 in BACKLOG.md
 # tracks registering the rest).
@@ -1139,7 +1174,7 @@ tools:
         toDate: { type: string, description: "last expiration date to read, YYYY-MM-DD (default 45 days on)" }
         strikeCount: { type: number, description: "strikes around the money, 1 to 30 (10)" }
         riskFree: { type: number, description: "annual risk-free rate as a decimal; the latest 3-month bill rate unless given" }
-    usageInstructions: Call for implied volatility, the volatility smile, put-call parity, market Greeks or the move the options market prices.
+    usageInstructions: Always call it for implied volatility, the volatility smile, put-call parity, market Greeks or the move the options market prices, even when you think no Schwab login is connected; its answer says so, and only then price options from numbers the person gives.
     routingTags: [trading, quant, options, volatility]
     skills: [trading]
     tags: [intelligent-trades]
@@ -1447,6 +1482,10 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+approvals:
+  path: /api/trading/approvals-queue
+  itemsPointer: /approvals
 integrations:
   offers:
     - id: review-finance

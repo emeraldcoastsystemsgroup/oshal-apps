@@ -27,6 +27,9 @@
  *   lower case ("... the primary lever. the engine will judge ..."). A kept clause that starts a sentence gets its capital.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: "47N in October" on a 47.6 design kept 47.6 and the reply read
  *   "Drafted for 47°N". The status line says the draft keeps 47.6°N inside the named 47°N band.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3): Draft with AI is the kernel's one chat window. The surface
+ *   sends the sliders to POST /draft/design before each turn and shows only the changed fields of the draft the concierge
+ *   offered (GET /draft); /chat keeps its envelope check for its callers and the window's draft goes through the same one.
  */
 'use strict';
 const test = require('node:test');
@@ -102,10 +105,11 @@ test('deliberation around the envelope is never shown', async () => {
 
 test('the surface sends the sliders and lists only the changed fields', () => {
   const page = fs.readFileSync(path.join(__dirname, '..', 'tools', 'aero-lab.js'), 'utf8');
-  assert.match(page, /api\('POST', '\/chat', \{ message: msg, history: state\.chat\.slice\(-8\), design: \{ \.\.\.state\.design \} \}\)/);
-  assert.match(page, /showDraft\(r\.changes\)/);
+  assert.match(page, /api\('POST', '\/draft\/design', \{ design: \{ \.\.\.state\.design \} \}\)/, 'the sliders go before each window turn');
+  assert.match(page, /showDraft\(r\.draft\.changes\)/);
   const ts = fs.readFileSync(path.join(__dirname, '..', 'src-routes', 'aero-lab-routes.ts'), 'utf8');
   assert.match(ts, /parseAeroDesignerEnvelope\(raw, hybridOk, caps\?\.bounds \?\? null, currentDesign\)/);
+  assert.match(ts, /parseAeroDesignerEnvelope\(envelope, hybridOk, caps\?\.bounds \?\? null, current\)/, 'the window\'s draft passes the same check');
 });
 
 test('a named month and latitude are the mission: told to the model and held on the draft', async () => {

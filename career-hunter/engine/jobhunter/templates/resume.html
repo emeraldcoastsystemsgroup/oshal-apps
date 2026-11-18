@@ -1,3 +1,7 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+-->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Resume {{ contact.name }}</title>
 <style>
@@ -18,6 +22,10 @@
   /* keep a skills/competencies block whole, don't split it mid-list across a page */
   .skillsline { margin:2px 0; break-inside: avoid; page-break-inside: avoid; }
   /* keep each role's heading with its bullets, never orphan a heading at a page bottom */
+  .role-child { margin-left: 0.25in; }
+  .role-child ul { padding-left: 0.175in; }
+  .engagement-label { margin-left: 0.25in; font-weight: bold; break-after: avoid; page-break-after: avoid; }
+  .role-h, .role ul { break-before: avoid; page-break-before: avoid; }
   .role { margin-bottom:10px; page-break-inside: avoid; break-inside: avoid; }
   .role-h { display:flex; justify-content:space-between; align-items:baseline; gap:12px;
             page-break-after: avoid; break-after: avoid; }
@@ -56,7 +64,8 @@
 
   <h2>Professional Experience</h2>
   {% for e in r.experience %}
-  <div class="role">
+  {% if e.group_heading %}<div class="engagement-label">{{ e.group_heading }}</div>{% endif %}
+  <div class="role{% if e.parent_role_id %} role-child{% endif %}">
     <div class="role-h">
       <div><span class="role-t">{{ e.title }}</span><span class="role-o">, {{ e.org }}</span></div>
       <div class="role-s">{{ e.span }}</div>

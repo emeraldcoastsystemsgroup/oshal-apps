@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount the separately declared continuity monitor without changing legacy order authority or schedules.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: ensure the default portfolio research window spans at least 252 NYSE sessions within the 370-day bound without altering orderAuthority modules.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
@@ -18,10 +19,11 @@ import {normalizePortfolioStrategy,simulatePortfolio} from './trading-portfolio-
 import {fingerprint,getRecord,listRecords,saveRecord,removeRecord,type Data} from './trading-portfolio-store';
 import {portfolioHistory} from './trading-portfolio-history';
 import {congressStrategyEvidence} from './trading-congress-candidates';
-import {registerPortfolioPlanRoutes} from './trading-portfolio-plan-routes';
+import {registerPortfolioPlanRoutes,type PlanRouteRegister} from './trading-portfolio-plan-routes';
 import {registerNativeManagementRoutes} from './trading-native-management';
 import {validDay,sessionDates,portfolioResearchWindow} from './trading-portfolio-calendar';
 import {recordAccountValues,registerAccountValueRoutes} from './trading-account-values';
+const continuity=require('../routes/live/continuity/monitor') as {registerContinuityRoutes:(route:PlanRouteRegister,ctx:AppContext,deps:{clock:()=>Date;selected:(owner:string,binding:Data,at:Date)=>Promise<Data>})=>void};
 const running=new Set<string>();
 function portfolioWindow(now:Date) {
  const w=portfolioResearchWindow(now);
@@ -72,6 +74,7 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
  };
  registerPortfolioPlanRoutes(route,ctx,{clock,selected:(owner,binding,now)=>selected(ctx,owner,binding,now),witness:portfolioWitness});
  registerNativeManagementRoutes(route,ctx,{clock,selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
+ continuity.registerContinuityRoutes(route,ctx,{clock,selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
  registerAccountValueRoutes(route,ctx,{selected:(owner:string,binding:Data,now:Date)=>selected(ctx,owner,binding,now)});
  route('get','/portfolio',async(_req,owner,at)=>{const snapshot=await portfolioSnapshot(ctx,owner,at);await recordAccountValues(ctx,owner,snapshot.native);return snapshot.report;});
  route('get','/portfolio/research',async(_req,owner,at)=>{

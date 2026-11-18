@@ -30,6 +30,7 @@
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Browse and explain: GET /markets lists every market the last scan walked (open now, filtered by q/category/verdict, sorted by closes/edge/volume, bounded by limit) with each row's verdict in words; GET /markets/:ticker returns one market with its full walkthrough, from the snapshot first and otherwise read live from Kalshi's public API and priced against the shipped calibration table (503 when the runtime has no market reader, 404 when Kalshi has no such market). GET /scan no longer ships the browse rows (marketsScanned counts them). The kalshi-quant bot reaches both through the manifest's tools. Guard: tests/kalshi-markets-routes.test.js.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | GET /scan serves only the hands whose market is still open (openHands) and reports closedSinceScan: a snapshot served hours after its scan listed closed markets, and the concierge recommended them.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | The background tick hands scheduledTick a calibrator (lib/kalshi-calibration-store.js rebuildTurn over the kernel's kalshiGet, normalizeMarket and getCandles), and every reader of the calibration table (the first-scan answer, GET /calibration, GET /status, the live lookup) takes it through readCalibration, so a rebuilt table is used before the shipped one; GET /calibration and /status say which (`source`) (T48).
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | Register `GET /approvals-queue` (`kalshi-approvals-read.ts`) so confirm-gated waiting `kalshi_orders` surface read-only (`Open in Kalshi`) on `/cockpit/?screen=approvals` with zero inline actions.
  *
  * @module kalshi-routes
  */
@@ -61,6 +62,7 @@ import { gradeDue, gradingSummary, type MarketReader } from './kalshi-grade';
 import {
   ALERT_TOPIC, KALSHI_SCAN_SCHEDULE, manualRunAllowed, scanNow, scanRuntimeStatus, scheduledTick, type CalibrationTurn,
 } from './kalshi-scan-cron';
+import { registerKalshiApprovalsReadRoutes } from './kalshi-approvals-read';
 
 /** One turn of the calibration rebuild over the caller's own tables (lib/kalshi-calibration-store.js). */
 const calibrationStore = require('../lib/kalshi-calibration-store') as {
@@ -582,5 +584,6 @@ export function createKalshiRoutes(ctx: AppContext): Router {
     }
   });
 
+  registerKalshiApprovalsReadRoutes(router, pool, log);
   return router;
 }

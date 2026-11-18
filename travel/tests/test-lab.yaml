@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register search-handoff: with no Duffel rail the searches answer the booking-site links for the trip and never call the refusing provider.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register duffel-egress: on the native kernel flights search Duffel through the kernel's egress (version header, no package credential), test-key offers are labelled and kept out of the price history, no key or a rejected trip answers the link.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4: register phone-first-screen (lane mobilesweep2).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: register one-chat-window (the Travel Concierge is the kernel's one chat window beside the search, told the screen; a watch it opens shows under Watched routes without a reload; on a phone the sheet's Done closes it) and concierge-tools (what the page's chat route did is the concierge's tools: each declared over a route the router answers and named in the persona, the new notes kept only as the traveller states them, a fare watch with its return date, cabin and seen fare); not-connected tells the window's concierge of the missing rail through its screen and help line; ux-watch-and-tabs says a refused watch in the status line under the results.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -55,7 +56,7 @@ cases:
       files:
         - tests/travel-not-connected.test.js
     expected:
-      - A refused search and concierge turn say the installation has no Duffel rail, never to connect Duffel.
+      - A refused search says the installation has no Duffel rail, never to connect Duffel; the screen the concierge window is told of leads with that notice, and its help line is the no-rail greeting.
       - The audience view says None here and offers no Connect button where no Duffel connector exists.
       - Other apps can plan around the typed trip before a search, labelled not searched; at phone width the page flows.
       - Every travel_* table the routes query is created by a declared migration.
@@ -106,7 +107,7 @@ cases:
       - A typed VPS -> DCA trip and a typed hotel city survive a Hotels -> Cars -> Flights round trip.
       - With no Duffel rail every tab keeps the unavailable notice instead of "Search to see options.".
       - Hand-off notes read "From VPS to DCA, depart ..., economy cabin." and never JSON; a tab switch drops the other tab's search.
-      - A Rides hand-off to an airport fills the flight From; another destination fills the hotel and car city.
+      - A Rides hand-off to an airport fills the flight From; another destination fills the hotel and car city; the brief goes into the concierge window's message box.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -171,7 +172,7 @@ cases:
         - tests/travel-watch-and-tabs.test.js
     expected:
       - A stored watch turns the button to Watching with aria-pressed true and lists it with Stop watching.
-      - A refused watch leaves Watch and says the watch was not saved.
+      - A refused watch leaves Watch and says the watch was not saved, in the status line under the results.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -202,4 +203,60 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: one-chat-window
+    name: The Travel Concierge is the kernel's one chat window
+    purpose: >-
+      In Chromium at 1440x900 and 412x915 the shipped Travel page over the compiled router (an in-memory pool, Duffel test fares
+      and a typical price read), beside the kernel's one chat window served from a kernel platform export with its stand-in kernel.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-one-chat-window.test.js
+    expected:
+      - After a VPS to DCA search the concierge column (on a phone the sheet behind its button) holds the window (concierge=travel, bot=travel-concierge) with its model menu, Files, Tap to talk, Keep trying and conversations.
+      - A turn reaches travel-concierge with context.app travel, the picked model and the screen (the trip in the form, the trip searched, the price read, the test-fare notice, the options with their ids and prices); no POST /api/travel/chat and no message box on the page.
+      - A watch the concierge opens during a turn shows under Watched routes once the answer is done, without a reload.
+      - The window and its message box sit inside the column or sheet and on the screen; nothing scrolls sideways; on a phone the sheet's Done closes it.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - harness:kernel-platform-export
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/travel-routes-harness.js
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: concierge-tools
+    name: The Travel Concierge's tools are routes this router answers
+    purpose: >-
+      Read the manifest and persona and drive the compiled routes: what the page's chat route did for the page is the concierge's tools.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-tools.test.js
+        - tests/travel-routes-harness.js
+    expected:
+      - Every tool the manifest declares names a method and path the compiled router answers, and the persona names each one.
+      - GET /notes returns the traveller's remembered notes and the profile's preferences, and no other traveller's.
+      - POST /notes keeps a preference the traveller states in their own words, once; one they did not state is not kept; a call without a note or words is refused.
+      - create-fare-watch keeps the return date, cabin and the fare the traveller saw, and list-fare-watches returns the watch.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/travel-routes-harness.js
+    limits:
+      timeoutMs: 15000
     installation: never

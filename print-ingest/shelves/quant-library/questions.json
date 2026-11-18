@@ -1,0 +1,211 @@
+{
+ "about": "Fixed retrieval questions over the fifty ideas: each must bring a passage from a work that explains its idea into the top three (the three passages recall gives a bot per shelf). Graded by shelf-retrieval.cjs, lexically in the store tests and hybrid (local embedding model) by eval-hybrid.mjs.",
+ "questions": [
+  {
+   "ideas": [
+    1
+   ],
+   "question": "What is expected value and how do I compute it for a bet?"
+  },
+  {
+   "ideas": [
+    2
+   ],
+   "question": "Do stock prices follow a random walk?"
+  },
+  {
+   "ideas": [
+    3
+   ],
+   "question": "How do I scale daily volatility to a yearly number with the square root of time?"
+  },
+  {
+   "ideas": [
+    4
+   ],
+   "question": "Why do quants use the normal distribution, the bell curve, for returns?"
+  },
+  {
+   "ideas": [
+    5
+   ],
+   "question": "What is the difference between simple returns and log returns?"
+  },
+  {
+   "ideas": [
+    6
+   ],
+   "question": "How do I calculate the present value of future cash flows?"
+  },
+  {
+   "ideas": [
+    8
+   ],
+   "question": "What is the Sharpe ratio and how is it calculated?"
+  },
+  {
+   "ideas": [
+    9
+   ],
+   "question": "What is volatility drag and why does it lower compound returns?"
+  },
+  {
+   "ideas": [
+    11
+   ],
+   "question": "How does diversification reduce portfolio risk?"
+  },
+  {
+   "ideas": [
+    12
+   ],
+   "question": "What is the efficient frontier in modern portfolio theory?"
+  },
+  {
+   "ideas": [
+    13
+   ],
+   "question": "What does a stock's beta measure?"
+  },
+  {
+   "ideas": [
+    14
+   ],
+   "question": "Explain the capital asset pricing model."
+  },
+  {
+   "ideas": [
+    15
+   ],
+   "question": "How much should I bet according to the Kelly criterion?"
+  },
+  {
+   "ideas": [
+    16
+   ],
+   "question": "How does Monte Carlo simulation price an option?"
+  },
+  {
+   "ideas": [
+    17
+   ],
+   "question": "What are fat tails in stock returns?"
+  },
+  {
+   "ideas": [
+    18,
+    19
+   ],
+   "question": "How is value at risk calculated and backtested?"
+  },
+  {
+   "ideas": [
+    22
+   ],
+   "question": "What does mean reversion mean for a stock price?"
+  },
+  {
+   "ideas": [
+    23
+   ],
+   "question": "What is the momentum effect in stock returns?"
+  },
+  {
+   "ideas": [
+    26
+   ],
+   "question": "What is the Fama-French three-factor model?"
+  },
+  {
+   "ideas": [
+    27
+   ],
+   "question": "Why do low-volatility stocks earn high risk-adjusted returns?"
+  },
+  {
+   "ideas": [
+    29
+   ],
+   "question": "How does the Black-Scholes model price a call option?"
+  },
+  {
+   "ideas": [
+    30
+   ],
+   "question": "What is implied volatility?"
+  },
+  {
+   "ideas": [
+    31
+   ],
+   "question": "What is put-call parity?"
+  },
+  {
+   "ideas": [
+    33
+   ],
+   "question": "What are the Greeks: delta, gamma, vega and theta?"
+  },
+  {
+   "ideas": [
+    36
+   ],
+   "question": "Why is there a volatility smile in option prices?"
+  },
+  {
+   "ideas": [
+    37
+   ],
+   "question": "How does a GARCH model forecast volatility?"
+  },
+  {
+   "ideas": [
+    40
+   ],
+   "question": "What is risk parity?"
+  },
+  {
+   "ideas": [
+    41
+   ],
+   "question": "How does the Black-Litterman model combine views with market equilibrium?"
+  },
+  {
+   "ideas": [
+    43
+   ],
+   "question": "How do pairs trading and statistical arbitrage work?"
+  },
+  {
+   "ideas": [
+    44
+   ],
+   "question": "How can backtest overfitting be measured with the deflated Sharpe ratio?"
+  },
+  {
+   "ideas": [
+    45,
+    46
+   ],
+   "question": "How does a market maker manage inventory risk when quoting bid and ask?"
+  },
+  {
+   "ideas": [
+    47
+   ],
+   "question": "Why do informed traders cause a bid-ask spread in the Glosten-Milgrom model?"
+  },
+  {
+   "ideas": [
+    49
+   ],
+   "question": "What is the square-root law of market impact?"
+  },
+  {
+   "ideas": [
+    50
+   ],
+   "question": "How does a Kalman filter estimate a changing hedge ratio?"
+  }
+ ]
+}

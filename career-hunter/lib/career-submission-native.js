@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Map typed `apply_device_unavailable` kernel refusals on `startTicket` directly to a 409 `SubmissionError` without free-text prefix matching.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Retain kernel press words even without a result and verify each accepted press picture.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Publish the approved four-press bound in immutable native input.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain unknown-outcome browser pictures and leave owner-closed results immutable.
@@ -74,10 +75,18 @@ async function start(dir,id,tickets){
   if(!saved.nativeTicketId)fail('ticket_not_bound','Save the native submission ticket before starting.');
   const input=snapshot(dir,id);if(input.expiresAt<=Date.now())fail('approval_expired','Review this application again before starting.');
   const bytes=Buffer.from(JSON.stringify(input));
-  const started=await tickets.startTicket(saved.nativeTicketId,{executor:'browser-form-v1',
-    prompt:'Execute only the approved browser-task.json form intent. Stop for unanswered questions or uncertain outcomes.',
-    files:[{path:'browser-task.json',digest:[...Buffer.from(queue.digest(bytes),'hex')],bytes:[...bytes]}],
-    limits:{wall_ms:120000,output_tokens:1,artifact_bytes:2097152}});
+  let started;
+  try{
+    started=await tickets.startTicket(saved.nativeTicketId,{executor:'browser-form-v1',
+      prompt:'Execute only the approved browser-task.json form intent. Stop for unanswered questions or uncertain outcomes.',
+      files:[{path:'browser-task.json',digest:[...Buffer.from(queue.digest(bytes),'hex')],bytes:[...bytes]}],
+      limits:{wall_ms:120000,output_tokens:1,artifact_bytes:2097152}});
+  }catch(err){
+    if(err?.code==='apply_device_unavailable'){
+      fail('apply_device_unavailable',String(err?.message||'')||'Your chosen Job Apply device is unavailable.',409);
+    }
+    throw err;
+  }
   const workId=started?.envelope?.id;
   if(!ID.test(workId||''))fail('dispatch_unavailable','Check submission status before retrying; the start acknowledgement was incomplete.',503);
   return {ok:true,item:queue.publicItem(queue.nativeUpdate(dir,id,{nativeWorkId:workId,nativeState:'queued'}))};

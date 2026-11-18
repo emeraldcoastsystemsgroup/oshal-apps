@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | With no Duffel rail the concierge's greeting no longer promises a price read or a fare watch (live, it said it "can watch a route for a drop").
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The typed-trip offer reads as a sentence ("From PNS to DCA, depart ...") instead of raw JSON; the form-state cases live in travel-form-state.test.js.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the concierge offered "I can search for demo hotel options" while hotels answered 503. The persona says hotels and cars come through the same Duffel rail, are never offered before a search returned results, and are called demo only when a search marked them demo.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5 (lane CHATCORE3): the concierge is the kernel's one chat window, so the page has no chat turn of its own to refuse. With no Duffel rail the screen the window is told of leads with the unavailable notice, and the window's help line is the no-rail greeting (set when /config says not_connected, and chosen at mount).
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -56,7 +57,7 @@ function surface(source, names, respond, extra = {}) {
 
 const PKG = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(PKG, 'tools', 'travel-app.html'), 'utf8');
-const NAMES = ['api', 'NOT_CONNECTED', 'showNotConnected', 'esc', 'doSearch', 'sendChat'];
+const NAMES = ['api', 'NOT_CONNECTED', 'showNotConnected', 'esc', 'doSearch'];
 const REFUSED = [503, { error: 'native_executor_unavailable' }];
 const stubs = () => ({ API: '/api/travel', KIND: 'flight', LAST: { search: null, items: [] }, convId: null, render() { throw new Error('a refusal is not a result list'); },
   priceBand() {}, flightCard: () => '', simpleCard: () => '' });
@@ -72,13 +73,18 @@ test('a refused flight search says Duffel is not connected, not "No options foun
   assert.equal(page.sandbox.LAST.search, null, 'a refused search leaves nothing for the concierge to send');
 });
 
-test('a refused concierge turn says not connected instead of "Sorry — HTTP 503"', async () => {
-  const page = surface(html, NAMES, () => REFUSED, stubs());
-  const log = [];
-  page.sandbox.addBubble = (who, text) => log.push(text);
-  page.el('#chatbox').value = 'find me a fare';
-  await page.fns.sendChat();
-  assert.match(log.pop(), /Unavailable: this installation has no Duffel rail/);
+test('with no Duffel rail the screen the concierge window is told of leads with the unavailable notice', async () => {
+  const page = surface(html, [...NAMES, 'typedTrip', 'describeTrip', 'optionLine', 'cabinWords', 'CABINS', 'travelScreen'], () => REFUSED, stubs());
+  page.sandbox.val = (id) => page.el(`#${id}`).value;
+  for (const [id, value] of [['f_origin', 'VPS'], ['f_dest', 'ATL'], ['f_depart', '2026-12-01'], ['f_cabin', 'economy']]) page.el(`#${id}`).value = value;
+  await page.fns.doSearch();
+  const screen = page.fns.travelScreen();
+  assert.deepEqual([screen.title, screen.tab], ['Travel: Flights', 'Flights']);
+  const lines = screen.text.split('\n');
+  assert.equal(lines[0], '# Unavailable here');
+  assert.match(lines[1], /^Unavailable: this installation has no Duffel rail \(no Duffel connector exists here\), so flights, hotels and cars cannot be searched or watched\./);
+  assert.ok(lines.includes('[form] From VPS to ATL, depart 2026-12-01, economy cabin.'), screen.text);
+  assert.ok(!lines.some((line) => line.startsWith('# Searched')), 'a refused search leaves nothing searched to quote');
 });
 
 test('the audience view says there is no Duffel connector here, and offers no Connect button for it', () => {
@@ -131,7 +137,9 @@ test('with no Duffel rail the greeting promises no price read and no fare watch'
   assert.ok(greeting, 'the page declares the no-rail greeting');
   assert.match(greeting[1], /no Duffel rail, so I cannot search, price or watch fares here/);
   assert.doesNotMatch(greeting[1], /can watch a route|price is good/);
-  assert.match(html, /if\(c\.mode==='not_connected'\)\{[\s\S]*?getElementById\('greeting'\)\.textContent = NO_RAIL_GREETING;/);
+  assert.match(html, /if\(c\.mode==='not_connected'\)\{[\s\S]*?window\.__travelChat\?\.then\(chat => chat\?\.setHelp\(NO_RAIL_GREETING\)\);/,
+    'told not connected, the concierge window\'s help line becomes the no-rail greeting');
+  assert.match(html, /help: RAIL_MISSING \? NO_RAIL_GREETING : RAIL_HELP,/, 'and a window mounted after that says it from the start');
 });
 
 test('the persona says hotels and cars need the Duffel rail too, and calls only marked results demo (sweep 14)', () => {

@@ -21,6 +21,7 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Mount closed native saved-relay routes behind the existing verified-owner middleware, separately from Linux bridge plans.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | Mount the read-only remote-app operating packet behind the same verified-owner middleware.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: a device, page file or bridge file that is not there is refused with a sentence beside its code (lib/refusals.js), never the bare code; the TV apps route behind phone-control-tv-apps answered only {"error":"device_not_found"}.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: resolve router via lib/router.js resolveRouter() so parent node_modules or NODE_PATH Express 5 never breaks raw http.createServer test harnesses.
  */
 
 'use strict';
@@ -28,12 +29,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 
-let createRouter;
-try {
-  createRouter = require('express').Router;
-} catch {
-  createRouter = require('../lib/router.js').createRouter;
-}
+const createRouter = require('../lib/router.js').resolveRouter();
 const { deviceNotFound, bridgeFileNotFound, assetNotFound } = require('../lib/refusals.js');
 
 const ASSETS = Object.freeze({

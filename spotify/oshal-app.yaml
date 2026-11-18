@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): Connect Spotify signs in at the top level and returns to /cockpit/?app=spotify; 'Already connected? Refresh' is a real button that says Checking… and then what it found; button ink follows the theme; the inner header that repeated the shell's name is gone.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: Jarvis routing words (backlog P4-16f): spotify-concierge adds 'play' and 'jazz', the verb and a genre people say. "Play some jazz" and "Play my Discover Weekly playlist" reach Spotify; "Let's play Family Feud" stays with Game Show and "Play the next episode on the Fire TV" with Phone & Device Control. "Play some jazz and dim the lights" also needs the kernel to split at "and dim". No route, tool or permission changed.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8 (concierge audit T15, the store's PENDING list): spotify-concierge runs inline under the same UUID b00a0000-0000-0000-0000-000000000001 and is the chatBot, as Create's create-editor and the eats, rides and shopping concierges are. Declared as a dedicated-node bot, the routes' chat turn (POST /api/spotify/chat) ran as a plain completion without this package's route tools, and a Jarvis request to make or build something stayed with the assistant because this workflow application named no chatBot. Its persona follows Create's pattern (plain prose, the ```tool_call fence, runtime harness claude-code) and returns the chat route's reply object when that route asks for it. No route, tool or permission changed.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The page's own chat box over POST /api/spotify/chat is replaced by the kernel's one chat window as the Music Concierge (spotify-concierge), told the screen before each turn (what is playing, the tracks shown with their URIs, the selection, the playlists). What the page's chat route gave the bot in its prompt (top tracks, the profile, the remembered notes) and did on its reply (saving notes, building the playlist) are now its tools over the package's own routes: three new ones, top-tracks, read-music-taste and remember-music-taste (new GET and POST /api/spotify/notes), beside music-search, now-playing, list-playlists, build-playlist (an approval card in the window) and spotify-accounts. The persona names them. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — spotify ("Spotify" Music Concierge)
@@ -49,7 +50,7 @@ description: >-
   AI music concierge — search your Spotify, see what's playing and your playlists,
   get recommendations from your taste, and build playlists on your account. Other
   swarm bots can ask it to find music or assemble a playlist.
-version: 1.1.8
+version: 1.1.9
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -185,6 +186,52 @@ tools:
       Call with {} before claiming live Spotify access. If not_connected, ask the user to connect Spotify.
     routingTags: [music, spotify, connection]
     skills: [now-playing-awareness, playlist-building]
+    tags: [spotify, route-backed]
+  # The Music Concierge's window tools (1.1.9): what the page's chat route handed the bot in its prompt.
+  - name: top-tracks
+    displayName: Your Top Tracks
+    type: api
+    category: media
+    description: The listener's most played tracks on Spotify, each with its URI for build-playlist.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/top-tracks" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: >-
+      Call with {} to know the listener's taste before recommending, or when they ask for a mix of their favorites.
+    routingTags: [music, spotify, taste]
+    skills: [music-search, recommendation]
+    tags: [spotify, route-backed]
+  - name: read-music-taste
+    displayName: Read the Listener's Tastes
+    type: api
+    category: media
+    description: What the concierge keeps about this listener - remembered notes and the profile's favorite genres and artists.
+    executor: { executorType: api, apiEndpoint: "GET /api/spotify/notes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
+    usageInstructions: Read before recommending, so picks follow what the listener has said they like.
+    routingTags: [music, spotify, preferences]
+    skills: [music-taste-learning]
+    tags: [spotify, route-backed]
+  - name: remember-music-taste
+    displayName: Remember a Taste
+    type: api
+    category: media
+    description: Keep a taste the listener states (a genre, an artist, a mood they like) for later picks.
+    executor: { executorType: api, apiEndpoint: "POST /api/spotify/notes" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        note: { type: string, description: "The short note to keep, such as \"loves 90s trip-hop\"" }
+        said: { type: string, description: "The listener's own words this turn that state it, copied exactly" }
+      required: [note, said]
+    usageInstructions: Call when the listener states a taste worth keeping, with said copied from their own words; a note their words do not state is not kept.
+    routingTags: [music, spotify, preferences]
+    skills: [music-taste-learning]
     tags: [spotify, route-backed]
 
 # UI SURFACES — ribbon icons that open the Spotify surface.

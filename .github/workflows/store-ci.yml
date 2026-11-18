@@ -106,6 +106,15 @@
 # 96 | maintainer@emeraldcoastsystemsgroup.com | Job `publishing-studio`: the step names OSHAL_KERNEL_PLATFORM, so its browser cases mount the kernel's shared editor from the platform the gate pins (STORE_CI_KERNEL_PLATFORM on the gate machine) and the fixture refuses without one. Before, the step named none and the fixture served <clone>/../oshal-kernel/platform, on the gate machine a link to the live kernel checkout: kernel 00c62f98 (the one chat window) made the old concierge box a hidden stand-in there, and tests/workbench-browser.test.mjs case 39 failed two FULL gates on 2026-11-17 with no store change.
 # 97 | maintainer@emeraldcoastsystemsgroup.com | Jobs `sports-edge` and `rides` name OSHAL_KERNEL_PLATFORM on their suites step (lane CHATCORE3): each package's page now mounts the kernel's one chat window, and its browser suite (tests/<app>-one-chat-window.test.js, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
 # 98 | maintainer@emeraldcoastsystemsgroup.com | Job `eats` names OSHAL_KERNEL_PLATFORM on its suites step (lane CHATCORE3, eats 1.5.7): the page now mounts the kernel's one chat window, and its browser suite (tests/eats-one-chat-window.test.js, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
+# 99 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` runs the catalog own-first-screen + one-concierge-window structural guard (scripts/concierge-and-first-screen-guard.test.mjs) and the Create ten-editor Chromium concierge entry guard (scripts/create-concierge-browser.test.mjs, with OSHAL_KERNEL_PLATFORM) on every scoped and full gate run.
+# 100 | maintainer@emeraldcoastsystemsgroup.com | Job `media-concierges` names OSHAL_KERNEL_PLATFORM on its movies step (lane CHATCORE3, movies 1.1.8): the Ask sheet now mounts the kernel's one chat window, and its browser suite (tests/movies-one-chat-window.test.cjs, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it. (99 is held by the create-and-concierge guards branch.)
+# 101 | maintainer@emeraldcoastsystemsgroup.com | Job `media-concierges` names OSHAL_KERNEL_PLATFORM on its spotify step too (lane CHATCORE3, spotify 1.1.9): the page's Music Concierge box now mounts the kernel's one chat window, and its browser suite (tests/spotify-one-chat-window.test.cjs, in the step's own glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
+# 102 | maintainer@emeraldcoastsystemsgroup.com | Job `home-summary` runs Travel's one-chat-window browser guard (with OSHAL_KERNEL_PLATFORM) and its concierge tools suite after Travel's phone first-screen guard (lane CHATCORE3, travel 1.3.5): Travel has no job of its own, and its concierge column now mounts the kernel's one chat window, served in the guard from the kernel platform the gate pins (refusing rather than skipping without it). Only the new guards: Travel's other ungated suites stay as they are.
+# 103 | maintainer@emeraldcoastsystemsgroup.com | Job `home-summary` runs Aero Lab's Draft with AI guards (lane CHATCORE3, aero-lab 1.4.6): the one-chat-window browser guard (with OSHAL_KERNEL_PLATFORM), the window draft routes and the screen it is told of. Aero Lab has no job of its own; only the new guards run, its other suites stay as they are.
+# 104 | maintainer@emeraldcoastsystemsgroup.com | Retire the `lists` package job now that personal named lists (`lists.*` and `/cockpit/?screen=lists`) live in `oshal-kernel` as a native person-scope capability; Shopping (`purchasing`) keeps the grocery list unchanged.
+# 105 | maintainer@emeraldcoastsystemsgroup.com | Job `purchasing` (1.5.1) names OSHAL_KERNEL_PLATFORM on its suites step: shopping-chat.html now mounts the kernel's one chat window, and tests/shopping-one-chat-window.test.js (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
+# 106 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` (1.20.3) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: Device Concierge and Connection Concierge now mount the kernel's one chat window, and tests/phone-control-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
+# 107 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` names OSHAL_KERNEL_PLATFORM on its `intelligent-operations` step (1.9.4): Cloud & SSH commands, Console and Pod console now mount the kernel's one chat window, and tests/ops-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
 
 name: store-ci
 
@@ -174,6 +183,17 @@ jobs:
         run: node --test print-ingest/tests/print-phone-first-screen.test.cjs
       - name: Run the Travel phone first-screen browser guard
         run: node --test travel/tests/travel-phone-first-screen.test.js
+      - name: Run the Travel one-chat-window browser guard
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test travel/tests/travel-one-chat-window.test.js
+      - run: node --test travel/tests/travel-tools.test.js
+      - name: Run the Aero Lab Draft with AI browser guard
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test aero-lab/tests/aero-one-chat-window.test.cjs
+      - run: node --test aero-lab/tests/aero-window-draft.test.cjs
+      - run: node --test aero-lab/tests/aero-screen-record.test.cjs
 
   test-discovery:
     name: non-empty package test discovery
@@ -496,6 +516,7 @@ jobs:
         env:
           OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres
           OSHAL_TEST_SEARCH: http://127.0.0.1:35690
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.cjs"
       - name: Ported platform packages declare something runnable
         run: node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs codex-packer/tests/forge-inject.test.cjs person-model/tests/person-model-surface.test.cjs life/tests/home-summary.test.cjs
@@ -504,6 +525,12 @@ jobs:
       - name: Intelligent Processing's front desk and queue read
         working-directory: intelligent-processing
         run: node --test "tests/processing-*.test.cjs"
+      - name: Guard own first screens and the one concierge chat window across store packages
+        run: node --test scripts/concierge-and-first-screen-guard.test.mjs
+      - name: Guard Create editor concierges in Chromium at desktop and phone sizes
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
+        run: node --test scripts/create-concierge-browser.test.mjs
 
   store-ci-local:
     name: the local gate's own exit-code contract
@@ -1008,6 +1035,8 @@ jobs:
         run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
       - name: Run purchasing suites
         working-directory: purchasing
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*-*.test.js"
 
   rides:
@@ -1577,6 +1606,8 @@ jobs:
         run: npm ci --prefix scripts/toolchain
       - name: Run the phone-control routes and honesty guard
         working-directory: phone-control
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/phone-control-*.test.cjs"
       - name: Run the phone-control computer link and bridge suites
         working-directory: phone-control
@@ -1622,44 +1653,6 @@ jobs:
       - name: Run the Career Coaching page in Chromium
         working-directory: career-coaching
         run: node --test tests/browser/coaching-page.browser.cjs
-
-  lists:
-    name: Lists rules, routes on memory and PostgreSQL, declarations and the screen
-    needs: [test-discovery, catalog-parity]
-    runs-on: ubuntu-latest
-    services:
-      operations_postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: operations-contract-ci
-          POSTGRES_DB: postgres
-        ports:
-          - 35689:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24
-      - name: Provision the pinned source contract dependencies
-        run: npm ci --prefix scripts/toolchain
-      - name: Provide the Lists proof Chromium
-        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
-      # tests/lists-postgres.test.cjs runs every route scenario on a real PostgreSQL (a database of its own, created
-      # and dropped) with migrations/001-lists.sql applied; without the address it fails, it never skips.
-      - name: Run the Lists rule, route, PostgreSQL and declaration suites
-        working-directory: lists
-        env:
-          OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres
-        run: node --test "tests/*.test.cjs"
-      - name: Run the Lists screen in Chromium
-        working-directory: lists
-        run: node --test tests/browser/lists-page.browser.cjs
 
   home:
     name: Smart Home routes, TVs and streaming sticks, and its phone-width pages
@@ -1767,9 +1760,13 @@ jobs:
           node-version: 24
       - name: Run the movies suites
         working-directory: movies
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.cjs"
       - name: Run the spotify suites
         working-directory: spotify
+        env:
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.cjs"
 
   audio:

@@ -16,6 +16,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the bar holds Home, Accounts, Transactions, Bills, Spending, Goals and Trades with the rest under More (Bank accounts among them), a phone's bar Home, Accounts, Bills and Spending; Home opens with Where you stand: three steps and Add your first account on a first run, otherwise net worth, bills due, the month's money out and the new transactions, each amount with its source and date, its button opening that page.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Where you stand is read again when the person comes back to Home from a record page, so a statement brought in there shows without a reload (VER2 on the test slot saw the first-run steps until a reload).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Recurring is in the bar after Bills.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Saved banks and statement/manual records remain distinct in the real nested Finance navigation; bank amounts require an explicit unit.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -65,7 +66,7 @@ const SUMMARIES = {
   '/api/daily-trade-recap/home-summary': { tiles: [{ id: 'awaiting', label: 'Recaps awaiting review', value: '1' }], items: [{ text: 'One recap is waiting for your review.', tone: 'warn', fix: 'recap-review' }] },
 };
 const BANK_STATUS = { connected: 1, env: 'sandbox', configured: true, items: [], hasData: true };
-const BANK_SNAPSHOT = { syncedAt: '2026-11-10T18:15:00Z', aggregate: { sourceEnvironment: 'sandbox', netWorth: { assets: 2450, liabilities: 1050, net: 1400 } } };
+const BANK_SNAPSHOT = { syncedAt: '2026-11-10T18:15:00Z', aggregate: { sourceEnvironment: 'sandbox', currency: 'USD', netWorth: { assets: 2450, liabilities: 1050, net: 1400 } } };
 const HOST = '<!doctype html><html><head><title>Cockpit</title><style>html,body{margin:0;height:100%}.header-bar{height:48px;background:#333}#ribbonContainer{height:40px;background:#555}.cockpit-body{padding:8px;height:calc(100vh - 88px)}.tool-view-container{height:100%}iframe{width:100%;height:100%;border:0}</style></head>'
   + '<body><div class="header-bar">cockpit header</div><div id="ribbonContainer">cockpit menu</div><div class="cockpit-body"><div class="tool-view-container"><iframe id="tool" src="/api/finance/app"></iframe></div></div></body></html>';
 
@@ -81,7 +82,7 @@ const COCKPIT = '<!doctype html><html><head><meta name="viewport" content="width
 /** What GET /api/finance/day answers in a test; none (404) leaves Where you stand hidden, as on an installation without records. */
 const DAY = { answer: null };
 
-async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, failing = '', profile = PROFILE, snapshot = BANK_SNAPSHOT) {
+async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, failing = '', profile = PROFILE, snapshot = BANK_SNAPSHOT, options = {}) {
   const phone = viewport.width < 700;
   const context = await browser.newContext({ viewport, isMobile: phone, hasTouch: phone, deviceScaleFactor: 2, timezoneId: 'America/Chicago', locale: 'en-US' });
   const requests = [];
@@ -97,7 +98,12 @@ async function openApp(browser, viewport, url = `${ORIGIN}/api/finance/app`, fai
     if (failing && u.pathname === failing) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"fixture: this summary does not answer"}' });
     if (u.pathname === '/api/finance/status') return json(BANK_STATUS);
     if (u.pathname === '/api/finance/day') return DAY.answer ? json(DAY.answer) : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
-    if (u.pathname === '/api/finance/summary') return json(snapshot);
+    if (u.pathname === '/api/finance/summary') return typeof snapshot === 'function' ? snapshot(route, json) : json(snapshot);
+    if (options.realRecords && /^\/api\/finance\/p\/(accounts|transactions)$/.test(u.pathname)) return route.fulfill({ status: 200, contentType: 'text/html', path: path.resolve(__dirname, '../../tools/finance-' + u.pathname.split('/').pop() + '.html') });
+    if (options.realRecords && /^\/api\/finance\/p\/static\/finance-records\.(js|css)$/.test(u.pathname)) return route.fulfill({ status: 200, contentType: u.pathname.endsWith('.js') ? 'text/javascript' : 'text/css', path: path.resolve(__dirname, '../../tools/' + u.pathname.split('/').pop()) });
+    if (options.realRecords && u.pathname === '/api/finance/ledger/accounts') return json({ accounts: [], imports: [], netWorth: {} });
+    if (options.realRecords && u.pathname === '/api/finance/ledger/imports') return json({ imports: [] });
+    if (options.realRecords && u.pathname === '/api/finance/ledger/transactions') return json({ month: '2026-11', months: {}, counts: { total: 0, toReview: 0 }, transactions: [] });
     if (u.pathname === '/api/v1/agent/schedules') return json(JOBS);
     if (u.pathname === '/api/swarm/roles/me') return json({ displayName: 'Rita Example', email: 'rita@example.test' });
     if (failing && u.pathname === failing) return route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"fixture: this summary does not answer"}' });
@@ -330,7 +336,7 @@ test('1.7.0: Home opens with Where you stand: three steps on a first run, otherw
   try {
     await f.page.waitForSelector('#fxStand:not([hidden])');
     assert.deepEqual(await texts(f.page, '#fxStand .fx-steps li'), ['Bring in a statement (CSV, OFX or QFX) on Accounts.', 'Confirm the bills Finance finds in your payments.', 'See your month on Spending.']);
-    await f.page.locator('#fxStand button', { hasText: 'Add your first account' }).click();
+    await f.page.locator('#fxStand button', { hasText: 'Add a statement or manual account' }).click();
     await f.page.waitForFunction(() => document.getElementById('fxFrame').getAttribute('src') === '/api/finance/p/accounts');
     assert.ok(f.requests.includes('GET /api/finance/day?today=2026-11-11'), 'the day is asked for the person\'s own date');
     assert.deepEqual(f.errors, []);
@@ -367,4 +373,81 @@ test('1.8.0: coming back to Home reads Where you stand again, so a statement bro
     assert.deepEqual(f.requests.filter((r) => !r.startsWith('GET ')), [], 'Home only reads');
     assert.deepEqual(f.errors, []);
   } finally { await f.context.close(); DAY.answer = null; }
+});
+
+
+test('saved bank activity and empty statement records remain distinct through actual nested Finance pages', async (t) => {
+  t.after(() => { DAY.answer = null; });
+  DAY.answer = { firstRun: true, accounts: 0 };
+  for (const width of [412, 1280]) {
+    const f = await openApp(browser, { width, height: 915 }, `${ORIGIN}/cockpit`, '', PROFILE, BANK_SNAPSHOT, { realRecords: true });
+    try {
+      const app = f.page.frameLocator('#tool');
+      await app.locator('#fxJourney [data-journey="banks"]').waitFor();
+      assert.equal(await app.locator('#fxStandH').textContent(), 'Statement and manual records');
+      assert.match(await app.locator('#fxStandBody').innerText(), /No statement or manual records yet/);
+      assert.doesNotMatch(await app.locator('#fxStandBody').innerText(), /Add your first account/);
+      await app.getByRole('button', { name: 'View saved bank activity', exact: true }).click();
+      await app.frameLocator('#fxFrame').locator('#frCounts').filter({ hasText: '0 transactions' }).waitFor();
+      assert.equal(await app.locator('#fxFrame').getAttribute('src'), '/api/finance/p/transactions');
+      await app.frameLocator('#fxFrame').getByRole('link', { name: 'Open bank accounts', exact: true }).click();
+      await app.locator('#fxFrame[data-section="finance-home"]').waitFor();
+      assert.equal(await app.locator('.fx-tab[data-section="finance-home"][aria-current="page"]').first().getAttribute('data-section'), 'finance-home');
+      await app.locator((width < 700 ? '#fxBottom' : '#fxNav') + ' button[data-section="finance-accounts"]').click();
+      await app.frameLocator('#fxFrame').locator('#frList .fr-empty').filter({ hasText: /No account yet\./ }).waitFor();
+      assert.match(await app.frameLocator('#fxFrame').locator('#frBankScope').innerText(), /Statement and manual accounts[\s\S]*linked bank/);
+      await app.frameLocator('#fxFrame').getByRole('link', { name: 'Open bank accounts', exact: true }).click();
+      await app.locator('#fxFrame[data-section="finance-home"]').waitFor();
+      assert.deepEqual(f.requests.filter(r => !r.startsWith('GET ')), []);
+      assert.deepEqual(f.errors, []);
+    } finally { await f.context.close(); }
+  }
+  DAY.answer = null;
+});
+
+test('Home never assigns a currency to a bank snapshot whose unit is missing', async () => {
+  const snapshot = { ...BANK_SNAPSHOT, aggregate: { netWorth: { net: 1200 } } };
+  const f = await openApp(browser, { width: 412, height: 915 }, `${ORIGIN}/api/finance/app`, '', PROFILE, snapshot);
+  try {
+    assert.equal(await f.page.locator('[data-journey="banks"] .fx-balance').textContent(), 'Unknown');
+    assert.doesNotMatch(await f.page.locator('[data-journey="banks"]').innerText(), /\$1,200/);
+    assert.deepEqual(f.requests.filter(r => !r.startsWith('GET ')), []);
+  } finally { await f.context.close(); }
+});
+
+
+test('a held old bank snapshot cannot replace a newer Home refresh or paint after pagehide', async () => {
+  let release, started, reads = 0;
+  const held = new Promise(resolve => { release = resolve; }), observed = new Promise(resolve => { started = resolve; });
+  const old = { ...BANK_SNAPSHOT, aggregate: { currency: 'USD', netWorth: { net: 110 } } };
+  const fresh = { ...BANK_SNAPSHOT, aggregate: { currency: 'USD', netWorth: { net: 220 } } };
+  const answer = async (_route, json) => { if (++reads === 1) { started(); await held; return json(old); } return json(fresh); };
+  const f = await openApp(browser, { width: 412, height: 915 }, `${ORIGIN}/api/finance/app`, '', PROFILE, answer);
+  try {
+    await observed; await f.page.getByRole('button', { name: 'Refresh view', exact: true }).click();
+    await f.page.locator('[data-journey="banks"] .fx-balance').filter({ hasText: '$220' }).waitFor();
+    release();
+    await f.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await f.page.locator('[data-journey="banks"] .fx-balance').innerText(), '$220');
+  } finally { release(); await f.context.close(); }
+  let releaseAway, awayStarted;
+  const awayHold = new Promise(resolve => { releaseAway = resolve; }), awayObserved = new Promise(resolve => { awayStarted = resolve; });
+  const away = await openApp(browser, { width: 1280, height: 900 }, `${ORIGIN}/api/finance/app`, '', PROFILE, async (_r, json) => { awayStarted(); await awayHold; return json(old); });
+  try {
+    await awayObserved; await away.page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide'))); releaseAway();
+    await away.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await away.page.locator('[data-journey="banks"]').count(), 0);
+  } finally { releaseAway(); await away.context.close(); }
+});
+
+
+test('Home never presents a statement-built saved summary as bank net worth', async () => {
+  const snapshot = { syncedAt: BANK_SNAPSHOT.syncedAt, aggregate: { ledger: true, sourceEnvironment: 'imported', currency: 'USD', netWorth: { net: 100 } } };
+  const f = await openApp(browser, { width: 412, height: 915 }, `${ORIGIN}/api/finance/app`, '', PROFILE, snapshot);
+  try {
+    await f.page.locator('[data-journey="banks"]').waitFor();
+    assert.equal(await f.page.locator('[data-journey="banks"] .fx-balance').textContent(), 'Unknown');
+    assert.match(await f.page.locator('[data-journey="banks"]').innerText(), /saved summary belongs to statement and manual records/i);
+    assert.doesNotMatch(await f.page.locator('[data-journey="banks"]').innerText(), /\$100/);
+  } finally { await f.context.close(); }
 });

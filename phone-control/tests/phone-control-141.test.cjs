@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.4.1 unit, Python bridge, and Chromium suite: verifies studio toolbar (#syncDeviceBtn, single #sessionMirrorBtn, #fullscreenStageBtn + Escape exit, #toggleConciergeBtn), BLE 0x1801/connect_bonded/ble-sync + non-flooding AssistiveTouch swipes, pre-mirror stage touchpad gestures, Fire TV protectedSurface notice + TV keyboard navigation + fast frame wakeups, zero default /api/rdp/sessions polling, and guided Android pairing IP prefill.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: assert #phoneConciergeWindow bottom-pinned geometry in the 340px studio rail now that the bespoke #conciergeComposer is replaced by jarvis-chat-frame.js.
  */
 'use strict';
 
@@ -351,7 +352,7 @@ test('computer-link supports pre-mirror touchpad gestures, protectedSurface fram
 async function assertPinnedStudioRail(page) {
   const railMetrics = await page.evaluate(() => {
     const rail = document.getElementById('sideColumn');
-    const composer = document.getElementById('conciergeComposer');
+    const composer = document.getElementById('phoneConciergeWindow');
     const railRect = rail.getBoundingClientRect();
     const composerRect = composer.getBoundingClientRect();
     return {

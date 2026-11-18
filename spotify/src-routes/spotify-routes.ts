@@ -32,6 +32,10 @@
  * ---------------------------------------------------------------------------
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Spotify credentials from generic orchestrator dispatch. Spotify Web API calls stay controller-side through getValidAccessToken and the model receives only bounded profile, track, playlist, and playback records.
  * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: with OSHAL_EGRESS=kernel there is no token broker and the framework spotify-client is an inert stand-in, so every route said not connected. There the routes use the package-local client in kernel-spotify.ts (same six helpers and shapes, requests to api.spotify.com through the kernel egress with no Authorization; the manifest declares the host with the caller's spotify connection as a Bearer credential), and whether Spotify is connected comes from the connectors.metadata intent. A missing, revoked or lapsed connection, or a kernel "not connected" refusal, gets each route's existing not-connected answer (now named once in NOT_CONNECTED and reused for both). The legacy broker path is unchanged.
+ * 2026-11-17 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9 (lane CHATCORE3: the concierge is the kernel's one chat window). The
+ *            | window's bot reaches what the page's chat route held through tools over these routes; two are new: GET /notes
+ *            | (the remembered notes and the profile's tastes, for read-music-taste) and POST /notes (remember-music-taste: a
+ *            | note the listener states, grounded in their own words, kept once). Guard: tests/spotify-tools.test.cjs.
  *
  * @module spotify-routes
  */
@@ -329,6 +333,29 @@ export function createSpotifyRoutes(ctx: AppContext): Router {
        RETURNING *`,
       [sub, b.displayName ?? null, b.favoriteGenres ?? null, b.favoriteArtists ?? null, b.notes ?? null, b.onboarded ?? null]);
     res.json({ profile: r.rows[0] });
+  }));
+
+  // ── Taste notes: what the concierge keeps about this listener (the one chat window's read-music-taste and remember-music-taste) ──
+  router.get('/notes', listener(async (_req, res, sub) => {
+    const profile = await loadProfile(pool, sub);
+    res.json({ notes: await store.loadNotes(sub, 50),
+      profile: { favoriteGenres: profile.favorite_genres || [], favoriteArtists: profile.favorite_artists || [], notes: profile.notes || null } });
+  }));
+
+  // Keep a taste the listener states. Body: { note, said }: said is the listener's own words, and the note is kept only when they
+  // state it (one of its words of four letters or more is in them), and only once.
+  router.post('/notes', listener(async (req, res, sub) => {
+    const note = String(req.body?.note || '').trim(), said = String(req.body?.said || '').trim();
+    if (!note || note.length > 200 || !said || said.length > 2000) {
+      res.status(400).json({ error: 'note_and_said_required', message: 'Name the note (200 characters at most) and the words the listener said.' });
+      return;
+    }
+    const words = said.toLowerCase();
+    const stated = (note.toLowerCase().match(/[a-z0-9]{4,}/g) || []).some((word) => words.includes(word));
+    const kept = (await store.loadNotes(sub, 200)).map((saved: string) => String(saved).trim().toLowerCase());
+    const remembered = stated && !kept.includes(note.toLowerCase()) ? [note] : [];
+    for (const fresh of remembered) await store.saveNote(sub, fresh);
+    res.json({ remembered });
   }));
 
   // ── Conversational concierge (brain runs on the bot via the orchestrator) ──

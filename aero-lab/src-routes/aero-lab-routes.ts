@@ -106,6 +106,21 @@
  *                     |                             | line now names the latitude the draft keeps when the
  *                     |                             | person named a whole degree (keptLatitude). Guarded by
  *                     |                             | aero-lab/tests/aero-designer-chat.test.cjs.
+ * 2026-11-17 07:30:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3): Draft with AI is
+ *                     |                             | the kernel's one chat window, where no request
+ *                     |                             | carries the sliders and no reply comes back to
+ *                     |                             | this route. The page tells POST /draft/design the
+ *                     |                             | design on its sliders before each turn; the
+ *                     |                             | concierge offers a draft with its propose-aero-
+ *                     |                             | draft tool (POST /draft), checked as a /chat
+ *                     |                             | reply's draft is (merged over that design, in
+ *                     |                             | bounds, buoyancy only with hybrid, every move's
+ *                     |                             | direction agreeing, a named site and season held);
+ *                     |                             | the page reads it after the answer (GET /draft) and
+ *                     |                             | shows it with Apply to sliders (DELETE /draft clears
+ *                     |                             | it). Kept in memory per person; nothing runs the
+ *                     |                             | engine. Guarded by aero-lab/tests/aero-window-draft
+ *                     |                             | .test.cjs.
  */
 
 import * as fs from 'fs';
@@ -838,6 +853,55 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
       res.json(env);
     })();
   });
+
+  // ── Draft with AI in the kernel's one chat window (1.4.6) ──────────────────────
+  // The page tells this route the design on its sliders before each concierge turn; the concierge offers a draft with
+  // its propose-aero-draft tool; the page reads the offered draft after the answer and shows it with Apply to sliders.
+  // Both are kept in memory per person for the visit: a draft is shown, applied or dismissed, and nothing runs the engine.
+  const designs = new Map<string, Record<string, number>>();
+  const drafts = new Map<string, { say: string; draft: Record<string, number>; changes: DesignChange[] }>();
+  const person = (req: Request): string => String((req as unknown as { oidc?: { user?: { sub?: string } } }).oidc?.user?.sub || 'operator');
+
+  /** POST /draft/design — the page's sliders before a turn ({design}); an earlier offered draft is cleared with it. */
+  router.post('/draft/design', (req: Request, res: Response) => {
+    const checked = validateDesign((req.body || {}).design, null);
+    if ('error' in checked) { res.status(400).json({ error: checked.error }); return; }
+    designs.set(person(req), checked.design);
+    drafts.delete(person(req));
+    res.json({ ok: true });
+  });
+
+  /** POST /draft — the concierge's draft ({draft, moves, say?, said?}), checked against the design on the person's sliders. */
+  router.post('/draft', (req: Request, res: Response) => {
+    void (async (): Promise<void> => {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const current = designs.get(person(req)) ?? null;
+      if (!current) {
+        res.status(409).json({ error: 'no_design', message: 'The Aero Lab screen has not sent the design on its sliders, so no draft can be checked. Ask the person to ask from the Aero Lab window.' });
+        return;
+      }
+      let caps: WorkerCaps | null = null;
+      try { caps = (await adapter.capabilities()) as WorkerCaps; } catch (err) {
+        logger.warn({ error: (err as Error).message }, 'capabilities unavailable for a window draft — sanity bounds only');
+      }
+      const hybridOk = !!(caps?.capabilities as { hybrid?: boolean } | undefined)?.hybrid;
+      const envelope = JSON.stringify({ say: String(body.say || '').slice(0, 2000), draft: body.draft, moves: body.moves });
+      const named = namedMission(String(body.said || '').slice(0, 4000), current.latitude_deg);
+      const result = holdNamedMission(parseAeroDesignerEnvelope(envelope, hybridOk, caps?.bounds ?? null, current), named, current, caps?.bounds ?? null);
+      if (!result.draft) {
+        res.status(422).json({ error: 'draft_withheld', message: result.say });
+        return;
+      }
+      drafts.set(person(req), { say: result.say, draft: result.draft, changes: result.changes });
+      res.json({ offered: true, changes: result.changes, note: 'The draft is on the Aero Lab screen with Apply to sliders. Nothing runs until the person presses Run.' });
+    })();
+  });
+
+  /** GET /draft — the draft offered for the person's sliders, or null. */
+  router.get('/draft', (req: Request, res: Response) => { res.json({ draft: drafts.get(person(req)) ?? null }); });
+
+  /** DELETE /draft — the person applied or dismissed the draft. */
+  router.delete('/draft', (req: Request, res: Response) => { drafts.delete(person(req)); res.json({ ok: true }); });
 
   return router;
 }

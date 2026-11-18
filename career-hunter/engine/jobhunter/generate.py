@@ -11,6 +11,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 D7: a tailored packet cites the story review's evidence. The prompt carries each role's recorded stories and the bullet each one supports, every citation the model returns is verified against the story the profile actually holds on the role it actually belongs to, and the packet records what was cited. A profile with no stories builds exactly the prompt it built before.
 
+# 46 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -26,7 +27,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, enrich, profile, config, role_plan, letter_evidence, claims_fix
+from . import db, enrich, profile, config, role_plan, letter_evidence, claims_fix, role_hierarchy
 
 TEMPLATES = Path(__file__).parent / "templates"
 # Resume/cover output dir — config.APP_DIR points at the per-user persistent volume in
@@ -833,6 +834,75 @@ def _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, includ
     return prompt, ranked, letter_block
 
 
+def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
+    """Generate and check one packet on the existing model rail, keeping recorded role identity independent."""
+    prof_doc = _prep_profile(prof, include_oshal)
+    prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
+    sys_prompt = build_system(prof, include_oshal)
+    if selected:
+        prof_doc = _prep_profile(prof, any(e['id'] == 'saved-portfolio' for e in selected))
+        prof_doc.pop('oss_portfolio', None)
+        prof_doc['additional_experience'] = selected
+        prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
+        f = _framing(prof_doc)
+        sys_prompt = _sys_pre(f) + ADDITIONAL_EXPERIENCE_SYSTEM + _sys_post(f)
+
+    # Send the WHOLE (gated) career DB. The old [:14000] cap silently dropped ~70% of the
+    # ~48k-char profile: the full role history, the metrics_bank, AND the anti-inflation
+    # framing_notes — yet the prompt still ordered the model to render those roles, forcing
+    # omission (gaps) or reconstruction from memory (fabrication). The full DB is ~13k
+    # tokens; the generation model holds 200k+.
+    prompt, ranked, letter_block = _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, include_oshal, guidance)
+    roles = role_plan.plan(prof)   # which recorded roles this résumé carries, most recent first
+    data = enrich.parse_json(enrich.complete(sys_prompt, prompt, max_tokens=8000))
+    if not data or "resume" not in data:
+        raise RuntimeError("AI did not return a usable resume/cover.")
+    # Verify the story citations BEFORE the dash sanitiser rewrites the text they are matched
+    # against, and strip the key so the templates see the shape they already speak.
+    stories_cited = collect_story_citations(data, prof)
+    if selected:
+        data['resume'].pop('open_source', None)
+    else:
+        data['resume'].pop('additional_experience', None)
+    # The model writes the words; the recorded roles decide which jobs are on the page (role_plan).
+    opted_in = include_oshal or any(e['id'] == 'saved-portfolio' for e in selected)
+    roles_carried = role_plan.carry(data['resume'], roles, prof, _embargo_terms(prof, opted_in))
+    data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
+    # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
+    # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
+    # The editor pass, then the records decide what the documents may claim, whichever model wrote them.
+    data, claims_checked = _hold_packet(data, prof_doc, selected, ranked, letter_block, prof_json,
+                                        prof_doc if selected else prof,
+                                        {"title": row["title"], "company": company_doc, "description": row["description"] or ""})
+
+    return data, prof_doc, stories_cited, roles_carried, claims_checked
+
+
+def _packet_files(outdir, data, ctx):
+    """Render the unchanged packet templates, keeping linked groups in one compact section."""
+    # Split experience for the 1-page compact: detailed (2011+) vs a one-line earlier-career.
+    resume = data["resume"]
+    resume["experience"] = role_hierarchy.ordered(resume.get("experience", []) or [])
+    _exp = resume["experience"]
+    recent, earlier = role_hierarchy.compact(_exp, _start_year)
+
+    renders = {
+        "Resume_ATS": _env.get_template("resume.html").render(r=resume, **ctx),
+        "Resume_Premium": _env.get_template("resume_premium.html").render(r=resume, **ctx),
+        "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **ctx),
+        "CoverLetter": _env.get_template("cover.html").render(c=data["cover"], **ctx),
+    }
+    paths = {}
+    for name, html in renders.items():
+        hp = outdir / f"{name}.html"
+        pp = outdir / f"{name}.pdf"
+        hp.write_text(html, encoding="utf-8")
+        _render_pdf(hp, pp)
+        paths[name] = pp
+
+    return paths
+
+
 def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '', additional_experience=None) -> dict:
     """Generate a tailored resume + cover for one job, pulling from the (possibly
     enriched) career DB and tailoring to THIS posting. New experience the candidate
@@ -858,45 +928,9 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         contact = prof.get("profile", {})
         # Gate the personal open-source (OSHAL) work on the opt-in flag, then pick the
         # matching system prompt (ban vs allow). OFF mode is byte-identical to before.
-        prof_doc = _prep_profile(prof, include_oshal)
-        prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
-        sys_prompt = build_system(prof, include_oshal)
         selected = additional_experience or []
-        if selected:
-            prof_doc = _prep_profile(prof, any(e['id'] == 'saved-portfolio' for e in selected))
-            prof_doc.pop('oss_portfolio', None)
-            prof_doc['additional_experience'] = selected
-            prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
-            f = _framing(prof_doc)
-            sys_prompt = _sys_pre(f) + ADDITIONAL_EXPERIENCE_SYSTEM + _sys_post(f)
-
-        # Send the WHOLE (gated) career DB. The old [:14000] cap silently dropped ~70% of the
-        # ~48k-char profile: the full role history, the metrics_bank, AND the anti-inflation
-        # framing_notes — yet the prompt still ordered the model to render those roles, forcing
-        # omission (gaps) or reconstruction from memory (fabrication). The full DB is ~13k
-        # tokens; the generation model holds 200k+.
-        prompt, ranked, letter_block = _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, include_oshal, guidance)
-        roles = role_plan.plan(prof)   # which recorded roles this résumé carries, most recent first
-        data = enrich.parse_json(enrich.complete(sys_prompt, prompt, max_tokens=8000))
-        if not data or "resume" not in data:
-            raise RuntimeError("AI did not return a usable resume/cover.")
-        # Verify the story citations BEFORE the dash sanitiser rewrites the text they are matched
-        # against, and strip the key so the templates see the shape they already speak.
-        stories_cited = collect_story_citations(data, prof)
-        if selected:
-            data['resume'].pop('open_source', None)
-        else:
-            data['resume'].pop('additional_experience', None)
-        # The model writes the words; the recorded roles decide which jobs are on the page (role_plan).
-        opted_in = include_oshal or any(e['id'] == 'saved-portfolio' for e in selected)
-        roles_carried = role_plan.carry(data['resume'], roles, prof, _embargo_terms(prof, opted_in))
-        data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
-        # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
-        # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
-        # The editor pass, then the records decide what the documents may claim, whichever model wrote them.
-        data, claims_checked = _hold_packet(data, prof_doc, selected, ranked, letter_block, prof_json,
-                                            prof_doc if selected else prof,
-                                            {"title": title, "company": company_doc, "description": row["description"] or ""})
+        data, prof_doc, stories_cited, roles_carried, claims_checked = _tailored_packet(
+            prof, selected, row, company_doc, include_oshal, guidance)
 
         # Put the requisition number in the folder name when it's a clean id (referral/
         # manual rows store the real req #) so the packet ties back to the posting at a
@@ -906,29 +940,9 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         outdir = APP_DIR / f"{_slug(company)}__{_tag}{posting_id}"
         outdir.mkdir(parents=True, exist_ok=True)
 
-        # Split experience for the 1-page compact: detailed (2011+) vs a one-line earlier-career.
-        resume = data["resume"]
-        _exp = resume.get("experience", []) or []
-        recent = [e for e in _exp if _start_year(e.get("span")) >= 2011]
-        earlier = [e for e in _exp if 0 < _start_year(e.get("span")) < 2011]
-        if not recent:                       # year parse failed → fall back to first N as recent
-            recent, earlier = _exp[:4], _exp[4:]
-
         ctx = {"contact": contact, "company": company_doc, "title": title,
                "job_url": row["url"], "today": _today()}
-        renders = {
-            "Resume_ATS": _env.get_template("resume.html").render(r=resume, **ctx),
-            "Resume_Premium": _env.get_template("resume_premium.html").render(r=resume, **ctx),
-            "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **ctx),
-            "CoverLetter": _env.get_template("cover.html").render(c=data["cover"], **ctx),
-        }
-        paths = {}
-        for name, html in renders.items():
-            hp = outdir / f"{name}.html"
-            pp = outdir / f"{name}.pdf"
-            hp.write_text(html, encoding="utf-8")
-            _render_pdf(hp, pp)
-            paths[name] = pp
+        paths = _packet_files(outdir, data, ctx)
 
         (outdir / "application.json").write_text(
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
@@ -972,11 +986,9 @@ def rerender_packet(posting_id: int) -> str:
     data["generated"] = gen
     resume = gen["resume"]
     contact = _sanitize(profile.load().get("profile", {}))
-    _exp = resume.get("experience", []) or []
-    recent = [e for e in _exp if _start_year(e.get("span")) >= 2011]
-    earlier = [e for e in _exp if 0 < _start_year(e.get("span")) < 2011]
-    if not recent:
-        recent, earlier = _exp[:4], _exp[4:]
+    resume["experience"] = role_hierarchy.ordered(resume.get("experience", []) or [])
+    _exp = resume["experience"]
+    recent, earlier = role_hierarchy.compact(_exp, _start_year)
     ctx = {"contact": contact, "company": _company_doc(data.get("company")), "title": data.get("title"),
            "job_url": data.get("url"), "today": _today()}
     renders = {

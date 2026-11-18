@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A quiet one-pixel divider and shared composer, with a pinned phone pane and desktop dock. The assistant itself uses the shared editor styles.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (seen on blue at 412x915): the help line and the suggestion chips show only before the conversation starts, as Word's and Google Docs' assistant panes show their intro; with a conversation the log ran up against the help line and lost three lines of a phone's height to it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: on a phone the pane's header leads with "Back to <this page>" (44 px, the accent ink, an arrow) in place of the close cross, so the way back to the résumé is always in sight; a desktop keeps the docked pane and its cross. The pane takes the whole screen between Career's bars on every Career page, My résumé included.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window): My résumé no longer has a résumé editor of its own for a job's tailored résumé, so the bar's Concierge is no longer hidden there on a computer once a résumé exists (with none yet the page's one action is still the upload); on a phone (880 px or less, where the page offers Edit with AI, which opens this concierge) it is still not offered twice. The phone pane's place between Career's bars falls back to the screen's edges where Career's frame did not measure them (a host that frames the page without Career's bar).
  */
 @import url('/shared/ui/css/editor-foundation.css');
 .cf-concierge-toggle{min-height:44px;padding:8px 12px;border:1px solid var(--cf-line);border-radius:10px;background:var(--bg-secondary);color:var(--cf-ink);font:600 14px/1.2 system-ui;cursor:pointer}
@@ -17,10 +18,12 @@ html[data-career-concierge=open] body{padding-right:340px}
 .cf-concierge .ef-assistant-notice,.cf-concierge .ef-assistant-speaker{font-size:12px}
 .cf-concierge-back{display:none}
 .cf-concierge .ef-assistant:has(.ef-assistant-log>*) :is(.ef-assistant-help,.ef-assistant-prompts){display:none}
-/* My résumé's classic view (a job's tailored résumé) keeps its own résumé editor panel as the one assistant there. */
-html[data-career-surface=resume-studio] body:not([data-view=office]) .cf-concierge-toggle{display:none}
+/* My résumé's classic view (a job's tailored résumé): with no résumé yet the page's one action is the upload, and on a
+   phone its Edit with AI opens this concierge, so the bar does not offer it a second time. */
+html[data-career-surface=resume-studio] body:not([data-view=office]):not([data-resume=ready]) .cf-concierge-toggle{display:none}
+@media(max-width:880px){html[data-career-surface=resume-studio] body:not([data-view=office]) .cf-concierge-toggle{display:none}}
 @media(max-width:800px){
- .cf-concierge{width:100%;inset:var(--cf-top) 0 var(--cf-bottom);border-left:0;border-top:1px solid var(--cf-line)}
+ .cf-concierge{width:100%;inset:var(--cf-top,0px) 0 var(--cf-bottom,0px);border-left:0;border-top:1px solid var(--cf-line)}
  html[data-career-concierge=open] body{padding-right:0}
  html[data-career-concierge=open] body>main{visibility:hidden}
  .cf-concierge-toggle{padding:8px;font-size:13px}

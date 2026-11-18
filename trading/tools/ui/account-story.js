@@ -4,11 +4,12 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0: turn the saved facts of GET /paper/today into one card per account that answers three questions in plain words: is it running or parked and in what, what did it do today, and why did the value move. A connected account's state is the status the Manage strategy page already computes (native-account-status.js), renamed, so the two screens cannot disagree. "Parked" is read from the strategy's saved decision and named with the strategy's own rule, never guessed from holdings. A paper card always says its value counts prices only. Every part names its source and the time of its record. This module makes no request and changes nothing; no sentence says what to buy, sell or hold.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep observed activity, idle checks, protective pauses, approval-only and unknown evidence separate; qualify fallback targets as dated plans and derive the headline from evidence fields rather than display labels.
  */
 'use strict';
 // A private lexical block keeps classic-script names isolated, as native-account-status.js does.
 {
- const FIFTEEN_MINUTES=15*60*1000,THREE_MINUTES=3*60*1000;
+ const FIFTEEN_MINUTES=15*60*1000;
  const FIXED={
   basis:'This simulation counts prices only. It does not add the interest or dividends a fund pays, so a fund that pays out each month reads lower here than in a brokerage account.',
   otherCash:'Interest, dividends, fees, deposits and withdrawals are not listed one by one in saved records. They are inside the second line.',
@@ -22,7 +23,8 @@
  const NEXT={
   'NEEDS YOU':{label:'See what is waiting',go:'evidence'},'NOT RUNNING':{label:'Go to the watcher switch',go:'schedule'},'NOT SET UP':{label:'Set up this account',go:'settings'},
   'STOPPED':{label:'Set up this account',go:'settings'},'WATCHING ONLY':{label:'Set up this account',go:'settings'},'UNKNOWN':{label:'Check this account',go:'refresh'},
-  'RUNNING':{label:'See the last check',go:'evidence'},
+  'RUNNING':{label:'See the last check',go:'evidence'},'IDLE':{label:'See the last check',go:'evidence'},'ACTIVITY RECORDED':{label:'See the last check',go:'evidence'},
+  'SUBMISSION RECORDED':{label:'See the last check',go:'evidence'},'ORDER PENDING':{label:'See the last check',go:'evidence'},'WAITING':{label:'See the last check',go:'evidence'},'PAUSED':{label:'See the last check',go:'evidence'},'APPROVED':{label:'See the last check',go:'evidence'},
  };
  const statusReader=()=>typeof NativeAccountStatus!=='undefined'?NativeAccountStatus:typeof require==='function'?require('./native-account-status.js'):null;
  const finite=value=>typeof value==='number'&&Number.isFinite(value);
@@ -47,8 +49,9 @@
 
  /** @description The second chip: how much of the saved plan is the model's fallback. Read from the plan, never from holdings. */
  function parkedChip(plan){
-  const share=plan?.fallbackPct;
-  return !finite(share)||share<0.5?null:share>=99.5?'PARKED':share>=50?'MOSTLY PARKED':'PARTLY PARKED';
+  const share=plan?.fallbackPct,day=plan?.decisionAsOf;
+  const instrument=plan?.fallbackSymbol==='BIL'?'BIL':plan?.cadence==='daily'?'cash':null;
+  return !finite(share)||share<0.5||share>100||!instrument||!/^\d{4}-\d{2}-\d{2}$/.test(String(day))?null:'Plan: '+percent(share)+' '+instrument+' · '+dayWords(day);
  }
  /** @description What the account held at its last record, as weights: the watcher's last check, or a simulation's ledger. */
  function holdsLine(holdings,paper){
@@ -86,10 +89,12 @@
  function connectedToday(fact,state,options){
   const today=fact.today,caption=today?.at?[{source:'your broker\'s order list, read by the watcher',at:today.at}]:[];
   if(!today)return {title:'Today',lines:['No check is recorded for this account.'],notes:[],captions:caption};
-  if(!today.orders||!today.fills)return {title:'Today',lines:['Unknown. The order list the last check saved could not be read.'],notes:[],captions:caption,unknown:true};
-  const sent=today.orders.entered,lines=[],notes=[];
+  const submitted=Number.isSafeInteger(today.ordersSubmittedLastCheck)&&today.ordersSubmittedLastCheck>0?today.ordersSubmittedLastCheck:null;
+  const submissionNotes=submitted?['Submitted in this recorded check: '+submitted+'. Submission is not a fill.']:[];
+  if(!today.orders||!today.fills)return {title:'Today',lines:['Unknown. The order list the last check saved could not be read.'],notes:submissionNotes,captions:caption,unknown:true};
+  const sent=today.orders.entered,lines=[],notes=[...submissionNotes];
   if(!sent.total&&!today.fills.length){
-   lines.push('No orders sent.'+(state.why?' '+state.why:''));
+   lines.push((submitted?'No orders are in this saved broker list.':'No orders sent.')+(state.why?' '+state.why:''));
    if(today.lastFill)lines.push('Last fill: '+fillWords(today.lastFill,options)+'.');
   }else{
    const by=[[sent.strategy,'by the strategy'],[sent.watcherExit,'by watcher exits'],[sent.oneOff,'from a one-off review'],[sent.outside,'placed outside OSHAL']].filter(([n])=>n>0).map(([n,who])=>n+' '+who);
@@ -145,21 +150,25 @@
 
  /** @description A connected account's chip and first sentence: the Manage strategy page's own status, renamed. */
  function connectedState(fact,options){
-  const watch=fact.status?.watch,monitor=fact.monitor,reader=statusReader(),now=options.now;
-  if(!watch)return {chip:'NOT SET UP',sentence:'No strategy is set to run on this account.'};
-  const fresh=stamp(monitor?.heartbeatAt)&&now-Date.parse(monitor.heartbeatAt)<=THREE_MINUTES;
-  const schedule=options.watcher||(fresh?{status:'active'}:null);
-  const story=reader?reader.live({account:fact.status.account,watch,schedule,latestSession:options.latestSession,now}):{key:'unknown',detail:'The account-status reader is unavailable.'};
-  if(story.key==='review-blocked')return {chip:'NEEDS YOU',sentence:story.detail};
-  if(story.key==='paused'&&watch.enabled===false)return {chip:'STOPPED',sentence:'This account\'s monitor is stopped. Holdings and any broker orders stay as they are.'};
-  if(story.key==='monitoring'&&watch.automatedTrading===false)return {chip:'WATCHING ONLY',sentence:'The watcher checks this account. It is not approved to place strategy orders.'};
-  if(story.key==='paused'&&schedule&&schedule.status!=='active')return {chip:'NOT RUNNING',sentence:'Approved, but the watcher job is '+jobWords(schedule.status)+'. Nothing is being checked.'};
-  if(story.key==='unknown')return {chip:'UNKNOWN',sentence:story.detail};
-  const checked=stamp(monitor?.heartbeatAt)?'The watcher checked it at '+clockWords(monitor.heartbeatAt,options)+', '+ago(monitor.heartbeatAt,now)+'.':'No check is recorded yet.';
-  const said={aligned:'Holdings match the plan.','cycle-complete':'Holdings match the plan.','cycle-exceptions':'The plan\'s orders finished with exceptions.',
-   'order-pending':'An order is pending at the broker. Sent is not filled.',armed:'Approved and scheduled.'}[story.key]||story.detail;
-  const why={aligned:'The last check found holdings already match the plan.','cycle-complete':'The last check found holdings already match the plan.','order-pending':'',armed:''}[story.key]??story.detail;
-  return {chip:'RUNNING',sentence:checked+' '+said,why};
+  const watch=fact.status?.watch,reader=statusReader();
+  if(!watch)return {chip:'NOT SET UP',activity:'not-set-up',sentence:'No strategy is set to run on this account.',receiptFresh:false};
+  const schedule=options.watcher;
+  const story=reader?reader.live({account:fact.status.account,watch,schedule,latestSession:options.latestSession,now:options.now}):{key:'unknown',detail:'The account-status reader is unavailable.'};
+  const state=(chip,activity,sentence=story.detail)=>({chip,activity,sentence,why:story.detail,receiptFresh:story.receiptFresh===true});
+  if(story.key==='review-blocked')return state('NEEDS YOU','blocked');
+  if(story.key==='paused'&&watch.enabled===false)return state('STOPPED','stopped','This account\'s monitor is stopped. Holdings and any broker orders stay as they are.');
+  if(story.key==='monitoring'&&watch.automatedTrading===false)return state('WATCHING ONLY','monitoring','Automatic strategy orders are not enabled.');
+  if(story.key==='paused'&&schedule&&schedule.status!=='active')return state('NOT RUNNING','paused','Approved, but the watcher job is '+jobWords(schedule.status)+'. Nothing is being checked.');
+  if(story.key==='paused')return state('PAUSED','paused');
+  if(story.key==='unknown')return state('UNKNOWN','unknown');
+  if(story.key==='armed')return state('APPROVED','unverified');
+  const checked=stamp(story.asOf)?'Recorded check '+clockWords(story.asOf,options)+', '+ago(story.asOf,options.now)+'. ':'';
+  if(story.key==='order-pending')return state('ORDER PENDING','pending',checked+story.detail);
+  const today=fact.today,known=Number.isSafeInteger(today?.orders?.entered?.total)&&today.orders.entered.total>=0&&Array.isArray(today?.fills);
+  if(known&&(today.orders.entered.total||today.fills.length))return state('ACTIVITY RECORDED','observed',checked+story.detail);
+  if(story.ordersSubmitted>0)return state('SUBMISSION RECORDED','submitted',checked+story.detail);
+  if(!known)return state('UNKNOWN','unknown',checked+story.detail+' Order activity could not be verified.');
+  return state(story.key==='monitoring'?'WAITING':'IDLE',story.key==='monitoring'?'waiting':'idle',checked+story.detail);
  }
  /** @description A paper account's chip and first sentence: armed is a setting; recorded passes say whether it ran. */
  function paperState(fact,options){
@@ -185,12 +194,13 @@
   const state=connectedState(fact,options),approval=fact.monitor?.approval,intro=[];
   if(fact.strategy?.name)intro.push('Runs "'+fact.strategy.name+'".');
   intro.push(state.sentence);
+  intro.push('Automatic-order setting: '+(fact.monitor?.automatedTrading===true?'on':fact.monitor?.automatedTrading===false?'off':'unknown')+'.');
   if(approval&&fact.monitor.automatedTrading)intro.push(approval.active&&approval.expiresAt?'Approval active until '+dayWords(approval.expiresAt)+' (as of the '+clockWords(approval.asOf,options)+' check).'
    :'Approval: '+approval.status+(approval.asOf?' (as of the '+clockWords(approval.asOf,options)+' check)':'')+'.');
   const today=connectedToday(fact,state,options);
-  return {kind:'connected',key:fact.connectionKey+'|'+fact.accountId,accountId:fact.accountId,connectionKey:fact.connectionKey,label:fact.label,tag:'connected account',chip:state.chip,parked:parkedChip(fact.plan),intro,
+  return {kind:'connected',key:fact.connectionKey+'|'+fact.accountId,accountId:fact.accountId,connectionKey:fact.connectionKey,label:fact.label,tag:'connected account',chip:state.chip,activity:state.activity,parked:parkedChip(fact.plan),intro,
    parts:[planPart(fact),today,valuePart(fact,options)],next:NEXT[state.chip],link:{label:'Account details',go:'details'},
-   trades:Boolean(fact.monitor?.enabled&&fact.monitor?.automatedTrading),sent:today.unknown?null:today.sent||0,filled:today.unknown?null:today.filled||0,
+   trades:Boolean(fact.monitor?.enabled&&fact.monitor?.automatedTrading),sent:today.unknown||!state.receiptFresh?null:today.sent||0,filled:today.unknown||!state.receiptFresh?null:today.filled||0,
    recorded:finite(fact.value?.now?.equity)?{equity:fact.value.now.equity,at:fact.value.now.at}:null};
  }
  /**
@@ -208,20 +218,28 @@
    parts:[planPart(fact),today,valuePart(fact,options)],next:{label:'See passes and fills',go:reference?'journal':'paper'},link:reference?{label:'Open account',go:'open'}:null};
  }
 
+ /** @description Connected execution states remain evidence fields, independent of labels and automation settings. */
+ function executionSummary(cards){
+  const counts=key=>cards.filter(c=>c.activity===key).length;
+  const answer=counts('pending')?'Broker orders pending.':counts('observed')?'Activity recorded.':counts('submitted')?'Submission recorded.':counts('unknown')||counts('unverified')?'Execution unverified.':
+   counts('blocked')?'Review required.':counts('paused')?'Trading paused.':counts('waiting')?'Waiting for conditions.':counts('idle')?'No new orders recorded.':'No automatic strategy enabled.';
+  const names=[['pending','with pending orders'],['observed','with activity recorded'],['submitted','with submission recorded'],['idle','idle at the last check'],['waiting','waiting'],['paused','paused'],['blocked','requiring review'],['unknown','unknown'],['unverified','without execution evidence'],['monitoring','watching only'],['stopped','stopped'],['not-set-up','not set up']];
+  const detail=names.filter(([key])=>counts(key)).map(([key,label])=>counts(key)+' '+label).join('; ');
+  return {answer,sentence:plural(cards.length,'connected account')+': '+detail+'. Automatic-order setting on: '+cards.filter(c=>c.trades).length+' of '+cards.length+'.'};
+ }
  /**
-  * @description The headline across every card: is it trading, what happened today, and the recorded value of connected accounts.
+  * @description The headline across every card: evidence of execution, what is recorded today, and the recorded value of connected accounts.
   * @param {Array<object>} cards Results of connected() and paper().
   * @param {{format?:Function}} [options] An optional time formatter.
   * @returns {{answer:string,sentence:string,today:string,value:string|null}} The headline in words.
   */
  function headline(cards,options={}){
-  const set=cards.filter(c=>c.trades),running=set.filter(c=>c.chip==='RUNNING').length,needs=cards.filter(c=>c.chip==='NEEDS YOU').length;
-  const real=cards.filter(c=>c.kind==='connected'),unknown=real.filter(c=>c.sent===null).length,recorded=real.filter(c=>c.recorded);
-  const times=recorded.map(c=>c.recorded.at).filter(stamp).sort();
-  return {answer:!set.length?'Nothing is set to trade.':running===set.length?'Yes.':running?'Partly.':'No.',
-   sentence:(set.length?running+' of '+plural(set.length,'account')+' set to trade '+(running===1?'is':'are')+' running.':'')+(needs?' '+needs+' need'+(needs===1?'s':'')+' you.':''),
-   today:plural(real.reduce((n,c)=>n+(c.sent||0),0),'order')+' sent, '+real.reduce((n,c)=>n+(c.filled||0),0)+' filled on connected accounts'+(unknown?' ('+plural(unknown,'account')+' unknown)':'')+'. '
-    +plural(cards.filter(c=>c.kind==='paper').reduce((n,c)=>n+(c.filled||0),0),'simulated trade')+'.',
+  const real=cards.filter(c=>c.kind==='connected'),paper=cards.filter(c=>c.kind==='paper'),armed=paper.filter(c=>c.trades).length;
+  const unknown=real.filter(c=>c.sent===null).length,recorded=real.filter(c=>c.recorded),times=recorded.map(c=>c.recorded.at).filter(stamp).sort();
+  const summary=real.length?executionSummary(real):{answer:armed?'Simulation only.':'Nothing is set to trade.',sentence:'No connected accounts are shown.'};
+  const orders=real.length?(unknown===real.length?'Connected orders and fills: Unknown. ':'The saved broker lists show '+plural(real.reduce((n,c)=>n+(c.sent||0),0),'order')+' entered and '+plural(real.reduce((n,c)=>n+(c.filled||0),0),'fill')+(unknown?' ('+plural(unknown,'account')+' unknown)':'')+'. '):'';
+  return {...summary,sentence:summary.sentence+(paper.length?' '+plural(armed,'simulation')+' armed.':''),
+   today:orders+plural(paper.reduce((n,c)=>n+(c.filled||0),0),'simulated trade')+'.',
    value:recorded.length?money(recorded.reduce((n,c)=>n+c.recorded.equity,0))+' from each account\'s last check; newest '+clockWords(times.at(-1),options)+', oldest '+clockWords(times[0],options)
     +(recorded.length<real.length?'. '+plural(real.length-recorded.length,'account')+' with no saved value '+(real.length-recorded.length===1?'is':'are')+' not included':'')+'.':null};
  }
@@ -244,7 +262,7 @@
   * @returns {string} The card's markup.
   */
  function cardHtml(card,options={}){
-  const now=options.now??Date.now(),tone={'RUNNING':'is-running','NEEDS YOU':'is-blocked','NOT RUNNING':'is-blocked'}[card.chip]||'';
+  const now=options.now??Date.now(),tone={'RUNNING':'is-running','ACTIVITY RECORDED':'is-running','ORDER PENDING':'is-running','SUBMISSION RECORDED':'is-running','NEEDS YOU':'is-blocked','NOT RUNNING':'is-blocked','PAUSED':'is-blocked'}[card.chip]||'';
   return '<article class="panel story" data-story="'+escape(card.key)+'" data-story-kind="'+escape(card.kind)+'"><header class="story-head"><div><h2>'+escape(card.label)+'</h2><p class="story-tag">'+escape(card.tag)+'</p></div>'
    +'<p class="story-chips"><span class="story-chip '+tone+'">'+escape(card.chip)+'</span>'+(card.parked?'<span class="story-chip">'+escape(card.parked)+'</span>':'')+'</p></header>'
    +card.intro.map(line=>'<p class="story-intro">'+escape(line)+'</p>').join('')+card.parts.map(part=>partHtml(part,options,now)).join('')

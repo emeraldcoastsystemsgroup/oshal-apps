@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | K4 regression: with no drone registered POST /api/drone/chat answered 503 'drone.getState is unavailable in this native runtime' and the chat printed 'Error: drone.getState is unavailable…'. The fallback after a failed getState(droneId) called getState() again, which the native bridge throws the same way. Drives the compiled route with a double of the native DroneService (availability marker configured:false, every read throws, as crates/host-process/bridge/unavailable_executor_services.js does) and with an engine whose reads fail without a marker: both answer 200 { noDrone: true, draft: null } in plain words, never call the planner and never draft. The surface's own applyFleetAvailability keeps the chat input and Send off with the reason, and a chat failure reads in plain words.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Draft show is switched off (with the reason) while no drone is registered, like the other flight commands; it answered "pattern generation failed" before.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.2: the Operator chat is the kernel's one chat window (drone-operator), whose draft-drone-mission tool is the same POST /chat, so the two route cases stand. The page has no chat input, Send or chat request of its own any more: while no drone is registered the window's help line says nothing can be drafted or flown yet (with its own starters), and says what a drone allows again once one is, each told once per change (the page's syncOperatorChat, run against a stub window).
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -98,29 +99,41 @@ test('when every drone read fails without a marker the chat still answers the pl
 
 const PAGE = fs.readFileSync(path.join(ROOT, 'tools', 'drone-ops.html'), 'utf8');
 
-test('the surface keeps the operator chat off with the reason while no drone is registered', () => {
-  const source = PAGE.match(/function applyFleetAvailability\(r\) \{[\s\S]*?\n\}\n/);
-  assert.ok(source, 'applyFleetAvailability is on the page');
-  const el = (id) => ({ id, hidden: false, disabled: false, title: '', placeholder: 'e.g.', textContent: '', className: '', innerHTML: '', dataset: {}, getAttribute: () => '' });
-  const nodes = { noDroneBanner: el('noDroneBanner'), providerPill: el('providerPill'), statusPill: el('statusPill'), modeGoto: el('modeGoto'), chatInput: el('chatInput') };
-  const send = el('send');
-  const document = { querySelectorAll: (sel) => (sel === 'button[onclick="sendChat()"]' ? [send] : []) };
-  const run = (answer) => new Function('$', 'document', 'esc', 'NO_FENCE', 'FLIGHT_COMMANDS', 'let fleetUnavailable = null;\n' + source[0] + '\napplyFleetAvailability(arguments[5]);')(
-    (id) => nodes[id], document, (s) => String(s), 'no fence', /arm|takeoff/, answer);
-  run({ configured: false, reason: 'no_drone_node', detail: 'No drone or flight simulator is registered with this native runtime.', fence: null, fleet: [] });
-  assert.equal(nodes.chatInput.disabled, true);
-  assert.equal(send.disabled, true);
-  assert.match(send.title, /none is registered/);
-  run({ fleet: [{ droneId: 'alpha' }], fence: { maxRadiusM: 500 } });
-  assert.equal(nodes.chatInput.disabled, false, 'with a drone the chat is on');
-  assert.equal(send.disabled, false);
+/** The page's syncOperatorChat with its help lines and starters, over a stub window; returns a setter for the drone state. */
+function operatorChat(win) {
+  const consts = ['CHAT_HELP', 'CHAT_PROMPTS', 'NO_DRONE_CHAT_HELP', 'NO_DRONE_CHAT_PROMPTS'].map((name) => {
+    const line = PAGE.match(new RegExp(`^const ${name} = .*;$`, 'm'));
+    assert.ok(line, `${name} is on the page`);
+    return line[0];
+  }).join('\n');
+  const sync = PAGE.match(/function syncOperatorChat\(\) \{[\s\S]*?\n\}\n/);
+  assert.ok(sync, 'syncOperatorChat is on the page');
+  return new Function('window', `let fleetUnavailable = null, chatTold = '';\n${consts}\n${sync[0]}\nreturn (unavailable) => { fleetUnavailable = unavailable; syncOperatorChat(); };`)(win);
+}
+
+test('while no drone is registered the operator chat window says nothing can be drafted or flown yet, told once per change', () => {
+  const told = [], win = {};
+  const set = operatorChat(win);
+  set('No drone or flight simulator is registered with this native runtime.');
+  assert.deepEqual(told, [], 'nothing is told before the window is there');
+  win.droneOperatorChat = { setHelp: (help) => told.push(['help', help]), setPrompts: (prompts) => told.push(['prompts', prompts.map((p) => [p.label, p.prompt])]) };
+  set('No drone or flight simulator is registered with this native runtime.');
+  assert.deepEqual(told.map((t) => t[0]), ['help', 'prompts']);
+  assert.equal(told[0][1], 'No drone or flight simulator is registered here, so nothing can be drafted or flown yet.');
+  assert.deepEqual(told[1][1].map((p) => p[0]), ['Why can\'t I fly a drone here?', 'What does Drone Ops do?']);
+  assert.ok(told[1][1].every(([label, prompt]) => label === prompt), 'each starter sends its own words');
+  set('No drone or flight simulator is registered with this native runtime.');
+  assert.equal(told.length, 2, 'the same state is told once, not on every fleet read');
+  set(null);
+  assert.equal(told.length, 4, 'a drone that appears changes the help line and starters');
+  assert.match(told[2][1], /drafted inside the geofence and saved under Missions\. Nothing flies until you press Execute in Missions or Approve its card here/);
+  assert.equal(told[3][1].length, 4);
 });
 
-test('a chat failure reads in plain words, not the raw error', () => {
-  const send = PAGE.match(/async function sendChat\(\) \{[\s\S]*?\n\}\n/)[0];
-  assert.doesNotMatch(send, /'Error: ' \+ e\.message/);
-  assert.match(send, /could not answer just now/);
-  assert.match(send, /if \(r\.noDrone\) return;/);
+test('the page has no chat input, Send or chat request of its own: the one chat window takes every turn', () => {
+  assert.doesNotMatch(PAGE, /id="chatInput"|id="chatLog"|sendChat\(|api\('\/chat'|api\('\/conversation'\)/);
+  assert.match(PAGE, /<div id="operatorChat" aria-label="Operator chat"><\/div>/, 'the Plan view keeps the Operator chat panel for the window');
+  assert.match(PAGE, /mountJarvisChat\(host, \{ app: 'drone', bot: 'drone-operator'/);
 });
 
 test('Draft show is off with the other flight commands while no drone is registered, and back on with its hint when one is', () => {

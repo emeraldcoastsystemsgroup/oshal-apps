@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the kept-prices guard goes with the process copy it guarded, which never hit on the native kernel (every non-GET call from a caller who can write runs in a fresh process).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3: archived day prices are kept in the process ten minutes per name and window, shared by every caller (public market data): the same names read nothing, a new name reads only itself, a shorter window is its own copy, a name the archive lacks is asked again, and the answer is the same kept or read. On blue the World archive read was the whole cost of a stock answer without Schwab (1.8 to 2.0 s the first time a name was read after a while).
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guards the quant lab (the quant's tools) on made-up markets: all fifty ideas explained, the calculator on supplied numbers, a stock's five views over Schwab candles, the World archive used and labelled when no Schwab login is connected (and what its short history cannot support said plainly), a name without prices never given invented ones, every question bounded in names, days, paths and time, portfolios, pairs, Monte Carlo, the desk's backtest overfitting, and no order path.
  */
@@ -157,25 +158,6 @@ test("backtest overfitting over the desk's own history: none yet, an older histo
   assert.equal([...report.signals].sort((a, b) => b.annualSharpe - a.annualSharpe)[0].id, 'momentum');
   assert.ok(report.pbo.pbo < 0.2, `a real edge is rarely an overfit pick (PBO ${report.pbo.pbo})`);
   assert.match(report.plain[2], /survivorship/);
-});
-
-test('archived day prices are kept ten minutes and shared: the same names read nothing, a new name reads only itself', async () => {
-  const clock = { now: NOW }, { ctx, reads } = labContext({ schwab: false, archiveMissing: ['ZZZZ'] });
-  const h = labHandlers(ctx, { time: () => clock.now }), archive = () => reads.filter((r) => r.name === 'prices.series');
-  const first = (await h.stock('alice', post({ symbol: 'SPY', view: 'risk' }))).body;
-  const again = (await h.stock('bob', post({ symbol: 'SPY', view: 'risk' }))).body;
-  await h.stock('alice', post({ symbol: 'SPY', view: 'behavior' }));
-  assert.equal(archive().length, 1, 'one read serves both people and a second view over the same window');
-  assert.deepEqual(again, first, 'the kept copy gives the same answer as the read');
-  await h.stock('alice', post({ symbol: 'AAPL', view: 'factors' }));
-  assert.deepEqual([...archive()[1].input.symbols].sort(), ['AAPL', 'IWD', 'IWF', 'IWM'], 'SPY is kept; only the others are read');
-  await h.stock('alice', post({ symbol: 'SPY', view: 'liquidity' }));
-  assert.equal(archive().length, 3, 'a shorter window is its own copy');
-  await h.stock('alice', post({ symbol: 'ZZZZ', view: 'risk' })); await h.stock('alice', post({ symbol: 'ZZZZ', view: 'risk' }));
-  assert.equal(archive().length, 5, 'a name the archive lacks is asked again, never kept as empty');
-  clock.now += 10 * 60000 + 1;
-  await h.stock('alice', post({ symbol: 'SPY', view: 'risk' }));
-  assert.equal(archive().length, 6, 'read again after ten minutes');
 });
 
 test('the largest questions answer well inside two seconds', async () => {

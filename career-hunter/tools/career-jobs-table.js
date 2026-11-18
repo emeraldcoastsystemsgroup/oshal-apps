@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Bulk Send names the person's chosen Job Apply connected device when asking to send approved applications.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "when i click prepare application i still need the option of 'Other experience · optional — Agentic Federal | oshal (open-source)' to be selectable. this is not a choice in bulk edit"): Prepare applications asks first. One step lists the person's Other experience as the application page does ("Other experience · optional", each entry with its organization), under "Include in every selected application", with the count in its title and its button ("Prepare 4 applications") and the jobs left out; the entries the person prepared their last application with are ticked (GET /experience-bank?summary=1 last). Nothing is queued until Prepare is pressed; Cancel, Escape or a failed read queue nothing and say so. Each queued preparation carries exactly the ticked entries (CareerBulkQueue saves them on the job's tailoring before it is prepared), and the line after says which. Guard: tests/career-prepare-other-experience-browser.test.mjs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, 194 saved jobs on My jobs: "a consolidated job view where i can select multiple rows on a table and push all the applications to prepare application that i select ... bulk select for all of the subsequent screens as well"; and "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"). A Table view beside the List on Saved, Getting ready, Removed, Applied, Interviewing, Offer and Closed, remembered per person in their own browser storage. One row per job with Company, Title, Location, Match, Stage, Saved and Résumé; every column sorts; filters for distance (within 10, 25, 50 or 100 miles, or Remote), résumé and stage. A checkbox on each row, select all of what the filters show (indeterminate when part is chosen, Shift for a range) and a running count. A bar with the stage's bulk actions: Saved prepares applications, removes, or moves to Getting ready; Getting ready sends from the person's computer, prepares again or removes; Removed puts back or prepares; Applications move between Interviewing, Offer and Closed. Prepare and every move run through CareerBulkQueue (each job's own writes, at most two preparations at a time), with progress on each row and overall, Cancel for what is queued, Resume after a pause and Clear. Send reads each job's exact packet, then asks once with the count and the companies and sends nothing until the person ticks the approval and presses Send. At phone width the table is a selectable list with the same actions. Guard: tests/career-jobs-table-browser.test.mjs.
  */
@@ -440,7 +441,8 @@
   /** @description The list of applications to send, what is left out, and the approval box. */
   function sendBody(body, plan) {
     if (plan.ready.length) {
-      make('p', 'Career sends each one, with the résumé and cover letter you prepared, to the employer’s own form from your connected computer. It stops at anything it does not recognise and asks you.', body);
+      const via = plan.deviceName ? plan.deviceName : 'your connected computer';
+      make('p', `Career sends each one, with the résumé and cover letter you prepared, to the employer’s own form from ${via}. It stops at anything it does not recognise and asks you.`, body);
       const list = make('ul', null, body, 'jt-send-list');
       for (const { job, packet } of plan.ready) { const line = make('li', null, list); make('b', packet.company || job.company, line); line.append(' · ' + (packet.title || job.title)); }
     }
@@ -477,7 +479,7 @@
       S.deps.say('');
     }
     const ready = read.filter((one) => one.packet), notReady = read.filter((one) => !one.packet);
-    if (!await sendDialog({ computer: computer.available === true, ready, notReady, left })) { S.deps.say('Nothing was sent.'); return; }
+    if (!await sendDialog({ computer: computer.available === true, deviceName: computer.selectedDeviceName || '', ready, notReady, left })) { S.deps.say('Nothing was sent.'); return; }
     const result = S.queue.add(ready.map(({ job, packet }) => ({ id: job.id, title: job.title, company: packet.company || job.company, kind: 'send', digest: packet.packetDigest, label: 'Send', done: 'Approved' })));
     S.selected.clear();
     syncChecks(); renderProgress(); refreshCells();

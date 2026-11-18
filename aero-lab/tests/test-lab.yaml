@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register aero-engine-down-words: with no engine the page says, in words, that the engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-verdict: in Chromium the brief's Verdict line separates each tile after a real energy-loop render (demo sweep 2: the tiles ran together).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register design-tool-schema: the design tools name the route's design fields, each optional.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: register one-chat-window (Draft with AI is the kernel's one chat window, told the sliders; a draft the concierge offers shows with Apply to sliders and runs nothing) and window-draft (POST /draft/design and the propose-aero-draft route: a draft is checked against the person's sliders as a /chat reply's is, shown to that person alone, cleared once applied or by the next turn); aero-designer-chat expects the surface to send its sliders before each window turn.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register aero-layout (two views, one primary run, closed design groups with Reset to preset, field decimals, one-line presets, the engine popover, the phone bottom bar).
 # -----------------------------------------------------------------------------
 version: 1
@@ -398,7 +399,7 @@ cases:
       - With no design sent the prompt says so, no draft is offered and the reply says to ask from the design form.
       - A draft lowering battery_mass_kg while declaring up, or one with no declared direction, is withheld with the reason.
       - Text before the envelope, or an unparseable reply, never becomes the answer.
-      - The surface posts design with the message and renders only r.changes.
+      - The surface sends its sliders to POST /draft/design before each window turn and renders only the offered draft's changes; the window's draft passes the same check as /chat's.
       - A reply that claims a draft or change but carries none, or a draft that changes nothing, ends with "nothing changed on your sliders"; a draft outside the limits says why; plain advice gets no note.
       - Whenever no draft is offered (withheld, refused, none sent), the reply's clauses claiming a change or speaking of the draft are left out and the advice before them is kept (sweep 11).
     prerequisites:
@@ -528,6 +529,79 @@ cases:
       - Run 24 h Energy Loop is the one primary; the design vector is closed groups with Reset to preset and one Site & season.
       - Number fields show the field's decimals and the full value on focus; presets read one line without script or file names.
       - The engine block is a popover on its badge; the hand-off sits in the page flow; a phone gets Design · Results · Verdict · More.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: one-chat-window
+    name: Draft with AI is the kernel's one chat window
+    purpose: >-
+      In Chromium at 1440x900 and 412x915 the shipped Aero Lab page over the compiled router (no engine present), beside the
+      kernel's one chat window served from a kernel platform export with its stand-in kernel.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-one-chat-window.test.cjs
+    expected:
+      - Draft with AI (on a phone in the Design sheet) holds the window (concierge=aero-lab, bot=aero-designer) with its model menu, Files, Tap to talk, Keep trying and conversations.
+      - A turn reaches aero-designer with context.app aero-lab, the picked model and the screen (CURRENT DESIGN field by field, exactly the sliders); the page sent its sliders to POST /draft/design first.
+      - A draft offered during the turn shows under the window with Apply to sliders once the answer is done; Apply puts it on the sliders, clears it and runs nothing.
+      - No POST /api/aero-lab/chat and no message box of the page's own; the window and its message box are on the screen; nothing scrolls sideways.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+      - harness:kernel-platform-export
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: window-draft
+    name: The window's draft is checked against the person's sliders
+    purpose: >-
+      Drive the compiled POST /draft/design, POST /draft (propose-aero-draft), GET /draft and DELETE /draft with a stand-in engine.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-window-draft.test.cjs
+    expected:
+      - A draft over the sliders the page sent is offered with its changes alone, shown to that person only, and gone once applied.
+      - A draft moving against its advice, or out of bounds, is withheld with the reason and never shown.
+      - A site and season the person names hold the draft.
+      - With no sliders sent no draft is offered; the next turn's sliders clear an unapplied draft; an invalid design is refused.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: screen-record
+    name: The screen the Aero Designer is told of
+    purpose: >-
+      Run the surface's own aeroScreen, screenRecord, beforeTurn and afterTurn with a stub DOM.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-screen-record.test.cjs
+    expected:
+      - The screen carries the sliders field by field and the loaded preset's recorded verdict and boundary.
+      - A verdict on screen travels with its run status; nothing recorded adds nothing.
+      - beforeTurn sends the sliders to POST /draft/design and hands the window the screen; afterTurn shows only an offered draft's changes.
     prerequisites:
       - runner:node-test
     sideEffects: none

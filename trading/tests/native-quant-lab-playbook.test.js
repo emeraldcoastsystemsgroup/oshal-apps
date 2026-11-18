@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: every options question starts with a trading_quant_options call, in the persona and in the tool's own instructions, even when no Schwab login seems connected (bot-fast had answered an AAPL implied-volatility question with no tool on blue).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.3, from the 1.61.2 blue proof (bot-fast called trading_quant_run for two stock questions and stopped at trading_quant_explain for a calculation): trading_quant_run is described as the desk's own pass that answers no question, the persona never uses it to get prices, a rate or an answer, explain says it computes nothing and is followed by the tool it names, the lab tools say they work without Schwab, and no lab answer names trading_quant_run.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.61.1: the explain-first rule (a "what is" question always starts with trading_quant_explain; bot-fast had skipped it) in the persona and the tool's own description; the bill rate is the Treasury's, loaded by trading_quant_run when unavailable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | trading_quant_options joins the lab tools; the honesty rules now name the real sources: option chains only from the person's Schwab connection, official Fama-French factors told apart from ETF proxies, and the Treasury bill rate as the default risk-free rate.
@@ -93,6 +94,15 @@ test('explain computes nothing: the tool it names follows when a stock, a portfo
   assert.match(p, /`trading_quant_stock`, `trading_quant_portfolio`, `trading_quant_pair`, `trading_quant_simulate` and `trading_quant_calculate` work with or without Schwab/);
   assert.match(tools.get('trading_quant_stock').usageInstructions, /with or without Schwab \(without it the answer uses the World archive's recorded day prices\)/);
   assert.match(tools.get('trading_quant_calculate').usageInstructions, /^Use whenever the person gives numbers for a formula .*never work those numbers out yourself/);
+});
+
+test('every options question starts with trading_quant_options, even when no Schwab login seems connected', () => {
+  const p = persona.perspective, options = tools.get('trading_quant_options');
+  assert.match(p, /Every options question \(implied volatility, the volatility smile, the Greeks, the move the options price\) starts with a `trading_quant_options` \{symbol\} call, even when you think no Schwab login is connected/);
+  assert.match(p, /Never answer an options question without that call/);
+  assert.match(p, /Option chains need a Schwab login, and `trading_quant_options` itself says when there is none/);
+  assert.doesNotMatch(p, /Only option chains need Schwab\./, 'the 1.61.3 line that let bot-fast skip the tool is gone');
+  assert.match(options.usageInstructions, /^Always call it for implied volatility, the volatility smile, put-call parity, market Greeks or the move the options market prices, even when you think no Schwab login is connected/);
 });
 
 test('no lab answer names trading_quant_run, so an answer never cues the desk\'s own pass', async () => {

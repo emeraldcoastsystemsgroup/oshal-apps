@@ -19,6 +19,7 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing director tool case to saved-source context and held edits without provider calls.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the character-required-fields case expects "Hero image" (under a closed Advanced that a gap opens) and a Subject slug made from the Name; the workspace-foundation case covers the studio opening ready on New character step 1, Properties without a creation form, no inline Concierge, the phone's character list with one + New character, the stepper, and the training actions withheld without a GPU worker.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: register photo-upload unit/HTTP bounds and extend workspace-foundation with multi-photo crop and caption upload in Step 2 Dataset.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.10.5: register one-chat-window (every concierge entry on LoRA Studio, standalone and as Create's LoRA screen, opens LoRA Studio's own chat window bound to lora-director and closes cleanly) and restate workspace-foundation for LoRA Studio's closed-by-default concierge pane.
 version: 1
 cases:
   - id: character-required-fields
@@ -341,7 +342,7 @@ cases:
     runner: {kind: node-test, scope: package, files: [tests/workspace-foundation.test.mjs]}
     expected:
       - With no character selected the work area is New character step 1 with Create character, Advanced closed, and steps 2-4 waiting for a character.
-      - Properties never repeats the creation form, and there is no inline Concierge column or pane button.
+      - Properties never repeats the creation form, and LoRA Studio's own concierge starts closed so New character keeps the work area.
       - Create character posts once with the Subject slug made from the Name and continues at 2 Dataset; a missing Hero image opens Advanced and sends nothing.
       - A phone opens on the character list (versions, best score) with one + New character at the bottom right, and a tap opens the character.
       - Train, Validate, Improve and Overnight are withheld unless GET /worker reports a GPU worker, and offered when it does.
@@ -417,4 +418,21 @@ cases:
     sideEffects: none
     isolation: {mode: none}
     limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never
+
+  - id: one-chat-window
+    name: Every concierge entry opens LoRA Studio's own chat window
+    purpose: Open LoRA Studio inside the shipped Today page (the kernel platform export), standalone and as Create's LoRA screen, with no characters and with a saved character, and press every concierge entry a person sees with Playwright's own actionability.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/lora-one-chat-window.test.mjs]}
+    expected:
+      - At 1440x900 with a mouse and at 412x915 with touch, every visible concierge entry opens LoRA Studio's own one Jarvis chat window (/api/jarvis/?concierge=lora&bot=lora-director), never Today's outer rail and never Create's concierge.
+      - The window shows its model menu, Files, Tap to talk, Keep trying, New conversation and Recent conversations, and its own Close button dismisses it cleanly at both desktop and phone widths.
+      - A turn from New character start reaches lora-director with context.app lora and no saved document; a turn with a saved character selected carries its character UUID, subject and revision.
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser contexts and loopback fixture. Only synthetic data is used; no model is called.
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
     installation: never

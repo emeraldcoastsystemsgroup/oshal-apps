@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.0 (lane kalshiux1; Roger, 2026-11-16, his phone: "designed terrible"): the Markets tab designed for a phone after the category leaders, presentation only (tools/kalshi.html). One app bar, one status line, one line for the scan's and the model's age, the categories as one chip row with a Filter sheet, one card per market with Why as a sheet, ratings in plain words, five equal bottom tabs, the list's end clear of the floating Jarvis button. No route, read, order, scan, calibration, schedule, posture, setting or permission changed. Guard: tests/kalshi-phone-design-browser.test.js (Test Lab phone-design).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.1 (lane smallfix1): the company and family summary card (the audience view in tools/kalshi.html's head block, opened by the Business shells and the Home shell) says the ratings in 1.10.0's words: "2 markets with an edge", "With an edge", "Markets with an edge", a Rating column in Big edge, Good edge, Small edge, No edge or No estimate from the full page's own table, and no "playable hands", "monster" or "folded". Words only: no route, read, order, scan, setting or permission change. Guard: tests/audience-view.test.cjs.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.2 (lane kalshiux1; @lane-qa1 on the test slot, 2026-11-16): Scan now and a scan the background job lands refresh the Markets list (it kept "Nothing has been scanned yet" under "Scanned just now" until a reload); every string a person reads says 1.10.0's words: the settings labels ("Which edges to alert on", "Tell Jarvis when new markets with an edge appear", "Markets named in one alert"), the briefing ("Kalshi markets with an edge"), the schedule's words, the description, the Jarvis alert, the Why walkthrough, the Home card and the page. The briefing id, the setting keys and the rating values are unchanged. Guards: tests/kalshi-scan-refresh-browser.test.js, tests/kalshi-plain-words.test.js.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Release 1.10.3: declare read-only `approvals:` (`/api/kalshi/approvals-queue`, `/approvals`) so waiting confirm-gated `kalshi_orders` rows appear on `/cockpit/?screen=approvals` with only `Open in Kalshi` and zero inline approve or decline controls. Guard: tests/kalshi-approvals-readonly.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — kalshi ("Kalshi Prediction Markets", ADR-094)
 #
@@ -136,7 +137,7 @@ description: >-
 # under "Scanned just now" until a reload. Settings, the Jarvis briefing and alert, the Why walkthrough and the question
 # put to the quant, the Home card and the page say Big edge, Good edge, Small edge, No edge, No estimate and "markets
 # with an edge" (they still said hands, playable, monster and fold). Ids, setting keys and rating values are unchanged.
-version: 1.10.2
+version: 1.10.3
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant
@@ -452,6 +453,11 @@ summary:
   tilesPointer: /tiles
   metricsPointer: /metrics
   itemsPointer: /items
+
+approvals:
+  path: /api/kalshi/approvals-queue
+  itemsPointer: /approvals
+
 integrations:
   offers:
     - id: review-finance

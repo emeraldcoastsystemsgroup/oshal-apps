@@ -924,6 +924,16 @@ stored absolute artifact paths to the new prefix before restart.
 
 <!-- 2026-09-05 | maintainer@emeraldcoastsystemsgroup.com | Add the operations guide (docs/operations.md — batch schedule, admin checks, manual triggers, credential posture per ADR-137 amendment A, failure signatures, env knobs) and the credential-posture bullet after the 2026-08-10 → 09-05 scoring outage. -->
 
+## Client engagements under an employer
+
+Career 1.68.12 lets you place an existing Work history entry under its employer. Edit the client entry, choose the employer, and save. Each entry keeps its own title, dates, bullets and story. Removing the relationship makes the entry independent again; Undo restores the previous saved revision. Choose the optional **Selected Client Engagements** heading on the employer when useful.
+
+The employer stays at the main left margin. Client headings sit a quarter inch inward, their bullet text a further 0.175 inch inward, and dates share the original right margin. The saved relationship carries through My résumé, tailored packets, Word, PDF and plain text. Grouping comes from your explicit choice.
+
+Deploy AI Office 2.20.9 before Career 1.68.12 so its document model and exporters preserve the indentation and heading continuity. Existing entries remain flat until you group them.
+
+Career 1.68.13 adds **Tab in**, **Tab out** and **Add sub-engagement** beside each Work history entry’s existing actions. Tab in places an entry under the preceding employer group; Tab out makes it independent again. Add sub-engagement opens a separate entry under that employer. While editing, these controls update the form until you Save; Cancel retains the previous saved relationship. Existing dates, bullets and Undo remain available. An ambiguous or unavailable parent is explained instead of silently choosing another entry.
+
 <!-- oshal-rating:start -->
 ## Models and requirements
 
@@ -1441,6 +1451,23 @@ reader, the backfill and every kept copy to its own reading), `tests/career-job-
 `tests/career-job-descriptions-backfill.test.mjs`; on an installed Career, `tests/career-job-details-live-proof.mjs check` reads
 and shows a Torch Technologies posting as a test person on the test slot.
 
+**A tailored résumé's chat is Career's concierge (1.68.9).** Roger, 2026-11-16, "for the last time": every chat surface is the
+core Jarvis chat window, with its model menu (a model for one request), New conversation, Recent conversations, Files, Tap to talk,
+Keep trying, its formatting and its steps. My résumé drew a chat of its own for a job's tailored résumé, and for the main résumé
+where AI Office's Word editor is not available: the résumé editor, a transcript, a text box and Send whose turns went to
+`POST /resume/guide`, while Career's Concierge was hidden there. The page draws none now. On a computer **Concierge** in Career's
+bar opens the concierge docked beside the résumé; on a phone **Edit with AI** opens it between Career's bars (the bar does not
+offer it a second time), and where Career's frame is off, Edit with AI mounts it first. The page declares the résumé it has open
+(`<html data-career-record>`: `master` or the posting id), so the window opens that résumé's own conversation
+(`doc:career-hunter:<posting id>`) and its help line speaks of the job's résumé and cover letter. The registered document handoff
+is unchanged: an edit not yet saved is saved before each turn, and the résumé is read again after the turn and after an approved
+card. A tailored résumé's context names `career_documents` and `career_resume_save`, the concierge's own tools that read a job's
+saved résumé and cover letter and change them on a card (saved, its PDF made again); after the save before a turn, Save follows
+what is still unsaved. No route, tool, permission or binding changed: `POST /resume/guide` stays served, and nothing on the page
+calls it. Needs a kernel whose shared assistant is the one chat window (`/shared/ui/js/jarvis-chat-frame.js`, `00c62f98` or later).
+Guarded by `tests/career-hunter-one-chat-window.test.mjs` (1440x900, 412x915 and Career's frame off, the window served from a
+kernel platform export).
+
 <!-- CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.0: one concierge with every tool, the one-résumé rule and the card applied on the current revision. -->
 <!-- CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.1: the two workers' conversation: false, the live walk's whole-turn wait, one call per card and the month format. -->
 <!-- CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Document 1.62.2: a nightly match cycle begins at the installation's pull time (CAREER_INGEST_CRON), else 18:00. -->
@@ -1460,3 +1487,4 @@ and shows a Torch Technologies posting as a test person on the test slot.
 <!-- CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.4: Expanded experience on Work history (client engagements under their jobs, Place all under, client accounts by group), the `expanded` answer, the engagement edits and their guards. -->
 <!-- CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.5: letters and résumés say only what the records support; the letter draws on the work ranked most relevant and recent; a letter that still cannot is marked needs your review. -->
 <!-- CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.6: the My jobs posting sheet reads a job's missing description through the kernel's egress and keeps it as the person's copy, says plainly why it cannot, and the one-employer description backfill for the shared corpus. -->
+<!-- CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.7: My résumé draws no chat of its own; a tailored résumé's chat is Career's concierge, the kernel's one chat window (Concierge on a computer, Edit with AI on a phone), in that résumé's own conversation, with the tools that read and change it on its context. -->

@@ -19,6 +19,7 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard: register video-editor-design (tests/video-editor-design.test.mjs) at 412x743 with touch and 1440x900, and update the phone case: Add a clip in the empty timeline as the one primary, Export as the one primary with a clip, one tool row ending in More with greyed inert planned controls and the clip tools, sheets the browser's Back closes, an in-page delete confirm and the graphite dark category look.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: register product-name guard (tests/product-name.test.js) in the plain-Node video job.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): register one-chat-window, Video's editor inside the shipped Today page where every concierge entry a person sees opens the one chat window as video's concierge and, on a phone, the window's own Close closes the Concierge sheet so the editor takes the next tap.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: extend one-chat-window to Create's Video screen (/cockpit/?app=create&screen=create-video) and cold-load early Concierge presses while Video's editor modules are still loading.
 version: 1
 cases:
   - id: package-readiness
@@ -671,7 +672,8 @@ cases:
       - At 412x915 with touch and at 1440x900 with a mouse, each concierge entry a person can see is pressed with Playwright's own actionability, never forced and never a script click, and opens exactly one window, the one Jarvis chat window at /api/jarvis/?concierge=video&bot=video-editor.
       - On a phone the window sits in the editor's Concierge sheet, and the window's own Close closes that sheet; on a desktop it closes the editor's concierge column. No sheet and no chat window is left on screen.
       - The editor then takes the next press - Text opens its sheet - and no page error is raised.
-      - Red on Video 1.14.2 at 412x915 (the sheet stayed open after the window's Close), green on 1.14.3.
+      - Switching to Create's Video screen steps Create's floating ball aside as soon as Video's editor HTML paints, and pressing Concierge while editor modules are still loading opens Video's own concierge instead of leaving zero chat windows on screen.
+      - Red on Video 1.14.2 at 412x915 (the sheet stayed open after the window's Close) and red on 1.14.3 for cold-load early press on Create's Video screen, green on 1.14.4.
     prerequisites: [runner:node-test, browser:chromium, runtime:kernel-shared-ui, harness:oshal-core-root]
     sideEffects: fixture-write
     isolation:

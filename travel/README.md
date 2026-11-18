@@ -18,7 +18,7 @@ and the price read; it never invents a flight or a price.
 Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 
 - **In this package:** the app manifest (ticketType `travel` + the concierge
-  workflow + the seven route-backed tools), the `/api/travel` routes
+  workflow + the ten route-backed tools), the `/api/travel` routes
   (flights/hotels/cars + watches + profile + concierge chat), the surface
   (`tools/travel-app.html`, served from the package), and package copies of the
   travel-concierge + travel-foundation personas for the registrar.
@@ -36,6 +36,27 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface"):
 | Tile | URL | What |
 |---|---|---|
 | Travel | `/api/travel/app` | Concierge surface — search, price read, watches, chat (self-served by this package) |
+
+## The Travel Concierge is the one chat window (1.3.5)
+
+The concierge column (on a phone the sheet behind the Travel concierge button, with its Done) holds the
+kernel's one chat window (`travel-concierge`, `/shared/ui/js/jarvis-chat-frame.js`), the same window every
+concierge is: its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying.
+Before each turn it is told what the screen shows (`context.screen_state`): the tab, the trip in the form,
+the trip searched and its price read, the options with their ids and prices, the watched routes, and the
+installation's fact where it has no Duffel rail. After each answer the watched routes read again, so a watch
+the concierge opened shows at once. The page draws no chat of its own and no longer calls
+`POST /api/travel/chat`, which stays for its callers (`explain-travel-pick`, `prepare-booking`).
+
+What that route did for the page is the concierge's tools: three new ones, `read-travel-notes`
+(`GET /notes`: the traveller's remembered notes and the profile's preferences), `remember-travel-note`
+(`POST /notes`: keeps a preference the traveller states, grounded in their own words, once) and
+`list-fare-watches` (`GET /watches`), and `create-fare-watch` takes the return date, cabin and the fare the
+traveller saw. Watch and Stop watching say what happened in a status line under the results. A plan-trip
+hand-off fills the form and puts the brief in the window's message box. Needs a kernel with
+`/shared/ui/js/jarvis-chat-frame.js` (00c62f98 or later). Guards: `tests/travel-one-chat-window.test.js`
+(Chromium at 1440x900 and 412x915 over the compiled routes and a kernel platform export) and
+`tests/travel-tools.test.js`.
 
 ## Install
 

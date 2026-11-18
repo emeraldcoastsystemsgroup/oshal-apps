@@ -6,18 +6,13 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Side-effect-free Nexus home summary tiles and metrics for Phone & Device Control.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: real counts only - the person's phones, the computers whose bridge last reported, and the last thing sent with whether the computer said it worked. No "mirrored frames" (there were never any). The owner comes from the parent router's kernel check.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: point the empty-state fix link to phone-control-execution after merging phone-control-config into the Connect sheet.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: use lib/router.js resolveRouter() for Express 5 / raw http.createServer compatibility.
  */
 
 'use strict';
 
 const path = require('node:path');
-
-let createRouter;
-try {
-  createRouter = require('express').Router;
-} catch {
-  createRouter = require('../lib/router.js').createRouter;
-}
+const createRouter = require('../lib/router.js').resolveRouter();
 
 /**
  * @description The home summary route: tiles, metrics and one item when nothing is connected yet.

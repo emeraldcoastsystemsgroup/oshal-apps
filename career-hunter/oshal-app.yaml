@@ -2,16 +2,21 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 182 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: Work history places direct Tab in, Tab out and Add sub-engagement controls beside existing actions, preserving explicit one-level links, independent entries, drafts and revision-checked Save/Undo.
+# 181 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: explicitly group client engagements under one employer with revision-checked links, preserved independent records and consistent document indentation.
+# 180 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: declare `approvals:` (`/api/career-hunter/applications`, `/approvals`, with pinned `/approve` and `/deny` action templates) so applications in `approval_required` state appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`).
+# 179 | maintainer@emeraldcoastsystemsgroup.com | 1.68.10: Career's apply action reads the person's chosen Job Apply connected device from GET /api/apply-operator/workers (including Open Swarm Orbit computers alongside browser workers), names the chosen device on Step 3 · Send ("Applies from: <Device> · Change device"), the exact-packet approval screen, and My jobs' bulk Send dialog, and surfaces plain-words offline/control-off refusals from Job Apply device routing. Guards: tests/career-job-apply-device.test.mjs.
+# 178 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying): My résumé no longer draws a chat of its own. A job's tailored résumé (and the main résumé where AI Office is not available) had the page's own résumé editor, a transcript, text box and Send whose turns went to POST /resume/guide, and Career's Concierge was hidden there. Now Career's concierge, the kernel's one chat window, is that résumé's chat: Career's Concierge in the bar on a computer, Edit with AI on a phone (mounting the concierge first where Career's frame did not). The page declares the open résumé (html data-career-record), so the window opens its own conversation (doc:career-hunter:<posting id>); the registered handoff saves an edit not yet saved before each turn and reads the résumé again after the turn and after an approved card; the context names career_documents and career_resume_save, the concierge's existing tools that read a job's saved résumé and cover letter and change them on a card. After the save before a turn, Save follows what is still unsaved. No route, tool, permission, binding, schedule, cap, migration or staticFiles change; POST /resume/guide stays served and declared, and nothing on the page calls it. Guard: tests/career-hunter-one-chat-window.test.mjs.
 # 177 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412 right after a restart: "Career's Concierge did not show the chat window"; the same class Roger reported, a concierge button that does nothing). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant still on their way, seconds on a busy or just-started installation), and a press then reached no handler. A press before the concierge is ready is now kept and the concierge opens as soon as it mounts; the button says it is busy meanwhile (tools/career-frame.js, tools/career-concierge.mjs). No route, role, tool or persona change.
-# 176 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "i had oshal and agentic federal but now we have oswarm.ai and the product changed ... the bullets for oshal now should be oswarm and updated"; he cannot send résumés until his independent-work entry is right, and Career had no way to change it): Other experience's saved portfolio (oss_portfolio, the saved-portfolio entry job scoring reads) opens its own Edit form: organization, role, dates, three links, bullets, technology, applications and skills one per line, the summary job scoring reads, a short label and a private note. It reads whole with the main résumé's revision (GET /resume/master-section?field=portfolio) and saves whole as one main-résumé edit (POST /resume/master-edit, field portfolio, engine portfolio.py): every field checked first, all or nothing, backed up and audited, refused when the main résumé moved, with Undo (POST /resume/master-undo). With no portfolio saved, the same edit writes one. The list's own form no longer copies the portfolio into the Other experience file (which job scoring never read); a copy saved before 1.68.7 keeps that form. No new route or binding; static file career-experience-portfolio.js. Guard: tests/career-portfolio-edit.test.mjs (red on store main 6467ca6d).
-# 175 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "there are a bunch of jobs from torch technology that i want to apply for but in the my jobs initial screen the popup says that there is no information about the job"): the My jobs posting sheet reads a job's missing description. The shared corpus holds none for any Torch Technologies posting (Workday lists carry none; the pull's description stage leaves Workday, Oracle Recruiting Cloud and SmartRecruiters to each person's own reads, which only the nightly pass and Check my fit or Prepare made), so the sheet said "No description was provided." Now POST /jobs/:id/details (lib/career-job-details.js, career.change) reads it once through the kernel's egress at the structured address the engine's readers use and keeps it as the person's copy for the sheet, the Concierge, preparation and scoring; GET /jobs/:id?details=read shows it while Career is preparing applications; a job Career cannot read says why, with Open the posting and Paste it in Prepare application. scripts/backfill-job-descriptions.py re-reads one employer's empty descriptions into the shared corpus once (dry run with counts only). Guards: tests/career-job-details.test.mjs, tests/career-job-details-sheet-browser.test.mjs, tests/career-job-descriptions-backfill.test.mjs.
-# 174 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... the cover letter is not acceptable"): letters and résumés say only what the records support, whichever model writes them. The rules that held letters until 2026-07-22 had moved into an optional prompt_framing block, the cover editor was told to reach into "an EARLIER role", and nothing checked a claim after the model. Now letter_evidence.py ranks roles, engagements and selected Other experience by relevance and recency for both prompts (COVER LETTER EVIDENCE), and claims_check.py/claims_fix.py tone down or take out an unsupported tool, level, years count, title, employer or old-work sentence, write the letter again once with the problems named, else mark it needs your review (application.json claims_check); such a letter is never marked ready or sent until edited or confirmed. Guards: tests/career-letter-truth*.test.mjs.
-# 173 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16 20:45Z: "i can not find where to see my expanded experience.. it doesnt show anywhere ... it covers like 20 different companies over a 4 year span when i was consulting in the field"): his client engagements (project_ledger) and client accounts (named_accounts) were in his main résumé all along and no screen but Download my data read them. Work history shows and edits them: a summary line (jobs, client engagements, client accounts), each job's card with the engagements done under it, Expanded experience with the ones not placed yet and Place all under [job], and the client account groups; GET /resume/doc?id=master answers `expanded`, POST /resume/master-edit takes engagement, engagement-bullet and accounts edits (revision-checked, backed up, Undo; refused on a moved revision and past the 128 KiB job scoring reads). Same keys, no migration; no route, permission, schedule or cap changed; staticFiles adds career-work-history-engagements.js. Guards: tests/career-engagements-engine.test.mjs, tests/career-engagements-page.test.mjs.
-# 172 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "when i get to the application screen it fully generated my resume without asking me about adding in my optional addendum"; "i still need the option of 'Other experience · optional' ... to be selectable. this is not a choice in bulk edit"): Prepare application never generates a résumé before the person has had the chance to choose its Other experience. Step 1 · Tailor ticks the job's own choice, else the person's last choice (GET /experience-bank answers last), and Generate sends exactly what is ticked; documents made without a choice open on step 1. Prepare applications in the Table asks once (the same boxes, Include in every selected application, the count) and queues nothing until confirmed; each queued job's tailoring gets the choice (experienceChosen) before it is moved and prepared. With Prepare saved jobs for me on, a person who has other experience and never chose is asked first. Ticking the open-source entry stays the one switch the engine reads. No permission, schedule, cap, migration or staticFiles change. Guards: tests/career-prepare-other-experience-browser.test.mjs, tests/career-prepare-other-experience-route.test.mjs.
-# 171 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, 194 saved jobs: "select multiple rows on a table and push all the applications to prepare application ... bulk select for all of the subsequent screens as well"): My jobs and every later stage have a Table view (remembered per person) with Location, Match, Stage, Saved and Résumé columns, sorting, distance, résumé and stage filters, select all within the filter and a bar of the stage's bulk actions; bulk Prepare queues each job's own preparation (status promoted, then generate), at most two at a time, with progress per row and overall, Cancel, Resume after a pause and a queue that survives a reload; bulk Send asks once with the count and the companies and sends nothing without a ticked approval. No route, permission, schedule, cap or migration changed; staticFiles adds career-bulk-queue.js, career-jobs-table.js and career-jobs-table.css. Guards: tests/career-bulk-queue.test.mjs, tests/career-jobs-table-browser.test.mjs.
-# 170 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): every job on My jobs says where it is, read from its posting every time (a saved job is a reference to its posting; nothing was lost at save): the place text or Location unknown, Fully remote / Hybrid / On-site from the posting's own words, the city point Find jobs maps, and straight-line miles from the person's home, their saved Matching area. Within 10/25/50/100 miles or Remote only, and Distance from home, are answered over every page; with no home the page says so and Set your home opens Matching area (Settings ?section=matching). GET /jobs answers location, workplaceType, lat, lon, distanceMiles per job and home; a distance with no home is refused, never widened. No write backfill: scripts/saved-job-places.py is the read-only count. Guards: tests/career-saved-job-place.test.mjs, tests/career-saved-job-place-browser.test.mjs.
-# 169 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... it would leave out my active role"): every résumé Career generates or tailors carries the person's current role(s) (no end date, or Present/current) and every role that ended within 20 years, most recent first. The model had been handed the whole profile with the current role first and left it out, because the prompt let it drop roles for relevance and nothing checked its answer; now the prompt lists the roles to carry and engine/jobhunter/role_plan.py restores any role the model leaves out from its recorded title, employer, dates and bullets (application.json roles_carried). A résumé prepared before this that leaves a required role out is not ready: Prepare application opens on Tailor naming the role, and review and sending wait for Generate. Guards: tests/career-resume-roles.test.mjs, tests/career-resume-current-role-route.test.mjs.
-# 168 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"): on a phone My résumé's résumé starts in the top quarter of the screen (173 px down at 412x915, 390x844 and 360x780; it was 389 px) under ONE document bar of 52 px (the résumé with its save state, Edit or Undo and Redo, Save, More), the section tabs are one row that scrolls sideways, the banner's words for the main résumé are the top of More, and AI Office's own app row is folded into the bar (AI Office 2.20.6, ?header=host); once the person scrolls into the résumé, Career's bar and the tabs slide away. Computers and tablets are unchanged. Guard: tests/browser/career-resume-header-phone.test.cjs.
+# 176 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7: saved portfolio (`oss_portfolio`) Edit form with revision-checked main-résumé save and Undo (full notes in CHANGELOG.md).
+# 175 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6: My jobs posting sheet reads missing descriptions (`POST /jobs/:id/details`) and one-employer backfill script (full notes in CHANGELOG.md).
+# 174 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5: evidence-ranked cover-letter prompts (`letter_evidence.py`) and post-model overclaim rewrite/review check (`claims_check.py`) (full notes in CHANGELOG.md).
+# 173 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4: Work history Expanded experience (`project_ledger` and `named_accounts`) read and revision-checked edit with Undo (full notes in CHANGELOG.md).
+# 172 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1: Prepare application and bulk Prepare ask for Other experience selection before generating résumés (full notes in CHANGELOG.md).
+# 171 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0: Table view across board stages with location/distance/stage filters and bounded bulk Prepare/Send queue (full notes in CHANGELOG.md).
+# 170 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: posting location, workplace type, and straight-line distance from Matching area home on My jobs (full notes in CHANGELOG.md).
+# 169 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3: carry current roles and roles within 20 years on every generated or tailored résumé (`role_plan.py`) (full notes in CHANGELOG.md).
+# 168 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: compact 52px phone document bar and folded AI Office header on My résumé (full notes in CHANGELOG.md).
 # 167 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1: move historical manifest release notes and architecture prose verbatim to CHANGELOG.md so oshal-app.yaml stays well within the 128 KiB package-smoke readiness ceiling; add tests/career-package-smoke.test.mjs.
 # 166 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: per-employer confirmed-sent counts and badge, deterministic tracked-application age fields, 4,096-character work-history bullet preservation and inline glyph splitting, and My résumé Main vs Tailored banner (full notes in CHANGELOG.md).
 # Earlier entries: see career-hunter/CHANGELOG.md.
@@ -78,7 +83,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.68.8
+version: 1.68.13
 
 localEditing:
   itemId: master
@@ -416,9 +421,11 @@ tools:
     description: >-
       Apply at most 20 small exact edits to the current main résumé revision with backup and audit: text, lists,
       a job's bullets (add, change, move, remove, or split a pasted block into one bullet per line), and a job itself
-      (its title, employer, start or end month; add, move or remove it). Months are written YYYY-MM (January 2025 is
-      2025-01). Every edit is numbered as the work history was read. Its card stays good after another change is saved, as long as every job and bullet it names still
-      reads the same; My résumé's document and the Work history page both show the result.
+      (its title, employer, start or end month; add, move or remove it), or explicitly group a client engagement under
+      an existing employer while retaining both entries and their dates and bullets. Months are written YYYY-MM (January 2025 is
+      2025-01). Every edit is numbered as the work history was read. Ordinary text and job edits can survive another
+      saved change when every named job and bullet still reads the same. Grouping requires the exact current revision.
+      My résumé's document and the Work history page both show the result.
     executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/resume/master-edit"}
     defaultAuthMode: ask
     requiresApproval: true
@@ -441,7 +448,7 @@ tools:
               roleIndex: {type: integer, minimum: 0}
               roleTitle: {type: string, description: 'the job, by its exact title as read'}
               roleOrg: {type: string, description: 'its employer as read'}
-              key: {type: string, enum: [title, org, start, end]}
+              key: {type: string, enum: [title, org, start, end, parent_role_id, engagements_heading]}
               to: {type: integer, minimum: 0}
               before: {type: string, description: "the exact current text it changes or goes before; '' for an add at the end or a new job"}
               value: {type: string, description: "the new text; several lines become one bullet per line; a start or end month is YYYY-MM (2025-01), end '' is present"}
@@ -464,7 +471,14 @@ tools:
       start or end) and before its exact current value (end '' is present); add with index (its position in the work
       history as the card's earlier edits leave it, 0 is first) and value the title, then set its org and start (and
       end) in the same card; remove or move (to) with before the job's exact title, no index. Text fields accept set
-      only. Months read YYYY-MM. set/add need value; remove, move and split omit it. Keep the entire request below 12
+      only. To group a client engagement, first read a fresh overview. Set field role, key parent_role_id, before its
+      exact saved parent_role_id (empty if absent), and value the existing root employer's exact id; empty value unlinks
+      it. Only when that parent has no saved id, use @index:N for its zero-based original overview position on that exact
+      current revision. This explicit save assigns missing IDs; reads never do. Set engagements_heading on the parent to
+      Selected Client Engagements or empty to hide that heading. Children cannot own a heading or another child. Grouping
+      edits require the exact current revision and never rebase; reread after any intervening change. Unlink children
+      before removing their parent. Never infer an employer relationship or combine entries from similar wording.
+      Months read YYYY-MM. set/add need value; remove, move and split omit it. Keep the entire request below 12
       KiB. A card written before another change was saved still applies when everything it names reads as it did; when
       something it names changed, it is refused naming the change and the job, and you read again and propose it
       again. All edits apply or none. Qualifications are not changed here; never add an unverified claim,
@@ -920,7 +934,8 @@ tools:
     type: api
     description: >-
       Read one bounded page of the signed-in user's master profile, including read-only qualifications. The overview
-      lists each job with its title, employer, start and end month (end '' is present); field experience reads one
+      lists each job with its id, title, employer, start and end month (end '' is present), parent_role_id and
+      engagements_heading (empty when absent); field experience reads one
       job's saved bullets whole (up to 4,096 characters each, never shortened).
     executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/master-section?field={input.field}&index={input.index}&offset={input.offset}"}
     defaultAuthMode: auto
@@ -1824,6 +1839,16 @@ summary:
   metricsPointer: /metrics
   itemsPointer: /items
 
+approvals:
+  path: /api/career-hunter/applications
+  itemsPointer: /approvals
+  approve:
+    method: POST
+    path: /api/career-hunter/applications/{postingId}/approve
+  decline:
+    method: POST
+    path: /api/career-hunter/applications/{postingId}/deny
+
 integrations:
   offers:
     - id: prepare-document
@@ -1880,6 +1905,7 @@ staticFiles:
       - career-mark.svg
       - career-navigation.js
       - career-resume-office.js
+      - career-role-hierarchy.js
       - career-search-map.js
       - career-search-memory.js
       - career-settings-support.js

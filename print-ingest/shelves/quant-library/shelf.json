@@ -1,0 +1,27 @@
+{
+ "shelf": "quant-library",
+ "owner": "print-ingest",
+ "collection": "quant-library",
+ "audience": {
+  "app": "intelligent-trades",
+  "name": "trading-concierge",
+  "agentId": "4f8a1e72-3c59-4b8d-9e41-7206c8a31f4e"
+ },
+ "destination": "bot:4f8a1e72-3c59-4b8d-9e41-7206c8a31f4e",
+ "policy": "Full text only under CC BY, CC BY-SA, CC0 or US public domain, each licence read on the official page at build time and recorded on every passage. NonCommercial or NoDerivatives texts (OpenStax Principles of Finance included) and copyrighted classics enter as a record plus a summary in our own words, with the link.",
+ "builtAt": "2026-11-17T05:21:49Z",
+ "counts": {
+  "works": 174,
+  "fullText": 74,
+  "summaries": 100,
+  "documents": 441,
+  "estimatedCollectionBytes": 3932354
+ },
+ "licences": [
+  "CC BY 3.0",
+  "CC BY 4.0",
+  "CC BY-NC-SA 4.0",
+  "CC BY-SA 4.0",
+  "copyright of its publisher or authors (not openly licensed)"
+ ]
+}

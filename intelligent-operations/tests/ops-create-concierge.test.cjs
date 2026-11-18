@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (concierge audit batch 2b; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): Intelligent Operations follows the Create concierge pattern, Intelligent Trades 1.54.0 and Intelligent Career 1.57.0 the worked examples. Before it, ops-rca-specialist, the RCA pipeline's investigator, sat in as chatBot. The front desk is ops-concierge: inline, its own persona with Create's create-editor rules (plain prose, the ```tool_call fence, runtime harness claude-code), the specialist's concierge-panel rules word for word, every route tool authorized (the reads auto, ops-remove-source ask), the routing words moved to it, its own app.open binding and a place in the store's CONCIERGES. The workers stay as they were: the phases, both worker personas and the three screens that ask the specialist for JSON packets. Run: node --test intelligent-operations/tests/ops-create-concierge.test.cjs
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: Console, Pod console, and Cloud & SSH commands mount /shared/ui/js/jarvis-chat-frame.js bound to ops-rca-specialist instead of calling /ask directly.
  */
 'use strict';
 const { test } = require('node:test');
@@ -47,7 +48,9 @@ test('the workers stay as they were: the phases, both worker personas and the sc
     assert.ok(specialist.includes(packet), `the specialist keeps its ${packet} JSON contract`);
   }
   for (const screen of ['experience/console.js', 'experience/pod-console.js', 'experience/command-helper.js']) {
-    assert.match(read(screen), /\/api\/swarm\/bots\/ops-rca-specialist\/ask/, `${screen} still asks the specialist for its packet`);
+    const src = read(screen);
+    assert.match(src, /\/shared\/ui\/js\/jarvis-chat-frame\.js/, `${screen} mounts the kernel's one chat window`);
+    assert.match(src, /bot:\s*['"]ops-rca-specialist['"]/, `${screen} still asks the specialist for its packet`);
   }
 });
 

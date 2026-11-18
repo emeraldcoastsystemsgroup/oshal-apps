@@ -9,6 +9,8 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: Recurring joins the bar after Bills (on a phone it is under More).
   7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone inside Today the floating Jarvis button rested ON Finance's bottom bar, over its More tab, on every Finance screen. The style Finance gives its Today page also tells the button the bar's height (--oshal-app-bottom-inset: 64px, the way Career and Kalshi tell it theirs) while the bar shows (720 px and below), so the button rests above the bar and every tab is in reach, and Home ends 72 px higher there so its last row clears the button. Presentation only.
 
+  8 | maintainer@emeraldcoastsystemsgroup.com | Name statement/manual records separately from saved bank snapshots, open saved bank activity in Transactions and keep a missing bank unit unknown.
+
   What it reads (all the caller's own, all GET):
     /api/ui/profile?name=finance        the sections the person may open (the server filters them)
     /api/v1/agent/schedules             the person's jobs; the finance ones are shown
@@ -173,7 +175,7 @@
         <div><h1>Bank accounts and trading</h1><p class="fx-sub" id="fxAsOf">Reading saved information…</p></div>
         <button class="fx-btn" id="fxRefresh" type="button">Refresh view</button>
       </div>
-      <section class="fx-stand" id="fxStand" aria-labelledby="fxStandH" hidden><h2 class="fx-h" id="fxStandH">Where you stand</h2><div class="fx-stand-body" id="fxStandBody"></div></section>
+      <section class="fx-stand" id="fxStand" aria-labelledby="fxStandH" hidden><h2 class="fx-h" id="fxStandH">Statement and manual records</h2><div class="fx-stand-body" id="fxStandBody"></div></section>
       <section class="fx-journey" id="fxJourney" aria-label="Bank accounts and trading"><div class="fx-card fx-skel"></div></section>
       <details class="fx-details" id="fxMoreActivity"><summary>More activity</summary>
       <section aria-labelledby="fxTilesH"><h2 class="fx-h" id="fxTilesH">Saved activity</h2><div class="fx-tiles" id="fxTiles"><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div><div class="fx-tile fx-skel"></div></div></section>
@@ -200,7 +202,7 @@
   var SHORT = { 'finance-home': 'Bank accounts', 'finance-trading': 'Trades', 'finance-kalshi': 'Markets', 'finance-world': 'World', 'finance-recap': 'Recap', 'finance-banks': 'Connections' };
   var SELF = 'finance-app';
   var JOBS_PAGE = '/swarm-admin/jobs';
-  var state = { sections: [], current: 'home', loaded: false };
+  var state = { sections: [], current: 'home', loaded: false, homeRead: 0, standRead: 0, disposed: false };
   var byId = function (id) { return document.getElementById(id); };
 
   function el(tag, attrs, kids) {
@@ -320,9 +322,9 @@
     var body = byId('fxStandBody');
     if (day.firstRun) {
       body.replaceChildren(el('article', { class: 'fx-card', style: 'grid-column:1/-1' }, [
-        el('p', { text: 'Bring your money into Finance without linking a bank: download a statement file from your bank\'s website and give it to Finance.' }),
+        el('p', { text: 'No statement or manual records yet. A bank link does not add editable records here. Bring in a statement to work with its entries.' }),
         el('ol', { class: 'fx-steps' }, [el('li', { text: 'Bring in a statement (CSV, OFX or QFX) on Accounts.' }), el('li', { text: 'Confirm the bills Finance finds in your payments.' }), el('li', { text: 'See your month on Spending.' })]),
-        el('p', {}, [goButton('Add your first account', 'finance-accounts', true)])]));
+        el('p', {}, [goButton('Add a statement or manual account', 'finance-accounts', true)])]));
       return;
     }
     var worth = day.netWorth || {}, bills = day.bills || {}, soon = (bills.overdue || []).concat(bills.week || []);
@@ -339,14 +341,16 @@
 
   function paintJourney(status, summary) {
     var snapshot = summary && summary.aggregate, cards = [], known = state.sections.map(function (s) { return s.name; });
+    var recordsOnly = snapshot && (snapshot.ledger === true || snapshot.sourceEnvironment === 'imported');
+    if (recordsOnly) snapshot = null;
     if (known.indexOf('finance-home') !== -1) {
-      var worth = snapshot && snapshot.netWorth || {}, saved = savedWhen(summary && summary.syncedAt);
+      var worth = snapshot && snapshot.netWorth || {}, saved = savedWhen(snapshot && summary && summary.syncedAt);
       cards.push(el('article', { class: 'fx-card', 'data-journey': 'banks' }, [
         el('span', { class: 'fx-kicker', text: sourceName(snapshot && snapshot.sourceEnvironment) }), el('h2', { text: 'Bank accounts' }),
-        el('strong', { class: 'fx-balance', text: money(worth.net, snapshot && snapshot.currency) }), el('small', { text: 'Saved net worth' }),
-        el('p', { text: saved === 'Date unknown' ? 'Snapshot date unknown' : 'Snapshot saved ' + saved }),
+        el('strong', { class: 'fx-balance', text: snapshot && /^[A-Z]{3}$/.test(snapshot.currency || '') ? money(worth.net, snapshot.currency) : 'Unknown' }), el('small', { text: 'Saved net worth' }),
+        el('p', { text: recordsOnly ? 'The saved summary belongs to statement and manual records; no separate bank snapshot was read.' : saved === 'Date unknown' ? 'Snapshot date unknown' : 'Snapshot saved ' + saved }),
         el('small', { text: status && Number.isInteger(status.connected) ? status.connected + ' saved institution link' + (status.connected === 1 ? '' : 's') + '. Your bank may have newer information.' : 'Bank connections could not be read. Your bank may have newer information.' }),
-        el('p', {}, [el('button', { type: 'button', class: 'fx-btn', text: 'Open bank accounts', on: { click: function () { open('finance-home'); } } })])
+        el('p', { class: 'fx-right', style: 'flex-wrap:wrap' }, [goButton('Open bank accounts', 'finance-home'), known.indexOf('finance-transactions') !== -1 ? goButton('View saved bank activity', 'finance-transactions') : null])
       ]));
     }
     if (known.indexOf('finance-trading') !== -1) cards.push(el('article', { class: 'fx-card', 'data-journey': 'trades' }, [
@@ -451,17 +455,20 @@
   }
   /** Where you stand, read again each time Home is shown: the record pages change it while Home is hidden. */
   function loadStand() {
+    var read = ++state.standRead;
     var local = new Date(), todayText = local.getFullYear() + '-' + String(local.getMonth() + 1).padStart(2, '0') + '-' + String(local.getDate()).padStart(2, '0');
-    return getJson('/api/finance/day?today=' + todayText).then(paintStand);
+    return getJson('/api/finance/day?today=' + todayText).then(function (day) { if (!state.disposed && read === state.standRead) paintStand(day); });
   }
   function loadHome() {
     state.loaded = true;
+    var read = ++state.homeRead;
     byId('fxAsOf').textContent = 'Reading saved information…';
     var known = state.sections.map(function (s) { return s.name; });
     var families = APPS.filter(function (f) { return f.app === 'finance' || known.indexOf(f.section) !== -1; });
     loadStand();
     return Promise.all([getJson('/api/v1/agent/schedules'), getJson('/api/finance/status'), getJson('/api/finance/summary')].concat(families.map(function (f) { return getJson(f.summary).then(function (data) { return { family: f, data: data }; }); })))
       .then(function (all) {
+        if (state.disposed || read !== state.homeRead) return;
         paintJobs(all[0]);
         paintJourney(all[1], all[2]); paintSummaries(all.slice(3));
         byId('fxAsOf').textContent = 'View refreshed ' + new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) + ' · saved information is dated below';
@@ -470,6 +477,8 @@
 
   function start() {
     ownTheWindow();
+    window.addEventListener('pagehide', function () { state.disposed = true; state.homeRead++; state.standRead++; });
+    window.addEventListener('pageshow', function (event) { if (event.persisted) { state.disposed = false; loadHome(); } });
     byId('fxRefresh').addEventListener('click', function () { loadHome(); });
     document.addEventListener('click', function (event) { if (!event.target.closest || !event.target.closest('details.fx-more')) closeMenus(); });
     window.addEventListener('hashchange', function () { var wanted = (location.hash.match(/^#\/([a-z0-9-]+)$/) || [])[1] || 'home'; open(wanted, true); });

@@ -5,18 +5,13 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: owner-scoped session routes under /api/phone-control/sessions for preferences (pointer mode, quality, lock-on-end, active monitor), chat messages, whiteboard strokes, saved screenshots/recordings, and file transfer records.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: a capture or transfer that is not the person's own is refused with a sentence beside its code (lib/refusals.js).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: use lib/router.js resolveRouter() for Express 5 / raw http.createServer compatibility.
  */
 
 'use strict';
 
 const path = require('node:path');
-
-let createRouter;
-try {
-  createRouter = require('express').Router;
-} catch {
-  createRouter = require('../lib/router.js').createRouter;
-}
+const createRouter = require('../lib/router.js').resolveRouter();
 const { captureNotFound, transferNotFound } = require('../lib/refusals.js');
 
 function refuse(res, error) {

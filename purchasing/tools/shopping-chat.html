@@ -29,9 +29,13 @@
        (/shared/ui/js/simple-chat.js, SimpleChat.renderMarkdown: bold, lists, code, safe links only); without the kit it
        stays plain text.
      2 | maintainer@emeraldcoastsystemsgroup.com | UX audit sweep (purchasing--shop-concierge, D1=glass, D2=c): 100dvh natural
-       scroll instead of clipped 100vh overflow:hidden, shared glass sheet, and theme-derived tokens. -->
+       scroll instead of clipped 100vh overflow:hidden, shared glass sheet, and theme-derived tokens.
+     3 | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.1 (Roger, 2026-11-16/17: one concierge chat window everywhere):
+       the assistant panel no longer draws a bespoke chat over POST /api/purchasing/chat or loads simple-chat.js; it mounts
+       the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js) as Shopping Concierge (purchasing /
+       shopping-concierge), supplies screen_state before each turn, refreshes the cart when an approval card runs, and
+       routes plan-purchase briefs into the window's message box. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
-<script src="/shared/ui/js/simple-chat.js"></script>
 <script>
 (function () {
   var A = window.AppView; if (!A) return;
@@ -428,12 +432,15 @@
   }
   .side {
     display: grid;
-    grid-template-rows: minmax(310px, .9fr) minmax(250px, .75fr) minmax(230px, .65fr);
+    grid-template-rows: auto auto minmax(400px, 1fr);
   }
   .panel {
     min-height: 0;
     display: grid;
     grid-template-rows: auto 1fr auto;
+  }
+  .assistant-panel {
+    grid-template-rows: auto auto minmax(380px, 1fr);
   }
   .panel + .panel { border-top: 1px solid var(--line); }
   .panel-head {
@@ -443,8 +450,7 @@
   .panel-head h2 { margin: 0; font-size: 17px; }
   .panel-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
   .compare-body,
-  .cart-body,
-  .messages {
+  .cart-body {
     min-height: 0;
     overflow: auto;
     padding: 10px 12px;
@@ -510,8 +516,7 @@
     font-weight: 900;
     white-space: nowrap;
   }
-  .cart-footer,
-  .assistant-footer {
+  .cart-footer {
     display: grid;
     gap: 8px;
     padding: 10px 12px;
@@ -523,29 +528,26 @@
     font-weight: 900;
   }
   .note { color: var(--muted); font-size: 11px; line-height: 1.35; }
-  .messages {
-    display: grid;
-    align-content: start;
-    gap: 8px;
+  /* 1.5.1: Shopping Concierge is the kernel's one chat window (jarvis-chat-frame.js); it fills the assistant panel. */
+  .concierge-host {
+    min-height: 380px;
+    height: clamp(380px, 46vh, 480px);
+    display: flex;
   }
-  .msg {
-    max-width: 90%;
-    padding: 8px 10px;
-    border-radius: 8px;
+  .concierge-host .jarvis-chat-frame {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .concierge-host.assistant-unavailable {
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+    color: var(--muted);
     font-size: 13px;
     line-height: 1.4;
-    white-space: pre-wrap;
-  }
-  .msg.bot { justify-self: start; border: 1px solid var(--line); background: rgba(255,255,255,.05); }
-  .msg.md { white-space: normal; }
-  .msg.md p { margin: 0 0 6px; } .msg.md p:last-child { margin-bottom: 0; }
-  .msg.md ul, .msg.md ol { margin: 4px 0; padding-left: 20px; }
-  .msg.md code { font-size: .92em; }
-  .msg.me { justify-self: end; background: var(--accent); color: #fff; font-weight: 850; }
-  .chat-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 72px;
-    gap: 8px;
   }
   .empty {
     color: var(--muted);
@@ -585,6 +587,7 @@
     .profile-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .side { display: block; }
     .panel { min-height: 300px; }
+    .concierge-host { min-height: 480px; height: 500px; }
     .conn { display: none; }
   }
 
@@ -668,7 +671,6 @@
 
   .btn.primary,
   .chip.active,
-  .msg.me,
   .toast {
     border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -706,8 +708,7 @@
   }
 
   .panel-head,
-  .cart-footer,
-  .assistant-footer {
+  .cart-footer {
     background: color-mix(in srgb, var(--surface) 70%, transparent);
   }
 
@@ -860,16 +861,8 @@
           <h2>Shopping Concierge</h2>
           <p>Ask it to find, compare, add, remember, or checkout.</p>
         </div>
-        <div class="messages" id="messages">
-          <div class="msg bot">Tell me what you need. I can search products, compare options, add to the cart, and remember preferences.</div>
-        </div>
-        <div class="assistant-footer">
-          <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
-          <div class="chat-row">
-            <input class="input" id="chatInput" placeholder="Find cheaper dish soap and bananas..." />
-            <button class="btn primary" id="chatSend" type="button">Send</button>
-          </div>
-        </div>
+        <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
+        <div class="concierge-host" id="shoppingConcierge" aria-label="Shopping Concierge"></div>
       </section>
     </aside>
   </div>
@@ -884,7 +877,6 @@ const chips = ['Milk', 'Coffee', 'Dish soap', 'Bananas', 'Eggs', 'Deals', 'Clean
 const state = {
   listId: '',
   selected: null,
-  conversationId: localStorage.getItem('oshalShopConv') || '',
   source: 'walmart',
   products: [],
   cart: null,
@@ -1126,55 +1118,27 @@ async function checkout() {
   }
 }
 
-/** A concierge reply as escape-first Markdown through the shared kit (every character escaped before a tag is made);
- *  plain text when the kit is not there. */
-function showReply(node, text) {
-  const kit = window.SimpleChat;
-  if (kit && typeof kit.renderMarkdown === 'function') { node.classList.add('md'); node.innerHTML = kit.renderMarkdown(text); }
-  else node.textContent = text;
-  $('#messages').scrollTop = $('#messages').scrollHeight;
+/** Snapshot of the Shopping screen sent with each concierge turn (context.screen_state). */
+function shoppingScreen() {
+  const view = shoppingView();
+  const query = ($('#query') && $('#query').value || '').trim();
+  const selected = state.selected ? `Selected: ${state.selected.productId} ${state.selected.title} ${money(state.selected.price)}` : '';
+  const lines = [
+    `[field] Ship to: ${view.shipAddress || 'not set'}`,
+    `[field] Search: ${query || 'empty'}`,
+    shoppingDigest(view),
+    selected,
+    '[button] Search',
+    '[button] Deals',
+    '[button] Checkout handoff'
+  ].filter(Boolean);
+  return {
+    tab: 'Shopping',
+    title: ($('#sectionTitle') && $('#sectionTitle').textContent || 'Shopping').trim(),
+    text: lines.join('\n').slice(0, DIGEST_CAP)
+  };
 }
-
-function addMessage(role, text) {
-  const node = document.createElement('div');
-  node.className = `msg ${role === 'me' ? 'me' : 'bot'}`;
-  node.textContent = text;
-  $('#messages').appendChild(node);
-  $('#messages').scrollTop = $('#messages').scrollHeight;
-  return node;
-}
-
-async function sendChat() {
-  const input = $('#chatInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  addMessage('me', text);
-  const pending = addMessage('bot', 'Shopping...');
-  try {
-    const result = await postJson(`${API}/chat`, {
-      message: text,
-      conversationId: state.conversationId,
-      shippingAddress: $('#shipAddress').value.trim()
-    });
-    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
-    state.conversationId = result.conversationId || state.conversationId;
-    if (state.conversationId) localStorage.setItem('oshalShopConv', state.conversationId);
-    showReply(pending, result.reply || 'I could not complete that shopping step yet.');
-    const products = [...(result.cards || []), ...(result.added || [])];
-    if (products.length) {
-      $('#grid').innerHTML = products.map(renderProductCard).join('');
-      hydrateProductEvents(products);
-      selectProduct(products[0]);
-    }
-    if ((result.added || []).length || result.proposal) await loadCart();
-    // A chat checkout is a PROPOSAL: it becomes a confirm card and nothing opens until the
-    // shopper clicks Confirm (onProposalClick -> checkout()).
-    if (result.proposal) proposeCheckout(result.proposal);
-  } catch {
-    pending.textContent = 'I hit an error. Try searching directly.';
-  }
-}
+window.shoppingScreen = shoppingScreen;
 
 // ── The assistant rail (shared surface bridge) ───────────────────────────────
 // The page publishes what it is showing (`context`) so the floating assistant answers about the
@@ -1258,8 +1222,7 @@ function proposeCheckout(proposal) {
     window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'checkout', summary, confirmLabel: 'Open Walmart checkout', cancelLabel: 'Not yet' }]);
     return;
   }
-  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
-  addMessage('bot', `${summary} Use "Checkout handoff" to continue.`);
+  toast('Use "Checkout handoff" to continue.');
 }
 
 /** Remember which action the card on screen proposes (every propose replaces the last card). */
@@ -1347,12 +1310,11 @@ async function boot() {
   $('#dealsBtn').addEventListener('click', loadDeals);
   $('#compareAdd').addEventListener('click', () => addProduct(state.selected));
   $('#checkoutBtn').addEventListener('click', checkout);
-  $('#chatSend').addEventListener('click', sendChat);
-  $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
   $('#locBtn').addEventListener('click', useLocation);
   $('#shipAddress').addEventListener('change', publishContext);
   $('#bridgeOptions').addEventListener('click', onProposalClick, true);
   window.addEventListener('message', trackProposal);
+  window.addEventListener('oshal-package-tool-done', () => { void loadCart(); });
   document.addEventListener('surface-bridge:custom', onBridgeCustom);
   window.addEventListener('bridge-ready', publishContext);
   await Promise.all([loadProfile(), loadCart()]);
@@ -1377,8 +1339,8 @@ if (!window.AppView || !AppView.active()) boot();
 
 <!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
      (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
-     producer in 'self' mode lets the embedded concierge's checkout proposal travel the SAME path,
-     so both assistants drive one confirm card. Degrades silently without the module. -->
+     producer in 'self' mode lets a relayed checkout travel the SAME path as the client's own ops,
+     so it is one confirm card. Degrades silently without the module. -->
 <script type="module">
   // Under an audience view the assistant rail stays off: the view publishes no context and takes no relayed op.
   if (!window.AppView || !AppView.active()) {
@@ -1396,6 +1358,37 @@ if (!window.AppView || !AppView.active()) boot();
   }
 </script>
 
+<!-- The Shopping Concierge (1.5.1): the kernel's one chat window as this application's concierge, with its model menu,
+     conversations, Files, Tap to talk and Keep trying. It sits in #shoppingConcierge and reads shoppingScreen() before
+     each turn. -->
+<script type="module">
+if (!window.AppView || !AppView.active()) {
+  const host = document.getElementById('shoppingConcierge');
+  const PROMPTS = ['Add milk, eggs and bread to my list', 'What is on my shopping list?', 'Order the groceries'];
+  const HELP = 'Tell me what you need. I can read and update your shopping list, search connected products, and prepare your grocery order behind an approval card.';
+  window.__shoppingChat = (async () => {
+    try {
+      const { mountJarvisChat } = await import('/shared/ui/js/jarvis-chat-frame.js');
+      return mountJarvisChat(host, {
+        app: 'purchasing',
+        bot: 'shopping-concierge',
+        title: 'Shopping Concierge',
+        closable: false,
+        lazy: true,
+        prompts: PROMPTS.map((prompt) => ({ label: prompt, prompt })),
+        help: HELP,
+        chatHost: { prepare: async () => ({ screen_state: window.shoppingScreen() }), refresh: () => loadCart() },
+      });
+    } catch (err) {
+      host.classList.add('assistant-unavailable');
+      host.textContent = 'The Shopping Concierge needs oshal\'s chat window, which this installation does not serve. Search, Cart and Checkout handoff work without it.';
+      console.warn('[shopping] concierge window unavailable', err && err.message);
+      return null;
+    }
+  })();
+}
+</script>
+
 <!-- App-owned context integration: drafts only; existing actions still execute explicitly. -->
 <script type="module">
 import { receiveHandoff } from '/cockpit/js/app-handoff.js';
@@ -1404,13 +1397,12 @@ import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
 if (!window.AppView || !AppView.active()) {
 const clip = value => String(value || '').slice(0,2000);
 const val = id => clip(document.getElementById(id)?.value?.trim());
-const set = (id,value) => { const el=document.getElementById(id); el.value = el.tagName === 'INPUT' ? String(value || '').replace(/\s*\n+\s*/g, ' · ') : value || ''; };
 const brief = context => [context.title,context.notes,context.sourceUrl ? 'Source: '+context.sourceUrl : ''].filter(Boolean).join('\n\n');
-receiveHandoff({"app":"purchasing","action":"plan-purchase","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { set('chatInput', brief(context)); document.getElementById('chatInput').focus(); });
+receiveHandoff({"app":"purchasing","action":"plan-purchase","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]}, context => { void window.__shoppingChat?.then((chat) => chat?.focus(brief(context))); });
 const element = document.createElement('section'); element.className='connected-app-actions'; element.setAttribute('aria-label','Connected application actions');
 element.style.cssText='margin:0 0 12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel,var(--surface));display:flex;gap:8px;align-items:center;flex-wrap:wrap';
 document.querySelector('.results').prepend(element);
-void mountConnectedActions({ app:"purchasing", element, contextForOffer:()=>{ const notes=val('chatInput') || val('query'); return notes ? {title:'Meal planning from my shopping request',notes} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
+void mountConnectedActions({ app:"purchasing", element, contextForOffer:()=>{ const notes=val('query'); return notes ? {title:'Meal planning from my shopping request',notes} : null; } }).then(()=>element.querySelectorAll('button').forEach(button=>button.classList.add('btn')));
 }
 </script>
 </body>

@@ -1,5 +1,7 @@
 # lora ("LoRA Studio") — an OSHAL app package
 
+1.10.5 gives LoRA Studio its own concierge in the shared editor (`createRegisteredEditorAssistant` as `lora-director`, framing the kernel's one Jarvis chat window), starting closed at every width. Left to the outer shell's ball, Create's LoRA screen (`create-lora`) opened Create's concierge (`create-editor`) instead of `lora-director`. Today's floating ball now steps aside and Today's bar Concierge (or the phone's bottom bar Concierge) opens LoRA Studio's own window, with working Close dismissal on phones and saved-character document handoff. Proven at 1440x900 and 412x915 by `tests/lora-one-chat-window.test.mjs` (Test Lab case `one-chat-window`).
+
 1.7.4 makes `GET /characters` a pure read. It used to save the caller's starter character first, which the native
 host refuses on a GET, so the studio's character list failed for every account. An account with no characters now
 sees an explicit "Add the starter character" action, `POST /characters/starter` (bound to `lora.configure`; owner-bound
