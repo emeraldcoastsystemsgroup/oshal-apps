@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (Lane JH1's store line): the two workers carry conversation: false, which a kernel with 210edbc7 reads to leave them out of Jarvis's catalog and the bot list and to answer a person's message to them with the concierge; the concierge, the application's chatBot, carries no mark (a marked chatBot fails the load there).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the persona says each of two cards is its own call, the second written after the first's answer (the kernel runs the first tool call of a model reply).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: what the kernel shows a turn of career_resume_patch (its description and input schema; usageInstructions is never read) says a month is written YYYY-MM. On blue, Jarvis's hand-off on Gemini wrote "January 2025" and the card was refused at Approve.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: include dynamically-loaded inline career-resume-reviewer among the non-conversational workers marked conversation: false.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,13 +87,14 @@ test('what the kernel shows of career_resume_patch says a month is written YYYY-
   assert.match(edit.value.description, /end '' (?:is|for) present/i, 'and how a current job reads');
 });
 
-test('the two workers are marked conversation: false and the concierge is not', () => {
-  const [front, worker, browser] = ['career-concierge', 'career-hunter', 'career-submission-browser'].map(name => manifest.bots.find(bot => bot.name === name));
+test('the non-conversational workers are marked conversation: false and the concierge is not', () => {
+  const [front, worker, browser, reviewer] = ['career-concierge', 'career-hunter', 'career-submission-browser', 'career-resume-reviewer'].map(name => manifest.bots.find(bot => bot.name === name));
   assert.equal(worker.conversation, false, 'the engine worker is not offered for conversation');
   assert.equal(browser.conversation, false, 'the browser worker is not offered for conversation');
+  assert.equal(reviewer.conversation, false, 'the resume reviewer worker is not offered for conversation');
   assert.equal(front.conversation, undefined, 'the chatBot carries no mark');
   assert.deepEqual(manifest.bots.filter(bot => 'conversation' in bot).map(bot => [bot.name, bot.conversation]),
-    [['career-hunter', false], ['career-submission-browser', false]], 'no other bot is marked, and the mark is the boolean false');
+    [['career-hunter', false], ['career-submission-browser', false], ['career-resume-reviewer', false]], 'no other bot is marked, and the mark is the boolean false');
 });
 
 test('the worker\'s persona text is unchanged to the byte: it is part of the scoring model identity', () => {

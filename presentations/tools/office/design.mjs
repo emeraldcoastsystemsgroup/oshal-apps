@@ -8,6 +8,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.2 (RP-ALL-01): remove duplicate greyed Summarize planned control from the AI Office Concierge prompt strip because the kernel editor-assistant already renders live Summarize and Suggest improvements prompt chips.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 2.20.6 (Roger, 2026-11-16, Career's My résumé on his phone: "Half of this page on mobile is taken by the header"). A page that frames this editor and draws the document's one bar itself passes ?header=host (or ?header=editor while this editor keeps its own row) and moves the app row between the two with an office-header message (bindHostRow). While the host has it, this row is not drawn (office.css); the host is told the row's state (office-header-state: reading, Edit, Undo, Redo, Export, unsaved), presses the row's own buttons here by name (office-command: edit, undo, redo, export, document, documents) and hears the canvas's scroll (office-scroll) so it can give the document more of the screen. The direct parent on this origin only. Without the option nothing changes.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): the kernel's concierge pane frames that window now (kernel 00c62f98), and AI Office lays itself out around it. Generate a draft is a row above the window instead of under it, where it left the window's composer ending 64 px above the desktop rail's bottom and took the phone sheet's room; what it does is unchanged (its starter sentence goes into the window's message box through the pane's stand-in box). The phone's Concierge sheet is a chat sheet (ds-chat): as tall as a sheet may be, so the window has the room a conversation needs (it had a 308 px frame, and its composer covered its own Summarize starter, so a tap there landed on the composer). The window's own Close closes that sheet: the editor shell that hears it on a desktop is not around the sheet, so the Close did nothing there.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Offer genuine RTF in the Word Export sheet through the existing permission-guarded saved-revision download.
  */
 import{clone,uid,plain}from'./model.mjs';
 /** @description Whether the page that frames this editor owns the screen's one assistant (?assistant=host). @returns {boolean} */
@@ -19,7 +20,7 @@ export const hostedAssistant=()=>new URLSearchParams(location.search).get('assis
  */
 export const hostedHeader=()=>{const value=new URLSearchParams(location.search).get('header');return value==='host'||value==='editor'?value:'';};
 import{state,notify,status,dirty,pristine,editable,currentPage,currentItem,edit,api}from'./state.mjs';
-import{guard,openDocument,newDocument,refreshDocuments,mayReplace}from'./files.mjs';
+import{guard,openDocument,newDocument,refreshDocuments,mayReplace,exportDocument}from'./files.mjs';
 import{fit,invalidate}from'./render.mjs';
 import{formatName,openGenerationAssistant}from'./entry-actions.mjs';
 import{openCommentsSheet,openSuggestChangesSheet,openShareSheet}from'./collab-ui.mjs';
@@ -103,8 +104,9 @@ function bindHomeAndHeader({root,layers,act,menu,sheet}){
   requestAnimationFrame(()=>{input.focus();input.select();});return layer;
  }
  function exportSheet(){
-  const rows=make('div','office-export-rows'),row=(name,id)=>{const line=make('div','office-export-row'),btn=make('button','','Download');btn.type='button';btn.disabled=inertNode(id);btn.onclick=act(async()=>{await layers.closeAll();$(id).click();});line.append(make('span','office-export-name',name),btn);return line;};
+  const rows=make('div','office-export-rows'),row=(name,id,run)=>{const line=make('div','office-export-row'),btn=make('button','','Download');btn.type='button';btn.disabled=id?inertNode(id):state.busy||!state.permissions.export;if(run)btn.setAttribute('aria-label','Download '+name);btn.onclick=act(async()=>{await layers.closeAll();if(run)await run();else $(id).click();});line.append(make('span','office-export-name',name),btn);return line;};
   rows.append(row(formatName(state.model.kind)+' file (.'+state.model.kind+')','export-document'),row('PDF (.pdf)','export-pdf'),row('Plain text (.txt)','export-txt'),row('Editable project (.json)','export-json'));
+  if(state.model.kind==='docx')rows.append(row('Rich text (.rtf)',null,()=>exportDocument('rtf')));
   if(state.original)rows.append(row('Original import','download-original'));
   return sheet('Export',[],[rows]);
  }

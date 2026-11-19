@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume"): the engine half of the current-role guard, on a made-up candidate whose current role is first with no end date and whose profile is longer than every limit suspected (the guided editor's 32,000 characters, the kernel's 65,536-byte agentic turn). The input builder carries the complete profile and lists the roles to carry, current first; the REAL generate_for and prepare_job, with only the model, the PDF renderer and (for generate_for) the posting row replaced, write a résumé that carries the current role first when the scripted model leaves it out, exactly as production's model did. Red on store main 82d67aa7/d28c8c02 (no ROLES TO CARRY block, the packet starts at the older employer), green with role_plan.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Keep recorded month/year dates in generation prompts, restored entries and existing current entries while leaving ambiguous merged periods untouched.
 """Current-role contract: the prompt names the roles to carry and every generated résumé carries them, most recent first."""
 from __future__ import annotations
 
@@ -103,7 +104,7 @@ def input_builder() -> None:
     lines = [line for line in carry.splitlines() if line.startswith("- R")]
     check("the prompt lists the roles to carry", len(lines) == 8)
     check("the current role is listed first, marked current, its span to Present",
-          bool(lines) and lines[0] == "- R1: Co-Founder / Principal | Harbor Light Systems | 2024 to Present | CURRENT ROLE")
+          bool(lines) and lines[0] == "- R1: Co-Founder / Principal | Harbor Light Systems | Feb 2024 to Present | CURRENT ROLE")
     check("the second current role follows, then the newest ended role",
           [line.split(":")[0] for line in lines[:3]] == ["- R1", "- R2", "- R3"])
     check("a role that ended more than 20 years ago is not required", not any("Old Mill Co" in line for line in lines))
@@ -177,7 +178,7 @@ def generation_restores() -> None:
                 ("Systems Engineer", "Atlas Federal"), ("Support Lead", "Granite Health"), ("Early career", "")]
     check("every required role is carried, most recent first, the model's own entries kept", titles == expected)
     first = (record.get("generated") or {}).get("resume", {}).get("experience", [{}])[0]
-    check("the restored current role runs to Present", first.get("span") == "2024 to Present")
+    check("the restored current role runs to Present", first.get("span") == "Feb 2024 to Present")
     check("the restored role keeps only its recorded bullets, none naming the embargoed work",
           first.get("bullets") == ["Won two paying pilot customers in 2025"])
     receipt = record.get("roles_carried") or {}
@@ -202,7 +203,7 @@ def generation_keeps_a_good_answer() -> None:
         {"id": "saved-portfolio", "title": "Lantern", "kind": "project"}])
     titles = _titles(record)
     check("a current role written with an end year runs to Present again",
-          record["generated"]["resume"]["experience"][0]["span"] == "2024 to Present")
+          record["generated"]["resume"]["experience"][0]["span"] == "Feb 2024 to Present")
     check("a current role written under another section is moved back into experience",
           titles[:2] == [CURRENT, ("Board Advisor", "North Pier Labs")]
           and not record["generated"]["resume"].get("additional_experience"))
@@ -256,10 +257,47 @@ def plan_rules() -> None:
           and role_plan.month("03/2019") == (2019, 3) and role_plan.month("2019", last=True) == (2019, 12))
 
 
+def date_precision() -> None:
+    prof = {"roles": [{"id": "current", "title": "Principal", "org": "Example", "start": "2024-02", "end": None},
+                      {"id": "ended", "title": "Architect", "org": "Client", "start": "2024-03", "end": "2024-11"},
+                      {"title": "Analyst", "org": "Earlier", "start": "2017", "end": "2019"}]}
+    entries = role_plan.plan(prof, TODAY)
+    check("month precision is retained in the plan without inferred year-only months",
+          [e["span"] for e in entries] == ["Feb 2024 to Present", "Mar 2024 to Nov 2024", "2017 to 2019"])
+    answer = {"experience": [{"title": e["title"], "org": e["org"], "span": span, "bullets": []}
+                             for e, span in zip(entries, ("2024 to Present", "2024", "2017 to 2019"))]}
+    role_plan.carry(answer, entries, prof)
+    check("an already-current model entry recovers its recorded start month",
+          answer["experience"][0]["span"] == "Feb 2024 to Present")
+    check("an ended same-year entry recovers both independent months",
+          answer["experience"][1]["span"] == "Mar 2024 to Nov 2024")
+    check("year-only dates never acquire January or December display precision",
+          answer["experience"][2]["span"] == "2017 to 2019")
+    duplicate = {"roles": [{"id": "a", "title": "Engineer", "org": "Example", "start": "2019-02", "end": "2020-03"},
+                           {"id": "b", "title": "Engineer", "org": "Example", "start": "2021-04", "end": "2022-05"}]}
+    merged = {"experience": [{"title": "Engineer", "org": "Example", "span": "2019 to 2022", "bullets": []}]}
+    role_plan.carry(merged, role_plan.plan(duplicate, TODAY), duplicate)
+    check("a merged ambiguous employer entry is not silently assigned one recorded period",
+          merged["experience"][0]["span"] == "2019 to 2022")
+    merged["experience"][0]["id"] = "a"
+    role_plan.carry(merged, role_plan.plan(duplicate, TODAY), duplicate)
+    check("a model-supplied ID cannot disambiguate two recorded periods",
+          merged["experience"][0]["span"] == "2019 to 2022")
+
+    unchanged = []
+    for first, last in ((None, "2016-07"), ("2010-02", "unreadable"), ("not recorded", None)):
+        incomplete = {"roles": [{"title": "Engineer", "org": "Example", "start": first, "end": last}]}
+        saved = {"experience": [{"title": "Engineer", "org": "Example", "span": "2010 to 2016"}]}
+        role_plan.carry(saved, role_plan.plan(incomplete, TODAY), incomplete)
+        unchanged.append(saved["experience"][0]["span"] == "2010 to 2016")
+    check("incomplete recorded endpoints never erase the other generated endpoint", all(unchanged))
+
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="career-roles-") as packets:
         generate.APP_DIR = Path(packets) / "applications"
-        for section in (plan_rules, input_builder, generation_restores, generation_keeps_a_good_answer, prepare_restores):
+        for section in (plan_rules, date_precision, input_builder, generation_restores, generation_keeps_a_good_answer, prepare_restores):
             try:
                 section()
             except Exception as error:  # a section that cannot run is a failed check, never a silent pass

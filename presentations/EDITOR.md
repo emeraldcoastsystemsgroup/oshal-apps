@@ -18,6 +18,14 @@ The new `authorization.yaml` declares named original-person `document.*` permiss
 
 The shared inspector flushes valid pending changes before Save, export and assistant handoff. Invalid/stale drafts remain visible and block those actions. Explicit document replacement discards drafts only after the replacement has validated. On a phone the bottom bar (Format, Insert, Comment, Concierge, More; Slides or Sheets first) opens the same real controls as sheets; on a desktop Format and Concierge are tabs of one docked pane beside the canvas, so Zoom Fit always fits the page in the space left; Word opens at readable 100% zoom on narrow screens and the paper/grid pans inside the viewport.
 
+## Word downloads
+
+The Word Export sheet includes **Rich text (.rtf)** alongside DOCX, PDF and plain text. Saved-revision RTF downloads use the same original-person read/export checks as the other formats. The RTF contains visible Unicode text, native bullets and numbering, paragraph indentation, keep-with-next, tables, supported inline PNG/JPEG images, headers and footers. It carries no private editable model or comment/change history. PowerPoint and Excel do not offer RTF.
+
+Applications can render a supplied Word text/table model with `POST /api/presentations/editor/exports`. Its closed request is `{model, format, modelSha256}`, with `format` limited to `docx`, `pdf` or `rtf` and the digest computed from the validated model's stable JSON. The route checks the current original person's existing view/read/export authority before and after rendering. It creates no document, revision or export-attestation record and does not retrieve images, external resources or another document by ID.
+
+The native request ceiling is 512 KiB and the returned artifact ceiling is 8 MiB. At most two transient renders run per package process. A 15-second deadline or canceled request prevents late delivery; an underlying render keeps its slot until it actually settles. The caller binds the response to its selected source and supplies the download filename: the native package transport does not preserve custom filename or digest headers.
+
 ## Import fidelity
 
 OOXML import is bounded to 10 MiB compressed, 1,200 package entries, 6 MiB per expanded entry and 32 MiB aggregate. Active macro/embedded content, external workbook links and XML declarations/entities are refused. Embedded PNG/JPEG images are decoded and bounded before save. Imports outside the exact editor profile present conversion findings and require explicit acceptance before saving an editable copy. The **byte-exact original**, its SHA-256 and findings remain attached to that saved copy and downloadable separately across edits.

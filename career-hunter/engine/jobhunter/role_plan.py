@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... it would leave out my active role"): which recorded roles every generated résumé carries, in which order, and the check that holds each generation to it. The model was handed the whole profile with the current role first and left it out (5 of the 6 packets made since it was added), because the prompt let it drop roles for relevance and nothing after the model call looked. Now the prompt lists the roles to carry, and carry() puts back any the model left out, from the role's own recorded title, employer, dates and bullets, most recent first.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve recorded month/year precision and restore dates only for uniquely anchored roles without changing legacy role-carry or sorting policy.
 """Which recorded roles a generated résumé carries, in which order, and the check that holds every generation to it.
 
 The model writes the words; this module decides which roles are on the page. A role the candidate holds now (no end
@@ -70,11 +71,28 @@ def is_current(role: dict) -> bool:
     return not text or any(text == word or text.startswith(word + " ") for word in _CURRENT_WORDS)
 
 
+def _display_date(value) -> str:
+    """Display only the precision recorded in one supported date; ordering's inferred months never reach text."""
+    value = _text(value)
+    numeric = re.fullmatch(r"(19\d{2}|20\d{2}|2100)(?:[-/.](\d{1,2})(?:[-/.]\d{1,2})?)?", value)
+    reverse = re.fullmatch(r"(\d{1,2})[-/.](19\d{2}|20\d{2}|2100)", value)
+    named = re.fullmatch(r"([a-z]{3,9})\.?,?\s+(19\d{2}|20\d{2}|2100)", value.lower())
+    if numeric:
+        year, number = int(numeric[1]), int(numeric[2]) if numeric[2] else None
+    elif reverse:
+        year, number = int(reverse[2]), int(reverse[1])
+    elif named and named[1] in _MONTHS:
+        year, number = int(named[2]), _MONTHS[named[1]]
+    else:
+        return ""
+    if number is None:
+        return str(year)
+    return f"{_MONTH_NAMES[number - 1][0].title()} {year}" if 1 <= number <= 12 else ""
+
+
 def _span(role: dict, current: bool) -> str:
-    start = month(role.get("start"))
-    end = None if current else month(role.get("end"), last=True)
-    first = str(start[0]) if start else ""
-    final = "Present" if current else (str(end[0]) if end else "")
+    first = _display_date(role.get("start"))
+    final = "Present" if current else _display_date(role.get("end"))
     if not first:
         return final
     if not final or first == final:
@@ -248,14 +266,27 @@ def _take_misplaced(resume: dict, entries: list, carried: set, matching=roles_of
     return moved
 
 
-def _present_spans(experience: list, entries: list, matching=roles_of) -> list:
-    """A current role's entry that names an end year says Present again, from the recorded dates."""
+def _date_matches(item, entries):
+    """Generated IDs/role keys are model input: only unique exact recorded title/employer anchors choose dates."""
+    anchor = lambda value: _text(value).lower()
+    return [entry for entry in entries if anchor(item.get("title")) == anchor(entry["title"])
+            and anchor(item.get("org")) == anchor(entry["org"])]
+
+
+def _recorded_spans(experience: list, entries: list, roles: list) -> list:
+    """Restore only uniquely recorded current or ended periods; never choose one of several merged roles."""
     fixed = []
     for item in experience:
-        for entry in matching(item, entries):
-            if entry["current"] and entry["span"] and not _SAYS_CURRENT.search(_text(item.get("span"))):
-                item["span"] = entry["span"]
-                fixed.append(entry["key"])
+        found = _date_matches(item, entries)
+        if len(found) != 1:
+            continue
+        entry = found[0]
+        role = roles[entry["index"]]
+        if not _display_date(role.get("start")) or not (entry["current"] or _display_date(role.get("end"))):
+            continue
+        if entry["span"] and item.get("span") != entry["span"]:
+            item["span"] = entry["span"]
+            fixed.append(entry["key"])
     return fixed
 
 
@@ -281,7 +312,7 @@ def carry(resume: dict, entries: list, prof: dict, embargo=()) -> dict:
     experience += moved
     restored = [entry for entry in entries if entry["required"] and entry["key"] not in carried]
     experience += [_restored(entry, roles[entry["index"]], embargo, matching is role_hierarchy.recorded_roles) for entry in restored]
-    spans = _present_spans(experience, entries, matching)
+    spans = _recorded_spans(experience, entries, roles)
     experience, reordered = _ordered(experience, entries, written, matching)
     experience = role_hierarchy.packet(experience, entries, prof)
     for section in ("experience", "additional_experience", "open_source"):

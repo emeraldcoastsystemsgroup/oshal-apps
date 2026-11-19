@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Bind transient Word model export to existing own document view, read and export permissions without new grants or roles.
 # Original-owned structured Office editing; exact mount paths avoid legacy/editor operation ambiguity.
 version: 1
 resources:
@@ -75,6 +77,10 @@ roles:
         scope: own
 bindings:
   http:
+    - id: office-transient-export
+      method: POST
+      path: /api/presentations/editor/exports
+      allOf: [document.view, document.read, document.export]
     - id: office-route-0
       method: GET
       path: /api/presentations/editor/app

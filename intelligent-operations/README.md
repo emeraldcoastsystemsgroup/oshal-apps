@@ -18,11 +18,13 @@ It uses the existing root-cause-analysis pipeline. File an incident as a ticket 
 
 Nothing is applied automatically. Remediation commands are proposals for an operator to run.
 
-The concierge panel and Jarvis talk to `ops-concierge`, the front desk (1.9.0, the Create concierge
-pattern). It answers from the person's own Operations records through this package's tools (reads, and
-removing a source only after the person approves it) and never writes an RCA report; the three phases
-above, and the Console, Cloud & SSH commands and Pod console screens (1.9.4, mounted in the kernel's
-shared `/shared/ui/js/jarvis-chat-frame.js` chat window), still ask `ops-rca-specialist`.
+The concierge panel, Jarvis and the embedded chat windows on Console, Cloud & SSH commands and Pod
+console talk to `ops-concierge`, the front desk (1.9.0 / 1.9.5, the Create concierge pattern, mounted
+in `/shared/ui/js/jarvis-chat-frame.js`). It answers from the person's own Operations records through
+this package's tools (reads, and removing a source only after the person approves it) and never writes
+an RCA report; the three incident phases above and the specialist packet analyses on Console, Cloud &
+SSH commands and Pod console (1.9.5, caller-owned `ops-specialist` tickets carrying untrimmed
+`evidence/packet.json` up to 64 KiB in per-user workspaces) run on `ops-rca-specialist`.
 
 ## On the native kernel
 
@@ -88,6 +90,7 @@ Container memory, MiB low / high: **192 / 768 (declared)**.
 | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|
 | incident-rca | incident ticket | T3 | none | disable | not yet measured | none recorded |
+| specialist-analysis | specialist analysis ticket | T2 | none | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
 
 New manual imports commit a delivery, attempt and pending processing item atomically. The source
@@ -191,3 +194,4 @@ See
 See implementation status for the exact source and runtime evidence.
 
 The [daily operator guide](docs/event-to-action/OPERATOR-WORKSPACE.md) explains Operations attention, the Systems tree, pipeline tabs, source mappings and bounded-data labels.
+

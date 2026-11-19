@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Shopping 1.5.1: remove purchasing/tools/shopping-chat.html from PENDING_BESPOKE_CHAT_SURFACES now that it mounts jarvis-chat-frame.js.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Phone & Device Control 1.20.3: remove phone-control/tools/computer-link.js from PENDING_BESPOKE_CHAT_SURFACES now that phone-control mounts jarvis-chat-frame.js.
  * 4   | maintainer@emeraldcoastsystemsgroup.com | Intelligent Operations 1.9.4: remove experience/command-helper.js, experience/console.js, and experience/pod-console.js from PENDING_BESPOKE_CHAT_SURFACES now that all three mount jarvis-chat-frame.js.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com | Little Monsters 1.9.4: remove little-monsters/tools/tutor-chat.html from PENDING_BESPOKE_CHAT_SURFACES now that Class Tutor mounts jarvis-chat-frame.js, ratcheting pending bespoke concierge surfaces across the store to zero.
  */
 
 import assert from 'node:assert/strict';
@@ -47,9 +48,7 @@ export const NON_CONCIERGE_DOMAIN_SURFACES = new Set([
  * Legacy non-Create surfaces on main still awaiting migration onto jarvis-chat-frame.js.
  * Any newly added bespoke chat surface fails immediately; a migrated surface must be removed from this set.
  */
-export const PENDING_BESPOKE_CHAT_SURFACES = new Set([
-  'little-monsters/tools/tutor-chat.html',
-]);
+export const PENDING_BESPOKE_CHAT_SURFACES = new Set([]);
 
 const BESPOKE_ENDPOINT_RE = /(?:\/api\/[a-z0-9-]+|\$\{[^}]+\}|['"`]\s*\+)\s*\/(?:[a-z0-9-]+\/)*(?:chat|concierge\/turn|assistant|tutor-chat)(?![A-Za-z0-9_/-])/g;
 const RELATIVE_POST_CHAT_RE = /\b(?:api|call|fetch|postJson|jpost)\s*\(\s*(?:['"`]POST['"`]\s*,\s*)?['"`]\/(?:chat|concierge\/turn|assistant|tutor-chat)['"`]/g;

@@ -1,3 +1,5 @@
+# 116 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: register resume-reviewer for ATS typography cleanliness (zero boldmetrics and zero numeric '+' suffixes while preserving C++/Security+/A+), deterministic per-skill non-overlapping tenure math, dynamic inline career-resume-reviewer Swarm bot declaration and fail-closed worker-rail routing, contradiction repair, and Prepare application review surfacing.
+# 115 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: register resume-date-exports, resume-downloads and resume-downloads-browser for recorded month/year preservation, snapshot-only contact/date exports, Professional Word/PDF inside My résumé's More menu, and generated packet format downloads.
 # 114 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: existing hierarchy browser case proves direct Tab in/out, Add sub-engagement, safe identity refusal and settled save acknowledgments at phone and desktop widths.
 # 113 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: register explicit experience hierarchy, safe Word identity mapping and grouped document output.
 # 112 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: register approvals-probe: pending job applications in `approval_required` project onto the cross-application approvals probe (`/api/career-hunter/applications`, `/approvals`) with pinned `/approve` and `/deny` descriptors.
@@ -3938,4 +3940,57 @@ cases:
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close owned browser contexts and remove synthetic document output."}
     limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: resume-date-exports
+    name: Recorded month and year precision survives generation, cloned packets and Office exports
+    purpose: Verify recorded month/year spans and bare years carry unchanged through role_plan.py, preserveDates, the Word model and real DOCX/PDF/RTF exports on synthetic profiles.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-resume-date-exports.test.mjs]}
+    expected:
+      - Recorded month/year spans and bare years survive without inventing months or mutating stored packets.
+      - Real DOCX, PDF and RTF bytes preserve recorded dates and child-role indentation.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Discard synthetic in-memory models and optional proof files."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: resume-downloads
+    name: Saved packet and Professional résumé models preserve snapshot facts, manual edits and real formats
+    purpose: Verify compiled packet reads, snapshot-only contact/date extraction, Professional styling of manual Office text, and real DOCX/PDF/RTF exports.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-resume-downloads.test.mjs]}
+    expected:
+      - Contact and date precision come solely from the packet's own profile snapshot without rewriting stored packets or falling back to a current profile.
+      - Professional styling preserves every manual Office text run and block id, and real DOCX/PDF/RTF bytes carry expected packet and cover facts.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove temporary packet directories."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: resume-downloads-browser
+    name: My résumé More menu offers Professional Word/PDF and Prepare application offers packet formats
+    purpose: Verify My résumé keeps its existing Export location while offering Professional Word/PDF from More, cancels mid-flight downloads on close, and offers packet/cover formats only on unsubmitted packets.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-resume-downloads-browser.test.mjs]}
+    expected:
+      - Phone and desktop My résumé views place Professional résumé (Word / PDF) inside More with zero duplicate Download bar and zero automatic POST writes.
+      - Transient Professional exports verify modelSha256 over plain HTTP, abort cleanly on dialog close, and Prepare application withholds re-export controls on submitted packets.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close synthetic Chromium browser contexts."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: resume-reviewer
+    name: Dynamically-loaded career-resume-reviewer Swarm bot enforces ATS typography, tenure truth and zero contradictions
+    purpose: Verify boldmetrics removal across all three HTML resume templates, zero numeric '+' suffixes with C++/Security+/A+ preservation, non-overlapping per-skill tenure math, career-resume-reviewer manifest/persona/authz declaration, fail-closed worker-rail routing, contradiction repair and needs_review escalation, and Prepare application review surfacing.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-resume-reviewer.test.mjs]}
+    expected:
+      - Rendered Resume_ATS, Resume_Premium and Resume_1page carry zero inline <b> numbers and zero numeric '+' suffixes while preserving C++, g++, Security+, Network+, A+ and COM+.
+      - skill_tenure computes exact non-overlapping role-date unions and detects cross-section year contradictions and skill-tenure inflation.
+      - career-worker-rail routes bot=career-resume-reviewer to inline agent cb000000-0000-0000-0000-000000000006, rejects unknown bots fail-closed, and persists structured resume_review receipts surfaced by lib/career-resume-review.js.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove temporary packet directories and close loopback rail server."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
     installation: never

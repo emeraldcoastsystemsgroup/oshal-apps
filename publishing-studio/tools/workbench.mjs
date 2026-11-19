@@ -8,6 +8,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7, touch (the round-2 trial check, 2026-11-06: a swipe over the page dragged the story frame and never scrolled): a finger scrolls the page and a tap selects a frame; only the chosen frame's Move handle drags it by touch, as in the reference editors (Canva's selected element, Acrobat's deliberate grab); a mouse still drags outlines directly. Previews are asked for only when the opened revision was rendered (no 409 per page).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: support multi-select and group selection/drag, nullable metadata cleanup in localApply, Liberation Sans and Liberation Mono font stacks, MP4 export download, and shell hooks for comments and timeline (RP-PUB-01..08).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (B8-06): sync .frame-handle disabled state in controls() so a frame whose Move handle was drawn while busy at open becomes enabled as soon as loading or saving completes.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5: do not blur `<iframe class="jarvis-chat-frame">` during `prepareDocumentHandoff()`, keeping focus inside the shared concierge window so `jarvis-package-tools.js` retains waiting approval cards (`b45d1529`).
  */
 import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
 let editorFoundation;
@@ -519,7 +520,7 @@ async function prepareDocumentHandoff(){
  await editorFoundation?.flushPending();
  if(workspaceIdle)await workspaceIdle;
  if(!state.document)return{app:'publishing-studio',screen:'surface',surface:'publishing-workbench'};
- document.activeElement?.blur?.();if(hasDraft())editable();
+ if(document.activeElement&&document.activeElement.tagName!=='IFRAME')document.activeElement.blur?.();if(hasDraft())editable();
  const groups=[['geometry','geometry:submit'],['link','link-frame:click'],['story','replace-story:click'],
   ['master','apply-master:click'],['character','character-properties:submit'],['paragraph','paragraph-properties:submit'],
   ['page','page-properties:submit'],['object','add-object:click']];

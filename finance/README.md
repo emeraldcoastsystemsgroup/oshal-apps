@@ -14,7 +14,7 @@ package installed, `swarm-apps/` in the framework repo carries no Wave-1 applica
 | Path | What |
 |---|---|
 | `oshal-app.yaml` | Manifest: one OIDC route, `finance-brief` workflow, ribbon tile, `forest` theme, `suite: ai-finance`, `uses: [payments]`. **No bots** (see below). |
-| `src-routes/finance-routes.ts` | The controller: Plaid link/exchange/sandbox, sync→aggregate, brief (bot reasoning), pay/pay-status/payments, unlink, lazy `ensureFinanceSchema`. |
+| `src-routes/finance-routes.ts` | The controller: Plaid link/exchange/sandbox, sync→aggregate, brief (bot reasoning), pay/pay-status/payments, unlink, and mount-time `ensureFinanceSchema` (catalog check first, 2s `lock_timeout`, zero per-request DDL). |
 | `src-routes/finance-plaid.ts` | Self-contained Plaid client + aggregate builder (zero imports). |
 | `src-routes/finance-analysis.ts` | A requested analysis that runs after the press has answered (1.6.5): the kernel's background-run port, the caller's one request row and what it reads as. |
 | `migrations/` | 001 the three finance stores and 002 the caller's latest analysis request (the routes also create these lazily); 003 the person's own records (accounts, transactions, imports, rules, documents) and 004 the money day (bills and due dates, goals and amounts set aside, the month's plan, closed months), migration only (1.7.0). |

@@ -26,6 +26,7 @@
   34 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"; the résumé began half way down a 412 px screen under Career's bar, two lines of tabs, the picker row, a status line, the banner and AI Office's own app row). On a phone the main résumé's document has ONE bar of 52 px, as Google Docs and Word give it: the résumé's name (the picker) with its save state in small type under it, Edit while the document is open to read (Undo and Redo once editing), Save, then More. AI Office draws no app row of its own here (it opens with ?header=host, AI Office 2.20.6): the bar presses that row's buttons, "Unsaved changes" from it shows under the name, and More holds its Export, its document menu (version history, rename and the rest) and Your AI Office documents, each one tap further than before. The banner's words for the main résumé (Synced with Work history, its revision) are the top of More on a phone; a tailored résumé keeps its banner with Back to main résumé, and a computer or tablet keeps the page as it was. Once the person scrolls into the résumé, Career's bar and the row of pages slide away and the document has the screen under its own bar; scrolling back up brings them back. Guard: tests/browser/career-resume-header-phone.test.cjs.
   35 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying). The page no longer draws a résumé editor of its own (its heading, transcript, text box and Send, each turn sent to POST /resume/guide). A job's tailored résumé, and the main résumé where AI Office is not available, are changed by asking Career's concierge, the kernel's one chat window: Career's Concierge in its bar on a computer (no longer hidden on this view), Edit with AI on a phone, which opens that concierge (mounting it first where Career's frame did not). The page declares the open document on <html data-career-record>, so the window opens that document's own conversation; its registered handoff saves an edit not yet saved before each turn and reads the résumé again after the turn and after an approved card; a tailored résumé's context names the tools that read and change it (career_documents, and career_resume_save on a card). The notes the editor's thread carried are in the status line or beside Save. After the save before a turn, Save follows what is still unsaved (it was left on with nothing to save). Guard: tests/career-hunter-one-chat-window.test.mjs.
   36 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
+  37 | maintainer@emeraldcoastsystemsgroup.com | Keep the existing main résumé Export location, offer its professional style from More, and download saved packet and cover formats without saving or generating.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -196,6 +197,7 @@
       <p id="err" role="alert" hidden></p>
       <p id="historyNote" hidden><span id="historyText"></span><button type="button" class="ck-btn" id="useHistory">Use my work history</button></p>
     </nav>
+    <div id="packetDownloads" data-career-downloads hidden></div>
     <div class="ck-menu" id="moreMenu" popover role="menu" aria-describedby="docFacts">
       <p id="docFacts" class="doc-facts" role="none" hidden></p>
       <a role="menuitem" data-career-tool="career-master-record" href="/api/career-hunter/master-record-ui">Download my data (everything saved)</a>
@@ -204,9 +206,14 @@
       <button type="button" role="menuitem" id="openMaterials">Add career materials…</button>
       <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved main résumé</button>
       <button type="button" role="menuitem" id="docExport" hidden>Export this document…</button>
+      <button type="button" role="menuitem" id="professionalDownload" hidden>Professional résumé (Word / PDF)…</button>
       <button type="button" role="menuitem" id="docMenu" hidden>Version history, rename, more…</button>
       <button type="button" role="menuitem" id="docList" hidden>Your AI Office documents</button>
     </div>
+    <dialog id="professionalDialog" aria-labelledby="professionalTitle" style="max-width:min(36rem,90vw);max-height:85dvh;overflow:auto;padding:24px;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:12px">
+      <button type="button" id="closeProfessional" style="float:right">Close</button><h2 id="professionalTitle">Professional résumé</h2>
+      <div id="professionalDownloads"></div>
+    </dialog>
     <section id="noProfile" class="ck-empty" hidden>
       <div class="ck-empty-icon" aria-hidden="true">📄</div>
       <h2 id="noProfileTitle">No résumé yet</h2>
@@ -267,12 +274,15 @@
 <script src="/api/career-hunter/static/career-navigation.js"></script>
 <script src="/api/career-hunter/static/career-role-hierarchy.js"></script>
 <script src="/api/career-hunter/static/career-resume-office.js"></script>
+<script src="/api/career-hunter/static/career-export-model.js"></script>
+<script src="/api/career-hunter/static/career-resume-downloads.js"></script>
 <script src="/api/career-hunter/static/career-change-bar.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
 const API = '/api/career-hunter';
 let state = { postingId: null, resume: null, cover: null };
+let professionalDownloads = null, packetDownloads = null;
 let documentEpoch = 0;
 /* Why the main résumé opened in the classic view, said once it is open (AI Office's Word editor was not available). */
 let classicReason = '';
@@ -313,6 +323,18 @@ const office = window.CareerResumeOffice && window.CareerResumeOffice.createHost
   status: (t) => setStatus(t),
   // On a phone this page draws the document's one bar, and AI Office's app row is folded into it (AI Office 2.20.6).
   header: () => (PHONE.matches ? 'host' : 'editor'), onRow: () => paintRow(), onScroll: (top) => followScroll(top) });
+if (window.CareerResumeDownloads) {
+  professionalDownloads = window.CareerResumeDownloads.mount($('professionalDownloads'), { fixedStyle: 'professional', expanded: true,
+    key: () => documentEpoch + ':' + state.postingId + ':' + office?.documentId(),
+    source: () => ({type: 'office', documentId: office?.documentId()}) });
+  packetDownloads = window.CareerResumeDownloads.mount($('packetDownloads'), {
+    key: () => documentEpoch + ':' + state.postingId,
+    parts: () => coverHtml(state.cover) ? ['resume', 'cover'] : ['resume'],
+    source: (part) => ({type: 'packet', id: Number(state.postingId), part}) });
+}
+$('professionalDownload').addEventListener('click', () => { try { $('moreMenu').hidePopover(); } catch (_) {} professionalDownloads?.refresh(); $('professionalDialog').showModal(); });
+$('closeProfessional').addEventListener('click', () => $('professionalDialog').close());
+$('professionalDialog').addEventListener('close', () => professionalDownloads?.cancel());
 function officeOpen(){ return Boolean(office && office.active() && state.postingId === 'master'); }
 function officeView(on){
   if (!on && !(office && office.active())) return;
@@ -335,6 +357,7 @@ function paintRow(){
   $('docState').hidden = !(row && (row.dirty || row.conflict));
   for (const id of ['docExport', 'docMenu', 'docList']) $(id).hidden = !row;
   $('docExport').disabled = !(row && row.export);
+  $('professionalDownload').hidden = !(officeOpen() && professionalDownloads);
   updateDocFacts();
   if (!here) setFull(false);
 }
@@ -653,13 +676,15 @@ function openDoc(id){ opening = loadDoc(id); return opening; }
 /* An empty master is what a person with no indexed résumé gets; /resume/state says which. */
 function hasContent(r){ return Boolean(r && (r.headline || r.summary || (r.experience || []).length || (r.skills || []).length || (r.competencies || []).length)); }
 /* Nothing to edit until a résumé exists: the Edit with AI bar and the More menu wait for it. */
-function setResumeReady(on){ document.body.dataset.resume = on ? 'ready' : 'none'; }
+function setResumeReady(on){ document.body.dataset.resume = on ? 'ready' : 'none'; $('packetDownloads').hidden = !on || state.postingId === 'master'; }
 /* An empty master is either no résumé yet (the empty state) or, when /resume/state says otherwise or gives no answer, an editable one as before. */
 function checkProfile(){ resumeState().then((s) => { if (s && (!s.hasResume || s.indexing)) watchIndexing(); else setResumeReady(true); }); }
 
 async function loadDoc(id){
   if (documentBusy && documentBusy !== 'loading') return;
   const epoch = ++documentEpoch, isMaster = id === 'master';
+  professionalDownloads?.cancel(); packetDownloads?.cancel(); $('packetDownloads').hidden = true;
+  if ($('professionalDialog').open) $('professionalDialog').close();
   state = {postingId:null,resume:null,cover:null}; window.__meta = {}; classicReason = '';
   $('sheet').hidden = true; $('sheet').innerHTML = ''; $('empty').hidden = false;
   $('empty').textContent = id ? 'Loading the selected résumé…' : 'Choose a résumé to edit.';
@@ -669,6 +694,7 @@ async function loadDoc(id){
   try {
     const j = await fetchDoc(id); if (epoch !== documentEpoch) return;
     state = {postingId:isMaster ? 'master' : Number(id),resume:j.resume || {},cover:j.cover || {}};
+    packetDownloads?.refresh();
     docRevision = revisionOf(j); dirty = false; if (isMaster) masterRevision = j.revision || '';
     window.__meta = j.meta || {}; selectLoadedDocument(); declareRecord(state.postingId);
     // The banner above the résumé names it: the main résumé, or the job a tailored résumé is for.

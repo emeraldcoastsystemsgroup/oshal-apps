@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-16 ("for the last time"): every chat in an application is the kernel's one chat window, the Jarvis page framed as the application's concierge (/shared/ui/js/jarvis-chat-frame.js mountJarvisChat; the shared editor pane frames it too). A package's browser suite serves that window from a kernel platform export and stands in for the kernel routes it reads, as the kernel's own platform/src/shared/ui/js/jarvis-chat-core.test.mjs does: the page and its assets, the model menu's rails (a pick rides on the turn's context as provider and model), the person's conversations, and the bot's door, which answers at once with a pending job whose steps and answer the window then reads. Each turn is kept with its door, body and headers, so a suite can say what reached the bot. No live service, no provider, nothing outside the loopback.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the shared native secondary message options disclosure (`details.jc-composer-more`) at narrow widths before checking `#effortToggle` / `#jarvisModelBtn`, matching `jarvis-chat-core.test.mjs` SEQ 2 on current kernel platform exports.
  */
 import {existsSync} from 'node:fs';
 import {readFile,stat} from 'node:fs/promises';
@@ -165,6 +166,8 @@ export async function chatWindow(scope,selector='iframe.jarvis-chat-frame',timeo
  * @param {object} chat The window. @returns {Promise<void>}
  */
 export async function windowControls(chat){
+ const more=chat.locator('details.jc-composer-more:not([open]) > summary');
+ if(await more.isVisible())await more.click();
  for(const [name,locator] of [['the model menu','#jarvisModelBtn'],['Files','#addMediaBtn'],['Tap to talk','#mic'],['Keep trying','#effortToggle'],
   ['New conversation','.jc-header button[aria-label="New conversation"]'],['Recent conversations','.jc-header button[aria-label="Recent conversations"]']]){
   await chat.locator(locator).first().waitFor({state:'visible',timeout:15000}).catch(()=>{throw new Error(`the chat window shows ${name} (${locator})`);});
@@ -177,6 +180,8 @@ export async function windowControls(chat){
  * @returns {Promise<string>} The label the control then shows.
  */
 export async function pickModel(chat,press,provider='picked'){
+ const more=chat.locator('details.jc-composer-more:not([open]) > summary');
+ if(await more.isVisible())await press(more);
  await press(chat.locator('#jarvisModelBtn'));await press(chat.locator(`.jmm-item[data-provider="${provider}"]`));
  return (await chat.locator('#jarvisModelBtn .jmm-trigger-label').textContent()).trim();
 }

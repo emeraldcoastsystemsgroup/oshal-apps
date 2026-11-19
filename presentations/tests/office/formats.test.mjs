@@ -1,10 +1,41 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Check real DOCX, PDF, TXT and Chromium renderer paragraph indentation and bounded keep-with-next with unchanged legacy list defaults.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Require genuine bounded Word RTF with escaped Unicode, native lists, hierarchy, tables and inline pictures while refusing unsupported kinds.
  */
 import{test}from'node:test';import assert from'node:assert/strict';import{createRequire}from'node:module';
 import{createServer}from'node:http';import{readFile}from'node:fs/promises';
 import{initial,paragraph}from'../../tools/office/model.mjs';import{applyOperations,newObject}from'../../tools/office/operations.mjs';import{renderOffice,dependencies,embeddedModel}from'../../routes/office-editor/formats.mjs';import{inspectOffice}from'../../routes/office-editor/importers.mjs';
 const{Zip,Excel}=dependencies();
+function rtfDocument(){
+ const model=initial('docx','Résumé {safe}');model.header='Header';model.footer='Footer';
+ model.pages[0].blocks=[
+  {...paragraph('Employer',{bold:true}),keepWithNext:true},
+  {...paragraph('Sub-engagement'),indentLeft:18,keepWithNext:true},
+  {...paragraph('2024–2026\tDates'),indentLeft:18,keepWithNext:true},
+  {...paragraph('Résumé 中文 🌍 \\ {literal}\nNext line',{fontFamily:'Arial;{\\evil}',italic:true,underline:true,color:'#2563eb',highlight:'#fef08a'}),indentLeft:30.6,list:'bullet'},
+  {...paragraph('First numbered'),list:'number'},
+  {...paragraph('Second numbered'),list:'number'},
+  {id:crypto.randomUUID(),type:'table',rows:[[[{text:'Cell one',style:paragraph().runs[0].style}],[{text:'Cell two',style:paragraph().runs[0].style}]]]},
+  {id:crypto.randomUUID(),type:'image',width:24,height:24,src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jY9kAAAAASUVORK5CYII='}
+ ];model.pages.push({...structuredClone(model.pages[0]),id:crypto.randomUUID(),name:'Page 2',blocks:[paragraph('Final page')]});return model;
+}
+test('RTF is a real seven-bit Unicode Word document preserving ordered hierarchy and native rich content',async()=>{
+ const model=rtfDocument(),before=structuredClone(model),bytes=await renderOffice(model,'rtf'),source=bytes.toString('ascii');
+ assert.ok(source.startsWith('{\\rtf1\\ansi\\ansicpg1252'));assert.ok(bytes.every(byte=>byte<128));
+ for(const value of['\\uc1','\\fonttbl','\\colortbl','\\listtable','\\listoverridetable','\\listtext','\\ls1','\\ls2','\\keepn','\\li360','\\li612','\\trowd','\\cellx','\\cell','\\row','\\pngblip','\\picwgoal480','\\page'])assert.ok(source.includes(value),value);
+ for(const value of['\\u233?','\\u20013?','\\u25991?','\\u-10180?','\\u-8435?','\\\\ \\{literal\\}','\\line ','\\tab '])assert.ok(source.includes(value),value);
+ assert.ok(source.indexOf('Employer')<source.indexOf('Sub-engagement'));assert.ok(source.indexOf('Sub-engagement')<source.indexOf('2024'));
+ assert.ok(source.indexOf('2024')<source.indexOf('First numbered'));assert.ok(source.indexOf('Cell one')<source.indexOf('Cell two'));
+ assert.match(source,/Arial\\u59\?\\\{\\\\evil\\\}/);assert.match(source,/\\header[\s\S]*Header/);assert.match(source,/\\footer[\s\S]*Footer/);
+ assert.doesNotMatch(source,/<html|\\field\b|\\object\b|\\filetbl\b|INCLUDEPICTURE|HYPERLINK/i);assert.deepEqual(model,before);
+});
+test('RTF refuses non-Word kinds and bounds escaped output without weakening the model byte limit',async()=>{
+ for(const kind of['pptx','xlsx'])await assert.rejects(renderOffice(initial(kind),'rtf'),error=>error.code==='office_format_mismatch');
+ const expanded=initial('docx');expanded.pages[0].blocks=Array.from({length:9},()=>paragraph('é'.repeat(200000)));
+ await assert.rejects(renderOffice(expanded,'rtf'),error=>error.code==='office_export_limit');
+ const invalid=initial('docx');invalid.pages[0].blocks[0].runs[0].text='bad\u0000text';
+ await assert.rejects(renderOffice(invalid,'rtf'),error=>error.code==='office_invalid_text');
+});
 function nestedDocument(){
  const model=initial('docx');model.pages[0].blocks=[
   paragraph('Parent'),{...paragraph('Child'),indentLeft:18,keepWithNext:true},

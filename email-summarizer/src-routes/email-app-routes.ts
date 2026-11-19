@@ -51,6 +51,7 @@
  * 22 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers when My Day names Google (its summary was refused with 409 before any model was asked) and has today's sample events.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | The saved summary is sealed by the kernel: the package helper needed a SESSION_SECRET the native kernel never hands a package, so saving the model's answer failed with 502. The digest table is a declared migration and is written without ON CONFLICT, which the native kernel refused on the lazily made table.
  * 24 | maintainer@emeraldcoastsystemsgroup.com | Run checkCallerWatches after POST /sync finishes so installations running mail-copy also seed EMAIL_DEFAULT_WATCHES and evaluate mailbox watches against newly synced Gmail rows.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Extract safe HTML links and MIME attachment metadata on GET /message/:id via shared mail-content helpers so multipart and HTML emails preserve actionable URLs (such as payment and invoice links) alongside plain-text body.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -77,6 +78,7 @@ import {
   connectionState, kernelEgress, kernelFetch, kernelSendGmail, kernelSendOutlook, kernelTokenFor, readConnections, summarizeGmail,
 } from './kernel-mail';
 import { demoEventsToday, demoMailAnswers, listStored, plantDemoMail, storedMessage, type DemoMail, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
+import { extractGmailContent } from './mail-content';
 import { checkCallerWatches } from './mail-watches';
 import { missingWatchTable } from './mail-watches-store';
 
@@ -146,7 +148,14 @@ function gmailMailbox(token: string): Mailbox {
     page: (days, max, cursor) => pageInbox(token, gmailSearch(days), max, cursor),
     message: async (id) => {
       const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`);
-      return { ...summarizeMessage(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
+      const content = extractGmailContent(m.payload);
+      return {
+        ...summarizeMessage(id, m),
+        to: header(m, 'To'),
+        body: content.body.slice(0, 20000),
+        links: content.links,
+        attachments: content.attachments,
+      };
     },
     eventsToday: () => eventsToday(token),
     ownAddress: async () => String((await gget(token, `${GMAIL}/profile`)).emailAddress || ''),
@@ -327,36 +336,6 @@ function header(msg: Record<string, unknown>, name: string): string {
   const payload = msg.payload as { headers?: Array<{ name: string; value: string }> } | undefined;
   const h = (payload?.headers || []).find((x) => x.name.toLowerCase() === name.toLowerCase());
   return h?.value || '';
-}
-
-/** base64url → utf8. */
-function b64url(data: string): string {
-  return Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-}
-
-/** Strip HTML to readable text (fallback when no text/plain part exists). */
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/** Walk a Gmail payload tree and return the best plain-text body. */
-function extractBody(payload: unknown): string {
-  const p = payload as { mimeType?: string; body?: { data?: string }; parts?: unknown[] } | undefined;
-  if (!p) return '';
-  if (p.mimeType === 'text/plain' && p.body?.data) return b64url(p.body.data);
-  for (const part of p.parts || []) {
-    const t = extractBody(part);
-    if (t) return t;
-  }
-  if (p.mimeType === 'text/html' && p.body?.data) return stripHtml(b64url(p.body.data));
-  return '';
 }
 
 /** Gmail's page tokens are opaque; one is accepted only in this shape so it never carries a query of its own. */

@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: accept optional bot selector ('career-hunter' | 'career-resume-reviewer') in complete() and forward it in the Career worker rail payload so pre-return resume reviews run on the dynamically-loaded career-resume-reviewer Swarm bot.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | A scoring call may ask for an answer with no text (the rail's `empty-answer` detail) to be one unanswered run (EmptyAnswer) instead of ending the run; only the settled nightly pass asks, every other call trips the rail as before.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve guarded native scoring identity before cache selection and carry actual completion attribution per result while preserving legacy completion callers.
 # -----------------------------------------------------------------------------
@@ -185,8 +186,8 @@ def resolve_scoring_identity(model=None) -> ScoringIdentity:
                            primary['provider'], value['identity'])
 
 
-def _rail_completion(system, prompt, max_tokens, json_mode, identity=None, empty_is_unanswered=False):
-    """One completion on the dedicated Career bot through the package's worker rail."""
+def _rail_completion(system, prompt, max_tokens, json_mode, identity=None, empty_is_unanswered=False, bot=None):
+    """One completion on a declared Career Swarm bot through the package's worker rail."""
     if _RAIL_FAILURE is not None:
         raise CareerWorkerUnavailable(_RAIL_FAILURE.reason, _RAIL_FAILURE.status)
     if not _rail_configured():
@@ -195,6 +196,8 @@ def _rail_completion(system, prompt, max_tokens, json_mode, identity=None, empty
         "system": system or "", "prompt": prompt or "",
         "maxTokens": int(max_tokens or 900), "jsonMode": bool(json_mode),
     }
+    if bot is not None:
+        document["bot"] = str(bot)
     if identity is not None:
         document['expectedModelIdentity'] = identity.expected
     body = json.dumps(document).encode('utf-8')
@@ -213,8 +216,8 @@ def _rail_completion(system, prompt, max_tokens, json_mode, identity=None, empty
     return ""  # unreachable: _rail_trip always raises
 
 
-def _complete_rail(system, prompt, max_tokens, json_mode) -> str:
-    return _rail_completion(system, prompt, max_tokens, json_mode)['text']
+def _complete_rail(system, prompt, max_tokens, json_mode, bot=None) -> str:
+    return _rail_completion(system, prompt, max_tokens, json_mode, bot=bot)['text']
 
 
 def complete_scoring(system, prompt, *, max_tokens, model, identity: ScoringIdentity,
@@ -438,14 +441,14 @@ def _complete_cli(system, prompt, model):
 
 
 def complete(system: str, prompt: str, max_tokens: int = 900, json_mode: bool = True,
-             model: str | None = None) -> str | None:
+             model: str | None = None, bot: str | None = None) -> str | None:
     """Single LLM completion. In multi-user (OSHAL) mode: the Career worker rail, only — no
     subprocess, SDK or fallback is reachable, and a rail failure raises CareerWorkerUnavailable.
     Standalone: prefers the platform's configured codex credential (off the operator's Claude
     subscription); else a connected Anthropic key / OAuth (falling back to the `claude` CLI on
     rate-limit); else OpenAI."""
     if _rail_mode():
-        return _complete_rail(system, prompt, max_tokens, json_mode)
+        return _complete_rail(system, prompt, max_tokens, json_mode, bot=bot)
     if _have_codex():
         return _complete_codex(system, prompt, json_mode=json_mode, max_tokens=max_tokens)
     if _have_raw_anthropic():

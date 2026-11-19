@@ -13,6 +13,10 @@
  *     |                                         | proposed commands without auto-executing; and (2) Intelligent Operations
  *     |                                         | inside Today (/cockpit/?app=intelligent-operations&screen=operations-estate)
  *     |                                         | opens the one chat window with ops-concierge.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 (Option 1 — Ticket + Per-User Workspace + Workflow): Cloud & SSH commands,
+ *     |                                         | Console and Pod console mount jarvis-chat-frame.js as ops-concierge for
+ *     |                                         | conversational Q&A with live screen_state, while specialist packet analyses
+ *     |                                         | run on caller-owned ops-specialist tickets without auto-executing.
  */
 'use strict';
 
@@ -23,41 +27,15 @@ const path = require('node:path');
 const { fixture, loadExperience, root } = require('./fixtures/intake.cjs');
 
 const CONCIERGE_BOT_ID = '0be32215-3a5a-43cd-9f84-afc659aa1d65';
-const SPECIALIST_BOT = 'ops-rca-specialist';
+const CONCIERGE_BOT = 'ops-concierge';
 const FRONT_ANSWER = 'Zero critical alerts are firing across your monitored installations.';
 
 let helper, todayHost, env, browser;
 
 function answerTurn(ask) {
   if (ask.context?.app !== 'intelligent-operations') return 'Wrong application.';
-  if (ask.bot === 'ops-concierge' || ask.bot === CONCIERGE_BOT_ID) return FRONT_ANSWER;
-  if (ask.bot !== SPECIALIST_BOT) return 'Unexpected bot.';
-  if (ask.context?.screen === 'command-helper') {
-    return {
-      answer: 'Safe read-only EKS check staged for review.',
-      structured: {
-        say: 'Safe read-only EKS check staged for review.',
-        command: {
-          tool: 'aws',
-          argv: ['aws', 'eks', 'list-clusters', '--region', 'us-east-1'],
-          reason: 'read-only cluster listing',
-          readOnly: true,
-          risk: 'none',
-          verify: 'Cluster names print as JSON.'
-        }
-      }
-    };
-  }
-  if (ask.context?.screen === 'ops-console') {
-    return {
-      answer: 'Lab cluster has 1 node ready; inspect pods next.',
-      structured: { next: [{ argv: ['kubectl', 'get', 'pods', '-A'], reason: 'inspect pods' }] }
-    };
-  }
-  return {
-    answer: 'Container health reviewed; id check suggested for separate review.',
-    structured: { say: 'Container health reviewed; id check suggested for separate review.', command: { argv: ['id'], reason: 'check uid' } }
-  };
+  if (ask.bot === CONCIERGE_BOT || ask.bot === CONCIERGE_BOT_ID) return FRONT_ANSWER;
+  return 'Unexpected bot.';
 }
 
 function buildGraph() {
@@ -167,7 +145,7 @@ async function openAt(urlPath, width, height) {
 }
 
 for (const [width, height] of [[1440, 900], [412, 915]]) {
-  test(`${width}x${height}: Cloud & SSH commands, Console and Pod console mount the kernel's one chat window as ops-rca-specialist`, { timeout: 120000 }, async () => {
+  test(`${width}x${height}: Cloud & SSH commands, Console and Pod console mount the kernel's one chat window as ops-concierge`, { timeout: 120000 }, async () => {
     const { context, page, errors, outside, press } = await openAt('/api/intelligent-operations/app#commands', width, height);
     try {
       await page.locator('#status', { hasText: /^Updated / }).waitFor();
@@ -177,26 +155,26 @@ for (const [width, height] of [[1440, 900], [412, 915]]) {
       assert.deepEqual(await todayHost.windowAddress(page, '#commands-concierge iframe.jarvis-chat-frame'), {
         path: '/api/jarvis/',
         app: 'intelligent-operations',
-        bot: SPECIALIST_BOT,
+        bot: CONCIERGE_BOT,
         src: await page.locator('#commands-concierge iframe.jarvis-chat-frame').getAttribute('src')
       });
       await helper.windowControls(cmdChat);
       assert.equal(await helper.pickModel(cmdChat, press), 'Picked model');
-      const cmdTurn = await helper.sendInWindow(cmdChat, 'Propose a safe AWS EKS cluster check.', press, env.kernel);
+      const cmdTurn = await helper.sendInWindow(cmdChat, 'What needs my attention in operations?', press, env.kernel);
+      assert.equal(cmdTurn.ask.bot, CONCIERGE_BOT);
       assert.equal(cmdTurn.ask.context?.app, 'intelligent-operations');
       assert.equal(cmdTurn.ask.context?.screen, 'command-helper');
       assert.equal(cmdTurn.ask.context?.provider, 'picked');
       assert.match(String(cmdTurn.ask.context?.screen_state?.text || ''), /# Cloud & SSH commands/);
-      await page.locator('#commands-proposal').getByText('aws eks list-clusters', { exact: false }).waitFor();
 
       await page.evaluate(() => { location.hash = 'console'; });
       await page.locator('#console-tree .console-leaf').first().waitFor();
       const conChat = await helper.chatWindow(page, '#console-concierge iframe.jarvis-chat-frame');
       await helper.windowControls(conChat);
-      const conTurn = await helper.sendInWindow(conChat, 'Summarize cluster readiness.', press, env.kernel);
+      const conTurn = await helper.sendInWindow(conChat, 'Summarize saved alerts while I inspect this cluster.', press, env.kernel);
+      assert.equal(conTurn.ask.bot, CONCIERGE_BOT);
       assert.equal(conTurn.ask.context?.screen, 'ops-console');
       assert.match(String(conTurn.ask.context?.screen_state?.text || ''), /# Console/);
-      await page.locator('#console-output .console-chip', { hasText: 'kubectl get pods -A' }).waitFor();
 
       await page.evaluate(() => { location.hash = 'systems'; });
       const tree = page.locator('#systems-results').getByRole('tree');
@@ -206,11 +184,11 @@ for (const [width, height] of [[1440, 900], [412, 915]]) {
       await press(tree.locator('[data-resource-id="p1"]'));
       const podChat = await helper.chatWindow(page, '.pod-concierge iframe.jarvis-chat-frame');
       await helper.windowControls(podChat);
-      const podTurn = await helper.sendInWindow(podChat, 'Inspect this pod readiness.', press, env.kernel);
+      const podTurn = await helper.sendInWindow(podChat, 'Any firing alerts on demo?', press, env.kernel);
+      assert.equal(podTurn.ask.bot, CONCIERGE_BOT);
       assert.equal(podTurn.ask.context?.screen, 'pod-console');
       assert.match(String(podTurn.ask.context?.screen_state?.text || ''), /\[pod\] demo\/web-1/);
-      await page.locator('.pod-suggestion', { hasText: 'Use suggested command' }).waitFor();
-      assert.equal(env.execCalls.length, 0, 'specialist chat turns never auto-execute');
+      assert.equal(env.execCalls.length, 0, 'concierge chat turns never auto-execute');
       assert.deepEqual(outside, []);
       assert.deepEqual(errors, []);
     } finally {

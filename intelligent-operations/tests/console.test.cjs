@@ -1,8 +1,9 @@
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: drive Console planning and assessment through caller-owned ops-specialist tickets (ticketService.createTicket + startTicket + getAcceptedWork) while keeping jarvis-chat-frame.js mounted as ops-concierge. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: serve the kernel's one chat window in the console browser harness now that Console mounts jarvis-chat-frame.js (ops-rca-specialist). */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The largest cluster is ranked across recorded Kubernetes, EKS, GKE and AKS clusters by node count; live kubectl still names the connected cluster. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Ops console: kubectl lines map to exactly one native read (or a staged exec), tables and the computed assessment are deterministic, and in the shipped page a plain-words question is planned, every command is shown and run through the person's own connection with a fresh confirmation, the result is assessed and explained as text (never markup), an exec runs only on the person's click, a refused connection stays in the terminal while a refused identity clears it, and without the analyst a local plan still answers. */
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{randomUUID}=require('node:crypto');
+const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{createHash,randomUUID}=require('node:crypto');
 const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs');
 const C=require('../experience/console.js');
 let windowHelper=null;
@@ -45,14 +46,21 @@ async function harness({analyst=true,refuse=null,extra=[]}={}){
   const base={transport:'native_kubernetes',operation:q.params.op,observedAt:new Date().toISOString()};
   if(q.params.op==='kubernetes-list-nodes')return r.json({...base,items:NODES});if(q.params.op==='kubernetes-list-pods')return r.json({...base,items:PODS.filter(p=>p.namespace===q.body.namespace)});
   if(q.params.op==='kubernetes-exec')return r.json({...base,outcome:'completed',exitCode:0,stdout:'overlay 1.8T 34% /',stderr:''});r.status(404).json({detail:'no'});});
- if(!analyst)app.post('/api/swarm/bots/ops-rca-specialist/ask',(q,r)=>{asks.push(String(q.body.message||''));r.status(503).json({detail:'analyst offline'});});
  const platform=windowHelper.kernelPlatform(path.resolve(root,'../../oshal-kernel/platform'));
- windowHelper.mountWindow(app,{platform,kernel:windowHelper.windowKernel({answer:ask=>{const m=String(ask.message||'');asks.push(m);
-  if(m.includes('console-plan-v1'))return JSON.stringify({say:'Reading node readiness and sizing.',steps:[{argv:['kubectl','get','nodes','-o','wide'],reason:'nodes'},{argv:['kubectl','delete','node','lab-worker'],reason:'not allowed'}]});
-  return {answer:'2 nodes; lab-worker under MemoryPressure',structured:{headline:'2 nodes; lab-worker under MemoryPressure',verdict:'attention',explanation:'- **Sizing:** 7.5 cores in all.\n- <img src=x onerror="window.__owned=1"> stays text',next:[{argv:['kubectl','get','pods','-A'],reason:'what runs there'}]}};}})});
+ windowHelper.mountWindow(app,{platform,kernel:windowHelper.windowKernel({answer:()=>'Concierge ready.'})});
+ const tickets=new Map();
+ const ticketService=analyst?{
+  async createTicket(input){const id=randomUUID();tickets.set(id,{ticket:{id,ticketId:id,ticketType:input.ticketType,status:'queued',revision:1},work:null});return {ticketId:id,status:'queued'};},
+  async startTicket(id,input){const entry=tickets.get(id),rawPacket=Buffer.from(input.files[0].bytes).toString('utf8');asks.push(rawPacket);const p=JSON.parse(rawPacket);
+   const raw=p.version==='console-plan-v1'?JSON.stringify({say:'Reading node readiness and sizing.',steps:[{argv:['kubectl','get','nodes','-o','wide'],reason:'nodes'},{argv:['kubectl','delete','node','lab-worker'],reason:'not allowed'}]}):JSON.stringify({headline:'2 nodes; lab-worker under MemoryPressure',verdict:'attention',explanation:'- **Sizing:** 7.5 cores in all.\n- <img src=x onerror="window.__owned=1"> stays text',next:[{argv:['kubectl','get','pods','-A'],reason:'what runs there'}]});
+   entry.ticket.status='done';entry.work={id:randomUUID(),answer:raw,sha:createHash('sha256').update(raw).digest('hex')};return {ticketId:id,status:'done'};},
+  async getTicket(id){return tickets.get(id)?.ticket||null;},
+  async getTicketWork(id){const w=tickets.get(id)?.work;return w?[{id:w.id,phase:{index:0,name:'analyze'},state:'completed',executor:'native-broker-v1',resultUnavailable:false}]:[];},
+  async getAcceptedWork(ticketId,workId){const w=tickets.get(ticketId)?.work;return w&&w.id===workId?{ticketId,workId,phase:{index:0,name:'analyze'},answer:w.answer,answerSha256:w.sha,receipt:'r-con',source:'accepted-work-answer.md'}:null;}
+ }:null;
  app.use((q,_r,n)=>{q.oidc={user:{sub:'alice'}};n();});
  const graph={assets:[{id:'c',provider:'kubernetes',scope:'s1',kind:'cluster',nativeId:'s1',name:'lab',health:'healthy',observedAt:'2026-10-23T00:00:00.000Z',properties:{}},{id:'p1',provider:'kubernetes',scope:'s1',kind:'pod',nativeId:'p1',name:'web-1',health:'healthy',observedAt:'2026-10-23T00:00:00.000Z',properties:{namespace:'demo'}},...extra],relationships:[],asOf:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}};
- app.use('/api/intelligent-operations',(q,r,n)=>{if(q.path==='/topology')return r.json(graph);n();},loadExperience().createOperationsExperienceRoutes({pool:f.caller('alice'),appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
+ app.use('/api/intelligent-operations',(q,r,n)=>{if(q.path==='/topology')return r.json(graph);n();},loadExperience().createOperationsExperienceRoutes({pool:f.caller('alice'),appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}},...(ticketService?{ticketService}:{})}));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const browser=await chromium.launch({headless:true,args:['--disable-gpu']}),page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#console');await page.locator('#console-tree .console-leaf').first().waitFor();
  return {page,calls,asks,errors,set(v){state.refuse=v;},async close(){await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await f.close();}};

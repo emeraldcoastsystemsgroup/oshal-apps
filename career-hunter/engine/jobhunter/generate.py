@@ -12,6 +12,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-141 D7: a tailored packet cites the story review's evidence. The prompt carries each role's recorded stories and the bullet each one supports, every citation the model returns is verified against the story the profile actually holds on the role it actually belongs to, and the packet records what was cited. A profile with no stories builds exactly the prompt it built before.
 
 # 46 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+# 47 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding, enforce zero numeric '+' suffixes and zero stray inline bold in normalization and prompts, inject deterministic Verified Experience Tenure Table (skill_tenure), and run mandatory pre-return resume review through the dynamically-loaded career-resume-reviewer Swarm bot (resume_review) persisting structured resume_review metadata in application.json.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -27,7 +28,19 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from . import db, enrich, profile, config, role_plan, letter_evidence, claims_fix, role_hierarchy
+from . import (
+    claims_check,
+    claims_fix,
+    config,
+    db,
+    enrich,
+    letter_evidence,
+    profile,
+    resume_review,
+    role_hierarchy,
+    role_plan,
+    skill_tenure,
+)
 
 TEMPLATES = Path(__file__).parent / "templates"
 # Resume/cover output dir — config.APP_DIR points at the per-user persistent volume in
@@ -35,32 +48,6 @@ TEMPLATES = Path(__file__).parent / "templates"
 APP_DIR = config.APP_DIR
 
 _env = Environment(loader=FileSystemLoader(str(TEMPLATES)), autoescape=select_autoescape(["html"]))
-
-# Selectively bold the quantified impact in a bullet ($, %, multipliers, k/M/B, plain counts)
-# so a skimming recruiter's eye lands on outcomes — exactly what executive-resume guidance advises.
-_METRIC = re.compile(
-    r"(\$\s?\d[\d,]*(?:\.\d+)?\s?[KMB]?\b|"        # $4.2M, $40,000
-    r"\d[\d,]*(?:\.\d+)?\s?%|"                       # 28%, 99.98%
-    r"\b\d+(?:\.\d+)?x\b|"                            # 3x
-    r"\b\d[\d,]*(?:\.\d+)?\s?(?:[KMB]|million|billion|thousand)\b|"  # 12M, 5 million
-    r"(?<![A-Za-z/])\d[\d,]{2,}\b)",                  # 1,200  4173 — but NOT AS/400, IL4, S/4
-    re.I)
-
-
-def _bold_metrics(text):
-    from markupsafe import Markup, escape
-    if not text:
-        return text
-    out, last = [], 0
-    for m in _METRIC.finditer(str(text)):
-        out.append(escape(text[last:m.start()]))
-        out.append(Markup("<b>") + escape(m.group(0)) + Markup("</b>"))
-        last = m.end()
-    out.append(escape(text[last:]))
-    return Markup("").join(out)
-
-
-_env.filters["boldmetrics"] = _bold_metrics
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompt framing.
@@ -250,10 +237,11 @@ def _sys_post(f: dict) -> str:
             "'single-handedly'. "
         )
     s += (
-        "PUNCTUATION (hard rule): NEVER use em dashes or en dashes (the — or – characters) "
-        "anywhere in the resume or cover letter, and never use a dash to join or separate clauses or "
-        "sentences. Use commas, periods, parentheses, or the word 'to' for ranges. Ordinary hyphens "
-        "inside standard compound words (full-stack, cross-functional) are fine."
+        "PUNCTUATION & TYPOGRAPHY (hard rule): NEVER use em/en dashes (— or –) or spaced hyphens to join clauses; "
+        "use commas, periods, parentheses, or 'to' for ranges (normal compound hyphens like full-stack are fine). "
+        "NEVER put '+' after years, counts, dollars, or percentages (write 'over 20 years', '100 workshops', "
+        "'200 architecture records', 'over $30M'); keep '+' ONLY inside real tech/cert names (C++, Security+, A+). "
+        "NEVER wrap numbers or words in HTML <b>/<strong> or Markdown **bold**."
     )
     return s
 
@@ -382,6 +370,7 @@ _DASH_HYPHSEP = re.compile(r"(\S) -+ (\S)")
 def _dewash(s):
     if not isinstance(s, str) or not s:
         return s
+    s = resume_review.normalize_text(s)
     s = _DASH_RANGE.sub(r"\1 to \2", s)
     s = _DASH_NUMRANGE.sub(r"\1 to \2", s)
     s = _DASH_SEP.sub(", ", s)
@@ -615,150 +604,7 @@ def _prep_profile(prof: dict, include_oshal: bool) -> dict:
     return doc
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ADR-141 D7 — stories are the evidence a tailored packet cites.
-#
-# The story review (stories.py) records, per role, what the candidate actually said and which of
-# that role's bullets it supports. A bullet asserts; the story proves. These functions put that
-# evidence in front of the generator and then VERIFY what comes back: a citation survives only when
-# it names a story the profile really holds, on the role it really belongs to. Nothing here can
-# invent evidence, and a profile with no stories produces the prompt it produced before.
-# ─────────────────────────────────────────────────────────────────────────────
-_STORY_PROMPT_CHARS = 700
-_STORY_PER_ROLE = 2
-
-
-def _norm_key(text) -> str:
-    """@description Comparison form for a title, org or citation: whitespace-collapsed lowercase."""
-    return re.sub(r"\s+", " ", str(text or "")).strip().lower()
-
-
-def _usable_stories(role: dict) -> list:
-    """
-    @description The stories on one role that may be offered as evidence — recorded, non-empty, and
-    not flagged by the review as carrying none. A weak story is never handed to a generator as proof.
-    @param role - One profile role.
-    @returns Story records in recorded order, bounded for the prompt.
-    """
-    items = role.get("stories")
-    if not isinstance(items, list):
-        return []
-    usable = [s for s in items
-              if isinstance(s, dict) and str(s.get("story") or "").strip() and not s.get("weak")]
-    return usable[:_STORY_PER_ROLE]
-
-
-def story_evidence_suffix(prof: dict) -> str:
-    """
-    @description The EVIDENCE block appended to the generation prompt: every role that carries a
-    story, the bullet each story supports, and the rule that such a role must spend one of its
-    bullets on it. Returns '' when the profile holds no stories, so a candidate who has not been
-    through the review gets exactly the prompt this module sent before.
-    @param prof - The loaded career profile.
-    @returns The prompt suffix, or ''.
-    """
-    blocks = []
-    for role in (prof or {}).get("roles") or []:
-        if not isinstance(role, dict):
-            continue
-        usable = _usable_stories(role)
-        if not usable:
-            continue
-        lines = [f"ROLE: {str(role.get('title') or '').strip()} at {str(role.get('org') or '').strip()}"]
-        for story in usable:
-            if story.get("title"):
-                lines.append(f'  STORY "{str(story["title"])[:120]}"')
-            if story.get("bullet"):
-                lines.append(f'    supports the bullet: "{str(story["bullet"])[:300]}"')
-            lines.append(f"    in the candidate's own words: {str(story['story'])[:_STORY_PROMPT_CHARS]}")
-        blocks.append("\n".join(lines))
-    if not blocks:
-        return ""
-    return (
-        "\n\nEVIDENCE THE CANDIDATE TOLD YOU, role by role — their own words, recorded in the story "
-        "review. This is the proof behind the bullets:\n"
-        + "\n".join(blocks)
-        + "\n\nUSE IT: for every role listed above, at least ONE of that role's resume bullets must be "
-        "drawn from its story, and the cover letter's proof points must come from these stories where "
-        "one fits. Add NOTHING the story does not say, and NEVER move a story to a different role. In "
-        "each \"experience\" entry return ONE more key:\n"
-        '  "story_evidence": ["the exact STORY title you drew from, copied from the list above — or '
-        'that story\'s opening sentence when it has no title; [] when you drew from none"]\n'
-    )
-
-
-def _match_role(entry: dict, roles: list) -> dict:
-    """
-    @description The profile role a generated experience entry belongs to, by employer then title.
-    An entry that cannot be resolved to exactly one role gets no citation: evidence must never be
-    attributed to a role the candidate did not tell it about.
-    @param entry - One generated experience entry.
-    @param roles - The profile's roles.
-    @returns The matching role, or {}.
-    """
-    org, title = _norm_key(entry.get("org")), _norm_key(entry.get("title"))
-    pool = [r for r in roles if org and _norm_key(r.get("org")) == org] or list(roles)
-    exact = [r for r in pool if title and _norm_key(r.get("title")) == title]
-    if exact:
-        return exact[0]
-    return pool[0] if len(pool) == 1 else {}
-
-
-def _cited_story(citation, role: dict) -> dict:
-    """
-    @description The story a citation names, or {} when the role carries no such story. A model may
-    cite by the story's title or by its opening words; anything else is DROPPED rather than trusted,
-    the same anti-invention rule stories.py applies to bullets.
-    @param citation - What the model returned.
-    @param role - The role the entry resolved to.
-    @returns The story record, or {}.
-    """
-    wanted = _norm_key(citation)
-    if not wanted:
-        return {}
-    for story in _usable_stories(role):
-        title, text = _norm_key(story.get("title")), _norm_key(story.get("story"))
-        if title and wanted == title:
-            return story
-        if text and (text.startswith(wanted[:200]) or wanted.startswith(text[:200])):
-            return story
-    return {}
-
-
-def collect_story_citations(data: dict, prof: dict) -> list:
-    """
-    @description Verify the packet's story citations against the profile, then remove the key from
-    the resume so the record says which evidence was used while the rendered document keeps the
-    exact shape the templates already speak.
-    @param data - The parsed generation result; the resume's story_evidence keys are removed here.
-    @param prof - The loaded career profile.
-    @returns [{role, org, title, bullet, story}] for every citation the profile actually holds.
-    """
-    roles = [r for r in ((prof or {}).get("roles") or []) if isinstance(r, dict)]
-    entries = ((data or {}).get("resume") or {}).get("experience")
-    if not isinstance(entries, list):
-        return []
-    cited = []
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        claimed = entry.pop("story_evidence", None)
-        if not isinstance(claimed, list) or not roles:
-            continue
-        role = _match_role(entry, roles)
-        if not role:
-            continue
-        for citation in claimed[:_STORY_PER_ROLE]:
-            story = _cited_story(citation, role)
-            if story:
-                cited.append({
-                    "role": str(role.get("title") or ""),
-                    "org": str(role.get("org") or ""),
-                    "title": str(story.get("title") or ""),
-                    "bullet": str(story.get("bullet") or ""),
-                    "story": str(story.get("story") or ""),
-                })
-    return cited
+from .story_citations import collect_story_citations, story_evidence_suffix
 
 
 def build_prompt(prof: dict, company: str, title: str, location: str, description: str,
@@ -777,17 +623,27 @@ def build_prompt(prof: dict, company: str, title: str, location: str, descriptio
     @param letter_block - The COVER LETTER EVIDENCE block generate_for ranked; None ranks it here.
     @returns The prompt text.
     """
+    gated = _prep_profile(prof, include_oshal)
     if letter_block is None:
-        letter_block = letter_evidence.prompt_block(letter_evidence.rank(_prep_profile(prof, include_oshal), title, description))
+        letter_block = letter_evidence.prompt_block(letter_evidence.rank(gated, title, description))
+    tenure_block = skill_tenure.prompt_block(
+        skill_tenure.compute_tenure(gated), claims_check.posting_terms(title, description)
+    )
     prompt = PROMPT.format(
-        profile=json.dumps(_prep_profile(prof, include_oshal), ensure_ascii=False, separators=(',', ':')),
+        profile=json.dumps(gated, ensure_ascii=False, separators=(',', ':')),
         company=company, title=title, location=location or "n/a",
         description=(description or "(no description)")[:24000]
             + ('\n[Remaining employer description omitted due to size; do not infer its requirements.]' if len(description or '') > 24000 else ''),
     )
     if include_oshal:
         prompt += _OSHAL_PROMPT_SUFFIX
-    return prompt + role_plan.prompt_block(role_plan.plan(prof)) + letter_block + story_evidence_suffix(prof)
+    return (
+        prompt
+        + tenure_block
+        + role_plan.prompt_block(role_plan.plan(prof))
+        + letter_block
+        + story_evidence_suffix(prof)
+    )
 
 
 # The open-source embargo's own words (_prep_profile, _oshal_ban): a role the check restores carries none of them
@@ -823,9 +679,13 @@ def _packet_prompt(prof, prof_doc, prof_json, selected, row, company_doc, includ
     letter_block = letter_evidence.prompt_block(ranked)
     prompt = build_prompt(prof, company_doc, title, row["location"] or "", description, include_oshal, letter_block)
     if selected:
+        tenure_block = skill_tenure.prompt_block(
+            skill_tenure.compute_tenure(prof_doc, selected), claims_check.posting_terms(title, description)
+        )
         prompt = PROMPT.format(profile=prof_json, company=company_doc, title=title,
             location=row['location'] or 'n/a', description=(row['description'] or '(no description)')[:24000])
-        prompt += (ADDITIONAL_EXPERIENCE_SUFFIX + role_plan.prompt_block(role_plan.plan(prof)) + letter_block
+        prompt += (ADDITIONAL_EXPERIENCE_SUFFIX + tenure_block
+                   + role_plan.prompt_block(role_plan.plan(prof)) + letter_block
                    + story_evidence_suffix(prof_doc))
     if row.get('description_context', {}).get('basis') == 'listing-summary':
         prompt += '\nSOURCE LIMITATION: The employer provides only a short listing summary here. Tailor to those known facts; do not infer unlisted duties or requirements.\n'
@@ -866,16 +726,16 @@ def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
         data['resume'].pop('additional_experience', None)
     # The model writes the words; the recorded roles decide which jobs are on the page (role_plan).
     opted_in = include_oshal or any(e['id'] == 'saved-portfolio' for e in selected)
-    roles_carried = role_plan.carry(data['resume'], roles, prof, _embargo_terms(prof, opted_in))
-    data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
-    # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
-    # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
-    # The editor pass, then the records decide what the documents may claim, whichever model wrote them.
+    embargo = _embargo_terms(prof, opted_in)
+    roles_carried = role_plan.carry(data['resume'], roles, prof, embargo)
+    data = _sanitize(data)   # remove em/en dashes, inline bold, and numeric '+' suffixes
+    posting = {"title": row["title"], "company": company_doc, "description": row["description"] or ""}
     data, claims_checked = _hold_packet(data, prof_doc, selected, ranked, letter_block, prof_json,
-                                        prof_doc if selected else prof,
-                                        {"title": row["title"], "company": company_doc, "description": row["description"] or ""})
-
-    return data, prof_doc, stories_cited, roles_carried, claims_checked
+                                        prof_doc if selected else prof, posting)
+    data, resume_reviewed = resume_review.review_resume(
+        data, prof_doc, selected, posting, roles, embargo, ranked)
+    data = _sanitize(data)
+    return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed
 
 
 def _packet_files(outdir, data, ctx):
@@ -929,7 +789,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         # Gate the personal open-source (OSHAL) work on the opt-in flag, then pick the
         # matching system prompt (ban vs allow). OFF mode is byte-identical to before.
         selected = additional_experience or []
-        data, prof_doc, stories_cited, roles_carried, claims_checked = _tailored_packet(
+        data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed = _tailored_packet(
             prof, selected, row, company_doc, include_oshal, guidance)
 
         # Put the requisition number in the folder name when it's a clean id (referral/
@@ -949,7 +809,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
                         "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],
                         "url": row["url"], "stories_cited": stories_cited, "roles_carried": roles_carried,
-                        "claims_check": claims_checked,
+                        "claims_check": claims_checked, "resume_review": resume_reviewed,
                         "profile_snapshot": prof_doc,
                         "job_context": {"description": row['description'],
                             **row.get('description_context', {'basis':'corpus-description'}),

@@ -24,6 +24,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register office-concierge-entry-browser, AI Office inside the shipped Today page as its own application and as Create's AI Office screen, where every concierge entry a person sees is pressed for real and must open AI Office's own concierge.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8: office-design-standard-browser also proves AI Office's layout around the one chat window: Generate a draft above the window and writing its starter into the window's message box, the phone's Concierge sheet giving the window all its room, and the window's own Close closing that sheet.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: existing model and format cases prove bounded paragraph indentation and heading continuity in actual editor, DOCX, PDF and text output.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register supplied Word export lifecycle tests and saved-revision RTF format, authority and phone/desktop download coverage.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -542,6 +543,7 @@ cases:
     expected:
       - Exported files contain actual editable Office content; an externally changed visible file cannot silently restore stale private model metadata.
       - Explicit paragraph indentation and keep-with-next preserve actual DOCX and PDF geometry; oversized chains split safely and omitted fields retain default layout.
+      - Word RTF preserves escaped Unicode, native lists, indentation, tables and supported inline pictures; unsupported document kinds and oversized output are refused.
     prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies, browser:chromium, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close owned browser contexts and loopback servers; remove synthetic document output."}
@@ -558,6 +560,7 @@ cases:
     expected:
       - Manual changes persist through reopen and actual OOXML export; stale revisions and withdrawn grants refuse writes and exact imported originals survive edits.
       - Dragging is one undoable geometry edit; focused Word drafts save before assistant reads and valid shared properties recover after rejected mobile drafts.
+      - Phone and desktop Word export menus download genuine RTF from the selected saved revision with unchanged revision state and current original-person export authority.
     prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
     sideEffects: fixture-write
     isolation:
@@ -565,6 +568,25 @@ cases:
       fixtures: [tests/office/fixture.mjs]
       cleanup: Remove only each unique fixture database and role and its own HTTP and browser children; preserve the shared disposable service and unrelated data.
     limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: structured-office-transient-exports
+    name: Supplied Word downloads without saved-document writes
+    purpose: Exercise the actual mounted transient export route and pinned serializers with explicit synthetic actor contexts and held real renders.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/office/transient-export.test.mjs]
+    expected:
+      - DOCX, PDF and RTF return real artifact bytes from the exact supplied Word model without SQL writes or external resources.
+      - Current permission or original-person changes refuse delivery after rendering; canceled and expired requests do not release occupied render slots prematurely.
+      - Closed format, digest, request and output limits are enforced with bounded concurrent renders.
+    prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close each owned loopback server and allow held synthetic render work to settle; no provider, personal document or database writes.
+    limits: {timeoutMs: 120000, maxMemoryMb: 768}
     installation: never
   - id: office-phone-browser
     name: Word on a phone starts on an empty paragraph with the panes on screen

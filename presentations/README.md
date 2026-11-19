@@ -2,6 +2,8 @@
 
 AI Office provides direct editable **PowerPoint**, **Word** and **Excel** documents in the shared editor foundation: selectable objects/text/ranges, real properties, undo/redo, durable original-owned revisions, actual Office import/export and the shared AI partner operating on the same saved revision. See [the structured editor contract and supported fidelity](EDITOR.md).
 
+For a saved Word document, open **Export** and choose Word, PDF, plain text or **Rich text (.rtf)**. On a phone, Export is also in the document menu. RTF retains visible text, Unicode characters, bullets, paragraph indentation, tables and supported inline images. It exports the selected saved revision; earlier revisions remain available in the existing history.
+
 The existing outline generator, ten themes, twenty generated layouts, brand rendering and delivery to Dropbox / Google Drive / OneDrive / GitHub / OSHAL local remain available under **Generation & delivery** (`/api/presentations/sections/ui?legacy=1`).
 Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). This is a **"skill with a
 surface"** carve — only the surface layer ships here:

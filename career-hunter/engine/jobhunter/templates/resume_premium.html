@@ -1,6 +1,7 @@
 <!-- CHANGE LOG
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding on numbers in experience bullets for clean ATS executive typography.
 -->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Resume {{ contact.name }}</title>
@@ -31,7 +32,6 @@ SEQ | AUTHOR | DESCRIPTION
   .ro { color:#3d4b5a; font-style:italic; }
   .rs { color:#6a7787; font-size:9pt; white-space:nowrap; }
   ul { margin:3px 0 0; padding-left:17px; } li { margin:2px 0; line-height:1.3; }
-  li b { font-weight:700; color:#16304F; }
   .foot { font-size:9.4pt; color:#33414f; margin-top:1px; }
   .foot .lbl { color:#16304F; font-weight:700; }
 </style></head>
@@ -56,7 +56,7 @@ SEQ | AUTHOR | DESCRIPTION
       <div><span class="rt">{{ e.title }}</span><span class="ro">, {{ e.org }}</span></div>
       <div class="rs">{{ e.span }}</div>
     </div>
-    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    <ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
   </div>
   {% endfor %}
 
@@ -68,7 +68,7 @@ SEQ | AUTHOR | DESCRIPTION
       <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
       <div class="rs">{{ e.span }}</div>
     </div>
-    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    <ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
   </div>
   {% endfor %}
   {% endif %}
@@ -80,7 +80,7 @@ SEQ | AUTHOR | DESCRIPTION
       <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
       <div class="rs">{{ e.span }}</div>
     </div>
-    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    <ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
   </div>
   {% endfor %}
   {% endif %}

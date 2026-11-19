@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0 (concierge audit batch 2b; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): Intelligent Operations follows the Create concierge pattern, Intelligent Trades 1.54.0 and Intelligent Career 1.57.0 the worked examples. Before it, ops-rca-specialist, the RCA pipeline's investigator, sat in as chatBot. The front desk is ops-concierge: inline, its own persona with Create's create-editor rules (plain prose, the ```tool_call fence, runtime harness claude-code), the specialist's concierge-panel rules word for word, every route tool authorized (the reads auto, ops-remove-source ask), the routing words moved to it, its own app.open binding and a place in the store's CONCIERGES. The workers stay as they were: the phases, both worker personas and the three screens that ask the specialist for JSON packets. Run: node --test intelligent-operations/tests/ops-create-concierge.test.cjs
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: Console, Pod console, and Cloud & SSH commands mount /shared/ui/js/jarvis-chat-frame.js bound to ops-rca-specialist instead of calling /ask directly.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: Console, Pod console, and Cloud & SSH commands mount /shared/ui/js/jarvis-chat-frame.js bound to ops-concierge for conversation, while specialist packet analyses run on the ops-specialist workflow (ops-rca-specialist).
  */
 'use strict';
 const { test } = require('node:test');
@@ -34,13 +35,21 @@ test('the front desk is ops-concierge, inline and outside the RCA pipeline; the 
     [CONCIERGE, 'personas/ops-concierge.yaml', 'inline', 'operations/concierge']);
   assert.equal(front.container, undefined);
   assert.equal(front.requiresOwnNode, undefined);
-  const phaseBots = manifest.workflow.phases.map((phase) => phase.bot).filter(Boolean);
-  assert.ok(!phaseBots.includes('ops-concierge'), 'the concierge runs no phase of the RCA pipeline');
+  const phaseBots = [manifest.workflow, ...(manifest.workflows || [])]
+    .flatMap((wf) => (wf?.phases || []).map((phase) => phase.bot))
+    .filter(Boolean);
+  assert.ok(!phaseBots.includes('ops-concierge'), 'the concierge runs no phase of any Operations workflow');
 });
 
-test('the workers stay as they were: the phases, both worker personas and the screens that ask the specialist for packets', () => {
+test('the workers stay as they were: the phases, both worker personas and the ops-specialist workflow that runs packet analyses', () => {
   assert.deepEqual(manifest.workflow.phases.map((phase) => [phase.name, phase.bot || phase.action]),
     [['investigate', 'ops-rca-specialist'], ['review', 'ops-incident-reviewer'], ['revise', 'ops-rca-specialist'], ['queue-deliver', 'complete']]);
+  assert.deepEqual(manifest.workflows, [{
+    id: 'intelligent-operations:ops-specialist',
+    ticketType: 'ops-specialist',
+    name: 'Operations Specialist Analysis',
+    phases: [{ name: 'analyze', bot: 'ops-rca-specialist' }, { name: 'complete', action: 'complete' }]
+  }]);
   assert.deepEqual([bot('ops-rca-specialist').agentId, bot('ops-rca-specialist').persona], [SPECIALIST, 'personas/ops-rca-specialist.yaml']);
   assert.deepEqual([bot('ops-incident-reviewer').agentId, bot('ops-incident-reviewer').persona], [REVIEWER, 'personas/ops-incident-reviewer.yaml']);
   const specialist = persona('ops-rca-specialist').perspective;
@@ -50,7 +59,8 @@ test('the workers stay as they were: the phases, both worker personas and the sc
   for (const screen of ['experience/console.js', 'experience/pod-console.js', 'experience/command-helper.js']) {
     const src = read(screen);
     assert.match(src, /\/shared\/ui\/js\/jarvis-chat-frame\.js/, `${screen} mounts the kernel's one chat window`);
-    assert.match(src, /bot:\s*['"]ops-rca-specialist['"]/, `${screen} still asks the specialist for its packet`);
+    assert.match(src, /bot:\s*['"]ops-concierge['"]/, `${screen} mounts ops-concierge for conversation`);
+    assert.match(src, /\/api\/intelligent-operations\/specialist-analyses/, `${screen} dispatches packets onto ops-specialist tickets`);
   }
 });
 

@@ -15,11 +15,14 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com   | Teal/orange/cream mascot palette, header mascot badge, bubbly ribbon
  * 3   | maintainer@emeraldcoastsystemsgroup.com   | Wider docked rail (64px) so the active pill and scrollbar fit
  * 4   | maintainer@emeraldcoastsystemsgroup.com   | Aligned with the classroom skin (light, violet) so the package, the cockpit and the classroom experience share one Little Monsters look; kept the mascot wordmark, bubbly ribbon and rail width
+ * 5   | maintainer@emeraldcoastsystemsgroup.com   | Define --text-on-accent and --ds-font tokens and style .jarvis-chat surfaces under [data-theme="little-monsters"] so both the cockpit Concierge rail and the Class Tutor window match Little Monsters' warm cream, lavender, and violet palette with crisp white Send button contrast
  * ---------------------------------------------------------------------------
  */
 
 [data-theme="little-monsters"] {
   color-scheme: light;
+  --text-on-accent: #ffffff;
+  --ds-font: "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", sans-serif;
   /* ── Background: warm paper with a lavender second surface ── */
   --bg-primary: #fbf8f5;
   --bg-secondary: #f4eef9;
@@ -141,4 +144,59 @@
 @media (min-width: 641px) {
   [data-theme="little-monsters"] .ribbon-nav { width: 64px; min-width: 64px; }
   [data-theme="little-monsters"] .ribbon-nav:hover { width: 176px; }
+}
+
+/* ── Shared Jarvis chat window (Concierge rail & Class Tutor) ──
+   Keep all core Jarvis chat controls consistent while adopting Little Monsters' warm paper canvas,
+   soft lavender surfaces, rounded corners, and violet accent with crisp white on-accent ink. */
+[data-theme="little-monsters"] body.jarvis-chat {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--ds-font);
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-header {
+  background: var(--bg-card);
+  border-bottom-color: var(--border-color);
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-name {
+  color: var(--text-primary);
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-composer {
+  background: var(--bg-card);
+  border-color: var(--border-color-hover);
+  border-radius: 20px;
+  box-shadow: var(--card-shadow);
+}
+[data-theme="little-monsters"] .jarvis-chat .typer button {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-on-accent);
+  border-radius: 12px;
+}
+[data-theme="little-monsters"] .jarvis-chat .typer button:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-welcome .chip {
+  background: var(--bg-card);
+  border-color: var(--border-color-hover);
+  color: var(--text-primary);
+  border-radius: 999px;
+  font-weight: 600;
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-welcome .chip:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-secondary);
+}
+[data-theme="little-monsters"] .jarvis-chat #convo .msg.user {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+[data-theme="little-monsters"] .jarvis-chat .jc-history,
+[data-theme="little-monsters"] .jarvis-chat .jc-tools {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
 }

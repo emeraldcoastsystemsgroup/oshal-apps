@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: every prompt also carries the deterministic Verified Experience Tenure Table (skill_tenure.prompt_block) before ROLES TO CARRY, COVER LETTER EVIDENCE, and story evidence (which stays last).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5: every prompt also carries the cover letter's evidence (letter_evidence.prompt_block over the same gated profile and posting), after the roles to carry and before the story evidence, which stays last; the storyless prompt is the template plus those two blocks.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3: a storyless prompt is the template plus the roles-to-carry block every prompt now has (role_plan.prompt_block, before the story evidence that stays last); still no evidence block and no citation key.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Give the generation fixture a complete employer description so citation checks remain deterministic without starting employer hydration.
@@ -149,13 +150,17 @@ def storyless_prompt(profile, generate, _path) -> None:
     prof = profile.load()
     check("no stories means no evidence block", generate.story_evidence_suffix(prof) == "")
     prompt = generate.build_prompt(prof, "Target Co", "Platform Director", "Remote", "A job.")
-    # 1.67.3: every prompt also lists the roles to carry (role_plan); with no stories nothing else is added.
+    # 1.68.15: every prompt carries the deterministic tenure truth table, roles to carry, and cover letter evidence.
+    gated = generate._prep_profile(prof, False)
     expected = generate.PROMPT.format(
-        profile=json.dumps(generate._prep_profile(prof, False), ensure_ascii=False, separators=(',', ':')),
+        profile=json.dumps(gated, ensure_ascii=False, separators=(',', ':')),
         company="Target Co", title="Platform Director", location="Remote", description="A job.") \
+        + generate.skill_tenure.prompt_block(
+            generate.skill_tenure.compute_tenure(gated),
+            generate.claims_check.posting_terms("Platform Director", "A job.")) \
         + generate.role_plan.prompt_block(generate.role_plan.plan(prof)) \
         + generate.letter_evidence.prompt_block(generate.letter_evidence.rank(
-            generate._prep_profile(prof, False), "Platform Director", "A job."))
+            gated, "Platform Director", "A job."))
     check("the prompt preserves complete profile JSON using compact native-safe formatting", prompt == expected)
     check("nothing asks for a citation", "story_evidence" not in prompt)
 

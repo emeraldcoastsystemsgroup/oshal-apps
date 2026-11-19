@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sourceDefinition = sourceDefinition;
 exports.inventorySnapshot = inventorySnapshot;
 exports.createOperationsExperienceRoutes = createOperationsExperienceRoutes;
+/** CHANGE LOG: 53 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 (Option 1 — Ticket + Per-User Workspace + Workflow): POST /specialist-analyses (records.write) opens and starts an ops-specialist ticket carrying untrimmed evidence/packet.json up to 64 KiB, and GET /specialist-analyses/:ticketId (app.open) returns the server-verified accepted answer.md from ticketService.getAcceptedWork. */
 /** CHANGE LOG: 52 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): POST /ingest/otlp/:sourceId, where an enrolled OpenTelemetry Collector reports (otlp.ts ingestOtlp, on the existing records.write grant beside the Alertmanager ingest), answering the collector the empty ExportMetricsServiceResponse {}; its JSON is read up to the producer door's 256 KiB, where every other route keeps 70 kb. POST /ingest/mapping with stopWatching and disconnect is the card's Disconnect, after the page revoked the producer tokens. */
 /** CHANGE LOG: 51 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): POST /installations/enroll, the prepare route the kernel runs as the person approving a monitored installation's code (enroll.ts prepareInstallation, on the existing records.write grant), with the detection engine held to the tick's deadline. The Alertmanager ingest is given the removed sources too, so a removed source answers 410 {gone} instead of 404; read takes withRemoved for that one caller. GET /telemetry carries the enrolments (what each server said of itself) for Systems, and the monitor-enroll.js asset is served. */
 /** CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | POST /sources/remove removes one of the caller's own saved sources and keeps its history (sources.ts removeSource, P5-55b), bound to the existing records.write grant; /attention and /summary/systems pass the removed source ids so a removed installation is no longer named; each installation /telemetry returns says whether its source can be removed (a desk's own source cannot), so Systems offers Remove this source only where it works. */
@@ -67,6 +68,7 @@ const commands_1 = require("./commands");
 const promotion_1 = require("./promotion");
 const execution_1 = require("./execution");
 const investigations_1 = require("./investigations");
+const specialist_analyses_1 = require("./specialist-analyses");
 const external_evidence_1 = require("./external-evidence");
 const incident_trace_1 = require("./incident-trace");
 const desks_1 = require("./desks");
@@ -286,6 +288,8 @@ function createOperationsExperienceRoutes(ctx) {
     router.post('/ticket-sync/reconcile', handle(async (req, res) => res.json(await (0, ticket_sync_1.reconcileSync)(ctx, req.oidc?.user?.sub, req.body))));
     router.get('/investigations', handle(async (req, res) => res.json(await (0, investigations_1.investigationRecords)(ctx, req.oidc?.user?.sub))));
     router.post('/investigations', handle(async (req, res) => res.json(await (req.body?.again === true ? investigations_1.investigateAgain : investigations_1.prepareInvestigation)(ctx, req.oidc?.user?.sub, req.body?.workId))));
+    router.post('/specialist-analyses', handle(async (req, res) => res.status(201).json(await (0, specialist_analyses_1.createSpecialistAnalysis)(ctx, req.oidc?.user?.sub, req.body))));
+    router.get('/specialist-analyses/:ticketId', handle(async (req, res) => res.json(await (0, specialist_analyses_1.readSpecialistAnalysis)(ctx, req.oidc?.user?.sub, req.params.ticketId))));
     router.get('/executions', handle(async (req, res) => res.json(await (0, execution_1.responseRecords)(ctx, req.oidc?.user?.sub))));
     router.post('/executions/plans', handle(async (req, res) => res.json(await (0, execution_1.preparePlan)(ctx, req.oidc?.user?.sub, req.body))));
     router.post('/executions/approve', handle(async (req, res) => res.json(await (0, execution_1.approvePlan)(ctx, req.oidc?.user?.sub, req.body))));

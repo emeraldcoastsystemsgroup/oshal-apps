@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: answer career-resume-reviewer pass cleanly while keeping scoring/generation/cover prompt assertions exact.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Prove fetched employer details survive a read-only corpus and reach both fit scoring and document generation, with profile/source snapshots and no shared writes.
 import hashlib,json,os,sys,tempfile
 from pathlib import Path
@@ -94,6 +95,7 @@ with tempfile.TemporaryDirectory(prefix='career-context-') as temporary:
  prompts=[];requests=[]
  generated={'resume':{'headline':'Linux Engineer','summary':'Maintained Linux automation.','experience':[{'title':'Engineer','org':'Fixture Services','span':'2020 - 2024','bullets':['Maintained Linux automation for a test environment.']}],'skills':[],'education':[]},'cover':{'greeting':'Dear Hiring Manager,','paragraphs':['I am interested in this Linux Engineer role.','My recorded work includes maintaining Linux automation.','I would welcome a discussion.']}}
  def model(system,prompt,max_tokens=0,**kwargs):
+  if kwargs.get('bot')=='career-resume-reviewer':return json.dumps({'passed':True,'issues':[],'revised_resume':None,'reviewer_notes':'ok'})
   prompts.append((max_tokens,prompt));return json.dumps({'fit_score':82,'rationale':'Linux automation matches.','matched':['Linux'],'gaps':[]}) if max_tokens==score.SCORING_MAX_TOKENS else json.dumps(generated['cover']if max_tokens==2000 else generated)
  def request(endpoint,*args,**kwargs):
   requests.append(endpoint);return {'jobPostingInfo':{'jobDescription':'<p>'+full+'</p>'}}

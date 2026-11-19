@@ -59,6 +59,7 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 2.20.7: leaving an AI Office page no longer throws. The editor's pagehide cleanup called assistant.destroy() on a name that is block-scoped inside start(), so every page leave raised "assistant is not defined" and skipped the editor foundation's destroy; it now destroys state.assistant (none when a framing page hosts the assistant). tools/office/controller.mjs only; guard tests/office/rp-office-browser.test.mjs (two-person RP-OFF-07). No route, tool, grant, migration or schedule change.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): AI Office lays itself out around the one chat window that the kernel's concierge pane now frames (kernel 00c62f98). Generate a draft is a row above the window, not under it, so on a desktop the window's composer reaches the rail's bottom (it ended 64 px above it), and it still writes its starter sentence into the window's message box. The phone's Concierge sheet is as tall as a sheet may be and the window takes all of it (it had 308 px, and its composer covered its own Summarize starter, so a tap there landed on the composer); the window's own Close now closes that sheet (it did nothing there). The page is no longer 1 px taller than the screen (the screen reader's status line sat at its bottom edge). tools/office/design.mjs, tools/office/office.css; guard: tests/office/design-standard-browser.test.mjs.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: preserve bounded paragraph indentation and heading continuity in the editor and actual DOCX, PDF and text exports.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Export current visible saved Word revisions as genuine bounded Unicode RTF, using the existing original-person export authority and immutable revision routes.
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -78,7 +79,7 @@ rating:
       degrade: disable
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.9
+version: 2.20.10
 chatBot: deck-builder
 lastingStorage: true
 testing:
@@ -559,7 +560,7 @@ tools:
     displayName: Export saved Office document
     type: api
     category: productivity
-    description: Render a real Office artifact from an exact owned saved revision and return its guarded download URL.
+    description: Render a real Office artifact from an exact owned saved revision and return its guarded download URL. RTF is available for Word documents only.
     executor:
       executorType: api
       apiEndpoint: >-
@@ -588,12 +589,13 @@ tools:
             - pdf
             - txt
             - json
+            - rtf
       required:
         - id
         - revision
         - format
     usageInstructions: >-
-      Use the document’s own Office kind, pdf, txt or json. The actual renderer must return ready; then offer the
+      Use the document’s own Office kind, pdf, txt or json; rtf is available for Word documents only. The actual renderer must return ready; then offer the
       guarded download URL. Do not claim a provider upload or delivery.
     routingTags:
       - office

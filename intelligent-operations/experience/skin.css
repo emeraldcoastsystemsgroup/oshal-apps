@@ -1,3 +1,4 @@
+/* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5: style .ops-specialist-bar for active ops-specialist ticket links and Stop controls across Console, Cloud & SSH commands and Pod console. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: size .ops-chat-window and iframe.jarvis-chat-frame cleanly inside Console, Cloud & SSH commands, and Pod console at desktop and phone viewports without horizontal overflow. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Style active replay mode selectors (RP-OPS-01..02) and the Git explorer Link by URL form panel (RP-OPS-03); remove obsolete planned-control placeholders. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: one compact heading row (screen name for screen readers, an Updated caption, one refresh icon); the Replay a sample sheet with its steps and alert; Connections & access as provider rows beside a settings pane (a sheet on a phone); Live context checklist rows, Advanced disclosure and spacing; planned controls greyed per the design standard section 4.10. */
@@ -247,6 +248,10 @@ details.advanced>summary{min-height:44px;display:flex;align-items:center;cursor:
 .commands-history-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}.commands-history-tools input[type=search]{flex:1 1 200px;min-height:44px}
 .check-inline{display:inline-flex;align-items:center;gap:8px;min-height:44px}
 .check-state.stale{color:var(--ops-muted)}
+.ops-specialist-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;padding:6px 10px;border:1px solid var(--skin-border);border-radius:8px;background:color-mix(in srgb,var(--ops-accent) 8%,var(--skin-control));font-size:12px}
+.ops-specialist-bar[hidden]{display:none}
+.ops-specialist-note{flex:1 1 auto;color:var(--ops-muted)}
+.ops-specialist-ticket{font-family:var(--skin-mono);font-size:11.5px;color:var(--ops-text)}
 .ops-chat-window{width:100%;min-width:0;height:460px;margin-top:12px;border:1px solid var(--skin-border);border-radius:12px;overflow:hidden;background:var(--ops-card,#fff)}
 .ops-chat-window.assistant-unavailable{display:none}
 .ops-chat-window iframe.jarvis-chat-frame{display:block;width:100%;height:100%;border:0}

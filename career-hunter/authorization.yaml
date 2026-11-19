@@ -308,5 +308,6 @@ bindings:
     - { id: cb000000-0000-0000-0000-000000000005, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }
     - { id: cb000000-0000-0000-0000-000000000004, allOf: [app.open, career.execute] }
+    - { id: cb000000-0000-0000-0000-000000000006, allOf: [app.open, career.execute] }
   artifactActions:
     - { id: absorb, allOf: [app.open, career.execute] }

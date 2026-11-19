@@ -12,6 +12,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Give the unreadable-institution contract fixture explicit reported account units while preserving complete-total and refusal assertions.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Pin bounded fallback transaction coverage, malformed-window refusals and complete-only rollups against actual compiled Plaid code.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Refuse duplicate or invalid provider transaction identities without deduplicating available rows or extending the fixed page budget.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Stream 16 reconnect clarity: Plaid reauthentication codes (ITEM_LOGIN_REQUIRED, INVALID_ACCESS_TOKEN) abort fetchFinanceAggregate without fabricating empty snapshots, and POST /sync responds 409 plaid_reconnect_needed naming the affected institution while leaving oshal_finance_data untouched.
  */
 'use strict';
 const test = require('node:test');
@@ -526,4 +527,42 @@ test('fallback transaction identities are case-sensitive and permit exactly512 U
     assert.equal(aggregate.transactionsComplete, true);
     assert.deepEqual(aggregate.transactionCoverage.institutions[0], { institution: 'Fixture Bank', state: 'complete', returned: 4, total: 4, pages: 1, reason: null });
   } finally { current.restore(); }
+});
+
+test('Plaid reauthentication codes abort fetchFinanceAggregate instead of returning an incomplete snapshot', async () => {
+  for (const [failingPath, code] of [['/accounts/get', 'ITEM_LOGIN_REQUIRED'], ['/investments/holdings/get', 'INVALID_ACCESS_TOKEN'], ['/transactions/get', 'ITEM_LOGIN_REQUIRED']]) {
+    const current = loadPlaid((p) => {
+      if (p === failingPath) return [400, { error_code: code, error_message: 'the login details of this item have changed' }];
+      if (p === '/accounts/get') return [200, { accounts: [{ account_id: 'a', name: 'Checking', type: 'depository', balances: { current: 900, iso_currency_code: 'USD' } }] }];
+      if (p === '/investments/holdings/get') return [400, { error_code: 'PRODUCTS_NOT_SUPPORTED' }];
+      return [200, { transactions: [], total_transactions: 0 }];
+    });
+    try {
+      await assert.rejects(
+        current.plaid.fetchFinanceAggregate([{ accessToken: 'access-sandbox-expired', institution: 'Harbor Bank' }], 90),
+        (err) => err.plaidCode === code && err.reauthenticationRequired === true && err.institution === 'Harbor Bank',
+        `${failingPath} ${code} must abort refresh with reauthenticationRequired`,
+      );
+    } finally { current.restore(); }
+  }
+});
+
+test('POST /sync returns 409 plaid_reconnect_needed on reauthentication failure and never overwrites saved data', async () => {
+  const rows = linked();
+  const pool = financePool(rows);
+  const routes = loadRoutes(pool, async () => {}, async () => {
+    const err = new Error('ITEM_LOGIN_REQUIRED: login expired');
+    err.plaidCode = 'ITEM_LOGIN_REQUIRED';
+    err.reauthenticationRequired = true;
+    err.institution = 'First Platypus Bank';
+    throw err;
+  });
+  const res = await call(routes['POST /sync'], 'alice');
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'plaid_reconnect_needed');
+  assert.equal(res.body.institution, 'First Platypus Bank');
+  assert.match(res.body.message, /First Platypus Bank/);
+  assert.match(res.body.message, /Manage bank connections|reconnect/i);
+  assert.match(res.body.message, /unchanged/i);
+  assert.equal(pool.statements.some((s) => /INSERT INTO oshal_finance_data|UPDATE oshal_finance_data/i.test(s.text)), false, 'saved snapshot must not be overwritten');
 });

@@ -5,11 +5,12 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "it would leave out my active role ... i cant submit any resimes untill this is taken care of"): a prepared résumé that leaves out a role the main résumé requires (a current role, or one that ended within 20 years: lib/career-resume-roles.js, the engine's rules) is not ready. view() names those roles as missingRoles and asks for generation, so Prepare application opens on step 1 · Tailor with Generate résumé & cover letter, and assertReady refuses review and sending in words that name the role. The packet is the one the job's résumé path names, else the job's own folder in applications/. A submitted application keeps its documents as the record.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): a job's tailoring remembers that the person chose its Other experience (experienceChosen, kept once set; not part of the inputs, so it never makes documents outdated). save() accepts it from Prepare application, and begin() from the generate route when Prepare application or bulk Prepare sends it; a generation the person chose for also becomes their last choice (lib/career-experience-choice.js), which Prepare application and bulk Prepare tick again for a job with no choice of its own. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter ... lies about my level of expertise on c# ... the cover letter is not acceptable"): view() reads what the engine's claims check did to the job's packet (lib/career-letter-claims.js) as claims: a letter it marked needs your review (still too thin after Career took out what the records do not support, even after one rewrite) carries needsReview and a notice that names the problems, and assertReady refuses sending it in those words until the person edits the letter or confirms they checked it (confirmClaims, bound to that letter's fingerprint). A submitted application keeps its documents as the record.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: surface pre-return career-resume-reviewer quality receipts from application.json as resumeReview on view() via lib/career-resume-review.js.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const board=require('./career-board-state'),bank=require('./career-experience-bank'),queue=require('./career-submission-queue');
-const roles=require('./career-resume-roles'),letterClaims=require('./career-letter-claims');
+const roles=require('./career-resume-roles'),letterClaims=require('./career-letter-claims'),resumeReview=require('./career-resume-review');
 const experienceChoice=require('./career-experience-choice');
 const DONE=new Set(['applied','interview','offer','rejected']),HELD=new Set(['queued','claimed','reviewing','submitting','unknown','submitted']);
 class DraftError extends Error{constructor(code,message,status=409){super(message);this.code=code;this.status=status;}}
@@ -72,6 +73,11 @@ function claimsState(job,packet,saved){
  if(!job?.has_cover||DONE.has(job.status)||!packet)return null;
  return letterClaims.state(packet,saved?.claimsReviewed);
 }
+/** @description Pre-return career-resume-reviewer quality state from application.json, or null. */
+function resumeReviewState(job,packet){
+ if(!job?.has_resume||DONE.has(job.status)||!packet)return null;
+ return resumeReview.state(packet);
+}
 function view(dir,id,job){
  const saved=board.readBoardState(dir).jobs[id]||{},stored=saved.applicationDraft;
  const draft=stored||{revision:0,guidance:'',experienceIds:saved.experienceIds||[],experienceRevision:bank.read(dir).revision};
@@ -85,7 +91,7 @@ function view(dir,id,job){
  const outdated=!!unavailable||!!baseline&&baseline!==input?.inputsHash,packet=job.has_resume||job.has_cover?packetRecord(dir,id,job):null,left=missingRoles(dir,id,job,packet);
  const result={draft:{...draft,experienceIds:[...(draft.experienceIds||[])]},intent:held?queue.publicItem(held):null,
   legacy:!generated,needsGeneration:!hasDocuments||busy||failed||outdated||left.length>0,documentsOutdated:outdated,missingRoles:left,rolesNotice:roles.sentence(left),
-  claims:claimsState(job,packet,saved),busy,failed,unavailable,canRestoreDocuments:!!(saved.documentGeneration?.inputs||stored?.legacyInputs)&&hasDocuments&&!busy,inputsHash:input?.inputsHash||null,documentRequestId:generated?.requestId||null,
+  claims:claimsState(job,packet,saved),resumeReview:resumeReviewState(job,packet),busy,failed,unavailable,canRestoreDocuments:!!(saved.documentGeneration?.inputs||stored?.legacyInputs)&&hasDocuments&&!busy,inputsHash:input?.inputsHash||null,documentRequestId:generated?.requestId||null,
   locked:DONE.has(job.status)||!!held&&HELD.has(held.status)};
  return {...result,workflow:require('./career-application-workflow').view(dir,id,job,result)};
 }

@@ -23,6 +23,7 @@
  * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i cant use the tools to update my resume and see it in the resume tab after adding experience"): GET /resume/doc?id=master&earlier=<revision|recent> answers the main résumé document as it read at an earlier revision (the engine's base-earlier, from the backups Undo reads), so the My résumé page can tell a Word document that is only behind from one that holds typed text. The same read binding as GET /resume/doc; nothing is written.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: POST /resume/master-undo is Undo for a main-résumé change (the engine's base-undo puts back the earlier profile from its backup only while the profile is still exactly what that change left), the signed-in owner's own store only, bound to career.change.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): GET /resume/master-section also reads field `portfolio`, the saved portfolio whole with the main résumé's exact revision (engine portfolio.read_section), for its Edit form on Other experience; the form saves through POST /resume/master-edit (an edit of field portfolio) and Undo through POST /resume/master-undo. No new route and no new binding.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | Read bounded contact facts and preserve uniquely recorded date precision from this packet's original profile snapshot for format downloads, without a current-profile fallback or rewriting stored content.
  */
 
 /**
@@ -143,12 +144,20 @@ async function readDoc(dir: string): Promise<ResumeDocument> {
     resume?: Record<string, unknown>;
     cover?: Record<string, unknown>;
   };
-  const snapshot = data.profile_snapshot as { profile?: { name?: unknown } } | undefined;
+  const dated = require('../lib/career-resume-roles').preserveDates(generated.resume || {}, data.profile_snapshot);
+  const snapshot = data.profile_snapshot as { profile?: Record<string, unknown> } | undefined;
+  const contact = Object.fromEntries(['name', 'credential', 'location', 'email', 'phone', 'linkedin', 'citizenship', 'clearance']
+    .flatMap(key => {
+      const value = snapshot?.profile?.[key];
+      return typeof value === 'string' && value.trim() && value.length <= 4096 ? [[key, value]] : [];
+    }));
   return {
-    resume: generated.resume || {},
+    resume: dated.resume,
     cover: generated.cover || {},
     meta: {
       name: typeof snapshot?.profile?.name === 'string' ? snapshot.profile.name : undefined,
+      contact,
+      dates: dated.dates,
       postingId: data.posting_id,
       company: data.company,
       title: data.title,

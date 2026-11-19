@@ -30,6 +30,7 @@
 # 26 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Go Live planned stream editing: add owner-scoped PUT /api/email-social/events/:id and live Edit on each stream card's menu, prefilling title, start time, watch link, destinations and announcement channels, shifting or replacing unsent announcements while preserving already-sent announcements, and refusing start-time changes once a stream has started. Guarded by tests/social-store.test.cjs, tests/social-rules.test.cjs and tests/social-desk-browser.test.cjs.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: deterministic Gmail mailbox watches and security alerts (including the TotalConnect preset): migration 005 adds forced-RLS oshal_email_watches and oshal_email_watch_hits; /api/email-watches manages watch rules and runs the zero-LLM POST /check pass across live Gmail and stored oshal_email_messages; the 5-minute mail-watches schedule and mailbox-watches briefing notify Jarvis only on unseen alert arrivals; email-watches, email-watch-check and email-watch-save tools plus Home summary active-watch tiles. Guarded by tests/mail-watches.test.cjs.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: keep GET /api/email-watches strictly read-only (SELECT only, with graceful empty fallback before migration 005 is provisioned) while EMAIL_DEFAULT_WATCHES seeds on POST /api/email-watches/check and POST /api/email/sync. Guarded by tests/mail-watches.test.cjs.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: extract safe http(s) HTML links and MIME attachment metadata on GET /api/email/message/:id (Gmail multipart/HTML and Outlook Graph HTML) so email-message exposes links ([{label, url}]) and attachments ([{filename, mimeType, size}]) alongside plain body. Guarded by tests/email-message-links.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -94,7 +95,7 @@ description: >-
   mail is a single explicit-confirm gated action; every social publish goes out
   on the person's own connection through the kernel. The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.8.1
+version: 1.8.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -264,7 +265,7 @@ tools:
     displayName: Read Message
     type: api
     category: communication
-    description: One full message from the person's mailbox by its id.
+    description: One full message from the person's mailbox by its id, including plain-text body, safe extracted HTML links (label and url), and attachment metadata (filename, mimeType, size).
     executor: { executorType: api, apiEndpoint: "GET /api/email/message/{input.id}" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -273,7 +274,10 @@ tools:
       properties:
         id: { type: string }
       required: [id]
-    usageInstructions: Call with {id} taken from email-messages or email-digest; never guess an id.
+    usageInstructions: >-
+      Call with {id} taken from email-messages or email-digest; never guess an id. The response includes body,
+      links ([{label, url}] extracted from HTML anchors such as payment, invoice, portal or action links), and
+      attachments ([{filename, mimeType, size}]). Include relevant exact links verbatim in your reply and hand-off summary.
     tags: [email, route-backed]
 
   - name: email-send

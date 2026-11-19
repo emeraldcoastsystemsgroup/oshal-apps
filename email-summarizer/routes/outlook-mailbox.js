@@ -20,6 +20,7 @@
  *
  * @module outlook-mailbox
  * 2 | maintainer@emeraldcoastsystemsgroup.com | pageOutlookInbox: one Graph page of the inbox ($top = the page size) with its nextLink as the cursor for the next, so the Inbox can page a Microsoft 365 mailbox; a cursor is followed only when safeNextLink accepts it. listOutlookInbox (digest, search) is unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Extract safe HTML links and attachment metadata on getOutlookMessage via shared mail-content helpers.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GraphRequestError = exports.OUTLOOK_MAX_PAGES = exports.OUTLOOK_MAX_LIST = void 0;
@@ -34,6 +35,7 @@ exports.validMessageId = validMessageId;
 exports.getOutlookMessage = getOutlookMessage;
 exports.outlookEventsToday = outlookEventsToday;
 exports.outlookOwnAddress = outlookOwnAddress;
+const mail_content_1 = require("./mail-content");
 const GRAPH_ORIGIN = 'https://graph.microsoft.com';
 const GRAPH_BASE = `${GRAPH_ORIGIN}/v1.0`;
 /** Largest list the surfaces ask for; also the Graph $top ceiling this adapter sends. */
@@ -219,17 +221,6 @@ async function listOutlookInbox(token, options, fetchImpl, now = new Date()) {
     }
     return out.sort((a, b) => (Number(b.internalDate) || 0) - (Number(a.internalDate) || 0));
 }
-/** HTML body → readable text (fallback when Graph ignores the text preference). */
-function htmlToText(html) {
-    return html
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
 /**
  * @description Validate a Graph message id from the request: nonempty, bounded, printable.
  * Graph ids carry `=`, `/` and `+`, so the id is URL-encoded as ONE path segment by the caller.
@@ -241,23 +232,27 @@ function validMessageId(value) {
     return id && id.length <= ID_MAX && !/[\u0000-\u001f\s]/.test(id) ? id : null;
 }
 /**
- * @description Open one message of the caller's mailbox with the recipients and a bounded
- * text body (Graph `Prefer: outlook.body-content-type="text"`).
+ * @description Open one message of the caller's mailbox with the recipients, a bounded
+ * text body (Graph `Prefer: outlook.body-content-type="text"`), safe extracted HTML links,
+ * and normalized attachment metadata.
  * @param token - The caller's Graph access token.
  * @param id - Graph message id (validated by validMessageId).
  * @param fetchImpl - fetch seam.
- * @returns The summary plus `to` and `body`.
+ * @returns The summary plus `to`, `body`, `links`, and `attachments`.
  */
 async function getOutlookMessage(token, id, fetchImpl) {
     const query = new URLSearchParams({ $select: DETAIL_SELECT });
     const url = `${GRAPH_BASE}/me/messages/${encodeURIComponent(id)}?${query.toString()}`;
     const m = (await graphGet(token, url, fetchImpl, 'outlook.body-content-type="text"'));
     const raw = String(m.body?.content || '');
-    const body = String(m.body?.contentType || '').toLowerCase() === 'html' ? htmlToText(raw) : raw;
+    const isHtml = String(m.body?.contentType || '').toLowerCase() === 'html';
+    const body = isHtml ? (0, mail_content_1.stripHtml)(raw) : raw;
     return {
         ...normalizeGraphMessage(m),
         to: (Array.isArray(m.toRecipients) ? m.toRecipients : []).map(formatAddress).filter(Boolean).join(', '),
         body: body.slice(0, BODY_MAX),
+        links: isHtml ? (0, mail_content_1.extractHtmlLinks)(raw) : [],
+        attachments: (0, mail_content_1.normalizeGraphAttachments)(m.attachments),
     };
 }
 /** Graph dateTimeTimeZone → an instant the surface can parse ('Z' added for bare UTC values). */
@@ -303,4 +298,3 @@ async function outlookOwnAddress(token, fetchImpl) {
     const me = await graphGet(token, `${GRAPH_BASE}/me?$select=mail,userPrincipalName`, fetchImpl);
     return clean(me.mail || me.userPrincipalName, 320);
 }
-//# sourceMappingURL=outlook-mailbox.js.map

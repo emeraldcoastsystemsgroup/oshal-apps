@@ -93,6 +93,7 @@ Coverage: 89 packages, 89 rated, 0 unrated.
 | identity | 64 / 256 (declared) | identity-review-ticket | identity review ticket | T2 | none | disable | not yet measured | none recorded |
 | intelligent-career | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | intelligent-operations | 192 / 768 (declared) | incident-rca | incident ticket | T3 | none | disable | not yet measured | none recorded |
+| intelligent-operations | 192 / 768 (declared) | specialist-analysis | specialist analysis ticket | T2 | none | disable | not yet measured | none recorded |
 | intelligent-processing | 32 / 128 (declared) | alert-rca | promoted alert ticket | T3 | none | disable | not yet measured | none recorded |
 | intelligent-sports | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | jarvis-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |

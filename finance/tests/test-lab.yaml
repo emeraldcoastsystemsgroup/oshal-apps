@@ -25,6 +25,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register finance-app and finance-app-browser (1.5.0): Finance opens as its own application - its own bar, the menu's sections inside the page, and a Home that shows each finance application's summary and the finance jobs with last run, result and next run.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: register phone-orb (lane mobilesweep1).
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.8.3: existing application/record browser cases cover source-separated saved bank activity, explicit units/window coverage/cap 25, nested navigation and held-read recovery with no bank-to-ledger posting.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: register finance-routes-no-ddl (no HTTP request runs DDL or schema bootstrap, PostgreSQL catalog check issues zero DDL when schema matches, bounded lock_timeout rolls back cleanly); plaid-link and bank-snapshot-browser cover 409 plaid_reconnect_needed on Sync, preserved saved snapshot, direct reconnect link and Last synced freshness on ?view=banks.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -139,6 +140,7 @@ cases:
       - GET /status lists only the caller's linked institutions with their item ids.
       - DELETE /items/:itemId disconnects at Plaid before deleting the row, clears the saved snapshot, keeps the row on a Plaid refusal, removes an unreadable legacy link locally and does not find another person's link.
       - The page offers Add account, Disconnect per institution and resumes an OAuth redirect with the saved link token.
+      - ITEM_LOGIN_REQUIRED and INVALID_ACCESS_TOKEN abort fetchFinanceAggregate and POST /sync answers 409 plaid_reconnect_needed naming the institution while leaving saved snapshots untouched.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -451,6 +453,31 @@ cases:
       - Spending categories read as words (Transfers out, Loan payments, Food and drink); an unknown all-capitals code reads in sentence case and other names stay as they came.
       - When Request analysis is answered at once, the panel says the analyst is working above the earlier analysis, the button and Sync wait, and the page asks every five seconds until the new analysis is saved and shown.
       - An analysis that fails after the press is said in words with the earlier analysis kept; opening the page during a request shows it without pressing anything; a failure newer than the saved analysis is said on opening and an older one is not; a phone's width holds the working notice.
+      - A 409 plaid_reconnect_needed on Sync keeps saved accounts visible, offers a direct Reconnect in Bank connections link to ?view=banks, and ?view=banks shows Last synced freshness and expired-login reconnect guidance.
+  - id: finance-routes-no-ddl
+    name: HTTP request paths never run DDL or hold schema locks
+    purpose: >-
+      Exercise every HTTP route handler in compiled finance-routes.js against a query spy that rejects any DDL statement
+      or schema bootstrap, and test ensureFinanceSchema against PostgreSQL pool doubles for zero-DDL catalog verification
+      and bounded lock_timeout rollback.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/finance-routes-no-ddl.test.cjs
+    expected:
+      - Every HTTP route handler in finance-routes answers from data queries without calling runRuntimeSchemaBootstrap or issuing CREATE, ALTER, DROP or TRUNCATE statements.
+      - ensureFinanceSchema issues zero DDL and checks out no transaction client on PostgreSQL when information_schema and pg_class already match all four tables and forced RLS.
+      - ensureFinanceSchema sets a bounded 2s lock_timeout on PostgreSQL and rolls back and releases the client cleanly when a concurrent lock holds a table.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never
   - id: ledger
     name: Finance's own records and statement import on a disposable PostgreSQL
     purpose: >-

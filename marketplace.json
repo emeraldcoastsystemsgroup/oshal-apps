@@ -81,7 +81,7 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "SAT and ACT Study Lab with a shared question bank, private answer and timing history, progress dashboard, saved topic training, monster-taught lesson videos and a Jarvis study coach, plus class lectures, flashcards and tutoring.",
-      "version": "1.9.3",
+      "version": "1.9.5",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [
@@ -269,7 +269,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Your household money in one place: bring in the statement files your bank lets you download (CSV, OFX or QFX) or link your banks and brokerages via Plaid, to see balances, net worth, bills coming due (found in your repeating payments or, when you turn it on, in your own Gmail), every payment that repeats with what it costs a year, spending by month against your own plan and your goals, with a plain-English brief. Brokerage holdings count toward net worth as of the last sync; investment performance is not tracked here. Finance pays no bill; money movement is explicit-confirm gated.",
-      "version": "1.8.3",
+      "version": "1.8.4",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.68.13",
+      "version": "1.68.15",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -616,7 +616,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.9",
+      "version": "2.20.10",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1453,7 +1453,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
       "description": "Your inbox, calendar, social channels and day in one surface. Reads the signed-in user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail + calendar, builds a prioritized \"My Day\" digest, drafts replies with the communications bot, and publishes to the person's own X, LinkedIn, Facebook Page, Slack and Mastodon accounts from a Buffer-style desk: write once, customize per channel, add to the queue, schedule or post now, answer Slack and X mentions in place, and announce a live stream on every channel. Sending mail is a single explicit-confirm gated action; every social publish goes out on the person's own connection through the kernel. The bot does the reasoning on its own harness/model with cost captured per user.",
-      "version": "1.8.1",
+      "version": "1.8.2",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -3617,7 +3617,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.4",
+      "version": "1.9.5",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3860,7 +3860,7 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
-      "version": "0.5.4",
+      "version": "0.5.5",
       "theme": "midnight",
       "dependencies": {
         "apps": [],

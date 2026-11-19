@@ -40,6 +40,7 @@
   5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis says the true wait (up to a minute) and, when the request ends with only a status code (the kernel's 60 s cut read as "HTTP 503" on blue, judge defect 4), says in words that nothing was saved and the earlier analysis is unchanged.
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: spending categories read as words ("Transfers out", "Loan payments") in the bank page and the household and company views, never the bank's codes (judge defect 11).
   7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis may be answered at once while the analyst works after the press (Roger, 2026-11-14: "yes background analysis"). The panel then says the analyst is working, above the earlier analysis, which stays until the new one is saved; the page asks every five seconds and shows the new analysis when it is saved, or the reason in words when nothing was. Opening the page while a request is working shows the same, and a request that failed after the saved analysis says so once the page opens. A server that answers with the analysis itself is shown as before.
+  8 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: show a direct Reconnect in Bank connections link when Sync reports plaid_reconnect_needed while keeping the saved snapshot visible, and show Last synced freshness and expired-login reconnect guidance on ?view=banks.
 -->
 
 <script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
@@ -308,6 +309,7 @@ let syncBusy = false;
 function sourceLabel(source) { return source === 'sample' ? 'Sample data' : source === 'sandbox' ? 'Test bank data' : source === 'production' ? 'Bank data' : 'Source unknown'; }
 function setBusy() { $('briefBtn').disabled = !hasSnapshot || briefBusy || syncBusy; $('syncIcon').disabled = briefBusy || syncBusy; }
 function syncMessage(text, failed = false) { const node = $('syncStatus') || linkMsg(); node.className = failed ? 'err' : 'sub'; node.textContent = text; }
+function syncReconnectMessage(text) { const node = $('syncStatus') || linkMsg(); node.className = 'err'; node.innerHTML = escapeHtml(text) + ' <a href="?view=banks">Reconnect in Bank connections</a>'; }
 /** Where Link reports progress: the connect screen's line, else the linked-institutions panel's. */
 const linkMsg = () => $('cmsg') || $('lmsg') || document.createElement('div');
 /** The link token is kept briefly so an OAuth bank that returns by redirect resumes the same Link session. */
@@ -412,9 +414,10 @@ async function loadLinks() {
   let st;
   try { st = await api('/status'); } catch (e) { host.innerHTML = '<div class="notice err">' + escapeHtml(e.message) + '</div>'; return; }
   const items = Array.isArray(st.items) ? st.items.filter(Boolean) : [];
-  host.innerHTML = `<div class="panel"><div class="snapshot-head"><h2>Bank connections</h2><span class="snapshot-source">${sourceLabel(st.env)}</span></div><p class="sub">${items.length} saved institution link${items.length === 1 ? '' : 's'}. Sync accounts checks for newer data.</p><table><tbody>` +
+  const freshness = st.syncedAt && fmtDate(st.syncedAt) !== 'Date unknown' ? 'Last synced ' + escapeHtml(fmtDate(st.syncedAt)) + '.' : 'Not synced yet.';
+  host.innerHTML = `<div class="panel"><div class="snapshot-head"><h2>Bank connections</h2><span class="snapshot-source">${sourceLabel(st.env)}</span></div><p class="sub">${items.length} saved institution link${items.length === 1 ? '' : 's'}. ${freshness} Sync accounts checks for newer data.</p><table><tbody>` +
     items.map((it) => `<tr><td>${escapeHtml(it.institution)}</td><td class="sub">Linked ${escapeHtml(fmtDate(it.linkedAt))}</td><td class="num"><button class="btn ghost" data-item="${escapeHtml(it.itemId)}" data-name="${escapeHtml(it.institution)}">Disconnect</button></td></tr>`).join('') +
-    `</tbody></table><div id="lmsg" role="status" style="margin-top:10px;font-size:13px"></div><div class="foot">Add account links another bank or brokerage through Plaid.</div></div>`;
+    `</tbody></table><div id="lmsg" role="status" style="margin-top:10px;font-size:13px"></div><div class="foot">Add account links another bank or brokerage through Plaid, or signs in again to reconnect a bank whose login expired.</div></div>`;
   host.querySelectorAll('button[data-item]').forEach((b) => { b.onclick = () => disconnect(b.dataset.item, b.dataset.name); });
 }
 
@@ -461,7 +464,8 @@ async function afterConnect() {
   let failure = null;
   try { await api('/sync', { method: 'POST' }); } catch (e) { failure = e; }
   await renderDashboard();
-  syncMessage(failure ? 'Bank linked. Sync failed: ' + failure.message : 'Bank linked and account snapshot refreshed.', Boolean(failure));
+  if (failure && failure.code === 'plaid_reconnect_needed') syncReconnectMessage('Bank linked. Sync paused: ' + failure.message);
+  else syncMessage(failure ? 'Bank linked. Sync failed: ' + failure.message : 'Bank linked and account snapshot refreshed.', Boolean(failure));
 }
 
 /** Enhance every sortable table inside a container without passing a non-table node to KernelTable.enhance. */
@@ -643,7 +647,7 @@ async function doSync() {
   if (syncBusy || briefBusy) return;
   syncBusy = true; setBusy(); syncMessage('Syncing accounts…');
   try { await api('/sync', { method: 'POST' }); await renderDashboard(); syncMessage('Account snapshot refreshed. Saved analysis has not been changed.'); }
-  catch (e) { syncMessage(e.message, true); }
+  catch (e) { if (e && e.code === 'plaid_reconnect_needed') syncReconnectMessage(e.message); else syncMessage(e.message, true); }
   finally { syncBusy = false; setBusy(); }
 }
 

@@ -1,6 +1,7 @@
 <!-- CHANGE LOG
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding on numbers in experience bullets for clean ATS executive typography.
 -->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Resume (1-page) {{ contact.name }}</title>
@@ -37,7 +38,6 @@ SEQ | AUTHOR | DESCRIPTION
   .rt { font-weight:700; color:#16222e; font-size:9.6pt; } .ro { color:#3d4b5a; font-size:9.2pt; font-weight:600; }
   .rs { color:#6a7787; font-size:8.2pt; white-space:nowrap; }
   ul { margin:2px 0 0; padding-left:14px; } li { margin:1px 0; line-height:1.22; }
-  li b { font-weight:700; color:#16304F; }
   .earlier { font-size:8.8pt; color:#3d4b5a; margin-top:3px; }
   .earlier b { color:#16222e; }
 </style></head>
@@ -69,7 +69,7 @@ SEQ | AUTHOR | DESCRIPTION
         <div><span class="rt">{{ e.title }}</span><span class="ro">, {{ e.org }}</span></div>
         <div class="rs">{{ e.span }}</div>
       </div>
-      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b }}</li>{% endfor %}</ul>
     </div>
     {% endfor %}
     {% if r.open_source %}
@@ -80,7 +80,7 @@ SEQ | AUTHOR | DESCRIPTION
         <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
         <div class="rs">{{ e.span }}</div>
       </div>
-      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b }}</li>{% endfor %}</ul>
     </div>
     {% endfor %}
     {% endif %}
@@ -92,7 +92,7 @@ SEQ | AUTHOR | DESCRIPTION
         <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
         <div class="rs">{{ e.span }}</div>
       </div>
-      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b }}</li>{% endfor %}</ul>
     </div>
     {% endfor %}
     {% endif %}

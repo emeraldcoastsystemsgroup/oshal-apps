@@ -4,8 +4,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Searching the person's mailbox (Roger, 2026-10-29): "check my email for a offer for a sat training course" was handed to Little Monsters on "SAT" and "training", and the inbox read was the 30 newest messages with no search. The routing words now hold the phrases that ask to look in one's own mail, and email-messages takes the search words, the days to look back and how many to list.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: email-messages answers from the person's stored copy of their Gmail while it is current (up to 180 days back) and from Gmail live otherwise (30 days); the answer's source, store and matchedAll say which, how much and whether every word matched.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: email-watches, email-watch-check and email-watch-save manage deterministic Gmail mailbox watches (including the TotalConnect security monitor preset) and check watched alerts without spending model tokens on quiet intervals.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: email-message returns safe extracted HTML links ([{label, url}]) and attachment metadata ([{filename, mimeType, size}]) alongside plain body; include relevant exact links verbatim in replies and hand-off summaries.
 # Email / Communications bot — Intelligent Communication app.
-#
 # Native kernel: an inline application bot. It reads the person's mail and calendar only through
 # this package's route-backed tools (oshal-app.yaml tools: email-digest, email-messages,
 # email-message), which run under the caller and use the caller's own Gmail / Outlook / Yahoo
@@ -38,7 +38,7 @@ perspective: |
     the window without the search. Search with the person's own words and close variants ("ACT prep",
     "ACT"), and widen days or change words before saying nothing was found; say how far back, where
     and with which words you looked.
-  - email-message: one full message by its id from email-messages or email-digest.
+  - email-message: one full message by its id from email-messages or email-digest, returning body, links ([{label, url}]) and attachments ([{filename, mimeType, size}]).
   - email-send: send one email from their own mailbox ({"confirm": true, "to", "subject", "body"}). For
     "email it to me" leave "to" out (it goes to their own address); never ask them for it. To send a
     deck or document an earlier step made, put its title and link in the body.
@@ -75,6 +75,9 @@ perspective: |
   ## What you produce
   - Summary / "my day": lead with what needs attention (replies owed, deadlines,
     meetings), then one line on the noise. 4 to 6 short sentences or bullets.
+  - Links and attachments: whenever email-message returns relevant links (such as
+    payment, invoice, portal, RSVP or download URLs) or attachments, include the
+    exact URL(s) and attachment filenames verbatim in your reply and hand-off summary.
   - Draft a reply: only the reply body, with no subject, no "Here is" and no quotes.
   - Triage: signal versus noise from sender and subject.
   - Refer to senders by display name. An email is sent only through email-send and its approved

@@ -115,6 +115,7 @@
 # 105 | maintainer@emeraldcoastsystemsgroup.com | Job `purchasing` (1.5.1) names OSHAL_KERNEL_PLATFORM on its suites step: shopping-chat.html now mounts the kernel's one chat window, and tests/shopping-one-chat-window.test.js (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
 # 106 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` (1.20.3) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: Device Concierge and Connection Concierge now mount the kernel's one chat window, and tests/phone-control-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
 # 107 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` names OSHAL_KERNEL_PLATFORM on its `intelligent-operations` step (1.9.4): Cloud & SSH commands, Console and Pod console now mount the kernel's one chat window, and tests/ops-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
+# 108 | maintainer@emeraldcoastsystemsgroup.com | Job `little-monsters` (1.9.4) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: tools/tutor-chat.html mounts the kernel's one chat window over the transport adapter, and tests/lm-shared-window-adapter.test.cjs (in the step's glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
 
 name: store-ci
 
@@ -588,10 +589,15 @@ jobs:
       # does not exist on a runner — so install it and point OSHAL_ROOT at it.
       - name: Provide a TypeScript compiler
         run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tsroot" typescript@5.9.3
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the Little Monsters proof Chromium
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
       - name: Run every Little Monsters security suite
         working-directory: little-monsters
         env:
           OSHAL_ROOT: ${{ runner.temp }}/tsroot
+          OSHAL_KERNEL_PLATFORM: ${{ runner.temp }}/kernel/platform
         run: node --test "tests/*.test.cjs"
 
   game-show:

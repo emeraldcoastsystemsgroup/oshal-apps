@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "lies about my level of expertise on c# ... the cover letter is not acceptable"): what Career does with the problems claims_check finds, whichever model wrote the documents. A level the records do not state is toned down to experience with the tool; a years count is cut to what the recorded dates add up to; a résumé job's title goes back to the recorded one; a claim naming a tool the records never name, a tool under the wrong job, a title the records do not hold or a letter sentence drawn from work outside the letter's evidence is taken out. A letter that lost a sentence, or is too thin to send, is written again once with the problems named; a letter still too thin is marked needs your review, with the problems in words, and is never marked ready on its own.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: never emit '+' suffixes when toning down years claims in _retime().
 """Hold a generated packet to the records: tone down or remove each unsupported claim, then judge the letter."""
 from __future__ import annotations
 
@@ -57,13 +58,12 @@ def _tidy(text: str) -> str:
 
 
 def _retime(text: str, problem: dict) -> str:
-    """A years claim cut to what the records support ('15+ years' -> '6+ years'); under two years, the count goes."""
+    """A years claim cut to what the records support ('15+ years' -> '6 years', no '+'); under two years, the count goes."""
     claim, supported = problem.get("claim") or "", int(problem.get("supported") or 0)
     if not claim or claim not in text:
         return text
     if supported >= 2:
-        plus = "+" if re.search(r"\+|over|more than", claim, re.I) else ""
-        return text.replace(claim, f"{supported}{plus} years" if not re.search(r"-\s*years?$", claim) else f"{supported}-year", 1)
+        return text.replace(claim, f"{supported}-year" if re.search(r"-\s*years?$", claim, re.I) else f"{supported} years", 1)
     return re.sub(re.escape(claim) + r"(?:['’]s?)?(?:\s+of)?\s*", "", text, count=1)
 
 

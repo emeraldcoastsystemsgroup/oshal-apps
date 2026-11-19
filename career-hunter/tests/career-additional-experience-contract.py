@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: keep generation-prompt assertions scoped to the writer pass rather than the follow-up career-resume-reviewer bot pass.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Prove opt-in additional experience reaches actual packet templates without leaking unselected work or editing the core profile.
 import os,sys,json,tempfile,hashlib
 from pathlib import Path
@@ -17,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='career-additional-') as tmp:
   for i in range(1,6):c.execute("INSERT INTO corpus.postings_corpus(id,company_id,ats_job_id,title,description,active,target_role)VALUES(?,1,?,'Engineer','Python delivery',1,1)",(i,str(i)))
  calls=[];contexts=[];mode={'marker':'PRIVATE_OPTIONAL_MARKER','title':'Weekend teaching'}
  def inference(system,prompt,**kwargs):
+  if kwargs.get('bot')=='career-resume-reviewer':return json.dumps({'passed':True,'issues':[],'revised_resume':None,'reviewer_notes':'ok'})
   calls.append((system,prompt));return json.dumps({'resume':{'headline':'Engineer','summary':'Built Python automation.','experience':[],'skills':['Python'],'education':[],'additional_experience':[{'title':mode['title'],'org':'Independent work','span':'','bullets':[mode['marker']]}]},'cover':{'greeting':'Dear Hiring Manager,','paragraphs':['I built Python automation.'],'closing':'Sincerely,'}})
  def scoring(row,context):contexts.append(context);return {'id':row['id'],'data':{'fit_score':85,'rationale':'Fixture','matched':['Python'],'gaps':[]}}
  def pdf(html,out):out.write_bytes(b'%PDF-1.4\nowned\n%%EOF')

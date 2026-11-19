@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). My résumé in Chromium at 412x915, 390x844 and 360x780 (touch) and at 1440x900, 1024x768 and 768x1024: on a phone the résumé page starts in the top quarter of the screen, the section tabs are one row that scrolls sideways, the document has one bar of at most 56 px, and once the person scrolls into the résumé it has nearly the whole screen; every control of the two bars it replaces is still there, at most one tap deeper. A tablet and a computer keep both bars as before.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: More holds Career's six items on desktop/tablet and phone (adding Professional résumé (Word / PDF)… inside More without adding a separate main Download bar).
  *
  * Real: Career's page, frame, concierge entry and document host (tools/career-resume-studio.html, career-frame.js and .css,
  * career-resume-office.js), AI Office's editor page and its modules (presentations/tools/office), and the shared editor
@@ -253,7 +254,7 @@ test('phone 412x915: every control of the two bars it replaces is still there, a
   const items = await menu.locator('[role=menuitem]:visible').allInnerTexts();
   t.diagnostic(`More: ${JSON.stringify(items)}`);
   for (const name of ['Download my data (everything saved)', 'Other experience', 'Prepare & submit', 'Add career materials…', 'Replace with the saved main résumé',
-    'Export this document…', 'Version history, rename, more…', 'Your AI Office documents']) assert.ok(items.includes(name), `More holds ${name}`);
+    'Export this document…', 'Professional résumé (Word / PDF)…', 'Version history, rename, more…', 'Your AI Office documents']) assert.ok(items.includes(name), `More holds ${name}`);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, '412x915-more.png') });
   // AI Office's document menu (its name's menu in its own row), one tap further: Version history and the rest.
   await menu.getByRole('menuitem', { name: 'Version history, rename, more…' }).tap();
@@ -308,7 +309,7 @@ for (const size of WIDE) {
     assert.ok(m.status, 'the save state is there');
     assert.equal(row.save, 'Save to main résumé', 'Save keeps its whole name');
     assert.deepEqual(row.folded, [], 'nothing of the phone bar shows');
-    assert.equal(row.more, 5, "More holds Career's five items");
+    assert.equal(row.more, 6, "More holds Career's six items");
     assert.equal(m.tabs.lines, 1);
     assert.ok(m.scrollWidth <= size.width);
     assert.deepEqual(errors, []);

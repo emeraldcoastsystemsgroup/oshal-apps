@@ -3,6 +3,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... i cant submit any resimes untill this is taken care of"): Prepare application end to end on a made-up candidate whose current role is first with no end date. Real: the COMPILED board routes (POST /jobs/:id/generate, GET /jobs/:id), the engine dispatch, runner and launcher, the Python engine (prepare_job: scoring commit, generate_for, the Jinja templates, application.json) and the application draft. Doubled: the model (a scripted answer on the package's rail path that leaves the three newest roles out, as production's model did), Chromium (a stand-in that writes a one-line PDF), the kernel leaves in tests/helpers/career-route-harness.mjs and the request identity (an issuer for the rail grant). (1) A résumé prepared before the check that leaves the current role out reads as needing generation and names the role. (2) Generate makes a résumé that carries it first. Red on store main d28c8c02, green with role_plan.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: expect recorded month precision ("Feb 2024 to Present") on the restored current role ("2024-02" to Present).
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -112,7 +113,7 @@ test('Generate makes a résumé that carries the current role first, though the 
  assert.ok(generation.includes(CURRENT[1]),'the model was given the current role');
  const written=packet(82)?.generated?.resume?.experience||[];
  assert.deepEqual(written.slice(0,3).map(e=>[e.title,e.org]),[CURRENT,['Board Advisor','North Pier Labs'],['Program Director','Cedar Analytics']],'current roles first, then the newest ended role');
- assert.equal(written[0].span,'2024 to Present');
+ assert.equal(written[0].span,'Feb 2024 to Present');
  assert.deepEqual(written.slice(3).map(e=>e.title),['Platform Director','Operations Manager'],'the model\'s own entries follow, as written');
  assert.deepEqual(job.application.missingRoles,[]);assert.equal(job.application.needsGeneration,false,'the new résumé is ready to review');
 });

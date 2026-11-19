@@ -7,6 +7,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard incomplete and unknown transaction coverage through actual saved readers, analysis or rendered views without changing independent balances.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: the kernel ending a slow analysis with only a status code reads as a sentence, never HTTP 503 (judge defect 4), with the true wait and one press at a time; spending categories read as words (judge defect 11).
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: Request analysis answered at once while the analyst works after the press. The panel says working above the earlier analysis, which stays until the new one is saved; the page asks every five seconds (the browser's clock is driven by the test) and shows the new analysis, or the failure in words with the earlier analysis kept; opening the page during a request shows the same without asking for anything new; a failure newer than the saved analysis is said on opening and an older one is not; and a phone's width holds it.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: Reauthentication failure on Sync (409 plaid_reconnect_needed) surfaces a direct Reconnect in Bank connections action while keeping the saved snapshot intact; ?view=banks shows last-synced freshness and reconnect instructions.
  */
 'use strict';
 const test = require('node:test');
@@ -67,6 +68,7 @@ async function openFixture(browser, options = {}) {
       return json({ ...brief, cached: false });
     }
     if (url.pathname === '/api/finance/sync') {
+      if (options.reconnectSync) return json({ error: 'plaid_reconnect_needed', institution: 'Example Bank', message: 'Example Bank needs you to sign in again through Plaid before balances and activity can refresh. Open Manage bank connections to reconnect it; your earlier saved snapshot was kept unchanged.' }, 409);
       if (options.failSync) return json({ error: 'fixture_sync_refused', message: 'Example Bank did not answer.' }, 502);
       snapshot.syncedAt = SYNC_STAMP;
       return json({ ok: true });
@@ -492,5 +494,23 @@ test('412px: a first analysis working with none saved yet fits the screen', asyn
     assert.match(await f.page.locator('#briefPanel').innerText(), WORKING);
     assert.equal(analysisPresses(f), 1); assert.deepEqual(f.errors, []);
     if (process.env.FINANCE_SHOTS) await f.page.screenshot({ path: path.join(process.env.FINANCE_SHOTS, 'analysis-working-phone.png'), fullPage: true });
+  } finally { await f.context.close(); }
+});
+
+test('plaid_reconnect_needed on Sync keeps saved accounts visible, offers a direct reconnect link, and ?view=banks shows sync freshness', async () => {
+  const f = await openFixture(browser, { reconnectSync: true });
+  try {
+    await f.page.getByRole('button', { name: 'Sync accounts', exact: true }).click();
+    await f.page.getByText(/Example Bank needs you to sign in again/i).waitFor();
+    const reconnectLink = f.page.locator('#syncStatus a[href="?view=banks"]');
+    assert.equal(await reconnectLink.isVisible(), true, 'syncStatus renders a direct reconnect link to ?view=banks');
+    assert.equal(await f.page.locator('table.accounts tr').filter({ hasText: 'Everyday' }).isVisible(), true);
+    await reconnectLink.click();
+    await f.page.waitForLoadState('networkidle');
+    const banksText = await f.page.locator('#linksPanel').innerText();
+    assert.match(banksText, /Last synced Nov 10, 2026/);
+    assert.match(banksText, /Add account/i);
+    assert.match(banksText, /login expired|sign in again|reconnect/i);
+    assert.deepEqual(f.errors, []);
   } finally { await f.context.close(); }
 });

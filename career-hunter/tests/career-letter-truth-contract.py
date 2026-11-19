@@ -2,6 +2,7 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: expect recorded month precision ("Jan 2022 to Oct 2025") when an undated engagement inherits a dated parent role's span ("2022-01" to "2025-10").
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): the engine half of the letter-truth guard, on a made-up long-form candidate (eight short field-contracting engagements in the last four years, a program role, and a first development job that used C# once). (1) letter_evidence ranks the field engagements that fit a controls posting above the first job, also when they are recorded as engagements, and still picks the first job when only it fits. (2) The prompts carry that evidence, the editor no longer reaches into "an EARLIER role", and every anti-inflation rule that held letters before is still in the prompts without any prompt_framing (guards for the earlier fixes). (3) claims_check catches an unstated C# level, a skill the records never name, inflated years, a title and an employer the records do not hold, a tool under the wrong job and a sentence drawn from the first job, and finds nothing in an honest packet. (4) The REAL generate_for and prepare_job, with only the model, the PDF renderer and the posting row replaced, hold a scripted model that overclaims as production's did: the letter is written again once with the problems named, or marked needs your review, and the documents on disk claim nothing the records do not support. Red on store main dd5cd9ed (no letter_evidence, claims_check or claims_fix; the editor's EARLIER-role rule), green here.
 """Letter-truth contract: Career's letters and résumés claim only what the records support, from the right roles."""
 from __future__ import annotations
@@ -133,7 +134,7 @@ def ranking() -> None:
                                 "deliverables": ["Commissioned controls for Gulf Coast Refining and Delta Grain Terminals"]})
     dated = {row["org"]: row for row in letter_evidence.rank(undated, TITLE, DESCRIPTION)}
     check("an undated engagement whose client a job's record names takes that job's dates",
-          dated["Gulf Coast Refining"]["span"] == "2022 to 2025" and dated["Bayou Water Authority"]["recency"] == letter_evidence.UNDATED_RECENCY)
+          dated["Gulf Coast Refining"]["span"] == "Jan 2022 to Oct 2025" and dated["Bayou Water Authority"]["recency"] == letter_evidence.UNDATED_RECENCY)
     ledger = undated["project_ledger"]   # the fields Work history writes from 1.68.4: start/end months, length, job
     ledger[1]["job"] = "r9"
     ledger[2].update({"start": "2024-08", "duration_months": 4})

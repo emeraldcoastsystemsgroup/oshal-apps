@@ -23,6 +23,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve unreported balances as null and mark unreadable balance inventory incomplete so unknown or partial totals never become zero.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Preserve bounded provider-window transaction coverage and withhold complete-window rollups when pages or reported counts are partial or unknown.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Require bounded case-sensitive provider transaction identities before declaring a reported window complete; retain available duplicate or invalid rows without aggregation.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: propagate ITEM_LOGIN_REQUIRED and INVALID_ACCESS_TOKEN from balance, holding and transaction reads as reauthenticationRequired errors naming the institution instead of folding expired logins into partial or empty snapshots.
  *
  * @module finance-plaid
  */
@@ -188,6 +189,11 @@ async function foldItem(accessToken, institution, windowDays, acc) {
     await foldHoldings(accessToken, institution, acc);
     await foldTransactions(accessToken, institution, windowDays, acc);
 }
+/** True when Plaid rejected the item's login or access token so the person must reconnect it. */
+function isPlaidReconnectError(err) {
+    const e = err;
+    return Boolean(e && (e.reauthenticationRequired === true || e.plaidCode === 'ITEM_LOGIN_REQUIRED' || e.plaidCode === 'INVALID_ACCESS_TOKEN'));
+}
 /** Add an item's account balances to the aggregate. */
 async function foldBalances(accessToken, institution, acc) {
     try {
@@ -204,6 +210,11 @@ async function foldBalances(accessToken, institution, acc) {
         }
     }
     catch (err) {
+        if (isPlaidReconnectError(err)) {
+            err.reauthenticationRequired = true;
+            err.institution = institution;
+            throw err;
+        }
         acc.balancesComplete = false;
         acc.notes.push(`balances unavailable for ${institution} (${err.plaidCode || 'error'})`);
     }
@@ -228,6 +239,11 @@ async function foldHoldings(accessToken, institution, acc) {
         }
     }
     catch (err) {
+        if (isPlaidReconnectError(err)) {
+            err.reauthenticationRequired = true;
+            err.institution = institution;
+            throw err;
+        }
         const code = err.plaidCode;
         if (code !== 'PRODUCTS_NOT_SUPPORTED' && code !== 'NO_INVESTMENT_ACCOUNTS') {
             acc.notes.push(`holdings unavailable for ${institution} (${code || 'error'})`);
@@ -251,6 +267,11 @@ async function foldTransactions(accessToken, institution, windowDays, acc) {
         }
     }
     catch (err) {
+        if (isPlaidReconnectError(err)) {
+            err.reauthenticationRequired = true;
+            err.institution = institution;
+            throw err;
+        }
         acc.transactionCoverage.push({ institution: institution.slice(0, 200), state: 'unknown', returned: 0,
             total: null, pages: 0, reason: 'unavailable' });
         acc.notes.push(`transactions not ready for ${institution} (${err.plaidCode || 'error'}) — try syncing again shortly`);

@@ -4,6 +4,7 @@ exports.createCareerRailCallbackVerifier = void 0;
 exports.createCareerWorkerRailRoutes = createCareerWorkerRailRoutes;
 /**
  * CHANGE LOG
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: support optional validated bot selector ('career-hunter' | 'career-resume-reviewer') on POST /complete so the engine's pre-return resume review pass dispatches directly to the dynamically-loaded inline career-resume-reviewer Swarm bot (cb000000-0000-0000-0000-000000000006), fail-closed on any unknown bot name.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | A completion the kernel refuses because the model's answer had no text answers the same 503 career-worker-unavailable as before, with `detail: "empty-answer"`, so a settled nightly pass can count that one run as unanswered and go on; every other caller reads it as before.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Read fixed original-owner native scoring identity without inference and forward guarded turns with validated per-completion routing attribution.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Let the same signed original-owner run read anonymous structured employer details through declared kernel egress; keep model accounting and external networking separate.
@@ -38,6 +39,11 @@ const career_authorization_1 = require("./career-authorization");
 const engineRuns = require('../lib/career-engine-runs');
 const logger = (0, logger_1.createChildLogger)({ module: 'career-worker-rail' });
 const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
+const RESUME_REVIEWER_AGENT_ID = 'cb000000-0000-0000-0000-000000000006';
+const RAIL_BOTS = {
+    'career-hunter': CAREER_AGENT_ID,
+    'career-resume-reviewer': RESUME_REVIEWER_AGENT_ID,
+};
 const JSON_ONLY = 'Respond with ONLY a single JSON object, no prose, no code fence.';
 /** Package-owned admission: at most `limit` completions occupy the Career bot at once. */
 class RailSemaphore {
@@ -118,6 +124,10 @@ function admittedRun(req, res) {
     }
     return run;
 }
+/** Resolve the declared Career agentId for a validated rail request. */
+function agentIdOf(input) {
+    return input.bot ? RAIL_BOTS[input.bot] : CAREER_AGENT_ID;
+}
 /** Validate the completion document the engine sends; anything else is refused. */
 function railInput(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -128,13 +138,17 @@ function railInput(value) {
         return null;
     if (doc.jsonMode !== undefined && typeof doc.jsonMode !== 'boolean')
         return null;
+    if (doc.bot !== undefined && (typeof doc.bot !== 'string' || !Object.prototype.hasOwnProperty.call(RAIL_BOTS, doc.bot)))
+        return null;
+    const bot = doc.bot;
     const maxTokens = doc.maxTokens === undefined ? 2048 : doc.maxTokens;
     if (typeof maxTokens !== 'number' || !Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192)
         return null;
-    if (doc.expectedModelIdentity !== undefined && (process.env.OSHAL_EGRESS !== 'kernel'
+    if (doc.expectedModelIdentity !== undefined && (bot === 'career-resume-reviewer' || process.env.OSHAL_EGRESS !== 'kernel'
         || typeof doc.expectedModelIdentity !== 'string' || !/^[a-f0-9]{64}$/.test(doc.expectedModelIdentity)))
         return null;
     return { system, prompt: doc.prompt, jsonMode: doc.jsonMode !== false, maxTokens,
+        ...(bot === undefined ? {} : { bot }),
         ...(doc.expectedModelIdentity === undefined ? {} : { expectedModelIdentity: doc.expectedModelIdentity }) };
 }
 /** Configured labels are bounded metadata, never routing selectors supplied by a browser. */
@@ -177,7 +191,7 @@ function workerRequest(run, subject, input) {
         text: railPrompt(input),
         taskId: `career-engine-${run.runId}`,
         workspaceFolderId: `career-engine-${subject}`,
-        agentId: CAREER_AGENT_ID,
+        agentId: agentIdOf(input),
         direct: true,
         agenticMode: false,
         userSub: subject,
@@ -186,9 +200,12 @@ function workerRequest(run, subject, input) {
     };
 }
 /** Require a dedicated Career node and a fresh, online heartbeat before any model-bearing call. */
-async function workerPreflight(deps) {
+async function workerPreflight(deps, input) {
     // Native kernel: its bot turn resolves the declared bot and refuses when it cannot run.
     if (process.env.OSHAL_EGRESS === 'kernel')
+        return { ok: true };
+    // Inline bots (career-resume-reviewer) run directly on the controller without a dedicated node.
+    if (agentIdOf(input) === RESUME_REVIEWER_AGENT_ID)
         return { ok: true };
     if (!deps.botClient.hasEndpoint(CAREER_AGENT_ID))
         return { ok: false, detail: 'no-dedicated-node' };
@@ -337,7 +354,7 @@ async function executeOnWorker(deps, run, subject, input) {
 }
 /** Preflight the worker, then execute; a failed preflight never reaches the bot. */
 async function railOutcome(deps, run, subject, input) {
-    const preflight = await workerPreflight(deps);
+    const preflight = await workerPreflight(deps, input);
     if (!preflight.ok) {
         logger.warn({ runId: run.runId, detail: preflight.detail }, 'career worker unavailable');
         return { status: 503, body: { ok: false, error: 'career-worker-unavailable', detail: preflight.detail } };
@@ -393,7 +410,7 @@ function createCareerWorkerRailRoutes(ctx) {
     const deps = {
         ctx, botClient, limits,
         semaphore: new RailSemaphore(limits.concurrency),
-        execute: (run, subject, input) => (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, CAREER_AGENT_ID, workerRequest(run, subject, input)),
+        execute: (run, subject, input) => (0, inline_bot_execution_1.executeBotOrInline)(ctx, botClient, agentIdOf(input), workerRequest(run, subject, input)),
     };
     const router = (0, express_1.Router)();
     router.post('/complete', (req, res) => {

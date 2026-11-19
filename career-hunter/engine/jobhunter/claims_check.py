@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): what a generated cover letter or résumé claims, read the same way whichever model wrote it, and whether the person's records support it. A skill or tool the records never name, a level the records do not state (expert, advanced, deep, strong ...), a years count the recorded dates do not add up to, a title the records do not hold, a tool put under a role whose records do not name it, and a letter sentence drawn from work outside the chosen evidence (letter_evidence) are each a problem. claims_fix.py removes or tones them down and holds the letter.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: fix parenthetical year attribution ("Java / J2EE (9 years), Python" binds backward to Java, never forward past ')' to Python), check all skills bound to a single years phrase rather than only the first, and map J2EE under Java.
 """The claims a generated cover letter or résumé makes, and whether the person's records support each one.
 
 Records are the profile the documents were generated from: roles (titles, employers, dates, bullets, skills, stories),
@@ -62,7 +63,7 @@ IMPLIED_BY = {
     "cicd": ("jenkins", "githubactions", "azuredevops", "circleci", "argocd"), "devops": ("devsecops",),
     "agile": ("scrum", "kanban"), "javascript": ("typescript", "nodejs", "react", "angular", "vue", "vuejs", "nextjs"),
     "ml": ("deeplearning", "tensorflow", "pytorch", "mlops", "scikit"), "ai": ("ml", "llm", "llms", "genai", "nlp", "rag", "aiops"),
-    "rest": ("restful",), "scrum": ("scrummaster",), "llm": ("llms",),
+    "rest": ("restful",), "scrum": ("scrummaster",), "llm": ("llms",), "java": ("j2ee",),
 }
 
 # Upper-case words of a posting that are not tools: places, papers, people and offices.
@@ -550,17 +551,31 @@ def _claimed_years(found) -> float:
     return value
 
 
+def _paren_before_terms(text: str, start: int, terms) -> list:
+    """Skills immediately preceding a parenthetical years tag like 'Java / J2EE (9 years)'."""
+    prefix = text[:start].rstrip()
+    if not prefix.endswith("("):
+        return []
+    head = re.split(r"[,;:\n]", prefix[:-1])[-1]
+    return [word for word in words(head) if word in terms]
+
+
 def _years_problems(rec, document, path, text, terms) -> list:
     out = []
     for found in [*_YEARS.finditer(text), *_DECADE.finditer(text)]:
         rest, phrase = found.group("rest") or "", text[found.start():found.start("rest")].strip()
         if _YEARS_NOT_CLAIM.search(text[max(0, found.start() - 12):found.start()]) or re.match(r"\s*(?:ago|old)\b", rest):
             continue
-        rest = re.split(r"\b(?:who|that|which|where|while|when|whose|because|since|but|and\s+(?:I|have|has|am|was))\b",
-                        rest, maxsplit=1, flags=re.I)[0]
-        rest_words, claimed = words(rest)[:10], _claimed_years(found)
-        named = [word for word in rest_words if word in terms][:1]
-        orgs = [] if named else org_rows(rec, rest)
+        claimed = _claimed_years(found)
+        if rest.lstrip().startswith(")"):
+            named = _paren_before_terms(text, found.start(), terms)
+            orgs = []
+        else:
+            clause = re.split(r"[,;)]|\b(?:who|that|which|where|while|when|whose|because|since|but|and\s+(?:I|have|has|am|was))\b",
+                              rest, maxsplit=1, flags=re.I)[0]
+            rest_words = words(clause)[:10]
+            named = [word for word in rest_words if word in terms]
+            orgs = [] if named else org_rows(rec, clause)
         supported = (min(term_years(rec, term) for term in named) if named
                      else _years(row["interval"] for row in orgs) if orgs else career_years(rec))
         if claimed > supported + 0.5:

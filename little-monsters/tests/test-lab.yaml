@@ -20,8 +20,56 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register lm-curriculum-videos-and-rp for the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 reference features.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Register lm-index-handoff: the old /index.html address answers a hand-off page to the arcade, where it called a redirect a kernel does not relay (HTTP 500 there).
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Register lm-flashcard-study-opens: Study opens the chosen set over the real compiled flashcard route while the preferences table is refused, a failed read offers Try again instead of the Pick a set loop, and the class page's Topic Study Pack refreshes its sets (1.9.3).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Register lm-shared-window-adapter: Class Tutor mounts the kernel's one chat window over the same-origin transport adapter on POST /api/education/tutor-chat with closed model choice, single-pass image/doc attachments, per-tab class/grounding isolation, UUID thread lifecycle, and write-free model/persistence failure guards (1.9.4).
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register lm-concierge-and-tutor-layout: verify Concierge panel restoration (hideChatPanel: false, host frame keeps #chatPanel/.panel-resize-handle without zen-mode, ui/little-monsters.css styles .jarvis-chat with --text-on-accent) and full-bleed desktop/mobile Tutor layout without duplicate headers or clipped outer chips (1.9.5).
 version: 1
 cases:
+  - id: lm-concierge-and-tutor-layout
+    name: Little Monsters Concierge restoration and full-bleed Class Tutor layout
+    purpose: Verify manifest hideChatPanel: false and inline class-tutor binding, host frame preservation of cockpit #chatPanel, Little Monsters styling on .jarvis-chat with white on-accent contrast, and full-bleed desktop (1440x900, 1280x800) and mobile (390x844) Class Tutor geometry.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-concierge-and-tutor-layout.test.cjs
+    expected:
+      - ribbon.hideChatPanel is false and chatBot class-tutor is inline and bound in authorization.yaml.
+      - Page frame preserves cockpit #chatPanel and .panel-resize-handle without adding body.zen-mode.
+      - ui/little-monsters.css defines --text-on-accent and styles .jarvis-chat so Concierge and Tutor match Little Monsters.
+      - Tutor page fills desktop width without a 980px cap or duplicate outer header/History/New chat/chip chrome and fits mobile without horizontal overflow.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: lm-shared-window-adapter
+    name: Class Tutor shared chat window transport adapter
+    purpose: Verify compiled tutor route fail-closed model/persistence guards, closed model choice, separated image/document attachments, immediate material revocation, and 412x915 touch + 1440x900 desktop shared chat window mounting.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-shared-window-adapter.test.cjs
+    expected:
+      - Model refusals, empty answers, and persistence failures write zero messages, mint no grounding receipt, and award zero XP.
+      - Optional closed choice:{provider,model} validates strictly before model execution while omitted choice preserves Automatic and 5-minute server XP dedupe.
+      - Images, text/unreadable documents, and legacy base64 PDFs stay separated without /api/vision/describe double-spend.
+      - Concurrent 412x915 touch and 1440x900 desktop tabs isolate class grounding and school-scoped UUID thread list/replay/delete while keeping non-adapter concierges intact.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
   - id: lm-curriculum-videos-and-rp
     name: Curriculum videos and reference product features
     purpose: Verify the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 owner-scoped backend and UI contracts.

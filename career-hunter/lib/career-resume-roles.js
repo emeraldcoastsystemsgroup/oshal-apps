@@ -3,6 +3,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "it would leave out my active role ... i cant submit any resimes untill this is taken care of"): which recorded roles a prepared résumé must carry, read the same way the engine's role_plan.py reads them (a current role, no end or an end of Present/current, and every role that ended within 20 years), so a résumé prepared before the engine checked it is named as leaving a role out instead of reading as ready. tests/career-resume-roles-parity.test.mjs holds this file and role_plan.py to one answer.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve recorded month/year precision and restore dates on a cloned saved packet only from its own uniquely matched profile snapshot.
  */
 'use strict';
 const YEARS_CARRIED=20;
@@ -39,9 +40,20 @@ function isCurrent(role){
  const end=text(role.end).toLowerCase();
  return !end||CURRENT_WORDS.some(word=>end===word||end.startsWith(word+' '));
 }
+function displayDate(value){
+ const source=text(value),numeric=source.match(/^(19\d{2}|20\d{2}|2100)(?:[-/.](\d{1,2})(?:[-/.]\d{1,2})?)?$/);
+ const reverse=source.match(/^(\d{1,2})[-/.](19\d{2}|20\d{2}|2100)$/),named=source.toLowerCase().match(/^([a-z]{3,9})\.?,?\s+(19\d{2}|20\d{2}|2100)$/);
+ let year,number;
+ if(numeric){year=+numeric[1];number=numeric[2]?+numeric[2]:null;}
+ else if(reverse){year=+reverse[2];number=+reverse[1];}
+ else if(named&&MONTHS.has(named[1])){year=+named[2];number=MONTHS.get(named[1]);}
+ else return '';
+ if(number===null)return String(year);
+ if(number<1||number>12)return '';
+ const name=MONTH_NAMES[number-1][0];return `${name[0].toUpperCase()+name.slice(1)} ${year}`;
+}
 function span(role,current){
- const start=month(role.start),end=current?null:month(role.end,true);
- const first=start?String(start[0]):'',final=current?'Present':end?String(end[0]):'';
+ const first=displayDate(role.start),final=current?'Present':displayDate(role.end);
  if(!first)return final;
  if(!final||first===final)return first;
  return `${first} to ${final}`;
@@ -94,6 +106,39 @@ function missing(resume,entries){
   .flatMap(item=>rolesOf(item,entries).map(entry=>entry.key)));
  return entries.filter(entry=>entry.required&&!carried.has(entry.key));
 }
+function dateMatches(item,profile){
+ const recorded=(Array.isArray(profile?.roles)?profile.roles:[]).filter(role=>role&&typeof role==='object'&&!Array.isArray(role)&&(text(role.title)||text(role.org)));
+ const anchor=value=>text(value).toLowerCase();
+ const found=recorded.filter(role=>anchor(item.title)===anchor(role.title)&&anchor(item.org)===anchor(role.org));
+ if(item.id!==undefined&&item.id!==null&&item.id!==''){
+  if(typeof item.id!=='string'||!/^[A-Za-z0-9_.:-]{1,80}$/.test(item.id))return [];
+  const named=recorded.filter(role=>role.id===item.id);
+  return named.length===1?(found.includes(named[0])?named:[]):named;
+ }
+ return found;
+}
+/**
+ * @description Restore display dates on a copy using only uniquely matched roles in this packet's own snapshot.
+ * @param {object} resume Saved generated résumé; never mutated.
+ * @param {object} profile The same packet's saved profile_snapshot, never a current profile fallback.
+ * @returns {{resume:object,dates:{known:number[],updated:number[],ambiguous:number[],unavailable:number[]}}} Copy and original experience-index evidence.
+ */
+function preserveDates(resume,profile){
+ const copy=resume&&typeof resume==='object'&&!Array.isArray(resume)?structuredClone(resume):{};
+ const dates={known:[],updated:[],ambiguous:[],unavailable:[]};
+ (Array.isArray(copy.experience)?copy.experience:[]).forEach((item,index)=>{
+  if(!item||typeof item!=='object'||Array.isArray(item)){dates.unavailable.push(index);return;}
+  const found=dateMatches(item,profile);
+  if(found.length>1){dates.ambiguous.push(index);return;}
+  const role=found.length===1?found[0]:null;
+  const complete=role&&displayDate(role.start)&&(isCurrent(role)||displayDate(role.end));
+  const value=complete?span(role,isCurrent(role)):'';
+  if(!value){dates.unavailable.push(index);return;}
+  dates.known.push(index);
+  if(item.span!==value){item.span=value;dates.updated.push(index);}
+ });
+ return {resume:copy,dates};
+}
 /**
  * @description The words a person reads for roles a prepared résumé leaves out.
  * @param {{title:string,org:string,current:boolean}[]} roles The missing roles. @returns {string} One sentence, or ''.
@@ -105,4 +150,4 @@ function sentence(roles){
  const which=roles.some(role=>role.current)?(roles.length===1?'your current role':'roles from your work history, your current role among them'):(roles.length===1?'a role from your work history':'roles from your work history');
  return `This résumé leaves out ${which}: ${list}.`;
 }
-module.exports={YEARS_CARRIED,month,isCurrent,plan,sameOrg,rolesOf,missing,sentence};
+module.exports={YEARS_CARRIED,month,isCurrent,plan,sameOrg,rolesOf,missing,sentence,preserveDates};

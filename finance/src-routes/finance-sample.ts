@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | A demo installation's sample household as records, not only a snapshot: seven named accounts with balances dated today and three months of dated transactions (pay every two weeks, rent, utilities, a subscription, a loan payment, groceries, fuel, meals out, savings interest, card purchases and a card payment), the newest five still to review and one of them larger than usual at its merchant, so a trial opens on a day with things to do. Every record says it is sample data. Loading it again replaces the earlier sample and touches nothing else; a real sync removes it. The employer on the paycheck is a made-up name (it named the owner's company).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.8.4: export sampleAggregate alongside sampleRecords so POST /demo-data shares the sample household definition here without framework imports.
  */
 
 /**
@@ -12,7 +13,7 @@
  *
  * @module finance-sample
  */
-import type { FinanceAggregate, FinanceHolding } from './finance-plaid';
+import type { FinanceAccount, FinanceAggregate, FinanceHolding } from './finance-plaid';
 import {
   HOME_BOOK, deleteAccount, deleteImportTransactions, ensureBook, hashId, insertAccount, insertImport, insertTransactions,
   monthOf, nowStamp, readImport, saveImport, transactionId,
@@ -183,4 +184,48 @@ export async function loadSample(db: LedgerDb, sub: string, now: Date = new Date
   };
   if (await readImport(db, sub, sample.importId)) await saveImport(db, sub, record); else await insertImport(db, sub, record);
   return sample;
+}
+
+/** A demo installation's sample household snapshot: named banks, healthy balances, dated relative to now. */
+export function sampleAggregate(windowDays = 90): FinanceAggregate {
+  const day = (back: number) => new Date(Date.now() - back * DAY_MS).toISOString().slice(0, 10);
+  const month = (back: number) => new Date(Date.now() - back * 30 * DAY_MS).toISOString().slice(0, 7);
+  const accounts: Array<FinanceAccount & { balance: number }> = [
+    { name: 'Everyday Checking', type: 'depository', subtype: 'checking', mask: '4821', balance: 4820.44, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Rainy-day Savings', type: 'depository', subtype: 'savings', mask: '7730', balance: 18400.00, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Money Market', type: 'depository', subtype: 'money market', mask: '2214', balance: 12500.00, currency: 'USD', institution: 'Coastal Credit Union' },
+    { name: 'Brokerage', type: 'investment', subtype: 'brokerage', mask: '9043', balance: 77180.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
+    { name: 'Retirement 401(k)', type: 'investment', subtype: '401k', mask: '5512', balance: 46700.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
+    { name: 'Travel Rewards Card', type: 'credit', subtype: 'credit card', mask: '0082', balance: 1240.317, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Auto Loan', type: 'loan', subtype: 'auto', mask: '6619', balance: 9800.00, currency: 'USD', institution: 'Coastal Credit Union' },
+  ];
+  const holdings = HOLDINGS.map((holding) => ({ ...holding }));
+  const assets = accounts.filter((a) => a.type !== 'credit' && a.type !== 'loan').reduce((s, a) => s + a.balance, 0);
+  const liabilities = accounts.filter((a) => a.type === 'credit' || a.type === 'loan').reduce((s, a) => s + a.balance, 0);
+  return {
+    generatedAt: new Date().toISOString(), sourceEnvironment: 'sample', currency: 'USD',
+    netWorth: { assets: Math.round(assets * 100) / 100, liabilities: Math.round(liabilities * 100) / 100, net: Math.round((assets - liabilities) * 100) / 100 },
+    accounts: accounts.map((a) => ({ ...a, balance: Math.round(a.balance * 100) / 100 })), holdings,
+    topSpending: [
+      { category: 'Groceries', total: 612.40, count: 14 }, { category: 'Dining out', total: 284.15, count: 9 },
+      { category: 'Utilities', total: 231.60, count: 4 }, { category: 'Gas', total: 148.90, count: 6 },
+      { category: 'Streaming', total: 41.97, count: 3 },
+    ],
+    spendByMonth: [
+      { month: month(2), spend: 3180.22, income: 6400.00 }, { month: month(1), spend: 3324.75, income: 6400.00 },
+      { month: month(0), spend: 1319.02, income: 3200.00 },
+    ],
+    recentTransactions: [
+      { date: day(1), name: 'Harbor Market', amount: 84.31, category: 'Groceries' },
+      { date: day(2), name: 'City Utilities', amount: 112.40, category: 'Utilities' },
+      { date: day(3), name: 'Corner Trattoria', amount: 52.80, category: 'Dining out' },
+      { date: day(5), name: 'Paycheck — Lakeside Design Co', amount: -3200.00, category: 'Income' },
+      { date: day(6), name: 'Shell Station', amount: 38.55, category: 'Gas' },
+      { date: day(8), name: 'Streaming Plus', amount: 13.99, category: 'Streaming' },
+      { date: day(9), name: 'Harbor Market', amount: 96.12, category: 'Groceries' },
+      { date: day(11), name: 'Auto loan payment', amount: 285.00, category: 'Loan payment' },
+    ],
+    transactionWindowDays: windowDays,
+    notes: ['Sample data for this demo installation. Link a real account to replace it.'],
+  } as FinanceAggregate;
 }

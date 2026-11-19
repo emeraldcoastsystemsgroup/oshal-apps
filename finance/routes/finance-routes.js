@@ -49,6 +49,7 @@
  * 22 | maintainer@emeraldcoastsystemsgroup.com | The cached saved read (GET /brief) answers exactly as before whenever the request's state cannot be read, for any reason. The store gate's home-summary job (scripts/business-home.test.cjs) loads these routes with the request's module replaced by a stub, and the read answered 502 where it must answer a plain 404: the request's state was read inside the brief's own answer and only a rejected promise was caught. It is now read apart (analysisOnBrief), any failure is logged and leaves it out, and the read still initialises, executes and updates nothing.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: Request analysis answers within a 45 s budget, inside the native kernel's 60 s package call (the judge read "HTTP 503" after 60 s on blue, twice). A silent analyst gives 504 analysis_timeout, a refused one 502 analyst_unavailable, both in words with nothing saved; the rewrite is asked only while 15 s of the budget is left, otherwise unmatched sentences are left out as before.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: POST /demo-data still writes the same saved sample snapshot and now also writes the same household into Finance's own records, marked as sample (finance-sample.ts), so the new Accounts, Transactions, Bills, Spending and Goals screens have it to show; a records failure is logged and the snapshot stands. The sample paycheck names a made-up employer. Sync, Request analysis and every other route are unchanged.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | 1.8.4: remove per-request ensureFinanceSchema DDL calls from all HTTP route handlers; verify PostgreSQL catalog columns and forced RLS before running DDL under a bounded lock_timeout; return 409 plaid_reconnect_needed on sync reauthentication errors without overwriting saved snapshots.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -139,28 +140,34 @@ function servePage(surfaceDir, file) {
         });
     };
 }
-/** Create or validate the finance-owned stores: linked items, aggregate, and payments. */
-async function ensureFinanceSchema(pool) {
-    await (0, database_1.runRuntimeSchemaBootstrap)({
-        pool,
-        moduleName: 'finance routes',
-        statements: [
-            `CREATE TABLE IF NOT EXISTS oshal_finance_items (
+const FINANCE_SCHEMA_REQUIREMENTS = [
+    { table: 'oshal_finance_items', columns: ['item_id', 'user_sub', 'institution', 'access_token', 'linked_at'] },
+    { table: 'oshal_finance_data', columns: ['user_sub', 'aggregate', 'brief', 'synced_at', 'brief_at'] },
+    { table: 'oshal_finance_analysis', columns: ['user_sub', 'run_id', 'state', 'snapshot', 'requested_at', 'finished_at', 'failure'] },
+    { table: 'oshal_finance_payments', columns: ['transfer_id', 'user_sub', 'provider', 'amount_cents', 'currency', 'payee', 'description', 'status', 'raw_status', 'test_mode', 'created_at', 'updated_at'] },
+];
+const ensuredPools = new WeakSet();
+const isPgPool = (pool) => Boolean(pool && pool.storageModel !== 'kernel-scoped-documents' && typeof pool.connect === 'function');
+const isLockTimeoutError = (err) => Boolean(err && (err.code === '55P03' || /lock timeout/i.test(String(err.message || ''))));
+/** Build the idempotent DDL + owner-scoped forced-RLS statements for finance-owned stores. */
+function buildFinanceSchemaStatements() {
+    return [
+        `CREATE TABLE IF NOT EXISTS oshal_finance_items (
         item_id TEXT PRIMARY KEY,
         user_sub TEXT NOT NULL,
         institution TEXT,
         access_token TEXT NOT NULL,
         linked_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS oshal_finance_items_user ON oshal_finance_items (user_sub)',
-            `CREATE TABLE IF NOT EXISTS oshal_finance_data (
+        'CREATE INDEX IF NOT EXISTS oshal_finance_items_user ON oshal_finance_items (user_sub)',
+        `CREATE TABLE IF NOT EXISTS oshal_finance_data (
         user_sub TEXT PRIMARY KEY,
         aggregate JSONB,
         brief TEXT,
         synced_at TIMESTAMPTZ,
         brief_at TIMESTAMPTZ
       )`,
-            `CREATE TABLE IF NOT EXISTS oshal_finance_payments (
+        `CREATE TABLE IF NOT EXISTS oshal_finance_payments (
         transfer_id TEXT PRIMARY KEY,
         user_sub TEXT NOT NULL,
         provider TEXT NOT NULL,
@@ -174,8 +181,8 @@ async function ensureFinanceSchema(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`,
-            'CREATE INDEX IF NOT EXISTS oshal_finance_payments_user ON oshal_finance_payments (user_sub)',
-            `CREATE TABLE IF NOT EXISTS oshal_finance_analysis (
+        'CREATE INDEX IF NOT EXISTS oshal_finance_payments_user ON oshal_finance_payments (user_sub)',
+        `CREATE TABLE IF NOT EXISTS oshal_finance_analysis (
         user_sub TEXT PRIMARY KEY,
         run_id TEXT NOT NULL,
         state TEXT NOT NULL,
@@ -184,38 +191,65 @@ async function ensureFinanceSchema(pool) {
         finished_at TIMESTAMPTZ,
         failure TEXT
       )`,
-            /* ── owner-scoped RLS (A1.2): applied at the lazy-DDL chokepoint so a
-               fresh database enforces isolation the moment these tables are created,
-               instead of waiting for migration 060 to re-run (it skips absent tables).
-               Inert while the runtime connects as a superuser role. ─────────────── */
-            ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_items', 'user_sub'),
-            ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_data', 'user_sub'),
-            ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_payments', 'user_sub'),
-            ...(0, database_1.buildOwnerRlsPolicyStatements)('oshal_finance_analysis', 'user_sub'),
-        ],
-        requirements: [
-            { table: 'oshal_finance_items', columns: ['item_id', 'user_sub', 'institution', 'access_token', 'linked_at'] },
-            { table: 'oshal_finance_data', columns: ['user_sub', 'aggregate', 'brief', 'synced_at', 'brief_at'] },
-            { table: 'oshal_finance_analysis', columns: ['user_sub', 'run_id', 'state', 'snapshot', 'requested_at', 'finished_at', 'failure'] },
-            {
-                table: 'oshal_finance_payments',
-                columns: [
-                    'transfer_id',
-                    'user_sub',
-                    'provider',
-                    'amount_cents',
-                    'currency',
-                    'payee',
-                    'description',
-                    'status',
-                    'raw_status',
-                    'test_mode',
-                    'created_at',
-                    'updated_at',
-                ],
-            },
-        ],
-    });
+        ...['oshal_finance_items', 'oshal_finance_data', 'oshal_finance_payments', 'oshal_finance_analysis'].flatMap((t) => (0, database_1.buildOwnerRlsPolicyStatements)(t, 'user_sub')),
+    ];
+}
+/** Read PostgreSQL catalog metadata first so already-migrated databases issue zero DDL locks. */
+async function catalogMatchesFinanceSchema(pool) {
+    try {
+        const tables = FINANCE_SCHEMA_REQUIREMENTS.map((r) => r.table);
+        const cols = (await pool.query('SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = ANY($1::text[])', [tables])).rows || [];
+        const rls = (await pool.query('SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = current_schema() AND c.relname = ANY($1::text[])', [tables])).rows || [];
+        const byTable = new Map();
+        for (const row of cols)
+            byTable.set(row.table_name, (byTable.get(row.table_name) || new Set()).add(row.column_name));
+        const rlsMap = new Map(rls.map((row) => [String(row.relname), Boolean(row.relrowsecurity && row.relforcerowsecurity)]));
+        return FINANCE_SCHEMA_REQUIREMENTS.every((req) => rlsMap.get(req.table) === true && req.columns.every((c) => byTable.get(req.table)?.has(c)));
+    }
+    catch {
+        return false;
+    }
+}
+/** Apply missing PostgreSQL finance tables/RLS inside a transaction with a 2-second lock_timeout. */
+async function applyPgFinanceSchema(pool) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query("SET LOCAL lock_timeout = '2s'");
+        for (const stmt of buildFinanceSchemaStatements())
+            await client.query(stmt);
+        await client.query('COMMIT');
+        ensuredPools.add(pool);
+    }
+    catch (err) {
+        await client.query('ROLLBACK').catch(() => { });
+        if (!isLockTimeoutError(err))
+            throw err;
+        logger.warn({ err }, 'finance schema bootstrap skipped due to concurrent lock');
+    }
+    finally {
+        client.release();
+    }
+}
+/** Create or validate the finance-owned stores once at mount/bootstrap, never per HTTP request. */
+async function ensureFinanceSchema(pool) {
+    if (isPgPool(pool)) {
+        if (ensuredPools.has(pool))
+            return;
+        if (await catalogMatchesFinanceSchema(pool)) {
+            ensuredPools.add(pool);
+            return;
+        }
+        return applyPgFinanceSchema(pool);
+    }
+    try {
+        await (0, database_1.runRuntimeSchemaBootstrap)({ pool, moduleName: 'finance routes', statements: buildFinanceSchemaStatements(), requirements: FINANCE_SCHEMA_REQUIREMENTS });
+    }
+    catch (err) {
+        if (!isLockTimeoutError(err))
+            throw err;
+        logger.warn({ err }, 'finance schema bootstrap skipped due to concurrent lock');
+    }
 }
 /**
  * @description Disconnect a linked item at Plaid so it stops sharing data and being billed.
@@ -537,54 +571,6 @@ async function takeAnalysis(pool, sub, handed) {
     await (0, finance_analysis_1.closeAnalysis)(pool, sub, runId, null);
     return { taken: true, saved: true };
 }
-/** A demo installation's sample household: named banks, healthy balances, dated relative to now. */
-function sampleAggregate() {
-    const day = (back) => new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
-    const month = (back) => new Date(Date.now() - back * 30 * 86400000).toISOString().slice(0, 7);
-    const accounts = [
-        { name: 'Everyday Checking', type: 'depository', subtype: 'checking', mask: '4821', balance: 4820.44, currency: 'USD', institution: 'Harbor Bank' },
-        { name: 'Rainy-day Savings', type: 'depository', subtype: 'savings', mask: '7730', balance: 18400.00, currency: 'USD', institution: 'Harbor Bank' },
-        { name: 'Money Market', type: 'depository', subtype: 'money market', mask: '2214', balance: 12500.00, currency: 'USD', institution: 'Coastal Credit Union' },
-        { name: 'Brokerage', type: 'investment', subtype: 'brokerage', mask: '9043', balance: 77180.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
-        { name: 'Retirement 401(k)', type: 'investment', subtype: '401k', mask: '5512', balance: 46700.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
-        { name: 'Travel Rewards Card', type: 'credit', subtype: 'credit card', mask: '0082', balance: 1240.317, currency: 'USD', institution: 'Harbor Bank' },
-        { name: 'Auto Loan', type: 'loan', subtype: 'auto', mask: '6619', balance: 9800.00, currency: 'USD', institution: 'Coastal Credit Union' },
-    ];
-    const holdings = [
-        { name: 'Total Stock Market Index', ticker: 'VTI', type: 'etf', quantity: 180, value: 48960.00, costBasis: 41200, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
-        { name: 'Apple Inc', ticker: 'AAPL', type: 'equity', quantity: 60, value: 15780.00, costBasis: 11900, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
-        { name: 'US Bond Index', ticker: 'BND', type: 'etf', quantity: 120, value: 8920.00, costBasis: 9100, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
-        { name: 'Money market sweep', ticker: null, type: 'cash', quantity: 1, value: 3520.00, costBasis: 3520, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
-    ];
-    const assets = accounts.filter((a) => a.type !== 'credit' && a.type !== 'loan').reduce((s, a) => s + a.balance, 0);
-    const liabilities = accounts.filter((a) => a.type === 'credit' || a.type === 'loan').reduce((s, a) => s + a.balance, 0);
-    return {
-        generatedAt: new Date().toISOString(), sourceEnvironment: 'sample', currency: 'USD',
-        netWorth: { assets: Math.round(assets * 100) / 100, liabilities: Math.round(liabilities * 100) / 100, net: Math.round((assets - liabilities) * 100) / 100 },
-        accounts: accounts.map((a) => ({ ...a, balance: Math.round(a.balance * 100) / 100 })), holdings,
-        topSpending: [
-            { category: 'Groceries', total: 612.40, count: 14 }, { category: 'Dining out', total: 284.15, count: 9 },
-            { category: 'Utilities', total: 231.60, count: 4 }, { category: 'Gas', total: 148.90, count: 6 },
-            { category: 'Streaming', total: 41.97, count: 3 },
-        ],
-        spendByMonth: [
-            { month: month(2), spend: 3180.22, income: 6400.00 }, { month: month(1), spend: 3324.75, income: 6400.00 },
-            { month: month(0), spend: 1319.02, income: 3200.00 },
-        ],
-        recentTransactions: [
-            { date: day(1), name: 'Harbor Market', amount: 84.31, category: 'Groceries' },
-            { date: day(2), name: 'City Utilities', amount: 112.40, category: 'Utilities' },
-            { date: day(3), name: 'Corner Trattoria', amount: 52.80, category: 'Dining out' },
-            { date: day(5), name: 'Paycheck — Lakeside Design Co', amount: -3200.00, category: 'Income' },
-            { date: day(6), name: 'Shell Station', amount: 38.55, category: 'Gas' },
-            { date: day(8), name: 'Streaming Plus', amount: 13.99, category: 'Streaming' },
-            { date: day(9), name: 'Harbor Market', amount: 96.12, category: 'Groceries' },
-            { date: day(11), name: 'Auto loan payment', amount: 285.00, category: 'Loan payment' },
-        ],
-        transactionWindowDays: TXN_WINDOW_DAYS,
-        notes: ['Sample data for this demo installation. Link a real account to replace it.'],
-    };
-}
 /**
  * The demo's household as Finance's own records too, marked as sample, so Accounts, Transactions,
  * Bills, Spending and Goals have the same household to show. The saved snapshot written above stands;
@@ -598,6 +584,20 @@ async function sampleIntoRecords(pool, sub) {
         logger.error({ err }, 'finance demo records failed');
         return null;
     }
+}
+/** Build the person-facing 409 reconnect payload when Plaid rejected an expired or revoked item credential. */
+function syncReconnectResponse(err) {
+    const e = err;
+    const code = String(e?.plaidCode || '');
+    if (!e || (e.reauthenticationRequired !== true && code !== 'ITEM_LOGIN_REQUIRED' && code !== 'INVALID_ACCESS_TOKEN'))
+        return null;
+    const institution = typeof e.institution === 'string' && e.institution.trim() ? e.institution.trim() : null;
+    const who = institution || 'A linked bank';
+    return {
+        error: 'plaid_reconnect_needed',
+        institution,
+        message: `${who} needs you to sign in again through Plaid before balances and activity can refresh. Open Manage bank connections to reconnect it; your earlier saved snapshot was kept unchanged.`,
+    };
 }
 /** The aggregate of no readable connection: nothing invented, the notes say why. */
 function emptyAggregate(windowDays) {
@@ -710,6 +710,8 @@ function createFinanceRoutes(ctx) {
     const surfaceDir = packageDir ? path.join(packageDir, 'tools') : path.resolve(process.cwd(), 'tools');
     const router = (0, express_1.Router)();
     registerFinanceFacts(ctx);
+    if (isPgPool(ctx.pool))
+        void ensureFinanceSchema(ctx.pool).catch((err) => logger.warn({ err }, 'finance mount schema check failed'));
     router.get('/', servePage(surfaceDir, 'finance.html'));
     router.get('/ui', servePage(surfaceDir, 'finance.html'));
     router.get('/app', servePage(surfaceDir, 'finance-app.html'));
@@ -721,7 +723,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const items = (await ctx.pool.query('SELECT item_id, institution, linked_at FROM oshal_finance_items WHERE user_sub = $1', [sub])).rows;
             const row = (await ctx.pool.query('SELECT (aggregate IS NOT NULL) AS has_data, (brief IS NOT NULL) AS has_brief, synced_at, brief_at FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
             res.json({
@@ -769,7 +770,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const item = await (0, finance_plaid_1.exchangePublicToken)(publicToken);
             await storeItem(ctx.pool, sub, item);
             res.json({ ok: true, institution: item.institution });
@@ -796,7 +796,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const institutionId = String(req.body?.institutionId || '').trim() || undefined;
             const item = await (0, finance_plaid_1.createSandboxItem)(institutionId);
             await storeItem(ctx.pool, sub, item);
@@ -819,8 +818,7 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
-            const agg = sampleAggregate();
+            const agg = (0, finance_sample_1.sampleAggregate)(TXN_WINDOW_DAYS);
             await ctx.pool.query(`INSERT INTO oshal_finance_data (user_sub, aggregate, brief, synced_at, brief_at)
            VALUES ($1, $2, NULL, now(), NULL)
          ON CONFLICT (user_sub) DO UPDATE SET aggregate = EXCLUDED.aggregate, brief = NULL, synced_at = now(), brief_at = NULL`, [sub, JSON.stringify(agg)]);
@@ -840,7 +838,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const count = (await ctx.pool.query('SELECT COUNT(*)::int AS n FROM oshal_finance_items WHERE user_sub = $1', [sub])).rows[0]?.n || 0;
             if (!count) {
                 res.status(409).json({ error: 'no_accounts', message: 'Link a bank or brokerage first.' });
@@ -850,6 +847,12 @@ function createFinanceRoutes(ctx) {
             res.json({ ok: true, netWorth: agg.netWorth, accounts: agg.accounts.length, holdings: agg.holdings.length, notes: agg.notes });
         }
         catch (err) {
+            const reconnect = syncReconnectResponse(err);
+            if (reconnect) {
+                logger.warn({ err, institution: reconnect.institution }, 'finance sync requires Plaid reauthentication; saved snapshot kept');
+                res.status(409).json(reconnect);
+                return;
+            }
             logger.error({ err }, 'finance sync failed');
             res.status(502).json({ error: err.message });
         }
@@ -862,7 +865,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const row = (await ctx.pool.query('SELECT aggregate, synced_at FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
             const aggregate = normalizeAggregate(row?.aggregate);
             if (!aggregate) {
@@ -884,8 +886,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            if (String(req.query.cached || '') !== '1')
-                await ensureFinanceSchema(ctx.pool);
             const row = (await ctx.pool.query('SELECT aggregate, brief, brief_at FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
             if (!row || !row.aggregate) {
                 res.status(404).json({ error: 'no_data', message: 'Link accounts and sync first.' });
@@ -912,7 +912,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const row = (await ctx.pool.query('SELECT aggregate FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
             if (!row || !row.aggregate) {
                 res.status(409).json({ error: 'no_data', message: 'Link accounts and sync first.' });
@@ -1076,7 +1075,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const adapter = (0, payments_1.getPaymentAdapter)();
             if (!adapter.configured()) {
                 res.status(503).json({ error: 'payments_not_configured', message: PAYMENTS_UNAVAILABLE });
@@ -1126,7 +1124,6 @@ function createFinanceRoutes(ctx) {
             return;
         }
         try {
-            await ensureFinanceSchema(ctx.pool);
             const rows = (await ctx.pool.query(`SELECT transfer_id, provider, amount_cents, currency, payee, description, status, test_mode, created_at
            FROM oshal_finance_payments WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 50`, [sub])).rows;
             res.json({ payments: rows });

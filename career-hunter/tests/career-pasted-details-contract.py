@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: answer career-resume-reviewer pass cleanly while verifying the writer prompt receives the pasted description.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): two invented people share one corpus job no reader can describe. Preparing it with nothing pasted is refused before any model call; a paste outside 200 to 20,000 characters is refused and keeps nothing; a valid paste is kept in the first person's own folder only (0600, basis person-pasted, never in the corpus or the other person's store), clears that person's "details needed" mark, and is the description in both the scoring and the generation prompt of a stand-in model, with no employer read even though preparation rechecks; a second paste replaces it. The text is never printed. The node wrapper reads the saved copy with the shipped lib/career-job-context.js.
 """Disposable stores, the real prepare_job, job_context, scoring and generation; the model, the PDF writer and every employer
 read are stand-ins that record what they were given."""
@@ -66,6 +67,8 @@ def main():
             return enrich.ScoringAnswer(FIT, 'fixture-model')
 
         def wrote(*args, **kwargs):
+            if kwargs.get('bot') == 'career-resume-reviewer':
+                return json.dumps({'passed': True, 'issues': [], 'revised_resume': None, 'reviewer_notes': 'ok'})
             writing.append(' '.join(str(arg) for arg in args))
             return json.dumps(RESPONSE)
 

@@ -26,6 +26,7 @@
  * 9   | maintainer@emeraldcoastsystemsgroup.com     | Planned control (DS-45): 'Parent summary · Not available yet' after the working items of the phone More sheet and the desktop More ▾ (backlog RP-LM-01), greyed and without a handler.
  * 10  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (412x915): the door's floating '← All apps' pill (body > .visitor-back, bottom-left in the host) covered the bottom bar's Home. The host style lifts it by --oshal-app-bottom-inset, the same lift the orb takes.
  * 11  | maintainer@emeraldcoastsystemsgroup.com     | Activate Parent summary in the phone More sheet and desktop More ▾ linking to /api/education/dashboard?view=guardian (RP-LM-01).
+ * 12  | maintainer@emeraldcoastsystemsgroup.com     | Preserve the cockpit Concierge panel (#chatPanel) and resize handle alongside Little Monsters instead of adding body.zen-mode or hiding .chat-panel; flex .main-content cleanly beside the open Concierge rail.
  * ---------------------------------------------------------------------------
  *
  * @module lm-mascot
@@ -526,22 +527,24 @@ var LM_FRAME = (function () {
       if (!entriesReady) entriesReady = getJson(PROFILE_PATH).then(function (r) { cache.profile = r && r.profile ? r.profile : null; return navEntries(cache.profile); });
       return entriesReady;
     }
-    /** @description Hide parent cockpit headers/footers so Little Monsters owns the full window cleanly. The Jarvis orb stays: it is how a person reaches Jarvis inside this app (hiding it left only the Tutor, which cannot add a class or read the person's schedule). */
+    /** @description Hide parent cockpit navigation bars so Little Monsters owns the canvas while keeping the cockpit Concierge panel (#chatPanel), resize handle, and orb intact. */
     function suppressHostCockpitChrome() {
       if (!embedded) return;
       try {
         var pdoc = w.parent && w.parent.document;
         if (!pdoc || !pdoc.head) return;
         pdoc.title = 'Little Monsters';
-        if (pdoc.body) pdoc.body.classList.add('zen-mode');
+        if (pdoc.body) pdoc.body.classList.remove('zen-mode');
         if (!pdoc.getElementById('lm-immersive-host-style')) {
           var st = pdoc.createElement('style');
           st.id = 'lm-immersive-host-style';
           st.textContent =
-            '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, .chat-panel, .panel-resize-handle, ' +
+            '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, ' +
             '.tool-view-header, .zen-exit-btn, #workspaceNavigation, #workspaceNavigationMore { display: none !important; } ' +
             '.cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; } ' +
-            '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; } ' +
+            '.main-content { flex: 1 1 0% !important; min-width: 0 !important; border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; } ' +
+            '.tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; } ' +
+            '@media (min-width: 641px) { .chat-panel { border-radius: 0 !important; border-top: 0 !important; border-bottom: 0 !important; border-right: 0 !important; box-shadow: none !important; } } ' +
             // The trial door's floating way out (body > .visitor-back, bottom-left) rests above the phone bottom bar, like the orb.
             'body > .visitor-back { bottom: calc(12px + var(--oshal-app-bottom-inset, 0px) + env(safe-area-inset-bottom, 0px)) !important; }';
           pdoc.head.appendChild(st);

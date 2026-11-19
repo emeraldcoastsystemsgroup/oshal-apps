@@ -1,5 +1,7 @@
 # Intelligent Communication (email-summarizer) — OSHAL app package
 
+1.8.2 extends `GET /api/email/message/:id` (`email-message`) with safe HTML **links** (`[{ label, url }]`) and MIME **attachments** (`[{ filename, mimeType, size }]`) extraction via `src-routes/mail-content.ts` across Gmail multipart/HTML and Outlook Graph HTML messages: only `http://`/`https://` URLs are retained (HTML entities decoded, deduplicated, capped at 30 links and bounded URL/label lengths, filtering 1x1 tracking pixels and empty-label noise unless actionable) so `communications-bot` surfaces payment, invoice, and action URLs verbatim without DOM scraping. Guarded by `tests/email-message-links.test.cjs`.
+
 1.8.0 adds deterministic **Mailbox Watches & Security Alerts** (`routes/mail-watches.js` at `/api/email-watches`, migration `005-email-watches.sql`, schedule `mail-watches` every 5 minutes, briefing `mailbox-watches`, and Jarvis tools `email-watches`, `email-watch-check`, `email-watch-save`):
 
 - **Zero-LLM monitoring** — checks connected Gmail (`newer_than:2d -in:chats -in:drafts`) and the person's stored Gmail copy (`oshal_email_messages`) every 5 minutes, deduplicating matched messages in `oshal_email_watch_hits` (`hit_key`) so Jarvis is notified only when a brand-new matching email arrives (`report: []` on quiet ticks).

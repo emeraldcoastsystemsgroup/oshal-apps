@@ -3,6 +3,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "it would leave out my active role 'Co-Founder / Principal ...' which is clearly labeled on my main resume"): the current-role guard on made-up candidates. (1) The engine contract (tests/career-resume-roles-contract.py): the prompt carries the whole profile past every suspected limit and lists the roles to carry, current first, and the real generate_for and prepare_job write that role first when a scripted model leaves it out, as production's did. (2) lib/career-resume-roles.js and the engine's role_plan.py give one answer on the same profiles (parity). (3) A résumé prepared before the check that leaves the current role out is not ready: the application draft names the role, asks for generation and refuses review and sending in words that name it; a résumé that carries it, and a submitted application, are left alone.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve recorded month/year precision in role plans and pure saved-packet date restoration without inventing dates or assigning ambiguous employers one period.
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,13 +34,13 @@ const CARRIED={experience:[{title:CURRENT.title,org:'Harbor Light Systems, LLC',
 test('the engine contract: the prompt lists the roles to carry and every generated résumé carries the current role first',()=>{
  const run=spawnSync(PYTHON,[fileURLToPath(new URL('./career-resume-roles-contract.py',import.meta.url))],{encoding:'utf8',timeout:120000});
  assert.equal(run.status,0,run.stderr+run.stdout);
- assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()),{checks:27,failed:[]});
+ assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()),{checks:34,failed:[]});
 });
 
 test('which roles a résumé must carry: current first, ended within 20 years, most recent first',()=>{
  const plan=roles.plan(PROFILE,NOW);
- assert.deepEqual(plan.map(e=>[e.key,e.current,e.required,e.span]),[['R1',true,true,'2024 to Present'],['R2',true,true,'2023 to Present'],
-  ['R7',true,true,'2019 to Present'],['R3',false,true,'2022 to 2023'],['R4',false,true,'2018 to 2021'],['R5',false,true,'2015 to 2018'],['R6',false,false,'1998 to 2003']]);
+ assert.deepEqual(plan.map(e=>[e.key,e.current,e.required,e.span]),[['R1',true,true,'Feb 2024 to Present'],['R2',true,true,'Jun 2023 to Present'],
+  ['R7',true,true,'2019 to Present'],['R3',false,true,'Jan 2022 to Dec 2023'],['R4',false,true,'2018 to 2021'],['R5',false,true,'Jan 2015 to Feb 2018'],['R6',false,false,'1998 to 2003']]);
  assert.deepEqual(roles.missing(LEFT_OUT,plan).map(e=>e.key),['R1','R2','R7','R3'],'one entry at an employer carries every ended role there');
  assert.deepEqual(roles.missing(CARRIED,plan),[],'case, punctuation and company suffixes aside, the employer carries the role');
  const older={experience:[{title:'Advisor',org:'Harbor Light Systems',span:'2020 to 2021'}]};
@@ -59,6 +60,53 @@ test('lib/career-resume-roles.js and the engine\'s role_plan.py give one answer'
  assert.equal(run.status,0,run.stderr);
  const js=cases.map(([prof,resume])=>{const plan=roles.plan(prof,NOW);return {plan:plan.map(e=>[e.key,e.title,e.org,e.span,e.current,e.required]),missing:roles.missing(resume,plan).map(e=>e.key)};});
  assert.deepEqual(js,JSON.parse(run.stdout));
+});
+
+test('recorded month precision survives numeric and named dates without assigning a month to a bare year',()=>{
+ const records=[['2024-02',null,'Feb 2024 to Present'],['02/2024','2024-11','Feb 2024 to Nov 2024'],
+  ['February 2024','Nov. 2025','Feb 2024 to Nov 2025'],['2024','2025','2024 to 2025'],['2024','2024','2024']];
+ for(const[start,end,expected]of records){const entry=roles.plan({roles:[{title:'Engineer',org:'Example',start,end}]},NOW)[0];assert.equal(entry.span,expected);}
+});
+
+test('saved packet date restoration clones only uniquely anchored dates and keeps hierarchy and year-only precision',()=>{
+ const profile={roles:[{id:'parent',title:'Principal',org:'Example',start:'2020-03',end:null},
+  {id:'child',title:'Architect',org:'Client',start:'2024-02',end:'2024-11',parent_role_id:'parent'},
+  {title:'Analyst',org:'Earlier',start:'2017',end:'2019'}]};
+ const resume={summary:'Keep this prose',experience:[{id:'parent',title:'Principal',org:'Example',span:'2020 to Present',bullets:['Employer evidence']},
+  {id:'child',title:'Architect',org:'Client',span:'2024',parent_role_id:'parent',bullets:['Client evidence']},
+  {title:'Analyst',org:'Earlier',span:'2017 to 2019',bullets:[]}]},before=structuredClone(resume);
+ const result=roles.preserveDates(resume,profile);
+ assert.deepEqual(result.resume.experience.map(role=>role.span),['Mar 2020 to Present','Feb 2024 to Nov 2024','2017 to 2019']);
+ assert.deepEqual(result.dates,{known:[0,1,2],updated:[0,1],ambiguous:[],unavailable:[]});assert.deepEqual(resume,before);
+ const expected=structuredClone(before);expected.experience[0].span='Mar 2020 to Present';expected.experience[1].span='Feb 2024 to Nov 2024';assert.deepEqual(result.resume,expected);
+});
+
+test('saved packet date restoration refuses ambiguous merged roles, foreign IDs and absent snapshot dates',()=>{
+ const profile={roles:[{id:'first',title:'Engineer',org:'Example',start:'2019-02',end:'2020-03'},
+  {id:'second',title:'Engineer',org:'Example',start:'2021-04',end:'2022-05'},
+  {id:'none',title:'Undated',org:'Other',start:'not recorded',end:'unknown'}]};
+ const merged={experience:[{title:'Engineer',org:'Example',span:'2019 to 2022'}]};
+ const ambiguous=roles.preserveDates(merged,profile);assert.deepEqual(ambiguous.resume,merged);assert.deepEqual(ambiguous.dates.ambiguous,[0]);
+ const pinned=roles.preserveDates({experience:[{id:'second',title:'Engineer',org:'Example',span:'2021 to 2022'}]},profile);
+ assert.equal(pinned.resume.experience[0].span,'Apr 2021 to May 2022');
+ for(const row of[{id:'foreign',title:'Engineer',org:'Example',span:'2019 to 2022'},
+  {id:'first',title:'Different title',org:'Example',span:'2019 to 2022'},
+  {id:'none',title:'Undated',org:'Other',span:'Unknown dates'}]){
+  const original={experience:[row]},result=roles.preserveDates(original,profile);assert.deepEqual(result.resume,original);assert.deepEqual(result.dates.unavailable,[0]);
+ }
+ const absent=roles.preserveDates(merged,null);assert.deepEqual(absent.resume,merged);assert.deepEqual(absent.dates.unavailable,[0]);
+});
+
+
+test('saved packet date restoration preserves both endpoints when snapshot dates are incomplete',()=>{
+ const values=[{start:null,end:'2016-07'},{start:'2010-02',end:'unreadable'},
+  {start:'not recorded',end:null},{start:'2010-02',end:null}];
+ for(const [index,dates]of values.entries()){
+  const packet={experience:[{title:'Engineer',org:'Example',span:'2010 to 2016'}]};
+  const result=roles.preserveDates(packet,{roles:[{title:'Engineer',org:'Example',...dates}]});
+  if(index===3){assert.equal(result.resume.experience[0].span,'Feb 2010 to Present');assert.deepEqual(result.dates.known,[0]);}
+  else{assert.deepEqual(result.resume,packet);assert.deepEqual(result.dates.unavailable,[0]);assert.deepEqual(result.dates.known,[]);}
+ }
 });
 
 function store(t,resume,{status='generated',foreignPath=false}={}){

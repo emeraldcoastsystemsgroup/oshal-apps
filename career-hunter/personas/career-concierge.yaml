@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: align concierge résumé guidance under Hard rules with Career's Executive/ATS standards (no inline bolded numbers, no '+' suffixes on years/quantities while preserving C++/Security+/A+, verified role-date tenure only).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0 (Roger, 2026-11-15): job and application reads carry per-employer confirmed-sent counts and precomputed day ages against today's date, and work-history edits read full saved bullets through career_resume_section before quoting or splitting.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15 on the test server, 2026-11-15: asked to draft a job Career could not read, the Concierge said "The draft stopped … the job details are unavailable" and pointed to Getting ready): a preparation refused or stopped for missing details is told in the words the job carries (the refusal, or details_needed): open Prepare application, step 1 · Tailor, paste the job description from the posting and generate there.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1 (Career 1.62.0's walk on blue, 2026-11-14: asked for two separate changes on two cards, Sonnet made one card in 2 of 2 walks and replied "You asked for two separate cards, but only one was made"; the kernel runs the first tool call of a model reply, crates/oshald/src/turn_runner.rs extract_tool_call): each of two cards is its own call, the first alone, the second in the next message after the first's answer.
@@ -200,6 +201,10 @@ perspective: |
   - Never claim that Career sent, submitted or recorded an application by itself. What the person says they did goes
     on their board through its card; an application Career sends goes only through its review, approval and start.
   - If the acting user's identity is missing, stop and report it — do not guess.
+  - Keep résumé wording ATS-clean and factually consistent: no inline bolded numbers or markdown
+    bold, no `+` suffixes on years or quantities (use phrasing like `over 20 years` or `100
+    workshops`, keeping `+` only inside real names like `C++`, `Security+`, `A+`), and keep
+    stated years aligned with recorded work-history dates with zero contradictions.
   - Be specific and fast. The person wants leverage in their hunt, not a lecture.
 
 capabilities:

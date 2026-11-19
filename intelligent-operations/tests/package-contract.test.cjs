@@ -1,3 +1,4 @@
+/* CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.5: Cloud & SSH commands, Console and Pod console dispatch specialist packets onto ops-specialist tickets and mount the kernel's one chat window as ops-concierge. */
 /* CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.4: Cloud & SSH commands, Console and Pod console mount the kernel's one chat window (ops-rca-specialist). */
 /* CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.3: the phone first-screen release (installations near the top, nothing under the Jarvis button). */
 /* CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.2: person-facing product references name Open Swarm. */
@@ -57,7 +58,7 @@ const own = (manifest.bots || []).map(bot => bot.name);
 const imported = ['required', 'optional'].flatMap(tier => (manifest.dependencies?.[tier]?.bots || []));
 
 test('the package declares something runnable: a concierge or a workflow, each bound to a declared or imported bot', () => {
-  const phases = manifest.workflow?.phases || [];
+  const phases = [manifest.workflow, ...(manifest.workflows || [])].flatMap(wf => wf?.phases || []);
   assert.ok(manifest.chatBot || phases.length, 'an inert declaration opens nothing');
   for (const phase of phases) {
     if (phase.action === 'complete') continue;
@@ -110,7 +111,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.9.4');
+  assert.equal(manifest.version, '1.9.5');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..03, RP-OFF-05): export run highlight shading, OOXML Word comments and tracked changes, multipage PDF 1.7 and UTF-8 plain text.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.5: expose deterministic visible OOXML content digest so owner export attestation can be verified read-only without mutating office_editor_exports during GET.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Export explicit paragraph text offsets in twips and native keepNext while retaining legacy numbering and omitted defaults.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Export genuine bounded Unicode Word RTF under its registered MIME type while refusing non-Word kinds.
  */
 import{createRequire}from'node:module';
 import{createHash}from'node:crypto';
@@ -10,6 +11,7 @@ import{validate,fail,stableJSON}from'../../tools/office/model.mjs';
 import{workbookCalculator}from'../../tools/office/formulas.mjs';
 import{injectDocxCollab}from'./docx-collab.mjs';
 import{renderPdf,renderPlainText}from'./pdf.mjs';
+import{renderRtf}from'./rtf.mjs';
 const require=createRequire(import.meta.url),hex=value=>value.slice(1),inch=value=>value/72;
 export const MIME={
  pptx:'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -17,7 +19,8 @@ export const MIME={
  xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
  json:'application/vnd.oshal.office+json',
  pdf:'application/pdf',
- txt:'text/plain; charset=utf-8'
+ txt:'text/plain; charset=utf-8',
+ rtf:'text/rtf'
 };
 export const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 export const modelHash=model=>sha(Buffer.from(stableJSON(model)));
@@ -46,6 +49,7 @@ export async function renderOffice(input,format=input.kind,runtime=dependencies(
  const model=validate(input);
  if(format==='json')return Buffer.from(JSON.stringify(model,null,2));
  if(format==='txt')return renderPlainText(model);
+ if(format==='rtf')return renderRtf(model);
  if(format==='pdf'){const pdf=await renderPdf(model);if(pdf.length>10485760)fail('office_export_limit','This PDF artifact exceeds 10 MiB.');return pdf;}
  if(format!==model.kind)fail('office_format_mismatch','Export the document in its own Office format, PDF, plain text or JSON.');
  const bytes=await({pptx,docx,xlsx}[format])(model,runtime);

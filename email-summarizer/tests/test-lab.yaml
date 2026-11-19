@@ -25,6 +25,7 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Go Live planned stream editing: social-store, social-rules and social-desk-browser verify PUT /api/email-social/events/:id, prefilled Edit in Go Live, preserved sent announcements, shifted unsent announcements and the started-stream time refusal.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register mail-watches: deterministic Gmail mailbox watches (including the TotalConnect security monitor preset), category classification, forced-RLS cross-user isolation on disposable PostgreSQL, hit_key deduplication (quiet second check emits empty report), live Gmail warming + offline fallback, and Home summary active-watch tiles.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Quote colon-containing mail-store expectations and use lowercase fixture:postgres-35689 prerequisite IDs on social-store and mail-watches.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.8.2: register email-message-links verifying safe http(s) HTML link and MIME attachment metadata extraction on Gmail and Outlook GET /api/email/message/:id.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -387,4 +388,25 @@ cases:
       mode: disposable
       cleanup: Drop only the suite's uniquely named database and role; preserve the shared PostgreSQL server.
     limits: { timeoutMs: 60000, maxMemoryMb: 256 }
+    installation: never
+  - id: email-message-links
+    name: Safe HTML link and attachment metadata extraction
+    purpose: Verify GET /api/email/message/:id extracts safe http(s) HTML links and MIME attachment metadata for Gmail multipart, HTML-only, and Outlook Graph HTML messages while rejecting unsafe schemes, deduplicating, bounding counts/lengths, and skipping tracking pixels.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/email-message-links.test.cjs
+    expected:
+      - Multipart Gmail messages return the text/plain body together with safe http(s) links extracted from text/html parts.
+      - HTML-only Gmail and Outlook Graph HTML messages return readable plain text together with extracted links.
+      - Non-http(s) schemes, relative links, comments, 1x1 tracking pixels, non-actionable empty labels, and overlong URLs are rejected; links are deduplicated and capped at 30.
+      - Named Gmail MIME attachments are returned as filename, mimeType, and size without hijacking the primary body.
+      - Manifest and communications-bot persona document links and attachments on email-message.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits: { timeoutMs: 15000, maxMemoryMb: 256 }
     installation: never

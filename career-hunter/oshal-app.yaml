@@ -2,6 +2,8 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 184 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding and numeric '+' suffixes (preserving C++, Security+, A+, etc.), add deterministic non-overlapping per-skill tenure calculator (skill_tenure.py), declare dynamically-loaded inline Swarm bot career-resume-reviewer (cb000000-0000-0000-0000-000000000006, personas/career-resume-reviewer.yaml) routed over career-worker-rail for mandatory pre-return resume audit/repair, fix parenthetical year attribution in claims_check, and surface resume_review metadata in Prepare application.
+# 183 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: preserve recorded month/year precision across generation and cloned packet snapshots without inventing months, add Professional Word/PDF export inside My résumé's More menu, and offer Word/PDF/RTF format downloads beside generated packet/cover views while keeping submitted PDFs exact.
 # 182 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: Work history places direct Tab in, Tab out and Add sub-engagement controls beside existing actions, preserving explicit one-level links, independent entries, drafts and revision-checked Save/Undo.
 # 181 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: explicitly group client engagements under one employer with revision-checked links, preserved independent records and consistent document indentation.
 # 180 | maintainer@emeraldcoastsystemsgroup.com | 1.68.11: declare `approvals:` (`/api/career-hunter/applications`, `/approvals`, with pinned `/approve` and `/deny` action templates) so applications in `approval_required` state appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`).
@@ -83,7 +85,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.68.13
+version: 1.68.15
 
 localEditing:
   itemId: master
@@ -333,6 +335,15 @@ bots:
     role: "browser worker: sends one approved application form; not for conversation"
     conversation: false
     capabilities: [application-submission]
+  - agentId: cb000000-0000-0000-0000-000000000006
+    name: career-resume-reviewer
+    persona: personas/career-resume-reviewer.yaml
+    posture: inline
+    role: "resume reviewer: audits every generated resume against Executive/ATS best practices and verified role-date tenure before it returns to the user; not for conversation"
+    conversation: false
+    capabilities:
+      - resume-review
+      - resume-quality-audit
 
 # Bot tools auto-discovered at load (wrap the CLI verbs + the surface HTML).
 
@@ -1905,6 +1916,8 @@ staticFiles:
       - career-mark.svg
       - career-navigation.js
       - career-resume-office.js
+      - career-export-model.js
+      - career-resume-downloads.js
       - career-role-hierarchy.js
       - career-search-map.js
       - career-search-memory.js

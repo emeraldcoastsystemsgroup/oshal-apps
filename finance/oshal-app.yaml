@@ -26,6 +26,7 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the description says what this application answers and what it does not: balances, net worth and spending, with brokerage holdings as of the last sync, and no investment performance over time (its tools read the last sync's aggregate only). Jarvis names an application from its description (kernel ADR-212), and "How did my stocks do last week?" came here in kernel scoreboard round 3 (adr212-40c4ddd8) and on production, where only a Plaid sandbox link answered. Description and version only.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: Finance opens as its own application (Roger, 2026-11-11: "take the finance experience handled like the jobs and education experience"). A new first screen, finance-app (/api/finance/app), is the application: its own top bar and phone bar, the family's screens shown inside it, and a Home built from the jobs that run for the person and each finance application's saved summary. It is the default screen. The overview keeps its name finance-home and is labelled Money; Daily recap joins the menu (finance-recap). Nothing is traded, moved or switched on from the new screen, and no route but the page itself is added.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.3: Home and Accounts distinguish statement/manual records from linked-bank snapshots; Transactions shows the dated saved bank activity read-only, with provider-window coverage, latest 25 display bound, explicit row currency and bounded failed-read recovery. No bank data is posted to the ledger; no provider, route or authority change.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | Release 1.8.4: remove per-request ensureFinanceSchema DDL calls from all HTTP route handlers (BACKLOG Entry A), verify PostgreSQL catalog columns and forced RLS before running DDL under a 2s lock_timeout, propagate Plaid reauthentication errors (ITEM_LOGIN_REQUIRED, INVALID_ACCESS_TOKEN) as 409 plaid_reconnect_needed without overwriting saved snapshots, and add a direct Reconnect in Bank connections link plus Last synced freshness on ?view=banks.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -92,7 +93,7 @@ description: >-
   your own plan, and what you are saving for, with a plain-English brief; brokerage holdings
   count toward net worth as they stood at the last sync, and how investments performed over
   time is not tracked here. Finance pays no bill; nothing is traded or moved. No crypto.
-version: 1.8.3
+version: 1.8.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml

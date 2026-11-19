@@ -9,6 +9,7 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com    | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
  * 5   | maintainer@emeraldcoastsystemsgroup.com    | The demo mailbox answers when My Day names Google, and it has a day of sample events: "Summary unavailable" and an empty calendar were the first thing a demo visitor saw.
  * 6   | maintainer@emeraldcoastsystemsgroup.com    | Catching up on new mail resumes too (Roger's copy, 2026-11-03: after four days with the job stopped each pass started again at today's mail, re-checked every message the earlier passes had stored and gained 85, 65, then 13 messages, never closing the gap). A pass that runs out of time keeps the stored stretch above the gap (gap_top_at down to gap_low_at, migration 004); the next pass reads only mail newer than that stretch and the part of the gap below it, and when the gap is read the copy joins up to the stretch's top.
+ * 7   | maintainer@emeraldcoastsystemsgroup.com    | Include empty links and attachments arrays on storedMessage so demo mailbox detail responses match MailDetail.
  */
 /**
  * @module mail-store
@@ -519,9 +520,11 @@ export function demoEventsToday(now: Date = new Date()): Array<{ summary: string
  * @param id - The message id.
  * @returns The message, or null when the caller has no such message.
  */
-export async function storedMessage(db: MailStoreDb, sub: string, id: string): Promise<(StoredMessage & { to: string; body: string }) | null> {
+export async function storedMessage(
+  db: MailStoreDb, sub: string, id: string,
+): Promise<(StoredMessage & { to: string; body: string; links: []; attachments: [] }) | null> {
   const r = (await db.query('SELECT message_id, sender, subject, snippet, labels, received_at FROM oshal_email_messages WHERE msg_key = $1', [messageKey(sub, 'google', id)])).rows[0];
   if (!r) return null;
   const message = toMessage(r);
-  return { ...message, to: '', body: message.snippet };
+  return { ...message, to: '', body: message.snippet, links: [], attachments: [] };
 }
