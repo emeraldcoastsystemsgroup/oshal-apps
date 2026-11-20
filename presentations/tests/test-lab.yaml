@@ -25,6 +25,7 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8: office-design-standard-browser also proves AI Office's layout around the one chat window: Generate a draft above the window and writing its starter into the window's message box, the phone's Concierge sheet giving the window all its room, and the window's own Close closing that sheet.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: existing model and format cases prove bounded paragraph indentation and heading continuity in actual editor, DOCX, PDF and text output.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register supplied Word export lifecycle tests and saved-revision RTF format, authority and phone/desktop download coverage.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: extend transient-export.test.mjs to verify optional paragraph borderBottom, tabRight and native OOXML tab runs across DOCX, PDF and RTF exports.
 # -----------------------------------------------------------------------------
 version: 1
 cases:

@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: sat-operator declares routing words (satellite, orbit, TLE, ground station, pass windows, conjunction, ADCS). It declared none, so Jarvis could never hand it a satellite request ("When is the next ISS pass?" went to an unrelated app on a 2-point match).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5 (UX audit 2026-11-06): the Prepare a diagnostic brief panel moved into the right pane in theme colours (it floated over the map with a fixed dark fill); the globe and catalog controls and Remove are 44px on touch and phone widths; the page title no longer repeats the app bar (the SIM FLEET badge stays). Guard: tests/ux-layout.test.cjs.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6 (Roger, 2026-11-16: every chat surface is the core Jarvis chat window, with its model menu): the Sat operator section of /api/sat/app no longer draws a chat of its own over POST /api/sat/chat; it is the kernel's one chat window as Sat Ops' concierge (sat-operator), in the same place, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying. Each turn carries the screen (the fleet, catalog, selected sat, ground station and Pass windows table) on context.screen_state. A command the bot suggests is the window's approval card for sat-point-command or sat-mode-command (declared below, unchanged), which replaces Load draft: nothing is sent until the person presses Approve. Routes, tools and the persona are unchanged. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later). Guard: tests/sat-ops-one-chat-window.test.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.7: declare explicit posture: inline + chatBot: sat-operator and add object inputSchema to sat-fleet-status and sat-orbit-catalog.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — sat-ops ("Sat Ops")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -61,7 +62,7 @@ description: >-
   from SGP4, pairwise conjunction screening, and an approval-gated command
   console (point / detumble / desat / safe). Sim engines only: the in-process
   RK4 gyrostat or the NASA 42 referee. Commands cannot leave simulation.
-version: 1.2.6
+version: 1.2.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -115,6 +116,7 @@ uses:
 bots:
   - agentId: b0102000-0000-0000-0000-000000000001
     name: sat-operator
+    posture: inline
     persona: personas/sat-operator.yaml
     role: space/satellite-operations-planning
     capabilities:
@@ -145,6 +147,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/sat/fleet" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. The fleet listing is the only source of which sats exist, which are reachable,
       and what their ADCS/estimator state is.
@@ -159,6 +162,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/sat/catalog" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. Orbit identity is decoupled from attitude nodes; join by satId.
     routingTags: [satellite, orbit, tle, catalog]
@@ -330,6 +334,8 @@ routes:
 
 # No migrations: the fleet plane and TLE catalog are in-memory (heartbeat-fed);
 # this surface owns no tables.
+
+chatBot: sat-operator
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=sat-ops
 ribbon:

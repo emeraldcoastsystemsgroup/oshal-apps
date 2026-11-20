@@ -13,9 +13,12 @@
  *                     |                             | is the printed one (a fixed jaw and a jaw swinging on the grip
  *                     |                             | servo, its squeeze limited), on a bench with a block to pick.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | B22: the arm's body chain, self-collision exclusions, actuators and the radian preamble are exported helpers (`armChainLines`, `armExcludes`, `armActuatorLines`, `ARM_PREAMBLE`) so the bench model and the room model are the SAME arm — a second hand-written chain is how the check and the world drift into two different arms. The base cylinder's radius and half-height are named (`ARM_BASE_RADIUS_M`, `ARM_BASE_HALF_M`): the room model has to know the footprint the arm stands on.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: generate the arm MJCF `<option>` gravity from a caller-supplied Medium (`armPreamble(medium)`, defaulting to vacuum) checked against `RIGID_BODY_PLANT` rather than a file-local gravity literal.
  */
 
 import { buildArm, worstLoads, type ArmFit } from '../design/arm-design';
+import { mediumById, requireModelValidIn, type Medium } from '../medium/medium';
+import { mjcfVec3, RIGID_BODY_PLANT } from './mjcf';
 
 /** Physics step (s). */
 export const ARM_TIMESTEP_S = 0.002;
@@ -123,17 +126,18 @@ function gripper(p: ArmPlantSpec, toolM: number): string[] {
   ];
 }
 
-/**
- * @description The MJCF for the arm on its bench with a block: what the engine container loads for the arm check.
- * @param fit - The arm fit.
- * @returns MJCF XML.
- */
-/** @description The compiler/option/default header every arm model shares. RADIANS are declared explicitly: MuJoCo reads
- * angles as DEGREES unless a model says otherwise, and an arm whose limits are read as degrees has no reachable workspace. */
-export const ARM_PREAMBLE: readonly string[] = [
-  '  <compiler angle="radian" autolimits="true"/>',
-  `  <option timestep="${ARM_TIMESTEP_S}" integrator="implicitfast" gravity="0 0 -9.81"/>`,
-];
+/** @description Build the compiler/option header every arm model shares from the chosen medium. RADIANS are declared
+ * explicitly: MuJoCo reads angles as DEGREES unless a model says otherwise. */
+export function armPreamble(medium: Medium = mediumById('vacuum') as Medium): readonly string[] {
+  requireModelValidIn(RIGID_BODY_PLANT, medium);
+  return [
+    '  <compiler angle="radian" autolimits="true"/>',
+    `  <option timestep="${ARM_TIMESTEP_S}" integrator="implicitfast" gravity="${mjcfVec3(medium.gravityMps2)}"/>`,
+  ];
+}
+
+/** @description Default arm preamble (vacuum medium, Earth-surface gravity). */
+export const ARM_PREAMBLE: readonly string[] = armPreamble();
 
 /** @description The arm's own geom defaults. MJCF allows exactly ONE top-level `<default>`, so a model that adds a class nests it here. */
 export const ARM_GEOM_DEFAULT = '<geom contype="1" conaffinity="1" friction="0.8 0.01 0.001"/>';
@@ -193,13 +197,14 @@ export function armActuatorLines(p: ArmPlantSpec): string[] {
 /**
  * @description The MJCF for the arm on its bench with a block: what the engine container loads for the arm check.
  * @param fit - The arm fit.
+ * @param medium - The medium the scene runs in; `vacuum` by default.
  * @returns MJCF XML.
  */
-export function armMjcf(fit: ArmFit): string {
+export function armMjcf(fit: ArmFit, medium?: Medium): string {
   const p = armPlant(fit);
   const lines: string[] = [
     `<mujoco model="embodied-arm-${fit}">`,
-    ...ARM_PREAMBLE,
+    ...armPreamble(medium),
     `  <default>${ARM_GEOM_DEFAULT}</default>`,
     '  <worldbody>',
     '    <geom name="bench" type="plane" size="1 1 0.1" rgba="0.6 0.6 0.55 1"/>',

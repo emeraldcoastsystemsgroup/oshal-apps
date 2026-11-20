@@ -66,6 +66,9 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind new jobs and source mutations to original-person calibration authority and expose closed durable calibration routes.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Pass scan.source.change to withCurrentJob on calibration, job patch/delete and photo upload/assign/delete routes so narrow source-editor roles match authorization.yaml.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Synthesize binary glTF 2.0 (.glb) and Apple USDZ (.usdz) downloads on demand from the job's current STL (RP-SCN-04) without inflating reconstruction commit size.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: expose opt-in `symmetry` (B11) and bounded `nozzleMm`/`layerHeightMm`/`perimeters` print-check parameters (B13) on job creation, patch, reconstruct, depth, and point-cloud settings.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: share deterministic square-on video frame suggestions (BACKLOG B12) across POST /jobs/:jobId/video and GET /jobs/:jobId/frame-suggestions without auto-assigning views.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: detect deterministic square fiducials on photo ingest (BACKLOG B3), exclude fiducials from object silhouettes if needed, accept optional `fiducialMm` setting, and anchor view registration scale without requiring manual ruler entry.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
@@ -78,12 +81,15 @@ import { createChildLogger } from '@/shared/logger';
 import { type JobRow, type ImageRow, type QueryablePool, assignView, createJob, deleteImage, deleteJob, getJob, listImages, listJobs, updateJob } from './job-store';
 import { type ArtifactKey, ARTIFACT_FILES, artifactPath, ensureDir, imagePath, jobDir, requireUuid } from './data-dir';
 import { type ExecFileLike, decodePng16, decodeToRaster, extractFrames, maskToPng, pngToMask, resolveFfmpeg } from './image-ingest';
+import type { PixelBox } from './engine/raster/raster-types';
 import { extractSilhouette } from './engine/raster/silhouette';
 import { type FaceMarkerScan, detectFaceMarkers } from './engine/raster/face-marker';
+import { FIDUCIAL_LIMITS, detectFiducialSquare, fiducialScaleMmPerPx } from './engine/raster/fiducial';
 import { type ViewName, VIEW_NAMES, isViewName } from './engine/grid/views';
 import { type KnownDimension, type ViewSilhouette } from './engine/grid/silhouette-carver';
 import { fillSolidFromSurface, parsePly, voxelizePointCloud } from './engine/grid/point-cloud';
-import { RECONSTRUCTION_LIMITS, type ReconstructionResult, exportArtifacts, finishFromGrid, reconstructFromSilhouettes, reconstructHullWithDepth } from './engine/pipeline';
+import { RECONSTRUCTION_LIMITS, type ReconstructionResult, type SymmetryAxis, exportArtifacts, finishFromGrid, reconstructFromSilhouettes, reconstructHullWithDepth } from './engine/pipeline';
+import { PRINT_CHECK_LIMITS, type PrintCheckOptions } from './engine/grid/print-checks';
 import { type DepthMap } from './engine/grid/depth-carver';
 import { DEPTH_UPLOAD_LIMITS, depthMapFromFloat32, depthMapFromUint16, parseDepthHeader } from './engine/grid/depth-decode';
 import { type FrameSample, suggestSquareOnFrames } from './engine/grid/frame-suggest';
@@ -139,35 +145,118 @@ function parseKnownDimensions(raw: unknown): KnownDimension[] {
   });
 }
 
-/** @description Settings body validation against the engine's published bounds. */
-function parseSettings(raw: unknown): { resolution?: number; smoothIterations?: number } {
-  const out: { resolution?: number; smoothIterations?: number } = {};
+/** @description Validated job settings persisted and forwarded to the deterministic pipeline. */
+export interface JobSettings {
+  resolution?: number;
+  smoothIterations?: number;
+  symmetry?: SymmetryAxis;
+  fiducialMm?: number;
+  nozzleMm?: number;
+  layerHeightMm?: number;
+  perimeters?: number;
+}
+
+/** @description Parse bounded print-check machine fields from top-level or nested `printCheck`. */
+function parsePrintCheckFields(body: Record<string, unknown>, out: JobSettings): void {
+  const nested = body.printCheck && typeof body.printCheck === 'object' && !Array.isArray(body.printCheck)
+    ? body.printCheck as Record<string, unknown> : {};
+  const read = (key: 'nozzleMm' | 'layerHeightMm' | 'perimeters') => (body[key] !== undefined ? body[key] : nested[key]);
+  for (const key of ['nozzleMm', 'layerHeightMm'] as const) {
+    const raw = read(key);
+    if (raw === undefined || raw === null || raw === '') continue;
+    const bound = PRINT_CHECK_LIMITS[key];
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < bound.min || value > bound.max) {
+      throw new RangeError(`${key} must be a number between ${bound.min} and ${bound.max} mm`);
+    }
+    out[key] = value;
+  }
+  const rawPerim = read('perimeters');
+  if (rawPerim !== undefined && rawPerim !== null && rawPerim !== '') {
+    const bound = PRINT_CHECK_LIMITS.perimeters;
+    const value = Number(rawPerim);
+    if (!Number.isInteger(value) || value < bound.min || value > bound.max) {
+      throw new RangeError(`perimeters must be an integer between ${bound.min} and ${bound.max}`);
+    }
+    out.perimeters = value;
+  }
+  const effNozzle = out.nozzleMm ?? PRINT_CHECK_LIMITS.nozzleMm.default;
+  const effLayer = out.layerHeightMm ?? PRINT_CHECK_LIMITS.layerHeightMm.default;
+  if (effLayer > effNozzle) throw new RangeError('layerHeightMm must not exceed nozzleMm');
+}
+
+/** @description Settings body validation against the engine's published bounds (B11, B13). */
+export function parseSettings(raw: unknown): JobSettings {
+  const out: JobSettings = {};
   const body = (raw ?? {}) as Record<string, unknown>;
   for (const key of ['resolution', 'smoothIterations'] as const) {
-    if (body[key] === undefined || body[key] === null) continue;
+    if (body[key] === undefined || body[key] === null || body[key] === '') continue;
     const bound = RECONSTRUCTION_LIMITS[key];
     const value = Number(body[key]);
     if (!Number.isInteger(value) || value < bound.min || value > bound.max) throw new RangeError(`${key} must be an integer between ${bound.min} and ${bound.max}`);
     out[key] = value;
   }
+  if (body.symmetry !== undefined && body.symmetry !== null && body.symmetry !== '' && body.symmetry !== 'none') {
+    if (body.symmetry !== 'x' && body.symmetry !== 'y') throw new RangeError('symmetry must be "x", "y", or "none"');
+    out.symmetry = body.symmetry;
+  }
+  if (body.fiducialMm !== undefined && body.fiducialMm !== null && body.fiducialMm !== '') {
+    const value = Number(body.fiducialMm);
+    if (!Number.isFinite(value) || value < FIDUCIAL_LIMITS.fiducialMmMin || value > FIDUCIAL_LIMITS.fiducialMmMax) {
+      throw new RangeError(`fiducialMm must be a number between ${FIDUCIAL_LIMITS.fiducialMmMin} and ${FIDUCIAL_LIMITS.fiducialMmMax} mm`);
+    }
+    out.fiducialMm = value;
+  }
+  parsePrintCheckFields(body, out);
   return out;
+}
+
+/** @description Build pipeline options (including printCheck) from validated JobSettings. */
+function pipelineOptions(settings: JobSettings, partName: string): { resolution?: number; smoothIterations?: number; symmetry?: SymmetryAxis; printCheck?: PrintCheckOptions; partName: string } {
+  const printCheck: PrintCheckOptions = {};
+  if (settings.nozzleMm !== undefined) printCheck.nozzleMm = settings.nozzleMm;
+  if (settings.layerHeightMm !== undefined) printCheck.layerHeightMm = settings.layerHeightMm;
+  if (settings.perimeters !== undefined) printCheck.perimeters = settings.perimeters;
+  return {
+    ...(settings.resolution !== undefined ? { resolution: settings.resolution } : {}),
+    ...(settings.smoothIterations !== undefined ? { smoothIterations: settings.smoothIterations } : {}),
+    ...(settings.symmetry !== undefined ? { symmetry: settings.symmetry } : {}),
+    ...(Object.keys(printCheck).length ? { printCheck } : {}),
+    partName,
+  };
 }
 
 /** @description Compare canonical geometry settings; labels also appear in the drawing and report. */
 function changesOutput(job: JobRow, patch: Parameters<typeof updateJob>[3]): boolean {
   const dimensions = (value: KnownDimension[]) => JSON.stringify([...value].sort((a, b) => a.axis.localeCompare(b.axis)));
-  const settings = (value: unknown) => JSON.stringify({ resolution: RECONSTRUCTION_LIMITS.resolution.default,
-    smoothIterations: RECONSTRUCTION_LIMITS.smoothIterations.default, ...parseSettings(value) });
+  const settings = (value: unknown) => JSON.stringify({
+    resolution: RECONSTRUCTION_LIMITS.resolution.default,
+    smoothIterations: RECONSTRUCTION_LIMITS.smoothIterations.default,
+    symmetry: null,
+    fiducialMm: null,
+    nozzleMm: PRINT_CHECK_LIMITS.nozzleMm.default,
+    layerHeightMm: PRINT_CHECK_LIMITS.layerHeightMm.default,
+    perimeters: PRINT_CHECK_LIMITS.perimeters.default,
+    ...parseSettings(value),
+  });
   return patch.title !== undefined && patch.title !== job.title
     || patch.known_dimensions !== undefined && dimensions(patch.known_dimensions) !== dimensions(job.known_dimensions)
     || patch.settings !== undefined && settings(patch.settings) !== settings(job.settings);
 }
 
 /** @description Persist the exact validated settings used by this guarded build, including request overrides. */
-async function persistBuildSettings(deps: JobRouteDeps, sub: string, job: JobRow, raw: unknown): Promise<{ resolution?: number; smoothIterations?: number }> {
-  const settings = { ...parseSettings(job.settings), ...parseSettings(raw) };
-  if (!await updateJob(deps.pool, sub, job.job_id, { settings })) throw new Error('Job disappeared before build settings were saved');
-  return settings;
+async function persistBuildSettings(deps: JobRouteDeps, sub: string, job: JobRow, raw: unknown): Promise<JobSettings> {
+  const body = (raw ?? {}) as Record<string, unknown>;
+  const base = parseSettings(job.settings);
+  const override = parseSettings(raw);
+  const merged: JobSettings = { ...base, ...override };
+  if (body.symmetry === '' || body.symmetry === null || body.symmetry === 'none') delete merged.symmetry;
+  if (body.fiducialMm === '' || body.fiducialMm === null) delete merged.fiducialMm;
+  const effNozzle = merged.nozzleMm ?? PRINT_CHECK_LIMITS.nozzleMm.default;
+  const effLayer = merged.layerHeightMm ?? PRINT_CHECK_LIMITS.layerHeightMm.default;
+  if (effLayer > effNozzle) throw new RangeError('layerHeightMm must not exceed nozzleMm');
+  if (!await updateJob(deps.pool, sub, job.job_id, { settings: merged as Record<string, unknown> })) throw new Error('Job disappeared before build settings were saved');
+  return merged;
 }
 
 /**
@@ -222,20 +311,46 @@ function decideMarker(scan: FaceMarkerScan, taken: Set<ViewName>): MarkerDecisio
   return { view, summary: { view, reason, unknown: scan.unknown, found: scan.markers.map((m) => ({ view: m.view, rotationDeg: m.rotationDeg, bitErrors: m.bitErrors })) } };
 }
 
+/** @description True when silhouette bbox `a` largely coincides with fiducial bbox `b`. */
+function overlapsFiducial(a: PixelBox | null, b: PixelBox): boolean {
+  if (!a) return false;
+  const ix0 = Math.max(a.minX, b.minX);
+  const iy0 = Math.max(a.minY, b.minY);
+  const ix1 = Math.min(a.maxX, b.maxX);
+  const iy1 = Math.min(a.maxY, b.maxY);
+  if (ix1 < ix0 || iy1 < iy0) return false;
+  const inter = (ix1 - ix0 + 1) * (iy1 - iy0 + 1);
+  const areaA = (a.maxX - a.minX + 1) * (a.maxY - a.minY + 1);
+  return areaA > 0 && inter / areaA >= 0.8;
+}
+
 /**
- * @description Ingest one decoded photo: silhouette, files, row. With `markers`, the photo's
- * orientation-cube marker is read too, and a decided view is assigned and added to `taken`.
+ * @description Ingest one decoded photo: fiducial detection, silhouette, files, row. With
+ * `markers`, the photo's orientation-cube marker is read too, and a decided view is assigned and
+ * added to `taken`.
  */
 async function ingestImage(deps: JobRouteDeps, sub: string, jobId: string, dir: string, fileName: string, bytes: Buffer, markers?: { taken: Set<ViewName> }): Promise<ImageRow> {
   const { raster, png } = await decodeToRaster(bytes);
-  const silhouette = extractSilhouette(raster);
+  const fiducialScan = detectFiducialSquare(raster);
+  let silhouette = extractSilhouette(raster);
+  if (fiducialScan.detected && fiducialScan.fiducial && overlapsFiducial(silhouette.stats.bbox, fiducialScan.fiducial.bbox)) {
+    const separated = extractSilhouette(raster, { excludeBoxes: [fiducialScan.fiducial.bbox] });
+    if (separated.stats.pixels > 0) silhouette = separated;
+  }
   const decision = markers ? decideMarker(detectFaceMarkers(raster), markers.taken) : null;
   const imageId = randomUUID();
   ensureDir(path.join(dir, 'images'));
   ensureDir(path.join(dir, 'masks'));
   fs.writeFileSync(imagePath(dir, imageId, 'source'), png);
   fs.writeFileSync(imagePath(dir, imageId, 'mask'), await maskToPng(silhouette.mask));
-  const stored = { threshold: silhouette.threshold, background: silhouette.background, stats: silhouette.stats, warnings: silhouette.warnings, ...(decision ? { marker: decision.summary } : {}) };
+  const fiducialSummary = {
+    detected: fiducialScan.detected,
+    sidePx: fiducialScan.fiducial?.sidePx ?? null,
+    bbox: fiducialScan.fiducial?.bbox ?? null,
+    kind: fiducialScan.fiducial?.kind ?? null,
+    reason: fiducialScan.reason,
+  };
+  const stored = { threshold: silhouette.threshold, background: silhouette.background, stats: silhouette.stats, warnings: silhouette.warnings, fiducial: fiducialSummary, ...(decision ? { marker: decision.summary } : {}) };
   const row = await deps.pool.query(
     'INSERT INTO scan_print_image (image_id, owner_sub, job_id, file_name, width, height, silhouette) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb) RETURNING image_id, job_id, file_name, view, width, height, silhouette, created_at',
     [imageId, sub, jobId, fileName, raster.width, raster.height, JSON.stringify(stored)],
@@ -247,10 +362,26 @@ async function ingestImage(deps: JobRouteDeps, sub: string, jobId: string, dir: 
   return assigned ?? inserted;
 }
 
-/** @description Load the assigned views' masks from disk. */
-async function loadSilhouettes(dir: string, images: ImageRow[]): Promise<ViewSilhouette[]> {
+/** @description Load the assigned views' masks from disk, attaching fiducial scale anchors when configured. */
+async function loadSilhouettes(dir: string, images: ImageRow[], fiducialMm?: number): Promise<ViewSilhouette[]> {
   const assigned = images.filter((img) => img.view !== null);
-  return Promise.all(assigned.map(async (img) => ({ view: img.view as ViewName, mask: await pngToMask(fs.readFileSync(imagePath(dir, img.image_id, 'mask'))) })));
+  return Promise.all(assigned.map(async (img) => {
+    const fid = (img.silhouette as { fiducial?: { detected?: boolean; sidePx?: number | null } } | null)?.fiducial;
+    const fiducialMmPerPx = fiducialMm !== undefined && fid?.detected && typeof fid.sidePx === 'number' && fid.sidePx > 0
+      ? fiducialScaleMmPerPx(fid.sidePx, fiducialMm) : undefined;
+    return {
+      view: img.view as ViewName,
+      mask: await pngToMask(fs.readFileSync(imagePath(dir, img.image_id, 'mask'))),
+      ...(fiducialMmPerPx !== undefined ? { fiducialMmPerPx } : {}),
+    };
+  }));
+}
+
+/** @description Parse known dimensions, allowing empty ruler entries when at least one view has a fiducial anchor. */
+function resolveKnownForBuild(rawKnown: unknown, silhouettes: ViewSilhouette[]): KnownDimension[] {
+  if (Array.isArray(rawKnown) && rawKnown.length > 0) return parseKnownDimensions(rawKnown);
+  if (silhouettes.some((s) => s.fiducialMmPerPx !== undefined)) return [];
+  return parseKnownDimensions(rawKnown);
 }
 
 /** @description Preserve the verified async context, including errors, across multipart completion. */
@@ -319,8 +450,21 @@ function registerCollection(router: Router, deps: JobRouteDeps): void {
   });
 
   router.post('/jobs', async (req: JobRequest, res: Response) => {
-    const title = String((req.body ?? {}).title ?? '').trim().slice(0, 120);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const title = String(body.title ?? '').trim().slice(0, 120);
     if (!title) { res.status(400).json({ error: 'title_required' }); return; }
+    let initialSettings: JobSettings | null = null;
+    if (body.settings !== undefined || body.symmetry !== undefined || body.fiducialMm !== undefined) {
+      try {
+        initialSettings = parseSettings({
+          ...(typeof body.settings === 'object' && body.settings ? body.settings as Record<string, unknown> : {}),
+          ...(body.symmetry !== undefined ? { symmetry: body.symmetry } : {}),
+          ...(body.fiducialMm !== undefined ? { fiducialMm: body.fiducialMm } : {}),
+        });
+      } catch (error) {
+        res.status(400).json({ error: 'invalid_settings', message: (error as Error).message }); return;
+      }
+    }
     try { ensureDir(deps.dataRoot); } catch (error) {
       logger.error({ err: error }, 'Scan data folder unavailable');
       res.status(503).json(STORAGE_UNAVAILABLE); return;
@@ -328,6 +472,10 @@ function registerCollection(router: Router, deps: JobRouteDeps): void {
     let job: JobRow | null = null;
     try {
       job = deps.context?await createOwnedJob(deps.context,req.scanSub as string,title):await createJob(deps.pool, req.scanSub as string, title, 'photos');
+      if (initialSettings && Object.keys(initialSettings).length > 0) {
+        const patched = await updateJob(deps.pool, req.scanSub as string, job.job_id, { settings: initialSettings as Record<string, unknown> });
+        if (patched) job = patched;
+      }
       ensureDir(jobDir(deps.dataRoot, req.scanSub as string, job.job_id));
       res.status(201).json({ job });
     } catch (error) {
@@ -358,7 +506,7 @@ function registerDetail(router: Router, deps: JobRouteDeps): void {
       const patch: Parameters<typeof updateJob>[3] = {};
       if (body.title !== undefined) { const title = String(body.title).trim().slice(0, 120); if (!title) throw new RangeError('title cannot be empty'); patch.title = title; }
       if (body.knownDimensions !== undefined) patch.known_dimensions = parseKnownDimensions(body.knownDimensions);
-      if (body.settings !== undefined) patch.settings = parseSettings(body.settings);
+      if (body.settings !== undefined) patch.settings = { ...parseSettings(body.settings) } as Record<string, unknown>;
       if (changesOutput(job, patch)) await retireOutput(deps, req.scanSub as string, job);
       res.json({ job: await updateJob(deps.pool, req.scanSub as string, job.job_id, patch) });
     } catch (error) {
@@ -394,7 +542,8 @@ function registerPhotos(router: Router, deps: JobRouteDeps): void {
       const images: ImageRow[] = [];
       for (const file of files) images.push(await ingestImage(deps, req.scanSub as string, job.job_id, dir, file.originalname.slice(0, 200), file.buffer, { taken }));
       await updateJob(deps.pool, req.scanSub as string, job.job_id, { state: 'capturing' });
-      res.status(201).json({ images, viewsFromMarkers: images.filter((img) => img.view !== null).length });
+      const fiducialsDetected = images.filter((img) => Boolean((img.silhouette as { fiducial?: { detected?: boolean } } | null)?.fiducial?.detected)).length;
+      res.status(201).json({ images, viewsFromMarkers: images.filter((img) => img.view !== null).length, fiducialsDetected });
     } catch (error) {
       logger.error({ err: error, jobId: job.job_id }, 'Image ingest failed');
       if (storageFailure(error)) { res.status(503).json(STORAGE_UNAVAILABLE); return; }
@@ -420,7 +569,8 @@ function registerVideo(router: Router, deps: JobRouteDeps): void {
       const images: ImageRow[] = [];
       for (const frame of frames) images.push(await ingestImage(deps, req.scanSub as string, job.job_id, dir, path.basename(frame), fs.readFileSync(frame)));
       await updateJob(deps.pool, req.scanSub as string, job.job_id, { state: 'capturing', source_kind: 'video' });
-      res.status(201).json({ images, frames: frames.length });
+      const ranked = buildFrameSuggestions([...existing, ...images], job.known_dimensions);
+      res.status(201).json({ images, frames: frames.length, suggestions: ranked.suggestions, unmatched: ranked.unmatched, proportionsKnown: ranked.proportionsKnown });
     } catch (error) {
       logger.error({ err: error, jobId: job.job_id }, 'Video ingest failed');
       if (storageFailure(error)) { res.status(503).json(STORAGE_UNAVAILABLE); return; }
@@ -500,11 +650,11 @@ function registerReconstruction(router: Router, deps: JobRouteDeps): void {
     try {
       await retireOutput(deps, sub, job);
       const settings = await persistBuildSettings(deps, sub, job, req.body);
-      const silhouettes = await loadSilhouettes(dir, await listImages(deps.pool, sub, job.job_id));
+      const silhouettes = await loadSilhouettes(dir, await listImages(deps.pool, sub, job.job_id), settings.fiducialMm);
       if (silhouettes.length === 0) { res.status(409).json({ error: 'no_views_assigned', message: 'Assign at least one photo to a view (front, top, right …) before reconstructing.' }); return; }
-      const known = parseKnownDimensions(job.known_dimensions);
+      const known = resolveKnownForBuild(job.known_dimensions, silhouettes);
       const started = Date.now();
-      const result = reconstructFromSilhouettes(silhouettes, known, { ...settings, partName: job.title });
+      const result = reconstructFromSilhouettes(silhouettes, known, pipelineOptions(settings, job.title));
       const updated = await saveResult(deps, sub, job, dir, result, job.source_kind === 'video' ? 'video' : 'photos');
       res.json({ job: updated, report: result.report, durationMs: Date.now() - started });
     } catch (error) {
@@ -545,7 +695,7 @@ function registerPointCloud(router: Router, deps: JobRouteDeps): void {
       const result = finishFromGrid(vox.grid, vox.sizeMm, {
         lane: 'pointcloud', viewsUsed: [], sources: { x: 'known', y: 'known', z: 'known' }, warnings, sealedBase: fill.sealedBase,
         method: `Point cloud (${cloud.count} points, ${vox.pointCount} in grid), voxel ${voxelMm} mm, ${up === 'y' ? 'Y-up' : 'Z-up'} ×${unitScale}${fill.sealedBase ? ', base sealed' : ''}`,
-      }, { ...settings, partName: job.title });
+      }, pipelineOptions(settings, job.title));
       const updated = await saveResult(deps, sub, job, dir, result, 'pointcloud');
       res.json({ job: updated, report: result.report, closed: fill.closed, interiorFilled: fill.interiorFilled, sealedBase: fill.sealedBase });
     } catch (error) {
@@ -616,10 +766,10 @@ function registerDepth(router: Router, deps: JobRouteDeps): void {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const map = await decodeDepthUpload(fs.readFileSync(file.path), body);
       const settings = await persistBuildSettings(deps, sub, job, body);
-      const silhouettes = await loadSilhouettes(dir, await listImages(deps.pool, sub, job.job_id));
+      const silhouettes = await loadSilhouettes(dir, await listImages(deps.pool, sub, job.job_id), settings.fiducialMm);
       if (silhouettes.length === 0) { res.status(409).json({ error: 'no_views_assigned', message: 'A range image refines the photo hull: assign at least one photo to a view first.' }); return; }
       const started = Date.now();
-      const result = reconstructHullWithDepth(silhouettes, parseKnownDimensions(job.known_dimensions), [map], { ...settings, partName: job.title });
+      const result = reconstructHullWithDepth(silhouettes, resolveKnownForBuild(job.known_dimensions, silhouettes), [map], pipelineOptions(settings, job.title));
       const updated = await saveResult(deps, sub, job, dir, result, job.source_kind === 'video' ? 'video' : 'photos');
       res.json({ job: updated, report: result.report, durationMs: Date.now() - started });
     } catch (error) {
@@ -650,25 +800,31 @@ function videoFrameSamples(images: ImageRow[]): FrameSample[] {
   });
 }
 
+/** @description Compute read-only square-on view proposals for unassigned views from stored video frames. */
+function buildFrameSuggestions(images: ImageRow[], knownDimensions: JobRow['known_dimensions']) {
+  const frames = videoFrameSamples(images);
+  const assigned = images.filter((img) => img.view !== null);
+  const views = SUGGESTION_ORDER.filter((view) => !assigned.some((img) => img.view === view));
+  const known = Array.isArray(knownDimensions) && knownDimensions.length > 0 ? parseKnownDimensions(knownDimensions) : [];
+  const names = new Map(images.map((img) => [img.image_id, img.file_name] as const));
+  const out = frames.length === 0 || views.length === 0 ? [] : suggestSquareOnFrames(frames, [...views], known, { exclude: assigned.map((img) => img.image_id) });
+  return {
+    frames: frames.length,
+    suggestions: out.filter((s) => s.best).map((s) => ({ view: s.view, imageId: s.best?.id, fileName: names.get(s.best?.id as string), score: s.best?.score, skew: s.best?.skew, turn: s.best?.turn })),
+    unmatched: out.filter((s) => !s.best).map((s) => s.view),
+    proportionsKnown: known.length,
+  };
+}
+
 /** @description Register the frame-suggestion route: proposals for each view not yet assigned. */
 function registerFrameSuggestions(router: Router, deps: JobRouteDeps): void {
   router.get('/jobs/:jobId/frame-suggestions', withCurrentJob(deps, async (req: JobRequest, res: Response) => {
     const job = req.scanJob as JobRow;
     try {
       const images = await listImages(deps.pool, req.scanSub as string, job.job_id);
-      const frames = videoFrameSamples(images);
-      if (frames.length === 0) { res.status(409).json({ error: 'no_video_frames', message: 'Upload a video first: suggestions rank its frames.' }); return; }
-      const assigned = images.filter((img) => img.view !== null);
-      const views = SUGGESTION_ORDER.filter((view) => !assigned.some((img) => img.view === view));
-      const known = Array.isArray(job.known_dimensions) && job.known_dimensions.length > 0 ? parseKnownDimensions(job.known_dimensions) : [];
-      const names = new Map(images.map((img) => [img.image_id, img.file_name] as const));
-      const out = views.length === 0 ? [] : suggestSquareOnFrames(frames, [...views], known, { exclude: assigned.map((img) => img.image_id) });
-      res.json({
-        frames: frames.length,
-        suggestions: out.filter((s) => s.best).map((s) => ({ view: s.view, imageId: s.best?.id, fileName: names.get(s.best?.id as string), score: s.best?.score, skew: s.best?.skew, turn: s.best?.turn })),
-        unmatched: out.filter((s) => !s.best).map((s) => s.view),
-        proportionsKnown: known.length,
-      });
+      const ranked = buildFrameSuggestions(images, job.known_dimensions);
+      if (ranked.frames === 0) { res.status(409).json({ error: 'no_video_frames', message: 'Upload a video first: suggestions rank its frames.' }); return; }
+      res.json(ranked);
     } catch (error) {
       logger.error({ err: error, jobId: job.job_id }, 'Frame suggestion failed'); res.status(500).json({ error: 'suggestion_failed' });
     }

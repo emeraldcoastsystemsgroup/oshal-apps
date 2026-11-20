@@ -3,6 +3,9 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: contract tests for ATS typography cleanliness (zero boldmetrics on Ed25519/ChaCha20-Poly1305/FIPS 140/NIST 800-53/2024/100/$82M across all three HTML templates, zero numeric '+' while preserving C++/Security+/A+), deterministic per-skill non-overlapping tenure math (skill_tenure), parenthetical year attribution & zero-'+' claims_fix, Lockheed-Martin contradiction reproduction & repair via the dynamically-loaded career-resume-reviewer Swarm bot, and needs_review escalation.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: generate_for with the person's own years by skill states those years in the rendered résumé whatever the writer and the reviewer wrote, records the figures and corrections in application.json (years_truth), and restores a miswritten recorded term (term_fidelity).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years case uses new made-up figures (12, 5 and 24).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: verify skill_tenure counts start-of-title/line "Java" roles and structured engagement tech lists across multi-role spans.
 """Resume quality & career-resume-reviewer Swarm bot contract tests."""
 from __future__ import annotations
 
@@ -179,6 +182,22 @@ def test_skill_tenure_and_claims_fix() -> None:
     # claims_fix._retime never emits '+'
     retimed = claims_fix._retime("Leader with 20+ years of Java", {"claim": "20+ years", "supported": 11})
     check("claims_fix._retime emits '11 years' with zero '+'", retimed == "Leader with 11 years of Java")
+    # Start-of-title "Java Developer", start-of-bullet "Java ...", and engagement tech: ["Java"] must all union cleanly.
+    title_prof = {
+        "roles": [
+            {"title": "Platform Engineer", "org": "Recent Co", "start": "2024-09", "end": "2026-08",
+             "bullets": ["Maintained services built in Java and Kubernetes."]},
+            {"title": "Java Developer", "org": "Enterprise Co", "start": "2008-01", "end": "2014-12",
+             "bullets": ["Built billing APIs.", "Java backend batch processing."]},
+        ],
+        "project_ledger": [
+            {"project": "Bank Core", "role": "Consultant", "start": "2015-01", "end": "2017-01",
+             "bullets": ["Modernized account ledger."], "tech": ["Java", "Spring"]},
+        ],
+    }
+    title_tenure = skill_tenure.compute_tenure(title_prof, today=TODAY)
+    check("Java start-of-title + engagement tech union reaches ~11y instead of 2y",
+          10.5 <= title_tenure["skills"]["java"]["years"] <= 11.5)
 
 
 def test_lockheed_contradiction_and_reviewer_bot() -> None:
@@ -365,10 +384,74 @@ def test_generate_for_end_to_end() -> None:
             generate.APP_DIR = saved_app_dir
 
 
+def test_generate_for_states_the_persons_own_years() -> None:
+    """Real generate_for with the person's own years by skill: whatever the writer and the reviewer wrote, the packet
+    states those years, application.json says what was corrected, and a miswritten recorded term is restored."""
+    def note(name, condition, detail=""):
+        check(name if condition else f"{name} :: {detail}", condition)
+
+    prof = sample_profile()
+    prof["years_by_skill"] = [{"skill": "Java", "years": 12}, {"skill": "Python", "years": 5}]
+    prof["career_years"] = 24
+    prof["roles"][0].setdefault("deliverables", []).append("Stood up the secure enclave for a made-up program")
+    wrong = {
+        "headline": "Program Manager / SRE Lead | Java & Python",
+        "summary": ("Program Manager and SRE Lead with 2 years of experience. Brings 9 years of Java engineering "
+                    "and 2 years of Python automation."),
+        "competencies": ["Java/J2EE", "Python"],
+        "skills": ["Java (9 years)", "Python (2 years)", "C++"],
+        "certifications": ["CompTIA Security+"], "education": ["MBA"], "clearance": "Active U.S. DoD Secret",
+        "experience": [{"title": "Program Manager / SRE Lead", "org": "Defense Cloud Corp", "span": "Oct 2024 to Aug 2026",
+                        "bullets": ["Stood up the secure enslave for a made-up program"]}],
+    }
+    cover = {"greeting": "Dear Hiring Manager,", "closing": "Sincerely,",
+             "paragraphs": ["This role aligns with my recent cloud engineering leadership at Defense Cloud Corp.",
+                            "At Defense Cloud Corp I led engineering delivery of Kubernetes pipelines.",
+                            "I would welcome a conversation about your roadmap."]}
+
+    def scripted(system, prompt, max_tokens=0, bot=None, **_kw):
+        if bot == "career-resume-reviewer":
+            return json.dumps({"passed": True, "issues": [], "revised_resume": wrong, "reviewer_notes": "ok"})
+        return json.dumps(cover if "DRAFT COVER" in prompt else {"resume": wrong, "cover": cover})
+
+    with tempfile.TemporaryDirectory(prefix="career-e2e-years-") as tmp:
+        saved_app_dir = generate.APP_DIR
+        generate.APP_DIR = Path(tmp) / "applications"
+        try:
+            with patch.object(profile, "load", return_value=prof), \
+                    patch.object(generate.enrich, "provider", return_value="scripted"), \
+                    patch.object(generate.enrich, "complete", side_effect=scripted), \
+                    patch.object(generate.db, "connect", _Conn), \
+                    patch.object(generate.db, "set_status", lambda *a, **k: None), \
+                    patch.object(generate.db, "user_set", lambda *a, **k: None), \
+                    patch.object(generate, "_render_pdf", lambda html, pdf: pdf.write_bytes(b"%PDF-1.4")):
+                result = generate.generate_for(42)
+            outdir = Path(result["dir"])
+            app_json = json.loads((outdir / "application.json").read_text(encoding="utf-8"))
+            html = (outdir / "Resume_ATS.html").read_text(encoding="utf-8")
+            text = re.sub(r"<[^>]+>", " ", html)
+            years = sorted(set(re.findall(r"\b(\d+) years", text)))
+            note("the rendered résumé states only the person's own years", years == ["12", "24", "5"], f"{years}")
+            note("the rendered résumé says 24 years of experience, 12 of Java and 5 of Python",
+                  "24 years of experience" in text and "12 years of Java" in text and "5 years of Python" in text
+                  and "Java (12 years)" in text and "Python (5 years)" in text, text[:600])
+            receipt = app_json.get("years_truth") or {}
+            note("application.json records the figures used and each correction",
+                  receipt.get("career_source") == "person" and len(receipt.get("corrected") or []) >= 5
+                  and any(row.get("source") == "person" and row.get("skill") == "Java" for row in receipt.get("figures") or []),
+                  json.dumps(receipt)[:400])
+            note("a miswritten recorded term is restored and recorded",
+                  "secure enclave" in text and "enslave" not in text
+                  and any(row.get("to") == "enclave" for row in app_json.get("term_fidelity") or []),
+                  json.dumps(app_json.get("term_fidelity"))[:300])
+        finally:
+            generate.APP_DIR = saved_app_dir
+
+
 def main() -> int:
     for fn in (test_templates_and_bold_stripping, test_plus_normalization,
                test_skill_tenure_and_claims_fix, test_lockheed_contradiction_and_reviewer_bot,
-               test_generate_for_end_to_end):
+               test_generate_for_end_to_end, test_generate_for_states_the_persons_own_years):
         try:
             fn()
         except Exception as err:

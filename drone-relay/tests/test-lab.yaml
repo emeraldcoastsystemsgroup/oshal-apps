@@ -396,3 +396,24 @@ cases:
       timeoutMs: 120000
       maxMemoryMb: 1024
     installation: never
+  - id: relay-bot-tools-contract
+    name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
+    purpose: Verify relay-designer declares explicit inline posture, chatBot binding, object inputSchemas on all twelve tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/bot-tools-contract.test.js
+    expected:
+      - relay-designer declares posture inline and chatBot relay-designer with object inputSchemas on all twelve tools.
+      - personas/relay-designer.yaml teaches plain prose and ```tool_call with "tool" naming all twelve tools.
+      - GET /capabilities and GET /plans execute cleanly under caller principal.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

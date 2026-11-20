@@ -42,6 +42,7 @@
  *                     |                             | print and a service call choose the printer and read the owner's
  *                     |                             | auto-start the same way.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep service job printing on its original print.send boundary when sharing the owner guard.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): attach bounded, fail-safe live printer status to the latest submission in GET /submissions.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -203,7 +204,9 @@ function registerReads(router, deps) {
     });
     router.get('/submissions', async (req, res) => {
         try {
-            res.json({ submissions: await (0, job_store_1.listRecentSubmissions)(deps.pool, req.scanSub) });
+            const sub = req.scanSub;
+            const rows = await (0, job_store_1.listRecentSubmissions)(deps.pool, sub);
+            res.json({ submissions: await (0, print_service_1.attachLiveStatus)((0, print_routes_1.serviceDepsOf)(deps), sub, rows) });
         }
         catch (error) {
             logger.error({ err: error }, 'Service submissions failed');

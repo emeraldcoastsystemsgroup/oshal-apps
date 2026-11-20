@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: Jarvis routing words (backlog P4-16j): travel-concierge adds 'fare drops', 'fare drop' and 'fare alert'. "Watch the DEN-PNS route and tell me when the fare drops" scored Get a Ride higher on its 'drop off' and 'fare estimate' words and now reaches Travel; "What's the fare to downtown in an Uber?" stays with Get a Ride. No route, tool or permission changed.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16): results started 618 px down a 915 px phone (68%) under a title, a tagline, the tabs and a seven-row search form (Swap on a row of its own). On a phone, as flight apps do, From and To stack with Swap beside them, Depart and Return share a row, Cabin and Search flights share a row and the tagline steps aside; after a search that found options the form folds into one line naming the trip with Edit search, so the results start near the top. Guard tests/travel-phone-first-screen.test.js. Presentation only; the desktop is unchanged.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). The page's own concierge chat over POST /api/travel/chat is replaced by the kernel's one chat window as the Travel Concierge (travel-concierge), told the screen before each turn (the tab, the trip in the form, the trip searched, the price read, the options with their ids and prices, the watched routes, whether this installation has a Duffel rail). What the page's chat route gave the bot in its prompt (the traveller's profile and remembered notes) and did on its reply (opening a fare watch, saving notes) are now its tools over the package's own routes: three new ones, read-travel-notes, remember-travel-note (new GET and POST /api/travel/notes) and list-fare-watches (GET /api/travel/watches), and create-fare-watch takes the return date, cabin and the fare the traveller saw. The persona's loop names them. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: declare explicit posture: inline on travel-concierge and verify bot-tool contract on oshald.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — travel ("Travel", the AI travel concierge — ADR-059)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -56,7 +57,7 @@ description: >-
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
   handoff. Hotels and cars are deep-link handoffs (Google Flights, Booking.com, Kayak). Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.3.5
+version: 1.3.6
 
 testing:
   version: 1
@@ -115,6 +116,7 @@ uses:
 bots:
   - agentId: b00c0000-0000-0000-0000-000000000001
     name: travel-concierge
+    posture: inline
     persona: personas/travel-concierge.yaml
     role: travel/concierge
     capabilities:

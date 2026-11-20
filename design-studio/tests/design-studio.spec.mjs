@@ -9,6 +9,7 @@
  *
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D9, lane @ds-plant: the lift example in Chromium over the real routes and the fixture's engines - the Design poster's Create the parts in CAD Studio builds the three programs once (tagged) and binds them, Define the mechanism opens the Mechanism screen with the parts' kernel figures, the two joints, the motor row from embodied's catalog (the lab's rows disabled with their reason), the payload and the task from the brief's line, Save writes revision 2, the Simulate poster goes Build the plant (the spec the page composed carries the kernel's masses and the row's numbers) -> built -> Run the baselines -> baseline (the engine's reached time) -> Train the policy -> training (the job) -> trained -> Certify -> certified -> Close the phase, after which the body contract publishes the one actuator from the row with the certified reach policy; a refused certificate reads trained again; the spider's Mechanism screen is read-only; 412 x 915 of the Mechanism screen.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: an absent engine reads "is not installed or not answering here", a failed read names the engine and what to do with no route path, and a reasoned phase closes with Mark done by hand.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3/B15: verify closed spider publishes plant.tickS and senses[].rateHz with missing: [], and verify Pi bay thermal solve brief option & honest reasoned-only phase closure banner/metadata in Chromium.
  *
  * FRAMEWORK-COUPLED: OSHAL_CORE_ROOT=$HOME/Documents/projects/oshal/src node --test tests/design-studio.spec.mjs
  */
@@ -141,8 +142,11 @@ test('Close the phase binds the engine\'s read and records the closure; the body
   assert.deepEqual(femur.rangeRad, [-2.0944, 2.0944]); assert.equal(femur.continuousNm, d.joints[1].usableNm); assert.equal(femur.stallNm, d.servo.stallNm);
   assert.equal(after.json.walker.policySha256, 'fixture-sha-d15f6a7d2048e7ce'); assert.equal(after.json.walker.kind, 'certified-gait');
   assert.deepEqual(after.json.node, { kind: 'hexapod', endpoint: 'http://spider-pi.local:7421' });
-  assert.equal(after.json.plant.tickS, null, 'the rail listing states no tick rate, so none is invented');
-  assert.ok(after.json.missing.some((m) => /plant\.tickS/.test(m)));
+  assert.equal(after.json.plant.tickS, 0.02, 'B3: plant.tickS is derived from the hexapod rail node tickHz (50 Hz -> 0.02 s)');
+  assert.equal(after.json.senses.find((s) => s.name === 'lidar').rateHz, 10);
+  assert.equal(after.json.senses.find((s) => s.name === 'imu').rateHz, 100);
+  assert.equal(after.json.senses.find((s) => s.name === 'joints').rateHz, 50);
+  assert.deepEqual(after.json.missing, [], 'B3: a closed spider publishes plant.tickS and senses[].rateHz with missing: []');
   assert.equal(after.json.senses.find((s) => s.name === 'lidar').mount, 'Head (LiDAR nose)');
   // The brief: Confirm the brief closes it; Edit the brief re-opens the walkthrough with the words.
   await page.click('#act-brief'); await page.locator('#close-dialog[open]').waitFor({ timeout: 5000 }); await page.click('#close-dialog button[value="close"]');
@@ -174,7 +178,7 @@ test('absent engines read "no engine on this swarm for this phase"; a failed rea
   await reload();
   assert.equal(await stage('controller'), 'failed'); assert.match(await text('#controller-stage'), /^embodied is not working on this installation right now: engine unavailable \(fixture\)\. Try again later/); assert.doesNotMatch(await text('#controller-stage'), /\/api\//);
   assert.equal(await stage('simulate'), 'failed'); assert.match(await text('#simulate-stage'), /^embodied is not working on this installation right now: fixture_failure\. Try again later/);
-  assert.equal(await stage('electrical'), 'refused'); assert.match(await text('#electrical-stage'), /^Circuit Lab refused this account \(HTTP 403\)$/);
+  assert.equal(await stage('electrical'), 'refused'); assert.match(await text('#electrical-stage'), /^Circuit Lab refused this account \(HTTP 403\) — access required: ask an administrator to assign your account a role for Circuit Lab/);
   assert.equal(await stage('design'), 'parts-complete', 'the design still reads');
   assert.equal(await text('#act-controller'), 'Node status');
   await page.click('#act-controller');
@@ -605,4 +609,62 @@ test('any machine, not only the example: a product from a brief with parts the p
   const late = await api('POST', `/projects/${id}/orders`, { action: 'press', input: { phase: 'simulate', button: 'Run the baselines' } });
   assert.equal(late.json.order.status, 'failed', JSON.stringify(late.json.order.result)); assert.match(late.json.order.result.refused, /no Run the baselines button/); assert.ok(late.json.order.result.buttons.includes('Build the plant'));
 });
+
+test('B9: Design poster checks each joint\'s clearance in mm, blocks parts-complete on interference, and reports strength honesty', async () => {
+  await open({ models: [], reports: cannedReports([]) });
+  const created = await api('POST', '/projects', { example: 'lift-1' });
+  const id = created.json.project.id;
+  await goto(`#/product/${id}`);
+  await page.click('#act-design'); await page.locator('#make-dialog[open]').waitFor({ timeout: 5000 }); await page.locator('#make-close:not([disabled])').waitFor({ timeout: 30000 });
+  const n = Number(await page.locator('#studio').getAttribute('data-reads')); await page.click('#make-close'); await page.locator(`#studio[data-reads="${n + 1}"]`).waitFor({ timeout: 15000 });
+  assert.equal(await stage('design'), 'parts-complete');
+  assert.match(await text('#design-fit-note'), /carriage-slide \+1\.00 mm/);
+  assert.match(await text('#design-strength-note'), /No engine strength estimate measured for 2 kg payload on carriage/);
+  assert.equal(await page.locator('#design-strength-note').getAttribute('data-strength-status'), 'unmeasured');
+  // Shrink the carriage pocket to 38x38 mm around the 40x40 mm column -> -1.00 mm interference blocks parts-complete.
+  const carriage = f.models.find((m) => m.source && m.source.designStudio && m.source.designStudio.part === 'carriage');
+  carriage.features[0].params.size = [38, 38, 42];
+  await reload();
+  assert.equal(await stage('design'), 'interference');
+  assert.equal(await text('#design-figure'), '-1.00 mm');
+  assert.match(await text('#design-stage'), /carriage-slide \(column \/ carriage\): -1\.00 mm interference/);
+  assert.equal(await text('#act-design'), 'Open in CAD Studio', 'interference blocks Close the phase / parts-complete');
+  // Restore pocket clearance and bind a measured engine strength result -> poster displays the measured safety factor.
+  carriage.features[0].params.size = [42, 42, 42];
+  const cur = (await api('GET', `/projects/${id}`)).json.bindings.design.artifact;
+  await api('POST', `/projects/${id}/bind`, { phase: 'design', artifact: { ...cur, read: { ...(cur.read || {}), strength: { engine: 'calculix-fea', safetyFactor: 2.35, maxStressMpa: 18.4, allowableStressMpa: 43.2 } } } });
+  await goto(`#/product/${id}`);
+  assert.equal(await stage('design'), 'parts-complete');
+  assert.equal(await page.locator('#design-strength-note').getAttribute('data-strength-status'), 'ok');
+  assert.match(await text('#design-strength-note'), /safety factor 2\.35 \(18\.4 MPa \/ 43\.2 MPa\) measured by calculix-fea/);
+});
+
+test('B15: Pi bay thermal solve option in brief and honest reasoned-only phase closure banner/metadata in Chromium', async () => {
+  await open({});
+  await goto('#/new');
+  await page.fill('#new-name', 'pi-rover');
+  await page.fill('#new-what', 'a wheeled Pi rover');
+  await page.fill('#new-requirements', 'holds a Raspberry Pi\ntwo drive motors');
+  await page.check('#new-thermal-solve');
+  await page.locator('#new-thermal-note').waitFor({ state: 'visible', timeout: 5000 });
+  await page.fill('#new-thermal-note', 'Pi 5 active cooler in vented bay');
+  await page.locator('#proposal li.unsolved').waitFor({ timeout: 5000 });
+  assert.match(await text('#proposal li.unsolved'), /Pi bay thermal solve.*no thermal engine/i);
+  await page.click('#create');
+  await page.locator('#studio[data-screen="product"][data-ready="1"]').waitFor({ timeout: 10000 });
+  assert.match(await text('#brief-thermal-note'), /Pi bay thermal solve requested.*no thermal engine measured this yet \(reasoned only\): Pi 5 active cooler in vented bay/);
+  assert.equal(await stage('mechanical'), 'reasoned');
+  assert.match(await text('#mechanical-unmeasured-banner'), /No engine measured this phase \(reasoned only\)/);
+  await page.click('#act-mechanical');
+  await page.locator('#close-dialog[open]').waitFor({ timeout: 5000 });
+  assert.match(await text('#close-what'), /No engine measured this phase \(reasoned only\)/);
+  await page.fill('#close-evidence', 'drive torque checked by hand');
+  await page.fill('#close-revision', 'hand-calc-r1');
+  await page.click('#close-dialog button[value="close"]');
+  await page.locator('#poster-mechanical[data-closed="1"]').waitFor({ timeout: 10000 });
+  assert.equal(await page.locator('#poster-mechanical .closed').getAttribute('data-reasoned-only'), '1');
+  assert.match(await text('#poster-mechanical .closed'), /^closed \(reasoned only — no engine measured this phase\)/);
+  assert.equal(await page.locator('.phase-step-pill[data-phase="mechanical"]').getAttribute('data-reasoned-only'), '1');
+});
+
 

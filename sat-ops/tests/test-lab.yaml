@@ -156,3 +156,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+
+  - id: sat-bot-tools-contract
+    name: Inline concierge posture, tool schemas, plain-prose rule, and tool_call fence
+    purpose: Verify sat-operator declares explicit inline posture, chatBot binding, object inputSchemas on all eight tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sat-bot-tools-contract.test.cjs
+    expected:
+      - sat-operator declares posture inline and chatBot sat-operator with explicit object inputSchemas on all eight tools.
+      - personas/sat-operator.yaml teaches plain prose and the ```tool_call fence using "tool".
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

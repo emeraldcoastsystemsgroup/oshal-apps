@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Route-backed native approval uses bounded JSON transport and the same closed, original-owned calibration transaction.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Build mutation receipts from the actual SQL RETURNING row with fresh authority, avoiding another connection snapshot or concurrent source reread.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The projection says whether this seat may build the model (canReconstruct: scan.edit), so the page offers Make 3D model, a video or a .ply only to a seat the kernel admits for them (Roger, trial.oswarm.ai, 2026-11-06: a visitor holding only source-editor was refused at the kernel after taking photos). The answer is a read; every route still rechecks its own permission.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: keep calibration projection scoped to `{resolution, smoothIterations}` while tolerating and preserving optional build settings (`symmetry`, `nozzleMm`, `layerHeightMm`, `perimeters`) stored on `job.settings`.
  */
 import type { AppContext } from '@/app/composition/app-context';
 import { createHash } from 'node:crypto';
@@ -115,10 +116,17 @@ export function calibrationSettings(raw: unknown): {
   }
   return result;
 }
+function storedCalibrationSettings(raw: unknown): { resolution: number; smoothIterations: number } {
+  const s = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  return calibrationSettings({
+    ...(s.resolution !== undefined ? { resolution: s.resolution } : {}),
+    ...(s.smoothIterations !== undefined ? { smoothIterations: s.smoothIterations } : {}),
+  });
+}
 export const calibrationSource = (job: JobRow) => ({
   title: job.title,
   knownDimensions: calibrationDimensions(job.known_dimensions),
-  settings: calibrationSettings(job.settings)
+  settings: storedCalibrationSettings(job.settings)
 });
 export const calibrationHash = (job: JobRow) => digest({...calibrationSource(job),sourceKind:job.source_kind});
 export async function readCalibration(ctx: AppContext, sub: string, jobId: string): Promise<any> {
@@ -180,7 +188,7 @@ export async function updateCalibration(ctx: AppContext, dataRoot: string, sub: 
     const job = (await c.query('SELECT * FROM scan_print_job WHERE owner_sub=$1 AND job_id=$2 FOR UPDATE', [sub, jobId])).rows[0] as JobRow;
     if (!job) throw new CalibrationError('Object not found.', 404);
     await assertCalibrationOwner(ctx, jobId, a, c);
-    if (job.source_kind === 'pointcloud' && (stable(calibrationDimensions(job.known_dimensions)) !== stable(dimensions) || calibrationSettings(job.settings).resolution !== settings.resolution)) throw new CalibrationError('Point-cloud scale comes from its original import units, not silhouette ruler dimensions or resolution. Reimport that source to change its scale.');
+    if (job.source_kind === 'pointcloud' && (stable(calibrationDimensions(job.known_dimensions)) !== stable(dimensions) || storedCalibrationSettings(job.settings).resolution !== settings.resolution)) throw new CalibrationError('Point-cloud scale comes from its original import units, not silhouette ruler dimensions or resolution. Reimport that source to change its scale.');
     if (calibrationHash(job) !== input.expectedSourceSha) throw new CalibrationError('The saved calibration changed. Re-read it before applying this edit.', 409);
     await calibrationAccess(ctx, 'scan.source.change', a);
     const changed = stable(calibrationSource(job)) !== stable({
@@ -192,7 +200,8 @@ export async function updateCalibration(ctx: AppContext, dataRoot: string, sub: 
       job,
       changed
     };
-    const updated = (await c.query("UPDATE scan_print_job SET known_dimensions=$3::jsonb,settings=$4::jsonb,state='capturing',report=NULL,failure_reason=NULL,updated_at=now() WHERE owner_sub=$1 AND job_id=$2 RETURNING *", [sub, jobId, JSON.stringify(dimensions), JSON.stringify(settings)])).rows[0];
+    const mergedSettings = { ...(job.settings && typeof job.settings === 'object' ? job.settings : {}), ...settings };
+    const updated = (await c.query("UPDATE scan_print_job SET known_dimensions=$3::jsonb,settings=$4::jsonb,state='capturing',report=NULL,failure_reason=NULL,updated_at=now() WHERE owner_sub=$1 AND job_id=$2 RETURNING *", [sub, jobId, JSON.stringify(dimensions), JSON.stringify(mergedSettings)])).rows[0];
     await calibrationAccess(ctx, 'scan.read', a);
     return {
       job: updated as JobRow,

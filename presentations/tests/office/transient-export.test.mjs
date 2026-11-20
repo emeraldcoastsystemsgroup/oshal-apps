@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the actual mounted transient Word export route, original-person authority, real file bytes and transport limits without creating Office records.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Hold real serializer output through current-person withdrawal, deadlines and canceled requests; keep rendering capacity charged until the actual work settles.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify optional Word paragraph borderBottom, tabRight and native OOXML tab runs in DOCX, PDF and RTF exports without altering existing models.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -173,4 +174,36 @@ test('production helper refuses nonbinary, empty and over-native-bound results w
     assert.equal((await response.json()).error, 'office_export_limit');
     assert.equal(f.state.sql, 0);
   }
+});
+
+test('optional paragraph borderBottom and tabRight emit OOXML bottom borders, right tab stops and native tab runs without adding defaults to legacy models', async () => {
+  const legacy = initial('docx', 'Legacy model');
+  assert.equal(Object.hasOwn(legacy.pages[0].blocks[0], 'borderBottom'), false);
+  assert.equal(Object.hasOwn(legacy.pages[0].blocks[0], 'tabRight'), false);
+  assert.throws(() => validate({...legacy, pages: [{...legacy.pages[0], blocks: [{...legacy.pages[0].blocks[0], borderBottom: 'red'}]}]}), /six-digit color/i);
+  assert.throws(() => validate({...legacy, pages: [{...legacy.pages[0], blocks: [{...legacy.pages[0].blocks[0], tabRight: 0}]}]}), /between 1 and 1440/i);
+
+  const styled = initial('docx', 'Resume heading and role');
+  const baseStyle = styled.pages[0].blocks[0].runs[0].style;
+  styled.pages[0].blocks = [
+    {id: 'sec-1', type: 'paragraph', style: 'heading1', spacingBefore: 10, spacingAfter: 4, lineHeight: 1.2, list: 'none',
+      keepWithNext: true, borderBottom: '#1f3a5f', runs: [{text: 'PROFESSIONAL EXPERIENCE', style: {...baseStyle, bold: true, color: '#1f3a5f'}}]},
+    {id: 'role-1', type: 'paragraph', style: 'heading2', spacingBefore: 6, spacingAfter: 2, lineHeight: 1.25, list: 'none',
+      keepWithNext: true, tabRight: 540,
+      runs: [{text: 'Senior Engineer', style: {...baseStyle, bold: true}}, {text: ', Acme', style: {...baseStyle, bold: true, color: '#33414f'}}, {text: '\tJan 2020 - Present', style: {...baseStyle, color: '#5a6675'}}]},
+  ];
+  const docx = await renderOffice(styled, 'docx');
+  const zip = await Zip.loadAsync(docx);
+  const xml = await zip.file('word/document.xml').async('string');
+  assert.match(xml, /<w:pBdr><w:bottom[^>]*w:val="single"[^>]*w:color="1F3A5F"/, 'emits bottom paragraph border');
+  assert.match(xml, /<w:tabs><w:tab[^>]*w:val="right"[^>]*w:pos="10800"/, 'emits right tab stop in twips');
+  assert.match(xml, /<w:tab\/><w:t[^>]*>Jan 2020 - Present<\/w:t>/, 'emits native OOXML tab element');
+
+  const pdf = await renderOffice(styled, 'pdf');
+  assert.ok(pdf.subarray(0, 5).toString() === '%PDF-');
+  assert.match(pdf.toString('latin1'), /0\.75 w 0\.1216 0\.2275 0\.3725 RG/, 'emits PDF bottom rule');
+  const rtf = (await renderOffice(styled, 'rtf')).toString('ascii');
+  assert.match(rtf, /\\brdrb\\brdrs\\brdrw15\\brsp40\\brdrcf\d+/, 'emits RTF bottom border');
+  assert.match(rtf, /\\tqr\\tx10800/, 'emits RTF right tab stop');
+  assert.match(rtf, /\\tab Jan 2020 - Present/, 'emits RTF tab character');
 });

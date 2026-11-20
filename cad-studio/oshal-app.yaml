@@ -39,6 +39,9 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: live CAD Measure (mm/in), 3D View Cube + Fit to view, OBJ/MTL + 3MF + GLB + USDZ exports, View in AR, and confirmed printer handoff (RP-CAD-01..05).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Release 0.5.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.5.2 (BACKLOG B3 + bot-tool contract): declare artifacts.provides (GET /api/cad-studio/artifacts for STL/3MF/OBJ/STEP), add revision-row "Print in Scan to Print" + confirmed Scan to Print multipart 'model' handoff, and add explicit object inputSchema on cad-capabilities and cad-list-models.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.5.3 (BACKLOG B5): complete per-feature timing budget and cancellation — tagged in-flight cancellation on native engine.exchange (preserving last good revision and freeing active slots), structured budgetExceeded build telemetry, UI per-feature timing (ms) and featureBudgetMs input, real cad_engine_bridge.py SIGKILL kill-on-close test, and real-kernel FeatureBudget verification (28/28 in oshal-cad-studio-engine:local).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4 (BACKLOG B1): complete real-kernel verification of revolve, sweep, and loft analytic-volume and refusal tests (28/28 pass in oshal-cad-studio-engine:local, 65/65 Node contract/bridge/worker-logic pass) and close B1 in BACKLOG.md.
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -53,7 +56,7 @@ rating:
       degrade: disable
 displayName: CAD Studio
 description: "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports."
-version: 0.5.1
+version: 0.5.4
 status: active
 scope: person
 
@@ -147,6 +150,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/capabilities" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read this FIRST before adding or changing a feature: parameter names and units come from
       here, never from memory. Opening native capabilities asks this application's engine to prepare.
@@ -168,6 +172,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/models" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: Owner-scoped. Use it to find the modelId the person is talking about; ask when two parts could match.
     routingTags: [cad, parts, list]
     tags: [cad-studio, route-backed]
@@ -379,9 +384,14 @@ summary:
   metricsPointer: /metrics
   itemsPointer: /items
 
-# ADR-139 — "Send to…" destination: an STL from anywhere in the swarm opens CAD Studio as a
-# new part with that mesh as its base.
+# ADR-139 — "Send to…" destination and artifact-picker source (B3): an STL from anywhere opens
+# CAD Studio as a new part, and built revision STL/3MF/OBJ/STEP files are offered to other apps
+# (including Scan to Print) through the shared picker and revision-row handoff.
 artifacts:
+  provides:
+    - label: CAD Studio
+      types: [model/stl, model/3mf, model/obj, model/step]
+      list: /api/cad-studio/artifacts
   accepts:
     - id: mesh
       label: Open in CAD Studio

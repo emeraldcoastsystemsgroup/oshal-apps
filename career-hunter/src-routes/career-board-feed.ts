@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 29 | maintainer@emeraldcoastsystemsgroup.com | Normalize SORT_MAP.salary across currencies using annualUsdPayExpr so foreign figures (e.g. INR) never outrank higher USD-equivalent pay on My jobs while preserving raw displayed currency.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): every card carries where its job is. The card's columns gain the posting's own city point (p.city, p.lat, p.lon, the values Find jobs maps); each job is decorated by lib/career-job-place.js with workplaceType and distanceMiles from the person's saved Matching area; `within=N|remote` and `sort=distance` apply to every page, not one. A corpus without the place columns (an old published corpus, or a minimal test corpus) is read without them, and a distance asked of it is refused as places_unavailable.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): New matches also lists the jobs the nightly pass marked "details needed" (no AI fit; ai_model starts {"needsDetails":), in the order the person chose (by date under Date posted, after every AI fit under Best AI fit), and counts them. They are read through the partial index idx_user_needs_details (migrations/sqlite/002) and only when this owner generation has it; a ranked rung adds them only when it holds every scored match, so no deeper scored match can be passed over. Saved, preparation and application views are unchanged.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Use migrated relationship ordering indexes for exact pipeline pages, with old-generation read fallback.
@@ -77,7 +78,7 @@ export const HIGH_WIN = 'NULL';
 export const SORT_MAP: Record<string, string> = {
   ai: 's.ai_fit_score DESC, s.posting_id ASC',
   keyword: 'COALESCE(s.fit_score,0) DESC, s.posting_id ASC',
-  salary: 'COALESCE(p.salary_max,0) DESC, s.posting_id ASC',
+  salary: `${pay.annualUsdPayExpr('p.')} DESC, COALESCE(p.salary_max,p.salary_min,0) DESC, s.posting_id ASC`,
   company: 'c.name ASC, s.ai_fit_score DESC, s.posting_id ASC',
   posted: 'p.posted_date DESC NULLS LAST, s.posting_id ASC',
   recent: 'p.first_seen_at DESC, s.posting_id ASC',

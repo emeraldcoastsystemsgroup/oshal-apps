@@ -2,10 +2,11 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Read public careers pages with the pinned modern browser, page-state waits, bounded anonymous pagination and captured listing JSON; never fill applicant forms.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read as a browser that says what it is, press a cookie notice's accept button when one covers the jobs, and name what stopped a read: a site's human check, a refusal, or a browser that could not start. A check is reported, never worked around.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Give an anonymous AWS browser check up to twenty seconds within the existing source deadline and admit its exact proof request; a remaining CAPTCHA or login still reports its cause and closes no jobs.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Route all Chromium traffic (including HTTP 301/302/303/307/308 redirects and subresources) through the fail-closed local read proxy with <-loopback> bypass disabled so redirects to private or loopback addresses are never followed.
  */
 'use strict';
 const {createHash}=require('node:crypto');
-const {createReadPolicy}=require('./browser_read_policy.cjs');
+const {createReadPolicy,createReadProxy}=require('./browser_read_policy.cjs');
 const VERSION='1.59.1',MAX_BYTES=8*1024*1024,MAX_ROWS=5000;
 const JOB=/\/jobs?[/-]|\/careers?\/[^/]+\/[^/]|\/positions?\/|\/openings?\/|\/vacanc|\/requisition|\/jobdetail|\/jobposting|jobid=|reqid=|\/p\/|\/roles?\/|\/listing\//i;
 const BAD=/^(apply|search|view all|see all|browse|explore|back|next|previous|sign in|login|home|menu|learn more|read more|filter|sort|share|email|cookie|privacy|terms)\b/i;
@@ -100,7 +101,7 @@ async function advance(page){
 async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
   const settings=fixtureOrigin?{...input,maxPages:input.maxPages??80,deadlineMs:input.deadlineMs??120000}:validateInput(input);
   const end=Date.now()+settings.deadlineMs,result={version:1,dom:[],payloads:[],pages:0,reason:'completion_unverified'};
-  let browser,context,page,expired=false,bytes=0,serial=0,cap=false,latest=Date.now(),pending=new Set(),checked=false,noticed=false,tried=0;
+  let browser,context,page,proxy,expired=false,bytes=0,serial=0,cap=false,latest=Date.now(),pending=new Set(),checked=false,noticed=false,tried=0;
   const seenLinks=new Set(),seenPayloads=new Set();
   const network=new Set();
   const timer=setTimeout(()=>{expired=true;context?.close().catch(()=>{});browser?.close().catch(()=>{});},settings.deadlineMs);timer.unref();
@@ -168,7 +169,8 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
     }
   }
   try{
-    try{browser=await chromium.launch({headless:true,...(executablePath?{executablePath}:{})});}catch{throw Error('browser_runtime_unavailable');}
+    proxy=await createReadProxy({fixtureOrigin});
+    try{browser=await chromium.launch({headless:true,proxy:{server:proxy.url,bypass:'<-loopback>'},...(executablePath?{executablePath}:{})});}catch{throw Error('browser_runtime_unavailable');}
     if(expired)throw Error('browser_deadline_exceeded');
     // The browser's own name with the headless marker dropped and this reader named after it: a site sees a
     // current Chrome and can also see, and refuse, exactly who is reading.
@@ -207,7 +209,7 @@ async function scrape(input,{chromium,executablePath,fixtureOrigin}={}){
     if(expired){result.reason='browser_deadline_exceeded';return result;}
     throw Error(STOPS.includes(error.message)?error.message:'browser_read_failed',{cause:error});
   }finally{
-    clearTimeout(timer);await context?.close().catch(()=>{});await browser?.close().catch(()=>{});
+    clearTimeout(timer);await context?.close().catch(()=>{});await browser?.close().catch(()=>{});await proxy?.close().catch(()=>{});
   }
 }
 module.exports={VERSION,validateInput,listingUrl,links,jsonHasJobs,scrape};

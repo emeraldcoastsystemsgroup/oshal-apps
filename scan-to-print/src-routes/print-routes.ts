@@ -42,6 +42,7 @@
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key ciphertext.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner checks and the existing independent print.send permission before sending current models.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): expose GET /printers/:printerId/status alongside POST and attach bounded, fail-safe live printer status to the latest submission in GET /jobs/:jobId/submissions.
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -61,7 +62,7 @@ import { sanitizeSolidName } from './engine/geometry/export-stl';
 import {assertCalibrationOwner,calibrationAccess} from './calibration-editor';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { randomBytes } from 'node:crypto';
-import { type PrintOutcome, type PrintServiceDeps, type StartDecision, evaluateStart, loadPrinter, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
+import { type PrintOutcome, type PrintServiceDeps, type StartDecision, attachLiveStatus, evaluateStart, loadPrinter, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
 import { type PrinterDraft, parseHttpPrinter, parseSettingsChange, registerBambuPrinter } from './printer-registration';
 
 const logger = createChildLogger({ module: 'scan-to-print-print-routes' });
@@ -211,7 +212,7 @@ function registerSettings(router: Router, deps: PrintRouteDeps): void {
 
 /** @description Register status routes with their existing caller and confirmation contracts. */
 function registerStatus(router: Router, deps: PrintRouteDeps): void {
-  router.post('/printers/:printerId/status', async (req: PrintRequest, res: Response) => {
+  const readStatus = async (req: PrintRequest, res: Response) => {
     try {
       const loaded = await loadPrinter(deps.pool, req.scanSub as string, requireUuid(req.params.printerId));
       if (!loaded) { res.status(404).json({ error: 'printer_not_found' }); return; }
@@ -219,17 +220,22 @@ function registerStatus(router: Router, deps: PrintRouteDeps): void {
       res.status(status.ok ? 200 : 502).json({ printer: loaded.row, status });
     } catch (error) {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_printer_id', message: error.message }); return; }
+      if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error }, 'Printer status failed'); res.status(500).json({ error: 'status_failed' });
     }
-  });
+  };
+  router.get('/printers/:printerId/status', readStatus);
+  router.post('/printers/:printerId/status', readStatus);
 }
 
 /** @description Register history routes with their existing caller and confirmation contracts. */
 function registerHistory(router: Router, deps: PrintRouteDeps): void {
   router.get('/jobs/:jobId/submissions', async (req: PrintRequest, res: Response) => {
     try {
+      const sub = req.scanSub as string;
       const jobId = requireUuid(req.params.jobId);
-      res.json({ submissions: await listSubmissions(deps.pool, req.scanSub as string, jobId) });
+      const rows = await listSubmissions(deps.pool, sub, jobId);
+      res.json({ submissions: await attachLiveStatus(serviceDepsOf(deps), sub, rows) });
     } catch (error) {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_job_id' }); return; }
       logger.error({ err: error }, 'List submissions failed'); res.status(500).json({ error: 'list_failed' });

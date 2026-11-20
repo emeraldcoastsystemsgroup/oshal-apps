@@ -24,6 +24,11 @@
  *                     |                             | (mechanism-routes.ts) are mounted here; a project read carries
  *                     |                             | its mechanism; an example with a mechanism (the lift) saves it
  *                     |                             | with the task read from the brief's line when it is created.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: refuse Design phase closure (422 fit_interference)
+ *                     |                             | when a bound or supplied joint fit check reports interference.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: stamp and return honest reasoned-only metadata on
+ *                     |                             | closures without a verifying engine read, and publish named Pi bay
+ *                     |                             | thermal solve options on GET /capabilities.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -35,10 +40,10 @@ import { taskFromBrief } from './mechanism-model';
 import { registerMechanism } from './mechanism-routes';
 import { registerOrders } from './order-routes';
 import { getMechanism, saveMechanism } from './mechanism-store';
-import { ENGINES, ModelError, PHASE_BRIEFS, PHASE_KINDS, proposePhases, validateArtifact, validateBrief, validateClosure, validatePhases, type PhaseEntry, type PhaseKind } from './phase-model';
+import { closureHonesty, ENGINES, honestEvidence, ModelError, PHASE_BRIEFS, PHASE_KINDS, proposePhases, THERMAL_SOLVE_MODES, validateArtifact, validateBrief, validateClosure, validatePhases, type PhaseEntry, type PhaseKind } from './phase-model';
 import { registerPrintSet } from './print-set-routes';
 import { resolveDataRoot } from './print-set-store';
-import { bindArtifact, closePhase, createProject, deleteProject, getProject, latestBindings, listBindings, listClosures, listOwnerClosures, listProjects, updateProject, type ProjectRow } from './project-store';
+import { bindArtifact, closePhase, createProject, deleteProject, getProject, latestBindings, listBindings, listClosures, listOwnerClosures, listProjects, updateProject, type BindingRow, type ClosureRow, type ProjectRow } from './project-store';
 import { serveSurfaceFile, SURFACE_FILES, surfaceFile } from './surface-files';
 
 const logger = createChildLogger({ module: 'design-studio-routes' });
@@ -83,12 +88,21 @@ function phaseInChain(project: ProjectRow, value: unknown): PhaseEntry {
   return entry;
 }
 
+/** Attach honest engine-measurement metadata to a closure row (B15). */
+function decorateClosure(project: ProjectRow, latest: Partial<Record<PhaseKind, BindingRow>>, row: ClosureRow): Record<string, unknown> {
+  const entry = project.phases.find((p) => p.kind === row.phase);
+  const bound = latest[row.phase];
+  const hasEngineRead = !!(entry && entry.engine !== 'reasoned' && bound?.artifact && bound.artifact.engine !== 'reasoned' && bound.artifact.read);
+  const honesty = closureHonesty(entry, hasEngineRead);
+  return { ...row, engine: honesty.engine, measuredByEngine: honesty.measuredByEngine, reasonedOnly: honesty.reasonedOnly, unmeasuredNotice: honesty.unmeasuredNotice };
+}
+
 /** The full read of a project: the row, the newest binding per phase with the bind count, every closure, the mechanism when one is saved. */
 async function projectView(pool: Pool, sub: string, project: ProjectRow): Promise<Record<string, unknown>> {
   const [bindings, closures, mechanism] = await Promise.all([listBindings(pool, sub, project.id), listClosures(pool, sub, project.id), getMechanism(pool, sub, project.id)]);
   const latest = latestBindings(bindings);
   const binds = Object.fromEntries(Object.entries(latest).map(([k, b]) => [k, { ...b, bindCount: bindings.filter((x) => x.phase === k).length }]));
-  return { project, bindings: binds, closures, mechanism: mechanism ? { ...mechanism.mechanism, revision: mechanism.revision, savedAt: mechanism.saved_at } : null };
+  return { project, bindings: binds, closures: closures.map((c) => decorateClosure(project, latest, c)), mechanism: mechanism ? { ...mechanism.mechanism, revision: mechanism.revision, savedAt: mechanism.saved_at } : null };
 }
 
 /** Create a project from an example: the brief, the chain and the bindings by name. */
@@ -144,7 +158,11 @@ function registerSurface(router: Router, appPackageDir: string | undefined): voi
 function registerVocabulary(router: Router): void {
   router.get('/capabilities', (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ app: 'design-studio', phases: PHASE_KINDS, engines: ENGINES, briefs: PHASE_BRIEFS, examples: listExamples(), body: { schema: 'design-studio-body/1', route: 'GET /api/design-studio/projects/{id}/body' } });
+    res.json({
+      app: 'design-studio', phases: PHASE_KINDS, engines: ENGINES, briefs: PHASE_BRIEFS, examples: listExamples(),
+      thermalSolveModes: THERMAL_SOLVE_MODES,
+      body: { schema: 'design-studio-body/1', route: 'GET /api/design-studio/projects/{id}/body' },
+    });
   });
   router.post('/plan', (req: Request, res: Response) => {
     try {
@@ -216,9 +234,22 @@ function registerPhases(router: Router, pool: Pool): void {
     const body = (req.body ?? {}) as Record<string, unknown>;
     try {
       const phase = phaseInChain(c.project, body.phase);
-      const closure = await closePhase(pool, c.sub, c.project.id, phase.kind, validateClosure(phase.kind, body));
-      logger.info({ sub: c.sub, projectId: c.project.id, phase: phase.kind, step: closure.step }, 'Phase closed');
-      res.status(201).json({ closure, ...(await projectView(pool, c.sub, c.project)) });
+      const latestMap = latestBindings(await listBindings(pool, c.sub, c.project.id));
+      const latest = latestMap[phase.kind];
+      if (phase.kind === 'design') {
+        const boundFit = latest?.artifact?.read && typeof latest.artifact.read === 'object' ? (latest.artifact.read as Record<string, unknown>).fitCheck as Record<string, unknown> | undefined : undefined;
+        const fitCheck = (body.fitCheck && typeof body.fitCheck === 'object' ? body.fitCheck as Record<string, unknown> : boundFit) || null;
+        if (fitCheck && fitCheck.verdict === 'interference') {
+          const detail = typeof fitCheck.summary === 'string' && fitCheck.summary ? fitCheck.summary : 'one or more joints have negative clearance';
+          throw new ModelError(`cannot close Design while joint interference remains: ${detail}`, 'fit_interference', 'fitCheck', 422);
+        }
+      }
+      const validated = validateClosure(phase.kind, body);
+      const hasEngineRead = !!(phase.engine !== 'reasoned' && latest?.artifact && latest.artifact.engine !== 'reasoned' && latest.artifact.read);
+      const honesty = closureHonesty(phase, hasEngineRead);
+      const closure = await closePhase(pool, c.sub, c.project.id, phase.kind, { ...validated, evidence: honestEvidence(validated.evidence, honesty) });
+      logger.info({ sub: c.sub, projectId: c.project.id, phase: phase.kind, step: closure.step, reasonedOnly: honesty.reasonedOnly }, 'Phase closed');
+      res.status(201).json({ closure: decorateClosure(c.project, latestMap, closure), ...(await projectView(pool, c.sub, c.project)) });
     } catch (error) { refuse(res, error, 'close phase'); }
   });
 }
@@ -231,8 +262,9 @@ function registerReads(router: Router, pool: Pool): void {
       const kind = kindOf(String(req.params.kind));
       const entry = c.project.phases.find((p) => p.kind === kind) ?? null;
       const [bindings, closures] = await Promise.all([listBindings(pool, c.sub, c.project.id), listClosures(pool, c.sub, c.project.id)]);
-      const binding = latestBindings(bindings)[kind] ?? null;
-      const closed = closures.filter((x) => x.phase === kind);
+      const latestMap = latestBindings(bindings);
+      const binding = latestMap[kind] ?? null;
+      const closed = closures.filter((x) => x.phase === kind).map((x) => decorateClosure(c.project, latestMap, x));
       res.setHeader('Cache-Control', 'no-store');
       res.json({ project: c.project.id, brief: PHASE_BRIEFS[kind], inChain: !!entry, phase: entry, binding, closures: closed, productBrief: c.project.brief });
     } catch (error) { refuse(res, error, 'phase brief'); }

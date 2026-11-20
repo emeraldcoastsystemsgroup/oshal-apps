@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter pulls from my first development job ... and lies about my level of expertise on c# ... we ironed all of these problems previously and they just keep coming back"): what a generated cover letter or résumé claims, read the same way whichever model wrote it, and whether the person's records support it. A skill or tool the records never name, a level the records do not state (expert, advanced, deep, strong ...), a years count the recorded dates do not add up to, a title the records do not hold, a tool put under a role whose records do not name it, and a letter sentence drawn from work outside the chosen evidence (letter_evidence) are each a problem. claims_fix.py removes or tones them down and holds the letter.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: fix parenthetical year attribution ("Java / J2EE (9 years), Python" binds backward to Java, never forward past ')' to Python), check all skills bound to a single years phrase rather than only the first, and map J2EE under Java.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Overlay candidate-confirmed skill and career year figures (years_truth.stated_overlay) into records() so over-claim checks accept the person's own figures.
 """The claims a generated cover letter or résumé makes, and whether the person's records support each one.
 
 Records are the profile the documents were generated from: roles (titles, employers, dates, bullets, skills, stories),
@@ -216,6 +217,8 @@ def records(prof: dict, selected=(), terms=frozenset(), today: datetime.date | N
     for row in rows:
         rec["words"].update(row["bag"])
     rec["career_years"] = _years(row["interval"] for row in rows if row["key"][0] in "RE")
+    from . import years_truth
+    years_truth.stated_overlay(rec, prof)
     return rec
 
 

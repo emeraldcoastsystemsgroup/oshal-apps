@@ -20,11 +20,13 @@
  *                     |                             | keeps what is the fit's: how many, and the role the motor plays
  *                     |                             | on its prop. No number moved: the bought part keeps id `motor`,
  *                     |                             | the same fields in the same order and the same values.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: pass the explicit air Medium to `sizeHover`.
  */
 
 import { DRONE_SENSOR_SETS, type DroneSensorSet, type DroneSensorSetId } from '../drone/sensor-set';
 import { arm, batteryTray, centrePlate, guardSegment, landingFoot, landingPad, layoutFor, mast, tofMount, type AirframeLayout, type CadProgram } from './airframe';
 import { sizeHover, tipSpeedMps, type HoverSizing } from './propulsion';
+import { mediumById, type Medium } from '../medium/medium';
 import { motorRow, type PartRow } from './parts-catalog';
 
 /** @description The two ways to fit the one airframe. */
@@ -162,7 +164,7 @@ export function buildDrone(fitId: DroneFit): DroneDesign {
   const printedG = parts.filter((p) => p.id !== 'pad').reduce((a, p) => a + p.qty * p.massEachG, 0);
   const boughtG = bought.reduce((a, p) => a + p.qty * p.massEachG, 0);
   const allUpG = Math.round(printedG + boughtG + fit.batteryG);
-  const sizing = sizeHover({ propIn: fit.propIn, auwG: allUpG, cells: fit.cells, mAh: fit.mAh });
+  const sizing = sizeHover({ propIn: fit.propIn, auwG: allUpG, cells: fit.cells, mAh: fit.mAh }, undefined, mediumById('air') as Medium);
   const battery: BoughtPart = { id: 'battery', name: `${fit.cells}S ${fit.mAh} mAh LiPo`, qty: 1, massEachG: fit.batteryG, role: '', approxUsdEach: fit.cells >= 6 ? 45 : 30 };
   const approxUsd = Math.round([...bought, battery].reduce((a, p) => a + p.qty * p.approxUsdEach, 0));
   return { fit, sensorSet, layout, parts, bought: [...bought, battery], massBudget: { printedG, boughtG, batteryG: fit.batteryG, allUpG }, sizing, tipSpeedMps: tipSpeedMps(fit.propIn, fit.hoverRpm), approxUsd, printRules: PRINT_RULES };

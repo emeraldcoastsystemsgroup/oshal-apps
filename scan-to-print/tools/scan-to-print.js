@@ -73,6 +73,9 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7, the trial check (2026-11-06): Make 3D model was offered before the ruler measurement it needs and its first press answered 422 in developer words ("knownDimensions must be a list of 1 to 3 {axis, mm} entries"), because the measurement field sat only in the Properties sheet on a phone. Once Front, Top and Right are placed, a "2 · Measure" field (the width, written to the same Width X calibration field) shows directly above Make 3D model, which stays disabled until a width is entered or saved; that refusal now reads as a sentence. A reload reopens the object that was open in that tab (sessionStorage); removing a photo asks first; the name and tagline are not repeated on a phone (data-ef-phone="brand"), where the app bar names the open object instead.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0, the design standard (docs/ux/design-standard.md; Roger, 2026-11-06, F2, F3 and F12; the reference products Polycam and KIRI Engine, lanes/design-standard-2026-11-06/reference-products/CONVENTIONS.md §5.8). No native alert, confirm or prompt anywhere (DS-30): New object names the object for today without asking, and every question (discard a calibration draft, delete an object, remove a photo, turn auto-start on, send a print) is an in-page sheet with Cancel and the action named; a Bambu printer's slice settings are fields in the Printers sheet instead of three prompts. One primary on every screen (DS-24): New object is an item of the Object ▾ menu (New object, Printers…, Export…, Delete object; the ⋯ More sheet on a phone), Reconstruct and Send to printer are secondary, and the first action is Take a photo, with Choose photos, Use a video and Import a LiDAR scan as the start card's other ways in (mode first, C-SCN-2). An object shows its steps (1 Capture · 2 Scale · 3 Model · 4 Print) and a Photos · Video · LiDAR file choice; Printers is a sheet, not a panel crushing the object list; the model viewer has Export, Print and the reference tools; Export is its own sheet listing the files with one Export at its bottom (N13). The planned tools both references have (Crop, Rotate, Measure, GLB and USDZ, Share, AR) are greyed "Not available yet" controls in their places (DS-45, RP-SCN-01 to -06). The concierge's help names the object.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: GLB and USDZ export rows and download links (RP-SCN-04), plus the window.ScanToPrintApp seam consumed by scan-to-print-tools.js for interactive 3D Crop, Rotate/Lay-flat, Measure, Share, and AR (RP-SCN-01..06).
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: wire symmetry (B11) and nozzleMm/layerHeightMm/perimeters print-check settings (B13) into renderSettings, reconstruct, and renderReport, gate depth-panel on scan.edit, and expose detail/capabilities/clearOutputs on ScanToPrintApp for B1 depth-map uploads.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: render live print progress read-back (`printing 43 %`, BACKLOG B5) from attached host status on submissions and status checks across all printer hosts, and surface video square-on frame suggestions automatically after video upload for one-click confirmation (B12).
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: wire optional `#fiducial-mm` calibration square side input (BACKLOG B3) into `measured`, `renderSettings`, `readBuildOptions`, and photo upload feedback without altering existing ruler/cube flows.
  */
 (function () {
   'use strict';
@@ -411,13 +414,19 @@
     syncMeasure();
     $('download-stl').hidden = !stl; if (stl) { $('download-stl').href = BASE + '/jobs/' + state.job.job_id + '/artifacts/stl?download'; $('download-stl').setAttribute('download', fileName(state.job.title, 'stl')); }
     $('take-photos').className = complete ? 'ghost' : 'primary'; $('take-photos').textContent = complete ? 'Take more photos' : 'Take a photo';
-    for (const id of ['video-pick', 'pointcloud-row', 'reconstruct', 'mode-video', 'mode-lidar']) if ($(id)) $(id).hidden = !may;
+    for (const id of ['video-pick', 'pointcloud-row', 'reconstruct', 'mode-video', 'mode-lidar', 'depth-panel']) if ($(id)) $(id).hidden = !may;
   }
   const OPEN_KEY = 'scan-to-print:open-object';
   /** True when the scale has one positive measurement, typed now or saved with the object. */
+  function hasFiducialScale() {
+    const raw = $('fiducial-mm') ? $('fiducial-mm').value : '';
+    const mm = raw !== '' ? Number(raw) : Number(state.job?.settings?.fiducialMm);
+    if (!Number.isFinite(mm) || mm < 5 || mm > 500) return false;
+    return Boolean((state.detail?.images || []).some((img) => img.silhouette && img.silhouette.fiducial && img.silhouette.fiducial.detected));
+  }
   function measured() {
     const typed = Number($('dim-x').value || $('dim-y').value || $('dim-z').value);
-    return (Number.isFinite(typed) && typed > 0) || Boolean(state.job && (state.job.known_dimensions || []).length);
+    return (Number.isFinite(typed) && typed > 0) || Boolean(state.job && (state.job.known_dimensions || []).length) || hasFiducialScale();
   }
   /** The visible width field mirrors Width X; Make 3D model waits for a measurement. */
   function syncMeasure() {
@@ -511,7 +520,13 @@
     clearOutputs('Capture changed. Assign the new views, then reconstruct.');
     const form = new FormData();
     form.append('video', file, file.name);
-    try { toast('Extracting frames…'); const out = await api('/jobs/' + state.job.job_id + '/video', { method: 'POST', body: form }); await openJob(state.job.job_id); toast(out.frames + ' frames added. Use "Suggest views from the video", or assign the square-on ones by hand.'); } catch (e) { toast(e.message, 'error'); }
+    try {
+      toast('Extracting frames…');
+      const out = await api('/jobs/' + state.job.job_id + '/video', { method: 'POST', body: form });
+      await openJob(state.job.job_id);
+      if (out.frames > 0) await suggestViews().catch(() => undefined);
+      toast(out.frames + ' frames added. Confirm the suggested views or assign frames by hand.');
+    } catch (e) { toast(e.message, 'error'); }
   }
   async function uploadPointCloud(file) {
     if (!file) return;
@@ -555,10 +570,40 @@
     $('res').min = limits.resolution.min; $('res').max = limits.resolution.max; $('res').value = s.resolution || limits.resolution.default;
     $('smooth').min = limits.smoothIterations.min; $('smooth').max = limits.smoothIterations.max; $('smooth').value = s.smoothIterations === undefined ? limits.smoothIterations.default : s.smoothIterations;
     $('res-label').textContent = $('res').value; $('smooth-label').textContent = $('smooth').value;
+    if ($('symmetry')) $('symmetry').value = s.symmetry === 'x' || s.symmetry === 'y' ? s.symmetry : '';
+    if ($('fiducial-mm')) $('fiducial-mm').value = s.fiducialMm !== undefined && s.fiducialMm !== null ? s.fiducialMm : '';
+    if ($('pc-nozzle')) $('pc-nozzle').value = s.nozzleMm !== undefined ? s.nozzleMm : 0.4;
+    if ($('pc-layer')) $('pc-layer').value = s.layerHeightMm !== undefined ? s.layerHeightMm : 0.2;
+    if ($('pc-perimeters')) $('pc-perimeters').value = s.perimeters !== undefined ? s.perimeters : 2;
+    syncMeasure();
+  }
+  function readBuildOptions() {
+    const settings = { resolution: Number($('res').value), smoothIterations: Number($('smooth').value) };
+    const sym = $('symmetry') ? $('symmetry').value : '';
+    if (sym === 'x' || sym === 'y') settings.symmetry = sym;
+    if ($('fiducial-mm')) {
+      const fidRaw = $('fiducial-mm').value.trim();
+      if (fidRaw !== '') {
+        const fid = Number(fidRaw);
+        if (!Number.isFinite(fid) || fid < 5 || fid > 500) throw new Error('Fiducial square size must be between 5 and 500 mm.');
+        settings.fiducialMm = fid;
+      } else { settings.fiducialMm = null; }
+    }
+    const nozzle = $('pc-nozzle') && $('pc-nozzle').value !== '' ? Number($('pc-nozzle').value) : null;
+    const layer = $('pc-layer') && $('pc-layer').value !== '' ? Number($('pc-layer').value) : null;
+    const perims = $('pc-perimeters') && $('pc-perimeters').value !== '' ? Number($('pc-perimeters').value) : null;
+    if (nozzle !== null && Number.isFinite(nozzle)) settings.nozzleMm = nozzle;
+    if (layer !== null && Number.isFinite(layer)) settings.layerHeightMm = layer;
+    if (perims !== null && Number.isFinite(perims)) settings.perimeters = perims;
+    if (settings.nozzleMm !== undefined && settings.layerHeightMm !== undefined && settings.layerHeightMm > settings.nozzleMm) {
+      throw new Error('Layer height cannot exceed nozzle diameter.');
+    }
+    return settings;
   }
   async function reconstruct() {
     try { await saveDimensions(); } catch (e) { toast(e.message, 'error'); return; }
-    const settings = { resolution: Number($('res').value), smoothIterations: Number($('smooth').value) };
+    let settings;
+    try { settings = readBuildOptions(); } catch (e) { toast(e.message, 'error'); return; }
     const jobId = state.job.job_id;
     clearOutputs('Reconstructing. Previous outputs are unavailable.');
     const epoch = state.outputEpoch;
@@ -601,6 +646,12 @@
       ['Mesh', report.triangleCount + ' facets, ' + report.vertexCount + ' vertices · χ = ' + report.validation.eulerCharacteristic],
       ['Printable', report.printable ? 'yes — watertight, consistently wound, outward-facing' : 'NO — ' + report.validation.openEdges + ' open edges, ' + report.validation.degenerate + ' degenerate facets'],
     ];
+    if (report.printChecks) {
+      const pc = report.printChecks;
+      const summary = pc.failures && pc.failures.length ? pc.failures.join('; ')
+        : 'passed (min wall ' + fmt(pc.minWallMm, 2) + ' mm, max overhang ' + fmt(pc.maxOverhangDeg, 0) + '°)';
+      rows.push(['Print checks', summary]);
+    }
     const dl = el('dl', {}, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })]));
     card.appendChild(dl);
     if (report.warnings.length) card.appendChild(el('ul', { class: 'warnings' }, report.warnings.map((w) => el('li', { text: w }))));
@@ -753,12 +804,28 @@
     anchor.replaceWith(input, save); input.focus();
   }
   async function removePrinter(id) { try { await api('/printers/' + id, { method: 'DELETE' }); await loadPrinters(); } catch (e) { toast(e.message, 'error'); } }
+  function formatLiveProgress(status) {
+    if (!status || !status.ok) return null;
+    const st = String(status.state || '').toLowerCase();
+    const raw = typeof status.progress === 'number' && Number.isFinite(status.progress) ? status.progress
+      : (status.detail && typeof status.detail.percent === 'number' && Number.isFinite(status.detail.percent) ? status.detail.percent : null);
+    const pct = raw !== null ? Math.max(0, Math.min(100, Math.round(raw))) : null;
+    if (pct !== null && (st === 'printing' || st === 'paused' || st === 'preparing')) return st + ' ' + pct + ' %';
+    return st || null;
+  }
+  function submissionStatusText(s) {
+    const live = s && s.liveStatus;
+    if (live && live.ok) return formatLiveProgress(live) || s.state;
+    if (live && !live.ok) return s.state + ' (offline)';
+    return s.state;
+  }
   async function printerStatus(id) {
     try {
-      const out = await api('/printers/' + id + '/status', { method: 'POST' });
+      const out = await api('/printers/' + id + '/status', { method: 'GET' });
       const d = out.status.detail || {};
-      const extra = isBambu(out.printer) ? (d.percent != null && out.status.state === 'printing' ? ' · ' + d.percent + '%, ' + d.remainingMinutes + ' min left' : '') + (d.signatureRequired ? ' · starts only from the printer (Developer Mode off)' : ' · oshal can start prints') : '';
-      toast(out.printer.label + ': ' + out.status.state + extra, 'ok');
+      const headline = formatLiveProgress(out.status) || out.status.state;
+      const extra = isBambu(out.printer) ? (d.remainingMinutes != null && out.status.state === 'printing' ? ' · ' + d.remainingMinutes + ' min left' : '') + (d.signatureRequired ? ' · starts only from the printer (Developer Mode off)' : ' · oshal can start prints') : '';
+      toast(out.printer.label + ': ' + headline + extra, 'ok');
     } catch (e) { toast('Printer did not answer: ' + ((e.body && e.body.status && e.body.status.detail && e.body.status.detail.message) || (e.body && e.body.status && e.body.status.state) || e.message), 'error'); }
   }
   function renderPrint(artifacts) {
@@ -790,7 +857,11 @@
       const { submissions } = await api('/jobs/' + state.job.job_id + '/submissions');
       const list = $('submissions');
       list.replaceChildren();
-      submissions.forEach((s) => list.appendChild(el('li', { class: s.state }, [el('span', { text: new Date(s.created_at).toLocaleString() + ' · ' + s.file_name + ' · ' + s.state + (s.failure_reason ? ' — ' + s.failure_reason : '') })])));
+      submissions.forEach((s) => {
+        const cls = s.liveStatus && s.liveStatus.ok && s.liveStatus.state ? String(s.liveStatus.state).toLowerCase() : s.state;
+        const statusText = submissionStatusText(s);
+        list.appendChild(el('li', { class: cls }, [el('span', { text: new Date(s.created_at).toLocaleString() + ' · ' + s.file_name + ' · ' + statusText + (s.failure_reason ? ' — ' + s.failure_reason : '') })]));
+      });
     } catch (_) { /* the list is informational */ }
   }
 
@@ -1023,6 +1094,10 @@
       if (document.activeElement !== $('measure-width')) $('measure-width').value = $('dim-x').value;
       $('make-model').disabled = !measured();
     }));
+    if ($('fiducial-mm')) $('fiducial-mm').addEventListener('input', () => {
+      clearOutputs('Fiducial size changed. Reconstruct to refresh the model and downloads.');
+      $('make-model').disabled = !measured();
+    });
     $('res').addEventListener('input', () => { $('res-label').textContent = $('res').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
     $('smooth').addEventListener('input', () => { $('smooth-label').textContent = $('smooth').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
     ['pc-voxel', 'pc-units', 'pc-up', 'pc-seal'].forEach((id) => $(id).addEventListener('change', () => {
@@ -1047,8 +1122,10 @@
   }
   if (typeof window !== 'undefined') {
     window.ScanToPrintApp = {
-      BASE, api, toast, ask, fmt, fileName,
+      BASE, api, toast, ask, fmt, fileName, clearOutputs,
       getJob: () => state.job,
+      getDetail: () => state.detail,
+      getCapabilities: () => state.capabilities,
       isFresh: () => state.outputsFresh,
       getViewer: () => state.viewer,
       reloadJob: () => (state.job ? openJob(state.job.job_id) : Promise.resolve()),

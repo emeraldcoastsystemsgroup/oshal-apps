@@ -20,6 +20,8 @@
  *                     |                             | spring) is read by id through boughtRow — the identity block
  *                     |                             | only, checked the same way, so hexapod-design.ts restates no
  *                     |                             | name, mass or price.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: validate optional positive `rateHz` on owned
+ *                     |                             | sensor rows in `bought` (ld19-lidar, bno055-imu).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -63,6 +65,8 @@ function rowById(list, id) {
     text(row, 'source', where);
     positive(row, 'massG', where);
     positive(row, 'approxUsd', where);
+    if (row.rateHz !== undefined)
+        positive(row, 'rateHz', where);
     return row;
 }
 /**

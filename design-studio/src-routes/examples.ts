@@ -21,6 +21,8 @@
  *                     |                             | payload, and the brief's line "lifts 2 kg to 300 mm in 5 s".
  *                     |                             | The masses come from the kernel's reports and the drive's
  *                     |                             | numbers from the row when the plant is built, never from here.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: include the named Pi bay thermal solve option on
+ *                     |                             | `spider-18`'s brief as reasoned/unmeasured.
  */
 
 import type { Mechanism } from './mechanism-model';
@@ -70,6 +72,7 @@ export const SPIDER_18_EXAMPLE: Example = Object.freeze({
     requirements: ['holds a Raspberry Pi', 'has heat', 'one LiDAR eye', 'six legs', 'jumps', 'flips its legs when upside down'],
     // The mass target is the design's (GET /api/embodied/build/hexapod massBudget.targetG); the brief carries no copy of it.
     targets: {},
+    thermalSolve: { mode: 'pi-bay' as const, status: 'reasoned-unmeasured' as const, note: 'Raspberry Pi 5 with official active cooler in vented body bay' },
   },
   phases: SPIDER_PHASES,
   bindings: SPIDER_BINDINGS,

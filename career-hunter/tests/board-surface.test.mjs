@@ -205,7 +205,8 @@ test('each production renderer escapes every provenance summary field', () => {
 });
 
 test('completed lanes use neutral labels and wire the provenance renderer', () => {
-  assert.match(readFileSync(new URL('../tools/career-stages.js', import.meta.url), 'utf8'), /\{ id: 'applied', label: 'Applied', status: 'tracked'/);
+  // 1.68.18: Applied filters strictly to status='applied' (mutually exclusive workflow stage).
+  assert.match(readFileSync(new URL('../tools/career-stages.js', import.meta.url), 'utf8'), /\{ id: 'applied', label: 'Applied', status: 'applied'/);
   assert.match(surfaces['career-board.html'], /value="applied">Application records/);
   assert.match(readFileSync(new URL('../tools/career-job-lists.js', import.meta.url), 'utf8'), /lineMarkup\(CareerStatusLine\.forJob\(job\)\)/);
   assert.match(surfaces['career-mobile.html'], /lane\('applied','Application records'/);

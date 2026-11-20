@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com   | 0.10.0: interactive 3D Crop (RP-SCN-01), Rotate / Lay-flat leveling (RP-SCN-02), Point-to-point 3D Measure (RP-SCN-03), revocable Share sheet (RP-SCN-05), and View in AR sheet with iOS Quick Look, Android Scene Viewer, and pure-JS ISO/IEC 18004 SVG QR handoff (RP-SCN-06).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | 0.10.2: wire depth-map upload UI (B1) with client-side size/header validation and feedback for POST /jobs/:id/depth.
  */
 (function () {
   'use strict';
@@ -470,6 +471,73 @@
         if (ev.target === sheet || (ev.target && ev.target.closest && ev.target.closest('[data-stp-close]'))) sheet.close();
       });
     }
+    wireDepthUpload(app);
+  }
+
+  function buildDepthForm(file, maxBytes) {
+    if (!file) throw new Error('Choose a 16-bit PNG or float32 raw depth map file first.');
+    if (maxBytes && file.size > maxBytes) {
+      throw new Error(`${file.name} exceeds the ${(maxBytes / (1024 * 1024)).toFixed(1)} MiB depth upload limit.`);
+    }
+    const format = $('depth-format').value;
+    const mmPerPx = Number($('depth-mm-per-px').value);
+    const planeMm = Number($('depth-plane-mm').value);
+    const depthScale = Number($('depth-scale').value);
+    const uCenterPx = Number($('depth-u-center').value);
+    const vCenterPx = Number($('depth-v-center').value);
+    if (!Number.isFinite(mmPerPx) || mmPerPx <= 0) throw new Error('mm / px must be a positive number.');
+    if (!Number.isFinite(planeMm)) throw new Error('Plane (mm) must be a finite number.');
+    if (!Number.isFinite(depthScale) || depthScale <= 0) throw new Error('Depth scale must be positive.');
+    if (!Number.isFinite(uCenterPx) || !Number.isFinite(vCenterPx)) throw new Error('U and V centre pixels must be finite.');
+    const form = new FormData();
+    form.append('depth', file, file.name);
+    form.append('format', format);
+    form.append('view', $('depth-view').value);
+    form.append('mmPerPx', String(mmPerPx));
+    form.append('planeMm', String(planeMm));
+    form.append('depthScale', String(depthScale));
+    form.append('uCenterPx', String(uCenterPx));
+    form.append('vCenterPx', String(vCenterPx));
+    if (format === 'f32le') {
+      const w = Number($('depth-width').value), h = Number($('depth-height').value);
+      if (!Number.isInteger(w) || w <= 0 || !Number.isInteger(h) || h <= 0) {
+        throw new Error('Float32 raw depth maps require positive integer width and height.');
+      }
+      form.append('width', String(w));
+      form.append('height', String(h));
+    }
+    return form;
+  }
+
+  function wireDepthUpload(app) {
+    const btn = $('upload-depth'), fmtSel = $('depth-format'), fileInput = $('depth-file'), note = $('depth-note');
+    if (!btn || !fmtSel || !fileInput) return;
+    const syncRaw = () => { if ($('depth-raw-dims')) $('depth-raw-dims').hidden = fmtSel.value !== 'f32le'; };
+    fmtSel.addEventListener('change', syncRaw);
+    syncRaw();
+    btn.addEventListener('click', async () => {
+      const job = app.getJob();
+      if (!job) { app.toast('Open or create a scan object first.', 'error'); return; }
+      const caps = app.getCapabilities ? app.getCapabilities() : null;
+      const maxBytes = caps && caps.upload ? caps.upload.depthBytes : null;
+      let form;
+      try { form = buildDepthForm(fileInput.files && fileInput.files[0], maxBytes); }
+      catch (e) { if (note) note.textContent = e.message; app.toast(e.message, 'error'); return; }
+      try {
+        btn.disabled = true;
+        if (note) note.textContent = 'Carving hull with depth map…';
+        if (app.clearOutputs) app.clearOutputs('Refining hull with depth map. Previous outputs are unavailable.');
+        const out = await app.api('/jobs/' + job.job_id + '/depth', { method: 'POST', body: form });
+        fileInput.value = '';
+        await app.reloadJob();
+        const msg = 'Depth refinement finished (' + out.report.triangleCount + ' facets, lane: ' + out.report.lane + ').';
+        if (note) note.textContent = msg;
+        app.toast(msg, 'ok');
+      } catch (e) {
+        if (note) note.textContent = e.message;
+        app.toast(e.message, 'error');
+      } finally { btn.disabled = false; }
+    });
   }
 
   window.ScanToPrintQr = { renderQrSvg, encodeQrCodewords };

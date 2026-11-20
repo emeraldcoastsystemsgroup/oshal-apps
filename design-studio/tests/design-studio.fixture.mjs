@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3: include sensor rateHz on cannedDesign bought/senses rows and tickHz + senses[] on cannedStatus hexapod node matching embodied 0.20.6.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D9, lane @ds-plant: embodied's catalog (the servo row with fixture numbers labelled as such) and the plant routes in their real reply shapes (recorded from the engine on the lift): load echoes the spec's actuators with the limits the engine derives, state is 404 plant_not_built until a load, train with 0 steps writes a baseline report into the reports listing, train with steps records a running job that `finishJob()` completes into a trained report with a policy, certify writes the certificate beside it; every request is recorded; Circuit Lab's drivers answer a stepper row without a continuous rating.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D7, lane @ds-fab: CAD Studio's model routes in their real shape - POST /models builds a box from the program's base (a binary STL of twelve triangles, the kernel report a box has, revision 1, state built, artifacts links, the source tag kept), GET /models lists the canned and the created parts, GET /models/{id}/artifacts/stl serves the bytes; switches make a create fail its build (cadBuildFails) or export a mesh with an open edge (cadOpenMesh: the mesh check must catch it). The print service's posted-model route (multer from the core checkout) records what it was sent and answers uploaded, not started, under the owner's auto-start. The print-set root is a temporary directory removed with the fixture.
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D4, lane @ds-app: the loopback fixture the browser proof opens - the REAL compiled design-studio routes (routes/design-studio-routes.js through the route harness's framework doubles and in-memory pool) with the framework's shared theme assets and a signed-in identity, beside canned answers in the engines' own shapes for everything the page reads through the session: embodied's design (the hexapod route's shape with fixture numbers labelled as such), /physics/status with a node of kind hexapod, /physics/reports with a certificate, the plant's MJCF with its timestep and eighteen actuated joints, the check and the gate as writers that record what they were sent; Circuit Lab's designs and examples, a create that solves on the fixture (a regulator reading that holds); CAD Studio's models; the print service's printers; the cockpit stub the deep links land on. Every canned answer is switchable (absent, refused, failing) so the screen's honesty can be proven.
@@ -35,7 +36,7 @@ const LEGS = bodyReads.LEGS; const JOINTS = ['coxa', 'femur', 'tibia'];
 const DEG = Math.PI / 180;
 /** A printed part in the hexapod route's shape with a CAD Studio program (a box base, no features) and the link it rides on. */
 const printed = (id, name, qty, material, massEachG, link, size, option) => ({ id, name, qty, material, printNotes: 'PETG, 30 % gyroid (fixture)', massEachG, link, ...(option ? { option } : {}), cad: { base: { kind: 'box', sizeX: size[0], sizeY: size[1], sizeZ: size[2] }, features: [] } });
-const bought = (id, name, qty, massEachG, role, approxUsdEach) => ({ id, name, qty, massEachG, role, approxUsdEach, source: 'fixture' });
+const bought = (id, name, qty, massEachG, role, approxUsdEach, rateHz) => ({ id, name, qty, massEachG, role, approxUsdEach, source: 'fixture', ...(rateHz !== undefined ? { rateHz } : {}) });
 
 /**
  * @description The canned design: GET /build/hexapod's shape with FIXTURE numbers. The budget closes, every joint sits inside the row's continuous torque, every printed part has a program, so the page reads parts-complete.
@@ -48,8 +49,8 @@ export function cannedDesign() {
     printed('spring-cam', 'Spring cam', 1, 'PETG', 9, 'jump', [30, 30, 12], 'latched-spring'),
   ];
   const boughtParts = [
-    bought('sts3215-12v', 'fixture bus servo 12 V', 18, 55, 'every joint', 14), bought('pi5-8gb', 'fixture Pi 5', 1, 45, 'the brain', 80), bought('ld19-lidar', 'fixture LiDAR ring', 1, 47, 'the one eye', 90),
-    bought('bno055-imu', 'fixture IMU', 1, 3, 'which way is up', 20), bought('lipo-3s-2200', 'fixture 3S pack', 1, 175, 'the pack', 30), bought('buck-5v-5a', 'fixture 5 V buck', 1, 10, 'the Pi rail', 12),
+    bought('sts3215-12v', 'fixture bus servo 12 V', 18, 55, 'every joint', 14), bought('pi5-8gb', 'fixture Pi 5', 1, 45, 'the brain', 80), bought('ld19-lidar', 'fixture LiDAR ring', 1, 47, 'the one eye', 90, 10),
+    bought('bno055-imu', 'fixture IMU', 1, 3, 'which way is up', 20, 100), bought('lipo-3s-2200', 'fixture 3S pack', 1, 175, 'the pack', 30), bought('buck-5v-5a', 'fixture 5 V buck', 1, 10, 'the Pi rail', 12),
   ];
   const totalG = printedParts.reduce((a, p) => a + (p.option ? 0 : p.qty * p.massEachG), 0) + boughtParts.reduce((a, p) => a + p.qty * p.massEachG, 0);
   const servo = { id: 'sts3215-12v', name: 'fixture bus servo 12 V', stallNm: 2.942, noLoadRadS: 4.7166, massG: 55 };
@@ -59,7 +60,9 @@ export function cannedDesign() {
     spec: { fit: 'spider-18', servoRowId: 'sts3215-12v', servoCount: 18, limits: { coxaDeg: [-60, 60], femurDeg: [-120, 120], tibiaDeg: [-140, 140] }, jumpOptions: ['legs-hop', 'latched-spring'], massTargetG: 2100 },
     servo, massBudget: { rows: [], totalG, targetG: 2100, withinTarget: totalG <= 2100, printedG: 0, boughtG: 0, briefTotalG: 1851 },
     joints: [joint('coxa', 1.15), joint('femur', 1.43), joint('tibia', 1.0)],
-    printed: printedParts, bought: boughtParts, bom: [], jump: [], approxUsd: 0, approxUsdWithSpring: 0, assumptions: ['fixture numbers'], printRules: [],
+    printed: printedParts, bought: boughtParts,
+    senses: [{ name: 'lidar', rateHz: 10, rowId: 'ld19-lidar', mount: 'Head (LiDAR nose)', reader: 'the node (LD19 UART)' }, { name: 'imu', rateHz: 100, rowId: 'bno055-imu', mount: 'Body plate', reader: 'the node (BNO055 I2C)' }, { name: 'joints', rateHz: 50, count: 18, reader: 'the node (joint feedback on the servo bus)' }],
+    bom: [], jump: [], approxUsd: 0, approxUsdWithSpring: 0, assumptions: ['fixture numbers'], printRules: [],
   };
 }
 
@@ -82,8 +85,8 @@ export function certificateEntry(policyFile = 'hexapod-walk-ppo-shape-seed1.zip'
 }
 /** @description The /physics/status answer: the engine hello and the rail with a node of kind hexapod. */
 export function cannedStatus({ hexapod = 'online', connected = true } = {}) {
-  const nodes = [{ nodeId: 'tile-plant', kind: 'plant', online: true, engine: 'mujoco', version: '3.3.5', stale: false }];
-  if (hexapod) nodes.push({ nodeId: 'spider-pi', kind: 'hexapod', online: hexapod === 'online', engine: 'hexapod-node', version: '0.1.0', stale: null, endpointUrl: 'http://spider-pi.local:7421' });
+  const nodes = [{ nodeId: 'tile-plant', kind: 'plant', online: true, engine: 'mujoco', version: '3.3.5', stale: false, tickHz: null, senses: [] }];
+  if (hexapod) nodes.push({ nodeId: 'spider-pi', kind: 'hexapod', online: hexapod === 'online', engine: 'hexapod-node', version: '0.1.0', stale: null, endpointUrl: 'http://spider-pi.local:7421', tickHz: 50, senses: [{ name: 'lidar', rateHz: 10 }, { name: 'imu', rateHz: 100 }, { name: 'joint-state', rateHz: 50 }] });
   return { backends: ['kinematic', 'physics', 'node'], engine: connected ? { connected: true, engine: 'mujoco', version: '3.3.5', buildHash: 'fixture-build-7346d37a', protocol: 1, addr: '127.0.0.1:1' } : { connected: false, code: 'unreachable', reason: 'connect ECONNREFUSED', addr: '127.0.0.1:1' }, nodes, rail: {} };
 }
 export const cannedReports = (reports = []) => ({ dir: '/tmp/embodied-reports', policies: reports.filter((r) => r.report.policyFile).map((r) => r.report.policyFile), reports });

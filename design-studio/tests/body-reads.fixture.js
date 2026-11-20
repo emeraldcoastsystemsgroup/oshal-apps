@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D6, lane @ds-app: the bound reads the route suite and the browser fixture share - engine reply excerpts in the shape tools/design-studio-stages.js records them (the design's servo row and joint rows, the plant's timestep and the eighteen joint ranges parsed from the MJCF, the certificate, the node, the senses). Fixture numbers, labelled as such: the suites trace every body-contract value back to them, which is the proof that the contract copies nothing of its own.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3: carry engine-published `senses` rates on the controller node read and `rateHz` on the sensors read so a closed spider publishes `plant.tickS` and `senses[].rateHz` with `missing: []`.
  */
 'use strict';
 
@@ -29,11 +30,11 @@ const reads = {
   controller: {
     route: '/api/embodied/physics/status', readAt: '2026-10-30T20:00:02.000Z',
     engine: { connected: true, engine: 'mujoco', version: '3.3.5', buildHash: 'fixture-build-7346d37a' },
-    node: { nodeId: 'spider-pi', kind: 'hexapod', online: true, engine: 'hexapod-node', version: '0.1.0', endpoint: 'http://spider-pi.local:7421', tickHz: 50 },
+    node: { nodeId: 'spider-pi', kind: 'hexapod', online: true, engine: 'hexapod-node', version: '0.1.0', endpoint: 'http://spider-pi.local:7421', tickHz: 50, senses: [{ name: 'lidar', rateHz: 10 }, { name: 'imu', rateHz: 100 }, { name: 'joint-state', rateHz: 50 }] },
   },
   sensors: {
     route: '/api/embodied/build/hexapod?fit=spider-18', readAt: '2026-10-30T20:00:03.000Z',
-    senses: [{ name: 'lidar', present: true, row: { id: 'ld19-lidar', name: 'fixture LiDAR ring' }, mount: 'Head (LiDAR nose)' }, { name: 'imu', present: true, row: { id: 'bno055-imu', name: 'fixture IMU' }, mount: null }, { name: 'joints', present: true, count: 18, reader: 'the node (joint feedback on the servo bus)' }],
+    senses: [{ name: 'lidar', present: true, rateHz: 10, row: { id: 'ld19-lidar', name: 'fixture LiDAR ring' }, mount: 'Head (LiDAR nose)' }, { name: 'imu', present: true, rateHz: 100, row: { id: 'bno055-imu', name: 'fixture IMU' }, mount: null }, { name: 'joints', present: true, rateHz: 50, count: 18, reader: 'the node (joint feedback on the servo bus)' }],
   },
 };
 

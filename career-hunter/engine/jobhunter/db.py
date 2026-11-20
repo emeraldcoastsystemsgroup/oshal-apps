@@ -21,6 +21,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | file_by_location: a stored job whose state is not the one its location states is filed again when a pull next reads it, its location unchanged; upsert_posting and the pull's unchanged-job path both call it. A corrected state lookup reached new jobs only, and a job whose location changed before change 16 kept the state it was first stored with: measured 2026-11-10 in the published corpus, 13,668 of 760,783 open jobs with a location were filed under a state their location does not state.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | upsert_company: an employer an administrator removed stays removed when a seed list or an import names it again; the list's tag is still recorded.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | A new person's recruiter tracker starts empty: init_db no longer writes eighteen recruiting firms (cleared government work, executive search, SAP) into every person's list, which presented one person's job search as every customer's own. The seed list and seed_recruiters are removed; rows a person already has are not touched. Guard: tests/career-recruiters-start-empty.test.mjs.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Add PAY_USD_INDEX_SQL (idx_corpus_pay_usd) created on writable ingests and skipped cleanly on read-only snapshots so Highest salary walks normalized annual USD pay across currencies with zero temp B-tree sort.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -968,6 +969,7 @@ def _ensure_multiuser(conn) -> None:
         conn.executescript(CORPUS_SCHEMA)
         _ensure_insights_index(conn)
         _ensure_geo_index(conn)
+        _ensure_pay_usd_index(conn)
         if not store_read_only():  # a read cannot change the store; its owner's next write does
             conn.executescript(USER_SCHEMA)
             _ensure_user_columns(conn)   # backfill new columns onto pre-existing user DBs
@@ -1011,6 +1013,31 @@ def _ensure_geo_index(conn) -> None:
     """Publish the local-search index from writable ingests; leave read-only snapshots unchanged."""
     try:
         conn.execute(GEO_INDEX_SQL)
+    except sqlite3.OperationalError as err:
+        if "readonly" not in str(err).lower():
+            raise
+
+
+# Currency-normalized annual USD pay sort key matching lib/career-pay.js annualUsdPayExpr().
+PAY_USD_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS corpus.idx_corpus_pay_usd "
+    "ON postings_corpus(active, "
+    "ROUND(COALESCE(NULLIF(salary_max,0),NULLIF(salary_min,0),0)"
+    " * (CASE COALESCE(salary_period,'') WHEN 'year' THEN 1.0 WHEN 'month' THEN 12.0 WHEN 'hour' THEN 2080.0 ELSE 0.0 END)"
+    " * (CASE UPPER(COALESCE(salary_currency,''))"
+    " WHEN 'USD' THEN 1.0 WHEN 'GBP' THEN 1.27 WHEN 'CHF' THEN 1.13 WHEN 'EUR' THEN 1.08"
+    " WHEN 'SGD' THEN 0.74 WHEN 'CAD' THEN 0.72 WHEN 'AUD' THEN 0.65 WHEN 'NZD' THEN 0.6"
+    " WHEN 'AED' THEN 0.27 WHEN 'PLN' THEN 0.25 WHEN 'BRL' THEN 0.18 WHEN 'CNY' THEN 0.14"
+    " WHEN 'DKK' THEN 0.145 WHEN 'HKD' THEN 0.128 WHEN 'SEK' THEN 0.095 WHEN 'NOK' THEN 0.093"
+    " WHEN 'MXN' THEN 0.055 WHEN 'ZAR' THEN 0.055 WHEN 'INR' THEN 0.012 WHEN 'JPY' THEN 0.0065"
+    " ELSE 0.0 END)) DESC, id DESC)"
+)
+
+
+def _ensure_pay_usd_index(conn) -> None:
+    """Publish the currency-normalized salary index on writable ingests; leave read-only snapshots unchanged."""
+    try:
+        conn.execute(PAY_USD_INDEX_SQL)
     except sqlite3.OperationalError as err:
         if "readonly" not in str(err).lower():
             raise

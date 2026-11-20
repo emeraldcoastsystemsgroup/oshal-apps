@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-160 S1's guard, and it crosses the boundary the slice claims: the REAL MJCF generators are driven with each of the three media and the emitted scene is asserted to differ accordingly (the gravity vector the plant reads, and which medium answered), never a string match on a constant. Each named refusal is raised and checked by its own name. The committed property rows are checked against the values the other labs hold — 1025 kg/m^3 and 1.05e-6 m^2/s from ocean-lab, ISA sea level from aero-lab — and the package is checked for a SECOND copy of either, which is the defect ADR-160 exists to stop. The explorer hull's numbers are checked against the published design study, and the fall against h - g t^2 / 2.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5: a run result carries its medium id and engine fingerprints or is not displayed. The compiled engine tree's build hash is a sha256 that is stable, recomputable over a copy, and moves when one byte of one module moves (a mutation on the copy); the package version is read from the real manifest and is null on a tree that has none; fingerprintRun stamps a drop and requireDisplayable refuses one missing its medium id or either fingerprint, naming the field.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: stability.ts, propulsion.ts and arm-mjcf.ts take their gravity (and propulsion its air density) from a Medium passed in by the caller rather than from file-local literals; only the prose provenance entry in hull-mjcf.ts remains in KNOWN, and each module is verified to follow the supplied medium and refuse invalid media.
  */
 'use strict';
 const test = require('node:test');
@@ -93,13 +94,10 @@ test('the property values are ocean-lab\'s and aero-lab\'s own committed numbers
     'both of ocean-lab\'s duplicate declarations are named, so S5 can check each');
 });
 
-test('the property values live in ONE committed data row, and every surviving copy is pinned by name', () => {
-  // An INVENTORY, not a narrowed pattern: the medium-property literals still in this package's code are listed
-  // here with the reason each is still there. A NEW one anywhere fails this test; BACKLOG B26 is what closes them.
+test('the property values live in ONE committed data row, and zero code literals survive outside prose provenance', () => {
+  // B26 closed the four code literals in stability.ts, propulsion.ts and arm-mjcf.ts; only the prose
+  // provenance string in hull-mjcf.ts remains. Any new code literal anywhere in src-routes/ fails here.
   const KNOWN = {
-    'engine/base/stability.ts': 'pre-existing `export const G = 9.81` — the tip-budget model carries its own gravity. BACKLOG B26.',
-    'engine/design/propulsion.ts': 'pre-existing `const G = 9.81` and `airDensity: 1.225` in DEFAULT_SIZING_ASSUMPTIONS — momentum-theory sizing. BACKLOG B26.',
-    'engine/physics/arm-mjcf.ts': 'pre-existing literal gravity in the ARM_PREAMBLE <option>: the arm generator is not fed from a medium yet. BACKLOG B26.',
     'engine/physics/hull-mjcf.ts': 'PROSE: the arithmetic 0.0241 m^3 * 1025 kg/m^3 = 24.7025 kg quoted inside EXPLORER_HULL_PROVENANCE. A sentence, not a declaration.',
   };
   const hits = new Map();
@@ -323,4 +321,40 @@ test('a run result is displayable only with its medium id and engine fingerprint
   // A fingerprint that is not a real hash is not a fingerprint.
   assert.throws(() => E.requireDisplayable({ ...stamped, engine: { ...engine, routesBuildHash: 'deadbeef' } }), (e) => e.missing[0] === 'engine.routesBuildHash');
   assert.throws(() => E.requireDisplayable(null), (e) => e.missing.length === 3);
+});
+
+// ── B26: stability, propulsion and arm MJCF all read a Medium ──────────────────
+
+test('B26: stability tipBudget, propulsion sizeHover and armMjcf/armRoomMjcf follow the supplied Medium', () => {
+  const air = E.mediumById('air');
+  const sea = E.mediumById('seawater');
+  const halfG = { ...air, gravityMps2: [0, 0, -4.905] };
+  const denseAir = { ...air, densityKgM3: 2.45 };
+
+  // Stability: moment capacity and energy to tip scale linearly with |gravity|.
+  const bAir = E.tipBudget(E.HARDWARE_BASE_ITEMS, E.HARDWARE_FOOTPRINT, air);
+  const bHalf = E.tipBudget(E.HARDWARE_BASE_ITEMS, E.HARDWARE_FOOTPRINT, halfG);
+  near(bHalf.momentCapacity.front, bAir.momentCapacity.front / 2, 1e-9, 'tipBudget moment capacity scales with medium gravity');
+  near(bHalf.energyToTip.front, bAir.energyToTip.front / 2, 1e-9, 'tipBudget energy scales with medium gravity');
+
+  // Propulsion: follows gravity and air density from Medium, refuses seawater/vacuum.
+  const input = { propIn: 6, auwG: 750, cells: 4, mAh: 1500 };
+  const sAir = E.sizeHover(input, undefined, air);
+  const sDense = E.sizeHover(input, undefined, denseAir);
+  near(sDense.pIdealW, sAir.pIdealW / Math.SQRT2, 1e-9, 'hover ideal power scales as 1/sqrt(rho)');
+  const sHalfG = E.sizeHover(input, undefined, halfG);
+  near(sHalfG.discLoadingNm2, sAir.discLoadingNm2 / 2, 1e-9, 'disc loading scales linearly with medium gravity');
+  assert.throws(() => E.sizeHover(input, undefined, sea), (e) => e.code === 'model_not_valid_in_medium');
+  assert.throws(() => E.sizeHover(input, undefined, E.mediumById('vacuum')), (e) => e.code === 'model_not_valid_in_medium');
+
+  // Arm MJCF (bench and room): gravity vector comes from the supplied Medium; seawater refused.
+  const armZero = E.armMjcf('desk-6', { ...air, gravityMps2: [0, 0, 0] });
+  assert.equal(gravityOf(armZero), '0 0 0');
+  assert.throws(() => E.armMjcf('desk-6', sea), (e) => e.code === 'model_not_valid_in_medium');
+  const sim = new E.WorldSim({ sensorSet: E.RECON_MINI });
+  const roomZero = E.armRoomMjcf('desk-6', sim.sensingSolids(), sim.armMount(), { ...air, gravityMps2: [0, 0, 0] });
+  assert.equal(gravityOf(roomZero), '0 0 0');
+  assert.throws(() => E.armRoomMjcf('desk-6', sim.sensingSolids(), sim.armMount(), sea), (e) => e.code === 'model_not_valid_in_medium');
+  const benchFixture = fs.readFileSync(path.join(__dirname, '..', 'engine', 'tests', 'fixtures', 'desk-6-arm.xml'), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(E.armMjcf('desk-6'), benchFixture, 'default armMjcf matches shipped desk-6-arm.xml');
 });

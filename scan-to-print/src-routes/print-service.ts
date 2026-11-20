@@ -33,12 +33,16 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` decryptField (asynchronous on the
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Print progress read-back (BACKLOG B5): return normalised `progress`
+ *                     |                             | from `printerState` for all hosts (OctoPrint, Moonraker, PrusaLink,
+ *                     |                             | Bambu) and attach bounded, fail-safe `liveStatus` to the latest
+ *                     |                             | submission on read so offline hosts never hang or break the read.
  */
 
 import { createChildLogger } from '@/shared/logger';
 import { decryptField, isEncrypted } from '@/features/personal-data';
 import { getPrinterWithKey, insertSubmission, type PrinterRow, type QueryablePool, type SubmissionRow } from './job-store';
-import { BAMBU_KIND, type FetchLike, type HttpPrinterKind, adapterFor, bambuHostOf, hostAccepts } from './engine/print/printer-adapters';
+import { BAMBU_KIND, type FetchLike, type HttpPrinterKind, adapterFor, bambuHostOf, extractProgress, hostAccepts } from './engine/print/printer-adapters';
 import { type BambuIo, type BambuProfile, type BambuState, bambuStart, bambuStatus, bambuUpload } from './printing/bambu-lan';
 import { type SliceProfile, type SlicerEngineOptions, SlicerEngineError, sliceToArchive, uploadThroughEngine } from './printing/slicer-engine';
 
@@ -293,18 +297,93 @@ export async function recordAttempt(pool: QueryablePool, sub: string, s: { jobId
   return row;
 }
 
+/** @description Bounded timeout for attaching live printer status on submission reads. */
+export const READBACK_STATUS_TIMEOUT_MS = 2_500;
+
+/** @description Normalised live printer status returned by `printerState` and attached to the latest submission. */
+export interface LivePrinterStatus {
+  ok: boolean;
+  state: string;
+  progress: number | null;
+  detail: unknown;
+  checkedAt?: string;
+}
+
+/** @description A submission row optionally enriched with live printer status on read. */
+export type SubmissionWithStatus = SubmissionRow & { liveStatus?: LivePrinterStatus };
+
+/** @description Race a status probe against a hard deadline, always clearing the timer. */
+function withTimeout<T>(work: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; resolve(fallback); } }, timeoutMs);
+    work.then(
+      (value) => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(fallback); } },
+    );
+  });
+}
+
 /**
  * @description A printer's state for any kind: Bambu over MQTT, HTTP hosts through their adapter.
  * @param deps - Service dependencies.
  * @param printer - The loaded printer.
- * @returns `ok`, a normalised `state` word and the kind-specific detail.
+ * @param options - Optional bounded timeout for live status read-back.
+ * @returns `ok`, a normalised `state` word, rounded `progress` (0..100 or null) and kind-specific detail.
  */
-export async function printerState(deps: PrintServiceDeps, printer: LoadedPrinter): Promise<{ ok: boolean; state: string; detail: unknown }> {
+export async function printerState(
+  deps: PrintServiceDeps,
+  printer: LoadedPrinter,
+  options: { timeoutMs?: number } = {},
+): Promise<{ ok: boolean; state: string; progress: number | null; detail: unknown }> {
   if (printer.row.kind === BAMBU_KIND) {
-    const result = await bambuStatus(bambuProfileOf(printer), deps.bambuIo);
-    return result.ok ? { ok: true, state: result.state.state, detail: result.state } : { ok: false, state: 'offline', detail: { message: result.message } };
+    const io = options.timeoutMs ? { ...deps.bambuIo, statusTimeoutMs: options.timeoutMs } : deps.bambuIo;
+    const result = await bambuStatus(bambuProfileOf(printer), io);
+    return result.ok
+      ? { ok: true, state: result.state.state, progress: extractProgress(BAMBU_KIND, result.state), detail: result.state }
+      : { ok: false, state: 'offline', progress: null, detail: { message: result.message } };
   }
   const kind = printer.row.kind as HttpPrinterKind;
-  const status = await adapterFor(kind).status({ kind, baseUrl: printer.row.base_url, apiKey: printer.secret }, deps.fetchImpl);
-  return { ok: status.ok, state: status.state, detail: status.detail };
+  const status = await adapterFor(kind).status({ kind, baseUrl: printer.row.base_url, apiKey: printer.secret }, deps.fetchImpl, options.timeoutMs);
+  return { ok: status.ok, state: status.state, progress: status.progress ?? null, detail: status.detail };
+}
+
+/**
+ * @description Attach bounded, fail-safe live printer status to the latest non-failed submission
+ * on read (BACKLOG B5). An offline, timed-out or unreadable printer never fails or hangs the read.
+ * @param deps - Service dependencies.
+ * @param sub - Owner subject.
+ * @param submissions - Submissions ordered newest-first.
+ * @param options - Optional timeout override (defaults to {@link READBACK_STATUS_TIMEOUT_MS}).
+ * @returns Submissions with `liveStatus` attached to index 0 when applicable.
+ */
+export async function attachLiveStatus(
+  deps: PrintServiceDeps,
+  sub: string,
+  submissions: SubmissionRow[],
+  options: { timeoutMs?: number } = {},
+): Promise<SubmissionWithStatus[]> {
+  if (submissions.length === 0) return [];
+  const latest = submissions[0];
+  if (latest.state === 'failed') return submissions;
+  const timeoutMs = options.timeoutMs ?? READBACK_STATUS_TIMEOUT_MS;
+  const checkedAt = new Date().toISOString();
+  const offline = (message: string): LivePrinterStatus => ({ ok: false, state: 'offline', progress: null, detail: { message }, checkedAt });
+  let liveStatus: LivePrinterStatus;
+  try {
+    const printer = await loadPrinter(deps.pool, sub, latest.printer_id);
+    if (!printer) {
+      liveStatus = offline('printer not found');
+    } else {
+      const probed = await withTimeout(
+        printerState(deps, printer, { timeoutMs }),
+        timeoutMs,
+        { ok: false, state: 'offline', progress: null, detail: { message: 'printer status timed out' } },
+      );
+      liveStatus = { ...probed, checkedAt };
+    }
+  } catch (error) {
+    liveStatus = offline(error instanceof Error ? error.message : String(error));
+  }
+  return [{ ...latest, liveStatus }, ...submissions.slice(1)];
 }

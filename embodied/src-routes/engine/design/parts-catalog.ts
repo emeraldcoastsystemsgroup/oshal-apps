@@ -19,6 +19,8 @@
  *                     |                             | spring) is read by id through boughtRow — the identity block
  *                     |                             | only, checked the same way, so hexapod-design.ts restates no
  *                     |                             | name, mass or price.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: validate optional positive `rateHz` on owned
+ *                     |                             | sensor rows in `bought` (ld19-lidar, bno055-imu).
  */
 
 import catalog from './parts-catalog.json';
@@ -30,6 +32,8 @@ export interface PartRow {
   massG: number;
   approxUsd: number;
   source: string;
+  /** Optional nominal sensor scan or output rate in Hz (datasheet class figure). */
+  rateHz?: number;
 }
 
 /** @description A drone motor row: the identity block plus the propulsion block. */
@@ -90,6 +94,7 @@ function rowById(list: PartList, id: string): Obj {
   text(row, 'source', where);
   positive(row, 'massG', where);
   positive(row, 'approxUsd', where);
+  if (row.rateHz !== undefined) positive(row, 'rateHz', where);
   return row;
 }
 

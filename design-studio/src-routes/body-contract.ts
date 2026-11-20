@@ -21,6 +21,10 @@
  *                     |                             | senses from the plant when the chain has no sensors phase, the
  *                     |                             | certified reach policy as the walker (command [payloadTargetM],
  *                     |                             | door `plant.step {command}`) and the plant route as the node.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B3: resolve present senses' `rateHz` from the sensors
+ *                     |                             | read and, when absent there, from the controller node read's
+ *                     |                             | `senses[]` / `tickHz`, keeping `missing` honest whenever no
+ *                     |                             | engine reply states a positive rate.
  */
 
 import type { Artifact, PhaseKind } from './phase-model';
@@ -118,6 +122,21 @@ function actuatorsOf(reads: Reads, missing: string[]): BodyActuator[] {
   });
 }
 
+/** Look up a positive rateHz from the controller node read's senses[] or tickHz when the sensors read lacked one. */
+function nodeSenseRateHz(name: string, reads: Reads): number | null {
+  const node = rec(reads.controller?.node);
+  const nodeSenses = Array.isArray(node?.senses) ? node!.senses.map(rec).filter((r): r is Record<string, unknown> => !!r) : [];
+  const aliases = name === 'joints' ? ['joints', 'joint-state'] : [name];
+  const hit = nodeSenses.find((s) => typeof s.name === 'string' && aliases.includes(s.name));
+  const rate = num(hit?.rateHz);
+  if (rate !== null && rate > 0) return rate;
+  if (name === 'joints') {
+    const tick = num(node?.tickHz);
+    if (tick !== null && tick > 0) return tick;
+  }
+  return null;
+}
+
 /** The senses: what the sensors read states, every vocabulary name present or absent. */
 function sensesOf(reads: Reads, actuators: BodyActuator[], missing: string[]): BodySense[] {
   const read = reads.sensors;
@@ -130,7 +149,12 @@ function sensesOf(reads: Reads, actuators: BodyActuator[], missing: string[]): B
     if (!s) return { name, present: false };
     const out: BodySense = { ...s, name, present: s.present !== false };
     if (name === 'joints' && out.count === undefined && actuators.length) out.count = actuators.length;
-    if (out.present && out.rateHz === undefined) missing.push(`senses.${name}.rateHz: no engine reply stated the rate`);
+    if (out.present) {
+      const direct = num(out.rateHz);
+      const resolved = direct !== null && direct > 0 ? direct : nodeSenseRateHz(name, reads);
+      if (resolved !== null) out.rateHz = resolved;
+      else missing.push(`senses.${name}.rateHz: no engine reply stated the rate`);
+    }
     return out;
   }), ...extra];
 }

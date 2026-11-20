@@ -14,10 +14,15 @@
  *                     |                             | POST /projects/{id}/plant-spec composes the engine's spec from
  *                     |                             | the mechanism and the parts and rows the page read (every
  *                     |                             | number one of those). The tool design-set-mechanism is the PUT.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: add POST /projects/{id}/fit-check evaluating every
+ *                     |                             | joint's parent and child CAD Studio part snapshots for signed
+ *                     |                             | clearance in mm (fit / interference / unverified) plus honest
+ *                     |                             | load/strength reporting.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerMechanism = registerMechanism;
 const logger_1 = require("@/shared/logger");
+const fit_check_1 = require("./fit-check");
 const mechanism_model_1 = require("./mechanism-model");
 const mechanism_store_1 = require("./mechanism-store");
 const phase_model_1 = require("./phase-model");
@@ -91,6 +96,29 @@ function registerMechanism(router, deps) {
         }
         catch (error) {
             refuse(res, error, 'plant spec');
+        }
+    });
+    router.post('/projects/:id/fit-check', async (req, res) => {
+        const c = await deps.withProject(deps.pool, req, res);
+        if (!c)
+            return;
+        const body = (req.body ?? {});
+        try {
+            const [row, bindings] = await Promise.all([(0, mechanism_store_1.getMechanism)(c.pool, c.sub, c.project.id), (0, project_store_1.listBindings)(c.pool, c.sub, c.project.id)]);
+            const binding = (0, project_store_1.latestBindings)(bindings).design ?? null;
+            const mechanism = body.mechanism !== undefined ? (0, mechanism_model_1.validateMechanism)(body.mechanism, binding ? binding.artifact : null) : row?.mechanism ?? null;
+            if (!mechanism) {
+                res.status(404).json({ error: 'no_mechanism', project: c.project.id, message: 'no mechanism is defined for this product yet: Define the mechanism on the Design poster, or design-set-mechanism' });
+                return;
+            }
+            const parts = Array.isArray(body.parts) ? body.parts : [];
+            const fdmToleranceMm = body.fdmToleranceMm !== undefined ? Number(body.fdmToleranceMm) : undefined;
+            const report = (0, fit_check_1.evaluateDesignFit)({ brief: c.project.brief, mechanism, binding: binding ? binding.artifact : null, parts, fdmToleranceMm });
+            res.setHeader('Cache-Control', 'no-store');
+            res.json({ project: c.project.id, mechanismRevision: row ? row.revision : null, ...report });
+        }
+        catch (error) {
+            refuse(res, error, 'fit check');
         }
     });
 }

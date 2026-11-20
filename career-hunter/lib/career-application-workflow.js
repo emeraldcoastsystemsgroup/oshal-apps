@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep explicit preparation consent in each owner's records and bind readiness/review to current inputs and exact packet bytes; preparation never authorizes employer submission.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): a saved-job preparation that stopped because Career had no description of the job (job_details_unavailable or job_context_unavailable, the job still has none) says what to do in the words the application page uses, "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js NEEDED), not "Preparation stopped: job details unavailable." Every other reason reads as before. Guard: tests/career-paste-details-unmarked.test.mjs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "the cover letter is not acceptable"): a prepared application whose cover letter the claims check marked needs your review is never ready, in automatic preparation too: the workflow holds it with the check's notice until the person edits the letter or confirms they checked it. review() takes that confirmation ({claims: the letter's fingerprint}) beside the existing packet review ({proof}).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19): view() and its packet proof take the saved job state the caller already read (lib/career-application-draft.js view hands on what GET /jobs/:id read before the job's row), so one answer is judged against one receipt. Callers that pass nothing read it here, as before. Guard: tests/career-ready-with-documents.test.mjs.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -26,15 +27,23 @@ function save(dir,input){
  finally{fs.rmSync(temp,{force:true});}return value;
 }
 function address(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}
-function packetProof(dir,id,job,application){
- const state=board.readBoardState(dir).jobs[id]||{};
+function packetProof(dir,id,job,application,snapshot){
+ const state=(snapshot||board.readBoardState(dir)).jobs[id]||{};
  if(application.needsGeneration||state.phase!=='ready'||!state.completedAt)return null;
  const hashes=require('./career-application-draft').packetHashes(dir,job);
  if(!hashes)return null;
  return crypto.createHash('sha256').update(JSON.stringify({inputs:application.inputsHash,requestId:state.requestId,hashes})).digest('hex');
 }
-function view(dir,id,job,application){
- const state=board.readBoardState(dir).jobs[id]||{},flow=state.workflow;if(!flow)return null;
+/**
+ * @description Where a saved-job preparation stands for one job: preparing, stuck with the reason, waiting for the
+ * person's review, or ready. null for a job that is not in the preparation workflow.
+ * @param {string} dir Owner store. @param {number} id Posting. @param {object} job Its row. @param {object} application
+ * Its application view (lib/career-application-draft.js view). @param {object} [snapshot] The saved job state the caller
+ * already read, before the job's row; read here when absent.
+ * @returns {{state:string,ready:boolean,proof:string|null,reason:string}|null} The preparation state.
+ */
+function view(dir,id,job,application,snapshot){
+ const state=(snapshot||board.readBoardState(dir)).jobs[id]||{},flow=state.workflow;if(!flow)return null;
  const held=reason=>({state:'stuck',ready:false,reason,proof:null});
  if(application.claims?.needsReview&&state.phase==='ready')return held(application.claims.notice);
  if(job.active===0)return held('The employer posting is no longer available. Check the original posting.');
@@ -42,7 +51,7 @@ function view(dir,id,job,application){
  if((state.phase==='failed'||application.failed)&&pasted.stoppedForDetails(state.error,job.description))return held(pasted.NEEDED);
  if(state.phase==='failed'||application.failed)return held(state.error==='resume_required'?'Upload your résumé, then retry preparation.':'Preparation stopped: '+String(state.error||'generation failed').replaceAll('_',' ')+'. Open the application to review and retry.');
  if(state.phase!=='ready')return {state:'preparing',ready:false,proof:null,reason:'Preparation is pending. Refresh progress; if it was interrupted, open the application and retry generation.'};
- const proof=packetProof(dir,id,job,application);
+ const proof=packetProof(dir,id,job,application,snapshot);
  if(!proof)return held('The current documents are unavailable or changed. Open the application and generate a current packet.');
  const ready=flow.mode==='automatic'||flow.reviewedProof===proof;
  return {state:ready?'ready':'review',ready,proof,reason:ready?'Ready to submit. Career does not send this to the employer automatically.':'Review each application before it is marked ready to submit.'};

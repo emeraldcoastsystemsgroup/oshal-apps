@@ -349,3 +349,18 @@ cases:
     isolation: {mode: none}
     limits: {timeoutMs: 15000, maxMemoryMb: 512}
     installation: never
+
+  - id: home-summary-authz
+    name: Home summary pre-read and post-read authorization checks
+    purpose: Verify routes/home-summary.js enforces portrait.view and portrait.read before querying ps_portraits as well as after, preventing unauthorized database reads while keeping mid-request revocation refusal.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/home-summary-authz.test.cjs]}
+    expected:
+      - Active callers missing portrait.view or portrait.read receive 403 portrait_permission_denied with zero database queries.
+      - Mid-request permission revocation after reading still fails closed with 403 portrait_permission_denied.
+      - Inactive actors fail closed with 401 not_authenticated and permitted active owners receive 200.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never

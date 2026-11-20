@@ -28,6 +28,8 @@
  *                     |                             | spider-18's senses and the brief's section 3.3 acts, floor class
  *                     |                             | 2 so the kinetic e-stop rule applies. SPIDER_18_MANIFEST (the
  *                     |                             | instance) lives in node/hexapod-node.ts beside the seam.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: optional `senseRates` map (Hz per declared
+ *                     |                             | sense) on CapabilityManifest, validated fail-closed when present.
  */
 
 /** @description The peripheral kinds the swarm knows. New kinds are added here, with a vocabulary. */
@@ -45,6 +47,8 @@ export interface CapabilityManifest {
   senses: string[];
   acts: string[];
   envelope: Record<string, number>;
+  /** Optional nominal sensor rates in Hz keyed by declared sense name. */
+  senseRates?: Record<string, number>;
 }
 
 /** @description Per-kind closed vocabularies and the lowest safety class the kind may claim. */
@@ -92,6 +96,19 @@ function listIssues(field: 'senses' | 'acts', value: unknown, allowed: readonly 
   return issues;
 }
 
+/** @description Collect issues with optional senseRates: keys must be declared senses, values positive finite numbers. */
+function senseRateIssues(value: unknown, senses: unknown): string[] {
+  if (value === undefined) return [];
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ['senseRates must be an object of positive numbers'];
+  const declared = Array.isArray(senses) ? new Set(senses) : null;
+  const issues: string[] = [];
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (declared && !declared.has(k)) issues.push(`senseRates.${k} is not listed in senses`);
+    if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) issues.push(`senseRates.${k} must be a positive finite number`);
+  }
+  return issues;
+}
+
 /**
  * @description Validate a candidate manifest. Fail-closed: any issue refuses the whole manifest.
  * @param input - Untrusted input.
@@ -117,10 +134,15 @@ export function validateManifest(input: unknown): ManifestValidation {
   }
   if (!m.envelope || typeof m.envelope !== 'object' || Array.isArray(m.envelope)) issues.push('envelope must be an object of numbers');
   else for (const [k, v] of Object.entries(m.envelope as Record<string, unknown>)) if (typeof v !== 'number' || !Number.isFinite(v)) issues.push(`envelope.${k} must be a finite number`);
+  issues.push(...senseRateIssues(m.senseRates, m.senses));
   if (issues.length) return { ok: false, issues };
   return {
     ok: true,
-    manifest: { nodeId: m.nodeId as string, kind: kind as PeripheralKind, model: (m.model as string).trim(), safetyClass: sc as SafetyClass, senses: [...(m.senses as string[])], acts: [...(m.acts as string[])], envelope: { ...(m.envelope as Record<string, number>) } },
+    manifest: {
+      nodeId: m.nodeId as string, kind: kind as PeripheralKind, model: (m.model as string).trim(), safetyClass: sc as SafetyClass,
+      senses: [...(m.senses as string[])], acts: [...(m.acts as string[])], envelope: { ...(m.envelope as Record<string, number>) },
+      ...(m.senseRates !== undefined ? { senseRates: { ...(m.senseRates as Record<string, number>) } } : {}),
+    },
   };
 }
 

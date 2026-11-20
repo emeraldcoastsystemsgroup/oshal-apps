@@ -13,11 +13,16 @@
  *                     |                             | POST /projects/{id}/plant-spec composes the engine's spec from
  *                     |                             | the mechanism and the parts and rows the page read (every
  *                     |                             | number one of those). The tool design-set-mechanism is the PUT.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: add POST /projects/{id}/fit-check evaluating every
+ *                     |                             | joint's parent and child CAD Studio part snapshots for signed
+ *                     |                             | clearance in mm (fit / interference / unverified) plus honest
+ *                     |                             | load/strength reporting.
  */
 
 import type { Request, Response, Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
+import { evaluateDesignFit, type CadPartSnapshot } from './fit-check';
 import { plantSpecFrom, taskFromBrief, validateMechanism, type MotorRead, type PartRead } from './mechanism-model';
 import { getMechanism, saveMechanism } from './mechanism-store';
 import { ModelError } from './phase-model';
@@ -75,5 +80,20 @@ export function registerMechanism(router: Router, deps: MechanismRouteDeps): voi
       const motors = Array.isArray(body.motors) ? body.motors as MotorRead[] : [];
       res.json({ project: c.project.id, revision: row.revision, spec: plantSpecFrom(row.mechanism, parts, motors) });
     } catch (error) { refuse(res, error, 'plant spec'); }
+  });
+  router.post('/projects/:id/fit-check', async (req: Request, res: Response) => {
+    const c = await deps.withProject(deps.pool, req, res); if (!c) return;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const [row, bindings] = await Promise.all([getMechanism(c.pool, c.sub, c.project.id), listBindings(c.pool, c.sub, c.project.id)]);
+      const binding = latestBindings(bindings).design ?? null;
+      const mechanism = body.mechanism !== undefined ? validateMechanism(body.mechanism, binding ? binding.artifact : null) : row?.mechanism ?? null;
+      if (!mechanism) { res.status(404).json({ error: 'no_mechanism', project: c.project.id, message: 'no mechanism is defined for this product yet: Define the mechanism on the Design poster, or design-set-mechanism' }); return; }
+      const parts = Array.isArray(body.parts) ? body.parts as CadPartSnapshot[] : [];
+      const fdmToleranceMm = body.fdmToleranceMm !== undefined ? Number(body.fdmToleranceMm) : undefined;
+      const report = evaluateDesignFit({ brief: c.project.brief, mechanism, binding: binding ? binding.artifact : null, parts, fdmToleranceMm });
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ project: c.project.id, mechanismRevision: row ? row.revision : null, ...report });
+    } catch (error) { refuse(res, error, 'fit check'); }
   });
 }

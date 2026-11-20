@@ -10,7 +10,19 @@
  *                     |                             | Every number the hardware design quotes comes from here; the
  *                     |                             | figure of merit is the placeholder aero-lab's propeller curves
  *                     |                             | replace.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: read gravity and air density from an explicit Medium (valid in air only, refusing vacuum and seawater by name) rather than file-local literals.
  */
+
+import { mediumById, requireModelValidIn, type ForceModel, type Medium } from '../medium/medium';
+
+/** @description Momentum-theory rotor hover model declared over the air medium only. */
+export const MOMENTUM_HOVER_MODEL: ForceModel = {
+  id: 'momentum-hover',
+  label: 'Momentum-theory rotor hover sizing',
+  requires: ['gravityMps2', 'densityKgM3'],
+  validIn: ['air'],
+  envelopeWhy: 'Momentum-theory rotor hover sizing in this package models a quadrotor in air; vacuum has zero density and seawater hydrodynamics belong to ocean-lab.',
+};
 
 /** @description Textbook placeholders until the propeller lab measures the printed blade. */
 export interface SizingAssumptions {
@@ -26,7 +38,10 @@ export interface SizingAssumptions {
   airDensity: number;
 }
 
-export const DEFAULT_SIZING_ASSUMPTIONS: SizingAssumptions = { figureOfMerit: 0.60, driveEfficiency: 0.75, usableFraction: 0.80, nominalVPerCell: 3.7, airDensity: 1.225 };
+export const DEFAULT_SIZING_ASSUMPTIONS: SizingAssumptions = {
+  figureOfMerit: 0.60, driveEfficiency: 0.75, usableFraction: 0.80, nominalVPerCell: 3.7,
+  airDensity: (mediumById('air') as Medium).densityKgM3,
+};
 
 /** @description What the airframe and battery are. */
 export interface HoverInput {
@@ -52,26 +67,29 @@ export interface HoverSizing {
   thrustPerMotorTw2G: number;
 }
 
-const G = 9.81;
 const INCH = 0.0254;
 
 /**
  * @description Momentum-theory hover: `P_ideal = W^1.5 / sqrt(2 ρ A)`, `P_electrical = P_ideal / (FM · η)`,
  * hover time = usable energy / electrical power.
  * @param input - Prop size, all-up mass, battery.
- * @param a - Assumptions (defaults are the design document's placeholders).
+ * @param a - Assumptions (defaults are the design document's placeholders; airDensity comes from `medium` when omitted).
+ * @param medium - The air medium providing gravity and air density; defaults to `air`.
  * @returns The sizing.
  */
-export function sizeHover(input: HoverInput, a: SizingAssumptions = DEFAULT_SIZING_ASSUMPTIONS): HoverSizing {
+export function sizeHover(input: HoverInput, a?: SizingAssumptions, medium: Medium = mediumById('air') as Medium): HoverSizing {
+  requireModelValidIn(MOMENTUM_HOVER_MODEL, medium);
+  const opts = a ?? { ...DEFAULT_SIZING_ASSUMPTIONS, airDensity: medium.densityKgM3 };
+  const g = Math.hypot(medium.gravityMps2[0], medium.gravityMps2[1], medium.gravityMps2[2]);
   const discAreaM2 = 4 * Math.PI * ((input.propIn * INCH) / 2) ** 2;
-  const weightN = (input.auwG / 1000) * G;
-  const pIdealW = weightN ** 1.5 / Math.sqrt(2 * a.airDensity * discAreaM2);
-  const pElectricalW = pIdealW / (a.figureOfMerit * a.driveEfficiency);
-  const energyWh = (input.cells * a.nominalVPerCell * input.mAh) / 1000;
+  const weightN = (input.auwG / 1000) * g;
+  const pIdealW = weightN ** 1.5 / Math.sqrt(2 * opts.airDensity * discAreaM2);
+  const pElectricalW = pIdealW / (opts.figureOfMerit * opts.driveEfficiency);
+  const energyWh = (input.cells * opts.nominalVPerCell * input.mAh) / 1000;
   return {
     propIn: input.propIn, auwG: input.auwG, cells: input.cells, mAh: input.mAh,
     discAreaM2, discLoadingNm2: weightN / discAreaM2, pIdealW, pElectricalW, energyWh,
-    hoverMin: ((a.usableFraction * energyWh) / pElectricalW) * 60,
+    hoverMin: ((opts.usableFraction * energyWh) / pElectricalW) * 60,
     thrustPerMotorHoverG: input.auwG / 4,
     thrustPerMotorTw2G: (input.auwG * 2) / 4,
   };

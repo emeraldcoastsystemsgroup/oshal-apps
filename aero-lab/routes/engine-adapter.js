@@ -72,6 +72,11 @@
  *                     |                             | sends each request through the kernel's
  *                     |                             | engine.exchange intent (one request per call,
  *                     |                             | bounded by the kernel's 55 s relay).
+ * 2026-11-19 08:55:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (BACKLOG Item E): auto-install/refresh
+ *                     |                             | engine/container/ via single-flight EngineAutoInstaller
+ *                     |                             | on the first missing/stale container call when a Docker
+ *                     |                             | socket is reachable, plus native engine.status probing;
+ *                     |                             | refusal path with installHint stays unchanged on failure.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -117,6 +122,7 @@ const child_process_1 = require("child_process");
 const logger_1 = require("@/shared/logger");
 const engine_build_hash_1 = require("./engine-build-hash");
 const engine_channel_1 = require("./engine-channel");
+const engine_installer_1 = require("./engine-installer");
 const logger = (0, logger_1.createChildLogger)({ module: 'aero-engine-adapter' });
 /**
  * @description A typed engine failure — the ONLY error shape the adapter throws, so
@@ -352,6 +358,8 @@ class AeroEngineAdapter {
     packageEngineDir;
     engineAddr;
     exchange;
+    readStatus;
+    installer;
     pythonOverride;
     workerOverride;
     appPackageDir;
@@ -367,6 +375,7 @@ class AeroEngineAdapter {
     capsCache = null;
     constructor(opts = {}) {
         this.exchange = opts.exchange;
+        this.readStatus = opts.readStatus;
         this.appPackageDir = opts.appPackageDir;
         this.engineDir = resolveEngineDir(opts.appPackageDir, opts.engineDir);
         this.pythonOverride = opts.pythonPath;
@@ -379,6 +388,27 @@ class AeroEngineAdapter {
         const choice = resolveTransport(opts, () => this.localStatus().present);
         this.transport = choice.transport;
         this.engineAddr = choice.engineAddr;
+        this.installer = this.transport === 'container' && !this.exchange
+            ? new engine_installer_1.EngineAutoInstaller({
+                engineDir: this.packageEngineDir,
+                engineAddr: this.engineAddr || exports.DEFAULT_ENGINE_ADDR,
+                defaultAddr: exports.DEFAULT_ENGINE_ADDR,
+                autoInstall: opts.autoInstall,
+                dockerAvailable: opts.dockerAvailable,
+                runInstaller: opts.runInstaller,
+                cooldownMs: opts.installCooldownMs,
+            })
+            : null;
+    }
+    /**
+     * @description Ask the native kernel's `engine.status` intent for engine lifecycle readiness
+     * (requests lazy preparation without starting a container). Returns null off the native kernel.
+     * @returns Raw lifecycle status object or null.
+     */
+    async refreshNativeStatus() {
+        if (!this.readStatus)
+            return null;
+        return this.readStatus();
     }
     /**
      * @description Report what is actually on the box — no spawning, no connecting.
@@ -433,12 +463,30 @@ class AeroEngineAdapter {
     /**
      * @description Send one command over the frozen §5b protocol. Serialized FIFO; beyond
      * queueCap waiting requests it rejects engine_busy immediately (the engine is CPU-bound
-     * — an unbounded queue would just time everything out later).
+     * — an unbounded queue would just time everything out later). On container transport with
+     * a reachable Docker socket (Item E), a missing or stale container automatically triggers
+     * single-flight engine/install-engine.sh and retries once before surfacing the exact refusal.
      * @param cmd - Frozen command name.
      * @param args - Command args; export gets workDir injected here (§5c).
      * @returns The worker's `result` verbatim.
      */
-    request(cmd, args = {}) {
+    async request(cmd, args = {}) {
+        try {
+            return await this.executeOnce(cmd, args);
+        }
+        catch (err) {
+            if (err instanceof AeroEngineError && this.installer?.canAttempt() && (0, engine_installer_1.isInstallableFailure)(err.code, err.message)) {
+                const outcome = await this.installer.ensureInstalled(err.message);
+                if (outcome.ok && !this.disposed) {
+                    this.capsCache = null;
+                    return this.executeOnce(cmd, args);
+                }
+            }
+            throw err;
+        }
+    }
+    /** Execute one command without auto-install retry. */
+    executeOnce(cmd, args) {
         const status = this.engineStatus();
         if (!status.present) {
             const missing = !fs.existsSync(this.engineDir)

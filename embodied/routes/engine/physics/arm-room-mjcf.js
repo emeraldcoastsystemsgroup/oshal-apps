@@ -15,6 +15,7 @@ exports.armRoomMjcf = armRoomMjcf;
  *                     |                             | and the drone collide with the same room). Two refusals live
  *                     |                             | here because they are geometry, not policy: a base outside the
  *                     |                             | room's extent, and a base standing inside a solid.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: thread an optional Medium into `armRoomMjcf` -> `armPreamble(medium)` so the room arm MJCF reads its gravity from a medium too.
  */
 const arm_mjcf_1 = require("./arm-mjcf");
 const mjcf_1 = require("./mjcf");
@@ -62,13 +63,13 @@ function armMountRefusal(room, solids, mount) {
  * @param mount - Where the base stands.
  * @returns MJCF XML.
  */
-function armRoomMjcf(fit, solids, mount) {
+function armRoomMjcf(fit, solids, mount, medium) {
     const p = (0, arm_mjcf_1.armPlant)(fit);
     const half = arm_mjcf_1.ARM_BASE_HALF_M;
     const q = [Math.cos(mount.yaw / 2), 0, 0, Math.sin(mount.yaw / 2)].map(f).join(' ');
     const lines = [
         `<mujoco model="embodied-arm-room-${fit}">`,
-        ...arm_mjcf_1.ARM_PREAMBLE,
+        ...(0, arm_mjcf_1.armPreamble)(medium),
         // MJCF allows one top-level <default>: the arm's own geom default, with the scene class nested inside it.
         `  <default>${arm_mjcf_1.ARM_GEOM_DEFAULT}<default class="scene"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.65 1"/></default></default>`,
         '  <worldbody>',

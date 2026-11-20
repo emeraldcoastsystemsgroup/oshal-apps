@@ -215,3 +215,24 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+
+  - id: drone-bot-tools-contract
+    name: Inline concierge posture, tool schemas, plain-prose rule, and tool_call fence
+    purpose: Verify drone-operator declares explicit inline posture, chatBot binding, object inputSchemas on all four tools, and plain-prose + ```tool_call {"tool": ...} instructions for oshald.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/drone-bot-tools-contract.test.cjs
+    expected:
+      - drone-operator declares posture inline and chatBot drone-operator with explicit object inputSchemas on all four tools.
+      - personas/drone-operator.yaml teaches plain prose for direct chat and the ```tool_call fence using "tool" for all four declared tools.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

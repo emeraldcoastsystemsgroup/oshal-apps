@@ -2,6 +2,16 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 194 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25: a job read never says ready before its documents can be read
+# 193 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: Work history has Years by skill: a person states their own years per skill and in total, as résumés then state them (notes in CHANGELOG.md).
+# 192 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass holds a career total to the roles' dates and leaves years in a field as written
+# 191 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: generated résumés and letters state the person's own years by skill (years_by_skill, career_years), enforced by code after every model pass; a miswritten recorded term is restored (full notes in CHANGELOG.md).
+# 190 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: register specialistContext reader for career-resume-reviewer (cb000000-0000-0000-0000-000000000006) in lib/native-career-read.js so oshald admits pre-return resume review turns over career-worker-rail; route shell-wrapper soffice binaries through /usr/bin/sh when /bin/sh is absent in engine/jobhunter/docx_resume.py so LibreOffice PDF/RTF conversion runs cleanly inside oshald's bwrap sandbox. Guards: tests/career-native-read-specialist-bots.test.mjs, tests/career-docx-pipeline.test.py.
+# 189 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: integrate pure-stdlib OOXML executive resume & cover-letter pipeline (`engine/jobhunter/docx_ooxml.py`, `docx_resume.py`, `lib/career-docx-export.js`) across 4 verified template families (Standard, Professional, Leadership, Technical) with zero Word theme-font leaks, Quick Styles, automatic <=2-page LibreOffice compaction, clean single-line candidate names, verbatim headline parity across DOCX/RTF/PDF/HTML, blank zero-PII templates (`GET /resume/template`), and native experience-shell `intelligent-career` group navigation (`tools/career-job-actions.js`) for post-edit Review -> Send (Orbit) continuity.
+# 188 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: sync `documentGeneration.inputsHash` via `markEdited()` on tailored résumé save so returning to `2 · Review documents` never forces regeneration; add `acceptCurrent()` + clickable Tailor/Review step navigation and `Review current documents` on Prepare application; always show `Review documents →` beside `Back to main résumé` for any open tailored job on My résumé.
+# 187 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: fix tailored résumé editing transition from active AI Office Main résumé (`openOffice(j, epoch)` race guard, immediate `officeView(false)` cleanup, `#tailoredBar` Direct editing toolbar with Undo/Redo and section quick-jumps, resting editable outlines); align downloaded packet Word (`.docx`) and cover letter formatting with the clean PDF templates (`tools/career-export-model.js`); filter `Applied` (`?view=status`) strictly to `status = 'applied'` so Interviewing, Offer, and Closed applications leave `Applied` with mutually exclusive stage counts (`tools/career-stages.js`, `tools/career-job-lists.js`, `tools/career-frame.js`).
+# 186 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: enable direct inline editing of tailored job résumés, cover letters, and classic fallback previews on My résumé (`tools/career-tailored-editor.js`), activating `Save & return to application` on the first edit; propagate Intelligent Career's light/slate/teal frame skin (`career-frame.css` + `data-career-frame="concierge"`) into the embedded Concierge iframe (`tools/career-concierge.mjs`, `tools/career-frame.css`, `tools/career-concierge.css`); fix multi-role Java tenure undercounting for start-of-title/line names and engagement tech lists in `engine/jobhunter/skill_tenure.py`.
+# 185 | maintainer@emeraldcoastsystemsgroup.com | 1.68.16: add fail-closed SSRF redirect guard proxy (`createReadProxy` + `bypass: '<-loopback>'`) in `browser_read_policy.cjs`/`browser_fetch.cjs` blocking 301/302/303/307/308 navigation and subresource redirects to loopback, RFC1918, link-local/metadata, CGNAT, ULA and 6to4 addresses; normalize `sort=salary` to annual USD equivalents (`annualUsdPayExpr` + `idx_corpus_pay_usd`) across open search and My jobs while preserving raw displayed currency and zero temp B-tree sorts.
 # 184 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding and numeric '+' suffixes (preserving C++, Security+, A+, etc.), add deterministic non-overlapping per-skill tenure calculator (skill_tenure.py), declare dynamically-loaded inline Swarm bot career-resume-reviewer (cb000000-0000-0000-0000-000000000006, personas/career-resume-reviewer.yaml) routed over career-worker-rail for mandatory pre-return resume audit/repair, fix parenthetical year attribution in claims_check, and surface resume_review metadata in Prepare application.
 # 183 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: preserve recorded month/year precision across generation and cloned packet snapshots without inventing months, add Professional Word/PDF export inside My résumé's More menu, and offer Word/PDF/RTF format downloads beside generated packet/cover views while keeping submitted PDFs exact.
 # 182 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: Work history places direct Tab in, Tab out and Add sub-engagement controls beside existing actions, preserving explicit one-level links, independent entries, drafts and revision-checked Save/Undo.
@@ -85,7 +95,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.68.15
+version: 1.68.25
 
 localEditing:
   itemId: master
@@ -1925,10 +1935,12 @@ staticFiles:
       - career-stages.js
       - career-status-line.js
       - career-submit.js
+      - career-tailored-editor.js
       - career-theme.css
       - career-today.js
       - career-work-history-engagements.js
       - career-work-history-page.js
       - career-work-history.js
       - career-workflow-settings.js
+      - career-years-by-skill.js
       - mic.js

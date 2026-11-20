@@ -1126,3 +1126,25 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: embodied-bot-tools-contract
+    name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
+    purpose: Verify embodied-operator declares explicit inline posture, chatBot binding, object inputSchemas on all nine tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-bot-tools-contract.test.js
+    expected:
+      - embodied-operator declares posture inline and chatBot embodied-operator with object inputSchemas on all nine tools.
+      - personas/embodied-operator.yaml teaches plain prose and ```tool_call with "tool" naming all nine tools.
+      - GET /capabilities and GET /tasks execute cleanly under caller principal.
+      - GET /physics/status nodes[], GET /capabilities, and GET /build/hexapod publish node tickHz and sensor rateHz cleanly without breaking existing fields.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

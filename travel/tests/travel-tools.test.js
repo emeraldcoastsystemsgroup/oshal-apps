@@ -12,6 +12,7 @@
  *   state, and refuses a call without a note or words; create-fare-watch keeps the return date, cabin and the fare the
  *   traveller saw, and list-fare-watches returns it. Red on 1.3.4: no read-travel-notes, remember-travel-note or
  *   list-fare-watches tool and no /notes route.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: assert travel-concierge declares explicit posture: inline alongside chatBot and ```tool_call "tool" contract.
  */
 'use strict';
 const test = require('node:test');
@@ -82,4 +83,13 @@ test('create-fare-watch keeps the return date, cabin and the fare the traveller 
   assert.deepEqual(listed.body.items.map((w) => w.watch_id), [made.body.watch.watch_id]);
   const schema = manifest.slice(manifest.indexOf('  - name: create-fare-watch'), manifest.indexOf('  - name: list-fare-watches'));
   for (const field of ['returnDate', 'cabin', 'lastPrice']) assert.match(schema, new RegExp(`\\n {8}${field}: \\{ type: `), `create-fare-watch takes ${field}`);
+});
+
+test('travel-concierge declares explicit inline posture, chatBot binding, and ```tool_call "tool" contract', () => {
+  assert.match(manifest, /\nchatBot:\s*travel-concierge\b/);
+  const botBlock = manifest.slice(manifest.indexOf('\nbots:\n'), manifest.indexOf('\ntools:\n'));
+  assert.match(botBlock, /\n {4}name:\s*travel-concierge\b/);
+  assert.match(botBlock, /\n {4}posture:\s*inline\b/);
+  assert.ok(persona.includes('```tool_call'), 'persona teaches ```tool_call fence');
+  assert.match(persona, /"tool"/, 'persona teaches the "tool" JSON key');
 });

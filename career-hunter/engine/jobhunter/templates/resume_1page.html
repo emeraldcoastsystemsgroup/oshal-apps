@@ -2,6 +2,7 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding on numbers in experience bullets for clean ATS executive typography.
+3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: keep candidate name clean without appended credentials and always render verbatim tailored headline.
 -->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Resume (1-page) {{ contact.name }}</title>
@@ -44,7 +45,6 @@ SEQ | AUTHOR | DESCRIPTION
 <body><div class="wrap">
   <aside class="side">
     <div class="nm">{{ contact.name }}</div>
-    {% if contact.credential %}<div class="cred">{{ contact.credential }}</div>{% endif %}
     <h3>Contact</h3>
     {% if contact.location %}<div class="row">{{ contact.location }}</div>{% endif %}
     {% if contact.email %}<div class="row">{{ contact.email }}</div>{% endif %}

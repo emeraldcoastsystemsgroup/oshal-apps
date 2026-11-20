@@ -39,6 +39,8 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Calibration source tools use actual route-backed native held approvals; keep package-handler registration limited to in-process print tools.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register real original-owned calibration tools and pass the bound context to source and output guards.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount interactive 3D mesh crop/rotate/undo/reset routes, caller-scoped read-only share links, GLB/USDZ capabilities, and scan-to-print-tools.js (0.10.0).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: mount artifact-exchange source (`GET /artifacts`, B4) and printable orientation-cube markers (`GET /markers`, B9), and advertise `printCheck` bounds (B13) and `symmetryAxes` (B11) on `/capabilities`.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: advertise deterministic fiducial square scale-anchor bounds (`fiducial`, BACKLOG B3) on `/capabilities`.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -50,6 +52,7 @@ import { resolveDataRoot } from './data-dir';
 import { type JobRouteDeps, UPLOAD_LIMITS, createJobRoutes } from './job-routes';
 import { createMeshEditRoutes } from './mesh-edit-routes';
 import { createShareRoutes } from './share-routes';
+import { createExchangeRoutes } from './exchange-routes';
 import { effectiveUploadLimits } from './upload-limits';
 import { type PrintRouteDeps, createPrintRoutes } from './print-routes';
 import { createPrintServiceRouter } from './service-routes';
@@ -59,6 +62,8 @@ import { type SlicerEngineOptions, SLICER_ENGINE_ADDR_ENV, parseSlicerAddr, slic
 import type { BambuIo } from './printing/bambu-lan';
 import { VIEW_NAMES } from './engine/grid/views';
 import { RECONSTRUCTION_LIMITS } from './engine/pipeline';
+import { PRINT_CHECK_LIMITS } from './engine/grid/print-checks';
+import { FIDUCIAL_LIMITS } from './engine/raster/fiducial';
 import { DEPTH_UPLOAD_LIMITS } from './engine/grid/depth-decode';
 import { PRINTER_KINDS } from './engine/print/printer-adapters';
 import { resolveSlicerConfig } from './engine/print/slicer';
@@ -150,7 +155,7 @@ export function capabilitiesOf(env: Record<string, string | undefined>, deps: Pr
   let slicerConfigured = false;
   try { slicerConfigured = resolveSlicerConfig(env) !== null; } catch { slicerConfigured = false; }
   return {
-    app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: RECONSTRUCTION_LIMITS, upload: effectiveUploadLimits(UPLOAD_LIMITS, env),
+    app: 'scan-to-print', views: VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: RECONSTRUCTION_LIMITS, printCheck: PRINT_CHECK_LIMITS, symmetryAxes: ['x', 'y'], fiducial: { min: FIDUCIAL_LIMITS.fiducialMmMin, max: FIDUCIAL_LIMITS.fiducialMmMax }, upload: effectiveUploadLimits(UPLOAD_LIMITS, env),
     exports: ['stl', 'obj', 'glb', 'usdz', 'svg', 'report', 'gcode'],
     depth: DEPTH_UPLOAD_LIMITS, printers: { kinds: PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
     printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
@@ -192,6 +197,7 @@ export function createScanToPrintRoutes(ctx: AppContext, opts: ScanToPrintRouteO
   registerScanToPrintAuthorization(ctx);
   registerPrintTools(ctx, { ...deps, capabilities: () => capabilitiesOf(env, deps) });
 
+  router.use(createExchangeRoutes(deps));
   router.use(createJobRoutes(deps));
   router.use(createMeshEditRoutes(deps));
   router.use(createShareRoutes(deps));

@@ -122,6 +122,10 @@
  *                     |                             | it). Kept in memory per person; nothing runs the
  *                     |                             | engine. Guarded by aero-lab/tests/aero-window-draft
  *                     |                             | .test.cjs.
+ * 2026-11-19 08:55:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (BACKLOG Item E): wire nativeStatus(ctx)
+ *                     |                             | into AeroEngineAdapter so GET /capabilities probes
+ *                     |                             | engine.status on native oshald to request lazy image
+ *                     |                             | preparation alongside Docker-socket auto-install.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -165,6 +169,7 @@ exports.designChanges = designChanges;
 exports.parseAeroDesignerEnvelope = parseAeroDesignerEnvelope;
 exports.holdNamedMission = holdNamedMission;
 exports.nativeExchange = nativeExchange;
+exports.nativeStatus = nativeStatus;
 exports.createAeroLabRoutes = createAeroLabRoutes;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -675,6 +680,19 @@ function nativeExchange(ctx) {
     return async (request, timeoutMs) => (await intent('engine.exchange', { request, timeoutMs }));
 }
 /**
+ * @description The native kernel's `engine.status` probe, requesting lazy image preparation
+ * without starting a container on first use (Item E).
+ * @param ctx - The package context.
+ * @returns The status probe function, or undefined off the native kernel.
+ */
+function nativeStatus(ctx) {
+    const c = ctx;
+    if (c?.pool?.storageModel !== 'kernel-scoped-documents' || typeof c.intent !== 'function')
+        return undefined;
+    const intent = c.intent;
+    return async () => intent('engine.status', {});
+}
+/**
  * @description Build the /api/aero-lab router (frozen §2a API) over one engine adapter
  * (injectable for tests). Accepts EITHER the opts wrapper ({adapter?, ctx?}) OR a bare
  * AppContext (how the manifest-route-mounter invokes a packaged factory with
@@ -687,7 +705,11 @@ function createAeroLabRoutes(arg = {}) {
     const isOpts = arg !== null && typeof arg === 'object' && ('adapter' in arg || 'ctx' in arg);
     const opts = isOpts ? arg : { ctx: arg };
     const appPackageDir = opts.ctx?.appPackageDir;
-    const adapter = opts.adapter ?? new engine_adapter_1.AeroEngineAdapter({ appPackageDir, exchange: nativeExchange(opts.ctx) });
+    const adapter = opts.adapter ?? new engine_adapter_1.AeroEngineAdapter({
+        appPackageDir,
+        exchange: nativeExchange(opts.ctx),
+        readStatus: nativeStatus(opts.ctx),
+    });
     const exports = new Map();
     const router = (0, express_1.Router)();
     // ── The bundled surface ────────────────────────────────────────────────────
@@ -700,10 +722,14 @@ function createAeroLabRoutes(arg = {}) {
         void (async () => {
             const started = Date.now();
             const status = adapter.engineStatus();
+            const lifecycle = typeof adapter.refreshNativeStatus === 'function'
+                ? await adapter.refreshNativeStatus().catch(() => null)
+                : null;
             const engine = {
                 present: status.present, transport: status.transport || 'local', engineAddr: status.engineAddr ?? null,
                 installHint: status.installHint ?? null, engineDir: status.engineDir, python: status.python,
                 venvOk: status.venvOk, version: null,
+                ...(lifecycle !== null ? { lifecycle } : {}),
             };
             if (!status.present) {
                 const reason = !status.venvOk

@@ -129,7 +129,9 @@ test('the bar marks My jobs or Applications by the stage the address is on, and 
 test('the bar counts the furthest stage reached: interviews, else the jobs applied to, else saved jobs, else nothing', () => {
   assert.deepEqual(frame.stageChip({ saved: 7, interviewing: 0 }), { count: 7, label: 'saved', query: 'view=saved' });
   assert.deepEqual(frame.stageChip({ saved: 7, applied: 3, interviewing: 0 }), { count: 3, label: 'applied', query: 'view=status' });
-  assert.deepEqual(frame.stageChip({ saved: 7, applied: 3, tracked: 5, interviewing: 0 }), { count: 5, label: 'applied', query: 'view=status' }, 'the number the Applied stage shows');
+  // 1.68.18: bar chip reflects active Applied count (excluding Closed/Interviewing/Offer in tracked).
+  assert.deepEqual(frame.stageChip({ saved: 7, applied: 3, tracked: 5, interviewing: 0 }), { count: 3, label: 'applied', query: 'view=status' }, 'the number the Applied stage shows');
+  assert.deepEqual(frame.stageChip({ saved: 7, applied: 0, tracked: 5, interviewing: 0 }), { count: 7, label: 'saved', query: 'view=saved' }, 'closed-only tracked records do not show as applied');
   assert.deepEqual(frame.stageChip({ saved: 7, applied: 3, interviewing: 2 }), { count: 2, label: 'interviewing', query: 'view=interviewing' });
   assert.equal(frame.stageChip({ saved: 0 }), null);
   assert.equal(frame.stageChip(null), null);

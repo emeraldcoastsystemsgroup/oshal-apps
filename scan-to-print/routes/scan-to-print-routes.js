@@ -40,6 +40,8 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Calibration source tools use actual route-backed native held approvals; keep package-handler registration limited to in-process print tools.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register real original-owned calibration tools and pass the bound context to source and output guards.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount interactive 3D mesh crop/rotate/undo/reset routes, caller-scoped read-only share links, GLB/USDZ capabilities, and scan-to-print-tools.js (0.10.0).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: mount artifact-exchange source (`GET /artifacts`, B4) and printable orientation-cube markers (`GET /markers`, B9), and advertise `printCheck` bounds (B13) and `symmetryAxes` (B11) on `/capabilities`.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: advertise deterministic fiducial square scale-anchor bounds (`fiducial`, BACKLOG B3) on `/capabilities`.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -58,6 +60,7 @@ const data_dir_1 = require("./data-dir");
 const job_routes_1 = require("./job-routes");
 const mesh_edit_routes_1 = require("./mesh-edit-routes");
 const share_routes_1 = require("./share-routes");
+const exchange_routes_1 = require("./exchange-routes");
 const upload_limits_1 = require("./upload-limits");
 const print_routes_1 = require("./print-routes");
 const service_routes_1 = require("./service-routes");
@@ -66,6 +69,8 @@ const print_tools_1 = require("./print-tools");
 const slicer_engine_1 = require("./printing/slicer-engine");
 const views_1 = require("./engine/grid/views");
 const pipeline_1 = require("./engine/pipeline");
+const print_checks_1 = require("./engine/grid/print-checks");
+const fiducial_1 = require("./engine/raster/fiducial");
 const depth_decode_1 = require("./engine/grid/depth-decode");
 const printer_adapters_1 = require("./engine/print/printer-adapters");
 const slicer_1 = require("./engine/print/slicer");
@@ -150,7 +155,7 @@ function capabilitiesOf(env, deps) {
         slicerConfigured = false;
     }
     return {
-        app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: (0, upload_limits_1.effectiveUploadLimits)(job_routes_1.UPLOAD_LIMITS, env),
+        app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, printCheck: print_checks_1.PRINT_CHECK_LIMITS, symmetryAxes: ['x', 'y'], fiducial: { min: fiducial_1.FIDUCIAL_LIMITS.fiducialMmMin, max: fiducial_1.FIDUCIAL_LIMITS.fiducialMmMax }, upload: (0, upload_limits_1.effectiveUploadLimits)(job_routes_1.UPLOAD_LIMITS, env),
         exports: ['stl', 'obj', 'glb', 'usdz', 'svg', 'report', 'gcode'],
         depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
         printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
@@ -188,6 +193,7 @@ function createScanToPrintRoutes(ctx, opts = {}) {
     router.get('/capabilities', (_req, res) => { res.json(capabilitiesOf(env, deps)); });
     (0, scan_authorization_1.registerScanToPrintAuthorization)(ctx);
     (0, print_tools_1.registerPrintTools)(ctx, { ...deps, capabilities: () => capabilitiesOf(env, deps) });
+    router.use((0, exchange_routes_1.createExchangeRoutes)(deps));
     router.use((0, job_routes_1.createJobRoutes)(deps));
     router.use((0, mesh_edit_routes_1.createMeshEditRoutes)(deps));
     router.use((0, share_routes_1.createShareRoutes)(deps));

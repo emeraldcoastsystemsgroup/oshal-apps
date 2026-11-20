@@ -13,12 +13,13 @@
  *                     |                             | the brief's and feasibility left to the plant, the bought parts
  *                     |                             | from the catalog rows, the bill of materials. Nothing here is a
  *                     |                             | measurement.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: propagate `rateHz` from sensor catalog rows onto bought parts and publish `senses` (lidar, imu, joints) with their nominal rates from the catalog and SPIDER_18_TICK_HZ.
  */
 
 import { G_MPS2 } from '../physics/mjcf';
 import { jumpGeometry, jumpModule, legParts, PLATE_FILL, windDrumRadiusMm, type HexapodLink, type HexapodPrintedPart } from './hexapod-parts';
 import { bodyLayout, bodyParts, LIDAR_MM, type BodyLayout } from './hexapod-parts-body';
-import { allUpMassG, BRIEF_MASSES, SPIDER_18, type HexapodFit, type HexapodMasses, type HexapodSpec, type JumpOption, type LegJoint } from './hexapod-spec';
+import { allUpMassG, BRIEF_MASSES, SPIDER_18, SPIDER_18_TICK_HZ, type HexapodFit, type HexapodMasses, type HexapodSpec, type JumpOption, type LegJoint } from './hexapod-spec';
 import { boughtRow } from './parts-catalog';
 import type { BoughtPart } from './parts-model';
 import { CONTINUOUS_FRACTION, DYNAMIC_ALLOWANCE, SPEED_FRACTION, STS3215_12V, type ServoSpec } from './servos';
@@ -35,6 +36,17 @@ const TRIPOD_FEET = 3;
 export interface HexapodBoughtPart extends BoughtPart {
   source: string;
   option?: JumpOption;
+  rateHz?: number;
+}
+
+/** @description One sensor carried by the hexapod design, with its nominal rate from the catalog row or controller tick. */
+export interface HexapodSenseSpec {
+  name: 'lidar' | 'imu' | 'joints';
+  rateHz: number;
+  rowId?: string;
+  count?: number;
+  mount?: string;
+  reader: string;
 }
 
 /** @description One row of the mass budget. */
@@ -120,6 +132,7 @@ export interface HexapodDesign {
   joints: HexapodJointLoad[];
   printed: HexapodPrintedPart[];
   bought: HexapodBoughtPart[];
+  senses: HexapodSenseSpec[];
   bom: BomRow[];
   jump: HexapodJump[];
   approxUsd: number;
@@ -139,20 +152,33 @@ const ROLES: Record<string, string> = {
   'die-spring-5n-mm': 'one each side of the piston collar: the cocked one drives the jump, the other re-centres the rod',
 };
 
-const bought = (id: string, name: string, qty: number, massEachG: number, role: string, approxUsdEach: number, source: string, option?: JumpOption): HexapodBoughtPart => ({ id, name, qty, massEachG, role, approxUsdEach, source, ...(option ? { option } : {}) });
+const bought = (id: string, name: string, qty: number, massEachG: number, role: string, approxUsdEach: number, source: string, option?: JumpOption, rateHz?: number): HexapodBoughtPart => ({ id, name, qty, massEachG, role, approxUsdEach, source, ...(option ? { option } : {}), ...(rateHz !== undefined ? { rateHz } : {}) });
 
 /** @description The bought parts: the servo row eighteen times, the catalog rows the spec names, the wiring allowance, and the jump option's spring pair and wind servo. */
 function boughtParts(spec: HexapodSpec, s: ServoSpec): HexapodBoughtPart[] {
   const list = [bought('servo', s.name, spec.servoCount, s.massG, 'every joint on one 12 V bus; the same row the printed arm uses', s.approxUsdEach, s.source)];
   for (const id of spec.boughtRowIds) {
     const row = boughtRow(id);
-    list.push(bought(id, row.name, 1, row.massG, ROLES[id] ?? '', row.approxUsd, row.source));
+    list.push(bought(id, row.name, 1, row.massG, ROLES[id] ?? '', row.approxUsd, row.source, undefined, row.rateHz));
   }
   list.push(bought('wiring', 'Wiring, bus leads, straps, fasteners (allowance)', 1, WIRING_ALLOWANCE_G, 'the brief\'s allowance, not a measurement', 20, 'core docs/research/spider-18-design-brief.md section 1.2: a 40 g allowance'));
   const spring = boughtRow('die-spring-5n-mm');
   list.push(bought('die-spring', spring.name, 2, spring.massG, ROLES['die-spring-5n-mm'], spring.approxUsd, spring.source, 'latched-spring'));
   list.push(bought('wind-servo', s.name, 1, s.massG, 'winds the drum and, past its detent, trips the latch (the spec\'s windServoRowId)', s.approxUsdEach, s.source, 'latched-spring'));
   return list;
+}
+
+/** @description The hexapod's sensors with rates derived from the owned catalog rows and controller tick rate (B3). */
+function hexapodSenses(spec: HexapodSpec, printed: HexapodPrintedPart[]): HexapodSenseSpec[] {
+  const lidar = boughtRow('ld19-lidar');
+  const imu = boughtRow('bno055-imu');
+  const head = printed.find((p) => p.id === 'head')?.name;
+  const plate = printed.find((p) => p.id === 'plate')?.name;
+  const out: HexapodSenseSpec[] = [];
+  if (lidar.rateHz !== undefined) out.push({ name: 'lidar', rateHz: lidar.rateHz, rowId: lidar.id, ...(head ? { mount: head } : {}), reader: 'the node (LD19 UART)' });
+  if (imu.rateHz !== undefined) out.push({ name: 'imu', rateHz: imu.rateHz, rowId: imu.id, ...(plate ? { mount: plate } : {}), reader: 'the node (BNO055 I2C)' });
+  out.push({ name: 'joints', rateHz: SPIDER_18_TICK_HZ, count: spec.servoCount, reader: 'the node (joint feedback on the servo bus)' });
+  return out;
 }
 
 /** @description The mass budget from the parts: base rows only in the total; each option's addition beside it. */
@@ -292,10 +318,11 @@ export function buildHexapod(fitId: HexapodFit): HexapodDesign {
   const joints = worstStanceLoads(spec, printed, s, budget.totalG);
   const jump = jumpOptions(spec, s, budget.totalG, budget);
   const bom = bomRows(printed, boughtList);
+  const senses = hexapodSenses(spec, printed);
   const approxUsd = Math.round(boughtList.filter((b) => !b.option).reduce((a, b) => a + b.qty * b.approxUsdEach, 0));
   const approxUsdWithSpring = Math.round(boughtList.reduce((a, b) => a + b.qty * b.approxUsdEach, 0));
   const design: HexapodDesign = {
-    fit: fitId, spec, servo: s, body, masses, massBudget: budget, joints, printed, bought: boughtList, bom, jump, approxUsd, approxUsdWithSpring,
+    fit: fitId, spec, servo: s, body, masses, massBudget: budget, joints, printed, bought: boughtList, senses, bom, jump, approxUsd, approxUsdWithSpring,
     assumptions: [
       `foot friction ${FOOT_FRICTION} (TPU on a dry floor) sizes the coxa; to be measured`,
       `printed masses are each program's net volume times its fill (plates ${PLATE_FILL} for 3 skins and 20 % gyroid; walls solid), through the arm's printedMassG; the scale replaces them`,

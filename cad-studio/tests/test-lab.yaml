@@ -378,3 +378,68 @@ cases:
     isolation: {mode: disposable, cleanup: "Remove only the labelled fixture engine container, temporary artifact directory and unique SQL schema/role; preserve shared services."}
     limits: {timeoutMs: 180000, maxMemoryMb: 4096}
     installation: never
+  - id: b3-print-handoff
+    name: STL handoff to Scan to Print and ADR-139 artifacts.provides (B3)
+    purpose: Verify caller-scoped GET /api/cad-studio/artifacts listing, revision-row Print in Scan to Print link with ADR-139 attributes, and confirmed Scan to Print multipart model upload.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/b3-print-handoff.test.js
+    expected:
+      - GET /api/cad-studio/artifacts returns caller-scoped built STL/3MF/OBJ/STEP entries with Cache-Control private, no-store and refuses invalid cursors.
+      - queueViaScanToPrint requires confirmation, posts multipart field "model" for the chosen revision, and renders outcome messages cleanly.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: cad-bot-tools-contract
+    name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
+    purpose: Verify cad-studio-designer declares explicit inline posture, chatBot binding, object inputSchemas on all ten tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/bot-tools-contract.test.js
+    expected:
+      - cad-studio-designer declares posture inline and chatBot cad-studio-designer with object inputSchemas on all ten tools.
+      - personas/cad-studio-designer.yaml teaches plain prose and ```tool_call with "tool" naming all ten tools.
+      - GET /capabilities and GET /models execute cleanly under caller principal.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: b5-budget-cancel
+    name: Per-feature timing budget telemetry, native cancel, and bridge kill-on-close (B5)
+    purpose: Prove native engine.exchange in-flight cancellation preserving last good revision and freeing slots, structured budgetExceeded reporting on rebuildModel, real cad_engine_bridge.py SIGKILL of hung worker process group on cancel, and UI per-feature timing + featureBudgetMs controls.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/b5-budget-cancel.test.js
+    expected:
+      - Native engine.exchange cancelRebuild rejects the active build as cancelled, frees its slot immediately, discards late replies, and preserves lastGoodRevision.
+      - Real cad_engine_bridge.py SIGKILLs a hung worker process group when the client closes the connection on cancel and serves the next rebuild on the released slot.
+      - rebuildModel surfaces structured budgetExceeded entries naming featureId and elapsed ms, and tools/cad-studio.{html,js} renders per-feature timing and featureBudgetMs settings.
+    prerequisites:
+      - runner:node-test
+      - python3
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary engine dir and loopback bridge child process are terminated and removed in test cleanup.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

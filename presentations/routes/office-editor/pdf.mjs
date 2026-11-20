@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-05): real multipage PDF 1.7 renderer (styled text, highlights, lists, tables, shapes, workbook grids and embedded RGB XObject images) and UTF-8 plain-text exporter.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Position explicit paragraph text offsets in PDF and preserve logical indentation in plain text and bound keep-with-next chains to a page without changing legacy lists.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Render optional paragraph bottom hairlines (`borderBottom`) and single-line right tab stops (`tabRight`) in PDF output.
  */
 import{createRequire}from'node:module';
 import{deflateSync}from'node:zlib';
@@ -152,6 +153,41 @@ function wordKeepHeights(blocks,width){
  return heights;
 }
 
+function splitTabRuns(runs){
+ const left=[],right=[];let seen=false;
+ for(const run of runs){
+  if(!seen&&run.text.includes('\t')){
+   const at=run.text.indexOf('\t'),before=run.text.slice(0,at),after=run.text.slice(at+1).replace(/\t/g,' ');
+   if(before)left.push({text:before,style:{...run.style,align:'left'}});
+   if(after)right.push({text:after,style:{...run.style,align:'right'}});
+   seen=true;
+  }else if(seen)right.push({text:run.text.replace(/\t/g,' '),style:{...run.style,align:'right'}});
+  else left.push({text:run.text,style:{...run.style,align:'left'}});
+ }
+ return seen&&right.length?{left,right}:null;
+}
+
+function drawParagraphBlock(ops,blk,{x,y,width,pageHeight,prefix,explicit}){
+ const tab=blk.tabRight!==undefined?splitTabRuns(blk.runs):null;
+ let used;
+ if(tab){
+  const rightW=tab.right.reduce((sum,run)=>sum+measureText(run.text,run.style),0);
+  const spanW=Math.max(24,Math.min(width,blk.tabRight-(explicit?blk.indentLeft:0)));
+  const leftW=Math.max(24,spanW-rightW-8);
+  const rightH=drawWrappedRuns(ops,tab.right,{x,yTop:y,width:spanW,pageHeight,lineMult:blk.lineHeight});
+  const leftH=tab.left.length?drawWrappedRuns(ops,tab.left,{x,yTop:y,width:leftW,pageHeight,lineMult:blk.lineHeight,prefix:explicit?'':prefix}):0;
+  used=Math.max(leftH,rightH);
+ }else{
+  used=drawWrappedRuns(ops,blk.runs,{x,yTop:y,width,pageHeight,lineMult:blk.lineHeight,prefix:explicit?'':prefix});
+ }
+ if(blk.borderBottom){
+  const ruleY=pageHeight-(y+used+1);
+  ops.push(`q 0.75 w ${rgbFloats(blk.borderBottom)} RG ${x.toFixed(2)} ${ruleY.toFixed(2)} m ${(x+width).toFixed(2)} ${ruleY.toFixed(2)} l S Q`);
+  used+=2;
+ }
+ return used;
+}
+
 function layoutWordPages(model,images){
  const w=model.pageWidth,h=model.pageHeight,m=model.margins,usableW=w-m.left-m.right,out=[];
  const frameOps=()=>{
@@ -178,7 +214,7 @@ function layoutWordPages(model,images){
      const markerWidth=Math.max(12.6,prefix.length*blk.runs[0].style.fontSize*.6);
      drawWrappedRuns(ops,[{text:prefix.trimEnd(),style:{...blk.runs[0].style,align:'left'}}],{x:m.left+offset-markerWidth,yTop:y,width:markerWidth,pageHeight:h,lineMult:blk.lineHeight});
     }
-    y+=drawWrappedRuns(ops,blk.runs,{x:m.left+offset,yTop:y,width:usableW-offset,pageHeight:h,lineMult:blk.lineHeight,prefix:explicit?'':prefix});
+    y+=drawParagraphBlock(ops,blk,{x:m.left+offset,y,width:usableW-offset,pageHeight:h,prefix,explicit});
     y+=blk.spacingAfter;
    }else if(blk.type==='table'){
     listNum=0;ensureSpace(36);

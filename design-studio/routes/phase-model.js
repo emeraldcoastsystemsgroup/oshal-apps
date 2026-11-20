@@ -18,19 +18,30 @@
  *                     |                             | through CAD Studio, a sheet from the parts' own fields, the BOM,
  *                     |                             | a sha256 manifest) and what closes the phase (a finished set at
  *                     |                             | the current design revision with no part unprintable).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: add named Pi bay thermal solve option (`thermalSolve`)
+ *                     |                             | on Brief and honest reasoned-phase closure helpers (`closureHonesty`,
+ *                     |                             | `honestEvidence`) so reasoned closures explicitly state no engine measured them.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ModelError = exports.PHASE_BRIEFS = exports.ENGINES = exports.PHASE_KINDS = void 0;
+exports.ModelError = exports.PHASE_BRIEFS = exports.UNMEASURED_CLOSURE_NOTICE = exports.THERMAL_SOLVE_MODES = exports.ENGINES = exports.PHASE_KINDS = void 0;
 exports.proposePhases = proposePhases;
 exports.orderPhases = orderPhases;
 exports.validatePhases = validatePhases;
+exports.validateThermalSolve = validateThermalSolve;
 exports.validateBrief = validateBrief;
 exports.validateArtifact = validateArtifact;
 exports.validateClosure = validateClosure;
+exports.isReasonedPhase = isReasonedPhase;
+exports.closureHonesty = closureHonesty;
+exports.honestEvidence = honestEvidence;
 /** @description The phase vocabulary, in the one order a chain carries its subset. */
 exports.PHASE_KINDS = ['brief', 'design', 'mechanical', 'electrical', 'sensors', 'controller', 'simulate', 'fabricate', 'build'];
 /** @description The engines a phase may bind to: the package whose artifact it produces, or `reasoned` when no engine on the swarm solves it. */
 exports.ENGINES = ['cad-studio', 'circuit-lab', 'embodied', 'scan-to-print', 'reasoned'];
+/** @description Named thermal solve options in the brief (B15): no thermal engine exists on this shelf yet. */
+exports.THERMAL_SOLVE_MODES = ['none', 'pi-bay'];
+/** @description Standard honesty notice attached to closures of reasoned phases with no measuring engine (B15). */
+exports.UNMEASURED_CLOSURE_NOTICE = 'no engine measured this phase (reasoned only)';
 const brief = (kind, title, produces, engines, defaultEngine, closes, stages, action) => Object.freeze({ kind, title, produces, engines, defaultEngine, closes, stages, action });
 /** @description The phase briefs, one per kind: the ADR-203 table as data. */
 exports.PHASE_BRIEFS = Object.freeze({
@@ -89,6 +100,9 @@ function proposePhases(b) {
     add('fabricate', 'every product is made');
     add('build', 'every product is assembled and tested on the bench');
     const unsolved = matched(lines, THERMAL).map((line) => `${line} - a thermal phase has no engine on this shelf (ADR-203); it stays a requirement the brief carries`);
+    if (b.thermalSolve?.mode === 'pi-bay') {
+        unsolved.push('Pi bay thermal solve - no thermal engine exists on this shelf (B15); tracked in the brief as reasoned/unmeasured until a thermal engine is bound');
+    }
     return { phases: orderPhases(phases), unsolved };
 }
 /**
@@ -159,8 +173,26 @@ function validatePhases(value) {
 }
 /** The targets a brief may carry and how each is read. */
 const TARGETS = [['massG', 'number'], ['sizeMm', 'string'], ['costUsd', 'number'], ['runtimeMin', 'number']];
+/** Validate optional `brief.thermalSolve` (B15): accepts boolean, mode string, or `{mode, note?}`. */
+function validateThermalSolve(raw) {
+    if (raw === undefined || raw === null || raw === false || raw === '' || raw === 'none')
+        return undefined;
+    if (raw === true || raw === 'pi-bay')
+        return { mode: 'pi-bay', status: 'reasoned-unmeasured' };
+    if (isRecord(raw)) {
+        const mode = raw.mode;
+        if (typeof mode !== 'string' || !exports.THERMAL_SOLVE_MODES.includes(mode)) {
+            throw new ModelError(`brief.thermalSolve.mode must be one of ${exports.THERMAL_SOLVE_MODES.join(', ')}`, 'bad_brief', 'brief.thermalSolve');
+        }
+        if (mode === 'none')
+            return undefined;
+        const note = typeof raw.note === 'string' ? raw.note.trim().replace(/\s+/g, ' ').slice(0, 200) : '';
+        return { mode: 'pi-bay', status: 'reasoned-unmeasured', ...(note ? { note } : {}) };
+    }
+    throw new ModelError(`brief.thermalSolve must be a boolean, one of ${exports.THERMAL_SOLVE_MODES.join(', ')}, or {mode, note?}`, 'bad_brief', 'brief.thermalSolve');
+}
 /**
- * @description Validate a brief: `what` one line, `requirements` one per line (at most 60, each at most 300 characters), optional targets.
+ * @description Validate a brief: `what` one line, `requirements` one per line (at most 60, each at most 300 characters), optional targets and optional thermalSolve.
  * @param value - The body's `brief`.
  * @returns The validated brief.
  * @throws ModelError naming the field.
@@ -188,7 +220,8 @@ function validateBrief(value) {
         else
             targets[key] = String(v).trim().slice(0, 120);
     }
-    return { what, requirements, targets };
+    const thermalSolve = validateThermalSolve(value.thermalSolve);
+    return { what, requirements, targets, ...(thermalSolve ? { thermalSolve } : {}) };
 }
 /**
  * @description Validate an artifact to bind: an engine from the vocabulary that the phase allows, a `kind` word, and at most 64 KB of reference.
@@ -229,5 +262,28 @@ function validateClosure(kind, body) {
         throw new ModelError('the build phase closes one checklist step at a time: name the step', 'missing_step', 'step', 422);
     const by = typeof body.by === 'string' && body.by.trim() ? body.by.trim().slice(0, 80) : 'person';
     return { evidence, revision, step, by };
+}
+/** @description True when a phase is reasoned with no verifying engine (excludes brief words and bench build). */
+function isReasonedPhase(entry) {
+    return entry.engine === 'reasoned' && entry.kind !== 'brief' && entry.kind !== 'build';
+}
+/** @description Compute honest measurement metadata for a phase closure (B15). */
+function closureHonesty(entry, hasEngineRead) {
+    const engine = entry?.engine ?? 'reasoned';
+    if (entry?.kind === 'brief' || entry?.kind === 'build') {
+        return { engine, measuredByEngine: false, reasonedOnly: false, unmeasuredNotice: null };
+    }
+    if (engine !== 'reasoned' && hasEngineRead) {
+        return { engine, measuredByEngine: true, reasonedOnly: false, unmeasuredNotice: null };
+    }
+    return { engine, measuredByEngine: false, reasonedOnly: true, unmeasuredNotice: exports.UNMEASURED_CLOSURE_NOTICE };
+}
+/** @description Ensure a reasoned-only closure's persisted evidence line explicitly names that no engine measured it. */
+function honestEvidence(evidence, honesty) {
+    if (!honesty.reasonedOnly || !honesty.unmeasuredNotice)
+        return evidence;
+    if (/no engine measured/i.test(evidence))
+        return evidence;
+    return `${evidence} — ${honesty.unmeasuredNotice}`.slice(0, CAP);
 }
 //# sourceMappingURL=phase-model.js.map

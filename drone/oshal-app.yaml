@@ -1,5 +1,6 @@
 # CHANGE LOG: 1.4.1 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2 (the phone first-screen sweep of 2026-11-16): with no drone the "No drone connected" card started 306 px down a 915 px phone (33%) in the middle of an empty map under a two-row header. On a phone with no drone the header is one row (the provider pill only repeated NO DRONE and the battery read -%) and the card sits at the top of the map under the view control. Guard tests/drone-phone-first-screen.test.cjs. Presentation only; the desktop is unchanged.
 # CHANGE LOG: 1.4.2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-16 ("for the last time": every chat surface is the core Jarvis chat window, with its model menu): the Operator chat in the Plan view of /api/drone/app no longer draws a chat of its own over POST /api/drone/chat; it is the kernel's one chat window as Drone Ops' concierge (drone-operator), in the same place after Missions, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying. Each turn carries the screen (the Fleet list, the selected drone's telemetry and home, the geofence, the saved missions, the mission builder) on context.screen_state; the bot drafts with draft-drone-mission (the same route, which validates and saves the draft), the page draws the saved draft and lists it under Missions after the turn, and a flight is Execute in Missions or the window's approval card for execute-drone-mission. Routes, tools and the persona are unchanged. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later). Guard tests/drone-one-chat-window.test.mjs.
+# CHANGE LOG: 1.4.3 | maintainer@emeraldcoastsystemsgroup.com | Declare explicit posture: inline + chatBot: drone-operator, add object inputSchema to drone-status and drone-fleet-status, and teach plain-prose direct chat + ```tool_call {"tool": ...} in personas/drone-operator.yaml.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — drone ("Drone Ops")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -51,7 +52,7 @@ description: >-
   separation checks. A flight-planning concierge drafts single or fleet
   missions from natural language; a human approves every flight. Sim engine
   built in, MAVLink (ArduPilot/PX4) at the drone node.
-version: 1.4.2
+version: 1.4.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -108,6 +109,7 @@ uses:
 bots:
   - agentId: b00f0000-0000-0000-0000-000000000001
     name: drone-operator
+    posture: inline
     persona: personas/drone-operator.yaml
     role: robotics/drone-flight-planning
     capabilities:
@@ -126,6 +128,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/drone/state" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. Use the returned telemetry as the only source of drone position, battery, and status.
     routingTags: [drone, telemetry, status]
@@ -140,6 +143,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/drone/fleet" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. The fleet listing is the only source of which drones exist and which are reachable.
     routingTags: [drone, fleet, telemetry, status]
@@ -231,6 +235,8 @@ routes:
 # No migrations: drone_missions / drone_command_log / drone_conversations /
 # drone_messages are created by the packaged route's lazy ensureDroneSchema
 # (runRuntimeSchemaBootstrap + owner-RLS via buildOwnerRlsPolicyStatements).
+
+chatBot: drone-operator
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=drone
 ribbon:

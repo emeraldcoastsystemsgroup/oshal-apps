@@ -34,9 +34,13 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` decryptField (asynchronous on the
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Print progress read-back (BACKLOG B5): return normalised `progress`
+ *                     |                             | from `printerState` for all hosts (OctoPrint, Moonraker, PrusaLink,
+ *                     |                             | Bambu) and attach bounded, fail-safe `liveStatus` to the latest
+ *                     |                             | submission on read so offline hosts never hang or break the read.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PrinterKeyUnreadable = void 0;
+exports.READBACK_STATUS_TIMEOUT_MS = exports.PrinterKeyUnreadable = void 0;
 exports.evaluateStart = evaluateStart;
 exports.loadPrinter = loadPrinter;
 exports.bambuProfileOf = bambuProfileOf;
@@ -46,6 +50,7 @@ exports.sendToBambu = sendToBambu;
 exports.sendToHttpPrinter = sendToHttpPrinter;
 exports.recordAttempt = recordAttempt;
 exports.printerState = printerState;
+exports.attachLiveStatus = attachLiveStatus;
 const logger_1 = require("@/shared/logger");
 const personal_data_1 = require("@/features/personal-data");
 const job_store_1 = require("./job-store");
@@ -258,19 +263,78 @@ async function recordAttempt(pool, sub, s) {
     logger.info({ printerId: s.printer.row.printer_id, jobId: s.jobId, requestedBy: s.requestedBy, uploaded: outcome.uploaded, started: outcome.started, status: outcome.status }, 'Print attempt recorded');
     return row;
 }
+/** @description Bounded timeout for attaching live printer status on submission reads. */
+exports.READBACK_STATUS_TIMEOUT_MS = 2_500;
+/** @description Race a status probe against a hard deadline, always clearing the timer. */
+function withTimeout(work, timeoutMs, fallback) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => { if (!settled) {
+            settled = true;
+            resolve(fallback);
+        } }, timeoutMs);
+        work.then((value) => { if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(value);
+        } }, () => { if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(fallback);
+        } });
+    });
+}
 /**
  * @description A printer's state for any kind: Bambu over MQTT, HTTP hosts through their adapter.
  * @param deps - Service dependencies.
  * @param printer - The loaded printer.
- * @returns `ok`, a normalised `state` word and the kind-specific detail.
+ * @param options - Optional bounded timeout for live status read-back.
+ * @returns `ok`, a normalised `state` word, rounded `progress` (0..100 or null) and kind-specific detail.
  */
-async function printerState(deps, printer) {
+async function printerState(deps, printer, options = {}) {
     if (printer.row.kind === printer_adapters_1.BAMBU_KIND) {
-        const result = await (0, bambu_lan_1.bambuStatus)(bambuProfileOf(printer), deps.bambuIo);
-        return result.ok ? { ok: true, state: result.state.state, detail: result.state } : { ok: false, state: 'offline', detail: { message: result.message } };
+        const io = options.timeoutMs ? { ...deps.bambuIo, statusTimeoutMs: options.timeoutMs } : deps.bambuIo;
+        const result = await (0, bambu_lan_1.bambuStatus)(bambuProfileOf(printer), io);
+        return result.ok
+            ? { ok: true, state: result.state.state, progress: (0, printer_adapters_1.extractProgress)(printer_adapters_1.BAMBU_KIND, result.state), detail: result.state }
+            : { ok: false, state: 'offline', progress: null, detail: { message: result.message } };
     }
     const kind = printer.row.kind;
-    const status = await (0, printer_adapters_1.adapterFor)(kind).status({ kind, baseUrl: printer.row.base_url, apiKey: printer.secret }, deps.fetchImpl);
-    return { ok: status.ok, state: status.state, detail: status.detail };
+    const status = await (0, printer_adapters_1.adapterFor)(kind).status({ kind, baseUrl: printer.row.base_url, apiKey: printer.secret }, deps.fetchImpl, options.timeoutMs);
+    return { ok: status.ok, state: status.state, progress: status.progress ?? null, detail: status.detail };
+}
+/**
+ * @description Attach bounded, fail-safe live printer status to the latest non-failed submission
+ * on read (BACKLOG B5). An offline, timed-out or unreadable printer never fails or hangs the read.
+ * @param deps - Service dependencies.
+ * @param sub - Owner subject.
+ * @param submissions - Submissions ordered newest-first.
+ * @param options - Optional timeout override (defaults to {@link READBACK_STATUS_TIMEOUT_MS}).
+ * @returns Submissions with `liveStatus` attached to index 0 when applicable.
+ */
+async function attachLiveStatus(deps, sub, submissions, options = {}) {
+    if (submissions.length === 0)
+        return [];
+    const latest = submissions[0];
+    if (latest.state === 'failed')
+        return submissions;
+    const timeoutMs = options.timeoutMs ?? exports.READBACK_STATUS_TIMEOUT_MS;
+    const checkedAt = new Date().toISOString();
+    const offline = (message) => ({ ok: false, state: 'offline', progress: null, detail: { message }, checkedAt });
+    let liveStatus;
+    try {
+        const printer = await loadPrinter(deps.pool, sub, latest.printer_id);
+        if (!printer) {
+            liveStatus = offline('printer not found');
+        }
+        else {
+            const probed = await withTimeout(printerState(deps, printer, { timeoutMs }), timeoutMs, { ok: false, state: 'offline', progress: null, detail: { message: 'printer status timed out' } });
+            liveStatus = { ...probed, checkedAt };
+        }
+    }
+    catch (error) {
+        liveStatus = offline(error instanceof Error ? error.message : String(error));
+    }
+    return [{ ...latest, liveStatus }, ...submissions.slice(1)];
 }
 //# sourceMappingURL=print-service.js.map

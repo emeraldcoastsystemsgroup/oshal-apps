@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, UX audit 2026-11-06: with no camera node the screen is this device's capture screen (live preview, 72 px shutter, Photo/Video/Timelapse, captures strip); Fleet, Control, Telemetry, Event log and Delete all media live on a Cameras screen shown only when a node is registered; inline Concierge card removed; diagnostic brief moved to More as a themed sheet, withheld when no action is offered; same routes.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1 (J-3): clarify Camera Ops description so Jarvis knows it drives GoPro action cameras and Wi-Fi/USB field cameras and does not read SmartThings devices, smart-home cameras, or Samsung Family Hub refrigerator/appliance interior cameras (Smart Home handles those).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: declare explicit posture: inline + chatBot: camera-operator, add object inputSchema to camera-status and camera-fleet-status, and teach plain-prose direct chat + ```tool_call {"tool": ...} in personas/camera-operator.yaml.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — camera ("Camera Ops")
@@ -55,7 +56,7 @@ description: >-
   real GoPro (Open GoPro HTTP) at the camera node. Does not read SmartThings
   devices, smart-home cameras, or refrigerator/appliance interior cameras (Smart
   Home handles those).
-version: 1.2.1
+version: 1.2.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -109,6 +110,7 @@ uses:
 bots:
   - agentId: b0200000-0000-0000-0000-000000000001
     name: camera-operator
+    posture: inline
     persona: personas/camera-operator.yaml
     role: devices/camera-control
     capabilities:
@@ -125,6 +127,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/camera/state" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. Use the returned telemetry as the only source of camera state.
     routingTags: [camera, status, telemetry]
@@ -139,6 +142,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/camera/fleet" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. The fleet listing is the only source of which cameras exist and which are reachable.
     routingTags: [camera, fleet, status]
@@ -236,6 +240,8 @@ routes:
 # No migrations: camera_command_log is created by the packaged route's lazy
 # ensureCameraSchema (runRuntimeSchemaBootstrap + owner-RLS via
 # buildOwnerRlsPolicyStatements).
+
+chatBot: camera-operator
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=camera
 ribbon:

@@ -10,6 +10,7 @@
 # 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | Fantasy Quant concierge (F22): collapsible right-rail Concierge with bottom-pinned Jarvis composer, surface context bridge, inline fantasy-quant specialist persona, read-only start/sit, waiver, and matchup win-probability tools, and approval-card-gated lineup and waiver mutation tools.
 # 0.4.1 | maintainer@emeraldcoastsystemsgroup.com | Lane mobilesweep2 (the phone first-screen sweep of 2026-11-16): on a phone in Today the league walkthrough's Continue (and Save league) sat under the floating Jarvis button, on the first screen and at the end of the page; Intelligent Sports opens the same page. The walkthrough's sticky bar keeps the bottom-right 64 px free on a phone (the button is 48 px, 12 px from the edge), so Continue sits beside it. The desktop is unchanged. Guard tests/fantasy-phone-wizard.test.js. Presentation only.
 # 0.4.2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-16 ("for the last time": every concierge is the core Jarvis chat window, with its model menu): the Concierge rail no longer draws a chat of its own. It holds the kernel's one chat window as Fantasy Quant's concierge (/shared/ui/js/jarvis-chat-frame.js), with its model menu, New conversation, Recent conversations, Files, Tap to talk, Keep trying and the kernel's own approval cards; Intelligent Sports opens the same page. The context the rail sent as keys the kernel never read (activeView, activeBoard, selectedLeague) now rides on every turn as screen_state: the view, the board, the league on screen with the ids the Fantasy Quant tools take (manualId or leagueId, and the season), the leagues in the League menu and the board's own words. After a turn and after an approved card the board on screen is read again. Needs a kernel with jarvis-chat-frame.js (00c62f98 or later). No route, tool or permission changed. Guard tests/fantasy-one-chat-window.test.js.
+# 0.4.3 | maintainer@emeraldcoastsystemsgroup.com | Backlog A2 (spec 2.2.5): deterministic remaining-schedule playoff simulation (fantasy-playoff-sim.ts) using current standings (from ESPN mSettings+mTeam or an optional hand-typed standings table) and weekly lineup moments; Season, Waivers, Trades and Fantasy Quant waivers now report baseline P(playoffs), P(playoffs) with each claim or trade, and delta, ranking by playoffDelta when standings and remaining fixtures are available (with graceful SV fallback and ?rankBy=sv override). Guard tests/fantasy-playoff-sim.test.js proves a team two games out prefers the higher-variance option a bubble team does not.
 #
 # MANAGE THE TEAM YOU HAVE. The operator's draft went badly — "we picked up running backs first
 # round 2 times that were specifically left over by the other team owners" — so the first thing
@@ -60,7 +61,7 @@ description: >-
   works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no
   other user, operator included, can see them. Every lineup is recorded before kickoff and graded
   against what was actually started. It advises; you act.
-version: 0.4.2
+version: 0.4.3
 status: active
 chatBot: fantasy-quant
 

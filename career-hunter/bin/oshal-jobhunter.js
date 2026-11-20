@@ -2,6 +2,7 @@
 /**
  * CHANGE LOG
  * 50 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "i want jobs flowing in.. even if we can only see their title .. at least run it up with a warning"): the nightly score-titles marks the person's unreadable jobs "details needed" after keyword matching (score.mark_unreadable: native kernel, no read, no model call, at most 200 a night) and its count line says how many (needsDetails; the settled pass adds the jobs it marked after a refused read). prepare-job passes CH_JOB_DESCRIPTION, the description the person pasted, to prepare_job.
+ * 51 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: forward optional CH_TEMPLATE_FAMILY to generate.rerender_packet on rerender so template family selection persists and re-renders matched DOCX/RTF/PDF/HTML artifacts.
  * 49 | maintainer@emeraldcoastsystemsgroup.com | score-titles runs the settled nightly pass (jobhunter.settle) when the nightly route sets CH_SETTLE=1, with its own bounds (CH_LIMIT up to 2000, CH_CONCURRENCY, CH_BAND, CH_BUDGET_SECONDS, read before keyword matching so the whole run counts against its time) and its own count line; without it the nightly pass is exactly as before (CH_LIMIT must be 50).
  * 48 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0: `resume base-earlier` answers the main résumé document as it read at an earlier revision (master_edit.earlier_documents), so the My résumé Word document can be told apart: only behind, or holding typed text.
  * 47 | maintainer@emeraldcoastsystemsgroup.com | Select incremental keyword and AI work for nightly passes without changing explicit refresh commands.
@@ -526,7 +527,7 @@ function applicationRuns(verb, rest) {
     case 'prepare-job': return [['-c', 'import os,json\nfrom jobhunter.prepare import prepare_job\n'
       + 'print(json.dumps(prepare_job(int(os.environ.get("CH_JOB","0")),documents=os.environ.get("CH_DOCUMENTS")!="0",include_oshal=os.environ.get("CH_OSHAL")=="1",request_id=os.environ.get("CH_REQUEST_ID",""),guidance=os.environ.get("CH_GUIDANCE",""),experience_ids=json.loads(os.environ.get("CH_EXPERIENCE_IDS","[]")),experience_revision=os.environ.get("CH_EXPERIENCE_REVISION",""),pasted_description=os.environ.get("CH_JOB_DESCRIPTION",""))))']];
     case 'rerender': return [['-c', 'import os, json\nfrom jobhunter import generate\n'
-      + 'print(json.dumps({"dir": generate.rerender_packet(int(os.environ.get("CH_JOB","0")))}))']];
+      + 'print(json.dumps({"dir": generate.rerender_packet(int(os.environ.get("CH_JOB","0")), family=os.environ.get("CH_TEMPLATE_FAMILY") or None)}))']];
     case 'tailor': return [['-c', 'import os, json\nfrom jobhunter import profile, generate\n'
       + 'pid=int(os.environ.get("CH_JOB","0"))\noshal=os.environ.get("CH_OSHAL")=="1"\ng=os.environ.get("CH_GUIDANCE","").strip()\n'
       + 'cl=(profile.augment(g) or {}).get("changelog",[]) if g else []\n'

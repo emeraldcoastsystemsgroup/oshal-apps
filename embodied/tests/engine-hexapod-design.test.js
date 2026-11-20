@@ -19,6 +19,7 @@
  *
  * Plain node: `node --test tests/engine-hexapod-design.test.js`.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | B29: the target is re-based on the parts model (2100 g); the budget closes and the pin says so.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: verify hexapod design bought rows and senses publish nominal sensor rates (lidar 10 Hz, imu 100 Hz, joints 50 Hz) from the catalog and SPIDER_18_TICK_HZ.
  */
 'use strict';
 const test = require('node:test');
@@ -194,4 +195,16 @@ test('the BOM CSV has a header and one row per bill entry, with the fields that 
   assert.ok(lines.some((l) => l.startsWith('servo,bought,"')), 'the servo row\'s name holds commas and is quoted');
   assert.ok(lines.some((l) => l.startsWith('plate,printed,') && l.includes(',2,')), 'the plate is one row, qty 2');
   assert.ok(lines.some((l) => l.includes(',latched-spring,')), 'the jump module rows carry their option');
+});
+
+test('B3: hexapod design carries nominal sensor rateHz on bought rows and senses from the catalog and SPIDER_18_TICK_HZ', () => {
+  const d = buildHexapod('spider-18');
+  assert.equal(d.bought.find((b) => b.id === 'ld19-lidar').rateHz, boughtRow('ld19-lidar').rateHz);
+  assert.equal(d.bought.find((b) => b.id === 'bno055-imu').rateHz, boughtRow('bno055-imu').rateHz);
+  assert.deepEqual(d.senses.map((s) => ({ name: s.name, rateHz: s.rateHz })), [
+    { name: 'lidar', rateHz: 10 },
+    { name: 'imu', rateHz: 100 },
+    { name: 'joints', rateHz: 50 },
+  ]);
+  assert.equal(d.senses.find((s) => s.name === 'joints').count, SPIDER_18.servoCount);
 });

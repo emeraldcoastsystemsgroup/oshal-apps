@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.2 (Roger, 2026-11-13: a Work history card of four edits, two bullets under a job with none and two jobs removed, answered "item index must be an integer from 0 to 0" and changed nothing). One card means what the person read on it: each edit finds its job and its list item through card_targets.Card, made once from the profile at the card's revision, so an earlier edit of the card never renumbers a later one; a bullet, competency or skill is the one whose exact text the edit quotes, and an add that quotes none goes at the end in the order written. A refused edit says which change of the card, which job and what is wrong in words, and still changes nothing. apply_edits is split into one helper per kind of edit; an edit may also name its job's employer (roleOrg).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): the saved portfolio is read (read_section field `portfolio`) and replaced whole (an edit of field `portfolio`, portfolio.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like an engagement edit it is refused, never fitted, when the main résumé moved after the form read it; it is refused in words when it would grow the main résumé past what job scoring reads, and its refusal reads as the form's own words (error portfolio_refused) rather than a card's.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the person's own years by skill and in total are read (read_section field `years`) and replaced whole (an edit of field `years`, years_edit.apply_edit), all or nothing with the rest of its patch, backed up and audited, with Undo. Like a portfolio edit it is refused, never fitted, when the main résumé moved after the form read it, and its refusal reads as the form's own words (error years_refused) rather than a card's.
 """Model-free bounded access to the current owner's master resume."""
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import hashlib
 import json
 import re
 
-from . import card_rebase, card_targets, engagements, portfolio, profile, work_history, role_hierarchy
+from . import card_rebase, card_targets, engagements, portfolio, profile, work_history, role_hierarchy, years_edit
 from .card_targets import CardRefusal
 
 MAX_BYTES = 12 * 1024
@@ -58,6 +59,15 @@ def _portfolio_section(index, offset):
     if len(_encoded(result)) > MAX_BYTES:
         raise ValueError('your saved portfolio is larger than this form can save at once (12 KB), so it is not shown here')
     return result
+
+
+def _years_section(index, offset):
+    """The person's years by skill and in total beside the years counted from the roles, with the exact revision, for
+    Work history's form. Every skill with a figure of the person's is listed; the rest as the read limit allows."""
+    if index or offset:
+        raise ValueError('your years by skill are read whole, from their start')
+    _, raw, revision = _snapshot()
+    return years_edit.read_section(raw, revision, MAX_BYTES)
 
 
 def _section_values(raw, field, index, result):
@@ -128,6 +138,8 @@ def read_section(field='overview', index=0, offset=0, limit=20):
     try:
         if field == portfolio.FIELD:
             return _portfolio_section(index, offset)
+        if field == years_edit.FIELD:
+            return _years_section(index, offset)
         if field not in FIELDS:
             raise ValueError('unsupported master section')
         _integer(index, 'role index', 9999)
@@ -337,6 +349,8 @@ def _apply_one(raw, edit, card, changelog, touched):
         return engagements.apply_edit(raw, edit, changelog)
     if isinstance(edit, dict) and edit.get('field') == portfolio.FIELD:
         return portfolio.apply_edit(raw, edit, changelog)
+    if isinstance(edit, dict) and edit.get('field') == years_edit.FIELD:
+        return years_edit.apply_edit(raw, edit, changelog)
     op, field = _checked_edit(edit)
     if field == 'role':
         return work_history.apply_role(raw, edit, changelog, touched, card)
@@ -368,7 +382,7 @@ def _apply_card(raw, edits, changelog, card=None, refuse=card_targets.refusal):
         card.number = number
         try:
             changed = _apply_one(raw, edit, card, changelog, touched) or changed
-        except portfolio.PortfolioRefusal:
+        except (portfolio.PortfolioRefusal, years_edit.YearsRefusal):
             raise
         except ValueError as error:
             raise ValueError(refuse(card, edit, str(error))) from None
@@ -414,10 +428,12 @@ def apply_edits(revision, edits):
         text, raw, current = _snapshot()
         card, changelog = None, []
         expanded, held = engagements.touches(edits), portfolio.touches(edits)
+        years = years_edit.touches(edits)
         linked = role_hierarchy.touches(edits)
-        if current != revision and (expanded or held or linked):
-            # Engagement, account and portfolio edits name their place as the page read it; a moved main résumé is read again.
-            return {'ok': False, 'error': 'master_changed', 'message': portfolio.MOVED if held else engagements.MOVED}
+        if current != revision and (expanded or held or years or linked):
+            # Engagement, account, portfolio and years edits name their place as the page read it; a moved main résumé is read again.
+            moved = portfolio.MOVED if held else years_edit.MOVED if years else engagements.MOVED
+            return {'ok': False, 'error': 'master_changed', 'message': moved}
         if current != revision:
             # The main résumé moved after this card was written (another card was approved, or the My résumé document
             # saved): apply it as it is now only when everything the card names still reads as the person read it.
@@ -438,6 +454,8 @@ def apply_edits(revision, edits):
             engagements.check_budget(raw, json.loads(text))
         if changed and held:
             portfolio.check_budget(raw, json.loads(text))
+        if changed and years:
+            years_edit.check_budget(raw, json.loads(text))
         if changed:
             # Native owner writes are serialized by the retained store lease. Recheck
             # its exact preimage before backup/publish as well as at request admission.
@@ -454,5 +472,7 @@ def apply_edits(revision, edits):
         return {'ok': False, 'error': 'The master edit could not be confirmed. Read the affected section before retrying.'}
     except portfolio.PortfolioRefusal as error:
         return {'ok': False, 'error': 'portfolio_refused', 'message': f'{error} Nothing was saved.'}
+    except years_edit.YearsRefusal as error:
+        return {'ok': False, 'error': 'years_refused', 'message': f'{error} Nothing was saved.'}
     except (ValueError, TypeError, AttributeError, KeyError) as error:
         return {'ok': False, 'error': str(error)}

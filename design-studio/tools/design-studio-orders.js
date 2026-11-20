@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D3 as built (0.4.0): runs the design partner's engine orders from the open page with the person's own session. A package route reaches no sibling package; this page does, through the fixed routes below. An order names an action and ids, never a URL. Each result is the engine's own reply; a refusal goes back in the engine's words.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B10/B13: support batched `features` lists in `cad-edit` (stopping honestly on the first error) and return clear missing-access/role guidance on HTTP 403.
  */
 window.DesignStudioOrders = (function orders() {
   'use strict';
@@ -25,7 +26,7 @@ window.DesignStudioOrders = (function orders() {
     const text = await res.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch (_) { body = { raw: text.slice(0, 2000) }; }
     return { ok: res.ok, status: res.status, body };
   }
-  const refused = (route, r) => ({ ok: false, result: { route, status: r.status, refused: r.status === 404 ? 'this engine is not installed on this swarm, or the record is not there' : r.status === 401 || r.status === 403 ? 'this person is not granted that engine' : undefined, engine: r.body } });
+  const refused = (route, r) => ({ ok: false, result: { route, status: r.status, refused: r.status === 404 ? 'this engine is not installed on this swarm, or the record is not there' : r.status === 401 ? 'sign-in required (HTTP 401): reload and sign in again' : r.status === 403 ? 'access required (HTTP 403): this account does not hold an assigned role for that engine; ask an administrator to grant access' : undefined, engine: r.body } });
   const modelSummary = (m, build) => ({ modelId: m.model_id, title: m.title, revision: m.revision, state: m.state, report: m.report || null, features: (m.features || []).map((f) => ({ id: f.id, type: f.type, ok: f.status ? f.status.ok : undefined, reason: f.status ? f.status.reason : undefined })), build: build || null });
   const designSummary = (d, out) => ({ designId: d.design_id, title: d.title, runs: d.run_count, state: d.state, parts: (d.parts || []).length, wires: (d.wires || []).length, report: (out && out.report) || d.report || null, build: (out && out.build) || null });
 
@@ -49,11 +50,21 @@ window.DesignStudioOrders = (function orders() {
     const model = r.body.model; const built = !!(r.body.build && r.body.build.ok);
     return { ok: built, result: { ...modelSummary(model, r.body.build), design: built ? await bindPart(host, model, slug(i.name)) : { bound: false, why: 'the kernel did not build it' } } };
   }
-  async function cadEdit(i) {
-    const base = `${CAD}/models/${seg(i.modelId)}/features`;
-    const r = i.op === 'add' ? await call('POST', base, i.feature) : i.op === 'update' ? await call('PATCH', `${base}/${seg(i.featureId)}`, i.feature) : await call('DELETE', `${base}/${seg(i.featureId)}`);
+  async function cadEditOne(base, step) {
+    const r = step.op === 'add' ? await call('POST', base, step.feature) : step.op === 'update' ? await call('PATCH', `${base}/${seg(step.featureId)}`, step.feature) : await call('DELETE', `${base}/${seg(step.featureId)}`);
     if (!r.ok) return refused(base, r);
     return { ok: !(r.body.build && r.body.build.ok === false), result: modelSummary(r.body.model || {}, r.body.build) };
+  }
+  async function cadEdit(i) {
+    const base = `${CAD}/models/${seg(i.modelId)}/features`;
+    if (!Array.isArray(i.features)) return cadEditOne(base, i);
+    let last = null;
+    for (let idx = 0; idx < i.features.length; idx += 1) {
+      const step = await cadEditOne(base, i.features[idx]);
+      if (!step.ok) return { ok: false, result: { ...step.result, appliedCount: idx, totalCount: i.features.length, failedIndex: idx } };
+      last = step.result;
+    }
+    return { ok: true, result: { ...(last || {}), appliedCount: i.features.length, totalCount: i.features.length } };
   }
   async function circuitCreate(host, i) {
     const project = host.project(); const route = `${LAB}/designs`;

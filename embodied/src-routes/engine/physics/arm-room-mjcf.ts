@@ -10,10 +10,12 @@
  *                     |                             | and the drone collide with the same room). Two refusals live
  *                     |                             | here because they are geometry, not policy: a base outside the
  *                     |                             | room's extent, and a base standing inside a solid.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: thread an optional Medium into `armRoomMjcf` -> `armPreamble(medium)` so the room arm MJCF reads its gravity from a medium too.
  */
-import { ARM_GEOM_DEFAULT, ARM_PREAMBLE, armActuatorLines, armChainLines, ARM_BASE_HALF_M, ARM_BASE_RADIUS_M, armExcludes, armPlant } from './arm-mjcf';
+import { ARM_GEOM_DEFAULT, armPreamble, armActuatorLines, armChainLines, ARM_BASE_HALF_M, ARM_BASE_RADIUS_M, armExcludes, armPlant } from './arm-mjcf';
 import { sceneGeoms } from './mjcf';
 import type { ArmFit } from '../design/arm-design';
+import type { Medium } from '../medium/medium';
 import type { SensedSolid } from '../sense/raycast';
 
 const f = (v: number): string => (Math.abs(v) < 1e-12 ? '0' : Number(v.toFixed(6)).toString());
@@ -81,13 +83,13 @@ export function armMountRefusal(room: RoomExtent, solids: readonly SensedSolid[]
  * @param mount - Where the base stands.
  * @returns MJCF XML.
  */
-export function armRoomMjcf(fit: ArmFit, solids: readonly SensedSolid[], mount: ArmMount): string {
+export function armRoomMjcf(fit: ArmFit, solids: readonly SensedSolid[], mount: ArmMount, medium?: Medium): string {
   const p = armPlant(fit);
   const half = ARM_BASE_HALF_M;
   const q = [Math.cos(mount.yaw / 2), 0, 0, Math.sin(mount.yaw / 2)].map(f).join(' ');
   const lines = [
     `<mujoco model="embodied-arm-room-${fit}">`,
-    ...ARM_PREAMBLE,
+    ...armPreamble(medium),
     // MJCF allows one top-level <default>: the arm's own geom default, with the scene class nested inside it.
     `  <default>${ARM_GEOM_DEFAULT}<default class="scene"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.65 1"/></default></default>`,
     '  <worldbody>',

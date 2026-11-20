@@ -27,6 +27,7 @@
  *                     |                             | the build hash is recorded from the engine, because the
  *                     |                             | sandboxed copy of this package carries no engine sources.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Native status: the kernel's engine.exchange link is known only at request time, so `connected` is true until a request through it fails (lastError then says why) and `contacted` says whether one has run. Jarvis's CAD request had answered "the CAD engine is currently not connected" because nothing had asked the engine yet.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B5 (0.5.3): support tagged in-flight cancellation on native `engine.exchange` requests so POST /models/:id/cancel terminates an active native rebuild cleanly, frees its slot immediately, and discards any late reply without overwriting the last good revision.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -87,6 +88,7 @@ class EngineClient {
     helloHash = null;
     lastFailure = null;
     nativeActive = 0;
+    nativePending = new Map();
     lifecycle = null;
     constructor(opts) {
         this.opts = opts;
@@ -133,7 +135,7 @@ class EngineClient {
      */
     request(cmd, args, timeoutMs, tag) {
         if (this.opts.exchange)
-            return this.requestNative(this.opts.exchange, cmd, args, timeoutMs);
+            return this.requestNative(this.opts.exchange, cmd, args, timeoutMs, tag);
         const max = this.opts.maxQueue ?? 8;
         if (this.queue.length >= max)
             return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
@@ -154,6 +156,13 @@ class EngineClient {
      */
     cancel(tag, why = 'cancelled') {
         const failure = new EngineFailure('cancelled', `rebuild cancelled (${why}); the engine worker was stopped`);
+        const nativeCancel = this.nativePending.get(tag);
+        if (nativeCancel) {
+            this.nativePending.delete(tag);
+            nativeCancel(failure);
+            logger.info({ tag }, 'in-flight native engine request cancelled');
+            return 'inflight';
+        }
         if (this.inflight && this.inflight.tag === tag) {
             const current = this.inflight;
             this.inflight = null;
@@ -275,23 +284,47 @@ class EngineClient {
     }
     /**
      * @description One request through the native kernel. The engine's hello and reply arrive together;
-     * both are judged by the same rules as on a socket. A native request cannot be recalled once sent,
-     * so {@link cancel} finds nothing to cancel and the kernel's deadline bounds it instead.
+     * both are judged by the same rules as on a socket. When `tag` is provided, {@link cancel} aborts
+     * the caller's wait immediately, releases the active slot, and discards any late kernel reply.
      */
-    async requestNative(exchange, cmd, args, timeoutMs) {
+    async requestNative(exchange, cmd, args, timeoutMs, tag) {
         const max = this.opts.maxQueue ?? 8;
         if (this.nativeActive >= max)
             throw new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`);
         this.nativeActive += 1;
+        let released = false;
+        let cancelled = false;
+        const release = () => {
+            if (released)
+                return;
+            released = true;
+            this.nativeActive = Math.max(0, this.nativeActive - 1);
+            if (tag && this.nativePending.get(tag) === onCancel)
+                this.nativePending.delete(tag);
+        };
+        let rejectCancel = null;
+        const onCancel = (err) => {
+            cancelled = true;
+            release();
+            if (rejectCancel)
+                rejectCancel(err);
+        };
+        const cancelRace = tag ? new Promise((_res, rej) => { rejectCancel = rej; this.nativePending.set(tag, onCancel); }) : null;
         try {
             let answer;
             try {
-                answer = await exchange({ cmd, args }, Math.min(timeoutMs ?? this.opts.requestTimeoutMs ?? exports.NATIVE_MAX_MS, exports.NATIVE_MAX_MS));
+                const call = exchange({ cmd, args }, Math.min(timeoutMs ?? this.opts.requestTimeoutMs ?? exports.NATIVE_MAX_MS, exports.NATIVE_MAX_MS));
+                call.catch(() => undefined);
+                answer = cancelRace ? await Promise.race([call, cancelRace]) : await call;
             }
             catch (error) {
+                if (error instanceof EngineFailure && error.code === 'cancelled')
+                    throw error;
                 const message = error instanceof Error ? error.message : String(error);
                 throw /deadline/.test(message) ? new EngineFailure('engine_timeout', `engine did not answer within ${Math.round(exports.NATIVE_MAX_MS / 1000)} s`) : this.unavailable(`the kernel could not reach the engine container (${message})`);
             }
+            if (cancelled)
+                throw new EngineFailure('cancelled', 'rebuild cancelled; late engine reply discarded');
             const stale = this.verifyHello(JSON.stringify(answer?.hello ?? null));
             if (stale)
                 throw stale;
@@ -302,14 +335,14 @@ class EngineClient {
             throw new EngineFailure(reply.error?.code === 'refused' ? 'refused' : 'engine_error', String(reply.error?.message || 'engine error'));
         }
         catch (error) {
-            if (error instanceof EngineFailure && error.code !== 'refused' && error.code !== 'engine_error') {
+            if (error instanceof EngineFailure && error.code !== 'refused' && error.code !== 'engine_error' && error.code !== 'cancelled') {
                 this.ready = false;
                 this.lastFailure = error;
             }
             throw error;
         }
         finally {
-            this.nativeActive -= 1;
+            release();
         }
     }
     verifyHello(line) {

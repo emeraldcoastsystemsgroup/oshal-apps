@@ -8,6 +8,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A node belongs to one owner (ADR-114): the sub the mounter resolved from the trusted service user-sub header is recorded on first contact, a heartbeat for that node from another owner is refused, and an owned node is unknown to everyone else — the fleet lists and hands out only what a caller may see (unowned nodes, a loopback development case, are visible to all).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening (security review of #420): a node's heartbeat no longer decides where the swarm secret goes. Each record mints a random COMMAND KEY, returned only in that node's own heartbeat reply, and commands to the node carry it instead of SWARM_SERVICE_SECRET. The endpoint host must be on EMBODIED_NODE_ENDPOINT_HOSTS (default: the engine's compose aliases), which closes the SSRF. A node owner holds at most MAX_NODES_PER_OWNER records, and a full fleet evicts a record silent for STALE_EVICT_MS before refusing.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 (lane L4): `hexapod` joins NodeKind, additively — the spider-18 controller heartbeats as kind `hexapod` by the brief's section 3.3; a plant node's build-hash staleness rule and every other check are unchanged.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: accept optional `tickHz` and `senses` / `senseRates` on node heartbeats (hexapod hello already carries `tickHz`), retain them on NodeRecord, and publish `tickHz` and `senses` on NodeSummary (`GET /physics/status` `nodes[]`) using heartbeat values with hexapod capability-manifest defaults.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DroneNodeFleet = exports.NodeOffline = exports.NodeValidationError = exports.NODE_ID_RE = exports.DEFAULT_ENDPOINT_HOSTS = exports.STALE_EVICT_MS = exports.MAX_NODES_PER_OWNER = exports.MAX_NODES = exports.HEARTBEAT_STALE_MS = void 0;
@@ -15,6 +16,7 @@ exports.validateHeartbeat = validateHeartbeat;
 exports.endpointHostsFromEnv = endpointHostsFromEnv;
 exports.sharedNodeFleet = sharedNodeFleet;
 const node_crypto_1 = require("node:crypto");
+const hexapod_node_1 = require("./hexapod-node");
 /** A node is offline once this long passes without a heartbeat (nodes push every ~2 s; the core drone fleet's window). */
 exports.HEARTBEAT_STALE_MS = 15_000;
 exports.MAX_NODES = 16;
@@ -65,6 +67,56 @@ function validateEvents(raw) {
         return { seq: ev.seq, at: text(ev.at ?? new Date(0).toISOString(), 'event at', 64), kind: text(ev.kind, 'event kind', 64), text: text(ev.text ?? '-', 'event text', 300) };
     });
 }
+const MAX_SENSES = 32;
+const TICK_PACED_HEXAPOD_SENSES = new Set(['pose', 'joint-state', 'foot-contact', 'spring']);
+function validateTickHz(raw) {
+    if (raw === undefined || raw === null)
+        return null;
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0)
+        throw new NodeValidationError('tickHz must be a positive finite number');
+    return raw;
+}
+function validateSenses(rawSenses, rawRates) {
+    if (rawSenses !== undefined && rawSenses !== null) {
+        if (!Array.isArray(rawSenses) || rawSenses.length > MAX_SENSES)
+            throw new NodeValidationError(`senses must be an array of at most ${MAX_SENSES} entries`);
+        return rawSenses.map((entry) => {
+            const s = (entry && typeof entry === 'object' ? entry : {});
+            const name = text(s.name, 'sense name', 64);
+            if (typeof s.rateHz !== 'number' || !Number.isFinite(s.rateHz) || s.rateHz <= 0)
+                throw new NodeValidationError(`senses.${name}.rateHz must be a positive finite number`);
+            return { name, rateHz: s.rateHz };
+        });
+    }
+    if (rawRates === undefined || rawRates === null)
+        return undefined;
+    if (typeof rawRates !== 'object' || Array.isArray(rawRates))
+        throw new NodeValidationError('senseRates must be an object of positive numbers');
+    const entries = Object.entries(rawRates);
+    if (entries.length > MAX_SENSES)
+        throw new NodeValidationError(`senseRates must have at most ${MAX_SENSES} entries`);
+    return entries.map(([k, v]) => {
+        const name = text(k, 'senseRates key', 64);
+        if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0)
+            throw new NodeValidationError(`senseRates.${name} must be a positive finite number`);
+        return { name, rateHz: v };
+    });
+}
+/** @description Resolve published tickHz and sensor rates from heartbeat values and the kind's capability manifest. */
+function resolveNodeRates(rec) {
+    const manifestTick = rec.kind === 'hexapod' && typeof hexapod_node_1.SPIDER_18_MANIFEST.envelope.tickHz === 'number' ? hexapod_node_1.SPIDER_18_MANIFEST.envelope.tickHz : null;
+    const tickHz = rec.tickHz ?? manifestTick;
+    if (rec.senses && rec.senses.length)
+        return { tickHz, senses: rec.senses.map((s) => ({ ...s })) };
+    if (rec.kind === 'hexapod' && hexapod_node_1.SPIDER_18_MANIFEST.senseRates) {
+        const senses = Object.entries(hexapod_node_1.SPIDER_18_MANIFEST.senseRates).map(([name, rateHz]) => ({
+            name,
+            rateHz: tickHz !== null && TICK_PACED_HEXAPOD_SENSES.has(name) ? tickHz : rateHz,
+        }));
+        return { tickHz, senses };
+    }
+    return { tickHz, senses: [] };
+}
 /** @description Validate one raw heartbeat body fail-closed. @param raw - The request body. @returns The typed heartbeat. */
 function validateHeartbeat(raw) {
     const b = (raw && typeof raw === 'object' ? raw : {});
@@ -90,7 +142,9 @@ function validateHeartbeat(raw) {
             throw new NodeValidationError(`telemetry must serialise to at most ${MAX_TELEMETRY_BYTES} bytes`);
         telemetry = b.telemetry;
     }
-    return { nodeId, kind, endpointUrl: endpointUrl.replace(/\/+$/, ''), protocol: b.protocol, engine: text(b.engine, 'engine', 64), version: text(b.version, 'version', 64), buildHash: text(b.buildHash, 'buildHash', 128), sessions: sessions, telemetry, events: validateEvents(b.events) };
+    const tickHz = validateTickHz(b.tickHz);
+    const senses = validateSenses(b.senses, b.senseRates);
+    return { nodeId, kind, endpointUrl: endpointUrl.replace(/\/+$/, ''), protocol: b.protocol, engine: text(b.engine, 'engine', 64), version: text(b.version, 'version', 64), buildHash: text(b.buildHash, 'buildHash', 128), ...(tickHz !== null ? { tickHz } : {}), ...(senses !== undefined ? { senses } : {}), sessions: sessions, telemetry, events: validateEvents(b.events) };
 }
 /**
  * @description The dynamic node registry (ADR-099): id → record, minted on first heartbeat, refreshed after. Deliberately
@@ -121,7 +175,7 @@ class DroneNodeFleet {
         let rec = this.nodes.get(hb.nodeId);
         if (!rec) {
             this.admitNewRecord(ownerSub, nowMs);
-            rec = { nodeId: hb.nodeId, kind: hb.kind, ownerSub, endpointUrl: hb.endpointUrl, hello: { protocol: hb.protocol, engine: hb.engine, version: hb.version, buildHash: hb.buildHash }, sessions: 0, telemetry: null, events: [], firstSeenMs: nowMs, lastSeenMs: nowMs, commandKey: (0, node_crypto_1.randomBytes)(32).toString('base64url') };
+            rec = { nodeId: hb.nodeId, kind: hb.kind, ownerSub, endpointUrl: hb.endpointUrl, hello: { protocol: hb.protocol, engine: hb.engine, version: hb.version, buildHash: hb.buildHash }, tickHz: hb.tickHz ?? null, senses: hb.senses ?? null, sessions: 0, telemetry: null, events: [], firstSeenMs: nowMs, lastSeenMs: nowMs, commandKey: (0, node_crypto_1.randomBytes)(32).toString('base64url') };
             this.nodes.set(hb.nodeId, rec);
         }
         if (rec.ownerSub !== null && rec.ownerSub !== ownerSub)
@@ -131,6 +185,8 @@ class DroneNodeFleet {
         rec.kind = hb.kind;
         rec.endpointUrl = hb.endpointUrl;
         rec.hello = { protocol: hb.protocol, engine: hb.engine, version: hb.version, buildHash: hb.buildHash };
+        rec.tickHz = hb.tickHz ?? null;
+        rec.senses = hb.senses ?? null;
         rec.sessions = hb.sessions ?? 0;
         rec.telemetry = hb.telemetry ?? null;
         rec.lastSeenMs = nowMs;
@@ -194,7 +250,8 @@ class DroneNodeFleet {
         for (const rec of this.nodes.values()) {
             if (!this.visible(rec, forSub))
                 continue;
-            out.push({ nodeId: rec.nodeId, kind: rec.kind, ownerSub: rec.ownerSub, endpointUrl: rec.endpointUrl, engine: rec.hello.engine, version: rec.hello.version, protocol: rec.hello.protocol, buildHash: rec.hello.buildHash, stale: rec.kind === 'plant' && expectedBuildHash ? rec.hello.buildHash !== expectedBuildHash : null, online: this.isOnline(rec.nodeId, nowMs), lastSeenMs: rec.lastSeenMs, ageMs: nowMs - rec.lastSeenMs, sessions: rec.sessions, telemetry: rec.telemetry, events: rec.events.slice(-5) });
+            const rates = resolveNodeRates(rec);
+            out.push({ nodeId: rec.nodeId, kind: rec.kind, ownerSub: rec.ownerSub, endpointUrl: rec.endpointUrl, engine: rec.hello.engine, version: rec.hello.version, protocol: rec.hello.protocol, buildHash: rec.hello.buildHash, tickHz: rates.tickHz, senses: rates.senses, stale: rec.kind === 'plant' && expectedBuildHash ? rec.hello.buildHash !== expectedBuildHash : null, online: this.isOnline(rec.nodeId, nowMs), lastSeenMs: rec.lastSeenMs, ageMs: nowMs - rec.lastSeenMs, sessions: rec.sessions, telemetry: rec.telemetry, events: rec.events.slice(-5) });
         }
         return out.sort((a, b) => a.nodeId.localeCompare(b.nodeId));
     }

@@ -3,6 +3,8 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: deterministic per-skill and total-career experience tenure calculator (non-overlapping date interval union from recorded roles, engagements, and dated additional experience), prompt truth table generator, and cross-section year-contradiction / skill-tenure-inflation detector.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: preserve capitalized skills at start of role titles/lines (e.g. "Java Developer", "Java microservices...") and structured tech/skills lists on engagements and additional experience so multi-role skill tenure is never undercounted.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Overlay candidate-confirmed skill and total-career year figures (years_truth) onto compute_tenure, render exact person figures and confirmation block in prompt_block, and scope multi-token person figures in find_year_contradictions.
 """Deterministic per-skill and total-career experience tenure calculator."""
 from __future__ import annotations
 
@@ -115,7 +117,15 @@ def _role_texts(role: dict) -> tuple[str, str]:
     return "\n".join(prose_parts), "\n".join(listed_parts)
 
 
-def _extract_skills(prose: str, listed: str = "") -> set:
+def _named_in_role(term: str, text: str, title: str = "") -> bool:
+    if claims_check._named_as_tool(term, text):
+        return True
+    if title and re.search(r"(?<![A-Za-z0-9])" + re.escape(term[:1].upper() + term[1:]) + r"s?(?![A-Za-z0-9])", title):
+        return True
+    return term == "java" and bool(re.search(r"(?<![A-Za-z0-9])Java(?![A-Za-z0-9])", text))
+
+
+def _extract_skills(prose: str, listed: str = "", title: str = "") -> set:
     vocab = claims_check.VOCAB | set(_SKILL_ALIASES)
     found = set()
     for text, is_prose in ((prose, True), (listed, False)):
@@ -125,7 +135,7 @@ def _extract_skills(prose: str, listed: str = "") -> set:
             base = word if word in vocab else word[:-1] if word.endswith("s") and word[:-1] in vocab else None
             if not base:
                 continue
-            if is_prose and base in claims_check.AMBIGUOUS and not claims_check._named_as_tool(base, text):
+            if is_prose and base in claims_check.AMBIGUOUS and not _named_in_role(base, text, title):
                 continue
             canon = _SKILL_ALIASES.get(base, base)
             if canon in claims_check.VOCAB:
@@ -135,6 +145,20 @@ def _extract_skills(prose: str, listed: str = "") -> set:
         if any(item in found for item in narrower):
             expanded.add(broader)
     return expanded
+
+
+def _entry_listed_skills(prof: dict, selected, key: str) -> str:
+    if key.startswith("E") and key[1:].isdigit():
+        rows = (prof or {}).get("project_ledger") or []
+        idx = int(key[1:]) - 1
+        row = rows[idx] if 0 <= idx < len(rows) and isinstance(rows[idx], dict) else {}
+        return "\n".join(_flat_strings(row.get("tech")) + _flat_strings(row.get("skills")))
+    if key.startswith("A") and key[1:].isdigit():
+        items = list(selected or ())
+        idx = int(key[1:]) - 1
+        item = items[idx] if 0 <= idx < len(items) and isinstance(items[idx], dict) else {}
+        return "\n".join(_flat_strings(item.get("skills")) + _flat_strings(item.get("tech")))
+    return ""
 
 
 def _dated_entries(prof: dict, selected, today: datetime.date) -> list:
@@ -147,15 +171,16 @@ def _dated_entries(prof: dict, selected, today: datetime.date) -> list:
         if not span_iv:
             continue
         prose, listed = _role_texts(role)
+        title = str(role.get("title") or "").strip()
         rows.append({
             "key": f"R{idx + 1}",
             "kind": "role",
-            "title": str(role.get("title") or "").strip(),
+            "title": title,
             "org": str(role.get("org") or "").strip(),
             "span": role_plan._span(role, current),
             "current": current,
             "interval": span_iv,
-            "skills": _extract_skills(prose, listed),
+            "skills": _extract_skills(prose, listed, title),
         })
     effective_selected = selected if selected else (prof or {}).get("additional_experience") or ()
     for entry in letter_evidence.entries(prof, effective_selected):
@@ -164,6 +189,7 @@ def _dated_entries(prof: dict, selected, today: datetime.date) -> list:
         span_iv = _interval(entry.get("start"), entry.get("end"), bool(entry.get("current")), today)
         if not span_iv:
             continue
+        listed = _entry_listed_skills(prof, effective_selected, entry["key"])
         rows.append({
             "key": entry["key"],
             "kind": "engagement" if entry["key"][0] == "E" else "additional",
@@ -172,7 +198,7 @@ def _dated_entries(prof: dict, selected, today: datetime.date) -> list:
             "span": role_plan._span(entry, bool(entry.get("current"))),
             "current": bool(entry.get("current")),
             "interval": span_iv,
-            "skills": _extract_skills(entry.get("text") or ""),
+            "skills": _extract_skills(entry.get("text") or "", listed, entry["title"]),
         })
     return rows
 
@@ -221,7 +247,8 @@ def compute_tenure(prof: dict, selected=(), today: datetime.date | None = None) 
     skills = {skill: _skill_record(skill, rows, now) for skill, rows in sorted(by_skill.items())}
     earliest = min((iv[0] // 12 for iv in career_ivs), default=None)
     latest = max(((iv[1] - 1) // 12 for iv in career_ivs), default=None)
-    return {
+    from . import years_truth
+    result = {
         "as_of": now.isoformat(),
         "total_career_months": career_months,
         "total_career_years": career_months // 12,
@@ -230,6 +257,7 @@ def compute_tenure(prof: dict, selected=(), today: datetime.date | None = None) 
         "latest_year": latest,
         "skills": skills,
     }
+    return years_truth.overlay(result, prof)
 
 
 def compact_summary(tenure: dict, limit: int = 24) -> dict:
@@ -263,6 +291,10 @@ def prompt_block(tenure: dict, posting_terms=frozenset(), max_skills: int = 18) 
     if ordered:
         lines.append("- Verified per-skill spans (cite at most the verified span; omit year counts when under 2 years):")
         for item in ordered[:max_skills]:
+            if item.get("source") == "person":
+                yrs = int(item["years"]) if float(item["years"]).is_integer() else item["years"]
+                lines.append(f"  * {item['display']}: exactly {yrs} years (the person's own figure)")
+                continue
             end_lbl = "Present" if item["current"] else str(item["latest_year"])
             recency = "recent" if item["recent"] else f"earlier roles, ended {item['latest_year']}"
             cap = f"max {item['floor_years']} years" if item["floor_years"] >= 2 else "under 2 years (omit year count)"
@@ -271,7 +303,8 @@ def prompt_block(tenure: dict, posting_terms=frozenset(), max_skills: int = 18) 
         "- STRICT CONSISTENCY RULE: Never state two different year counts for the same skill or for total career "
         "tenure across the headline, summary, and skills section. Never use '+' after any number."
     )
-    return "\n".join(lines) + "\n"
+    from . import years_truth
+    return "\n".join(lines) + years_truth.prompt_lines(tenure) + "\n"
 
 
 def _skills_in_phrase(text: str, vocab) -> list:
@@ -312,6 +345,26 @@ def _extract_year_claims(section: str, text: str, vocab) -> list:
     return claims
 
 
+def _claim_scopes(claim: dict, skill_map: dict) -> list:
+    """@description Resolve a year claim's scopes, preferring a matching multi-token person figure over single tokens.
+    @param claim - Extracted claim dict. @param skill_map - tenure['skills'] dict. @returns List of (kind, key) tuples."""
+    from . import years_truth
+    person_figs = [
+        {"name": v.get("display") or k, "tokens": tuple(claims_check.words(v.get("display") or k)),
+         "key": k, "years": float(v.get("years") or 0.0)}
+        for k, v in skill_map.items() if isinstance(v, dict) and v.get("source") == "person"
+    ]
+    multi_figs = [f for f in person_figs if len(f["tokens"]) > 1]
+    if multi_figs:
+        pos = claim["text"].find(claim["phrase"])
+        tail = claim["text"][pos + len(claim["phrase"]):] if pos >= 0 else ""
+        clause = claim["phrase"] + re.split(r"[,;)]|\b(?:who|that|which|where|while|when|but)\b", tail, maxsplit=1, flags=re.I)[0]
+        matched = years_truth.subject(clause, multi_figs)
+        if matched:
+            return [("skill", matched["key"])]
+    return [("skill", s) for s in claim["skills"]] if claim["skills"] else [("career", "career")]
+
+
 def find_year_contradictions(resume: dict, tenure: dict, rec: dict | None = None) -> list:
     """@description Detect cross-sentence / headline-vs-summary / skills year contradictions and inflated skill years.
     @param resume - Generated resume dict. @param tenure - compute_tenure() output. @param rec - Optional claims_check.records().
@@ -329,11 +382,12 @@ def find_year_contradictions(resume: dict, tenure: dict, rec: dict | None = None
     skill_map = tenure.get("skills") or {}
     total_exact = max(float(tenure.get("total_career_years_exact") or 0.0), float((rec or {}).get("stated_career") or 0.0))
     for claim in all_claims:
-        scopes = [("skill", s) for s in claim["skills"]] if claim["skills"] else [("career", "career")]
-        for scope in scopes:
+        for scope in _claim_scopes(claim, skill_map):
             by_scope.setdefault(scope, []).append(claim)
             if scope[0] == "skill":
                 info = skill_map.get(scope[1])
+                if info and info.get("source") == "person" and (claim["base"] == info["years"] or claim["years"] == info["years"]):
+                    continue
                 stated = float(((rec or {}).get("stated") or {}).get(scope[1], 0))
                 supported = max(float(info["years"]) if info else 0.0, stated)
                 if (supported > 0 or total_exact > 0) and claim["years"] > supported + 0.5:

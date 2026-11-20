@@ -16,6 +16,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | projectionsFor reports the feed's state ({ok, source, reason}) from the client's onError instead of returning an empty feed that a surface rendered as zero-point projections, takes {persist:false} so a reader request (GET) never writes the cache the native kernel refuses there, keeps a fetched feed when its cache write fails, and returns the completed weeks it fetched so a read can weigh them without storing them. Guard: tests/fantasy-lineup-readonly.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | seasonFeeds also returns the current week's feed state, so the season, waiver and trade boards can refuse to price from an empty feed (they showed SEASON VALUE 0.0 and "Nobody on the wire improves..." when ESPN's projection feed answered no players). Guard: tests/fantasy-boards-no-projection.test.js.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | seasonFeeds forwards {persist:false} to projectionsFor so Fantasy Quant GET tools run strictly read-only under native reader admission.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | seasonFeeds also returns completed weeks carried by the live feed so management boards can weigh player spreads without an extra fetch.
  *
  * @module fantasy-feed
  */
@@ -158,6 +159,6 @@ async function seasonFeeds(pool, sub, season, currentWeek, lastWeek, opts = {}) 
         feeds.set(week, players);
     }
     feeds.set(currentWeek, current.players);
-    return { feeds, generatedAt: current.generatedAt, feed: current.feed };
+    return { feeds, generatedAt: current.generatedAt, feed: current.feed, weeks: current.weeks };
 }
 //# sourceMappingURL=fantasy-feed.js.map

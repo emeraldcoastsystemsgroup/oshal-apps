@@ -12,6 +12,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — read-only FLEX/slot start-sit ranking with floor/ceiling and P(win) swing, waiver/streaming upgrades, head-to-head matchup breakdown, and approval-card-gated lineup and waiver mutation endpoints.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Backlog A2: pass remaining-schedule playoff simulator into GET /quant/waivers so Fantasy Quant reports baseline P(playoffs) and per-upgrade playoffDelta alongside FAAB bids (strictly read-only).
  *
  * @module fantasy-quant
  */
@@ -25,6 +26,7 @@ const fantasy_grading_1 = require("./fantasy-grading");
 const fantasy_http_1 = require("./fantasy-http");
 const fantasy_manual_1 = require("./fantasy-manual");
 const fantasy_plan_1 = require("./fantasy-plan");
+const fantasy_playoff_sim_1 = require("./fantasy-playoff-sim");
 const fantasy_roster_1 = require("./fantasy-roster");
 const fantasy_scoring_1 = require("./fantasy-scoring");
 const fantasy_store_1 = require("./fantasy-store");
@@ -219,6 +221,22 @@ async function handleQuantStartSit(pool, req, res) {
         res.status(502).json({ error: 'could not evaluate start/sit candidates' });
     }
 }
+async function buildQuantPlayoffSim(pool, sub, ctx, plan, currentPool, fetchedWeeks) {
+    const ids = [...new Set([...ctx.teams.flatMap((t) => t.rosterPlayerIds), ...Object.keys(currentPool).map(Number)])];
+    const stored = ids.length ? await (0, fantasy_store_1.readPlayerWeeks)(pool, sub, ctx.season, ctx.week, ids).catch(() => []) : [];
+    const history = (0, fantasy_roster_1.historyFor)(mergePlayerWeeks(stored, fetchedWeeks, ctx.week, ids), ctx.settings.scoring);
+    return (0, fantasy_playoff_sim_1.createPlayoffSimulator)({
+        plan,
+        teams: ctx.teams.map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
+        targetTeamId: ctx.own.teamId,
+        standings: ctx.standings,
+        fixtures: ctx.matchups.map((m) => ({ week: m.matchupPeriodId, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId })),
+        currentWeek: ctx.week,
+        playoffStart: ctx.playoffStart,
+        playoffTeams: ctx.playoffTeams,
+        history,
+    });
+}
 async function handleQuantWaivers(pool, req, res) {
     const sub = (0, fantasy_http_1.requireSub)(req, res);
     if (!sub)
@@ -236,7 +254,7 @@ async function handleQuantWaivers(pool, req, res) {
             res.json((0, fantasy_manual_1.scoringRefusedBody)(ctx, zero));
             return;
         }
-        const { feeds, generatedAt, feed } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek, { persist: false });
+        const { feeds, generatedAt, feed, weeks } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek, { persist: false });
         if (!feed.ok) {
             res.json({ ok: false, league: ctx.settings.name, week: ctx.week, projectionFeed: feed });
             return;
@@ -247,18 +265,22 @@ async function handleQuantWaivers(pool, req, res) {
         });
         const currentPool = feeds.get(ctx.week) || {};
         const budget = ctx.faab ? Math.max(0, ctx.faab.budget - ctx.faab.spent) : null;
+        const playoffSim = await buildQuantPlayoffSim(pool, sub, ctx, built.plan, currentPool, weeks);
+        const rankBy = String(q.rankBy || '').toLowerCase() === 'sv' ? 'sv' : 'playoffs';
         const board = (0, fantasy_waivers_1.waiverBoard)({
             plan: built.plan, rosterIds: ctx.own.rosterPlayerIds,
             rosteredIds: ctx.teams.flatMap((t) => t.rosterPlayerIds),
-            pool: currentPool, budget, teams: ctx.teams.length,
+            pool: currentPool, budget, teams: ctx.teams.length, playoffSim, rankBy,
         });
-        const trades = await (0, fantasy_trades_1.findTrades)({ teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds }, ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })), built.plan);
+        const trades = await (0, fantasy_trades_1.findTrades)({ teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds }, ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })), built.plan, undefined, undefined, { playoffSim, rankBy });
         res.json({
             source: ctx.source,
             league: { name: ctx.settings.name, leagueId: ctx.key, season: ctx.season, week: ctx.week },
             team: { teamId: ctx.own.teamId, name: ctx.own.name },
             mode: ctx.faab ? 'faab' : 'rolling',
             faabRemaining: budget,
+            objective: board.objective,
+            playoffs: playoffSim.info,
             projectionsGeneratedAt: generatedAt,
             upgrades: board.rows.slice(0, 10),
             streaming: board.streaming.slice(0, 8),

@@ -4,15 +4,8 @@ Open work on this package. Every entry has a done-when, so scope does not have t
 
 ## The assistant cannot call its route-backed tools yet (2026-10-06)
 
-Since core #1101 and #1103 (2026-10-06), `camera-operator` answers the deployment operator's chat on the
-operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
-Its 4 tools are route-backed (`executorType: api`): `camera-status`, `camera-fleet-status`, `control-camera`, `camera-assistant`.
-Core documents that a route-backed tool answers 401 when a bot calls it (core
-`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
-that before 0.2.0. No tool call from this package's assistant has been run yet.
+**CLOSED 2026-11-19 (version 1.2.2).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal. Live verification on Blue (`:38798`, 2026-11-19) confirmed `camera-operator` calls `camera-fleet-status` with `200 OK` (zero `401`). `1.2.2` declares explicit `posture: inline` + `chatBot: camera-operator`, adds explicit `inputSchema` objects to `camera-status` and `camera-fleet-status`, updates `personas/camera-operator.yaml` with plain-prose direct-chat rules and the ```` ```tool_call ```` `{"tool": ...}` fence for all four tools, and guards the contract in `tests/camera-bot-tools-contract.test.cjs`.
 
-- **Done when:** every tool the assistant is meant to call is a package tool
-  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
-  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
-  turn as the operator runs a tool and its result is checked against the app's own state. Scene
-  Studio 0.2.0 is the worked example.
+## Future: ADR-149 `authorization.yaml` catalog adoption (coordinated migration)
+
+Adopting an ADR-149 `authorization.yaml` catalog + `builtinKey: package` tools requires coordinated operator role migration because active production installations hold `@app-admin` assignments for `camera`.

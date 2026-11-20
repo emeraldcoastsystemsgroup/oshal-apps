@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203, lane @ds-app: the process as data, against the COMPILED modules with no framework import - the vocabulary in its one order; a hanger's brief proposes four phases and the spider's six lines all nine, each with the lines that asked for it, and a thermal need is named as unsolved; validatePhases orders, refuses an unknown kind, an engine the phase brief does not allow, a duplicate and a chain without brief or build; validateBrief and validateArtifact name the field they refuse; validateClosure refuses missing_evidence without the evidence line OR the revision and missing_step on the build phase; the body contract is built from bound reads with every value traced to the fixture reply and refuses body_incomplete when a required read is absent.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3/B15: verify closed spider body contract resolves plant.tickS and senses[].rateHz with missing: [] (while staying honest when no engine states rates), validate Pi bay thermal solve brief option, and verify reasoned-phase closure honesty helpers.
  */
 'use strict';
 const test = require('node:test');
@@ -89,8 +90,8 @@ function reads() {
   const design = { route: '/api/embodied/build/hexapod?fit=spider-18', readAt: '2026-10-30T20:00:00.000Z', revision: 'ab12cd34', servo: { id: 'sts3215-12v', stallNm: 2.942, noLoadRadS: 4.7166 }, joints: [{ joint: 'coxa', nm: 1.15, usableNm: 1.47, stallNm: 2.942, withinContinuous: true }, { joint: 'femur', nm: 1.43, usableNm: 1.47, stallNm: 2.942, withinContinuous: true }, { joint: 'tibia', nm: 1.0, usableNm: 1.47, stallNm: 2.942, withinContinuous: true }] };
   const simulate = { route: '/api/embodied/physics/reports', readAt: '2026-10-30T20:00:01.000Z', certificate: { file: 'hexapod-walk-ppo-shape-seed1.certificate.json', policyFile: 'hexapod-walk-ppo-shape-seed1.zip', policySha256: 'd15f6a7d2048e7ce', buildHash: '7346d37a', ok: true, checked: 1631, refusedCount: 0 },
     plant: { route: '/api/embodied/physics/hexapod/mjcf?fit=spider-18&jump=legs-hop', physicsDt: 0.002, joints: [{ name: 'L1-coxa', rangeRad: [-1.047, 1.047] }, { name: 'L1-femur', rangeRad: [-2.094, 2.094] }, { name: 'L1-tibia', rangeRad: [-2.443, 2.443] }] } };
-  const controller = { route: '/api/embodied/physics/status', readAt: '2026-10-30T20:00:02.000Z', node: { nodeId: 'spider-pi', kind: 'hexapod', online: true, endpoint: 'http://spider-pi:7421', tickHz: 50 } };
-  const sensors = { route: '/api/embodied/build/hexapod?fit=spider-18', readAt: '2026-10-30T20:00:03.000Z', senses: [{ name: 'lidar', present: true, row: { id: 'ld19-lidar' }, mount: 'Head (LiDAR nose)' }, { name: 'imu', present: true, row: { id: 'bno055-imu' } }, { name: 'joints', present: true, count: 18 }] };
+  const controller = { route: '/api/embodied/physics/status', readAt: '2026-10-30T20:00:02.000Z', node: { nodeId: 'spider-pi', kind: 'hexapod', online: true, endpoint: 'http://spider-pi:7421', tickHz: 50, senses: [{ name: 'lidar', rateHz: 10 }, { name: 'imu', rateHz: 100 }, { name: 'joint-state', rateHz: 50 }] } };
+  const sensors = { route: '/api/embodied/build/hexapod?fit=spider-18', readAt: '2026-10-30T20:00:03.000Z', senses: [{ name: 'lidar', present: true, rateHz: 10, row: { id: 'ld19-lidar' }, mount: 'Head (LiDAR nose)' }, { name: 'imu', present: true, rateHz: 100, row: { id: 'bno055-imu' } }, { name: 'joints', present: true, rateHz: 50, count: 18 }] };
   const binding = (phase, read) => ({ id: phase, phase, artifact: { engine: 'embodied', kind: phase, read }, revision: 1, bound_at: read.readAt });
   return { design: binding('design', design), simulate: binding('simulate', simulate), controller: binding('controller', controller), sensors: binding('sensors', sensors) };
 }
@@ -109,9 +110,68 @@ test('the body contract publishes every value from the bound reads, traced to th
   assert.deepEqual(body.walker, { kind: 'certified-gait', policySha256: 'd15f6a7d2048e7ce', certificate: 'hexapod-walk-ppo-shape-seed1.certificate.json', command: WALKER_COMMAND, door: 'hexapod.step {command}' });
   assert.deepEqual(body.node, { kind: 'hexapod', endpoint: 'http://spider-pi:7421' });
   assert.deepEqual(body.senses.map((s) => `${s.name}:${s.present}`), ['lidar:true', 'imu:true', 'joints:true', 'vision:false', 'audio:false', 'thermal:false', 'touch:false']);
+  assert.equal(body.senses[0].rateHz, 10);
+  assert.equal(body.senses[1].rateHz, 100);
+  assert.equal(body.senses[2].rateHz, 50);
   assert.equal(body.senses[2].count, 18);
-  assert.deepEqual(body.missing, ['senses.lidar.rateHz: no engine reply stated the rate', 'senses.imu.rateHz: no engine reply stated the rate', 'senses.joints.rateHz: no engine reply stated the rate']);
+  assert.deepEqual(body.missing, [], 'B3: a closed spider with engine tickHz and sense rates has missing: []');
   assert.deepEqual(body.readAt, { design: '2026-10-30T20:00:00.000Z', simulate: '2026-10-30T20:00:01.000Z', controller: '2026-10-30T20:00:02.000Z', sensors: '2026-10-30T20:00:03.000Z' });
+});
+
+test('B3: body contract resolves sense rates from controller node senses[] and still names missing rates when no engine supplies them', () => {
+  const fromNode = reads();
+  for (const s of fromNode.sensors.artifact.read.senses) delete s.rateHz;
+  const resolved = buildBodyContract(project, fromNode);
+  assert.deepEqual(resolved.body.missing, []);
+  assert.equal(resolved.body.senses.find((s) => s.name === 'lidar').rateHz, 10);
+  assert.equal(resolved.body.senses.find((s) => s.name === 'imu').rateHz, 100);
+  assert.equal(resolved.body.senses.find((s) => s.name === 'joints').rateHz, 50);
+
+  const unstated = reads();
+  for (const s of unstated.sensors.artifact.read.senses) delete s.rateHz;
+  delete unstated.controller.artifact.read.node.tickHz;
+  delete unstated.controller.artifact.read.node.senses;
+  const honest = buildBodyContract(project, unstated);
+  assert.equal(honest.body.plant.tickS, null);
+  assert.deepEqual(honest.body.missing, [
+    'senses.lidar.rateHz: no engine reply stated the rate',
+    'senses.imu.rateHz: no engine reply stated the rate',
+    'senses.joints.rateHz: no engine reply stated the rate',
+    'plant.tickS: no engine reply stated the node\'s tick rate (the rail listing carries no tickHz)',
+  ]);
+});
+
+test('B15: Pi bay thermal solve brief option validates and surfaces as unsolved, and reasoned closures record honest unmeasured metadata', () => {
+  const refused = (fn) => { try { fn(); } catch (e) { return e; } return null; };
+  assert.equal(refused(() => M.validateBrief({ what: 'box', thermalSolve: 'nuclear' })).field, 'brief.thermalSolve');
+  assert.equal(refused(() => M.validateBrief({ what: 'box', thermalSolve: { mode: 'cfd' } })).field, 'brief.thermalSolve');
+  const plain = M.validateBrief({ what: 'box', thermalSolve: 'none' });
+  assert.equal(plain.thermalSolve, undefined);
+  const piBay = M.validateBrief({ what: 'spider', requirements: ['holds a Raspberry Pi'], thermalSolve: { mode: 'pi-bay', note: 'Pi 5 active cooler' } });
+  assert.deepEqual(piBay.thermalSolve, { mode: 'pi-bay', status: 'reasoned-unmeasured', note: 'Pi 5 active cooler' });
+  const boolPi = M.validateBrief({ what: 'spider', thermalSolve: true });
+  assert.deepEqual(boolPi.thermalSolve, { mode: 'pi-bay', status: 'reasoned-unmeasured' });
+  const prop = M.proposePhases(piBay);
+  assert.ok(prop.unsolved.some((u) => /Pi bay thermal solve.*no thermal engine/i.test(u)));
+  assert.equal(SPIDER_18_EXAMPLE.brief.thermalSolve.mode, 'pi-bay');
+  assert.equal(SPIDER_18_EXAMPLE.brief.thermalSolve.status, 'reasoned-unmeasured');
+
+  const reasonedMech = M.closureHonesty({ kind: 'mechanical', engine: 'reasoned' }, false);
+  assert.equal(reasonedMech.measuredByEngine, false);
+  assert.equal(reasonedMech.reasonedOnly, true);
+  assert.equal(reasonedMech.unmeasuredNotice, M.UNMEASURED_CLOSURE_NOTICE);
+  assert.match(M.honestEvidence('hand calc passed', reasonedMech), /hand calc passed — no engine measured this phase \(reasoned only\)/);
+  assert.equal(M.honestEvidence('checked — no engine measured this phase', reasonedMech), 'checked — no engine measured this phase');
+
+  const measuredDesign = M.closureHonesty({ kind: 'design', engine: 'cad-studio' }, true);
+  assert.equal(measuredDesign.measuredByEngine, true);
+  assert.equal(measuredDesign.reasonedOnly, false);
+  assert.equal(measuredDesign.unmeasuredNotice, null);
+  assert.equal(M.honestEvidence('parts-complete', measuredDesign), 'parts-complete');
+
+  const briefHonesty = M.closureHonesty({ kind: 'brief', engine: 'reasoned' }, false);
+  assert.equal(briefHonesty.reasonedOnly, false);
+  assert.equal(briefHonesty.unmeasuredNotice, null);
 });
 
 test('the body contract is body_incomplete without the plant, the certificate or the node read, and names each missing value', () => {

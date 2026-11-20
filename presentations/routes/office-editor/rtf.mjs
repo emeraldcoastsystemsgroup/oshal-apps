@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Render bounded seven-bit Unicode Word RTF with native lists, paragraph hierarchy, tables and inline PNG/JPEG pictures.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Render optional paragraph bottom border (`borderBottom`) and right tab stop (`tabRight`) in RTF output.
  */
 import{createRequire}from'node:module';
 import{fail}from'../../tools/office/model.mjs';
@@ -30,7 +31,10 @@ function styleTables(model){
   for(const value of[run.style.color,run.style.highlight])if(value&&value!=='transparent'&&!colors.has(value.toLowerCase()))colors.set(value.toLowerCase(),colors.size+1);
  };
  for(const page of model.pages)for(const block of page.blocks){
-  if(block.type==='paragraph')block.runs.forEach(add);
+  if(block.type==='paragraph'){
+   block.runs.forEach(add);
+   if(block.borderBottom&&!colors.has(block.borderBottom.toLowerCase()))colors.set(block.borderBottom.toLowerCase(),colors.size+1);
+  }
   if(block.type==='table')for(const row of block.rows)for(const cell of row)cell.forEach(add);
  }
  return{fonts,colors,number:0};
@@ -66,6 +70,8 @@ function paragraph(value,context){
  let controls='\\pard\\plain'+align+'\\sb'+twips(value.spacingBefore)+'\\sa'+twips(value.spacingAfter)+'\\sl'+Math.round(value.lineHeight*240)+'\\slmult1';
  if(value.indentLeft!==undefined)controls+='\\li'+twips(value.indentLeft);
  if(value.keepWithNext)controls+='\\keepn';
+ if(value.borderBottom)controls+='\\brdrb\\brdrs\\brdrw15\\brsp40\\brdrcf'+context.colors.get(value.borderBottom.toLowerCase());
+ if(value.tabRight!==undefined)controls+='\\tqr\\tx'+twips(value.tabRight);
  if(value.style==='heading1'||value.style==='heading2')controls+='\\outlinelevel'+(value.style==='heading1'?0:1);
  let marker='';
  if(value.list!=='none'){

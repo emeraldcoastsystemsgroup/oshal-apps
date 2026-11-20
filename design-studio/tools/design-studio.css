@@ -3,6 +3,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7, lane @ds-fab: the made set's files as a folded list on the Fabricate poster, the make dialog's per-part states (pending, building, exported, unprintable) in the status tones, the send dialog's confirm row.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9, lane @ds-plant: the Mechanism screen's part list, joint rows (a head row and a body of labelled fields), vector inputs in a row; one column on a phone.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.9 (UX audit 2026-11-06): add one-line phase progress stepper above product posters, header overflow menu for Settings and Help, top-left Back link, and bottom-right New product action on Products.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B14: style pre-click engine container liveness banner (#engine-liveness) and Settings status pills (#settings-liveness) using theme tokens only.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B9: style .fit-note and .strength-note on the Design poster using theme tokens only.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B15: style reasoned-only unmeasured banners, unmeasured closure lines, stepper pills, and the Pi bay thermal solve brief option using theme tokens only.
  */
 :root{
   --ds-font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Inter,sans-serif;
@@ -44,8 +47,16 @@ body{margin:0;min-height:100vh;font-family:var(--ds-font);font-size:15px;line-he
 .phase-stepper{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding:10px 12px;background:var(--ds-card);border:1px solid var(--ds-line);border-radius:var(--ds-radius)}
 .ds-page button.phase-step-pill{min-height:34px;padding:5px 10px;font-size:12.5px;border-radius:999px;background:var(--ds-well);border-color:var(--ds-line)}
 .ds-page button.phase-step-pill[data-state="closed"]{border-color:var(--ds-ok);color:var(--ds-ok)}
+.ds-page button.phase-step-pill[data-state="closed"][data-reasoned-only="1"]{border-color:var(--ds-warn);color:var(--ds-warn)}
 .ds-page button.phase-step-pill[data-state="stale"]{border-color:var(--ds-warn);color:var(--ds-warn)}
 .ds-page button.phase-step-pill[data-state="active"]{background:var(--ds-accent);border-color:var(--ds-accent);color:var(--ds-on-accent);font-weight:700}
+.liveness-banner{margin-top:12px;padding:12px 16px;background:var(--ds-card);border:1px solid var(--ds-warn);border-radius:var(--ds-radius);font-size:13.5px}
+.liveness-title{margin:0 0 6px;font-weight:700;color:var(--ds-warn)}
+.liveness-items{margin:0;padding:0 0 0 18px;display:grid;gap:4px;color:var(--ds-soft)}
+.liveness-list{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.liveness-pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;background:var(--ds-well);border:1px solid var(--ds-line);color:var(--ds-soft)}
+.liveness-pill[data-state="up"]{border-color:var(--ds-ok);color:var(--ds-ok)}
+.liveness-pill[data-state="stopped"],.liveness-pill[data-state="refused"]{border-color:var(--ds-warn);color:var(--ds-warn)}
 .kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ds-accent);margin:0 0 2px}
 .ds-page h1{margin:0;font-size:28px;line-height:1.15;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
 .lede{margin:6px 0 0;font-size:14px;color:var(--ds-soft);max-width:72ch}
@@ -67,8 +78,16 @@ a.poster:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
 .stage.ok{color:var(--ds-ok)}
 .stage.warn{color:var(--ds-warn)}
 .stage.bad{color:var(--ds-bad)}
+.fit-note,.strength-note{margin:0;font-size:12.5px;line-height:1.4;color:var(--ds-soft);overflow-wrap:anywhere}
+.fit-note.ok{color:var(--ds-ok)}
+.fit-note.warn{color:var(--ds-warn)}
+.fit-note.bad{color:var(--ds-bad)}
+.strength-note[data-strength-status="ok"]{color:var(--ds-ok)}
+.strength-note[data-strength-status="warn"],.strength-note[data-strength-status="unmeasured"]{color:var(--ds-warn)}
+.strength-note[data-strength-status="bad"]{color:var(--ds-bad)}
+.unmeasured-banner,.thermal-note{margin:0;padding:8px 10px;font-size:12.5px;line-height:1.4;color:var(--ds-warn);background:var(--ds-well);border:1px solid var(--ds-warn);border-radius:var(--ds-radius-sm);overflow-wrap:anywhere}
 .closed{margin:0;font-size:12.5px;color:var(--ds-muted);overflow-wrap:anywhere}
-.closed.stale{color:var(--ds-warn)}
+.closed.unmeasured,.closed.stale{color:var(--ds-warn)}
 .act{margin-top:auto;padding-top:8px;display:flex;flex-wrap:wrap;gap:8px}
 
 /* Controls: one height, one radius, the theme's focus ring */
@@ -89,6 +108,9 @@ a.poster:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
 .card label{display:flex;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
 .card .help{margin:0;font-size:12.5px;color:var(--ds-muted);text-transform:none;letter-spacing:0;font-weight:400}
 .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.thermal-option{display:flex;flex-direction:column;gap:8px;margin-top:6px;padding-top:10px;border-top:1px solid var(--ds-line)}
+.card label.thermal-check{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;min-height:44px;font-size:14px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--ds-text);cursor:pointer}
+.card label.thermal-check input{width:18px;height:18px;min-height:0;padding:0;margin:0}
 .proposal{display:grid;gap:8px;margin:0;padding:0;list-style:none}
 .proposal li{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:start;padding:10px 12px;background:var(--ds-well);border:1px solid var(--ds-line);border-radius:var(--ds-radius-sm)}
 .proposal li input{width:18px;height:18px;min-height:0;padding:0;margin-top:2px}

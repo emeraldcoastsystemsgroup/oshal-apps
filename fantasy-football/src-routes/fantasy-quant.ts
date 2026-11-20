@@ -11,6 +11,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — read-only FLEX/slot start-sit ranking with floor/ceiling and P(win) swing, waiver/streaming upgrades, head-to-head matchup breakdown, and approval-card-gated lineup and waiver mutation endpoints.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Backlog A2: pass remaining-schedule playoff simulator into GET /quant/waivers so Fantasy Quant reports baseline P(playoffs) and per-upgrade playoffDelta alongside FAAB bids (strictly read-only).
  *
  * @module fantasy-quant
  */
@@ -25,6 +26,7 @@ import { recordWeek, weekRecord } from './fantasy-grading';
 import { leagueRequestOf, requireSub, sendContextFailure } from './fantasy-http';
 import { listManualLeagues, readManualLeague, saveManualLeague, scoringRefusedBody, zeroScoringReason } from './fantasy-manual';
 import { buildSeasonPlan } from './fantasy-plan';
+import { createPlayoffSimulator } from './fantasy-playoff-sim';
 import { historyFor, joinRoster } from './fantasy-roster';
 import {
   applyScoring, isAvailable, openSlotStarts, optimiseLineup, startSitCalls,
@@ -230,6 +232,26 @@ async function handleQuantStartSit(pool: Pool, req: Request, res: Response): Pro
   }
 }
 
+async function buildQuantPlayoffSim(
+  pool: Pool, sub: string, ctx: LeagueContext, plan: ReturnType<typeof buildSeasonPlan>['plan'],
+  currentPool: Record<number, FantasyPlayer>, fetchedWeeks: PlayerWeekActual[],
+) {
+  const ids = [...new Set([...ctx.teams.flatMap((t) => t.rosterPlayerIds), ...Object.keys(currentPool).map(Number)])];
+  const stored = ids.length ? await readPlayerWeeks(pool, sub, ctx.season, ctx.week, ids).catch(() => []) : [];
+  const history = historyFor(mergePlayerWeeks(stored, fetchedWeeks, ctx.week, ids), ctx.settings.scoring);
+  return createPlayoffSimulator({
+    plan,
+    teams: ctx.teams.map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
+    targetTeamId: ctx.own.teamId,
+    standings: ctx.standings,
+    fixtures: ctx.matchups.map((m) => ({ week: m.matchupPeriodId, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId })),
+    currentWeek: ctx.week,
+    playoffStart: ctx.playoffStart,
+    playoffTeams: ctx.playoffTeams,
+    history,
+  });
+}
+
 async function handleQuantWaivers(pool: Pool, req: Request, res: Response): Promise<void> {
   const sub = requireSub(req, res);
   if (!sub) return;
@@ -240,7 +262,7 @@ async function handleQuantWaivers(pool: Pool, req: Request, res: Response): Prom
     const ctx = resolved.ctx;
     const zero = zeroScoringReason(ctx.settings.scoring);
     if (zero) { res.json(scoringRefusedBody(ctx, zero)); return; }
-    const { feeds, generatedAt, feed } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek, { persist: false });
+    const { feeds, generatedAt, feed, weeks } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek, { persist: false });
     if (!feed.ok) { res.json({ ok: false, league: ctx.settings.name, week: ctx.week, projectionFeed: feed }); return; }
     const built = buildSeasonPlan({
       currentWeek: ctx.week, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart,
@@ -248,15 +270,17 @@ async function handleQuantWaivers(pool: Pool, req: Request, res: Response): Prom
     });
     const currentPool = feeds.get(ctx.week) || {};
     const budget = ctx.faab ? Math.max(0, ctx.faab.budget - ctx.faab.spent) : null;
+    const playoffSim = await buildQuantPlayoffSim(pool, sub, ctx, built.plan, currentPool, weeks);
+    const rankBy = String(q.rankBy || '').toLowerCase() === 'sv' ? 'sv' : 'playoffs';
     const board = waiverBoard({
       plan: built.plan, rosterIds: ctx.own.rosterPlayerIds,
       rosteredIds: ctx.teams.flatMap((t) => t.rosterPlayerIds),
-      pool: currentPool, budget, teams: ctx.teams.length,
+      pool: currentPool, budget, teams: ctx.teams.length, playoffSim, rankBy,
     });
     const trades = await findTrades(
       { teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds },
       ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
-      built.plan,
+      built.plan, undefined, undefined, { playoffSim, rankBy },
     );
     res.json({
       source: ctx.source,
@@ -264,6 +288,8 @@ async function handleQuantWaivers(pool: Pool, req: Request, res: Response): Prom
       team: { teamId: ctx.own.teamId, name: ctx.own.name },
       mode: ctx.faab ? 'faab' : 'rolling',
       faabRemaining: budget,
+      objective: board.objective,
+      playoffs: playoffSim.info,
       projectionsGeneratedAt: generatedAt,
       upgrades: board.rows.slice(0, 10),
       streaming: board.streaming.slice(0, 8),

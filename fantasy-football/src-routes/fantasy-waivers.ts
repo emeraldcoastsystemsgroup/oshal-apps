@@ -28,12 +28,14 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — rest-of-season swap value over the best drop, the FAAB bid with a replacement-level scarcity premium and a reserve cap, and an isolated one-week streaming lane.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional remaining-schedule P(playoffs) simulation objective (Backlog A2): reports playoffProb, playoffProbWith and playoffDelta per claim and ranks by playoffDelta when standings and remaining fixtures are available (preserving SV ranking when unavailable or requested).
  *
  * @module fantasy-waivers
  */
 
 import { applyScoring, type FantasyPlayer } from './fantasy-scoring';
 import { dropCandidate, replacementLevel, seasonValue, weeksStarted, type SeasonPlan, type SeasonValue } from './fantasy-season';
+import type { PlayoffSimAvailability, PlayoffSimulator } from './fantasy-playoff-sim';
 
 /** ESPN positions streamed week to week: 16 D/ST, 17 K. A superflex league adds 1 QB. */
 export const STREAM_POSITIONS = new Set([16, 17]);
@@ -63,6 +65,10 @@ export interface WaiverInputs {
   /** FAAB left, or null when the league does not bid (rolling priority). */
   budget: number | null;
   teams: number;
+  /** Optional remaining-schedule playoff simulator (spec 2.2.5). */
+  playoffSim?: PlayoffSimulator | null;
+  /** Ranking objective when playoffSim is available: 'playoffs' (default) or 'sv'. */
+  rankBy?: 'playoffs' | 'sv';
 }
 
 /** One rest-of-season row. */
@@ -78,6 +84,12 @@ export interface WaiverRow {
   /** Whole dollars, or null in a rolling-priority league. */
   bid: number | null;
   cap: number | null;
+  /** Baseline P(playoffs) without this claim, when schedule simulation is available. */
+  playoffProb?: number;
+  /** P(playoffs) with this claim applied, when schedule simulation is available. */
+  playoffProbWith?: number;
+  /** P(playoffs) change (playoffProbWith - playoffProb), when schedule simulation is available. */
+  playoffDelta?: number;
 }
 
 /** One streaming row. */
@@ -99,6 +111,10 @@ export interface WaiverBoard {
   /** E_rest used for the bids: the value on the rest-of-season wire in total. */
   wireValue: number;
   replacement: Record<number, number>;
+  /** Ranking objective used for `rows`, present when a playoff simulator was supplied. */
+  objective?: 'playoffs' | 'sv';
+  /** Playoff simulation summary and availability, present when a playoff simulator was supplied. */
+  playoffs?: PlayoffSimAvailability;
 }
 
 /**
@@ -150,12 +166,16 @@ function priceClaim(c: WirePlayer, input: WaiverInputs, base: SeasonValue, repla
   const started = weeksStarted(c.playerId, after);
   const displacedReplacement = started.filter((w) => displacesReplacement(c.playerId, w, base, after, replacement, input.plan)).length;
   const dropped = input.plan.playerFor(drop.playerId, input.plan.weeks[0].week) || input.pool[drop.playerId];
+  const impact = input.playoffSim?.info.available
+    ? input.playoffSim.evaluateRoster(withC.filter((id) => id !== drop.playerId))
+    : null;
   return {
     add: { playerId: c.playerId, name: c.name, positionId: Number(c.defaultPositionId) || null },
     drop: { playerId: drop.playerId, name: dropped?.name || `Player ${drop.playerId}` },
     gain,
     weeksStarting: started.length,
     scarcity: displacedReplacement > input.plan.weeks.length * SCARCITY_SHARE,
+    ...(impact ? impact : {}),
   };
 }
 
@@ -212,8 +232,11 @@ export function waiverBoard(input: WaiverInputs): WaiverBoard {
   const base = seasonValue(input.rosterIds, input.plan);
   const { byPosition } = replacementLevel(Object.values(input.pool), input.plan.slots, input.plan.scoring, input.teams);
   const { season, stream } = wireCandidates(input);
+  const usePlayoffs = Boolean(input.playoffSim?.info.available && input.rankBy !== 'sv');
   const priced = season.map((c) => priceClaim(c, input, base, byPosition)).filter((r): r is Omit<WaiverRow, 'bid' | 'cap'> => r !== null)
-    .sort((a, b) => b.gain - a.gain);
+    .sort((a, b) => (usePlayoffs
+      ? ((b.playoffDelta ?? 0) - (a.playoffDelta ?? 0)) || (b.gain - a.gain)
+      : (b.gain - a.gain)));
   const wireValue = Math.round(priced.reduce((s, r) => s + r.gain, 0) * 100) / 100;
   const cap = input.budget === null ? null : Math.max(0, input.budget - RESERVE_PER_WEEK * Math.max(input.plan.weeks.length - 1, 0));
   const rows: WaiverRow[] = priced.map((r) => ({
@@ -221,7 +244,10 @@ export function waiverBoard(input: WaiverInputs): WaiverBoard {
     cap,
     bid: input.budget === null ? null : bidFor(r.gain, wireValue - r.gain, r.scarcity, input.budget, cap as number),
   }));
-  return { rows, streaming: streamingLane(stream, input), budget: input.budget, cap, wireValue, replacement: byPosition };
+  const playoffMeta = input.playoffSim
+    ? { objective: (usePlayoffs ? 'playoffs' : 'sv') as 'playoffs' | 'sv', playoffs: input.playoffSim.info }
+    : {};
+  return { rows, streaming: streamingLane(stream, input), budget: input.budget, cap, wireValue, replacement: byPosition, ...playoffMeta };
 }
 
 /**

@@ -28,12 +28,14 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — 1-for-1 and 2-for-1 search over every other roster's most valuable players (starters or not), both sides valued with SV over their own rosters (a side left over its roster size drops its least-costly player first), surfaced only when both gains clear the threshold, ranked by your gain; the search yields to the event loop between teams (a twelve-team, fifteen-week league measured 848 ms in all, longest block 97 ms).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional remaining-schedule P(playoffs) simulation objective (Backlog A2): reports playoffProb, playoffProbWith and playoffDelta per mutual-gain proposal (simulating both your and your trade partner's post-trade rosters) and ranks by playoffDelta when available.
  *
  * @module fantasy-trades
  */
 
 import { applyScoring } from './fantasy-scoring';
 import { dropCandidate, seasonValue, type SeasonPlan } from './fantasy-season';
+import type { PlayoffSimulator } from './fantasy-playoff-sim';
 
 /** The least either side must gain, in weighted points, for a proposal to surface. */
 export const TRADE_THRESHOLD = 0.5;
@@ -62,6 +64,18 @@ export interface TradeProposal {
   /** A drop either side had to make to stay at roster size, when one was needed. */
   youDrop: number | null;
   themDrop: number | null;
+  /** Baseline P(playoffs) without this trade, when schedule simulation is available. */
+  playoffProb?: number;
+  /** P(playoffs) with this trade applied, when schedule simulation is available. */
+  playoffProbWith?: number;
+  /** P(playoffs) change (playoffProbWith - playoffProb), when schedule simulation is available. */
+  playoffDelta?: number;
+}
+
+/** Optional season-objective settings for findTrades. */
+export interface FindTradesOptions {
+  playoffSim?: PlayoffSimulator | null;
+  rankBy?: 'playoffs' | 'sv';
 }
 
 /**
@@ -113,6 +127,12 @@ function combinations(mine: number[], theirs: number[]): Array<[number[], number
   return out;
 }
 
+/** Apply a trade's outgoing, incoming and forced-drop ids to produce the resulting roster. */
+function rosterAfter(rosterIds: number[], out: number[], incoming: number[], drop: number | null): number[] {
+  const next = [...rosterIds.filter((id) => !out.includes(id)), ...incoming];
+  return drop === null ? next : next.filter((id) => id !== drop);
+}
+
 /**
  * @description Search every other team for trades both sides gain from.
  * @param mine - Your team.
@@ -120,14 +140,18 @@ function combinations(mine: number[], theirs: number[]): Array<[number[], number
  * @param plan - The season plan (the same league: same slots and scoring for both sides).
  * @param threshold - The least each side must gain to surface.
  * @param limit - How many proposals to return.
+ * @param options - Optional playoff simulator and ranking objective ('playoffs' or 'sv').
  * @returns Proposals, best for you first; never one with Δ_them at or below the threshold. Yields to
  * the event loop between teams.
  */
 export async function findTrades(
   mine: TradeTeam, others: TradeTeam[], plan: SeasonPlan, threshold = TRADE_THRESHOLD, limit = TRADE_LIMIT,
+  options?: FindTradesOptions,
 ): Promise<TradeProposal[]> {
   const myBase = seasonValue(mine.rosterIds, plan);
   const myTradeable = tradeable(mine.rosterIds, plan);
+  const sim = options?.playoffSim?.info.available ? options.playoffSim : null;
+  const rankByPlayoffs = Boolean(sim && options?.rankBy !== 'sv');
   const proposals: TradeProposal[] = [];
   for (const team of others) {
     if (team.teamId === mine.teamId) continue;
@@ -142,10 +166,24 @@ export async function findTrades(
       const them = sideAfter(team.rosterIds, get, give, plan);
       const themGain = round2(them.value - theirBase.total);
       if (!(themGain > threshold)) continue;
-      proposals.push({ teamId: team.teamId, teamName: team.name, give, get, youGain, themGain, youDrop: you.drop, themDrop: them.drop });
+      const impact = sim
+        ? sim.evaluateTrade(
+          rosterAfter(mine.rosterIds, give, get, you.drop),
+          team.teamId,
+          rosterAfter(team.rosterIds, get, give, them.drop),
+        )
+        : null;
+      proposals.push({
+        teamId: team.teamId, teamName: team.name, give, get, youGain, themGain,
+        youDrop: you.drop, themDrop: them.drop, ...(impact ? impact : {}),
+      });
     }
   }
-  return proposals.sort((a, b) => b.youGain - a.youGain || b.themGain - a.themGain).slice(0, limit);
+  return proposals
+    .sort((a, b) => (rankByPlayoffs
+      ? ((b.playoffDelta ?? 0) - (a.playoffDelta ?? 0)) || (b.youGain - a.youGain) || (b.themGain - a.themGain)
+      : (b.youGain - a.youGain) || (b.themGain - a.themGain)))
+    .slice(0, limit);
 }
 
 /** Rounds to two decimals. */

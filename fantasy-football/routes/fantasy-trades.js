@@ -29,6 +29,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — 1-for-1 and 2-for-1 search over every other roster's most valuable players (starters or not), both sides valued with SV over their own rosters (a side left over its roster size drops its least-costly player first), surfaced only when both gains clear the threshold, ranked by your gain; the search yields to the event loop between teams (a twelve-team, fifteen-week league measured 848 ms in all, longest block 97 ms).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional remaining-schedule P(playoffs) simulation objective (Backlog A2): reports playoffProb, playoffProbWith and playoffDelta per mutual-gain proposal (simulating both your and your trade partner's post-trade rosters) and ranks by playoffDelta when available.
  *
  * @module fantasy-trades
  */
@@ -93,6 +94,11 @@ function combinations(mine, theirs) {
     }
     return out;
 }
+/** Apply a trade's outgoing, incoming and forced-drop ids to produce the resulting roster. */
+function rosterAfter(rosterIds, out, incoming, drop) {
+    const next = [...rosterIds.filter((id) => !out.includes(id)), ...incoming];
+    return drop === null ? next : next.filter((id) => id !== drop);
+}
 /**
  * @description Search every other team for trades both sides gain from.
  * @param mine - Your team.
@@ -100,12 +106,15 @@ function combinations(mine, theirs) {
  * @param plan - The season plan (the same league: same slots and scoring for both sides).
  * @param threshold - The least each side must gain to surface.
  * @param limit - How many proposals to return.
+ * @param options - Optional playoff simulator and ranking objective ('playoffs' or 'sv').
  * @returns Proposals, best for you first; never one with Δ_them at or below the threshold. Yields to
  * the event loop between teams.
  */
-async function findTrades(mine, others, plan, threshold = exports.TRADE_THRESHOLD, limit = exports.TRADE_LIMIT) {
+async function findTrades(mine, others, plan, threshold = exports.TRADE_THRESHOLD, limit = exports.TRADE_LIMIT, options) {
     const myBase = (0, fantasy_season_1.seasonValue)(mine.rosterIds, plan);
     const myTradeable = tradeable(mine.rosterIds, plan);
+    const sim = options?.playoffSim?.info.available ? options.playoffSim : null;
+    const rankByPlayoffs = Boolean(sim && options?.rankBy !== 'sv');
     const proposals = [];
     for (const team of others) {
         if (team.teamId === mine.teamId)
@@ -123,10 +132,20 @@ async function findTrades(mine, others, plan, threshold = exports.TRADE_THRESHOL
             const themGain = round2(them.value - theirBase.total);
             if (!(themGain > threshold))
                 continue;
-            proposals.push({ teamId: team.teamId, teamName: team.name, give, get, youGain, themGain, youDrop: you.drop, themDrop: them.drop });
+            const impact = sim
+                ? sim.evaluateTrade(rosterAfter(mine.rosterIds, give, get, you.drop), team.teamId, rosterAfter(team.rosterIds, get, give, them.drop))
+                : null;
+            proposals.push({
+                teamId: team.teamId, teamName: team.name, give, get, youGain, themGain,
+                youDrop: you.drop, themDrop: them.drop, ...(impact ? impact : {}),
+            });
         }
     }
-    return proposals.sort((a, b) => b.youGain - a.youGain || b.themGain - a.themGain).slice(0, limit);
+    return proposals
+        .sort((a, b) => (rankByPlayoffs
+        ? ((b.playoffDelta ?? 0) - (a.playoffDelta ?? 0)) || (b.youGain - a.youGain) || (b.themGain - a.themGain)
+        : (b.youGain - a.youGain) || (b.themGain - a.themGain)))
+        .slice(0, limit);
 }
 /** Rounds to two decimals. */
 function round2(n) {

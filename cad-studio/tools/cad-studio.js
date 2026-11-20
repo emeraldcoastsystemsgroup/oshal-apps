@@ -39,6 +39,8 @@
  *                     |                             | still typing survives any redraw (the 3 s poll too) and the toast says the draft is kept.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.0, the design standard (kernel docs/ux/design-standard.md; Roger, 2026-11-06, F9, F10, F12; the reference products Shapr3D, Onshape and Tinkercad, CONVENTIONS.md §5.9). No native prompt or confirm (DS-30): New part opens a ready "Untitled part" on a 60 × 40 × 30 mm base box at once (its sizes are edited in Properties), the name is edited in place in the part's heading (Rename puts the caret there), and Delete and restoring a revision ask in an in-page sheet. The empty canvas shows New part as its one centred first action instead of a create-or-open paragraph; a part's app row is the Part ▾ menu (New part, Rename, Rebuild, Delete part; ⋯ More on a phone) and Export, the finishing action, which opens its own sheet of the part's files (STEP, STL, the drawing views, the report) with one Export at its bottom. Under the canvas a tool strip holds Add feature and Report; the reference functions CAD Studio lacks are greyed "Not available yet" controls in their places: Measure in the strip, the view cube in the canvas's top-right corner, AR on its right edge, OBJ, 3MF and Send to printer in the Export sheet (DS-45, RP-CAD-01 to -05).
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.0: live Measure (mm/in), 7-orientation 3D View Cube + Fit to view, Wavefront OBJ + MTL and 3MF exports, View in AR (USDZ + GLB + QR), and honest Send to printer handoff with zero planned placeholders remaining (RP-CAD-01 to -05).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.2 (BACKLOG B3): add "Print in Scan to Print" link with ADR-139 data-artifact-* attributes on every revision row and expose ask() on window.CadStudioApp for confirmed Scan to Print STL handoff.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.3 (BACKLOG B5): display per-feature timing (ms) and budget_exceeded status in the feature list, add configurable featureBudgetMs input in Base settings with dirty-draft preservation, and notify on per-feature budget overruns.
  */
 (function () {
   'use strict';
@@ -46,7 +48,7 @@
   const $ = (id) => document.getElementById(id);
   const ENGINE_DOWN = 'The CAD engine is not answering on this installation, so parts cannot be built right now. Try again shortly.';
   const ENGINE_SHORT = 'The CAD engine is not answering on this installation.';
-  const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {}, writes: new Set(), densityShown: null, editBaseline: '' };
+  const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {}, writes: new Set(), densityShown: null, budgetShown: null, editBaseline: '' };
 
   /** Capture user selection without reconstructing or changing server authority. */
   const selection = () => ({ epoch: state.selection, modelId: state.model && state.model.model_id });
@@ -64,7 +66,7 @@
   /** Begin an explicit part selection; same-part background refresh never resets the draft form. */
   function clearSelection() {
     state.selection += 1; stopPoll(); clearPreview();
-    state.model = null; state.revisions = []; state.lastSeen = ''; state.densityShown = null;
+    state.model = null; state.revisions = []; state.lastSeen = ''; state.densityShown = null; state.budgetShown = null;
     $('model-panel').hidden = true; $('features-panel').hidden = true; $('empty-panel').hidden = false;
     $('feature-submit').disabled = false; $('header-title').textContent = ''; renderPartControls(false);
     endEdit(); renderStop();
@@ -162,7 +164,13 @@
   }
   function showBuild(build) {
     if (!build) return;
-    if (build.ok) return;
+    if (build.ok) {
+      if (Array.isArray(build.budgetExceeded) && build.budgetExceeded.length) {
+        const names = build.budgetExceeded.map((b) => (b.featureId || ('#' + (b.index + 1))) + ' (' + b.ms + ' ms)').join(', ');
+        toast('Feature timing budget exceeded and discarded: ' + names + '.', 'error');
+      }
+      return;
+    }
     if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') { renderEngine({ connected: false, lastError: buildWords(build) }); void refreshEngine(); }
     toast('Rebuild failed: ' + buildWords(build), 'error');
   }
@@ -274,6 +282,9 @@
     const density = (m.settings && m.settings.densityGcm3) || (state.caps && state.caps.defaults.densityGcm3) || 1.24;
     if (!densityDirty()) $('density').value = density;
     state.densityShown = { id: m.model_id, value: Number(density) };
+    const budgetEl = $('feature-budget-ms');
+    const budget = (m.settings && m.settings.featureBudgetMs) || (state.caps && state.caps.defaults && state.caps.defaults.featureBudgetMs) || 60000;
+    if (budgetEl) { if (!budgetDirty()) budgetEl.value = budget; state.budgetShown = { id: m.model_id, value: Number(budget) }; }
   }
   function renderBase(m) {
     const b = m.base || {};
@@ -349,27 +360,52 @@
     m.features.forEach((f, i) => {
       const st = statusOf(m, f.id);
       const failed = st && st.ok === false;
+      const overBudget = failed && st.code === 'budget_exceeded';
+      const timing = st && typeof st.ms === 'number' && Number.isFinite(st.ms)
+        ? el('span', { class: 'feature-timing' + (overBudget ? ' over-budget' : ''), 'data-feature-ms': String(st.ms), text: (overBudget ? 'budget exceeded · ' : '') + st.ms + ' ms' })
+        : null;
+      const headChildren = [
+        el('button', { class: 'cad-feature-selection', text: String(i + 1)+'. '+f.type+(f.label?' — '+f.label:''), 'aria-pressed': String(state.editing===f.id), onclick: () => {if(featureDraft()&&state.editing!==f.id)return toast('Save or cancel your feature form first.','error');if(!featureDraft())beginEdit(f);} }),
+      ];
+      if (timing) headChildren.push(timing);
+      headChildren.push(el('details', { class: 'cad-feature-menu' }, [el('summary', {text:'Actions'}),
+        el('button', {text:'Move earlier',onclick:()=>moveFeature(f.id,i-1)}),el('button',{text:'Move later',onclick:()=>moveFeature(f.id,i+1)}),
+        el('button',{text:'Native parameter form',onclick:()=>{beginEdit(f);editorFoundation?.showFeatureForm();}}),
+        el('button',{text:f.enabled?'Disable':'Enable',onclick:()=>updateFeature(f.id,{enabled:!f.enabled})}),el('button',{text:'Remove feature',onclick:()=>removeFeature(f.id)})]));
       const item = el('li', { class: (failed ? 'failed ' : '') + (f.enabled ? '' : 'disabled ') + (state.editing === f.id ? 'selected' : '') }, [
-        el('div', { class: 'feature-head' }, [
-          el('button', { class: 'cad-feature-selection', text: String(i + 1)+'. '+f.type+(f.label?' — '+f.label:''), 'aria-pressed': String(state.editing===f.id), onclick: () => {if(featureDraft()&&state.editing!==f.id)return toast('Save or cancel your feature form first.','error');if(!featureDraft())beginEdit(f);} }),
-          el('details', { class: 'cad-feature-menu' }, [el('summary', {text:'Actions'}),
-            el('button', {text:'Move earlier',onclick:()=>moveFeature(f.id,i-1)}),el('button',{text:'Move later',onclick:()=>moveFeature(f.id,i+1)}),
-            el('button',{text:'Native parameter form',onclick:()=>{beginEdit(f);editorFoundation?.showFeatureForm();}}),
-            el('button',{text:f.enabled?'Disable':'Enable',onclick:()=>updateFeature(f.id,{enabled:!f.enabled})}),el('button',{text:'Remove feature',onclick:()=>removeFeature(f.id)})]),
-        ]),
+        el('div', { class: 'feature-head' }, headChildren),
         el('div', { class: 'feature-params', text: paramsText(f.params) }),
       ]);
-      if (failed) item.appendChild(el('div', { class: 'feature-error', text: 'skipped: ' + st.error }));
+      if (failed) item.appendChild(el('div', { class: 'feature-error', text: (overBudget ? 'budget exceeded: ' : 'skipped: ') + st.error }));
       list.appendChild(item);
     });
   }
   function renderRevisions() {
     const list = $('revisions'); list.replaceChildren();
-    state.revisions.forEach((r) => list.appendChild(el('li', {}, [
-      el('span', { text: 'r' + r.revision + ' · ' + new Date(r.created_at).toLocaleString() + ' · ' + r.featureCount + ' features · ' + (r.volumeMm3 !== null && r.volumeMm3 !== undefined ? fmt(Number(r.volumeMm3) / 1000, 2) + ' cm³' : '') }),
-      el('span', { class: 'spacer', style: 'flex:1' }),
-      state.model && r.revision !== state.model.revision ? el('button', { class: 'link', text: 'restore', onclick: () => restoreRevision(r.revision) }) : el('span', { class: 'muted', text: 'current' }),
-    ])));
+    const m = state.model;
+    const stem = m ? (String(m.title || '').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'part') : 'part';
+    state.revisions.forEach((r) => {
+      const stlUrl = m ? BASE + '/models/' + encodeURIComponent(m.model_id) + '/artifacts/stl?revision=' + r.revision : '';
+      const row = [
+        el('span', { text: 'r' + r.revision + ' · ' + new Date(r.created_at).toLocaleString() + ' · ' + r.featureCount + ' features · ' + (r.volumeMm3 !== null && r.volumeMm3 !== undefined ? fmt(Number(r.volumeMm3) / 1000, 2) + ' cm³' : '') }),
+        el('span', { class: 'spacer', style: 'flex:1' }),
+      ];
+      if (m) {
+        row.push(el('a', {
+          class: 'link',
+          href: '#print-r' + r.revision,
+          'data-print-revision': String(r.revision),
+          'data-artifact-source': stlUrl,
+          'data-artifact-type': 'model/stl',
+          'data-artifact-name': stem + '-r' + r.revision + '.stl',
+          'data-artifact-ui': 'context',
+          text: 'Print in Scan to Print',
+          onclick: (ev) => { ev.preventDefault(); viewportTools?.openPrinterSheet?.(r.revision); },
+        }));
+      }
+      row.push(m && r.revision !== m.revision ? el('button', { class: 'link', text: 'restore', onclick: () => restoreRevision(r.revision) }) : el('span', { class: 'muted', text: 'current' }));
+      list.appendChild(el('li', {}, row));
+    });
   }
 
   // ── Feature editing ────────────────────────────────────────────────────────
@@ -472,7 +508,10 @@
   async function saveSettings() {
     if (!state.model) return;
     const intent = selection();
-    try { applyResponse(await api('/models/' + intent.modelId, { method: 'PATCH', json: { settings: { densityGcm3: Number($('density').value) } }, rebuilds: intent.modelId }), intent); } catch (e) { if (selected(intent)) toast(e.message, 'error'); }
+    const settings = { densityGcm3: Number($('density').value) };
+    const budgetEl = $('feature-budget-ms');
+    if (budgetEl && budgetEl.value !== '') settings.featureBudgetMs = Math.round(Number(budgetEl.value));
+    try { applyResponse(await api('/models/' + intent.modelId, { method: 'PATCH', json: { settings }, rebuilds: intent.modelId }), intent); } catch (e) { if (selected(intent)) toast(e.message, 'error'); }
   }
 
   /** Stop the selected part's running rebuild; the server keeps the part at its last good revision. */
@@ -521,9 +560,13 @@
     const shown = state.densityShown;
     return Boolean(shown && state.model && shown.id === state.model.model_id && Number($('density').value) !== shown.value);
   }
+  function budgetDirty() {
+    const shown = state.budgetShown, elBudget = $('feature-budget-ms');
+    return Boolean(shown && elBudget && state.model && shown.id === state.model.model_id && Number(elBudget.value) !== shown.value);
+  }
   async function settleWrites() { while (state.writes.size) await Promise.allSettled(Array.from(state.writes)); }
   const newerModel = (a, b) => a.revision > b.revision || Date.parse(a.updated_at) > Date.parse(b.updated_at);
-  const draftWords = () => [featureDraft() ? 'feature in the editor' : '', densityDirty() ? 'density' : ''].filter(Boolean).join(' and ');
+  const draftWords = () => [featureDraft() ? 'feature in the editor' : '', densityDirty() ? 'density' : '', budgetDirty() ? 'feature budget' : ''].filter(Boolean).join(' and ');
   /** The saved part's identity and revision: what the assistant is told it is reading. */
   function documentSnapshot(m) {
     return { app: 'cad-studio', screen: 'surface', surface: 'cad-studio', recordId: m.model_id, title: String(m.title).slice(0, 200),
@@ -538,7 +581,7 @@
     const id = state.model.model_id;
     const unsaved = (what) => new Error('The ' + what + ' you are editing could not be saved (' + $('toast').textContent + '). It is still on the page; correct or clear it, then ask again.');
     if (featureDraft()) { await submitFeature(); await settleWrites(); if (featureDraft()) throw unsaved('feature'); }
-    if (densityDirty()) { await saveSettings(); await settleWrites(); if (densityDirty()) throw unsaved('density'); }
+    if (densityDirty() || budgetDirty()) { await saveSettings(); await settleWrites(); if (densityDirty() || budgetDirty()) throw unsaved('settings'); }
     if (!state.model || state.model.model_id !== id) throw new Error('The open part changed while it was being saved. Ask again from the part you want to edit.');
     return documentSnapshot(state.model);
   }
@@ -671,7 +714,7 @@
   // ── Boot ───────────────────────────────────────────────────────────────────
   let editorFoundation = null;
   let viewportTools = null;
-  window.CadStudioApp = { getState: () => state, getModel: () => state.model, getViewer: () => state.viewer, api, toast };
+  window.CadStudioApp = { getState: () => state, getModel: () => state.model, getViewer: () => state.viewer, api, toast, ask };
   async function boot() {
     window.addEventListener('pagehide', stopEnginePoll);
     const {bindCadFoundation}=await import('/api/cad-studio/assets/editor-foundation-adapter.mjs');

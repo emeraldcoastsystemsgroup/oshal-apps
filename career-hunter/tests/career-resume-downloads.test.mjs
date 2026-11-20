@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve selected saved packet identity, contact facts, grouped roles and month precision across genuine export models and professional style changes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify downloaded Word (.docx) OOXML matches the clean PDF template layout: 0.5in margins, centered navy header, bordered uppercase section headings in PDF order, right-tabbed single-line role dates, inline comma-separated competencies, and compact Education & Certifications.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: verify candidate header renders clean single-line name without jamming contact.credential onto the name line.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,7 +88,8 @@ test('packet and cover models preserve their selected facts, dates and grouping 
   const words = text(model);
   for (const expected of ['Packet Candidate', 'packet@example.test', 'Jan 2020 – Present', 'Mar 2021 – Apr 2022',
     'Parent fact.', 'Client fact.', 'Open project fact.', 'Jun 2019 – Dec 2019']) assert.ok(words.some(value => value.includes(expected)), expected);
-  assert.ok(words.indexOf('Consultant — Employer') < words.indexOf('Lead — Client'));
+  const lines = model.pages.flatMap(page => page.blocks).map(block => (block.runs || []).map(run => run.text).join(''));
+  assert.ok(lines.findIndex(v => v.includes('Consultant, Employer')) < lines.findIndex(v => v.includes('Lead, Client')));
   const cover = models().fromPacket(saved, 'cover', 'ats');
   assert.doesNotThrow(() => validate(cover));
   for (const expected of ['Recorded cover paragraph.', 'Dear team,', 'Regards,', 'Selected Employer', 'Selected Role']) assert.ok(text(cover).some(value => value.includes(expected)), expected);
@@ -131,4 +134,59 @@ test('professional Word and PDF render saved manual text rather than rebuilding 
   assert.ok(xml.includes(summary.runs[0].text));
   assert.ok(pdfText(await renderOffice(model, 'pdf', libraries)).includes(summary.runs[0].text));
   assert.ok(!xml.includes('Recorded summary.'), 'the old profile summary is not substituted');
+});
+
+test('downloaded packet DOCX OOXML matches clean PDF template layout: margins, centered navy header, borders, right-tabbed role dates, inline competencies and section order', async () => {
+  const full = {
+    resume: {
+      headline: 'Principal Systems Architect',
+      summary: 'Architectural leader delivering mission-critical distributed platforms.',
+      competencies: ['Distributed Systems', 'Cloud Security', 'Technical Leadership'],
+      experience: [
+        {id: 'parent', title: 'Principal Consultant', org: 'Northwind Federal', span: 'Jan 2020 – Present', bullets: ['Led modernization across 12 teams.']},
+        {id: 'child', parent_role_id: 'parent', title: 'Lead Architect', org: 'Agency Client', span: 'Mar 2021 – Apr 2022', bullets: ['Shipped zero-trust gateway.']},
+      ],
+      open_source: [{title: 'Maintainer', org: 'Open Toolkit', span: 'Jun 2019 – Dec 2019', bullets: ['Published CLI framework.']}],
+      additional_experience: [{title: 'Systems Engineer', org: 'Earlier Corp', span: '2016 – 2019', bullets: ['Automated regional infrastructure.']}],
+      skills: ['Rust', 'Java', 'PostgreSQL', 'Kubernetes'],
+      education: ['M.S. Computer Science'],
+      certifications: ['AWS Solutions Architect'],
+      clearance: 'Active Secret',
+    },
+    cover: {greeting: 'Dear Hiring Team,', paragraphs: ['Excited to contribute.'], closing: 'Sincerely,'},
+    meta: {name: 'Alex Morgan', company: 'Target Corp', title: 'Staff Architect',
+      contact: {name: 'Alex Morgan', credential: 'PMP', location: 'Destin, FL', phone: '555-0199', email: 'alex@example.test', linkedin: 'linkedin.com/in/alex'}},
+  };
+  const model = models().fromPacket(full, 'resume', 'ats');
+  assert.deepEqual(model.margins, {top: 36, right: 36, bottom: 36, left: 36});
+  const blocks = model.pages[0].blocks;
+  const compHeadingIdx = blocks.findIndex(b => b.runs?.[0]?.text === 'CORE COMPETENCIES');
+  assert.ok(compHeadingIdx > 0);
+  const compBody = blocks[compHeadingIdx + 1];
+  assert.equal(compBody.list, 'none', 'Core Competencies is a single inline comma-separated line, not a bullet list');
+  assert.equal(compBody.runs[0].text, 'Distributed Systems, Cloud Security, Technical Leadership');
+
+  const libraries = runtime();
+  const docx = await renderOffice(model, 'docx', libraries);
+  const zip = await libraries.Zip.loadAsync(docx);
+  const xml = await zip.file('word/document.xml').async('string');
+
+  assert.match(xml, /<w:pgMar[^>]*w:top="720"[^>]*w:right="720"[^>]*w:bottom="720"[^>]*w:left="720"/, '0.5in margins');
+  assert.match(xml, /<w:jc w:val="center"\/>[\s\S]*?Alex Morgan/, 'centered single-line candidate name');
+  assert.ok(!xml.includes('Alex Morgan, PMP'), 'credential is never jammed onto the name line');
+  assert.match(xml, /<w:color w:val="1f3a5f"\/>[\s\S]*?Alex Morgan/i, 'navy header color');
+  assert.match(xml, /<w:pBdr><w:bottom[^>]*w:color="D6DEE8"/, 'subtle header bottom rule');
+  assert.match(xml, /<w:pBdr><w:bottom[^>]*w:color="1F3A5F"/, 'navy section divider rule');
+  assert.match(xml, /<w:tabs><w:tab[^>]*w:val="right"[^>]*w:pos="10800"/, 'right tab stop at 540pt');
+  assert.match(xml, /Principal Consultant[\s\S]*?, Northwind Federal[\s\S]*?<w:tab\/><w:t[^>]*>Jan 2020 – Present<\/w:t>/, 'single-line role title, org and right-tabbed dates');
+  assert.match(xml, /Education: [\s\S]*?M\.S\. Computer Science/, 'compact inline Education label');
+  assert.match(xml, /Certifications: [\s\S]*?AWS Solutions Architect/, 'compact inline Certifications label');
+  assert.match(xml, /Clearance: [\s\S]*?Active Secret/, 'compact inline Clearance label');
+
+  const order = ['PROFESSIONAL SUMMARY', 'CORE COMPETENCIES', 'PROFESSIONAL EXPERIENCE', 'OPEN SOURCE &amp; INDEPENDENT R&amp;D', 'ADDITIONAL EXPERIENCE', 'TECHNICAL SKILLS', 'EDUCATION &amp; CERTIFICATIONS'];
+  const positions = order.map(label => xml.indexOf(label));
+  for (let i = 0; i < order.length; i++) {
+    assert.ok(positions[i] >= 0, 'section present: ' + order[i]);
+    if (i > 0) assert.ok(positions[i] > positions[i - 1], `${order[i]} follows ${order[i - 1]}`);
+  }
 });

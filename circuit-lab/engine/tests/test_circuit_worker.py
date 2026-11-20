@@ -58,6 +58,12 @@
 #   |                                           | retried over. HardSwitching (real solver): an inductor whose
 #   |                                           | switch opens with no flyback path is refused at the default
 #   |                                           | tolerances and solves with gear / reltol 0.01 / gmin 1e-9.
+# 10 | maintainer@emeraldcoastsystemsgroup.com  | B7 real-solver verification (0.9.5): the untested 0.1 H / 10 ohm
+#   |                                           | switch circuit solved at ngspice 39's defaults, so per BACKLOG B7
+#   |                                           | HardSwitching now uses a cross-coupled H-bridge + Zener feedback
+#   |                                           | latch that genuinely fails to converge at explicit defaults
+#   |                                           | (reltol=0.003, method=trap), auto-retries with relaxed_tolerances
+#   |                                           | at implicit defaults, and solves cleanly with gear/0.01/1e-9.
 """Real-solver tests for circuit_worker (need ngspice; they run in the engine image)."""
 import copy
 import json
@@ -458,32 +464,51 @@ class SolverKnobs(unittest.TestCase):
 
 
 class HardSwitching(unittest.TestCase):
-    """BACKLOG B7's real case: an inductor carrying current whose switch opens with no flyback path -- the
-    SW element steps from 1 mohm to 1 Gohm and the inductor forces its current into it."""
+    """BACKLOG B7's real-solver case: a cross-coupled H-bridge with a reverse Zener feedback path
+    into its high-impedance input pin -- ngspice 39 refuses it at the explicit default tolerances
+    (reltol 0.003, trap, default gmin 1e-12), auto-retries with `relaxed_tolerances` when no knobs
+    are set, and solves it directly when the person picks gear / reltol 0.01 / gmin 1e-9."""
 
     @staticmethod
     def circuit():
-        parts = [{"id": "B1", "type": "battery", "props": {"volts": 12, "internalOhms": 0}}, {"id": "S1", "type": "switch", "props": {"closed": True, "toggleAtSeconds": 0.001}},
-                 {"id": "L1", "type": "inductor", "props": {"henries": 0.1}}, {"id": "R1", "type": "resistor", "props": {"ohms": 10, "ratedWatts": 25}}, {"id": "GND", "type": "ground"}]
-        wires = [wire("w1", "B1", "+", "S1", "a"), wire("w2", "S1", "b", "L1", "a"), wire("w3", "L1", "b", "R1", "a"), wire("w4", "R1", "b", "GND", "gnd"), wire("w5", "B1", "-", "GND", "gnd")]
+        parts = [
+            {"id": "B1", "type": "battery", "props": {"volts": 12, "internalOhms": 0}},
+            {"id": "H1", "type": "hbridge"},
+            {"id": "Z1", "type": "zener", "props": {"breakdownVolts": 5.1}},
+            {"id": "R1", "type": "resistor", "props": {"ohms": 100}},
+            {"id": "GND", "type": "ground"},
+        ]
+        wires = [
+            wire("w1", "B1", "+", "H1", "vcc"), wire("w2", "H1", "gnd", "GND", "gnd"), wire("w3", "B1", "-", "GND", "gnd"),
+            wire("w4", "H1", "out2", "R1", "a"), wire("w5", "R1", "b", "H1", "in1"),
+            wire("w6", "H1", "out1", "Z1", "k"), wire("w7", "Z1", "a", "H1", "in2"),
+        ]
         return {"parts": parts, "wires": wires}
 
     def test_refused_at_the_default_tolerances(self):
         # the defaults chosen EXPLICITLY, so the automatic relaxed retry stays out of the way
         with self.assertRaises(cp.Refusal) as ctx:
-            w.simulate({"circuit": self.circuit(), "sim": {"stopSeconds": 0.003, "stepSeconds": 1e-6, "reltol": 0.003, "method": "trap"}})
+            w.simulate({"circuit": self.circuit(), "sim": {"stopSeconds": 0.002, "stepSeconds": 1e-4, "reltol": 0.003, "method": "trap"}})
         self.assertEqual(ctx.exception.field, "circuit")
         self.assertIn("you set", str(ctx.exception))
 
+    def test_auto_retries_with_relaxed_tolerances_at_implicit_defaults(self):
+        r = w.simulate({"circuit": self.circuit(), "sim": {"stopSeconds": 0.002, "stepSeconds": 1e-4}})
+        self.assertIn("relaxed_tolerances", [x["code"] for x in r["warnings"]])
+        self.assertNotIn("gmin", r["netlist"], "stored deck keeps the default .option line")
+
     def test_solves_with_the_knobs_a_person_picks(self):
-        r = w.simulate({"circuit": self.circuit(), "sim": {"stopSeconds": 0.003, "stepSeconds": 1e-6, "reltol": 0.01, "gmin": 1e-9, "method": "gear"}})
+        r = w.simulate({"circuit": self.circuit(), "sim": {"stopSeconds": 0.002, "stepSeconds": 1e-4, "reltol": 0.01, "gmin": 1e-9, "method": "gear"}})
         self.assertNotIn("relaxed_tolerances", [x["code"] for x in r["warnings"]], "their settings solved it; no retry was taken")
         self.assertIn("method=gear", r["netlist"])
-        i = r["waveforms"]["signals"]["i(L1)"]
-        t = r["waveforms"]["time"]
-        before = next(v for tt, v in zip(t, i) if tt >= 0.0009)
-        self.assertAlmostEqual(before, 1.2 * (1 - math.exp(-0.0009 / 0.01)), delta=0.01)  # L/R = 10 ms charging toward 1.2 A
-        self.assertLess(abs(i[-1]), 1e-3, "no path once the switch opens: the current is gone")
+        self.assertIn("gmin=1e-09", r["netlist"])
+        v_out1 = r["waveforms"]["signals"]["v(" + r["netOfPin"]["H1.out1"] + ")"]
+        v_out2 = r["waveforms"]["signals"]["v(" + r["netOfPin"]["H1.out2"] + ")"]
+        v_in2 = r["waveforms"]["signals"]["v(" + r["netOfPin"]["H1.in2"] + ")"]
+        self.assertAlmostEqual(v_out1[-1], 12.0, delta=0.05)
+        self.assertAlmostEqual(v_out2[-1], 12.0, delta=0.05)
+        self.assertGreater(v_in2[-1], 10.0, "latched bridge input holds above threshold")
+        self.assertAlmostEqual(reading(r, "H1")["voltsFinal"], 0.0, delta=0.05)
 
 
 class ServoAndStepper(unittest.TestCase):

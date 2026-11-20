@@ -9,13 +9,15 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the changed-with-Undo bar Work history and My résumé show after a change (career-change-bar.js), above the phone's bottom bar and clear of the docked concierge. On a phone My résumé's Word document now reaches the bottom bar: the 64 px kept for the old Edit with AI bar is kept only in the classic view that still has it (before, an empty band sat under the document).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.65.1: My résumé's editor sheet on a phone is placed by the page itself, between this frame's two measures (--cf-top and --cf-bottom), so the rule that rested the sheet 64 px above the bottom bar is gone: the Edit with AI bar it left room for is away while the sheet is open.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). On a phone a section's row of pages is one 48 px line that scrolls sideways and never wraps (entry 3 wrapped it onto two lines, 99 px on My résumé); every tab keeps its 44 px target. My résumé's Word document slides up over the top bar and the row once the person scrolls into it (the page sets data-resume-full), keeping its bottom on the bottom bar the whole way; reduced motion moves it at once.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: raise Career skin specificity over [data-theme] overrides, provide complete --ds-* tokens, and style Intelligent Career's embedded concierge iframe (html[data-career-frame="concierge"]) with Career's crisp light/slate/teal look and frosted header bar.
  */
 
 /* ── 1. Skin ─────────────────────────────────────────────────────────────────
    The portal's own token names, so every Career page (all of which paint from these tokens) wears the skin with no
    change of its own. Layout conventions follow the two job products people know best: a white bar of sections over
    a quiet page of white cards. The colours are Career's own. */
-html[data-career-frame] {
+html[data-career-frame],
+html[data-career-frame][data-theme] {
   --text-on-accent: #ffffff;
   --bg-primary: #f3f5f8;
   --bg-secondary: #ffffff;
@@ -46,6 +48,28 @@ html[data-career-frame] {
   --panel-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
   --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 2px 8px rgba(16, 24, 40, 0.04);
   --depth-shadow: 0 20px 48px rgba(16, 24, 40, 0.14);
+  /* Complete design-standard tokens so embedded shared components (such as the Jarvis concierge window) match Career. */
+  --ds-page: #f3f5f8;
+  --ds-canvas: #f3f5f8;
+  --ds-surface: #ffffff;
+  --ds-surface-2: #f7f9fc;
+  --ds-surface-3: #e9edf3;
+  --ds-ink: #0f1b2d;
+  --ds-ink-2: #3c4a5e;
+  --ds-ink-3: #5b6b80;
+  --ds-hairline: #dbe2ea;
+  --ds-edge: #dbe2ea;
+  --ds-line-control: #c2ccd9;
+  --ds-accent: #0f5f73;
+  --ds-accent-ink: #0f5f73;
+  --ds-on-accent: #ffffff;
+  --ds-focus: #0f5f73;
+  --ds-ok: #067647;
+  --ds-warn: #b54708;
+  --ds-bad: #b42318;
+  --ds-info: #175cd3;
+  --ds-bar: rgba(255, 255, 255, 0.88);
+  --ds-bar-filter: blur(18px) saturate(160%);
   /* The frame's own measures. --cf-top is the height of everything the frame pins to the top of the window (the bar,
      and the section row when there is one); --cf-bottom is the phone bar. career-frame.js keeps both true. */
   --cf-bar: 60px;
@@ -59,7 +83,8 @@ html[data-career-frame] {
   --cf-soft: color-mix(in srgb, var(--accent-primary) 12%, #ffffff);
   color-scheme: light;
 }
-html[data-career-frame], html[data-career-frame] body { background-color: var(--bg-primary); color: var(--text-primary); }
+html[data-career-frame], html[data-career-frame] body,
+html[data-career-frame][data-theme], html[data-career-frame][data-theme] body { background-color: var(--bg-primary); color: var(--text-primary); }
 
 /* ── 2. Top bar ──────────────────────────────────────────────────────────── */
 .cf-topbar {
@@ -144,7 +169,7 @@ html[data-career-frame] #queueChoices { max-height: calc(100dvh - 260px - var(--
 /* ── 5. Phone ────────────────────────────────────────────────────────────────
    One top bar of 56px (brand, the count chip, the menu) and a bottom bar of Home, Search, Job Board, Resume and More. */
 @media (max-width: 720px) {
-  html[data-career-frame] { --cf-bar: 56px; }
+  html[data-career-frame], html[data-career-frame][data-theme] { --cf-bar: 56px; }
   .cf-topbar { gap: 8px; padding: 0 8px 0 12px; }
   .cf-brand { font-size: 15px; gap: 8px; min-width: 0; overflow: hidden; }
   .cf-brand span { overflow: hidden; text-overflow: ellipsis; }
@@ -220,4 +245,76 @@ html[data-career-concierge=open] .cf-change-bar { left: calc(50% - 170px); }
 @media (max-width: 800px) { html[data-career-concierge=open] .cf-change-bar { left: 50%; } }
 @media (prefers-reduced-motion: no-preference) {
   .cf-topbar nav a, .cf-more > summary, .cf-subnav a { transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease; }
+}
+
+/* ── 7. Concierge chat window (iframe.jarvis-chat-frame) ───────────────────── */
+html[data-career-frame="concierge"] body.jarvis-chat {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+html[data-career-frame="concierge"] .jarvis-chat .jc-header {
+  background: var(--ds-bar);
+  backdrop-filter: var(--ds-bar-filter);
+  -webkit-backdrop-filter: var(--ds-bar-filter);
+  border-bottom: 1px solid var(--cf-line);
+}
+html[data-career-frame="concierge"] .jarvis-chat .jc-name { color: var(--cf-ink); font-weight: 700; letter-spacing: -0.01em; }
+html[data-career-frame="concierge"] .jarvis-chat .jc-title { color: var(--cf-ink-2); }
+html[data-career-frame="concierge"] .jarvis-chat .jc-icon { color: var(--cf-ink-2); }
+html[data-career-frame="concierge"] .jarvis-chat .jc-icon:hover,
+html[data-career-frame="concierge"] .jarvis-chat .jc-icon[aria-expanded="true"] { background: var(--cf-wash); color: var(--cf-accent); }
+html[data-career-frame="concierge"] .jarvis-chat .jc-concierge-help { color: var(--cf-ink-2); }
+html[data-career-frame="concierge"] .jarvis-chat .chip {
+  background: var(--cf-wash);
+  border-color: color-mix(in srgb, var(--cf-accent) 24%, var(--cf-line));
+  color: var(--cf-accent);
+  font-weight: 600;
+}
+html[data-career-frame="concierge"] .jarvis-chat .chip:hover {
+  background: var(--cf-soft);
+  border-color: var(--cf-accent);
+  color: var(--cf-ink);
+}
+html[data-career-frame="concierge"] .jarvis-chat #convo .msg.user {
+  background: var(--cf-soft);
+  border-color: color-mix(in srgb, var(--cf-accent) 22%, transparent);
+  color: var(--cf-ink);
+}
+html[data-career-frame="concierge"] .jarvis-chat .jc-composer {
+  background: var(--bg-secondary);
+  border: 1px solid var(--cf-line);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+html[data-career-frame="concierge"] .jarvis-chat .jc-composer:focus-within {
+  border-color: var(--cf-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cf-accent) 14%, transparent);
+}
+html[data-career-frame="concierge"] .jarvis-chat .typer button {
+  background: var(--cf-accent);
+  border-color: var(--cf-accent);
+  color: var(--text-on-accent);
+}
+html[data-career-frame="concierge"] .jarvis-chat .typer button:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+html[data-career-frame="concierge"] .jarvis-chat .jc-history,
+html[data-career-frame="concierge"] .jarvis-chat .jc-tools {
+  background: var(--bg-secondary);
+  border-color: var(--cf-line);
+}
+html[data-career-frame="concierge"] .jarvis-chat .jpt-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--cf-line);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-career-frame="concierge"] .jarvis-chat .jc-header {
+    background: var(--bg-secondary);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

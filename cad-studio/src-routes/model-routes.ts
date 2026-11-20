@@ -24,6 +24,9 @@
  *                     |                             | and Apple USDZ mesh artifacts from each built revision's STL
  *                     |                             | alongside STEP, STL, hidden-line SVGs and the kernel report
  *                     |                             | (RP-CAD-03, RP-CAD-04).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.2 (BACKLOG B3): add caller-scoped GET /artifacts (ADR-139
+ *                     |                             | artifacts.provides) listing built revision STL/STEP/3MF/OBJ
+ *                     |                             | outputs for the shared picker and Scan to Print handoff.
  */
 
 import fs from 'node:fs';
@@ -55,6 +58,50 @@ const DERIVED_MESH_TYPES: Readonly<Record<string, string>> = Object.freeze({
   glb: 'model/gltf-binary',
   usdz: 'model/vnd.usdz+zip',
 });
+
+const ARTIFACTS_PAGE_SIZE = 100;
+const MAX_CURSOR_LEN = 4096;
+
+interface ArtifactListItem {
+  name: string;
+  type: string;
+  size?: number;
+  source: string;
+}
+
+function parseArtifactCursor(raw: unknown): number {
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const text = String(raw);
+  if (text.length > MAX_CURSOR_LEN) throw new RangeError('cursor exceeds maximum length');
+  try {
+    const parsed = JSON.parse(Buffer.from(text, 'base64url').toString('utf8')) as { offset?: unknown };
+    if (!Number.isInteger(parsed?.offset) || (parsed.offset as number) < 0) throw new RangeError('invalid cursor offset');
+    return parsed.offset as number;
+  } catch {
+    throw new RangeError('invalid cursor');
+  }
+}
+
+function modelArtifactItems(dataRoot: string, sub: string, model: ModelRow): ArtifactListItem[] {
+  if (model.revision < 1) return [];
+  const revDir = revisionDir(dataRoot, sub, model.model_id, model.revision);
+  const stlFile = artifactPath(revDir, 'stl');
+  if (!fs.existsSync(stlFile)) return [];
+  const safeBase = model.title.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'model';
+  const stem = `${safeBase}-r${model.revision}`;
+  const id = encodeURIComponent(model.model_id);
+  const q = `?revision=${model.revision}`;
+  const items: ArtifactListItem[] = [
+    { name: `${stem}.stl`, type: 'model/stl', size: fs.statSync(stlFile).size, source: `${BASE}/models/${id}/artifacts/stl${q}` },
+    { name: `${stem}.3mf`, type: 'model/3mf', source: `${BASE}/models/${id}/artifacts/3mf${q}` },
+    { name: `${stem}.obj`, type: 'model/obj', source: `${BASE}/models/${id}/artifacts/obj${q}` },
+  ];
+  const stepFile = artifactPath(revDir, 'step');
+  if (fs.existsSync(stepFile)) {
+    items.push({ name: `${stem}.step`, type: 'model/step', size: fs.statSync(stepFile).size, source: `${BASE}/models/${id}/artifacts/step${q}` });
+  }
+  return items;
+}
 
 /** @description The model as the API returns it (a mesh base never carries its bytes). */
 export function publicModel(model: ModelRow): Record<string, unknown> {
@@ -325,6 +372,24 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
       answer(res, built.model, built.build);
     } catch (error) {
       if (!refuse(res, error)) { logger.error({ err: error, modelId: model.model_id }, 'Mesh base upload failed'); res.status(500).json({ error: 'mesh_failed' }); }
+    }
+  });
+
+  router.get('/artifacts', async (req: ModelRequest, res: Response) => {
+    try {
+      const offset = parseArtifactCursor(req.query?.cursor);
+      const models = await listModels(deps.pool, req.cadSub as string);
+      const all: ArtifactListItem[] = [];
+      for (const model of models) all.push(...modelArtifactItems(deps.dataRoot, req.cadSub as string, model));
+      const items = all.slice(offset, offset + ARTIFACTS_PAGE_SIZE);
+      const nextOffset = offset + items.length;
+      const nextCursor = nextOffset < all.length ? Buffer.from(JSON.stringify({ offset: nextOffset }), 'utf8').toString('base64url') : null;
+      res.setHeader('Cache-Control', 'private, no-store');
+      res.json({ items, folders: [], nextCursor });
+    } catch (error) {
+      if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_cursor', message: error.message }); return; }
+      logger.error({ err: error }, 'Artifact listing failed');
+      res.status(500).json({ error: 'artifacts_list_failed' });
     }
   });
 

@@ -4,7 +4,7 @@
   "reportFile": "hexapod-walk-shape-seed1.json",
   "policyFile": "hexapod-walk-ppo-shape-seed1.zip",
   "policySha256": "d15f6a7d2048e7cebfbe4eb1de4287108509c29fbf62a3dd1cec13bfbd90f027",
-  "buildHash": "5d9e70684d9bd851ccb161754fbb5ba4e0026467f92b184a57a02995300b3b11",
+  "buildHash": "21e15d21e887fd19cdb896907540e7b697ffd7349081b9443e149d294c333e81",
   "mode": "shape",
   "jump": "legs-hop",
   "certifiedTask": "walk",
@@ -180,6 +180,6 @@
       "peakNm": 2.942
     }
   },
-  "certifiedAt": "2026-10-31T00:16:53Z",
-  "wallSeconds": 6.82
+  "certifiedAt": "2026-11-19T08:21:52Z",
+  "wallSeconds": 8.31
 }

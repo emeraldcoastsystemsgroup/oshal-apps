@@ -14,6 +14,7 @@
  *                     |                             | refusals the kind implies each name the rule they broke, and
  *                     |                             | `disarm` joins `e-stop` as an act that removes authority and
  *                     |                             | therefore never waits for a confirm.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: validate optional `senseRates` on capability manifests (accepted when valid, refused on undeclared sense or non-positive rate).
  */
 'use strict';
 const test = require('node:test');
@@ -133,4 +134,18 @@ test('the prop kind is vocabulary only — learning the word does not mint a nod
     () => E.validateHeartbeat({ nodeId: 'prop-skull', kind: 'prop', endpointUrl: 'http://127.0.0.1:9000', protocol: 1, engine: 'animatronics', version: '0.2.0', buildHash: 'x', sessions: 0 }),
     /kind must be "plant" or "drone"/,
   );
+});
+
+test('B3: optional senseRates on capability manifests validate fail-closed', () => {
+  const ok = E.validateManifest(E.SPIDER_18_MANIFEST);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.manifest.senseRates.lidar, 10);
+  assert.equal(ok.manifest.senseRates.imu, 100);
+  assert.equal(ok.manifest.senseRates['joint-state'], 50);
+  const badKey = E.validateManifest({ ...E.SPIDER_18_MANIFEST, senseRates: { camera: 30 } });
+  assert.equal(badKey.ok, false);
+  assert.ok(badKey.issues.some((i) => /senseRates\.camera is not listed in senses/.test(i)));
+  const badVal = E.validateManifest({ ...E.SPIDER_18_MANIFEST, senseRates: { lidar: 0 } });
+  assert.equal(badVal.ok, false);
+  assert.ok(badVal.issues.some((i) => /senseRates\.lidar must be a positive finite number/.test(i)));
 });

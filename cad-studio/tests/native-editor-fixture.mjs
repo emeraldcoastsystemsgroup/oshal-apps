@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Disposable PostgreSQL owner role plus isolated local OCCT/Scene engine image and actual package HTTP/assets; fixture identity is explicit.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve empty /api/artifacts/send-to.js stub for ADR-139 script tag in standalone fixture runs.
  */
 import {createRequire} from 'node:module';
 import Module from 'node:module';
@@ -32,7 +33,7 @@ export async function startNativeEditorFixture({appId='cad-studio'}={}){
   const routes=packageRoutes(appId),make=routes[appId==='cad-studio'?'createCadStudioRoutes':'createSceneStudioRoutes'],app=express(),requests=[];
   app.use((req,res,next)=>{req.oshalCallerSub=req.header('x-fixture-user')||'alice';requests.push({method:req.method,path:req.path});next();});
   app.use(express.json({limit:'12mb'}));app.use('/api/'+appId,make({pool,appPackageDir:join(repository,appId)},{dataRoot:root,env:{[appId==='cad-studio'?'CAD_STUDIO_ENGINE_ADDR':'SCENE_STUDIO_ENGINE_ADDR']:'127.0.0.1:'+port},engineBuild:engineHash,rebuildTimeoutMs:90000}));
-  const platform=process.env.OSHAL_PLATFORM_ROOT;if(!platform)throw new Error('Explicit kernel OSHAL_PLATFORM_ROOT required');app.use('/shared/ui',express.static(join(platform,'src/shared/ui')));app.use('/cockpit/css/themes',express.static(join(platform,'src/pages/cockpit/css/themes')));
+  const platform=process.env.OSHAL_PLATFORM_ROOT;if(!platform)throw new Error('Explicit kernel OSHAL_PLATFORM_ROOT required');app.use('/shared/ui',express.static(join(platform,'src/shared/ui')));app.use('/cockpit/css/themes',express.static(join(platform,'src/pages/cockpit/css/themes')));app.get('/api/artifacts/send-to.js',(_req,res)=>res.type('application/javascript').send(''));
   if(process.env.EDITOR_FIXTURE_DEBUG)process.stderr.write('native routes ready\n');server=app.listen(0,'127.0.0.1');await new Promise(ok=>server.once('listening',ok));return{origin:'http://127.0.0.1:'+server.address().port,app,pool,requests,container,close};
  }catch(error){await close();throw error;}
 }

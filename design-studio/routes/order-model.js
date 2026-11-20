@@ -8,6 +8,7 @@ exports.validateOrder = validateOrder;
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D3 as built (0.4.0): the closed vocabulary of an engine order. The partner names an action and its input; nothing here carries a URL, so the page can only ever call the fixed engine routes it maps each action to, with the person's own session.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B10: cad-edit accepts a bounded batched `features` list (bare feature objects or per-item add/update/remove entries) while preserving single-feature input.
  */
 const phase_model_1 = require("./phase-model");
 /** @description What the partner may order. */
@@ -21,6 +22,7 @@ exports.READ_TARGETS = Object.freeze({
 /** @description The poster buttons an order may press: every one measures or makes, none closes a phase, ticks the bench or sends to a printer. */
 exports.PRESSABLE = Object.freeze(['Create the parts in CAD Studio', 'Build the plant', 'Run the baselines', 'Train the policy', 'Certify', 'Make the print set']);
 const CAD_EDITS = ['add', 'update', 'remove'];
+const CAD_EDIT_BATCH_CAP = 25;
 const CIRCUIT_EDITS = ['add_part', 'update_part', 'remove_part', 'connect', 'disconnect', 'run'];
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const NAME_CAP = 200;
@@ -44,11 +46,40 @@ function cadCreate(i) {
         refuse('features is a list', 'input.features');
     return { name: nameOf(i.name, 'input.name'), base: i.base, features: i.features ?? [] };
 }
+function cadEditStep(raw, prefix) {
+    if (!isObject(raw))
+        refuse('each entry in features must be an object', prefix);
+    const item = raw;
+    if (item.op === undefined)
+        return { op: 'add', feature: item };
+    const op = String(item.op);
+    if (!CAD_EDITS.includes(op))
+        refuse(`op is one of ${CAD_EDITS.join(', ')}`, `${prefix}.op`);
+    const step = { op };
+    if (op !== 'add')
+        step.featureId = idOf(item.featureId, `${prefix}.featureId`);
+    if (op !== 'remove') {
+        if (!isObject(item.feature))
+            refuse('feature is the feature, as cad-contract states it', `${prefix}.feature`);
+        step.feature = item.feature;
+    }
+    return step;
+}
 function cadEdit(i) {
+    const modelId = idOf(i.modelId, 'input.modelId');
+    if (i.features !== undefined) {
+        if (!Array.isArray(i.features) || i.features.length === 0 || i.features.length > CAD_EDIT_BATCH_CAP) {
+            refuse(`features is a non-empty list of at most ${CAD_EDIT_BATCH_CAP} edits`, 'input.features');
+        }
+        if (i.op !== undefined && String(i.op) !== 'add')
+            refuse('batched cad-edit omits op or sets op to add', 'input.op');
+        const features = i.features.map((entry, idx) => cadEditStep(entry, `input.features[${idx}]`));
+        return { modelId, features };
+    }
     const op = String(i.op ?? '');
     if (!CAD_EDITS.includes(op))
         refuse(`op is one of ${CAD_EDITS.join(', ')}`, 'input.op');
-    const out = { modelId: idOf(i.modelId, 'input.modelId'), op };
+    const out = { modelId, op };
     if (op !== 'add')
         out.featureId = idOf(i.featureId, 'input.featureId');
     if (op !== 'remove') {

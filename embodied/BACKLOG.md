@@ -412,7 +412,9 @@ pytest pin added to the engine requirements and image, or the same dependency-fr
 `engine-plant-python` case's `expected` names that command instead of one that cannot run, and a run
 of it is recorded here with its pass count.
 
-## B26 — The medium-property literals still in this package
+## B26 — The medium-property literals still in this package — DONE 0.20.4
+
+**Done (0.20.4):** `engine/base/stability.ts` (`tipBudget` takes `medium`, defaulting to `air`; `G` reads `EARTH_SURFACE_GRAVITY_MPS2`), `engine/design/propulsion.ts` (`sizeHover` takes `medium`, validates `MOMENTUM_HOVER_MODEL` valid in `air` only so `vacuum` and `seawater` refuse by name, and reads gravity + `airDensity` from the medium), and `engine/physics/arm-mjcf.ts` / `arm-room-mjcf.ts` (`armPreamble(medium)` validates `RIGID_BODY_PLANT` and emits `<option gravity="...">` from `medium.gravityMps2`). All four code literals are eliminated; only the prose provenance citation in `hull-mjcf.ts` remains in `KNOWN` in `tests/engine-medium.test.js`, and the shipped arm XML fixtures stay byte-identical.
 
 ADR-160 S1 put the plant's gravity and the three media behind one committed data row
 (`src-routes/engine/medium/medium-properties.json`). Four medium-property literals in package code
@@ -511,18 +513,11 @@ closes; this entry closes with it.
 
 ## The assistant cannot call its route-backed tools yet (2026-10-06)
 
-Since core #1101 and #1103 (2026-10-06), `embodied-operator` answers the deployment operator's chat on the
-operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
-Its 9 tools are route-backed (`executorType: api`): `embodied-capabilities`, `embodied-state`, `embodied-physics-status`, `embodied-physics-reports`, `embodied-build-drone`, `embodied-world`, `embodied-label`, `embodied-tasks`, `embodied-command-log`.
-Core documents that a route-backed tool answers 401 when a bot calls it (core
-`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
-that before 0.2.0. No tool call from this package's assistant has been run yet.
+**CLOSED 2026-11-19 (version 0.20.5).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.20.5` declares explicit `posture: inline` on `embodied-operator` alongside `chatBot: embodied-operator`, adds explicit object `inputSchema` declarations to all read-only tools, lists `embodied-capabilities`, `embodied-physics-status`, and `embodied-physics-reports` in `personas/embodied-operator.yaml`, and guards manifest, persona, and route execution in `tests/engine-bot-tools-contract.test.js`.
 
-- **Done when:** every tool the assistant is meant to call is a package tool
-  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
-  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
-  turn as the operator runs a tool and its result is checked against the app's own state. Scene
-  Studio 0.2.0 is the worked example.
+## Future: ADR-149 `authorization.yaml` catalog adoption (coordinated migration)
+
+Adopting an ADR-149 `authorization.yaml` catalog + `builtinKey: package` tools requires coordinated operator role migration so active production `@app-admin` role assignments for `embodied` are not locked out.
 
 ## B29 — The spider-18 (ADR-202): the fixtures carry the design's masses (0.19.1) and the target is re-based on the parts model (0.19.2) — DONE
 
@@ -674,7 +669,9 @@ reads 1.87 N·m on R1-tibia and is not certified; the design, the servo row and 
 here: the CPG as the serial body's fallback runs above the rating — a bench measurement of the real servo's temperature
 under the CPG decides whether that matters before the first print.
 
-## B32 — The plant's sensor-address cast fails under NumPy 2.5 (found 2026-10-30)
+## B32 — The plant's sensor-address cast fails under NumPy 2.5 — DONE 0.20.4
+
+**Done (0.20.4):** `engine/embodied_hexapod.py` reads `int(m.sensor("gyro").adr[0])` and `int(m.sensor("accel").adr[0])`; guarded by `test_b32_sensor_address_scalar_cast_is_numpy_2_5_safe` in `engine/tests/test_hexapod.py` (running `HexapodPlant` with `DeprecationWarning` promoted to error). The shipped gait (`engine/policies/hexapod-walk-ppo-shape-seed1.zip`) was re-certified under the new engine build hash (`1631` control steps, `0` refusals, `ok: true`, `policyBeatsBaseline: true`) and passes `engine/tests/test_shipped_policies.py`.
 
 `engine/embodied_hexapod.py` reads the IMU sensor addresses as `int(m.sensor("gyro").adr)` and
 `int(m.sensor("accel").adr)`. MuJoCo returns a one-element array there; NumPy 2.3 (the engine container) only warns on the
@@ -728,3 +725,7 @@ The certified gait and its NumPy runtime run in simulation and on fake and seria
 The package trains and gates policies in its engine: the spider's gait took 40 minutes to about 2 hours a run, not weeks. The modular brain is a separate R&D project and is not part of any package; the only seam is the open body contract `GET /api/design-studio/projects/{id}/body`. A brain raised on a designed body is that project's decision. No claim about training duration or competence on this body has evidence behind it.
 
 **Done when:** the owner decides whether a learning brain is a goal of this chain; if so, a task beyond walking is defined with its gate here, trained from the body contract, and measured on the plant.
+
+## B36 — Publish node `tickHz` and sensor rates on `/physics/status`, `/capabilities`, and `/build/hexapod` (Design Studio B3) — DONE 0.20.6
+
+**Done (0.20.6):** `parts-catalog.json` / `parts-catalog.ts` now carry validated nominal datasheet `rateHz` on owned sensor rows (`ld19-lidar`: 10 Hz, `bno055-imu`: 100 Hz); `hexapod-spec.ts` exports `SPIDER_18_TICK_HZ = 50`; `hexapod-design.ts` propagates `rateHz` onto `bought` rows and publishes `senses[]` (`lidar: 10`, `imu: 100`, `joints: 50`); `capability-manifest.ts` validates optional `senseRates` fail-closed and `SPIDER_18_MANIFEST` is published in `NODE_MANIFESTS` on `GET /capabilities`; `node-fleet.ts` accepts optional `tickHz` and `senses`/`senseRates` on heartbeats (capturing the `tickHz` `embodied_hexapod_node.py` already sends in `hello()`) and publishes `tickHz` and `senses[]` on `GET /api/embodied/physics/status` `nodes[]` without modifying any `ENGINE_RUNTIME_FILES` (certified gait `buildHash` preserved). Evidence: `tests/engine-bot-tools-contract.test.js`, `tests/engine-hexapod-node.test.js`, `tests/engine-hexapod-design.test.js`, `tests/engine-manifest.test.js`, `tests/routes.core.test.js`.

@@ -14,6 +14,9 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: add 004-share-links.sql + native/004-share-links.sql for caller-scoped revocable read-only 3D share links, GLB/USDZ exports, 3D crop/rotate/measure tools, and AR preview.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: expose original-owned saved calibration read/update tools and additive provenance migrations without reconstruct or print side effects.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Release 0.10.1 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: declare artifacts.provides (GET /api/scan-to-print/artifacts for STL/SVG/OBJ picker exchange, B4), expose printable orientation-cube markers (GET /markers + UI download, B9), depth-map upload UI for POST /jobs/:id/depth (B1), symmetry completion option (B11), and nozzle/layer-height/perimeter print-check settings (B13).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: print progress read-back across OctoPrint, Moonraker, PrusaLink, and Bambu attached to latest submissions on read and rendered as `printing 43 %` (B5), bed-contact band base sealing and LiDAR tab exposure for one-sided point-cloud scans (B7), and automatic square-on video frame suggestions on video ingest with one-click confirmation (B12).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4 (BACKLOG B3): deterministic high-contrast square fiducial detector (zero ML model), per-view fiducial scale anchor in joint log-space registration emitting `fiducial` in `dimensionSources`, optional `fiducialMm` setting and `#fiducial-mm` UI input, and `engine-fiducial` test suite.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
 #
@@ -97,7 +100,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.10.1
+version: 0.10.4
 status: active
 scope: person
 
@@ -125,9 +128,13 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# ADR-139 — "Send to…" destination: an image from anywhere in the swarm opens this app with the
-# photo ready to add to a job.
+# ADR-139 — "Send to…" destination and artifact-picker source (B4): images arrive here to start a
+# scan, and reconstructed STL/SVG/OBJ outputs are offered to other apps through the picker.
 artifacts:
+  provides:
+    - label: Scan to Print
+      types: [model/stl, image/svg+xml, model/obj]
+      list: /api/scan-to-print/artifacts
   accepts:
     - id: photo
       label: Scan in Scan to Print

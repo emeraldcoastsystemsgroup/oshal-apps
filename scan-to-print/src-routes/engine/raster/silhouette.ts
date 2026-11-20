@@ -12,9 +12,12 @@
  *                     |                             | distance histogram, so the same photo always yields the same
  *                     |                             | mask — there is no model, no seed and no randomness anywhere in
  *                     |                             | this file, which is the property the reconstruction inherits.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional `excludeBoxes` (BACKLOG B3): allow callers to mask out
+ *                     |                             | detected fiducial squares before picking the largest foreground
+ *                     |                             | component so a small object beside a fiducial is never eclipsed.
  */
 
-import { type Mask, type MaskStats, createMask, maskStats } from './raster-types';
+import { type Mask, type MaskStats, type PixelBox, createMask, maskStats } from './raster-types';
 import type { Raster } from './raster-types';
 
 /** @description Knobs for {@link extractSilhouette}. Defaults suit a phone photo on a plain surface. */
@@ -27,6 +30,8 @@ export interface SilhouetteOptions {
   morphologyRadius?: number;
   /** Fill enclosed background pockets — a silhouette is a solid outline. Default true. */
   fillHoles?: boolean;
+  /** Pixel boxes to clear before selecting the largest component (e.g. a detected fiducial square). */
+  excludeBoxes?: PixelBox[];
 }
 
 /** @description What the extractor decided and why, so the UI can show the person the evidence. */
@@ -287,6 +292,15 @@ export function extractSilhouette(raster: Raster, options: SilhouetteOptions = {
   const threshold = Math.max(minThreshold, otsuThreshold(distances));
   let mask = createMask(raster.width, raster.height);
   for (let i = 0; i < distances.length; i += 1) mask.data[i] = distances[i] > threshold ? 1 : 0;
+  if (options.excludeBoxes?.length) {
+    for (const box of options.excludeBoxes) {
+      const x0 = Math.max(0, box.minX - 1);
+      const x1 = Math.min(mask.width - 1, box.maxX + 1);
+      const y0 = Math.max(0, box.minY - 1);
+      const y1 = Math.min(mask.height - 1, box.maxY + 1);
+      for (let y = y0; y <= y1; y += 1) for (let x = x0; x <= x1; x += 1) mask.data[y * mask.width + x] = 0;
+    }
+  }
   if (radius > 0) mask = openClose(mask, radius);
   mask = largestComponent(mask);
   if (options.fillHoles ?? true) mask = fillHoles(mask);

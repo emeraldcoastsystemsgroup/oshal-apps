@@ -7,6 +7,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bind calibration read/edit tools and routes to existing scan.read/scan.edit; print.send remains independent.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: a narrow `scanner` role (app.open, scan.read, scan.edit, scan.source.change) so a person can take photos and build the model without registering a printer address or sending a print. The trial's visitor seats hold it (Roger, 2026-11-06: no dead ends; approved by @release-coordinator). maker and source-editor are unchanged.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: bind 3D mesh crop/transform/undo/reset and share-link creation/revocation to scan.edit, mesh-state and share listing to scan.read, and scan-to-print-tools.js plus the read-only shared viewer/artifacts to app.open.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: bind GET /artifacts (B4 picker source) and GET /markers (B9 printable orientation-cube faces) to scan.read.
 #
 # One resource, `scan`, with `own` scope only. Ownership stays where it was: every store statement filters on
 # owner_sub (src-routes/job-store.ts), every table FORCEs row security on the owner (migrations/001-scan-to-print.sql),
@@ -61,6 +62,8 @@ bindings:
     - { id: app-script-camera, method: GET, path: /assets/scan-to-print-camera.js, allOf: [app.open] }
     - { id: app-script-tools, method: GET, path: /assets/scan-to-print-tools.js, allOf: [app.open] }
     - { id: capabilities, method: GET, path: /capabilities, allOf: [scan.read] }
+    - { id: list-artifacts, method: GET, path: /artifacts, allOf: [scan.read] }
+    - { id: printable-markers, method: GET, path: /markers, allOf: [scan.read] }
     - { id: list-jobs, method: GET, path: /jobs, allOf: [scan.read] }
     - { id: create-job, method: POST, path: /jobs, allOf: [scan.source.change] }
     - { id: read-calibration, method: GET, path: /jobs/:jobId/calibration, allOf: [scan.read] }

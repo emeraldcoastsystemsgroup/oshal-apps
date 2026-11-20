@@ -37,6 +37,9 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.8 (UX audit 2026-11-06): one primary on a product page (the next open phase); a phase no engine measures is closed with Mark done by hand, as a secondary; a failed or absent engine read is said in words with what to do, never the route path. Guard: tests/ux-words.test.js.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.9 (UX audit 2026-11-06): add one-line phase progress stepper above product posters, move process/closure prose into Help dialog, put Settings and Help in header overflow menu, hide duplicate Reload when framed in the cockpit shell, sort products newest-first, and pin New product to the bottom right on Products.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.10 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.11: BACKLOG B10 (batched `features: [...]` in `cad-edit` orders while preserving single-feature input), B13 (actionable HTTP 403 missing-access / administrator role-requirement guidance), and B14 (pre-click engine container liveness diagnostics on Product and Settings).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.12: BACKLOG B9 (joint fit / interference clearance check in mm across CAD Studio part envelopes, pockets and bores; POST /projects/{id}/fit-check; blocking parts-complete and closure on interference; honest measured/unmeasured load strength reporting on the Design poster).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.13: BACKLOG B3 (record engine-published tickHz and sensor rateHz from embodied 0.20.6 in controller/sensors reads so GET /projects/{id}/body publishes plant.tickS and senses[].rateHz with missing: [] for a closed spider) and BACKLOG B15 (honest reasoned-only closure metadata/evidence/UI banners naming that no engine measured the phase, plus named Pi bay thermal solve option in the brief).
 name: design-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -61,7 +64,7 @@ description: >-
   engine's evidence line and the artifact revision. The design partner on the
   right rail works through the chain with you. The spider is the first product;
   a lifting machine is the first whose plant is generated from its own design.
-version: 0.4.10
+version: 0.4.13
 status: active
 scope: person
 # The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel
@@ -272,7 +275,7 @@ tools:
       {modelId}, circuit-contract, circuit-examples, circuit-drivers, circuit-designs, circuit-design {designId},
       motor-catalog, physics-status, physics-reports, printers. action cad-create, input {name, base, features} -
       builds a part on the CAD kernel and binds it to Design; the reply's design.partId is the id design-set-mechanism names it by. action cad-edit, input {modelId, op add|update|remove,
-      featureId, feature}. action circuit-create, input {example} or {title, parts, wires} - solves it and binds it to
+      featureId, feature} or {modelId, features:[...]} to apply up to 25 feature edits in one order. action circuit-create, input {example} or {title, parts, wires} - solves it and binds it to
       Electrical. action circuit-edit, input {designId, op add_part|update_part|remove_part|connect|disconnect|run,
       partId, wireId, body}. action press, input {phase, button} - Create the parts in CAD Studio, Build the plant, Run
       the baselines, Train the policy, Certify or Make the print set. The reply is the engine's own answer.

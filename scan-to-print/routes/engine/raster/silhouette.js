@@ -13,6 +13,9 @@
  *                     |                             | distance histogram, so the same photo always yields the same
  *                     |                             | mask — there is no model, no seed and no randomness anywhere in
  *                     |                             | this file, which is the property the reconstruction inherits.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional `excludeBoxes` (BACKLOG B3): allow callers to mask out
+ *                     |                             | detected fiducial squares before picking the largest foreground
+ *                     |                             | component so a small object beside a fiducial is never eclipsed.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.estimateBackground = estimateBackground;
@@ -300,6 +303,17 @@ function extractSilhouette(raster, options = {}) {
     let mask = (0, raster_types_1.createMask)(raster.width, raster.height);
     for (let i = 0; i < distances.length; i += 1)
         mask.data[i] = distances[i] > threshold ? 1 : 0;
+    if (options.excludeBoxes?.length) {
+        for (const box of options.excludeBoxes) {
+            const x0 = Math.max(0, box.minX - 1);
+            const x1 = Math.min(mask.width - 1, box.maxX + 1);
+            const y0 = Math.max(0, box.minY - 1);
+            const y1 = Math.min(mask.height - 1, box.maxY + 1);
+            for (let y = y0; y <= y1; y += 1)
+                for (let x = x0; x <= x1; x += 1)
+                    mask.data[y * mask.width + x] = 0;
+        }
+    }
     if (radius > 0)
         mask = openClose(mask, radius);
     mask = largestComponent(mask);

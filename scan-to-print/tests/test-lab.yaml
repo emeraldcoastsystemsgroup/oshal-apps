@@ -36,6 +36,9 @@
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the phone capture case also proves the measure step before Make 3D model, the model to Download STL, the reload reopen, the self-closing Objects sheet and the photo-removal question.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0: register surface-design-standard (the design standard's contract, one primary, no native dialog, the steps and capture modes, and the six planned controls RP-SCN-01 to -06 in their places); surface-printers now proves the Printers sheet; phone-capture-browser reads Take a photo and asks in the page.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: register rp-mesh-formats and rp-viewer-share-ar proving 3D crop, lay-flat/rotation, raycast measurement, GLB/USDZ binary round-trips, forced-RLS revocable share links, and AR QR/Quick Look/Scene Viewer handoff (RP-SCN-01..06).
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: register quick-wins-b1-b4-b9-b11-b13 proving depth-map upload UI, artifacts.provides picker listing, printable face markers download, symmetry completion, and print-check bounds.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: register wave-c2-b5-b7-b12 proving live print progress read-back across OctoPrint, Moonraker, PrusaLink, and Bambu (B5), one-sided dome/jittered-rim point-cloud base sealing with arch leak control and LiDAR tab placement (B7), and rotating-box video frame suggestion routes + one-click confirmation UI (B12).
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: register engine-fiducial proving deterministic square fiducial detection, scale-anchor registration within 1 voxel without ruler entry, `dimensionSources` reporting `fiducial`, and zero-false-positive negative controls (B3).
 version: 1
 cases:
   - id: package-readiness
@@ -1232,6 +1235,71 @@ cases:
     expected:
       - Share links enforce forced two-arm RLS, serve read-only 3D/AR artifacts while active, refuse foreign revocation, and return 410 once revoked.
       - Mesh crop persists updated extents and Undo restores the prior mesh; QR encoder emits valid SVG finder and data modules.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: quick-wins-b1-b4-b9-b11-b13
+    name: Depth upload UI, artifact picker source, printable face markers, symmetry, and print-check settings
+    purpose: Prove B1 depth-map upload UI controls/wiring, B4 artifacts.provides manifest + caller-scoped GET /artifacts pagination, B9 GET /markers printable 6-face SVG sheet and UI link, B11 symmetry parameter parsing/UI, and B13 nozzleMm/layerHeightMm/perimeters bounds/UI.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/quick-wins-b1-b4-b9-b11-b13.test.js
+    expected:
+      - GET /artifacts enforces caller scoping and cursor pagination; GET /markers serves a valid 6-face sheet or single face and rejects invalid views or sizes.
+      - parseSettings validates symmetry and nozzleMm/layerHeightMm/perimeters bounds; scan-to-print.html and scan-to-print-tools.js expose depth upload, markers download, symmetry, and print-check controls.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: wave-c2-b5-b7-b12
+    name: Print progress read-back (B5), one-sided LiDAR base sealing (B7), and video square-on frame suggestion (B12)
+    purpose: Prove live printer progress read-back attached to latest submissions on read and rendered as `printing 43 %` across OctoPrint, Moonraker, PrusaLink, and Bambu with bounded offline fallback, bed-contact band base sealing for one-sided dome and jittered-rim point clouds (preserving bed-touching arch leak controls), and deterministic rotating-box video frame suggestions with automatic one-click confirmation proposals.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/wave-c2-b5-b7-b12.test.js
+    expected:
+      - OctoPrint, Moonraker, PrusaLink, and Bambu status reads return rounded integer progress; GET /jobs/:id/submissions and GET /submissions attach bounded liveStatus to index 0 only; offline or hung printers degrade safely without stalling; surface renders `printing 43 %`.
+      - Open-bottom dome and 1-voxel jittered-rim scans close watertight with sealBase:true while a bed-touching arch still leaks; seal base sits directly in the LiDAR mode tab.
+      - Synthetic rotating-box video frames rank the three axis-aligned frames as top suggestions via GET /jobs/:id/frame-suggestions, and video upload surfaces proposals without auto-assigning before confirmation.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
+    installation: never
+  - id: engine-fiducial
+    name: Deterministic fiducial square detector and automatic scale anchor (B3)
+    purpose: Prove a deterministic high-contrast square fiducial detector (zero ML model) recovers pixel side length beside an object, anchors view registration scale within 1 voxel without manual ruler entry, emits `fiducial` in `dimensionSources` and drawing notes, isolates small objects via `excludeBoxes`, and produces zero false positives on plain objects or flat/clipped/ambiguous frames.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-fiducial.test.js
+    expected:
+      - Concentric fiducial square and orientation-cube markers beside a synthetic box recover 60 x 40 x 30 mm within 1 voxel with zero ruler dimensions and `dimensionSources` reporting `fiducial`.
+      - Solid dark objects, discs, flat frames, border-clipped squares, tiny markers, and dual ambiguous squares produce zero false positives and fall back cleanly to ruler scale.
+      - Printable fiducial SVG, `fiducialMm` route validation, and `#fiducial-mm` surface wiring hold.
     prerequisites:
       - runner:node-test
     sideEffects: none

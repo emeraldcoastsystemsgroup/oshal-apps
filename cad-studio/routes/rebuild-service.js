@@ -16,6 +16,9 @@
  *                     |                             | cancelRebuild stops it — the rebuild's own failure path then
  *                     |                             | records the cancel and keeps the last good revision. A
  *                     |                             | cancelled rebuild answers 409.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B5 (0.5.3): surface structured `budgetExceeded` entries
+ *                     |                             | on BuildOutcome whenever one or more features overrun
+ *                     |                             | settings.featureBudgetMs, naming featureId, index, and ms.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -142,8 +145,13 @@ async function runRebuild(deps, model, tag) {
             throw new engine_client_1.EngineFailure('engine_error', 'the model vanished during the rebuild');
         if (row.revision !== nextRevision)
             logger.warn({ modelId: model.model_id, expected: nextRevision, actual: row.revision }, 'revision drifted under the lock');
+        const budgetExceeded = (Array.isArray(result.features) ? result.features : [])
+            .filter((f) => f && f.code === 'budget_exceeded')
+            .map((f) => ({ featureId: typeof f.id === 'string' ? f.id : null, index: Number(f.index ?? 0), ms: Number(f.ms ?? 0), error: String(f.error ?? 'budget_exceeded') }));
+        if (budgetExceeded.length)
+            logger.warn({ modelId: model.model_id, budgetExceeded }, 'one or more features exceeded the per-feature timing budget');
         logger.info({ modelId: model.model_id, revision: row.revision, ms, features: model.features.length }, 'model rebuilt');
-        return { model: row, build: { ok: true, ms } };
+        return { model: row, build: { ok: true, ms, ...(budgetExceeded.length ? { budgetExceeded } : {}) } };
     }
     catch (error) {
         const failure = error instanceof engine_client_1.EngineFailure ? error : new engine_client_1.EngineFailure('engine_error', error instanceof Error ? error.message : String(error));

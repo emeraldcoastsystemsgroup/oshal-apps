@@ -12,7 +12,8 @@
     "jointDrive.bodyMm": "the case, length x width x height, mm",
     "jointDrive.splineOffsetMm": "case centre to the output axis along the length, mm. MEASURED on the servo in hand, not published in the vendor listings found: change it here before the pockets are printed",
     "jointDrive.hornDiscMm": "diameter of the disc horn supplied with the servo, mm. MEASURED on the servo in hand, not published: change it here before the hub recess is printed",
-    "bought": "the identity block only: a part the hexapod design reads by id; the figures are class figures and approximate 2026 street prices, never a measurement"
+    "bought": "the identity block only: a part the hexapod design reads by id; the figures are class figures and approximate 2026 street prices, never a measurement",
+    "rateHz": "nominal sensor scan or fusion output rate in Hz, class datasheet figure (carried on sensor rows in bought)"
   },
   "motors": [
     {
@@ -69,14 +70,16 @@
       "name": "LDRobot LD19 class 2-D LiDAR ring",
       "massG": 47,
       "approxUsd": 90,
-      "source": "the one eye the brief names, a 2-D ring in the nose (section 1.2): 47 g is the class figure, approximate 2026 street price, not a measurement or a quote for a unit in hand"
+      "rateHz": 10,
+      "source": "the one eye the brief names, a 2-D ring in the nose (section 1.2): 47 g is the class figure, 10 Hz typical scan rate (LD19 datasheet 5-13 Hz, 4500 pts/s at 450 pts/rev), approximate 2026 street price, not a measurement or a quote for a unit in hand"
     },
     {
       "id": "bno055-imu",
       "name": "BNO055 IMU breakout",
       "massG": 3,
       "approxUsd": 15,
-      "source": "the orientation sensor the inverted-walking rule reads (section 1.2 and 1.4): 3 g is the class figure, approximate 2026 street price, not a measurement or a quote for a unit in hand"
+      "rateHz": 100,
+      "source": "the orientation sensor the inverted-walking rule reads (section 1.2 and 1.4): 3 g is the class figure, 100 Hz NDOF fusion output rate (Bosch BNO055 datasheet), approximate 2026 street price, not a measurement or a quote for a unit in hand"
     },
     {
       "id": "bus-servo-adapter",

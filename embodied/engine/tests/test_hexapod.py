@@ -16,6 +16,7 @@ SEQ | AUTHOR                                    | DESCRIPTION
     |                                           | exactly the brief's keys; the bridge dispatches hexapod.* by op or
     |                                           | cmd and refuses jump by name on a model without a spring.
 2   | maintainer@emeraldcoastsystemsgroup.com   | B30: the gait-shape case - neutral is the gait exactly, a stride or swing scale moves only what it names.
+3   | maintainer@emeraldcoastsystemsgroup.com   | B32: assert HexapodPlant builds cleanly with DeprecationWarning as error (NumPy 2.5 scalar [0] cast).
 """
 from __future__ import annotations
 
@@ -245,6 +246,19 @@ def test_a_walk_episode_can_be_rolled_over_and_the_gait_carries_it_inverted() ->
     plain = HexapodWalkEnv("walk", "legs-hop", 3, recipe="shape", roll_fraction=0.0)
     plain.reset(seed=3)
     assert plain.flip_at is None
+
+
+def test_b32_sensor_address_scalar_cast_is_numpy_2_5_safe() -> None:
+    """B32: MuJoCo exposes sensor.adr as a 1-element ndarray; int(arr) raises DeprecationWarning in NumPy 2.3 and TypeError in NumPy 2.5.
+    Building HexapodPlant with DeprecationWarning promoted to an error must succeed and read exact int addresses."""
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        plant = _plant()
+    assert isinstance(plant.gyro_adr, int) and plant.gyro_adr >= 0
+    assert isinstance(plant.accel_adr, int) and plant.accel_adr >= 0
+    assert plant.gyro_adr == int(plant.model.sensor("gyro").adr[0])
+    assert plant.accel_adr == int(plant.model.sensor("accel").adr[0])
 
 
 if __name__ == "__main__":  # the shipped engine image has no pytest; see README "Build and test"

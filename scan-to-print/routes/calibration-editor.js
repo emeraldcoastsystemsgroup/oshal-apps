@@ -1,5 +1,3 @@
-/** CHANGE LOG: 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Recheck the exact owned source-change permission without granting processing or worker configuration. */
-/** CHANGE LOG: 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | Compiled from src-routes/calibration-editor.ts: the projection carries canReconstruct (scan.edit), so the page offers model building only to a seat the kernel admits for it. */
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -121,10 +119,17 @@ function calibrationSettings(raw) {
     }
     return result;
 }
+function storedCalibrationSettings(raw) {
+    const s = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    return calibrationSettings({
+        ...(s.resolution !== undefined ? { resolution: s.resolution } : {}),
+        ...(s.smoothIterations !== undefined ? { smoothIterations: s.smoothIterations } : {}),
+    });
+}
 const calibrationSource = (job) => ({
     title: job.title,
     knownDimensions: calibrationDimensions(job.known_dimensions),
-    settings: calibrationSettings(job.settings)
+    settings: storedCalibrationSettings(job.settings)
 });
 exports.calibrationSource = calibrationSource;
 const calibrationHash = (job) => digest({ ...(0, exports.calibrationSource)(job), sourceKind: job.source_kind });
@@ -201,7 +206,7 @@ async function updateCalibration(ctx, dataRoot, sub, jobId, input) {
         if (!job)
             throw new CalibrationError('Object not found.', 404);
         await assertCalibrationOwner(ctx, jobId, a, c);
-        if (job.source_kind === 'pointcloud' && (stable(calibrationDimensions(job.known_dimensions)) !== stable(dimensions) || calibrationSettings(job.settings).resolution !== settings.resolution))
+        if (job.source_kind === 'pointcloud' && (stable(calibrationDimensions(job.known_dimensions)) !== stable(dimensions) || storedCalibrationSettings(job.settings).resolution !== settings.resolution))
             throw new CalibrationError('Point-cloud scale comes from its original import units, not silhouette ruler dimensions or resolution. Reimport that source to change its scale.');
         if ((0, exports.calibrationHash)(job) !== input.expectedSourceSha)
             throw new CalibrationError('The saved calibration changed. Re-read it before applying this edit.', 409);
@@ -216,7 +221,8 @@ async function updateCalibration(ctx, dataRoot, sub, jobId, input) {
                 job,
                 changed
             };
-        const updated = (await c.query("UPDATE scan_print_job SET known_dimensions=$3::jsonb,settings=$4::jsonb,state='capturing',report=NULL,failure_reason=NULL,updated_at=now() WHERE owner_sub=$1 AND job_id=$2 RETURNING *", [sub, jobId, JSON.stringify(dimensions), JSON.stringify(settings)])).rows[0];
+        const mergedSettings = { ...(job.settings && typeof job.settings === 'object' ? job.settings : {}), ...settings };
+        const updated = (await c.query("UPDATE scan_print_job SET known_dimensions=$3::jsonb,settings=$4::jsonb,state='capturing',report=NULL,failure_reason=NULL,updated_at=now() WHERE owner_sub=$1 AND job_id=$2 RETURNING *", [sub, jobId, JSON.stringify(dimensions), JSON.stringify(mergedSettings)])).rows[0];
         await calibrationAccess(ctx, 'scan.read', a);
         return {
             job: updated,

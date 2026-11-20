@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Publish the package's REAL contract for revolve, sweep and loft (and its selector lists) after the synthetic boss, so the form is proven against what the server actually enforces.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Answer the rebuild cancel (BACKLOG B5) in the server's reply shape; the part stays at its revision.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Serve empty /api/artifacts/send-to.js stub so ADR-139 script include logs zero 404 console errors in standalone fixture runs.
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -87,6 +88,7 @@ export async function startFixture() {
   app.get(BASE + '/app', (_req, res) => res.sendFile(path.join(packageRoot, 'tools/cad-studio.html')));
   if (process.env.CAD_LIFECYCLE_SOURCE) app.get(BASE + '/assets/cad-studio.js', (_req, res) => res.sendFile(path.resolve(process.env.CAD_LIFECYCLE_SOURCE)));
   app.use(BASE + '/assets', express.static(path.join(packageRoot, 'tools')));
+  app.get('/api/artifacts/send-to.js', (_req, res) => res.type('application/javascript').send(''));
   routes(app, models, requests, bodyHolds);
   app.use((_req, res) => res.status(404).json({ error: 'fixture_route_unavailable' }));
   const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));

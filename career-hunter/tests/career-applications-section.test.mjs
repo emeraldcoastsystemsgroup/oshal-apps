@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 5: a job the person marked themselves, and one with no record of how it was sent, leads with Applied; Sent stays for what a computer reported or a confirmation page Career holds. The status-line cases pin the whole line for each source, and the Applied rows in the browser read "Applied · November 10 · You marked this as applied yourself…" and "Applied · Career has no record of how this was sent." beside the two that still read Sent.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Open the phone List view from its Filters sheet while preserving save and stage-count checks.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep actionable match counts and links distinct from dated scoring activity while preserving saved and pipeline records.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: Applications stages act as mutually exclusive workflow filters — Applied (?view=status) requests status=applied and excludes Interviewing, Offer, and Closed applications with matching stage counts.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,7 +105,8 @@ const press = (size, target) => (size === PHONE ? target.tap() : target.click())
 
 test('computer: Applications opens the jobs a person has applied to, the bar marks it on each of its stages and My jobs on the rest, and no menu lists the activity page', async () => {
   for (const [query, section, row, status] of [
-    ['?view=status', 'Applications', ['Applied', 'Interviewing', 'Offer', 'Closed'], 'tracked'], ['?view=interviewing', 'Applications', null, 'interview'],
+    // 1.68.18: Applied (?view=status) filters strictly to status='applied' (mutually exclusive workflow stage).
+    ['?view=status', 'Applications', ['Applied', 'Interviewing', 'Offer', 'Closed'], 'applied'], ['?view=interviewing', 'Applications', null, 'interview'],
     ['?view=offer', 'Applications', null, 'offer'], ['?view=closed', 'Applications', null, 'rejected'],
     ['', 'My jobs', ['New matches', 'Saved', 'Getting ready', 'Removed'], 'saved'], ['?view=queue', 'My jobs', null, 'queue'], ['?view=dismissed', 'My jobs', null, 'dismissed'], ['?view=approve', 'My jobs', null, 'saved'],
   ]) {
@@ -285,26 +287,26 @@ for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
   });
 }
 
-test('once a person has applied, the bar counts their applications, the same number the Applied stage shows', async () => {
-  const { page, context } = await board({ stats: { saved: 4, applied: 2, interviewing: 0, queued: 1, tracked: 3, byStatus: [] } }, DESKTOP, '?view=status');
+test('once a person has applied, the bar counts their active applied jobs, the same number the Applied stage shows', async () => {
+  const { page, context } = await board({ stats: { saved: 4, applied: 2, interviewing: 0, queued: 1, tracked: 3, byStatus: [{ status: 'applied', n: 2 }, { status: 'rejected', n: 1 }] } }, DESKTOP, '?view=status');
   try {
     await ready(page);
-    assert.equal((await page.textContent('.cf-chip')).trim(), '3 applied');
+    assert.equal((await page.textContent('.cf-chip')).trim(), '2 applied');
     assert.equal(await page.locator('.cf-chip').getAttribute('href'), `${BOARD}?view=status`);
-    assert.deepEqual(await page.locator('#careerStages a[role=tab]').allTextContents(), ['Applied3', 'Interviewing', 'Offer', 'Closed'], 'the row counts what the feed counts');
+    assert.deepEqual(await page.locator('#careerStages a[role=tab]').allTextContents(), ['Applied2', 'Interviewing', 'Offer', 'Closed1'], 'the row counts each mutually exclusive stage');
   } finally { await context.close(); }
 });
 
 for (const [label, size] of [['computer', DESKTOP], ['phone', PHONE]]) {
   test(`${label}: Home's New matches card shows a number, its pipeline has no To approve, and no card opens the activity page`, async () => {
-    const state = { stats: { matches:5, saved: 7, applied: 2, interviewing: 1, queued: 3, tracked: 4, byStatus: [{ status: 'interview', n: 1 }, { status: 'offer', n: 1 }] },
+    const state = { stats: { matches:5, saved: 7, applied: 2, interviewing: 1, queued: 3, tracked: 4, byStatus: [{ status: 'applied', n: 2 }, { status: 'interview', n: 1 }, { status: 'offer', n: 1 }] },
       summary: { metrics: [{ id: 'scored-24h', value: '99' }, { id: 'approval-review', value: '9' }] } };
     const { page, context } = await openScreen(browser, 'career-home.html', career(state), at(size), '', '/api/career-hunter/home');
     try {
       await ready(page);
       await page.waitForSelector('#todayPanel[aria-busy="false"]');
       assert.deepEqual(await page.locator('.stage').evaluateAll((nodes) => nodes.map((n) => n.querySelector('span').textContent + ' ' + n.querySelector('b').textContent)),
-        ['New matches 5', 'Saved 7', 'Getting ready 3', 'Applied 4', 'Interviewing 1', 'Offer 1']);
+        ['New matches 5', 'Saved 7', 'Getting ready 3', 'Applied 2', 'Interviewing 1', 'Offer 1']);
       assert.doesNotMatch(await page.locator('#stages').innerText(), /→|To approve/);
       assert.equal(await page.locator('.stage[data-stage="matches"]').getAttribute('data-query'), 'view=matches&page=1');
       assert.deepEqual(await page.locator('#explore .tile strong').allTextContents(), ['Search Jobs', 'Job Board', 'Resume Studio', 'Insights', 'Career Settings']);
@@ -331,4 +333,47 @@ test('Home shows a dash, not a zero or an arrow, when the number of new matches 
     await step.locator('a').click();
     await page.waitForURL(`${ORIGIN}${BOARD}?view=approve`);
   } finally { await context.close(); }
+});
+
+test('workflow filter: closing or promoting an applied job removes it from Applied and shows it only in Closed, Interviewing, or Offer with matching counts', async () => {
+  const pool = [
+    job(101, { title: 'Still Applied Role', status: 'applied', application_source: 'manual-mark' }),
+    job(102, { title: 'Promoted Interview Role', status: 'interview', application_source: 'manual-mark' }),
+    job(103, { title: 'Offer Role', status: 'offer', application_source: 'manual-mark' }),
+    job(104, { title: 'Closed Role', status: 'rejected', application_source: 'manual-mark' }),
+  ];
+  const countsByStatus = () => {
+    const by = ['applied', 'interview', 'offer', 'rejected'].map((s) => ({ status: s, n: pool.filter((j) => j.status === s).length }));
+    return {
+      saved: 0, queued: 0, matches: 0,
+      applied: pool.filter((j) => j.status === 'applied').length,
+      interviewing: pool.filter((j) => j.status === 'interview').length,
+      tracked: pool.length,
+      byStatus: by,
+    };
+  };
+  const handler = (req) => {
+    if (req.url.pathname === '/api/career-hunter/jobs/stats') return { json: countsByStatus() };
+    if (req.url.pathname === '/api/career-hunter/jobs') {
+      const status = req.url.searchParams.get('status');
+      const filtered = status === 'tracked' ? pool : pool.filter((j) => j.status === status);
+      return { json: { jobs: filtered, exhausted: true, exclusions: [] } };
+    }
+    return career({})(req);
+  };
+  for (const [query, expectedIds, expectedTabs] of [
+    ['?view=status', ['101'], ['Applied1', 'Interviewing1', 'Offer1', 'Closed1']],
+    ['?view=interviewing', ['102'], ['Applied1', 'Interviewing1', 'Offer1', 'Closed1']],
+    ['?view=offer', ['103'], ['Applied1', 'Interviewing1', 'Offer1', 'Closed1']],
+    ['?view=closed', ['104'], ['Applied1', 'Interviewing1', 'Offer1', 'Closed1']],
+  ]) {
+    const { page, context } = await openScreen(browser, 'career-job-lists.html', handler, at(DESKTOP), query, BOARD);
+    try {
+      await ready(page);
+      await page.locator(`.job-row[data-job-id="${expectedIds[0]}"]`).waitFor();
+      const shownIds = await page.locator('.job-row').evaluateAll((els) => els.map((el) => el.dataset.jobId));
+      assert.deepEqual(shownIds, expectedIds, `${query} lists only jobs in that workflow stage`);
+      assert.deepEqual(await page.locator('#careerStages a[role=tab]').allTextContents(), expectedTabs, `${query} badge counts are mutually exclusive`);
+    } finally { await context.close(); }
+  }
 });

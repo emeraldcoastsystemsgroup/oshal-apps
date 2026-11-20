@@ -9,10 +9,13 @@
  *   |                                           | the two jump options. Nothing here is measured; every value is the design brief's
  *   |                                           | (core docs/research/spider-18-design-brief.md) and says so.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 B29: the mass target re-based from the brief's estimate (1900) to the parts model (2100 = 2019 computed + 4 % print tolerance), reasoning beside the field.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: publish canonical `SPIDER_18_TICK_HZ` (50 Hz) beside the contract so the hexapod design, node manifest, and rail share one rate.
  */
 
 /** @description The hexapod fits this package designs. One for now: eighteen STS3215-class bus servos, a Raspberry Pi 5 in the body, a 2-D LiDAR in the nose. */
 export type HexapodFit = 'spider-18';
+/** @description Canonical spider-18 controller tick rate in Hz (matches DEFAULT_TICK_HZ in embodied_hexapod_node.py). */
+export const SPIDER_18_TICK_HZ = 50;
 
 /** @description A leg, front to rear on each side. L1/R1 are the front pair, L3/R3 the rear. */
 export type LegId = 'L1' | 'L2' | 'L3' | 'R1' | 'R2' | 'R3';

@@ -34,6 +34,9 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06: a failed or absent read is said in words with what
  *                     |                             | to do, never the route path; a reasoned phase's action is Mark done by
  *                     |                             | hand. Guard: tests/ux-words.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B13/B14: replace generic 403 copy with actionable missing-access / administrator role guidance (no route path), and read sibling engine `/capabilities` for pre-click container liveness diagnostics (`engineLiveness`, `engineBannerIssues`).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: read mechanism for CAD-bound designs, evaluate joint fit / clearance in mm via DesignStudioFit, block parts-complete on interference or unverified joint geometry, and surface honest measured/unmeasured strength status on the Design poster.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B3/B15: record engine-published sensor rateHz and node senses/tickHz in sensors & controller reads (never inventing rates), surface Pi bay thermal solve honesty on the Brief poster, and flag reasoned phases as unmeasured by any engine.
  */
 window.DesignStudioStages = (function stages() {
   'use strict';
@@ -56,7 +59,11 @@ window.DesignStudioStages = (function stages() {
   function absence(r, engine) {
     // In words, never the route path (UX audit 2026-11-06): the person reads which engine and what to do, not a URL.
     if (r.status === 404 || r.status === 0) return { kind: 'absent', line: `no engine on this swarm for this phase (${ENGINE_NAME[engine]} is not installed or not answering here)` };
-    if (r.status === 401 || r.status === 403) return { kind: 'refused', line: `${ENGINE_NAME[engine]} refused this account (HTTP ${r.status})` };
+    if (r.status === 401) return { kind: 'refused', line: `${ENGINE_NAME[engine]} requires sign-in (HTTP 401): reload and sign in again.` };
+    if (r.status === 403) {
+      const detail = r.error && !/\/api\//.test(String(r.error)) && !/^HTTP 403$/i.test(String(r.error)) ? ` (${r.error})` : '';
+      return { kind: 'refused', line: `${ENGINE_NAME[engine]} refused this account (HTTP 403) — access required: ask an administrator to assign your account a role for ${ENGINE_NAME[engine]}${detail}.` };
+    }
     return { kind: 'failed', line: `${ENGINE_NAME[engine]} is not working on this installation right now: ${r.error}. Try again later, or ask the administrator to check ${ENGINE_NAME[engine]}.` };
   }
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -98,12 +105,22 @@ window.DesignStudioStages = (function stages() {
     if (engines.has('circuit-lab')) {
       jobs.push(read(`${API['circuit-lab']}/designs`).then((r) => { E.reads.circuits = r; }));
       jobs.push(read(`${API['circuit-lab']}/examples`).then((r) => { E.reads.examples = r; }));
+      jobs.push(read(`${API['circuit-lab']}/capabilities`).then((r) => { E.reads.circuitCaps = r; }));
     }
-    if (engines.has('cad-studio')) jobs.push(read(`${API['cad-studio']}/models`).then((r) => { E.reads.models = r; }));
-    if (engines.has('scan-to-print') || project.phases.some((p) => p.kind === 'fabricate')) jobs.push(read(`${API['scan-to-print']}/printers`).then((r) => { E.reads.printers = r; }));
+    if (engines.has('cad-studio')) {
+      jobs.push(read(`${API['cad-studio']}/models`).then((r) => { E.reads.models = r; }));
+      jobs.push(read(`${API['cad-studio']}/capabilities`).then((r) => { E.reads.cadCaps = r; }));
+    }
+    if (engines.has('scan-to-print') || project.phases.some((p) => p.kind === 'fabricate')) {
+      jobs.push(read(`${API['scan-to-print']}/printers`).then((r) => { E.reads.printers = r; }));
+      jobs.push(read(`${API['scan-to-print']}/capabilities`).then((r) => { E.reads.printCaps = r; }));
+    }
     if (project.phases.some((p) => p.kind === 'fabricate')) jobs.push(read(`${SELF}/projects/${encodeURIComponent(project.id)}/print-set`).then((r) => { E.reads.printSet = r; }));
     await Promise.all(jobs);
     if (E.plantProduct && window.DesignStudioMechanism) await window.DesignStudioMechanism.readPlant(project, E);
+    if (project.phases.some((p) => p.kind === 'design' && p.engine === 'cad-studio') && !E.reads.mechanism) {
+      E.reads.mechanism = await read(`${SELF}/projects/${encodeURIComponent(project.id)}/mechanism`);
+    }
     return E;
   }
   /** A product whose plant is generated from its design: bound to embodied's generic plant, or designed in CAD Studio with no fit or report of its own (ADR-203 D9). */
@@ -163,31 +180,40 @@ window.DesignStudioStages = (function stages() {
       limitsDeg: spec.limits || null, servoCount: spec.servoCount, joints: jointRows(d.joints).map((j) => ({ joint: j.joint, nm: j.nm, usableNm: j.usableNm, stallNm: j.stallNm, withinContinuous: j.withinContinuous })),
       massBudget: d.massBudget ? { totalG: d.massBudget.totalG, targetG: d.massBudget.targetG, withinTarget: d.massBudget.withinTarget } : null, printed: printedParts(d).length, programs: printedParts(d).filter(hasProgram).length };
   }
-  function viewDesignEmbodied(E) {
+  function viewDesignEmbodied(project, E, binding) {
     const r = E.reads.design;
-    if (!E.fit) return { stage: 'unbound', tone: 'warn', figure: ['—', 'no fit bound'], line: 'no fit bound to this phase: ask the design partner to bind one, or set it in Settings', action: { label: 'Open the design', disabled: true } };
-    if (!r.ok) { const a = absence(r, 'embodied'); return { stage: a.kind, tone: a.kind === 'failed' ? 'bad' : 'warn', figure: ['—', 'all-up mass against the target'], line: a.line, action: { label: 'Open the design', disabled: true } }; }
+    const strength = window.DesignStudioFit ? window.DesignStudioFit.evaluateStrength(project && project.brief, null, binding) : null;
+    const strengthFields = strength ? { strength, strengthNote: strength.line, strengthStatus: strength.status } : {};
+    if (!E.fit) return { stage: 'unbound', tone: 'warn', figure: ['—', 'no fit bound'], line: 'no fit bound to this phase: ask the design partner to bind one, or set it in Settings', ...strengthFields, action: { label: 'Open the design', disabled: true } };
+    if (!r.ok) { const a = absence(r, 'embodied'); return { stage: a.kind, tone: a.kind === 'failed' ? 'bad' : 'warn', figure: ['—', 'all-up mass against the target'], line: a.line, ...strengthFields, action: { label: 'Open the design', disabled: true } }; }
     const d = r.body; const s = designStage(d); const budget = d.massBudget || {};
-    return { stage: s.stage, tone: s.tone, figure: [grams(budget.totalG), `all-up, of the ${grams(budget.targetG)} target · the design's figures`], line: s.line, met: s.met,
+    return { stage: s.stage, tone: s.tone, figure: [grams(budget.totalG), `all-up, of the ${grams(budget.targetG)} target · the design's figures`], line: s.line, met: s.met, ...strengthFields,
       evidence: s.line, revision: revisionOf(d), read: designRead(d, E.reads.designUrl), action: { label: 'Open the design', href: `${E.reads.designUrl.replace(/\?/, '/design.md?')}` } };
   }
 
-  // ── Design (CAD Studio): the bound parts' build states; an example's programs until they are created ──
+  // ── Design (CAD Studio): the bound parts' build states, joint fit clearances and strength honesty ──
   function viewDesignCad(project, E, binding) {
     const r = E.reads.models;
     const mechanism = { label: 'Define the mechanism', mechanism: true };
-    if (!r || !r.ok) { const a = absence(r || { status: 0, url: `${API['cad-studio']}/models`, error: 'not read' }, 'cad-studio'); return { stage: a.kind, tone: a.kind === 'failed' ? 'bad' : 'warn', figure: ['—', 'parts built'], line: a.line, action: { label: 'Open in CAD Studio', disabled: true }, secondary: mechanism }; }
+    const mech = E.reads.mechanism && E.reads.mechanism.ok && E.reads.mechanism.body ? E.reads.mechanism.body.mechanism : null;
+    const Fit = window.DesignStudioFit;
+    const strengthOnly = Fit ? Fit.evaluateStrength(project && project.brief, mech, binding) : null;
+    const baseStrength = strengthOnly ? { strength: strengthOnly, strengthNote: strengthOnly.line, strengthStatus: strengthOnly.status } : {};
+    if (!r || !r.ok) { const a = absence(r || { status: 0, url: `${API['cad-studio']}/models`, error: 'not read' }, 'cad-studio'); return { stage: a.kind, tone: a.kind === 'failed' ? 'bad' : 'warn', figure: ['—', 'parts built'], line: a.line, ...baseStrength, action: { label: 'Open in CAD Studio', disabled: true }, secondary: mechanism }; }
     const a = (binding && binding.artifact) || {};
     const programs = Array.isArray(a.parts) ? a.parts : [];
     const ids = Array.isArray(a.modelIds) ? a.modelIds : [];
     if (programs.length && !ids.length) {
       const named = programs.filter((p) => p.program).length;
-      return { stage: 'concept', tone: 'warn', figure: [`0/${programs.length}`, 'parts built'], line: `concept · ${named} of ${programs.length} parts are programs from the design (${programs.map((p) => p.name || p.id).join(', ')}); none is in CAD Studio yet: Create the parts in CAD Studio builds them with your session`, action: { label: 'Create the parts in CAD Studio', createParts: true, disabled: !named }, secondary: mechanism };
+      return { stage: 'concept', tone: 'warn', figure: [`0/${programs.length}`, 'parts built'], line: `concept · ${named} of ${programs.length} parts are programs from the design (${programs.map((p) => p.name || p.id).join(', ')}); none is in CAD Studio yet: Create the parts in CAD Studio builds them with your session`, ...baseStrength, action: { label: 'Create the parts in CAD Studio', createParts: true, disabled: !named }, secondary: mechanism };
     }
     const models = (Array.isArray(r.body.models) ? r.body.models : []).filter((m) => ids.includes(m.model_id));
     const built = models.filter((m) => m.state === 'built');
     const open = { label: 'Open in CAD Studio', href: `/api/cad-studio/app${models[0] ? `?model=${encodeURIComponent(models[0].model_id)}` : ''}` };
-    if (!ids.length) return { stage: 'concept', tone: 'warn', figure: ['0', 'parts bound'], line: 'concept · no CAD Studio part is bound to this phase yet: bind parts in Settings or ask the design partner', action: open, secondary: mechanism };
+    if (!ids.length) return { stage: 'concept', tone: 'warn', figure: ['0', 'parts bound'], line: 'concept · no CAD Studio part is bound to this phase yet: bind parts in Settings or ask the design partner', ...baseStrength, action: open, secondary: mechanism };
+    const fit = Fit ? Fit.evaluateDesignFit({ brief: project && project.brief, mechanism: mech, binding, parts: models }) : null;
+    const hasJoints = !!(fit && mech && Array.isArray(mech.joints) && mech.joints.length);
+    const fitFields = fit ? { fitCheck: fit, fitNote: hasJoints ? fit.summary : null, fitTone: fit.verdict === 'interference' ? 'bad' : (fit.verdict === 'unverified' || fit.warnings.length) ? 'warn' : 'ok', strength: fit.strength, strengthNote: fit.strength.line, strengthStatus: fit.strength.status } : baseStrength;
     const missing = ids.length - models.length;
     const line = `${built.length === models.length && !missing ? 'parts-complete' : 'sized'} · ${built.length} of ${ids.length} bound parts built${missing ? ` · ${missing} bound id${missing === 1 ? '' : 's'} not among your parts` : ''} · ${models.map((m) => `${m.title} r${m.revision}`).join(', ')}`;
     const met = built.length === ids.length && !missing;
@@ -195,10 +221,20 @@ window.DesignStudioStages = (function stages() {
     const blocks = models.filter((m) => m.base && m.base.kind === 'box' && !(m.features || []).length);
     if (met && blocks.length) {
       const said = `blocks · ${blocks.length} of ${ids.length} bound parts ${blocks.length === 1 ? 'is a plain block' : 'are plain blocks'} with no features (${blocks.map((m) => String(m.title).split(' · ').pop()).join(', ')}): sizes, not designs yet. Ask the design partner or open CAD Studio`;
-      return { stage: 'blocks', tone: 'warn', figure: [`${ids.length - blocks.length}/${ids.length}`, 'parts designed'], line: said, action: open, secondary: mechanism };
+      return { stage: 'blocks', tone: 'warn', figure: [`${ids.length - blocks.length}/${ids.length}`, 'parts designed'], line: said, ...fitFields, action: open, secondary: mechanism };
     }
-    return { stage: met ? 'parts-complete' : 'sized', tone: met ? 'ok' : 'warn', figure: [`${built.length}/${ids.length}`, 'parts built'], line, met, evidence: line, revision: models.map((m) => `${m.model_id.slice(0, 8)}@r${m.revision}`).join('+') || 'none',
-      read: { route: r.url, readAt: now(), models: models.map((m) => ({ modelId: m.model_id, title: m.title, revision: m.revision, state: m.state, massG: m.report ? m.report.massG : null })) }, action: open, secondary: mechanism };
+    if (met && hasJoints && fit.verdict === 'interference') {
+      const clearanceText = fit.minClearanceMm !== null ? `${fit.minClearanceMm.toFixed(2)} mm` : '—';
+      const said = `interference · ${fit.summary} · fix the geometry in CAD Studio before parts-complete`;
+      return { stage: 'interference', tone: 'bad', figure: [clearanceText, 'joint interference'], line: said, met: false, ...fitFields, action: open, secondary: mechanism };
+    }
+    if (met && hasJoints && fit.verdict === 'unverified') {
+      const said = `fit-unverified · ${fit.summary} · build every joint part in CAD Studio before parts-complete`;
+      return { stage: 'fit-unverified', tone: 'warn', figure: [`${fit.joints.length - fit.blockingJoints.length}/${fit.joints.length}`, 'joints verified'], line: said, met: false, ...fitFields, action: open, secondary: mechanism };
+    }
+    const fitRead = hasJoints ? { verdict: fit.verdict, minClearanceMm: fit.minClearanceMm, summary: fit.summary, joints: fit.joints } : null;
+    return { stage: met ? 'parts-complete' : 'sized', tone: met ? 'ok' : 'warn', figure: [`${built.length}/${ids.length}`, 'parts built'], line, met, ...fitFields, evidence: line, revision: models.map((m) => `${m.model_id.slice(0, 8)}@r${m.revision}`).join('+') || 'none',
+      read: { route: r.url, readAt: now(), models: models.map((m) => ({ modelId: m.model_id, title: m.title, revision: m.revision, state: m.state, massG: m.report ? m.report.massG : null })), ...(fitRead ? { fitCheck: fitRead } : {}), ...(fit ? { strength: fit.strength } : {}) }, action: open, secondary: mechanism };
   }
 
   // ── Mechanical: every joint inside its continuous torque (the design's rows) ──
@@ -249,6 +285,20 @@ window.DesignStudioStages = (function stages() {
       read: { route: r.url, readAt: now(), designId: own.design_id, run: own.run_count, regulators: h.regulators, warnings: h.warnings, runtime: h.runtime }, action: open };
   }
 
+  /** Resolve a sense's rateHz from engine replies (design senses[], bought row rateHz, or rail node senses[]/tickHz); null when none stated (B3). */
+  function senseRateFromEngine(name, d, row, E) {
+    const designSense = Array.isArray(d.senses) ? d.senses.find((s) => s && s.name === name) : null;
+    if (designSense && isNum(designSense.rateHz) && designSense.rateHz > 0) return designSense.rateHz;
+    if (row && isNum(row.rateHz) && row.rateHz > 0) return row.rateHz;
+    const nodes = E.reads.status && E.reads.status.ok && Array.isArray(E.reads.status.body.nodes) ? E.reads.status.body.nodes : [];
+    const node = nodes.find((n) => n && n.kind === 'hexapod' && n.online) || nodes.find((n) => n && n.kind === 'hexapod') || null;
+    if (!node) return null;
+    const aliases = name === 'joints' ? ['joints', 'joint-state'] : [name];
+    const hit = Array.isArray(node.senses) ? node.senses.find((s) => s && aliases.includes(s.name)) : null;
+    if (hit && isNum(hit.rateHz) && hit.rateHz > 0) return hit.rateHz;
+    if (name === 'joints' && isNum(node.tickHz) && node.tickHz > 0) return node.tickHz;
+    return null;
+  }
   // ── Sensors: each named sense has a row and a mount in the design ──
   function viewSensors(E, binding) {
     const r = E.reads.design; const names = (binding && binding.artifact && Array.isArray(binding.artifact.senses)) ? binding.artifact.senses : [];
@@ -257,9 +307,13 @@ window.DesignStudioStages = (function stages() {
     const d = r.body; const bought = boughtParts(d); const printed = printedParts(d);
     const find = (re) => bought.find((b) => re.test(`${b.id} ${b.name}`));
     const senses = names.map((name) => {
-      if (name === 'joints') return { name, present: isNum(d.spec && d.spec.servoCount), count: d.spec ? d.spec.servoCount : null, reader: 'the node (joint feedback on the servo bus)' };
+      if (name === 'joints') {
+        const rateHz = senseRateFromEngine(name, d, null, E);
+        return { name, present: isNum(d.spec && d.spec.servoCount), count: d.spec ? d.spec.servoCount : null, reader: 'the node (joint feedback on the servo bus)', ...(rateHz !== null ? { rateHz } : {}) };
+      }
       const row = find(new RegExp(name, 'i')); const mount = printed.find((p) => new RegExp(name, 'i').test(`${p.id} ${p.name}`));
-      return { name, present: !!row, row: row ? { id: row.id, name: row.name } : null, mount: mount ? mount.name : null };
+      const rateHz = senseRateFromEngine(name, d, row, E);
+      return { name, present: !!row, row: row ? { id: row.id, name: row.name } : null, mount: mount ? mount.name : null, ...(rateHz !== null ? { rateHz } : {}) };
     });
     const missing = senses.filter((s) => !s.present).map((s) => s.name);
     const line = missing.length ? `unspecified · no row in the design for ${missing.join(', ')}` : `specified · ${senses.map((s) => `${s.name}${s.row ? ` (${s.row.name}${s.mount ? `, on the ${s.mount}` : ''})` : s.count ? ` (${s.count})` : ''}`).join(' · ')}`;
@@ -285,8 +339,10 @@ window.DesignStudioStages = (function stages() {
     const nodeLine = !ofKind.length ? `no ${kind || ''} node has joined the rail` : !on.length ? `${kind} node ${ofKind.map((n) => n.nodeId).join(', ')} offline` : `${kind} node ${on.map((n) => `${n.nodeId} online (${n.engine} ${n.version})`).join(', ')}`;
     const stage = on.length ? 'on-the-rail' : connected ? 'engine-ready' : 'nothing-on-the-rail';
     const node = on[0] || ofKind[0] || null;
+    const nodeSenses = node && Array.isArray(node.senses) ? node.senses.filter((s) => s && typeof s.name === 'string' && isNum(s.rateHz) && s.rateHz > 0).map((s) => ({ name: s.name, rateHz: s.rateHz })) : [];
+    const nodeTickHz = node ? (isNum(node.tickHz) && node.tickHz > 0 ? node.tickHz : (node.hello && isNum(node.hello.tickHz) && node.hello.tickHz > 0 ? node.hello.tickHz : null)) : null;
     return { stage, tone: on.length ? 'ok' : 'warn', figure: [String(on.length), on.length === 1 ? `${kind} node on the rail` : `${kind} nodes on the rail`], line: `${engineLine} · ${nodeLine}`, met: on.length > 0, evidence: `${engineLine} · ${nodeLine}`, revision: node ? `${node.nodeId}@${node.version || '?'}` : 'none',
-      read: { route: r.url, readAt: now(), engine: r.body.engine ? { connected, engine: r.body.engine.engine, version: r.body.engine.version, buildHash: r.body.engine.buildHash } : null, node: node ? { nodeId: node.nodeId, kind: node.kind, online: node.online, engine: node.engine, version: node.version, endpoint: node.endpointUrl || node.endpoint || null, tickHz: isNum(node.tickHz) ? node.tickHz : (node.hello && isNum(node.hello.tickHz) ? node.hello.tickHz : null) } : null },
+      read: { route: r.url, readAt: now(), engine: r.body.engine ? { connected, engine: r.body.engine.engine, version: r.body.engine.version, buildHash: r.body.engine.buildHash } : null, node: node ? { nodeId: node.nodeId, kind: node.kind, online: node.online, engine: node.engine, version: node.version, endpoint: node.endpointUrl || node.endpoint || null, tickHz: nodeTickHz, ...(nodeSenses.length ? { senses: nodeSenses } : {}) } : null },
       action: { label: 'Node status', status: true } };
   }
 
@@ -421,10 +477,12 @@ window.DesignStudioStages = (function stages() {
   function viewBrief(project) {
     const b = project.brief || {}; const n = Array.isArray(b.requirements) ? b.requirements.length : 0;
     const line = `drafted · ${b.what || 'no words yet'} · ${n} requirement${n === 1 ? '' : 's'}${b.targets && Object.keys(b.targets).length ? ` · targets ${Object.entries(b.targets).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''}`;
-    return { stage: 'drafted', tone: 'warn', figure: [String(n), n === 1 ? 'requirement' : 'requirements'], line, met: true, evidence: `the brief is right: ${b.what} · ${n} requirements`, revision: revisionOf(b), read: null, action: { label: 'Confirm the brief', brief: true } };
+    const thermal = b.thermalSolve && b.thermalSolve.mode === 'pi-bay';
+    const thermalNote = thermal ? `Pi bay thermal solve requested — no thermal engine measured this yet (reasoned only)${b.thermalSolve.note ? `: ${b.thermalSolve.note}` : ''}` : null;
+    return { stage: 'drafted', tone: 'warn', figure: [String(n), n === 1 ? 'requirement' : 'requirements'], line, ...(thermalNote ? { thermalNote, thermalStatus: 'reasoned-unmeasured' } : {}), met: true, evidence: `the brief is right: ${b.what} · ${n} requirements`, revision: revisionOf(b), read: null, action: { label: 'Confirm the brief', brief: true } };
   }
   function viewReasoned(kind, brief) {
-    return { stage: 'reasoned', tone: 'warn', figure: ['—', 'no engine'], line: `no engine on this swarm for this phase · ${brief.produces}`, met: true, evidence: '', revision: 'reasoned', read: null, action: { label: 'Mark done by hand', close: true, typed: true, byHand: true } };
+    return { stage: 'reasoned', tone: 'warn', figure: ['—', 'no engine'], line: `no engine on this swarm for this phase · ${brief.produces}`, reasonedOnly: true, unmeasuredBanner: 'No engine measured this phase (reasoned only) — closing records your words, not an engine verification.', met: true, evidence: '', revision: 'reasoned', read: null, action: { label: 'Mark done by hand', close: true, typed: true, byHand: true } };
   }
 
   /**
@@ -438,7 +496,7 @@ window.DesignStudioStages = (function stages() {
     if (entry.kind === 'brief') return viewBrief(project);
     if (entry.kind === 'build') return viewBuild(E, bindings, closures);
     if (entry.engine === 'reasoned') return viewReasoned(entry.kind, brief);
-    if (entry.kind === 'design') return entry.engine === 'cad-studio' ? viewDesignCad(project, E, binding) : viewDesignEmbodied(E);
+    if (entry.kind === 'design') return entry.engine === 'cad-studio' ? viewDesignCad(project, E, binding) : viewDesignEmbodied(project, E, binding);
     if (entry.kind === 'mechanical') return viewMechanical(E);
     if (entry.kind === 'electrical') return viewElectrical(E, binding);
     if (entry.kind === 'sensors') return viewSensors(E, binding);
@@ -453,8 +511,49 @@ window.DesignStudioStages = (function stages() {
     const own = closures.filter((c) => c.phase === kind && !c.step);
     if (!own.length) return null;
     const last = own[own.length - 1];
-    return { ...last, stale: !!(view.revision && last.revision !== view.revision) };
+    return { ...last, stale: !!(view.revision && !view.reasonedOnly && last.revision !== view.revision) };
   }
 
-  return { read, readEngines, phaseView, closureOf, buildChecklist, revisionOf, parsePlant, absence, chosenPrinter, isPlantProduct, API, SELF, ENGINE_NAME };
+  /** Evaluate container liveness for one engine read before any button is pressed (B14). */
+  function probeState(engine, capRead, fallbackRead, field) {
+    const r = capRead || fallbackRead;
+    const name = ENGINE_NAME[engine] || engine;
+    if (!r) return { engine, name, state: 'unknown', reason: 'not checked' };
+    if (r.status === 404 || r.status === 0) {
+      if (fallbackRead && fallbackRead.ok) return { engine, name, state: 'up', reason: 'answering' };
+      return { engine, name, state: 'absent', reason: `${name} is not installed or not answering` };
+    }
+    if (r.status === 401 || r.status === 403) return { engine, name, state: 'refused', reason: absence(r, engine).line };
+    if (!r.ok) return { engine, name, state: 'stopped', reason: `${name} status unavailable (${r.error || `HTTP ${r.status}`})` };
+    const info = r.body && (r.body[field] || r.body.engine);
+    if (info && (info.connected === false || info.ready === false)) {
+      const why = info.reason || info.error || 'engine container is stopped or unreachable';
+      return { engine, name, state: 'stopped', reason: `${name} engine container is stopped: ${why}`, installHint: info.installHint || null };
+    }
+    return { engine, name, state: 'up', reason: info && info.version ? `running (${info.engine || engine} ${info.version})` : 'running' };
+  }
+  /** Live container status per sibling engine from the current reads (B14). */
+  function engineLiveness(E) {
+    const reads = (E && E.reads) || {};
+    return {
+      embodied: probeState('embodied', reads.status, reads.design, 'engine'),
+      'cad-studio': probeState('cad-studio', reads.cadCaps, reads.models, 'engine'),
+      'circuit-lab': probeState('circuit-lab', reads.circuitCaps, reads.circuits, 'engine'),
+      'scan-to-print': probeState('scan-to-print', reads.printCaps, reads.printers, 'slicerEngine'),
+    };
+  }
+  /** Stopped engine containers affecting this product's phases, surfaced before button click (B14). */
+  function engineBannerIssues(project, E) {
+    const live = engineLiveness(E);
+    const seen = new Set();
+    const out = [];
+    for (const p of (project && project.phases) || []) {
+      if (!p || !live[p.engine] || seen.has(p.engine)) continue;
+      seen.add(p.engine);
+      if (live[p.engine].state === 'stopped') out.push(live[p.engine]);
+    }
+    return out;
+  }
+
+  return { read, readEngines, phaseView, closureOf, buildChecklist, revisionOf, parsePlant, absence, chosenPrinter, isPlantProduct, engineLiveness, engineBannerIssues, API, SELF, ENGINE_NAME };
 }());

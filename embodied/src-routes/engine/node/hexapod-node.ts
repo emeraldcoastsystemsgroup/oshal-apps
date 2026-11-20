@@ -16,8 +16,12 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A refusal decided at home (a bad argument, another kind, a closed
  *                     |                             | seam) carries its message as `reason` too, so a route's 503 body
  *                     |                             | and a suite's check read the same explanation as a node refusal.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: publish `senseRates` on SPIDER_18_MANIFEST from
+ *                     |                             | the owned parts-catalog rows (ld19-lidar, bno055-imu) and SPIDER_18_TICK_HZ.
  */
 
+import { SPIDER_18_TICK_HZ } from '../design/hexapod-spec';
+import { boughtRow } from '../design/parts-catalog';
 import { EngineFailure, SyncBridge, type BridgeHello } from '../physics/bridge-client';
 import type { CapabilityManifest } from '../nodes/capability-manifest';
 
@@ -216,6 +220,9 @@ export class RailHexapodNode implements HexapodNode {
  * contract's (hexapod-spec.ts) and the gait player's cap: 0.2 m/s is the stride cap over the stance time, the lane's
  * starting choice, not a measurement.
  */
+const LIDAR_RATE_HZ = boughtRow('ld19-lidar').rateHz ?? 10;
+const IMU_RATE_HZ = boughtRow('bno055-imu').rateHz ?? 100;
+
 export const SPIDER_18_MANIFEST: CapabilityManifest = Object.freeze({
   nodeId: 'embodied-hexapod',
   kind: 'hexapod',
@@ -223,5 +230,6 @@ export const SPIDER_18_MANIFEST: CapabilityManifest = Object.freeze({
   safetyClass: 2,
   senses: ['pose', 'imu', 'joint-state', 'foot-contact', 'lidar', 'spring'],
   acts: ['walk', 'stop', 'pose', 'flip', 'jump', 'sit', 'e-stop'],
-  envelope: { legs: 6, actuators: HEXAPOD_ACTUATOR_COUNT, standHeightMm: 90, massTargetG: 1900, springStoredJ: 3.61, maxSpeedMps: 0.2, tickHz: 50 },
+  envelope: { legs: 6, actuators: HEXAPOD_ACTUATOR_COUNT, standHeightMm: 90, massTargetG: 1900, springStoredJ: 3.61, maxSpeedMps: 0.2, tickHz: SPIDER_18_TICK_HZ },
+  senseRates: Object.freeze({ pose: SPIDER_18_TICK_HZ, imu: IMU_RATE_HZ, 'joint-state': SPIDER_18_TICK_HZ, 'foot-contact': SPIDER_18_TICK_HZ, lidar: LIDAR_RATE_HZ, spring: SPIDER_18_TICK_HZ }),
 });

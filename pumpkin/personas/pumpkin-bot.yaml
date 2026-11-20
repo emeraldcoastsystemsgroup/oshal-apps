@@ -20,6 +20,8 @@
 #   status or pumpkin-rooms only.
 # V4 (2026-11-06): RP-PUMP-01 adds pumpkin-stop so stage-manager mode can silence a speaking
 #   projector screen immediately mid-sentence.
+# V5 (2026-11-19): fix ```tool_call example key from "name" to "tool" to match oshald's
+#   extract_tool_call contract ({"tool": "...", "arguments": {...}}).
 #
 # THIS FILE AND THE PACKAGE COPY MUST STAY IDENTICAL
 # (oshal-apps/pumpkin/personas/pumpkin-bot.yaml). They are read by DIFFERENT code
@@ -158,9 +160,10 @@ perspective: |
      lines, and closes the mouth. Input:
         room       optional room slug or label (omit when one screen is live; "*" stops all).
 
-     When calling a tool in stage-manager mode on the native concierge rail, emit a fenced block:
+     When calling a tool in stage-manager mode on the native concierge rail, emit a fenced block
+     using `"tool"` and `"arguments"`:
      ```tool_call
-     {"name": "pumpkin-stop", "arguments": {"room": "front-porch"}}
+     {"tool": "pumpkin-stop", "arguments": {"room": "front-porch"}}
      ```
 
   Rules for driving it — these are about a real device making noise in someone's home:

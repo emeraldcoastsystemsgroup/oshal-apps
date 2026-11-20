@@ -121,6 +121,10 @@
  *                     |                             | it). Kept in memory per person; nothing runs the
  *                     |                             | engine. Guarded by aero-lab/tests/aero-window-draft
  *                     |                             | .test.cjs.
+ * 2026-11-19 08:55:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (BACKLOG Item E): wire nativeStatus(ctx)
+ *                     |                             | into AeroEngineAdapter so GET /capabilities probes
+ *                     |                             | engine.status on native oshald to request lazy image
+ *                     |                             | preparation alongside Docker-socket auto-install.
  */
 
 import * as fs from 'fs';
@@ -656,6 +660,19 @@ export function nativeExchange(ctx: unknown): AeroEngineAdapterOptions['exchange
   return async (request, timeoutMs) => (await intent('engine.exchange', { request, timeoutMs })) as NativeExchange;
 }
 
+/**
+ * @description The native kernel's `engine.status` probe, requesting lazy image preparation
+ * without starting a container on first use (Item E).
+ * @param ctx - The package context.
+ * @returns The status probe function, or undefined off the native kernel.
+ */
+export function nativeStatus(ctx: unknown): AeroEngineAdapterOptions['readStatus'] {
+  const c = ctx as { pool?: { storageModel?: unknown }; intent?: (name: string, input: unknown) => Promise<unknown> } | undefined;
+  if (c?.pool?.storageModel !== 'kernel-scoped-documents' || typeof c.intent !== 'function') return undefined;
+  const intent = c.intent;
+  return async () => intent('engine.status', {});
+}
+
 /** Optional overrides for tests + the app context (orchestrator for /chat). */
 export interface AeroLabRouteOpts { adapter?: AeroEngineAdapter; ctx?: unknown }
 
@@ -672,7 +689,11 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
   const isOpts = arg !== null && typeof arg === 'object' && ('adapter' in arg || 'ctx' in arg);
   const opts: AeroLabRouteOpts = isOpts ? (arg as AeroLabRouteOpts) : { ctx: arg };
   const appPackageDir = (opts.ctx as { appPackageDir?: string } | undefined)?.appPackageDir;
-  const adapter = opts.adapter ?? new AeroEngineAdapter({ appPackageDir, exchange: nativeExchange(opts.ctx) });
+  const adapter = opts.adapter ?? new AeroEngineAdapter({
+    appPackageDir,
+    exchange: nativeExchange(opts.ctx),
+    readStatus: nativeStatus(opts.ctx),
+  });
   const exports = new Map<string, ExportRecord>();
   const router = Router();
 
@@ -687,10 +708,14 @@ export function createAeroLabRoutes(arg: AeroLabRouteOpts | Record<string, unkno
     void (async (): Promise<void> => {
       const started = Date.now();
       const status = adapter.engineStatus();
+      const lifecycle = typeof adapter.refreshNativeStatus === 'function'
+        ? await adapter.refreshNativeStatus().catch(() => null)
+        : null;
       const engine = {
         present: status.present, transport: status.transport || 'local', engineAddr: status.engineAddr ?? null,
         installHint: status.installHint ?? null, engineDir: status.engineDir, python: status.python,
         venvOk: status.venvOk, version: null as string | null,
+        ...(lifecycle !== null ? { lifecycle } : {}),
       };
       if (!status.present) {
         const reason = !status.venvOk

@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.68.15",
+      "version": "1.68.25",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -616,7 +616,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.10",
+      "version": "2.20.11",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -708,7 +708,7 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Turn your own photo of a person or a pet into a portrait worth framing: a professional headshot, a character portrait with the face in a themed costume and scene, or one group scene with every face from a single photo. It keeps your original photos and saved projects, where you can edit each face crop and the generation settings, and hands finished portraits to the image editor.",
-      "version": "1.17.8",
+      "version": "1.17.9",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1026,7 +1026,7 @@
       "suite": "ai-home",
       "displayName": "Travel",
       "description": "AI travel concierge (ADR-059) - search real flights (Duffel), see an honest price read from the swarm's shared price history, watch routes for a fare drop, and book via a deep-link handoff; hotels and cars are deep-link handoffs today. The swarm-shared price engine + fare-watch cron, the Duffel CLI + connector, the travel migrations, and the travel-concierge node stay framework-resident; this package is the surface + tools over them.",
-      "version": "1.3.5",
+      "version": "1.3.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1063,7 +1063,7 @@
       "suite": "ai-creative",
       "displayName": "Camera Ops",
       "description": "Remote camera control — connect to a GoPro (and other Wi-Fi/USB cameras) and drive it: start/stop recording, take photos, switch modes, change settings, and run a low-latency preview. A control concierge turns natural language into one validated command; a human confirms anything destructive. Sim engine built in, real GoPro (Open GoPro HTTP) at the camera node. Does not read SmartThings devices, smart-home cameras, or refrigerator/appliance interior cameras (Smart Home handles those).",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1096,7 +1096,7 @@
       "suite": "ai-home",
       "displayName": "Drone Ops",
       "description": "Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. A flight-planning concierge drafts single or fleet missions from natural language; a human approves every flight (real hardware also needs the confirm rail). The drone engine, the drone-node server, and the drone-operator inline node stay framework-resident; this package is the surface over them (ADR-099: drones ARE swarm nodes).",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1162,7 +1162,7 @@
       "suite": "ai-engineering",
       "displayName": "Sat Ops",
       "description": "Satellite fleet plane - a 3D orbit console with fleet attitude telemetry (MEKF health, wheel momentum, ADCS mode), SGP4 ground tracks and pass windows, pairwise conjunction screening, and an approval-gated command console (point / detumble / desat / safe). Sim engines only (RK4 gyrostat or the NASA 42 referee) - commands cannot leave simulation. The sat engine, the sat-node server, and the sat-operator inline node stay framework-resident; this package is the surface over them (ADR-102: sats ARE swarm nodes).",
-      "version": "1.2.6",
+      "version": "1.2.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1195,7 +1195,7 @@
       "suite": "ai-creative",
       "displayName": "Pumpkin",
       "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2329,7 +2329,7 @@
       "suite": "ai-engineering",
       "displayName": "Aero Lab",
       "description": "Persistent-flight design lab - shape a solar-endurance aircraft (span, area, aspect ratio, battery, cells, buoyancy fraction, site, season), run it through the validated aerosim engine (wing polar, 24 h energy limit cycle, admissibility screen), read the verdict with real plots (SOC trace, polar, drag buildup, margins), and download the build package (STL / DXF / BOM). The Python engine is bundled and feature-detected; a box without the engine venv reports honestly as unavailable rather than returning numbers.",
-      "version": "1.4.6",
+      "version": "1.4.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2516,7 +2516,7 @@
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
       "description": "Scans and 3D-prints objects. 3D printers only; it cannot print paper documents. Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
-      "version": "0.10.1",
+      "version": "0.10.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2551,7 +2551,7 @@
       "suite": "ai-engineering",
       "displayName": "Embodied Swarm",
       "description": "Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. This is the simulation environment for that machine: the room starts entirely unknown; a base LiDAR and a mini drone's LiDAR map it into a 3-D occupancy grid (the drone exploring frontier to frontier), surfaces and objects are discovered from the map alone, plans are drafted against those discovered ids and rehearsed on a clone, you execute behind a confirm, every kinetic step is re-validated live against the map (unknown space blocks everything), the wrist camera looks before and after each grasp, the drone re-scans to verify, and a 3-D view shows the mapped voxels, the arm model and the simulated pictures. The drone can go first and blind: its upward ranger clears the climb, its pose is an estimate that drifts by a deterministic odometry model, and every sweep is registered scan-to-map (point-to-plane against the exact hit points the map kept) before it is integrated — a 10 cm error comes back under a millimetre, a registration that will not converge grounds the drone, the pad re-anchors it, and a true strike on something unmapped puts it down. The drone carries a chosen SENSOR SET: the 3-D LiDAR we would buy, or the 2-D ring plus downward depth camera of the drone we print — which flies in its own scan plane, holds altitude on a nadir ranger, registers in the plane against walls at any height, and explores by where its camera will learn the most. The drone we print is also a PARTS MODEL: sizing by momentum theory at the summed mass budget, every printed part a CAD Studio program (open it there for STEP, STL and drawings), the bought parts with approximate prices — the hardware design's tables are generated from it. A taught fridge door the arm pulls open against a 60 N seal is kept. The drone's TRUE pose can run on a physics plant: a package-owned MuJoCo engine container flies the printed drone's parts model (MJCF generated from it) under gusts with real contacts, and every guard, the map and the registration are unchanged; the first training task (hover and one leg) ships with its PID baseline, and a trained policy may fly the plant only after its recorded flight has passed this world's guards — the certification gate. The engine container is also a node on the swarm rail: it heartbeats in the way a drone node does and a world can run on it, so a real drone node slots in behind the same primitives. Named hidden scenes (the kitchen, a studio) are plain data the discovery never reads; a drone that reports itself lost recovers by a global search and its registered trail back to the pad. Deterministic, no hardware — every view says simulated.",
-      "version": "0.20.3",
+      "version": "0.20.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2587,7 +2587,7 @@
       "suite": "ai-engineering",
       "displayName": "Design Studio",
       "description": "The design-to-build process as one application, for anything. A product is a brief plus a chain of phases (brief, design, mechanical, electrical, sensors, controller, simulate, fabricate, build), each bound to the engine that produces its artifact (CAD Studio, Circuit Lab, embodied's plant and gate, the print service) or marked reasoned when no engine here solves it. Every phase is a poster whose stage is read from the engine when the page opens and never stored, with one button; a phase closes on a measured verdict recorded with the engine's evidence line and the artifact revision. The design partner on the right rail works through the chain with you. The spider is the first product.",
-      "version": "0.4.10",
+      "version": "0.4.13",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2625,7 +2625,7 @@
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
       "description": "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports.",
-      "version": "0.5.1",
+      "version": "0.5.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2693,7 +2693,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.9.3",
+      "version": "0.9.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2730,7 +2730,7 @@
       "suite": "ai-engineering",
       "displayName": "Drone Relay",
       "description": "Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. Relays hover or perch, and a relay that never flew — a ground node on a short mast — holds an inner slot for days at no cost to the fleet; an out-of-band control channel (which, when it reaches, tells the far segment where to meet instead of leaving it to walk in blind) and a courier for bulk data are sized beside the chain, and every run states the buffer an outage costs. A chain may branch into a tree with a tip on each branch, or tile a survey area as a lattice the tip sweeps, and a saved formation drafts as a Drone Ops fleet mission that Drone Ops re-validates and a human approves there. A designer concierge sizes and explains through the same tools. Simulated; nothing here flies.",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2763,7 +2763,7 @@
       "suite": "ai-creative",
       "displayName": "Animatronics",
       "description": "The motion layer for a Halloween prop or any servo animatronic. Describe the rig — servos with calibration and software limits, grouped into an eye gimbal, eyelids, a neck, a jaw or an arm — build a pose library (LOOK_LEFT, BLINK, JAW_OPEN) and timed scenarios, and the server compiles them to a 50 Hz frame stream, rehearses them on rate-limited servos with a supply budget, and streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always. The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2832,7 +2832,7 @@
       "suite": "ai-productivity",
       "displayName": "Fantasy Football",
       "description": "Manage the fantasy football team you actually have. It reads your own ESPN league with your own connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes stats, not points, and this package holds no stat table), and sets the lineup with the best chance of beating the team you play this week - which starts the volatile player when you are an underdog and the steady one when you are favoured, always beside what the safest lineup would have won. It prices every roster move over the rest of the season: a waiver board with a bid and a drop on every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no other user, operator included, can see them. Every lineup is recorded before kickoff and graded against what was actually started. It advises; you act.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "apps": [],
         "tools": [],

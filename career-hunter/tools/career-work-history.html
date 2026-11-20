@@ -8,6 +8,7 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0 (Roger, 2026-11-13: "we are missing the page to put in my expierence"). Work history, under Résumé beside My résumé: one card per job (title, employer, months, bullets) in the order the résumé shows them, Add a job first, Edit opening the card as a form, a job moved or removed, every save and every change the concierge makes shown with Undo. One column on a phone with 44 px controls and 16 px fields; nothing scrolls sideways. Screen logic: career-work-history-page.js; the edits: career-work-history.js.
   3 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
   4 | maintainer@emeraldcoastsystemsgroup.com | Keep direct hierarchy actions accessible, wrapped and at least 44 pixels on phone and desktop.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: the Years by skill section (career-years-by-skill.js), under the jobs: a table of each skill with the years counted from your roles, your own figure and what résumés state, Add a skill, Years of experience in total, Save years and Undo. A table on a computer; one card per skill on a phone, 44 px controls and 16 px fields, nothing wider than the screen.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="work-history" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -45,9 +46,9 @@
   .wh-form h2 { margin-bottom: 8px; }
   .wh-form h3 { margin: 18px 0 6px; font-size: 15px; }
   .wh-label { display: grid; gap: 6px; margin: 12px 0 0; font-weight: 600; font-size: 14px; }
-  :is(.wh-form, .wh-eng-form) input:not([type=checkbox]), :is(.wh-form, .wh-eng-form) select, :is(.wh-form, .wh-eng-form) textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m); background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-weight: 400; }
+  :is(.wh-form, .wh-eng-form, .wh-years-form) input:not([type=checkbox]), :is(.wh-form, .wh-eng-form) select, :is(.wh-form, .wh-eng-form) textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m); background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-weight: 400; }
   :is(.wh-form, .wh-eng-form) textarea { resize: vertical; line-height: 1.45; }
-  :is(.wh-form, .wh-eng-form) :is(input, select, textarea):disabled { color: var(--ds-ink-disabled); background: var(--ds-surface-2); }
+  :is(.wh-form, .wh-eng-form, .wh-years-form) :is(input, select, textarea):disabled { color: var(--ds-ink-disabled); background: var(--ds-surface-2); }
   .wh-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
   .wh-month { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
   .wh-month legend { padding: 0 0 6px; font-weight: 600; font-size: 14px; }
@@ -95,6 +96,27 @@
   #whConfirm { max-width: min(460px, calc(100vw - 32px)); }
   #whConfirm form { display: grid; gap: 16px; }
   #whConfirm footer { display: flex; justify-content: flex-end; gap: 8px; }
+  .wh-years { margin: 28px 0 0; }
+  .wh-years > h2 { margin: 0; font-size: 22px; line-height: 1.25; }
+  .wh-years > p { margin: 4px 0 0; color: var(--ds-ink-2); max-width: 640px; }
+  .wh-years-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .wh-years-table th, .wh-years-table td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--ds-edge); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+  .wh-years-table thead th { font-size: 13px; font-weight: 600; color: var(--ds-ink-2); }
+  .wh-years-table tbody th { font-weight: 600; }
+  .wh-years-table thead th:nth-child(2) { width: 22%; }
+  .wh-years-table thead th:nth-child(3) { width: 9.5em; }
+  .wh-years-table thead th:nth-child(4) { width: 28%; }
+  .wh-years-table :is(th, td):last-child { padding-right: 0; }
+  .wh-years-more { margin: 10px 0 0; color: var(--ds-ink-2); }
+  .wh-years-add, .wh-years-total { margin: 18px 0 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--ds-edge); min-width: 0; display: grid; gap: 12px; align-items: end; }
+  .wh-years-add { grid-template-columns: minmax(0, 1fr) 9.5em auto; }
+  .wh-years-total { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :is(.wh-years-add, .wh-years-total) legend { float: left; width: 100%; grid-column: 1 / -1; padding: 0; font-weight: 600; font-size: 16px; }
+  :is(.wh-years-add, .wh-years-total) > :is(label, div) { display: grid; gap: 6px; min-width: 0; font-weight: 600; font-size: 14px; }
+  .wh-years-total span { display: flex; align-items: center; min-height: 44px; font-weight: 400; font-size: 15px; overflow-wrap: anywhere; }
+  .wh-years-form input:not([type=checkbox]) { font-size: 15px; }
+  .wh-years-add button { min-width: 44px; min-height: 44px; }
+  #yrNotice { margin: 14px 0 0; color: var(--ds-ink-2); }
   @media (max-width: 720px) {
     .wh-wrap { padding: 14px 16px 24px; }
     .wh-head { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -102,7 +124,7 @@
     .wh-head .ck-primary { width: 100%; }
     .wh-job { padding: 14px; }
     .wh-dates { grid-template-columns: 1fr; }
-    :is(.wh-form, .wh-eng-form) :is(input:not([type=checkbox]), select, textarea) { font-size: 16px; }
+    :is(.wh-form, .wh-eng-form, .wh-years-form) :is(input:not([type=checkbox]), select, textarea) { font-size: 16px; }
     .wh-part { padding: 14px; }
     .wh-part-head { flex-direction: column; align-items: stretch; gap: 10px; }
     .wh-part-head .ck-btn { width: 100%; }
@@ -113,6 +135,17 @@
     .wh-bullet-tools { justify-content: flex-end; }
     .wh-form-foot > button { flex: 1 1 calc(50% - 4px); }
     .wh-form-foot .wh-remove { margin-left: 0; flex-basis: 100%; }
+    .wh-years-table, .wh-years-table tbody { display: block; }
+    .wh-years-table thead { display: none; }
+    .wh-years-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; align-items: end; margin: 0 0 10px; padding: 12px; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-m); background: var(--ds-surface-2, var(--ds-surface)); }
+    .wh-years-table tbody :is(th, td) { display: grid; gap: 4px; padding: 0; border: 0; min-width: 0; }
+    .wh-years-table tbody :is(th, td:last-child) { grid-column: 1 / -1; }
+    .wh-years-table tbody th { font-size: 16px; }
+    .wh-years-table td::before { content: attr(data-label); font-size: 13px; font-weight: 600; color: var(--ds-ink-2); }
+    .wh-years-add { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .wh-years-add > label:first-of-type, .wh-years-add button { grid-column: 1 / -1; }
+    .wh-years-total { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .wh-years-total > :last-child { grid-column: 1 / -1; }
   }
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
@@ -136,6 +169,34 @@
     <a id="whUpload" class="ck-btn" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio" hidden>Open My résumé</a>
   </section>
   <ol id="whJobs" class="wh-jobs" aria-label="Jobs"></ol>
+  <section id="whYears" class="wh-years" aria-labelledby="whYearsTitle" hidden>
+    <h2 id="whYearsTitle">Years by skill</h2>
+    <p>Résumés and cover letters state these years exactly. Where you give no figure, Career counts the years from your roles.</p>
+    <form id="yearsForm" class="wh-part wh-years-form" novalidate>
+      <table class="wh-years-table" aria-labelledby="whYearsTitle">
+        <thead><tr><th scope="col">Skill</th><th scope="col">From your roles</th><th scope="col">Your figure</th><th scope="col">Used on résumés</th></tr></thead>
+        <tbody id="yrRows"></tbody>
+      </table>
+      <p id="yrMore" class="wh-years-more" hidden></p>
+      <fieldset class="wh-years-add">
+        <legend>Add a skill</legend>
+        <label>Skill<input id="yrAddSkill" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label>Your figure<input id="yrAddYears" type="number" inputmode="decimal" min="0.5" max="60" step="0.5"></label>
+        <button type="button" id="yrAdd" class="ck-btn">Add</button>
+      </fieldset>
+      <fieldset class="wh-years-total">
+        <legend>Years of experience in total</legend>
+        <div>From your roles<span id="yrCareerRoles"></span></div>
+        <label>Your figure<input id="yrCareerYours" type="number" inputmode="decimal" min="1" max="70" step="0.5"></label>
+        <div>Used on résumés<span id="yrCareerUsed"></span></div>
+      </fieldset>
+      <p id="yrNotice" role="status" aria-live="polite" hidden></p>
+      <div class="wh-form-foot">
+        <button type="submit" id="yrSave" class="ck-btn" disabled>Save years</button>
+        <button type="button" id="yrUndo" class="ck-btn" hidden>Undo</button>
+      </div>
+    </form>
+  </section>
   <section id="whExpanded" class="wh-expanded" aria-labelledby="whExpandedTitle" hidden>
     <h2 id="whExpandedTitle">Expanded experience</h2>
     <p>The client engagements and client accounts behind your jobs: who you worked for, when, your role and what you did.</p>
@@ -170,6 +231,7 @@
 <script src="/api/career-hunter/static/career-resume-office.js"></script>
 <script src="/api/career-hunter/static/career-change-bar.js"></script>
 <script src="/api/career-hunter/static/career-work-history.js"></script>
+<script src="/api/career-hunter/static/career-years-by-skill.js"></script>
 <script src="/api/career-hunter/static/career-work-history-page.js"></script>
 <script src="/api/career-hunter/static/career-work-history-engagements.js"></script>
 </body>

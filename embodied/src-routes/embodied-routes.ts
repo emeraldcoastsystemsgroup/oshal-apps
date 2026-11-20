@@ -35,6 +35,7 @@
  * 21 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the spider-18 design routes (build/hexapod, design.md, parts, bom.csv) registered beside the physics routes.
  * 22 | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: POST /physics/hexapod/certify runs the spider's gate in the container and remembers the certificate for this owner in the same map the drone's uses (GET /physics/reports shows it); a certificate is kept with its kind, so a spider certificate never flies a drone world.
  * 23 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: the generic plant's routes (embodied-plant-routes.ts: /physics/plant/load, /state, /train, /certify and /build/catalog) registered beside the spider's; a plant certificate is remembered with kind `plant`.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: publish SPIDER_18_MANIFEST (with tickHz and senseRates) in NODE_MANIFESTS on GET /capabilities alongside the unit and drone manifests.
  */
 
 import path from 'node:path';
@@ -56,7 +57,7 @@ import { DroneNodeFleet, NodeOffline, sharedNodeFleet } from './engine/node/node
 import { RailDroneNode } from './engine/node/rail-node';
 import { getTask, insertLog, insertTask, listLog, listTasks, registerPendingTaskStatuses, updateTaskStatus, type PendingTaskStatus, type Pool, type TaskRow } from './task-store';
 import {
-  ControlAuthority, DEFAULT_BASE_LIMITS, DEFAULT_DRONE_LIMITS, DRONE_NODE_ID, maxReach, planClearSurface, planExplore, planFetchFromAppliance, SIM_ARM_6, UNIT_NODE_ID, validateManifest, validatePlan, WorldSim,
+  ControlAuthority, DEFAULT_BASE_LIMITS, DEFAULT_DRONE_LIMITS, DRONE_NODE_ID, maxReach, planClearSurface, planExplore, planFetchFromAppliance, SIM_ARM_6, SPIDER_18_MANIFEST, UNIT_NODE_ID, validateManifest, validatePlan, WorldSim,
   type CapabilityManifest, type CommandRecord, type Scene, type Sensor, type SkillPlan, DRONE_SENSOR_SETS, sensorSetById, buildDrone, designMarkdown, DRONE_FITS, fitById,
   armMountRefusal, armRoomMjcf, armPlant as armPlantSpec, buildArm, RemoteArmPlant, type ArmMount, type ArmSpec, type ArmPlant, DEFAULT_ENGINE_ADDR, DEFAULT_INSTALL_HINT, droneMjcf, EngineFailure, engineBuildHash, parseEngineAddr, RemotePlant, SyncBridge, certifyFlight, controllerName, type ControllerSpec, type DroneSensorSet, type FlightCertification, type PhysicsPlant, type SensedSolid,
   allMedia, dropExplorerHull, explorerHullMjcf, EXPLORER_HULL_PROVENANCE, HULL_FLOTATION, mediumById, MediumRefused, mediumView, MEDIUM_IDS, MEDIUM_PROPERTIES_SCHEMA, RIGID_BODY_PLANT,
@@ -75,10 +76,11 @@ const TASKS = ['explore', 'clear-surface', 'fetch-from-appliance'];
 /** @description Sensors a picture or a manual scan can name. */
 const SENSORS: Sensor[] = ['drone', 'rover', 'wrist'];
 
-/** @description The two simulated nodes' manifests — validated at mount, published on /capabilities. */
+/** @description The simulated and hexapod nodes' manifests — validated at mount, published on /capabilities. */
 export const NODE_MANIFESTS: readonly CapabilityManifest[] = [
   { nodeId: UNIT_NODE_ID, kind: 'mobile-manipulator', model: 'sim-6 arm on a differential base with a lift (simulated)', safetyClass: 2, senses: ['pose', 'joint-state', 'lift', 'gripper', 'tip-budget'], acts: ['drive-to', 'jog', 'stop', 'lift', 'move-to-pose', 'move-joints', 'grasp', 'release', 'abort', 'e-stop'], envelope: { reachM: maxReach(SIM_ARM_6), vStowedMps: DEFAULT_BASE_LIMITS.vStowed, vLiftedMps: DEFAULT_BASE_LIMITS.vLifted, liftMinM: DEFAULT_BASE_LIMITS.liftMin, liftMaxM: DEFAULT_BASE_LIMITS.liftMax } },
   { nodeId: DRONE_NODE_ID, kind: 'drone', model: 'indoor mini quad with a pitched camera (simulated)', safetyClass: 2, senses: ['pose', 'battery', 'camera'], acts: ['takeoff', 'goto', 'hover', 'land', 'observe', 'abort'], envelope: { maxSpeedMps: DEFAULT_DRONE_LIMITS.maxSpeed, cruiseAltM: DEFAULT_DRONE_LIMITS.cruiseAlt, minMovingAltM: DEFAULT_DRONE_LIMITS.minMovingAlt } },
+  SPIDER_18_MANIFEST,
 ];
 
 /**

@@ -6,6 +6,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): a job's tailoring remembers that the person chose its Other experience (experienceChosen, kept once set; not part of the inputs, so it never makes documents outdated). save() accepts it from Prepare application, and begin() from the generate route when Prepare application or bulk Prepare sends it; a generation the person chose for also becomes their last choice (lib/career-experience-choice.js), which Prepare application and bulk Prepare tick again for a job with no choice of its own. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.68.5 (Roger, 2026-11-16: "my cover letter ... lies about my level of expertise on c# ... the cover letter is not acceptable"): view() reads what the engine's claims check did to the job's packet (lib/career-letter-claims.js) as claims: a letter it marked needs your review (still too thin after Career took out what the records do not support, even after one rewrite) carries needsReview and a notice that names the problems, and assertReady refuses sending it in those words until the person edits the letter or confirms they checked it (confirmClaims, bound to that letter's fingerprint). A submitted application keeps its documents as the record.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: surface pre-return career-resume-reviewer quality receipts from application.json as resumeReview on view() via lib/career-resume-review.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: add markEdited(dir,id) so saving an edited tailored packet syncs documentGeneration.inputsHash and clears stale generationDraft/failed state without forcing regeneration, and add acceptCurrent(dir,id,job,input) so a user with both saved documents and no missing required roles can review them directly despite an earlier main-résumé or tailoring change.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19: a job read said the preparation was complete with no claims check): view() takes the saved job state its caller already read. GET /jobs/:id reads that state once, before the job's row, and answers both the receipt and this view from it, so an answer that says complete always carries the documents: the engine saves the documents and the row first and the completed receipt last. Read after the row, as before, a read the engine finished during said complete over a row with no documents. Callers that pass nothing read it here, as before. Guard: tests/career-ready-with-documents.test.mjs.
  */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
@@ -78,8 +80,18 @@ function resumeReviewState(job,packet){
  if(!job?.has_resume||DONE.has(job.status)||!packet)return null;
  return resumeReview.state(packet);
 }
-function view(dir,id,job){
- const saved=board.readBoardState(dir).jobs[id]||{},stored=saved.applicationDraft;
+/**
+ * @description The application as Prepare application shows it: the tailoring, whether the documents are current, what
+ * the engine's checks did to them and where the preparation stands. A caller that answers with the preparation receipt
+ * too (GET /jobs/:id) hands in the saved job state it read BEFORE the job's row, so the receipt and this view come from
+ * one read: the engine saves the documents and the row first and the completed receipt last, so a receipt read first
+ * never says complete over a row from before the documents.
+ * @param {string} dir Owner store. @param {number} id Posting. @param {object} job Its row (status, has_resume, has_cover, resume_path).
+ * @param {object} [state] The saved job state (readBoardState) read before `job`; read here when absent.
+ * @returns {object} The application view.
+ */
+function view(dir,id,job,state){
+ const saved=(state||board.readBoardState(dir)).jobs[id]||{},stored=saved.applicationDraft;
  const draft=stored||{revision:0,guidance:'',experienceIds:saved.experienceIds||[],experienceRevision:bank.read(dir).revision};
  let input,unavailable=null;try{input=source(dir,draft);}catch(error){unavailable=error.message;}
  const generated=effectiveGeneration(saved),held=latestIntent(dir,id),hasDocuments=!!job.has_resume&&!!job.has_cover;
@@ -93,7 +105,7 @@ function view(dir,id,job){
   legacy:!generated,needsGeneration:!hasDocuments||busy||failed||outdated||left.length>0,documentsOutdated:outdated,missingRoles:left,rolesNotice:roles.sentence(left),
   claims:claimsState(job,packet,saved),resumeReview:resumeReviewState(job,packet),busy,failed,unavailable,canRestoreDocuments:!!(saved.documentGeneration?.inputs||stored?.legacyInputs)&&hasDocuments&&!busy,inputsHash:input?.inputsHash||null,documentRequestId:generated?.requestId||null,
   locked:DONE.has(job.status)||!!held&&HELD.has(held.status)};
- return {...result,workflow:require('./career-application-workflow').view(dir,id,job,result)};
+ return {...result,workflow:require('./career-application-workflow').view(dir,id,job,result,state)};
 }
 function save(dir,id,job,input){
  mutable(dir,id,job);
@@ -137,5 +149,46 @@ function confirmClaims(dir,id,job,fingerprint){
  return view(dir,id,job);
 }
 function refused(dir,id,requestId){const saved=board.readBoardState(dir).jobs[id]||{};if(saved.generationDraft?.requestId===requestId)board.updateBoardState(dir,id,{generationDraft:{...saved.generationDraft,state:'refused'}});}
+/**
+ * @description Sync documentGeneration.inputsHash after a direct or concierge edit to a job's tailored packet so
+ * returning to Review documents never bounces the person back to step 1 as outdated. Preserves experienceChosen
+ * if set; missingRoles still checks the freshly saved application.json truthfully.
+ * @param {string} dir Owner store. @param {number} id Posting. @returns {object|null}
+ */
+function markEdited(dir,id){
+ const saved=board.readBoardState(dir).jobs[id]||{},stored=saved.applicationDraft,currentBank=bank.read(dir);
+ const rawIds=stored?.experienceIds||saved.experienceIds||[];
+ const validIds=rawIds.filter(eid=>currentBank.entries.some(entry=>entry.id===eid&&!entry.archived));
+ let current;try{current=source(dir,{guidance:stored?.guidance||'',experienceIds:validIds,experienceRevision:currentBank.revision});}catch{return null;}
+ const existing=effectiveGeneration(saved),now=new Date().toISOString();
+ const inputs={guidance:current.guidance,experienceIds:current.experienceIds,experienceRevision:current.experienceRevision};
+ const nextGen={requestId:existing?.requestId||'manual-edit',inputsHash:current.inputsHash,inputs,editedAt:now};
+ const syncDraft=stored||rawIds.length!==validIds.length;
+ const nextDraft=stored?{...stored,...inputs,...(stored.experienceChosen===true?{experienceChosen:true}:{})}:{revision:0,...inputs,savedAt:now};
+ board.updateBoardState(dir,id,{...(syncDraft?{applicationDraft:nextDraft}:{}),documentGeneration:nextGen,generationDraft:null,...(saved.phase==='failed'?{phase:'ready',error:null,completedAt:saved.completedAt||now}:{})});
+ return nextGen;
+}
+/**
+ * @description Explicitly keep and review the current saved tailored documents despite an earlier main-résumé or
+ * tailoring change, when both documents exist, no generation is active, and no required work-history roles are missing.
+ * @param {string} dir Owner store. @param {number} id Posting. @param {object} job Its row.
+ * @param {{acceptCurrent:true,revision:number}} input Explicit confirmation carrying the current draft revision.
+ * @returns {object} Updated application view.
+ */
+function acceptCurrent(dir,id,job,input){
+ mutable(dir,id,job);
+ if(Object.keys(input||{}).some(key=>!['revision','acceptCurrent'].includes(key))||input.acceptCurrent!==true)fail('draft_invalid','Select the current documents explicitly.',400);
+ const current=view(dir,id,job);
+ if(current.busy)fail('generation_active','Wait for the current generation to finish.');
+ if(!job?.has_resume||!job?.has_cover)fail('documents_unavailable','Generate résumé & cover letter first.');
+ if(current.missingRoles.length)fail('roles_missing',current.rolesNotice+' Generate résumé & cover letter again before reviewing.');
+ if(input.revision!==current.draft.revision)fail('draft_conflict','Read the current saved draft before continuing.');
+ if(current.unavailable)fail('profile_unavailable',current.unavailable,503);
+ const saved=board.readBoardState(dir).jobs[id]||{},stored=saved.applicationDraft,clean=source(dir,current.draft);
+ const existing=effectiveGeneration(saved),now=new Date().toISOString();
+ const inputs={guidance:clean.guidance,experienceIds:clean.experienceIds,experienceRevision:clean.experienceRevision};
+ board.updateBoardState(dir,id,{...(stored?{applicationDraft:{...stored,...inputs,...(stored.experienceChosen===true?{experienceChosen:true}:{})}}:{applicationDraft:{revision:0,...inputs,savedAt:now}}),documentGeneration:{requestId:existing?.requestId||'accepted-current',inputsHash:clean.inputsHash,inputs,acceptedAt:now},generationDraft:null,...(saved.phase==='failed'?{phase:'ready',error:null,completedAt:saved.completedAt||now}:{})});
+ return view(dir,id,job);
+}
 function restore(dir,id,job,input){mutable(dir,id,job);if(Object.keys(input||{}).some(key=>!['revision','restore'].includes(key))||input.restore!==true)fail('draft_invalid','Select the previous version explicitly.',400);const saved=board.readBoardState(dir).jobs[id]||{},current=view(dir,id,job);if(current.busy)fail('generation_active','Wait for the current generation to finish.');if(input.revision!==current.draft.revision)fail('draft_conflict','Read the current saved draft before restoring.');const previous=saved.documentGeneration,inputs=previous?.inputs||current.draft.legacyInputs,expected=previous?.inputsHash||current.draft.legacyInputsHash;if(!inputs||!expected)fail('previous_unavailable','The earlier document inputs are unavailable. Generate a fresh packet.');const bankNow=bank.read(dir),clean=source(dir,{...inputs,experienceRevision:bankNow.revision},true);if(clean.inputsHash!==expected)fail('previous_outdated','Your résumé or other experience changed. Generate a current packet.');const proof=saved.generationDraft?.previousDocumentHashes;if(saved.generationDraft&&(!proof||JSON.stringify(proof)!==JSON.stringify(packetHashes(dir,job))))fail('previous_changed','The previous document bytes could not be verified. Generate a fresh packet.');save(dir,id,job,{revision:current.draft.revision,guidance:clean.guidance,experienceIds:clean.experienceIds,experienceRevision:clean.experienceRevision});board.updateBoardState(dir,id,{reviewedPrevious:{inputsHash:expected,afterAttempt:saved.generationDraft?.requestId||null,at:new Date().toISOString()}});return view(dir,id,job);}
-module.exports={DraftError,view,save,begin,refused,restore,assertReady,confirmClaims,latestIntent,effectiveGeneration,mutable,packetHashes};
+module.exports={DraftError,view,save,begin,refused,markEdited,acceptCurrent,restore,assertReady,confirmClaims,latestIntent,effectiveGeneration,mutable,packetHashes};

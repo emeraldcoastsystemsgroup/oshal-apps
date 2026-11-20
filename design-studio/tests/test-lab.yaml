@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 (lane @ds-app): register the readiness smoke, the process-as-data suite (the vocabulary, the proposal, the validations, the body contract from bound reads), the route suite over the compiled routes and the four screens in Chromium over the real routes and canned engines; every expected line under 500 characters, the framework-coupled suites with their checkout prerequisite.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9 (lane @ds-plant): the mechanism as data (refused by name, the task from the brief's line, the plant spec from the reads, the lift example, the body contract of a generated plant), the mechanism routes in the route suite, the lift in the browser suite (Create the parts, the Mechanism screen, Build the plant through Certify), and the lift end to end on the real CAD kernel and embodied engine images with its prerequisites named.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7 (lane @ds-fab): the print set as data (STL parsed back and checked watertight, the set input and part meta refused by field, the sheet, BOM and manifest on disk), the print-set routes in the route suite, the Fabricate poster in the browser suite (made through the fixture's CAD Studio, unprintable parts listed, the hanger's one-file set, Send to printer), and one small part through the real CAD Studio engine image with its prerequisite named - it skips loudly with the reason when the image is absent.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B3/B15: document closed-spider body contract tickS & senses[].rateHz with missing: [] and honest reasoned-only closures + Pi bay thermal solve brief option across unit, route, surface and browser suites.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -36,7 +37,8 @@ cases:
     expected:
       - "A hanger proposes brief, design, fabricate, build; the spider's six lines propose all nine phases; 'has heat' is named as a thermal need no engine on this shelf solves."
       - "validateClosure refuses missing_evidence (422) without the evidence line or the revision, and missing_step on the build phase."
-      - "The body contract's actuator ranges, torques, rpm, timestep, tick, sha, endpoint and senses equal the fixture reads; without the plant, certificate or node read it names each missing value and refuses."
+      - "The body contract's actuator ranges, torques, rpm, timestep, tickS, sha, endpoint and senses[].rateHz equal the fixture reads with missing: [] for a closed spider; absent rates stay named in missing."
+      - "B15: Pi bay thermal solve brief option validates and surfaces as unsolved, and reasoned closures record honest unmeasured metadata."
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -187,7 +189,8 @@ cases:
     expected:
       - "401 without a caller; 404 for another subject's product; 400 with the field for a bad chain, brief or artifact; 409 phase_not_in_chain for a bind or close outside the chain; 404 unknown_example."
       - "The example creates nine phases and eight bindings by name; a bind is revision n+1 of the phase; a close is 422 missing_evidence without the evidence line or the revision and 422 missing_step on build."
-      - "GET /projects/{id}/body is 409 body_incomplete naming the plant, certificate and node reads it lacks, then 200 with the timestep, ranges, torques, sha and endpoint of the bound reads."
+      - "GET /projects/{id}/body is 409 body_incomplete naming the plant, certificate and node reads it lacks, then 200 with timestep, tickS, ranges, torques, sha, endpoint and senses[].rateHz with missing: []."
+      - "B15: POST /plan and /projects accept thermalSolve: {mode:'pi-bay'} as reasoned-unmeasured, and closing a reasoned phase stamps measuredByEngine: false, reasonedOnly: true and unmeasuredNotice."
       - "PUT /print-set/parts/plate with a box STL answers exported with the box's sha256; an open mesh answers unprintable '3 open edges'; an STL over 8 MiB is 413 stl_too_large; GET /print-set/plate.stl is model/stl, byte-equal, named <product>-plate.stl; set.json and ../set.json are 404."
       - "GET /mechanism is 404 no_mechanism with the brief's task before a save; PUT is 422 part_not_bound, unknown_motor or cycle by name and 400 bad_mechanism with the field, then 201 and 200 as revision 2; the lift example creates seven phases, two bindings and its mechanism with the task from its line; POST /plant-spec composes the spec from the reads (422 part_not_read, motor_not_read); the lift's body contract carries the one actuator from the row."
     prerequisites:
@@ -217,7 +220,8 @@ cases:
     expected:
       - "Products starts empty with the one button New product; a hanger's walkthrough proposes four phases and Create lands on four posters."
       - "The spider example reads parts-complete, sized, drafted, specified, on-the-rail, certified and printable; every poster has exactly one button."
-      - "Close the phase on design, sensors, controller and simulate makes GET /projects/{id}/body answer 200 with the fixture MJCF's timestep and ranges, the design's torques, the certificate's sha and the node's endpoint; the tick rate stays null."
+      - "Close the phase on design, sensors, controller and simulate makes GET /projects/{id}/body answer 200 with timestep, tickS 0.02, ranges, torques, sha, endpoint, senses[].rateHz and missing: []."
+      - "B15: checking Pi bay thermal solve in the walkthrough surfaces unsolved thermal status on the Brief poster, and closing a reasoned phase displays reasoned-only unmeasured banner and closure copy."
       - "With every engine answering 404 each bound poster reads 'no engine on this swarm for this phase'; a 503 and a 500 are shown; a 403 reads refused."
       - "At 412 x 915 the page has no horizontal overflow and every control is at least 44px tall; the sheet carries no colour outside a token fallback."
       - "Make the print set on the spider: 8 of 8 parts exported watertight, 8 CAD Studio creates tagged with the product and program hash, the poster reads fabricated with 11 file links, Close the phase records the manifest's sha256, a second run creates nothing; the design moving on makes the set and the closure stale."
@@ -256,6 +260,7 @@ cases:
     expected:
       - Absent reads say the engine is not installed or not answering here; failed reads name the engine and what to do.
       - Only the next open phase keeps btn-primary.
+      - B3/B15: stages extract engine tickHz & sensor rateHz without inventing absent rates, and reasoned phases/Pi bay thermal solve render honest unmeasured banners and closure copy.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -263,4 +268,26 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: fit-check
+    name: Joint fit clearance check and honest strength reporting (B9)
+    purpose: "Verify server/browser fit-check parity (clearance fit, tight FDM tolerance warning, negative clearance interference blocking parts-complete, cylindrical shaft-in-bore fit/interference, unverified part refusal) and honest unmeasured vs measured strength reporting on the Design poster."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fit-check.test.js
+    expected:
+      - "Clearance fit (>= 0 mm) allows parts-complete and reports exact clearance in mm; tight clearances (< 0.2 mm) on moving joints emit an FDM tolerance warning."
+      - "Interference (< 0 mm) from undersized, misaligned, missing, or failed pockets blocks parts-complete with the exact offending joint, part pair, and clearanceMm."
+      - "The Design poster explicitly states no engine strength estimate has been measured for a named load unless an engine measurement with safetyFactor > 0 is bound."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+      maxMemoryMb: 256
     installation: never

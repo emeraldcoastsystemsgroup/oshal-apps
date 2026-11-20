@@ -1404,6 +1404,24 @@ migration changed; staticFiles adds `career-work-history-engagements.js`. Guarde
 and `tests/career-engagements-page.test.mjs` (1440, 412, 360); on an installed Career, `tests/career-engagements-live-proof.mjs
 check` reads it as a test person with 20 made-up engagements on the test slot.
 
+**Years by skill on Work history (1.68.24).** Résumés and cover letters state a person's own years where the person gave
+them (`years_by_skill`, a list of `{skill, years}`, and `career_years`, in the main résumé; read by
+`engine/jobhunter/years_truth.py` since 1.68.22). Work history's **Years by skill** section, under the jobs, is where a person
+gives them. Each skill has **From your roles** (the years counted from the roles' dates), **Your figure** (empty is none) and
+**Used on résumés**; **Add a skill** adds one the roles do not name; **Years of experience in total** has the same three;
+**Save years** saves the whole form and **Undo** puts the earlier version back. **Used on résumés** comes from the table
+generation reads: your figure exactly (`11 years`); for a skill counted from your roles, the most a résumé may state
+(`Up to 3 years`), or `No year count (under 2 years)`; for the total with no figure of yours, the least a résumé may state and
+the one rounded phrasing left standing (`At least 23 years, or "over 20 years"`). The years counted from your roles are the
+main résumé's own; an application that also carries Other experience you ticked may count more. `GET
+/resume/master-section?field=years` answers the rows with the main résumé's revision, and the save is an edit of field `years`
+of `POST /resume/master-edit`: at most 40 skills, a name of 1 to 60 characters named once, years from 0.5 to 60 in steps of 0.5,
+a total from 1 to 70 in steps of 0.5 or empty; one bad row refuses the whole save in words that name the row; exactly those two
+keys are written, backed up, audited and undoable (`POST /resume/master-undo`); a main résumé that moved after the form read it
+is refused (409) and read again. No route, permission or migration changed; staticFiles adds `career-years-by-skill.js`.
+Guarded by `tests/career-years-edit.test.mjs` and `tests/career-years-by-skill-page.test.mjs` (1440, 412); on an installed
+Career, `tests/career-years-by-skill-live-proof.mjs check` drives it as a test person on the test slot.
+
 **Letters and résumés say only what your records support (1.68.5).** Until 1.68.5 the rules that kept letters honest were
 instructions to the model: the person-specific ones moved in July 2026 into an optional `prompt_framing` block, the cover editor
 was told to "surface ... depth even when it lives in an EARLIER role", and nothing after the model call checked a claim, so a
@@ -1488,3 +1506,4 @@ kernel platform export).
 <!-- CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.5: letters and résumés say only what the records support; the letter draws on the work ranked most relevant and recent; a letter that still cannot is marked needs your review. -->
 <!-- CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.6: the My jobs posting sheet reads a job's missing description through the kernel's egress and keeps it as the person's copy, says plainly why it cannot, and the one-employer description backfill for the shared corpus. -->
 <!-- CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.7: My résumé draws no chat of its own; a tailored résumé's chat is Career's concierge, the kernel's one chat window (Concierge on a computer, Edit with AI on a phone), in that résumé's own conversation, with the tools that read and change it on its context. -->
+<!-- CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.24: Years by skill on Work history, where a person gives their own years per skill and in total; what Used on résumés shows; the `years` section read and the `years` edit of the main-résumé edit, and their guards. -->

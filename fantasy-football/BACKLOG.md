@@ -30,14 +30,24 @@ weeks' projection rows from the same single read — and the pro-team bye weeks 
 credential); `buildSeasonPlan` takes both; and a response for an ESPN league lists no rate weeks and
 reports `byesKnown: true`.
 
-## A2. The season objective is expected points, not P(playoffs)
+## A2. The season objective is expected points, not P(playoffs) — **Done (0.4.3)**
 
 Spec 2.2.5's season-level objective — simulate the remaining schedule and maximise P(making the
-playoffs) rather than total points — is not built. The waiver board and the trade finder rank by SV.
+playoffs) rather than total points — is shipped in `0.4.3` (`src-routes/fantasy-playoff-sim.ts`,
+compiled `routes/fantasy-playoff-sim.js`).
 
-**Done when:** a schedule simulation over the remaining fixtures (standings from the league read or
-a hand-typed table) reports P(playoffs) with and without a claim or trade, and a guard shows that a
-team two games out prefers the higher-variance option a bubble team does not.
+- Simulates remaining regular-season fixtures deterministically (seeded Mulberry32 + Box-Muller
+  antithetic common random numbers, breaking record ties by `pointsFor`) using current standings
+  from ESPN's existing `mSettings+mTeam` read or optional `standings` / `playoffTeams` on hand-typed
+  leagues, with each team's weekly lineup `(mean, sd)` from `fantasy-winprob.ts` and completed-week
+  scoring history.
+- `GET /season`, `GET /waivers`, `GET /trades`, and `GET /quant/waivers` report `playoffs` metadata
+  plus per-claim and per-trade `playoffProb`, `playoffProbWith`, and `playoffDelta`, ranking waivers
+  and trades by `playoffDelta` when standings and remaining fixtures are available (gracefully
+  degrading to SV with an explicit reason when unavailable, and honouring `?rankBy=sv`).
+- Guard `tests/fantasy-playoff-sim.test.js` (Test Lab case `fantasy-playoff-sim`) proves deterministic
+  reproducibility, `pointsFor` tiebreaking, ESPN/manual route parity, UI rendering, and that a team
+  two games out prefers the higher-variance claim or trade that a bubble team does not.
 
 ## B. The start/sit ledger has no season yet
 

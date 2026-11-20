@@ -17,6 +17,9 @@
  *                     |                             | through CAD Studio, a sheet from the parts' own fields, the BOM,
  *                     |                             | a sha256 manifest) and what closes the phase (a finished set at
  *                     |                             | the current design revision with no part unprintable).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: add named Pi bay thermal solve option (`thermalSolve`)
+ *                     |                             | on Brief and honest reasoned-phase closure helpers (`closureHonesty`,
+ *                     |                             | `honestEvidence`) so reasoned closures explicitly state no engine measured them.
  */
 
 /** @description The phase vocabulary, in the one order a chain carries its subset. */
@@ -53,11 +56,32 @@ export interface PhaseBrief {
   action: string;
 }
 
-/** @description A product's brief: the walkthrough's answers (D4). */
+/** @description Named thermal solve options in the brief (B15): no thermal engine exists on this shelf yet. */
+export const THERMAL_SOLVE_MODES = ['none', 'pi-bay'] as const;
+export type ThermalSolveMode = typeof THERMAL_SOLVE_MODES[number];
+export interface ThermalSolveOption {
+  mode: ThermalSolveMode;
+  status: 'not-requested' | 'reasoned-unmeasured';
+  note?: string;
+}
+
+/** @description Standard honesty notice attached to closures of reasoned phases with no measuring engine (B15). */
+export const UNMEASURED_CLOSURE_NOTICE = 'no engine measured this phase (reasoned only)';
+
+/** @description Honesty classification for a phase closure (B15). */
+export interface ClosureHonesty {
+  engine: Engine;
+  measuredByEngine: boolean;
+  reasonedOnly: boolean;
+  unmeasuredNotice: string | null;
+}
+
+/** @description A product's brief: the walkthrough's answers (D4) and optional named thermal solve choice (B15). */
 export interface Brief {
   what: string;
   requirements: string[];
   targets: { massG?: number; sizeMm?: string; costUsd?: number; runtimeMin?: number };
+  thermalSolve?: ThermalSolveOption;
 }
 
 const brief = (kind: PhaseKind, title: string, produces: string, engines: readonly Engine[], defaultEngine: Engine, closes: string, stages: readonly string[], action: string): PhaseBrief =>
@@ -133,6 +157,9 @@ export function proposePhases(b: Brief): Proposal {
   add('fabricate', 'every product is made');
   add('build', 'every product is assembled and tested on the bench');
   const unsolved = matched(lines, THERMAL).map((line) => `${line} - a thermal phase has no engine on this shelf (ADR-203); it stays a requirement the brief carries`);
+  if (b.thermalSolve?.mode === 'pi-bay') {
+    unsolved.push('Pi bay thermal solve - no thermal engine exists on this shelf (B15); tracked in the brief as reasoned/unmeasured until a thermal engine is bound');
+  }
   return { phases: orderPhases(phases), unsolved };
 }
 
@@ -191,8 +218,24 @@ export function validatePhases(value: unknown): PhaseEntry[] {
 /** The targets a brief may carry and how each is read. */
 const TARGETS: ReadonlyArray<[keyof Brief['targets'], 'number' | 'string']> = [['massG', 'number'], ['sizeMm', 'string'], ['costUsd', 'number'], ['runtimeMin', 'number']];
 
+/** Validate optional `brief.thermalSolve` (B15): accepts boolean, mode string, or `{mode, note?}`. */
+export function validateThermalSolve(raw: unknown): ThermalSolveOption | undefined {
+  if (raw === undefined || raw === null || raw === false || raw === '' || raw === 'none') return undefined;
+  if (raw === true || raw === 'pi-bay') return { mode: 'pi-bay', status: 'reasoned-unmeasured' };
+  if (isRecord(raw)) {
+    const mode = raw.mode;
+    if (typeof mode !== 'string' || !(THERMAL_SOLVE_MODES as readonly string[]).includes(mode)) {
+      throw new ModelError(`brief.thermalSolve.mode must be one of ${THERMAL_SOLVE_MODES.join(', ')}`, 'bad_brief', 'brief.thermalSolve');
+    }
+    if (mode === 'none') return undefined;
+    const note = typeof raw.note === 'string' ? raw.note.trim().replace(/\s+/g, ' ').slice(0, 200) : '';
+    return { mode: 'pi-bay', status: 'reasoned-unmeasured', ...(note ? { note } : {}) };
+  }
+  throw new ModelError(`brief.thermalSolve must be a boolean, one of ${THERMAL_SOLVE_MODES.join(', ')}, or {mode, note?}`, 'bad_brief', 'brief.thermalSolve');
+}
+
 /**
- * @description Validate a brief: `what` one line, `requirements` one per line (at most 60, each at most 300 characters), optional targets.
+ * @description Validate a brief: `what` one line, `requirements` one per line (at most 60, each at most 300 characters), optional targets and optional thermalSolve.
  * @param value - The body's `brief`.
  * @returns The validated brief.
  * @throws ModelError naming the field.
@@ -214,7 +257,8 @@ export function validateBrief(value: unknown): Brief {
       (targets as Record<string, unknown>)[key] = n;
     } else (targets as Record<string, unknown>)[key] = String(v).trim().slice(0, 120);
   }
-  return { what, requirements, targets };
+  const thermalSolve = validateThermalSolve(value.thermalSolve);
+  return { what, requirements, targets, ...(thermalSolve ? { thermalSolve } : {}) };
 }
 
 /** @description A bound artifact: the engine, what kind of artifact, its reference by name/id, and the engine's reply as read (never a copy of a number typed by hand). */
@@ -262,4 +306,28 @@ export function validateClosure(kind: PhaseKind, body: Record<string, unknown>):
   if (kind === 'build' && !step) throw new ModelError('the build phase closes one checklist step at a time: name the step', 'missing_step', 'step', 422);
   const by = typeof body.by === 'string' && body.by.trim() ? body.by.trim().slice(0, 80) : 'person';
   return { evidence, revision, step, by };
+}
+
+/** @description True when a phase is reasoned with no verifying engine (excludes brief words and bench build). */
+export function isReasonedPhase(entry: PhaseEntry): boolean {
+  return entry.engine === 'reasoned' && entry.kind !== 'brief' && entry.kind !== 'build';
+}
+
+/** @description Compute honest measurement metadata for a phase closure (B15). */
+export function closureHonesty(entry: PhaseEntry | undefined, hasEngineRead: boolean): ClosureHonesty {
+  const engine: Engine = entry?.engine ?? 'reasoned';
+  if (entry?.kind === 'brief' || entry?.kind === 'build') {
+    return { engine, measuredByEngine: false, reasonedOnly: false, unmeasuredNotice: null };
+  }
+  if (engine !== 'reasoned' && hasEngineRead) {
+    return { engine, measuredByEngine: true, reasonedOnly: false, unmeasuredNotice: null };
+  }
+  return { engine, measuredByEngine: false, reasonedOnly: true, unmeasuredNotice: UNMEASURED_CLOSURE_NOTICE };
+}
+
+/** @description Ensure a reasoned-only closure's persisted evidence line explicitly names that no engine measured it. */
+export function honestEvidence(evidence: string, honesty: ClosureHonesty): string {
+  if (!honesty.reasonedOnly || !honesty.unmeasuredNotice) return evidence;
+  if (/no engine measured/i.test(evidence)) return evidence;
+  return `${evidence} — ${honesty.unmeasuredNotice}`.slice(0, CAP);
 }

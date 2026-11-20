@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove missing professional format choices in the existing My résumé More menu at phone and desktop widths, retaining its current download location without saving or generating.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove real transient Professional export bytes, mid-flight dialog cancellation, generated packet/cover format choices on Prepare application, and exact retained PDF withholding on submitted applications.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: verify Prepare application offers all 4 executive template families (Professional, Standard, Leadership, Technical) across Word/PDF/RTF for both résumé and cover letter.
  */
 import {test, before, after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -115,8 +116,9 @@ test('Prepare application offers format choices beside generated packet and keep
     await summary.waitFor({state: 'visible'});
     await summary.click();
     assert.deepEqual(await prep.page.locator('[data-career-downloads] [data-export-format] option').allTextContents(), ['Word (.docx)', 'PDF', 'RTF (ATS/import)']);
+    assert.deepEqual(await prep.page.locator('[data-career-downloads] [data-export-style] option').evaluateAll(els => els.map(el => el.value)), ['Professional', 'Standard', 'Leadership', 'Technical']);
     await prep.page.getByRole('tab', {name: 'Cover letter', exact: true}).click();
-    assert.equal(await prep.page.locator('[data-career-downloads] [data-export-style] option[value="professional"]').evaluate(el => el.disabled), true);
+    assert.equal(await prep.page.locator('[data-career-downloads] [data-export-style] option[value="Technical"]').evaluate(el => el.disabled), false);
   } finally { await prep.context.close(); }
   const sent = await openScreen(browser, 'career-application.html', api('applied'), DESKTOP, '?application=225&step=documents');
   try {

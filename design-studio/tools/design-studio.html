@@ -69,6 +69,14 @@
           <label>Cost, USD<input id="new-cost" type="number" min="0" step="any" placeholder="optional" /></label>
           <label>Runtime, min<input id="new-runtime" type="number" min="0" step="any" placeholder="optional" /></label>
         </div>
+        <div class="thermal-option" id="thermal-solve-group">
+          <label class="thermal-check" for="new-thermal-solve">
+            <input id="new-thermal-solve" type="checkbox" value="pi-bay" />
+            <span>Pi bay thermal solve (reasoned — no thermal engine on this shelf yet)</span>
+          </label>
+          <input id="new-thermal-note" type="text" maxlength="200" placeholder="Optional Pi bay thermal note (e.g. Pi 5 active cooler in vented bay)" hidden />
+          <p class="help">Tracks thermal verification of the Raspberry Pi bay in the brief as reasoned/unmeasured until a thermal engine is bound.</p>
+        </div>
       </div>
       <div class="card" id="proposal-card">
         <p class="step">5 &middot; The phase chain</p>
@@ -80,6 +88,7 @@
   </section>
 
   <nav class="phase-stepper" id="phase-stepper" aria-label="Phase progress" hidden></nav>
+  <section class="liveness-banner" id="engine-liveness" role="status" aria-live="polite" hidden></section>
   <section class="chain" id="screen-product" aria-label="The phase chain, in order" hidden></section>
 
   <section class="walk" id="screen-mechanism" aria-label="Mechanism" hidden>
@@ -88,7 +97,7 @@
 
   <section class="settings" id="screen-settings" aria-label="Settings" hidden>
     <form id="settings-form" class="settings">
-      <div class="card" id="settings-engines"><p class="step">Engines</p><p class="help">Which package measures each phase; <code>reasoned</code> when no engine on this swarm does. An engine that did not answer this session is marked absent.</p></div>
+      <div class="card" id="settings-engines"><p class="step">Engines</p><p class="help">Which package measures each phase; <code>reasoned</code> when no engine on this swarm does. An engine that did not answer this session is marked absent.</p><div id="settings-liveness" class="liveness-list" aria-label="Engine container status"></div></div>
       <div class="card" id="settings-printer"><p class="step">Printer</p><label>Print set goes to<select id="set-printer"></select></label><p class="help" id="printer-help"></p></div>
       <div class="card" id="settings-bindings"><p class="step">Bound artifacts</p><div id="bindings-list"></div></div>
       <div class="actions"><button type="submit" class="btn btn-primary" id="save-settings">Save</button><button type="button" class="btn" id="delete-product">Delete this product</button></div>
@@ -159,6 +168,7 @@
     window.dispatchEvent(new Event('bridge-ready'));
   } catch (_) { /* no assistant rail here */ }
 </script>
+<script src="/api/design-studio/assets/design-studio-fit.js"></script>
 <script src="/api/design-studio/assets/design-studio-stages.js"></script>
 <script src="/api/design-studio/assets/design-studio-screens.js"></script>
 <script src="/api/design-studio/assets/design-studio-fabricate.js"></script>

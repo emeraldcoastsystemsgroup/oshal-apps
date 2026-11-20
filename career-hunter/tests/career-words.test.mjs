@@ -50,9 +50,10 @@ test('the stages carry the names a job seeker reads', () => {
   createRequire(import.meta.url)(join(tools, 'career-stages.js'));
   const { STAGES, PIPELINE } = globalThis.CareerStages;
   // My jobs, then Applications (judge's report, changes 6 and 9): To approve is not a stage and there is no More menu.
+  // 1.68.18: Applied filters strictly to status='applied' so Interviewing/Offer/Closed do not stay in Applied.
   assert.deepEqual(STAGES.map((stage) => [stage.id, stage.label, stage.status, stage.side]), [
     ['matches', 'New matches', '', 'jobs'], ['saved', 'Saved', 'saved', 'jobs'], ['preparing', 'Getting ready', 'queue', 'jobs'], ['dismissed', 'Removed', 'dismissed', 'jobs'],
-    ['applied', 'Applied', 'tracked', 'applications'], ['interviewing', 'Interviewing', 'interview', 'applications'], ['offer', 'Offer', 'offer', 'applications'], ['closed', 'Closed', 'rejected', 'applications']]);
+    ['applied', 'Applied', 'applied', 'applications'], ['interviewing', 'Interviewing', 'interview', 'applications'], ['offer', 'Offer', 'offer', 'applications'], ['closed', 'Closed', 'rejected', 'applications']]);
   assert.deepEqual(PIPELINE.map((stage) => stage.label), ['New matches', 'Saved', 'Getting ready', 'Applied', 'Interviewing', 'Offer'], 'Home\'s pipeline');
   assert.equal(globalThis.CareerStages.MORE, undefined);
   for (const name of files) assert.doesNotMatch(shown(name), /To approve|Document records|Queued for documents/, `${name} names a stage that is gone`);

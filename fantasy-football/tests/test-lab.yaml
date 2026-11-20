@@ -13,6 +13,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (F22): register fantasy-quant (read-only FLEX start-sit, waivers, matchup breakdown, and confirm-gated mutations) and fantasy-quant-browser (collapsible Fantasy Quant Concierge rail across 1440x900 and 412x915).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register phone-wizard (lane mobilesweep2).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger, 2026-11-16: every concierge is the core Jarvis chat window): the Concierge rail is the kernel's one chat window. Register fantasy-one-chat-window (the window in the rail at 1440x900 and 412x915 touch, the model pick on the turn, the view, board, league and board words on context.screen_state, an approved lineup card reloading the board) in place of fantasy-quant-browser, whose suite is retired with the rail's own chat it tested; fantasy-quant also expects the mount.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (Backlog A2): register fantasy-playoff-sim proving deterministic remaining-schedule P(playoffs) simulation, two-games-out vs bubble variance preference on waivers and trades, graceful degradation without standings/fixtures, compiled route integration, and UI/form round-trip.
 version: 1
 cases:
   - id: package-readiness
@@ -856,4 +857,30 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: fantasy-playoff-sim
+    name: Remaining-schedule P(playoffs) simulation and variance objective
+    purpose: >-
+      Verify Backlog A2 (spec 2.2.5): deterministic remaining-schedule simulation over standings and remaining
+      regular-season fixtures reports P(playoffs) before and after waiver claims and trades, and proves a team
+      two games out prefers the higher-variance option a bubble team does not.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-playoff-sim.test.js
+    expected:
+      - Schedule simulation is deterministic, breaks record ties by pointsFor, and parses ESPN mSettings+mTeam standings.
+      - A team two games out gains more P(playoffs) from a higher-variance boom/bust waiver claim or trade (ranking it first) than from a higher-SV steady option, while a bubble team prefers the steady option.
+      - Missing standings after week 1 or missing remaining fixtures degrade cleanly with available false and an explicit reason, falling back to SV ranking.
+      - Compiled /season, /waivers, /trades, and /quant/waivers routes report P(playoffs) baseline, with-move, and delta for both hand-typed and ESPN-shaped leagues, and the surface renders them and round-trips optional standings.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

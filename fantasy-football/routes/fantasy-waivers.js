@@ -29,6 +29,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — rest-of-season swap value over the best drop, the FAAB bid with a replacement-level scarcity premium and a reserve cap, and an isolated one-week streaming lane.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Optional remaining-schedule P(playoffs) simulation objective (Backlog A2): reports playoffProb, playoffProbWith and playoffDelta per claim and ranks by playoffDelta when standings and remaining fixtures are available (preserving SV ranking when unavailable or requested).
  *
  * @module fantasy-waivers
  */
@@ -100,12 +101,16 @@ function priceClaim(c, input, base, replacement) {
     const started = (0, fantasy_season_1.weeksStarted)(c.playerId, after);
     const displacedReplacement = started.filter((w) => displacesReplacement(c.playerId, w, base, after, replacement, input.plan)).length;
     const dropped = input.plan.playerFor(drop.playerId, input.plan.weeks[0].week) || input.pool[drop.playerId];
+    const impact = input.playoffSim?.info.available
+        ? input.playoffSim.evaluateRoster(withC.filter((id) => id !== drop.playerId))
+        : null;
     return {
         add: { playerId: c.playerId, name: c.name, positionId: Number(c.defaultPositionId) || null },
         drop: { playerId: drop.playerId, name: dropped?.name || `Player ${drop.playerId}` },
         gain,
         weeksStarting: started.length,
         scarcity: displacedReplacement > input.plan.weeks.length * exports.SCARCITY_SHARE,
+        ...(impact ? impact : {}),
     };
 }
 /**
@@ -160,8 +165,11 @@ function waiverBoard(input) {
     const base = (0, fantasy_season_1.seasonValue)(input.rosterIds, input.plan);
     const { byPosition } = (0, fantasy_season_1.replacementLevel)(Object.values(input.pool), input.plan.slots, input.plan.scoring, input.teams);
     const { season, stream } = wireCandidates(input);
+    const usePlayoffs = Boolean(input.playoffSim?.info.available && input.rankBy !== 'sv');
     const priced = season.map((c) => priceClaim(c, input, base, byPosition)).filter((r) => r !== null)
-        .sort((a, b) => b.gain - a.gain);
+        .sort((a, b) => (usePlayoffs
+        ? ((b.playoffDelta ?? 0) - (a.playoffDelta ?? 0)) || (b.gain - a.gain)
+        : (b.gain - a.gain)));
     const wireValue = Math.round(priced.reduce((s, r) => s + r.gain, 0) * 100) / 100;
     const cap = input.budget === null ? null : Math.max(0, input.budget - exports.RESERVE_PER_WEEK * Math.max(input.plan.weeks.length - 1, 0));
     const rows = priced.map((r) => ({
@@ -169,7 +177,10 @@ function waiverBoard(input) {
         cap,
         bid: input.budget === null ? null : bidFor(r.gain, wireValue - r.gain, r.scarcity, input.budget, cap),
     }));
-    return { rows, streaming: streamingLane(stream, input), budget: input.budget, cap, wireValue, replacement: byPosition };
+    const playoffMeta = input.playoffSim
+        ? { objective: (usePlayoffs ? 'playoffs' : 'sv'), playoffs: input.playoffSim.info }
+        : {};
+    return { rows, streaming: streamingLane(stream, input), budget: input.budget, cap, wireValue, replacement: byPosition, ...playoffMeta };
 }
 /**
  * @description The one-week lane: each streamer against the player of his position he would replace

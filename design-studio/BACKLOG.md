@@ -37,15 +37,13 @@ the three Fabricate cases in `tests/design-studio.spec.mjs` (11/11 in Chromium),
 `tests/print-set.engine.spec.mjs` (one part through `oshal-cad-studio-engine:local`: 1004 triangles,
 3.55 g at 1.2 g/cm³, 16 × 16 × 16 mm); 
 
-## B3 — The body contract's tick rate and sense rates have no engine source
+## B3 — The body contract's tick rate and sense rates have no engine source — DONE in 0.4.13 (with `embodied` `0.20.6`)
 
-`plant.tickS` and `senses[].rateHz` are null and named in `missing`: the rail's node listing
-(`GET /api/embodied/physics/status` nodes[]) carries no `tickHz` even though the hexapod node's hello does,
-and no engine reply states the LiDAR's or the IMU's rate (the bought rows carry mass and price only).
+**Done in 0.4.13 (with `embodied` `0.20.6`):** `embodied` `0.20.6` publishes each rail node's `tickHz` (from its hello/heartbeat or capability manifest) and `senses[]` (`rateHz` for `lidar` 10 Hz, `imu` 100 Hz, `joint-state` 50 Hz) on `GET /api/embodied/physics/status` `nodes[]`, publishes `SPIDER_18_MANIFEST` with `senseRates` on `GET /api/embodied/capabilities`, and carries `rateHz` on `GET /api/embodied/build/hexapod` (`bought[]` and `senses[]`). `design-studio` `0.4.13` records `tickHz` and `senses[]` in the controller read and `rateHz` in the sensors read (`tools/design-studio-stages.js`), computes `plant.tickS = 1 / tickHz` and resolves `senses[].rateHz` in `src-routes/body-contract.ts` (never inventing rates when absent), and publishes `plant.tickS: 0.02`, populated `senses[].rateHz` (`lidar: 10`, `imu: 100`, `joints: 50`), and `missing: []` for a closed spider. Evidence: `embodied/tests/engine-bot-tools-contract.test.js`, `embodied/tests/engine-hexapod-node.test.js`, `embodied/tests/engine-hexapod-design.test.js`, `design-studio/tests/phase-model.test.js`, `design-studio/tests/ux-words.test.js`, `design-studio/tests/routes.core.test.js`, and `design-studio/tests/design-studio.spec.mjs`.
 
-Done when: embodied publishes the node's hello (`tickHz`) on the rail listing and the senses' rates on
-the design's rows or the node's capability manifest, this page records them in the controller and sensors
-reads, and `GET /projects/{id}/body` publishes them with `missing` empty for a closed spider.
+Was: `plant.tickS` and `senses[].rateHz` are null and named in `missing`: the rail's node listing (`GET /api/embodied/physics/status` nodes[]) carries no `tickHz` even though the hexapod node's hello does, and no engine reply states the LiDAR's or the IMU's rate (the bought rows carry mass and price only).
+
+Done when: embodied publishes the node's hello (`tickHz`) on the rail listing and the senses' rates on the design's rows or the node's capability manifest, this page records them in the controller and sensors reads, and `GET /projects/{id}/body` publishes them with `missing` empty for a closed spider.
 
 ## B4 — The spider's Electrical phase reads *holds* only after the person's own solve
 
@@ -119,13 +117,17 @@ lift end to end on the real engines. What it does not carry, each with its reaso
 Embodied-side limits (a floating base, a second chain's exact inverse kinematics, a contact between parts)
 are embodied's B33.
 
-## B9 — Built is not designed: nothing checks that parts fit or hold (found on the owner's printer, 2026-10-31)
+## B9 — Built is not designed: nothing checks that parts fit or hold — DONE in 0.4.12
 
-The partner built `bench lift` as three bare boxes, the poster read parts-complete, and one reached the printer. 0.4.6 reads a bare box as `blocks` and tells the partner to design parts for what they do. Nothing yet checks a part against another: the carriage's pocket against the column, a hole against a fastener, a printed wall against a load. The plant simulates every part as a box of its size and mass, so a certified plant says the motor lifts the load in time, not that the parts fit.
+**Done in 0.4.12:** Added `src-routes/fit-check.ts` (compiled `routes/fit-check.js`), browser parity module `tools/design-studio-fit.js`, and `POST /projects/{id}/fit-check`. On CAD-bound products with a mechanism, Design reads each joint's parent and child CAD Studio part geometry (outer envelopes plus active subtractive `box-cut` pockets and cylindrical `hole` bores, ignoring failed/disabled features) and computes signed clearance in mm (`fit`, `interference`, or `unverified`) with a `0.20 mm` FDM tight-fit warning threshold on moving joints. Any joint with interference (`< 0 mm`) or unverified geometry blocks `parts-complete` on the Design poster (`stage: interference` / `fit-unverified`) and `POST /projects/{id}/close` refuses closure (`422 fit_interference`) naming the offending joint, part pair, and clearance in mm. The Design poster always renders `#design-strength-note`: either displaying an engine-measured safety factor / stress result when bound, or explicitly stating that no engine strength estimate has been measured for the named load. Evidence: `tests/fit-check.test.js` (8/8), `tests/routes.core.test.js` (13/13), and B9 browser case in `tests/design-studio.spec.mjs`.
+
+Was: the partner built `bench lift` as three bare boxes, the poster read parts-complete, and one reached the printer. 0.4.6 reads a bare box as `blocks` and tells the partner to design parts for what they do. Nothing yet checks a part against another: the carriage's pocket against the column, a hole against a fastener, a printed wall against a load. The plant simulates every part as a box of its size and mass, so a certified plant says the motor lifts the load in time, not that the parts fit.
 
 **Done when:** a Design check reads each joint's two parts from CAD Studio and answers fit or interference with the clearance in mm, a refusal blocks parts-complete, and a strength estimate for a named load is either measured by an engine or the poster says none is.
 
-## B10 — The partner runs out of tool steps on a real design
+## B10 — The partner runs out of tool steps on a real design — DONE (order batching) in 0.4.11
+
+**Done in 0.4.11:** `cad-edit` orders now accept a bounded `features: [...]` batch (up to 25 bare feature objects to add or `{op, featureId?, feature?}` steps) alongside the existing single-feature shape; `DesignStudioOrders` executes each step in sequence and reports partial progress honestly if any step fails. `design-partner.yaml` and `oshal-app.yaml` document batched edits. Evidence: `tests/order-model.test.js` and `tests/ux-words.test.js`.
 
 Each `cad-edit` is one order and one tool step, and a turn has few. Redesigning three parts stopped partway with the mounting holes undone. The persona says to build features in the `cad-create` list, but that does not help an edit.
 
@@ -143,21 +145,27 @@ Every proof ran as the operator persona or the owner. The automated path cannot 
 
 **Done when:** a composite template grants the engineering shelf in one assignment, and a non-administrator signs in and runs New product, a partner-built part, Simulate and Make the print set.
 
-## B13 — A new package reads "Application unavailable" with no reason
+## B13 — A new package reads "Application unavailable" with no reason — DONE (surface & order copy) in 0.4.11
+
+**Done in 0.4.11 (Design Studio surface & orders):** HTTP 403 responses from Design Studio and sibling engines now report actionable missing-access / administrator role-assignment guidance (naming the application/engine without exposing route paths or weakening authorization), and HTTP 401 responses instruct the user to reload and sign in again. Evidence: `tests/ux-words.test.js` and `tests/design-studio.spec.mjs`. (Host delivery-recipe assignment automation remains outside this package.)
 
 Installing a package grants nobody but the operator. The owner's account got `403 no tier over design-studio`, and the cockpit said only to ask an administrator. It cost a round of testing, because every proof until then had been the operator's.
 
 **Done when:** a delivery of a new package says who holds it, the cockpit names the missing access to an administrator, and the delivery recipe has an assignment step.
 
-## B14 — A stopped engine is invisible until a person hits it
+## B14 — A stopped engine is invisible until a person hits it — DONE (Product & Settings liveness) in 0.4.11
+
+**Done in 0.4.11 (Design Studio UI):** `readEngines` reads `/capabilities` for `cad-studio`, `circuit-lab` and `scan-to-print` alongside `embodied/physics/status`; `engineLiveness` and `engineBannerIssues` surface stopped engine containers cleanly on the Product banner (`#engine-liveness`) and Settings status pills (`#settings-liveness`) before any button is pressed. Evidence: `tests/ux-words.test.js`. (Host-level health-check alerting remains a host-ops concern.)
 
 `oshal-cad-studio-engine` and `oshal-scan-to-print-engine` had both been stopped since 2026-10-23 with their loopback links still active. Each surfaced only as a failure in the middle of work. What stopped them is not established.
 
 **Done when:** Settings and the poster read each engine's liveness before a button is pressed, and the host's health check alerts on a stopped engine whose link is up.
 
-## B15 — Phases with no engine
+## B15 — Phases with no engine — DONE in 0.4.13
 
-Mechanical on a machine that is not the spider, Sensors, and the spider's heat requirement are reasoned: the words are recorded and nothing measures them. A thermal engine does not exist on this shelf.
+**Done in 0.4.13:** Any reasoned phase without a verifying engine (e.g., Mechanical on a non-spider machine, Sensors without measured telemetry, or any phase set to `engine: reasoned`) now renders an explicit warning banner (`#<phase>-unmeasured-banner`: *"No engine measured this phase (reasoned only)"*), records honest closure metadata (`measuredByEngine: false`, `reasonedOnly: true`, `unmeasuredNotice: "no engine measured this phase (reasoned only)"`) across `POST /projects/{id}/close`, `GET /projects/{id}`, and `GET /projects/{id}/phase-brief/{kind}`, stamps that notice into the persisted closure evidence line, and displays `closed (reasoned only — no engine measured this phase)` with warning styling on the poster and stepper so a reasoned closure never reads as engine-verified. The New product brief model (`Brief.thermalSolve`), `/capabilities` (`thermalSolveModes`), `/plan` (`unsolved`), `spider-18` example, and walkthrough UI (`#new-thermal-solve` / `#new-thermal-note` + `#brief-thermal-note`) now expose **Pi bay thermal solve** as a named brief option tracked honestly as `reasoned-unmeasured` until a thermal engine is bound. Evidence: `tests/phase-model.test.js`, `tests/ux-words.test.js`, `tests/routes.core.test.js`, and B15 Chromium test in `tests/design-studio.spec.mjs`.
+
+Was: Mechanical on a machine that is not the spider, Sensors, and the spider's heat requirement are reasoned: the words are recorded and nothing measures them. A thermal engine does not exist on this shelf.
 
 **Done when:** each reasoned phase either has an engine or its closure names that no engine measured it; a thermal solve of the Pi bay is a named option in the brief.
 
@@ -174,7 +182,7 @@ Status as of 2026-11-01. The full picture across packages is in the kernel's `do
 | Stage | Item | State |
 |---|---|---|
 | Now, paused for publishing | B11 finish the lift through one fitted print | waiting on the owner's answer in the rail |
-| Next | B9 fit check, B10 batched edits | not started |
-| Next | B12 and B13: a person other than the owner | not started |
-| Then | B14 engine liveness, B8 meshes and more task kinds | not started |
-| Later | B15 thermal and other engines | not started |
+| Next | B9 fit check & strength honesty (done in 0.4.12); B10 batched edits (done in 0.4.11) | B9 done, B10 done |
+| Next | B12 non-admin role; B13 actionable 403 copy (done in 0.4.11) | B12 not started, B13 done |
+| Then | B14 engine liveness UI (done in 0.4.11), B3 body tick/sense rates (done in 0.4.13), B8 meshes and more task kinds | B14 UI done, B3 done, B8 open |
+| Later | B15 honest reasoned closures & Pi bay thermal solve option (done in 0.4.13) | B15 done |

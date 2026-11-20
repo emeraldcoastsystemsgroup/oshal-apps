@@ -35,6 +35,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: UX audit split (animatronics--animatronics): Perform (rig view, jog, poses, scenarios, look-at, talk, one Log; phone sheets) and Rig setup (templates, rigs, calibration, controller, budget); 44px pose actions with delete in a row menu; Delete rig confirms in the page; headings without inline sentences.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.2.5: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Release 0.2.6 (concierge audit batch 2a; Roger, 2026-11-10: "make sure it holds the existing pattern that was designated in Create"): the side-chat bot runs inline and its persona follows Create's create-editor: the plain-prose answer rule, the ```tool_call fence when the package offers route tools, and runtime harness claude-code (metadata; the kernel takes inference from the installation).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.2.7: add explicit object inputSchema on animatronics-capabilities and animatronics-list-rigs and guard the inline bot-tool contract for oshald.
 name: animatronics
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (the prop is the creative deliverable; Pumpkin sits here too)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -56,7 +57,7 @@ description: >-
   streams the exact controller lines from the page over Web Serial to an ESP32 or Arduino driving
   a PCA9685. Look-at splits a bearing between eyes and neck. Arm with a confirm, e-stop always.
   The director in the chat rail edits and rehearses the same libraries; it cannot arm or play.
-version: 0.2.6
+version: 0.2.7
 status: active
 scope: person
 
@@ -158,6 +159,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/animatronics/capabilities" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: Read this FIRST before adding or changing anything; axis keys, step kinds and easings come from here and from the rig, never from memory.
     routingTags: [animatronics, capabilities, contract]
     tags: [animatronics, route-backed]
@@ -170,6 +172,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/animatronics/rigs" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: Owner-scoped. Use it to find the rigId the person is talking about; ask when two could match.
     routingTags: [animatronics, rigs, list]
     tags: [animatronics, route-backed]

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16, Torch Technologies on My jobs): detailsNeeded(job) is also false once the job has a description (the posting sheet read it from the employer's posting, or the person pasted one); a job with no description reads as before. A list row carries no description, so rows are unchanged. Guard: tests/career-job-details-sheet-browser.test.mjs.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: qualify member tool names (`career-hunter--<tool>`) inside the native experience shell when hosted under the intelligent-career group (iframe data-hosted-app, parent ?app=intelligent-career, or CareerFrame cache) even when parent.document has no legacy [data-view] ribbon nodes, and navigate directly inside #tool-frame when carrying query params so post-edit return to 2 · Review documents never lands on My jobs or fails silently.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): DETAILS_NEEDED, the words for a job Career could not read, ends with what to do after pasting: "… paste it in Prepare application, step 1 · Tailor, and generate your résumé and cover letter there." (lib/career-pasted-details.js NEEDED says the same). Guard: tests/career-paste-details-unmarked.test.mjs.
  * 19 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): job_details_unavailable (and the route's job_details_needed) say what to do: open the job's posting, copy the job description and paste it in Prepare application, step 1 · Tailor. pasted_details_invalid says the pasted text was not used and the bounds. detailsNeeded(job) tells a page that Career could not read the job. Guard: tests/career-paste-details-phone.test.mjs.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 1.65.0 (Roger, production 2026-11-14: "The PDF renderer is unavailable. Please check Settings.."; the server had no Chrome to make the PDF, and Career's Settings page has nothing a person can set about it): the renderer_unavailable message says what is true and what the person can do: this server cannot make PDF documents right now, it is a fault on the server, tell whoever runs it and try again once it is fixed. It names no page. Words only; the reason code and every other message are unchanged. Guard: tests/career-preparation-notice.test.mjs.
@@ -59,20 +60,46 @@
   }
   /* UX audit 2026-11-06: these screens became stages of the Job Board; their links open the board on that stage. */
   const MERGED_INTO_BOARD={'career-submissions':'career-board','career-application-status':'career-board','career-approvals':'career-board','career-mobile':'career-board'};
+  function hostedInGroup(){
+    try{
+      const hosted=root.frameElement?.getAttribute?.('data-hosted-app')||'';
+      if(hosted)return hosted==='intelligent-career';
+    }catch(_){}
+    try{
+      const params=new URLSearchParams(root.parent?.location?.search||'');
+      const app=params.get('app')||params.get('profile')||'';
+      if(app)return app==='intelligent-career';
+    }catch(_){}
+    try{
+      const cached=JSON.parse(root.sessionStorage?.getItem?.('career-frame:v3')||'null');
+      if(cached&&cached.app)return cached.app==='intelligent-career';
+    }catch(_){}
+    return false;
+  }
   function navigate(tool,href,options){
     if(root.parent===root){root.location.href=href;return;}
     if(tool==='career-approvals')href='/api/career-hunter/board-native?view=approve';
+    const query=new URL(href,root.location.href).searchParams;query.delete('v');
+    try{
+      if(root.frameElement?.id==='tool-frame'&&query.size&&String(href).startsWith('/api/career-hunter/')){
+        root.location.href=href;return;
+      }
+    }catch(_){}
     let target=MERGED_INTO_BOARD[tool]||tool;
+    let resolvedViaViews=false;
     try{
       // Groups qualify borrowed surfaces; a standalone Career workspace keeps
       // the short name. Use the admitted rail instead of guessing its front door.
       // A link that names a merged screen is looked up under the Job Board's member name too:
       // the group registers the screen it opens on, never the name the link used to carry.
       const views=new Set([...root.parent.document.querySelectorAll('[data-view]')].map(node=>node.getAttribute('data-view')));
-      const member=[tool,target].map(name=>'career-hunter--'+name).find(name=>views.has('tool-'+name));
-      if(member)target=member;
+      if(views.size){
+        resolvedViaViews=true;
+        const member=[tool,target].map(name=>'career-hunter--'+name).find(name=>views.has('tool-'+name));
+        if(member)target=member;
+      }
     }catch(_){/* A different-origin host can still support the short-name contract. */}
-    const query=new URL(href,root.location.href).searchParams;query.delete('v');
+    if(!resolvedViaViews&&!target.startsWith('career-hunter--')&&hostedInGroup())target='career-hunter--'+target;
     const send=()=>root.parent.postMessage({type:'app-navigate',tool:target,...(query.size?{query:query.toString()}:{})},root.location.origin);
     if(!options?.wait){send();return;}
     // The shell admits the request itself. Only leaving this document proves that it opened.

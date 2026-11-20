@@ -1,3 +1,7 @@
+<!-- CHANGE LOG
+SEQ | AUTHOR | DESCRIPTION
+1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: render clean single-line candidate name without appended credentials and compact 2-line contact header matching executive cover-letter DOCX output.
+-->
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Cover Letter {{ contact.name }}</title>
 <style>
@@ -15,15 +19,18 @@
   .sign .nm { font-weight:700; color:#1F3A5F; margin-top:2px; }
 </style></head>
 <body>
-  <div class="name">{{ contact.name }}{% if contact.credential %}, {{ contact.credential }}{% endif %}</div>
+  <div class="name">{{ contact.name }}</div>
+  {%- set line1 = [] -%}
+  {%- if contact.location %}{% set _ = line1.append(contact.location) %}{% endif -%}
+  {%- if contact.phone %}{% set _ = line1.append(contact.phone) %}{% endif -%}
+  {%- if contact.email %}{% set _ = line1.append(contact.email) %}{% endif -%}
+  {%- set line2 = [] -%}
+  {%- if contact.linkedin %}{% set _ = line2.append(contact.linkedin) %}{% endif -%}
+  {%- if contact.citizenship %}{% set _ = line2.append(contact.citizenship) %}{% endif -%}
+  {%- if contact.clearance %}{% set _ = line2.append(contact.clearance) %}{% endif -%}
   <div class="contact">
-    {%- set bits = [] -%}
-    {%- if contact.location %}{% set _ = bits.append(contact.location) %}{% endif -%}
-    {%- if contact.phone %}{% set _ = bits.append(contact.phone) %}{% endif -%}
-    {%- if contact.email %}{% set _ = bits.append(contact.email) %}{% endif -%}
-    {%- if contact.linkedin %}{% set _ = bits.append(contact.linkedin) %}{% endif -%}
-    {%- if contact.clearance %}{% set _ = bits.append(contact.clearance) %}{% endif -%}
-    {{ bits | join('  |  ') }}
+    {% if line1 %}<div>{{ line1 | join('  |  ') }}</div>{% endif %}
+    {% if line2 %}<div>{{ line2 | join('  |  ') }}</div>{% endif %}
   </div>
 
   <div class="meta">

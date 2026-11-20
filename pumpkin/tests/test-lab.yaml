@@ -240,3 +240,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+
+  - id: pumpkin-bot-tools-contract
+    name: Inline concierge posture, tool schemas, and tool_call fence contract
+    purpose: Verify pumpkin-bot declares explicit inline posture, chatBot binding, object inputSchemas on all three tools, and valid ```tool_call {"tool": ...} syntax for oshald.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-bot-tools-contract.test.cjs
+    expected:
+      - pumpkin-bot declares posture inline and chatBot pumpkin-bot with object inputSchemas on pumpkin-rooms, pumpkin-speak, and pumpkin-stop.
+      - Every ```tool_call fence in personas/pumpkin-bot.yaml uses the "tool" key (never "name") naming a declared tool.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

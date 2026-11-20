@@ -28,6 +28,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.9 (UX audit 2026-11-06): hide duplicate #reload when framed inside
  *                     |                             | the cockpit shell, toggle #phase-stepper on Product, keep #back as top-left
  *                     |                             | ← Back, and open #help-dialog from the header overflow menu.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B13/B14: surface actionable 403 missing-access / role-requirement copy on denied reads and render pre-click engine container liveness banners on Product and Settings.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: wire the Pi bay thermal solve checkbox/note in the New product brief walkthrough so the proposal updates live and resets cleanly.
  */
 function designStudio() {
   'use strict';
@@ -37,6 +39,14 @@ function designStudio() {
   const state = { screen: '', caps: null, projects: [], project: null, bindings: {}, closures: [], E: null, rows: [], proposal: null, present: {}, editing: null, planTimer: null, writes: new Set() };
 
   // ── HTTP: this package's routes ──
+  function accessCopy(e, appName) {
+    if (e && e.status === 401) return `Sign-in required for ${appName} (HTTP 401): reload and sign in again.`;
+    if (e && e.status === 403) {
+      const detail = e.message && !/\/api\//.test(e.message) && !/^HTTP 403$/i.test(e.message) ? ` (${e.message})` : '';
+      return `Access required for ${appName} (HTTP 403): your account does not hold an assigned role for ${appName}. Ask an administrator to grant access${detail}.`;
+    }
+    return (e && e.message) || 'Unknown error';
+  }
   async function api(path, opts) {
     const o = opts || {};
     const res = await fetch(API + path, { method: o.method || 'GET', credentials: 'same-origin', cache: 'no-store', headers: o.json ? { 'Content-Type': 'application/json' } : {}, body: o.json ? JSON.stringify(o.json) : undefined });
@@ -60,6 +70,7 @@ function designStudio() {
     state.screen = screen;
     for (const id of ['screen-products', 'screen-new', 'screen-product', 'screen-settings', 'screen-mechanism']) $(id).hidden = id !== `screen-${screen}`;
     if ($('phase-stepper')) $('phase-stepper').hidden = screen !== 'product';
+    if ($('engine-liveness') && screen !== 'product') $('engine-liveness').hidden = true;
     if ($('head-more')) $('head-more').open = false;
     $('title').textContent = title; if (lede !== undefined) $('lede').textContent = lede;
     $('back').hidden = screen === 'products'; $('new-product').hidden = screen !== 'products'; $('settings-link').hidden = screen !== 'product';
@@ -81,29 +92,30 @@ function designStudio() {
     state.project = null; state.editing = null;
     show('products', 'Products', 'Select a product to check its phases, or start a new brief.');
     try { state.projects = (await api('/projects')).projects; V.renderProducts($('screen-products'), state.projects); }
-    catch (e) { $('screen-products').textContent = ''; $('screen-products').append(Object.assign(document.createElement('p'), { className: 'empty', textContent: `The products could not be read: ${e.message}` })); }
+    catch (e) { $('screen-products').textContent = ''; $('screen-products').append(Object.assign(document.createElement('p'), { className: 'empty', textContent: e.status === 401 || e.status === 403 ? accessCopy(e, 'Design Studio') : `The products could not be read: ${e.message}` })); }
     markReady();
   }
   async function showNew(editing) {
     state.editing = editing || null;
     show('new', editing ? 'Edit the brief' : 'New product', editing ? 'Change the words; the phase chain is kept, and the Brief phase re-opens because its revision moves.' : 'The walkthrough writes the brief: a name, what it is in one line, what it must do one requirement per line, the targets; then the phase chain is proposed from the requirement lines and you press Create.');
     if (!$('new-form').dataset.wired) { wireNewForm(); $('new-form').dataset.wired = '1'; }
-    if (editing) V.fillBrief(editing); else $('new-form').reset();
+    if (editing) V.fillBrief(editing); else { $('new-form').reset(); if ($('new-thermal-note')) $('new-thermal-note').hidden = true; }
     $('proposal-card').hidden = !!editing; $('create').textContent = editing ? 'Save the brief' : 'Create';
     if (!editing) await plan();
     markReady();
   }
   async function showProduct(id) {
     show('product', state.project && state.project.id === id ? state.project.name : 'Product', 'One poster per phase, in chain order. The stage is what the engine answered when this page was read; the one button is the phase\'s action.');
-    try { await loadProduct(id); } catch (e) { $('screen-product').textContent = ''; $('screen-product').append(Object.assign(document.createElement('p'), { className: 'empty', textContent: e.status === 404 ? 'This product is not yours or no longer exists.' : `The product could not be read: ${e.message}` })); markReady(); return; }
+    try { await loadProduct(id); } catch (e) { $('screen-product').textContent = ''; $('screen-product').append(Object.assign(document.createElement('p'), { className: 'empty', textContent: e.status === 404 ? 'This product is not yours or no longer exists.' : e.status === 401 || e.status === 403 ? accessCopy(e, 'Design Studio') : `The product could not be read: ${e.message}` })); markReady(); return; }
     show('product', state.project.name, state.project.brief.what || '');
     await readAndRender();
   }
   async function showSettings(id) {
-    try { if (!state.caps) state.caps = await api('/capabilities'); await loadProduct(id); } catch (e) { toast(e.message, 'error'); location.hash = '#/'; return; }
+    try { if (!state.caps) state.caps = await api('/capabilities'); await loadProduct(id); } catch (e) { toast(accessCopy(e, 'Design Studio'), 'error'); location.hash = '#/'; return; }
     show('settings', `Settings · ${state.project.name}`, 'Engines per phase and the printer the print set goes to. An engine that did not answer this session is marked absent.');
     state.E = await S.readEngines(state.project, state.bindings, { all: true }); state.present = presence(state.E);
     V.renderSettings(state.project, state.bindings, state.caps, state.E, state.present);
+    V.renderSettingsLiveness($('settings-liveness'), S.engineLiveness(state.E));
     markReady();
   }
   async function loadProduct(id) {
@@ -138,6 +150,7 @@ function designStudio() {
       catch (e) { view = { stage: 'render-failed', tone: 'bad', figure: ['—', ''], line: `this poster could not render: ${e.message}`, action: { label: 'Reload', reload: true } }; }
       return { entry, view, closure: S.closureOf(entry.kind, state.closures, view) };
     });
+    V.renderLivenessBanner($('engine-liveness'), S.engineBannerIssues(state.project, state.E));
     V.renderProduct($('screen-product'), state.project, state.rows, onAction);
     markReady();
   }
@@ -155,6 +168,13 @@ function designStudio() {
   function wireNewForm() {
     const schedule = () => { clearTimeout(state.planTimer); state.planTimer = setTimeout(() => { if (!state.editing) plan(); }, 400); };
     for (const id of ['new-what', 'new-requirements']) $(id).addEventListener('input', schedule);
+    if ($('new-thermal-solve')) {
+      $('new-thermal-solve').addEventListener('change', () => {
+        if ($('new-thermal-note')) $('new-thermal-note').hidden = !$('new-thermal-solve').checked;
+        schedule();
+      });
+    }
+    if ($('new-thermal-note')) $('new-thermal-note').addEventListener('input', schedule);
     $('new-form').addEventListener('submit', (ev) => { ev.preventDefault(); void create(); });
   }
   async function create() {
@@ -317,7 +337,7 @@ function designStudio() {
       toast(`Opened in Circuit Lab as "${out.design.title}"${out.build && out.build.ok ? ' and solved' : ''}.`, 'ok');
       if (tab) { tab.opener = null; tab.location.assign(`/api/circuit-lab/app?design=${encodeURIComponent(id)}`); }
       await loadProduct(state.project.id); await readAndRender();
-    } catch (e) { if (tab) tab.close(); toast(e.status === 404 || e.status === 401 || e.status === 403 ? 'Circuit Lab is not installed on this swarm, or you are not granted access to it.' : `Circuit Lab: ${e.message}`, 'error'); }
+    } catch (e) { if (tab) tab.close(); toast(e.status === 404 ? 'Circuit Lab is not installed on this swarm.' : e.status === 401 || e.status === 403 ? accessCopy(e, 'Circuit Lab') : `Circuit Lab: ${e.message}`, 'error'); }
   }
 
   // ── The assistant rail: context and custom ops ──

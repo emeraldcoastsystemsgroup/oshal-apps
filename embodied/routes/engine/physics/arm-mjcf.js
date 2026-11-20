@@ -14,15 +14,19 @@
  *                     |                             | is the printed one (a fixed jaw and a jaw swinging on the grip
  *                     |                             | servo, its squeeze limited), on a bench with a block to pick.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | B22: the arm's body chain, self-collision exclusions, actuators and the radian preamble are exported helpers (`armChainLines`, `armExcludes`, `armActuatorLines`, `ARM_PREAMBLE`) so the bench model and the room model are the SAME arm — a second hand-written chain is how the check and the world drift into two different arms. The base cylinder's radius and half-height are named (`ARM_BASE_RADIUS_M`, `ARM_BASE_HALF_M`): the room model has to know the footprint the arm stands on.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: generate the arm MJCF `<option>` gravity from a caller-supplied Medium (`armPreamble(medium)`, defaulting to vacuum) checked against `RIGID_BODY_PLANT` rather than a file-local gravity literal.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ARM_GEOM_DEFAULT = exports.ARM_PREAMBLE = exports.ARM_BASE_HALF_M = exports.ARM_BASE_RADIUS_M = exports.BLOCK_MASS_KG = exports.BLOCK_HALF_M = exports.GRIP_TORQUE_NM = exports.SERVO_ARMATURE_KGM2 = exports.SATURATION_ERROR_RAD = exports.ARM_TIMESTEP_S = void 0;
 exports.armPlant = armPlant;
+exports.armPreamble = armPreamble;
 exports.armChainLines = armChainLines;
 exports.armExcludes = armExcludes;
 exports.armActuatorLines = armActuatorLines;
 exports.armMjcf = armMjcf;
 const arm_design_1 = require("../design/arm-design");
+const medium_1 = require("../medium/medium");
+const mjcf_1 = require("./mjcf");
 /** Physics step (s). */
 exports.ARM_TIMESTEP_S = 0.002;
 /** A servo reaches its stall torque at this position error (rad): the proportional gain of the modelled servo. */
@@ -102,17 +106,17 @@ function gripper(p, toolM) {
         `<body name="payload" pos="0 0 ${f(toolM)}"><geom name="payload" type="sphere" size="0.005" mass="0.000001" contype="0" conaffinity="0" rgba="0 0 1 0.3"/></body>`,
     ];
 }
-/**
- * @description The MJCF for the arm on its bench with a block: what the engine container loads for the arm check.
- * @param fit - The arm fit.
- * @returns MJCF XML.
- */
-/** @description The compiler/option/default header every arm model shares. RADIANS are declared explicitly: MuJoCo reads
- * angles as DEGREES unless a model says otherwise, and an arm whose limits are read as degrees has no reachable workspace. */
-exports.ARM_PREAMBLE = [
-    '  <compiler angle="radian" autolimits="true"/>',
-    `  <option timestep="${exports.ARM_TIMESTEP_S}" integrator="implicitfast" gravity="0 0 -9.81"/>`,
-];
+/** @description Build the compiler/option header every arm model shares from the chosen medium. RADIANS are declared
+ * explicitly: MuJoCo reads angles as DEGREES unless a model says otherwise. */
+function armPreamble(medium = (0, medium_1.mediumById)('vacuum')) {
+    (0, medium_1.requireModelValidIn)(mjcf_1.RIGID_BODY_PLANT, medium);
+    return [
+        '  <compiler angle="radian" autolimits="true"/>',
+        `  <option timestep="${exports.ARM_TIMESTEP_S}" integrator="implicitfast" gravity="${(0, mjcf_1.mjcfVec3)(medium.gravityMps2)}"/>`,
+    ];
+}
+/** @description Default arm preamble (vacuum medium, Earth-surface gravity). */
+exports.ARM_PREAMBLE = armPreamble();
 /** @description The arm's own geom defaults. MJCF allows exactly ONE top-level `<default>`, so a model that adds a class nests it here. */
 exports.ARM_GEOM_DEFAULT = '<geom contype="1" conaffinity="1" friction="0.8 0.01 0.001"/>';
 /**
@@ -171,13 +175,14 @@ function armActuatorLines(p) {
 /**
  * @description The MJCF for the arm on its bench with a block: what the engine container loads for the arm check.
  * @param fit - The arm fit.
+ * @param medium - The medium the scene runs in; `vacuum` by default.
  * @returns MJCF XML.
  */
-function armMjcf(fit) {
+function armMjcf(fit, medium) {
     const p = armPlant(fit);
     const lines = [
         `<mujoco model="embodied-arm-${fit}">`,
-        ...exports.ARM_PREAMBLE,
+        ...armPreamble(medium),
         `  <default>${exports.ARM_GEOM_DEFAULT}</default>`,
         '  <worldbody>',
         '    <geom name="bench" type="plane" size="1 1 0.1" rgba="0.6 0.6 0.55 1"/>',

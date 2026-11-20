@@ -27,6 +27,11 @@
  *                     |                             | the loopback/metadata refusal checks only the registered URL, so a
  *                     |                             | followed 3xx could carry the key and the job to an internal
  *                     |                             | service and echo its answer back. A 3xx is a failed host answer.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Print progress read-back (BACKLOG B5): extract normalised integer
+ *                     |                             | progress (0..100) from each host's own status payload (OctoPrint
+ *                     |                             | progress.completion, Moonraker display_status/virtual_sdcard
+ *                     |                             | progress, PrusaLink job.progress, Bambu percent/mc_percent) and
+ *                     |                             | allow a bounded status timeout for submission read-back.
  */
 
 /** @description The printer hosts reached over HTTP through the adapter table below. */
@@ -83,6 +88,8 @@ export interface PrinterStatus {
   status: number;
   /** Normalised state string (`idle`, `printing`, `error`, `offline`, …). */
   state: string;
+  /** Rounded completion percentage (0..100) from the host's own progress field, or null when absent. */
+  progress: number | null;
   /** The host's decoded response body, when any. */
   detail?: unknown;
 }
@@ -99,7 +106,7 @@ export interface PrinterAdapter {
   /** Upload (and optionally start) a file. */
   upload(profile: PrinterProfile, file: PrintFile, fetchImpl: FetchLike): Promise<PrintSubmission>;
   /** Read the host's state. */
-  status(profile: PrinterProfile, fetchImpl: FetchLike): Promise<PrinterStatus>;
+  status(profile: PrinterProfile, fetchImpl: FetchLike, timeoutMs?: number): Promise<PrinterStatus>;
 }
 
 /** @description Default request timeouts. */
@@ -231,6 +238,45 @@ function readPath(body: unknown, path: string[]): string {
   return typeof at === 'string' ? at : 'unknown';
 }
 
+/** @description Extract a finite number from an arbitrary JSON body at a dotted path. */
+function readNumber(body: unknown, path: string[]): number | null {
+  let at: unknown = body;
+  for (const key of path) {
+    if (!at || typeof at !== 'object') return null;
+    at = (at as Record<string, unknown>)[key];
+  }
+  const value = typeof at === 'string' && at.trim() !== '' ? Number(at) : at;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** @description Round and clamp a percentage into 0..100, or null when missing. */
+function clampPercent(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+/**
+ * @description Extract a normalised integer completion percentage (0..100) from a printer host's
+ * own status payload (OctoPrint `progress.completion`, Moonraker `display_status.progress` /
+ * `virtual_sdcard.progress`, PrusaLink `job.progress`, Bambu `percent` / `mc_percent`).
+ * @param kind - Printer host kind.
+ * @param detail - Decoded host status payload.
+ * @returns Rounded percentage in `[0, 100]`, or `null` when absent.
+ */
+export function extractProgress(kind: PrinterKind | string, detail: unknown): number | null {
+  if (kind === 'octoprint') return clampPercent(readNumber(detail, ['progress', 'completion']));
+  if (kind === 'moonraker') {
+    const raw = readNumber(detail, ['result', 'status', 'display_status', 'progress'])
+      ?? readNumber(detail, ['result', 'status', 'virtual_sdcard', 'progress'])
+      ?? readNumber(detail, ['result', 'status', 'print_stats', 'progress']);
+    if (raw === null) return null;
+    return clampPercent(raw >= 0 && raw <= 1 ? raw * 100 : raw);
+  }
+  if (kind === 'prusalink') return clampPercent(readNumber(detail, ['job', 'progress']));
+  if (kind === BAMBU_KIND) return clampPercent(readNumber(detail, ['percent']) ?? readNumber(detail, ['mc_percent']));
+  return null;
+}
+
 /** @description OctoPrint — `POST /api/files/local` multipart, `select`/`print` flags; `GET /api/job`. */
 const octoprint: PrinterAdapter = {
   kind: 'octoprint',
@@ -242,13 +288,14 @@ const octoprint: PrinterAdapter = {
     }, UPLOAD_TIMEOUT_MS);
     return submission(result, start, [200, 201]);
   },
-  async status(profile, fetchImpl) {
-    const result = await request(fetchImpl, `${profile.baseUrl}/api/job`, { headers: { 'X-Api-Key': profile.apiKey } }, STATUS_TIMEOUT_MS);
-    return { ok: result.status === 200, status: result.status, state: result.status === 200 ? readPath(result.body, ['state']).toLowerCase() : 'offline', detail: result.body };
+  async status(profile, fetchImpl, timeoutMs = STATUS_TIMEOUT_MS) {
+    const result = await request(fetchImpl, `${profile.baseUrl}/api/job`, { headers: { 'X-Api-Key': profile.apiKey } }, timeoutMs);
+    const ok = result.status === 200;
+    return { ok, status: result.status, state: ok ? readPath(result.body, ['state']).toLowerCase() : 'offline', progress: ok ? extractProgress('octoprint', result.body) : null, detail: result.body };
   },
 };
 
-/** @description Moonraker — `POST /server/files/upload` multipart with `print`; `GET /printer/objects/query?print_stats`. */
+/** @description Moonraker — `POST /server/files/upload` multipart with `print`; `GET /printer/objects/query?print_stats&display_status&virtual_sdcard`. */
 const moonraker: PrinterAdapter = {
   kind: 'moonraker',
   accepts: ['.gcode'],
@@ -259,9 +306,10 @@ const moonraker: PrinterAdapter = {
     }, UPLOAD_TIMEOUT_MS);
     return submission(result, start, [200, 201]);
   },
-  async status(profile, fetchImpl) {
-    const result = await request(fetchImpl, `${profile.baseUrl}/printer/objects/query?print_stats`, { headers: { 'X-Api-Key': profile.apiKey } }, STATUS_TIMEOUT_MS);
-    return { ok: result.status === 200, status: result.status, state: result.status === 200 ? readPath(result.body, ['result', 'status', 'print_stats', 'state']) : 'offline', detail: result.body };
+  async status(profile, fetchImpl, timeoutMs = STATUS_TIMEOUT_MS) {
+    const result = await request(fetchImpl, `${profile.baseUrl}/printer/objects/query?print_stats&display_status&virtual_sdcard`, { headers: { 'X-Api-Key': profile.apiKey } }, timeoutMs);
+    const ok = result.status === 200;
+    return { ok, status: result.status, state: ok ? readPath(result.body, ['result', 'status', 'print_stats', 'state']).toLowerCase() : 'offline', progress: ok ? extractProgress('moonraker', result.body) : null, detail: result.body };
   },
 };
 
@@ -278,9 +326,10 @@ const prusalink: PrinterAdapter = {
     }, UPLOAD_TIMEOUT_MS);
     return submission(result, start, [200, 201, 204]);
   },
-  async status(profile, fetchImpl) {
-    const result = await request(fetchImpl, `${profile.baseUrl}/api/v1/status`, { headers: { 'X-Api-Key': profile.apiKey } }, STATUS_TIMEOUT_MS);
-    return { ok: result.status === 200, status: result.status, state: result.status === 200 ? readPath(result.body, ['printer', 'state']).toLowerCase() : 'offline', detail: result.body };
+  async status(profile, fetchImpl, timeoutMs = STATUS_TIMEOUT_MS) {
+    const result = await request(fetchImpl, `${profile.baseUrl}/api/v1/status`, { headers: { 'X-Api-Key': profile.apiKey } }, timeoutMs);
+    const ok = result.status === 200;
+    return { ok, status: result.status, state: ok ? readPath(result.body, ['printer', 'state']).toLowerCase() : 'offline', progress: ok ? extractProgress('prusalink', result.body) : null, detail: result.body };
   },
 };
 

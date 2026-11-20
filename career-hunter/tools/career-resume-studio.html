@@ -27,6 +27,9 @@
   35 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window, with its model menu, New conversation, Recent conversations, Files, Tap to talk and Keep trying). The page no longer draws a résumé editor of its own (its heading, transcript, text box and Send, each turn sent to POST /resume/guide). A job's tailored résumé, and the main résumé where AI Office is not available, are changed by asking Career's concierge, the kernel's one chat window: Career's Concierge in its bar on a computer (no longer hidden on this view), Edit with AI on a phone, which opens that concierge (mounting it first where Career's frame did not). The page declares the open document on <html data-career-record>, so the window opens that document's own conversation; its registered handoff saves an edit not yet saved before each turn and reads the résumé again after the turn and after an approved card; a tailored résumé's context names the tools that read and change it (career_documents, and career_resume_save on a card). The notes the editor's thread carried are in the status line or beside Save. After the save before a turn, Save follows what is still unsaved (it was left on with nothing to save). Guard: tests/career-hunter-one-chat-window.test.mjs.
   36 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy, independent dates/bullets and consistent editor/export identity.
   37 | maintainer@emeraldcoastsystemsgroup.com | Keep the existing main résumé Export location, offer its professional style from More, and download saved packet and cover formats without saving or generating.
+  38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: make tailored job résumés, cover letters, and classic fallback previews directly editable in place (tools/career-tailored-editor.js), highlighting Save & return to application as soon as an edit is made.
+  39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: guard openOffice(j, epoch) against late master-load races, always close officeView(false) immediately when switching from main résumé to a tailored job, and wire Undo/Redo restoration on the direct tailored editor toolbar.
+  40 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: always show a Review documents button in #docIdentity for any open tailored job (whether opened from Prepare application or picked in My résumé), saving unsaved edits first so users can always return to Review documents without forced regeneration.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -108,7 +111,8 @@
     border: 1px solid var(--ds-edge, var(--line)); background: var(--ds-surface-2, var(--panel)); color: var(--ds-ink, var(--text)); font-size: 14px; }
   .doc-identity[data-doc-kind=tailored] { border-color: color-mix(in srgb, var(--ds-warn, var(--accent)) 50%, var(--ds-edge, var(--line)));
     background: color-mix(in srgb, var(--ds-warn, var(--accent)) 10%, var(--ds-surface, var(--panel))); }
-  .doc-identity[hidden], #backToMaster[hidden] { display: none !important; }
+  .doc-identity[hidden], #backToMaster[hidden], #reviewApplication[hidden] { display: none !important; }
+  .doc-identity-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .doc-identity-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; flex: 1 1 220px; }
   .doc-identity-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--ds-radius-s, 6px);
     font-size: 12px; font-weight: 700; background: color-mix(in srgb, var(--accent) 16%, var(--ds-surface, var(--card))); color: var(--ds-accent-ink, var(--accent)); white-space: nowrap; }
@@ -223,7 +227,7 @@
     </section>
     <div id="docIdentity" class="doc-identity" role="region" aria-label="Active résumé" hidden>
       <div class="doc-identity-copy"><strong id="docIdentityBadge" class="doc-identity-badge"></strong><span id="docIdentityDetail"></span></div>
-      <button type="button" class="ck-btn" id="backToMaster" hidden>Back to main résumé</button>
+      <div class="doc-identity-actions"><button type="button" class="ck-btn" id="reviewApplication" hidden>Review documents →</button><button type="button" class="ck-btn" id="backToMaster" hidden>Back to main résumé</button></div>
     </div>
     <div id="sheet" class="sheet" data-no-glass hidden></div>
     <div id="officeHost" class="office-host" hidden></div>
@@ -277,6 +281,7 @@
 <script src="/api/career-hunter/static/career-export-model.js"></script>
 <script src="/api/career-hunter/static/career-resume-downloads.js"></script>
 <script src="/api/career-hunter/static/career-change-bar.js"></script>
+<script src="/api/career-hunter/static/career-tailored-editor.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
@@ -337,11 +342,11 @@ $('closeProfessional').addEventListener('click', () => $('professionalDialog').c
 $('professionalDialog').addEventListener('close', () => professionalDownloads?.cancel());
 function officeOpen(){ return Boolean(office && office.active() && state.postingId === 'master'); }
 function officeView(on){
-  if (!on && !(office && office.active())) return;
   document.body.dataset.view = on ? 'office' : '';
-  $('replaceMaster').hidden = !on; $('save').className = on ? 'ck-primary' : 'ck-btn';
-  if (!on) { office.close(); $('historyNote').hidden = true; $('save').removeAttribute('aria-label'); }
-  paintRow();
+  $('replaceMaster').hidden = !on;
+  if (on) window.CareerTailoredEditor?.reset?.($('sheet'));
+  else { if (office) office.close(); $('officeHost').hidden = true; $('historyNote').hidden = true; $('save').removeAttribute('aria-label'); }
+  syncSave(); paintRow();
 }
 /* Whether the document's one bar is this page's: the main résumé's Word document, on a phone. */
 function rowHere(){ return Boolean(PHONE.matches && officeOpen()); }
@@ -350,7 +355,7 @@ function rowHere(){ return Boolean(PHONE.matches && officeOpen()); }
    documents, and what the banner says. Nothing shows until the editor has the document open. */
 function paintRow(){
   const here = rowHere(), row = here && office.row() && office.row().ready ? office.row() : null;
-  document.body.toggleAttribute('data-office-row', here);
+  document.body.toggleAttribute?.('data-office-row', here);
   $('docEdit').hidden = !(row && row.edit);
   for (const [id, key] of [['docUndo', 'undo'], ['docRedo', 'redo']]) { $(id).hidden = !row || row.reading; $(id).disabled = !(row && row[key]); }
   $('docState').textContent = row && row.conflict ? 'Revision conflict' : 'Unsaved changes';
@@ -412,12 +417,13 @@ function updateDocIdentity(){
       ? `Needs review against Work history${revNote}`
       : (dirty || oState === 'typed') ? `Unsaved edits on this screen${revNote} — Save updates Work history.`
       : `Synced with Work history${revNote} · every new application starts here.`;
-    $('backToMaster').hidden = true;
+    $('backToMaster').hidden = true; $('reviewApplication').hidden = true;
   } else {
     const meta = window.__meta || {}, title = String(meta.title || '').trim(), co = String(meta.company || '').trim();
     const jobLabel = title && co ? `${title} · ${co}` : title || co || `Job #${state.postingId}`;
-    $('docIdentityDetail').textContent = `For ${jobLabel} — changes here apply only to this job, not your main résumé.`;
+    $('docIdentityDetail').textContent = `For ${jobLabel} — click any text below to edit directly. Changes apply only to this job, not your main résumé.`;
     $('backToMaster').hidden = false; $('backToMaster').disabled = Boolean(documentBusy);
+    $('reviewApplication').hidden = false; $('reviewApplication').disabled = Boolean(documentBusy);
   }
   updateDocFacts();
 }
@@ -427,12 +433,14 @@ function updateDocFacts(){
   facts.hidden = !shown;
   if (shown) facts.innerHTML = `<b>${esc($('docIdentityBadge').textContent)}</b>${esc($('docIdentityDetail').textContent)}`;
 }
-async function openOffice(j){
-  try { masterRevision = j.revision || ''; await office.open(j); takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true; }
-  catch (e) {
-    officeView(false);
-    classicReason = 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.';
-    return false;
+async function openOffice(j, epoch){
+  try {
+    masterRevision = j.revision || ''; await office.open(j);
+    if (epoch !== documentEpoch) { if (office) office.close(); return false; }
+    takeMaster(office.master()); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; historyNote(); return true;
+  } catch (e) {
+    if (epoch !== documentEpoch) return false;
+    officeView(false); classicReason = 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your main résumé opens in this classic view.'; return false;
   }
 }
 /* Save to main résumé: AI Office saves the document, and Career brings it and the main résumé together (what was typed
@@ -450,8 +458,11 @@ async function saveOffice(quiet){
 }
 /* DS-41: a failure is told beside the action, with its fix; '' clears it. */
 function showError(t){ $('err').textContent = t || ''; $('err').hidden = !t; }
-/* Save is secondary and enabled only with an unsaved change (and never while there is no résumé). */
-function syncSave(){ $('save').disabled = Boolean(documentBusy) || !state.postingId || (!dirty && !officeOpen()); }
+/* Save is secondary until an edit makes it the clear primary action (never enabled without a résumé). */
+function syncSave(){
+  $('save').disabled = Boolean(documentBusy) || !state.postingId || (!dirty && !officeOpen());
+  $('save').className = (dirty || officeOpen()) ? 'ck-primary' : 'ck-btn';
+}
 function markEdited(){ edits += 1; dirty = true; syncSave(); updateDocIdentity(); }
 // The resume routes carry no revision, so the handoff names the saved document by a fingerprint of
 // its content (a 64-bit string hash that works on plain http, where crypto.subtle is unavailable).
@@ -523,7 +534,7 @@ function coverHtml(cover){
   return text.length ? `<section class="cover-preview"><h2>Cover letter</h2>${text.map(p => `<p>${esc(p)}</p>`).join('')}</section>` : '';
 }
 
-function renderPreview(){
+function renderPreview(preserveHistory){
   const r = state.resume || {};
   const exp = expHtml(r.experience);
   const comp = (r.competencies || []).map((c) => `<span>${esc(c)}</span>`).join('');
@@ -541,8 +552,13 @@ function renderPreview(){
     + (r.clearance ? `<h2>Clearance</h2><p>${esc(r.clearance)}</p>` : '')
     + coverHtml(state.cover);
   $('sheet').hidden = false; $('empty').hidden = true;
+  if (window.CareerTailoredEditor && typeof window.CareerTailoredEditor.bind === 'function') {
+    const editedNote = () => setStatus(applicationContext ? 'Unsaved edits — press Save & return to application' : 'Unsaved edits');
+    window.CareerTailoredEditor.bind($('sheet'), { state, isMaster: state.postingId === 'master', preserveHistory: Boolean(preserveHistory),
+      onEdit: () => { markEdited(); editedNote(); }, onCommit: () => publishContext(),
+      onRestore: () => { markEdited(); renderPreview(true); publishContext(); editedNote(); } });
+  }
 }
-
 // Apply one whitelisted bot action to the in-memory resume/cover, then re-render.
 function applyAction(a){
   const r = state.resume; if (!r || !a) return false;
@@ -591,7 +607,6 @@ function resumeDigest(){
   const text = lines.join('\n');
   return text.length > 3900 ? text.slice(0, 3900) + '\n…(truncated)' : text;
 }
-
 function publishContext(){
   updateDocIdentity();
   if (!window.__bridge) return;
@@ -651,7 +666,6 @@ document.addEventListener('surface-bridge:custom', (evt) => {
   publishContext();                                   // the assistant's next turn sees its own edit
   setStatus('edited by Jarvis — Save to re-render the PDF');
 });
-
 // The job-packet feed can take seconds on a large corpus, so the picker NEVER waits on it:
 // the master entry is static in the markup and this only appends/refreshes the packet entries.
 async function loadList(){
@@ -683,6 +697,7 @@ function checkProfile(){ resumeState().then((s) => { if (s && (!s.hasResume || s
 async function loadDoc(id){
   if (documentBusy && documentBusy !== 'loading') return;
   const epoch = ++documentEpoch, isMaster = id === 'master';
+  if (!isMaster) officeView(false); window.CareerTailoredEditor?.reset?.($('sheet'));
   professionalDownloads?.cancel(); packetDownloads?.cancel(); $('packetDownloads').hidden = true;
   if ($('professionalDialog').open) $('professionalDialog').close();
   state = {postingId:null,resume:null,cover:null}; window.__meta = {}; classicReason = '';
@@ -702,7 +717,7 @@ async function loadDoc(id){
     if (isMaster && !hasContent(state.resume)) checkProfile(); else setResumeReady(true);
     $('save').textContent = isMaster ? 'Save main résumé' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
     if (isMaster && office && hasContent(state.resume)) {
-      if (await openOffice(j)) { if (epoch === documentEpoch) { saveLabel('Save to main résumé'); publishContext(); } return; }
+      if (await openOffice(j, epoch)) { if (epoch === documentEpoch) { saveLabel('Save to main résumé'); publishContext(); } return; }
     } else officeView(false);
     if (!isMaster) {
       $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
@@ -764,8 +779,6 @@ async function save(){
   }
   finally { saving = null; if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
 }
-
-
 // ── Shared document handoff: Jarvis and the concierge read the SAVED resume ──────────────────
 // prepare saves every edit applied here but not yet saved, through the same save path as the Save
 // button, and names the saved document; refresh re-reads it after the turn and redraws the
@@ -844,6 +857,13 @@ import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) =
   refresh: async (expected) => { try { await refreshDocumentHandoff(expected); } catch (e) { setStatus(e.message); throw e; } },
 })).catch((e) => setStatus('The assistant cannot synchronize this résumé: ' + e.message));
 
+async function openReviewDocuments(){
+  if (documentBusy || !state.postingId || state.postingId === 'master') return;
+  const target = Number(state.postingId); if (!Number.isSafeInteger(target) || target < 1) return;
+  if (dirty) { await save(); if (dirty || applicationContext) return; }
+  CareerJobActions.openApplication(target, false, 'documents');
+}
+$('reviewApplication').addEventListener('click', openReviewDocuments);
 $('pick').addEventListener('change', (e) => { openDoc(e.target.value); });
 $('backToMaster').addEventListener('click', () => {
   if (documentBusy) return;
@@ -860,17 +880,14 @@ $('replaceMaster').addEventListener('click', async () => {
   finally { setDocumentBusy(''); }
 });
 loadList();
-// Deep-link: open straight to a resume when the board passes ?id=. Otherwise open the MASTER
-// immediately — the studio must never sit dead with disabled fields while the packet feed loads;
-// "the studio doesn't know about my resume" (operator, 2026-08-11) was exactly this idle state.
-const pre = new URLSearchParams(location.search).get('id');
-const initial = pre || 'master';
-const applicationContext=new URLSearchParams(location.search).get('application')==='1'&&/^[1-9]\d{0,14}$/.test(initial);
-if(applicationContext){
-  $('pick').hidden=true;$('pick').disabled=true;
-  const nav=document.querySelector('.preview>nav'),back=document.createElement('button');
-  back.className='ck-btn';back.textContent='← Return to application';back.onclick=()=>CareerJobActions.openApplication(Number(initial),false,'documents');nav.replaceChildren(back,...Array.from(nav.children));
-  $('save').textContent='Save & return to application';
+const pre = new URLSearchParams(location.search).get('id'), initial = pre || 'master';
+const applicationContext = new URLSearchParams(location.search).get('application') === '1' && /^[1-9]\d{0,14}$/.test(initial);
+if (applicationContext) {
+  $('pick').hidden = true; $('pick').disabled = true;
+  const nav = document.querySelector('.preview>nav'), back = document.createElement('button');
+  back.className = 'ck-btn'; back.textContent = '← Return to application';
+  back.onclick = () => (state.postingId && state.postingId !== 'master' ? openReviewDocuments() : CareerJobActions.openApplication(Number(initial), false, 'documents'));
+  nav.replaceChildren(back, ...Array.from(nav.children)); $('save').textContent = 'Save & return to application';
 }
 $('pick').value = initial;
 /* No résumé indexed: the page is one empty state whose primary uploads it (the route the Job Board onboarding uses). */

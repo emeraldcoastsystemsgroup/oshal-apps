@@ -138,6 +138,8 @@
   .feature-head { display: flex; align-items: center; gap: 8px; }
   .feature-head .type { font-weight: 600; }
   .feature-head .spacer { flex: 1; }
+  .feature-timing { font-family: var(--ds-mono, ui-monospace, monospace); font-size: 11px; color: var(--cs-muted); white-space: nowrap; }
+  .feature-timing.over-budget { color: var(--cs-danger); font-weight: 600; }
   .feature-params { font-family: var(--ds-mono, ui-monospace, monospace); font-size: 12px; color: var(--cs-muted); word-break: break-all; }
   .feature-error { color: var(--cs-danger); font-size: 12px; }
   .params-form { display: grid; grid-template-columns: max-content 1fr; gap: 8px; align-items: center; margin: 8px 0; }
@@ -297,6 +299,7 @@ body.cad-foundation {margin:0;background:var(--cs-bg);color:var(--cs-text)}
         <div class="row">
           <label class="file">Replace base with an STL <input id="mesh-upload" type="file" accept=".stl,model/stl" /></label>
           <label>density <input id="density" type="number" min="0.1" step="0.01" /> g/cm³</label>
+          <label>feature budget <input id="feature-budget-ms" type="number" min="1" max="600000" step="1000" title="Per-feature timing budget in milliseconds (1..600000)" /> ms</label>
           <button id="save-settings" class="ghost">Save</button>
         </div>
       </section>
@@ -390,6 +393,7 @@ body.cad-foundation {margin:0;background:var(--cs-bg);color:var(--cs-text)}
   <div class="cs-sheet-foot"><button id="ask-no" type="button" class="link">Cancel</button><button id="ask-yes" type="button" class="ghost">Continue</button></div>
 </dialog>
 <div id="toast" class="toast" role="status" hidden></div>
+<script src="/api/artifacts/send-to.js" defer></script>
 <!-- Shared renderer v1 must load before the application compatibility adapter. -->
 <script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/cad-studio/assets/cad-studio-gl.js"></script>

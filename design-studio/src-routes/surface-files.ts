@@ -11,7 +11,8 @@
  *                     |                             | file names are constants: a request never names a file.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D7, lane @ds-fab: design-studio-fabricate.js (the print set
  *                     |                             | made through CAD Studio and sent to a printer) joins the scripts.
- * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9, lane @ds-plant: the Mechanism screen's script (design-studio-mechanism.js) joins the served list.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9, lane @ds-plant: the Mechanism screen's script (design-studio-mechanism.js) joins the served list.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: serve design-studio-fit.js for live joint clearance fit checks and honest strength reporting on the Design poster.
  */
 
 import fs from 'node:fs';
@@ -27,7 +28,7 @@ const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** @description The screen's files inside `tools/`: the page, the scripts and the sheet. */
 export const SURFACE_FILES = Object.freeze({
   page: 'design-studio.html',
-  scripts: ['design-studio.js', 'design-studio-stages.js', 'design-studio-screens.js', 'design-studio-fabricate.js', 'design-studio-mechanism.js', 'design-studio-orders.js'] as const,
+  scripts: ['design-studio.js', 'design-studio-fit.js', 'design-studio-stages.js', 'design-studio-screens.js', 'design-studio-fabricate.js', 'design-studio-mechanism.js', 'design-studio-orders.js'] as const,
   style: 'design-studio.css',
 });
 

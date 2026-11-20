@@ -1,3 +1,10 @@
+# 123 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25: register ready-with-documents: a job read (GET /jobs/:id) the engine finishes during never says the preparation is complete without its documents and claims check (the store gate's one-in-many failure of letter-truth-route on 2026-11-19). The read is held after the job's row, over the real routes, engine and SQLite driver, until the engine has written its last receipt.
+# 122 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: register years-edit, years-by-skill-page and years-by-skill-live: Work history's Years by skill section reads the years counted from the roles, the person's own figure and what a résumé states from the table generation reads, saves the whole form as one revision-checked main-résumé edit that writes exactly years_by_skill and career_years, refuses a bad row whole in words that name it, and undoes; in Chromium at 1440x900 and 412x915; and on the installed package as a test person.
+# 121 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: register years-truth (the person's own years by skill enforced on generated documents, both ways, and recorded-term fidelity).
+# 120 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: register native-read-specialist-bots asserting createNativeCareerReadRoutes registers specialistContext readers for every model-bearing bot declared in oshal-app.yaml (career-hunter 0001, career-concierge 0005, career-resume-reviewer 0006), and extend docx-pipeline-and-submit-flow coverage for bwrap /usr/bin/sh soffice invocation.
+# 119 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: register docx-pipeline-and-submit-flow verifying pure-stdlib OOXML executive resume generation across all 4 template families (.docx/.dotx/.rtf/.pdf), zero theme-font leaks, automatic <=2-page compaction, zero-PII enforcement, native shell intelligent-career group navigation, and real-Chromium edit -> Review documents -> DOCX/RTF/PDF download with exact edited headline -> 3 · Send (Orbit computer submit ready).
+# 118 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: register return-to-review proving markEdited() syncs documentGeneration.inputsHash after saving edited tailored documents, acceptCurrent() unlocks outdated-draft review without forced regeneration while preserving missingRoles/lock/revision guards, My résumé shows Review documents for any tailored job (desktop and phone), and Prepare application provides clickable Tailor/Review step navigation.
+# 117 | maintainer@emeraldcoastsystemsgroup.com | 1.68.16: register browser-redirect-ssrf (real Chromium 301/302/303/307/308 navigation and subresource redirect refusal for loopback, IPv6 ::1, RFC1918, metadata, CGNAT and 6to4 via createReadProxy) and currency-salary-sort (USD-equivalent currency-aware sort=salary across Find jobs and My jobs walking idx_corpus_pay_usd with zero temp B-tree sort and preserving verbatim pay fields).
 # 116 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: register resume-reviewer for ATS typography cleanliness (zero boldmetrics and zero numeric '+' suffixes while preserving C++/Security+/A+), deterministic per-skill non-overlapping tenure math, dynamic inline career-resume-reviewer Swarm bot declaration and fail-closed worker-rail routing, contradiction repair, and Prepare application review surfacing.
 # 115 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: register resume-date-exports, resume-downloads and resume-downloads-browser for recorded month/year preservation, snapshot-only contact/date exports, Professional Word/PDF inside My résumé's More menu, and generated packet format downloads.
 # 114 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: existing hierarchy browser case proves direct Tab in/out, Add sub-engagement, safe identity refusal and settled save acknowledgments at phone and desktop widths.
@@ -3711,6 +3718,28 @@ cases:
     isolation: {mode: disposable, cleanup: "Close the rail listener and remove the temporary store root."}
     limits: {timeoutMs: 240000, maxMemoryMb: 512}
     installation: never
+  - id: ready-with-documents
+    name: A job read never says a preparation is complete before its documents can be read
+    purpose: >-
+      The store gate failed once on 2026-11-19 because GET /jobs/:id read the job's row first and the preparation
+      receipt last, so a read the engine finished during said complete over a row from before the documents were
+      saved, and Prepare application, which stops waiting on that answer, showed step 1 again. Over the compiled POST
+      /jobs/:id/generate and GET /jobs/:id, the real engine dispatch, runner, launcher and Python engine and the real
+      SQLite driver, hold one read after the job's row until the engine has written its last receipt, with a scripted
+      model in its own thread and a stand-in Chromium that writes a one-line PDF.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-ready-with-documents.test.mjs]
+    expected:
+      - The held read saw the job's row before the documents were saved, and the engine wrote its completed receipt while the read was held.
+      - That read either says the preparation is complete with the cover letter, the claims check and nothing left to generate, or says Career is still working; the next read is complete with all three.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Stop the model thread and remove the temporary store root."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 512}
+    installation: never
   - id: letter-truth-live
     name: A prepared cover letter claims only what the records support on the installed package, as a test person
     purpose: >-
@@ -3980,6 +4009,85 @@ cases:
     isolation: {mode: disposable, cleanup: "Close synthetic Chromium browser contexts."}
     limits: {timeoutMs: 120000, maxMemoryMb: 1024}
     installation: never
+  - id: years-truth
+    name: Generated documents state the person's own years by skill and keep recorded terms
+    purpose: Prove a person's years_by_skill and career_years override the computed tenure table, reach the writer and reviewer prompts as exact, are enforced by code on the résumé's headline, summary, competencies and skills and on the cover letter (numbers too low and too high), leave project lengths, ranges, other skills and role bullets alone, and that a miswritten recorded term is restored.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-years-truth.test.mjs]}
+    expected:
+      - tests/career-years-truth-contract.py reports 100 or more checks and no failure, including 40 phrasings corrected or left alone as listed.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: pure}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: years-edit
+    name: A person's years by skill and in total are read and saved through the main résumé edit, with Undo
+    purpose: >-
+      Career's real compiled résumé route module (GET /resume/master-section?field=years, POST /resume/master-edit field
+      years, POST /resume/master-undo) over the launcher's real Python programs, on a made-up person with three dated
+      jobs, a figure of their own for two skills and a total of their own. Each figure the read shows as used is compared
+      with what the real generation code says for the same person.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-years-edit.test.mjs]}
+    expected:
+      - The read lists every skill of the table generation reads with the years counted from the roles, the person's figure and what a résumé states, most years first then by name, with the total and the main résumé's exact revision.
+      - Each used figure is what skill_tenure.prompt_block says line by line (the person's figure exactly, at most the whole years counted, no count under two), and years_truth.enforce rewrites a written 3, 2 and 30 to the figures shown; with no total of the person's own a lower total becomes the whole years the roles give and "over 5 years" stands.
+      - A save writes exactly years_by_skill and career_years, backs up the exact earlier file and audits the change; an empty list and a null total remove their keys; the same form again changes nothing; Undo puts back the exact earlier file.
+      - 0.5 and 60 for a skill and 1 and 70 in total are saved and read back by generation's own reader.
+      - Years outside 0.5 to 60 or off a half step, a missing or non-numeric figure, a skill named twice (ignoring case, or read as the same skill), an empty, over-long or unreadable name, a control character, 41 rows, a total outside 1 to 70, a partial form or an extra key refuse the whole save in words that name the row, and change nothing; a moved main résumé is refused (409).
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up person's folders under the test's temporary folder."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: years-by-skill-page
+    name: Work history's Years by skill section at 1440 and 412
+    purpose: >-
+      The shipped Work history page in Chromium at 1440x900 and 412x915, over Career's real compiled résumé route module
+      and the real engine programs, on the same made-up person.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-years-by-skill-page.test.mjs]}
+    expected:
+      - The section is headed Years by skill with its one line of explanation, the columns Skill, From your roles, Your figure and Used on résumés, Add a skill, Years of experience in total and Save years; Undo appears after a save.
+      - A figure of 61 is refused in the server's words naming the row and nothing is saved; a changed, a cleared and an added figure with a total save, and the table then shows what the server answers; the figures are there after a reload; Undo puts back the exact earlier file.
+      - Nothing is wider than the screen at either size, measured against the screen's own width; on the phone every control is at least 44 px tall and every box has 16 px text, with an added card and a 44-character unbroken name too.
+      - A skill name that holds markup is drawn as text and the script builds no markup from data; figures typed and not saved survive a job saved on the same page, whose next save goes on the revision the years save left; a person with no main résumé sees no section.
+    prerequisites: [runner:node-test, runner:python, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up person's folders under the test's temporary folder and close the browser contexts."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: years-by-skill-live
+    name: On the installed package a test person states their years on Work history, sees them used, and undoes
+    purpose: >-
+      After career-hunter 1.68.24 is installed on a test slot, as a test person with a made-up résumé, signed in on /login
+      at 1440x900 and 412x915: open Work history, give three made-up skill figures and a total, save, reload, read Used on
+      résumés, undo, and try one bad figure. Make the person once with `person`; run node
+      career-hunter/tests/career-years-by-skill-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-years-by-skill-live-proof.mjs
+    expected:
+      - GET /resume/master-section?field=years answers the made-up person's rows; the three figures and the total are saved and shown after a reload, each with Used on résumés equal to the figure; Undo puts back the earlier state; a figure of 61 is refused in words and saves nothing.
+      - Nothing scrolls sideways at either size; the only writes are the résumé upload, the years saves and their Undo; the check exits 0 and leaves the test person's years as it found them.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.68.24
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Writes only the test person's own main résumé on the test slot, never production, and ends by undoing its saves.
+        Every other request that is not GET or HEAD is stopped and listed, and the sessions the check signed in with are
+        signed out. `remove` takes the test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
   - id: resume-reviewer
     name: Dynamically-loaded career-resume-reviewer Swarm bot enforces ATS typography, tenure truth and zero contradictions
     purpose: Verify boldmetrics removal across all three HTML resume templates, zero numeric '+' suffixes with C++/Security+/A+ preservation, non-overlapping per-skill tenure math, career-resume-reviewer manifest/persona/authz declaration, fail-closed worker-rail routing, contradiction repair and needs_review escalation, and Prepare application review surfacing.
@@ -3993,4 +4101,84 @@ cases:
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove temporary packet directories and close loopback rail server."}
     limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: browser-redirect-ssrf
+    name: Anonymous web page reader refuses HTTP redirects to private and loopback addresses
+    purpose: Prove shipped Chromium reader refuses 301/302/303/307/308 navigation and subresource redirects to 127.0.0.1, ::1, RFC1918, 169.254.169.254 metadata, CGNAT, ULA and 6to4 without contacting private hosts or leaking bodies.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-browser-redirect-ssrf.test.mjs]}
+    expected:
+      - Navigation 301/302/303/307/308 and subresource fetch redirects to 127.0.0.1, ::1 and 169.254.169.254 record zero hits on the private fixture server and return zero leaked DOM or JSON payloads.
+      - createReadProxy CONNECT tunnels refuse loopback, RFC1918, link-local, CGNAT and non-443 ports fail-closed while same-origin allowed redirects continue to load jobs.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close loopback fixture servers, local read proxy and Chromium browser contexts."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 1024}
+    installation: never
+  - id: currency-salary-sort
+    name: Highest salary ranks annual USD equivalents across currencies without temp B-tree scans
+    purpose: Prove sort=salary ranks $220k USD ahead of £150k GBP, 150k CAD, 2.5M INR and unlisted pay across open browse, FTS, legacy fallback and My jobs while preserving raw currency and walking idx_corpus_pay_usd.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-currency-salary-sort.test.mjs]}
+    expected:
+      - Open browse, FTS keyword search, legacy fallback and My jobs sort=salary order USD ($220k) > GBP (£150k) > CAD (150k) > INR (2.5M) > unlisted while keeping displayed salary and currency verbatim.
+      - Open browse sort=salary walks idx_corpus_pay_usd with zero temp B-tree sort, db.py PAY_USD_INDEX_SQL matches annualUsdPayExpr verbatim, and pre-index read-only corpora fall back cleanly to idx_corpus_pay.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close in-memory SQLite fixture database."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: tailored-edit-and-concierge-skin
+    name: Tailored job documents edit directly in place and Career Concierge wears Intelligent Career look & feel
+    purpose: Prove tailored job résumés and cover letters (?id=<id>&application=1) support direct inline contenteditable editing with plaintext paste and Save & return to application, and that Intelligent Career's embedded Concierge iframe wears Career's light/slate/teal look and feel even when data-theme="midnight" is set.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-tailored-edit-and-concierge-skin.test.mjs]}
+    expected:
+      - Direct inline edits on tailored résumé headline, summary, bullets, and cover letter paragraphs enable Save & return to application, strip pasted HTML, persist updated content via POST /api/career-hunter/resume/save, and return to the application documents step.
+      - Switching from an active AI Office Main résumé to a tailored job (including when master office.open() resolves late) clears officeView, reveals #tailoredBar Direct editing with Undo/Redo and section quick-jumps, and saves edits cleanly.
+      - Intelligent Career's Concierge iframe receives career-frame.css and data-career-frame="concierge" and renders Career's light #f3f5f8 canvas, #0f1b2d slate ink, #ffffff composer, and #0f5f73 teal Send accent on both desktop and phone even when data-theme="midnight" is active.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Close loopback fixture server and synthetic Chromium browser contexts."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: return-to-review
+    name: Edited tailored résumés return directly to Review documents without forced regeneration
+    purpose: Prove markEdited() syncs documentGeneration.inputsHash on tailored packet save, acceptCurrent() lets users review outdated saved documents without overwriting edits while enforcing missingRoles/revision/lock guards, My résumé always exposes Review documents for any tailored job, and Prepare application supports clickable Tailor/Review step navigation.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-return-to-review.test.mjs]}
+    expected:
+      - Saving an edited tailored résumé after a main-résumé edit clears documentsOutdated and lands directly on 2 · Review documents showing the edited document with zero regeneration.
+      - Selecting a tailored job from My résumé (#pick, without ?application=1) reveals Review documents → on desktop and phone, auto-saves unsaved edits, and opens 2 · Review documents.
+      - On Step 1 Tailor with documentsOutdated, clicking Review current documents or 2 · Review documents in the step bar calls acceptCurrent and opens 2 · Review documents without regeneration; when required roles are missing, step 2 stays locked and Edit documents is offered beside Generate.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Remove disposable temp store and close Chromium browser contexts."}
+    limits: {timeoutMs: 90000, maxMemoryMb: 1024}
+    installation: never
+  - id: docx-pipeline-and-submit-flow
+    name: Executive OOXML resume pipeline, matched DOCX/RTF/PDF headline parity, and post-edit Send flow
+    purpose: Prove the pure-stdlib OOXML executive resume engine across all 4 template families (Standard, Professional, Leadership, Technical), zero theme-font leaks, <=2-page LibreOffice compaction, blank zero-PII templates, native experience-shell group navigation, and real-Chromium headline edit -> Save & return to application -> 2 · Review documents -> matched DOCX/RTF/PDF download -> 3 · Send with Orbit ready.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-docx-download-and-submit-flow.test.mjs]}
+    expected:
+      - career-docx-pipeline.test.py verifies all 4 families, .dotx templates, cover letters, Quick Styles, zero *Theme leaks, zero tables/textboxes/pageBreakBefore, automatic <=2-page compaction on dense synthetic resumes, and zero PII in engine modules and templates.
+      - CareerJobActions.navigate resolves career-hunter--career-board in the native experience shell even when parent.document carries no legacy [data-view] nodes.
+      - Real-Chromium headline edit on My résumé returns directly to 2 · Review documents, downloads DOCX/RTF/PDF carrying the exact edited headline without degree-on-name pollution, and advances to 3 · Send with Orbit computer submit ready.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, fixtures: [tests/career-docx-pipeline.test.py], cleanup: "Remove disposable temp stores and close Chromium browser contexts."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+  - id: native-read-specialist-bots
+    name: Every model-bearing Career bot registers its specialistContext reader
+    purpose: Prove createNativeCareerReadRoutes registers a specialistContext reader for every model-bearing bot declared in oshal-app.yaml (career-hunter, career-concierge, and career-resume-reviewer) so oshald never refuses a bot turn with missing specialist reader.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-native-read-specialist-bots.test.mjs]}
+    expected:
+      - createNativeCareerReadRoutes registers career_database specialistContext readers with full FACTS for career-hunter (0001), career-concierge (0005), and career-resume-reviewer (0006), matching every .yaml persona bot in oshal-app.yaml.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: none
+    isolation: {mode: pure}
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
     installation: never

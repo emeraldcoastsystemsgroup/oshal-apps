@@ -9,6 +9,7 @@
     Files, Tap to talk and Keep trying; the view, the board, the league on screen and the board's own words ride on every
     turn. The header's Concierge button still opens and closes the rail; the window's own Close hides it. Intelligent
     Sports opens this same page.
+  2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (Backlog A2): surface remaining-schedule P(playoffs) on Season, Waivers and Trades beside SV, and add optional playoff spots and standings inputs to the hand-typed league form (omitted when blank).
 -->
 <html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
@@ -79,25 +80,19 @@
   main { padding: 0 16px 24px; max-width: 1180px; margin: 0 auto; }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
   .card > h2 { margin: 0 0 10px; font-size: 18px; line-height: 24px; font-weight: 600; }
-  .muted { color: var(--dim); }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--dim); } .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   button.act { background: var(--ds-accent, var(--blue)); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); border: 1px solid var(--ds-accent, var(--blue)); border-radius: 10px; padding: 0 16px; min-height: 44px; font: 600 15px/22px inherit; cursor: pointer; }
   button.ghost { background: var(--ds-surface-2, var(--panel)); color: var(--text); border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; padding: 0 14px; min-height: 44px; font: 600 15px/22px inherit; cursor: pointer; }
-  button.ghost:hover { border-color: var(--blue); }
-  button:disabled { opacity: 1; background: var(--ds-surface-2, var(--panel)); border-color: var(--border); color: var(--ds-ink-disabled, var(--dim)); cursor: default; }
+  button.ghost:hover { border-color: var(--blue); } button:disabled { opacity: 1; background: var(--ds-surface-2, var(--panel)); border-color: var(--border); color: var(--ds-ink-disabled, var(--dim)); cursor: default; }
   input, textarea, select { background: var(--ds-surface, var(--bg)); color: var(--text); border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; padding: 8px 12px; min-height: 44px; font: 16px/24px inherit; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-  th { color: var(--dim); font-weight: 600; font-size: 12px; line-height: 16px; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .pos { color: var(--green); } .neg { color: var(--red); }
-  .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; } th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; line-height: 16px; } td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); } .neg { color: var(--red); } .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .linebox { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
   .linebox .k { color: var(--dim); font-size: 12px; line-height: 16px; text-transform: uppercase; letter-spacing: .4px; }
   .linebox .v { font-size: 24px; line-height: 32px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
   .banner { border-left: 3px solid var(--amber); background: var(--bg); padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; line-height: 20px; }
-  .banner.hard { border-left-color: var(--red); }
-  .mhead { margin: 12px 0 6px; font-size: 18px; line-height: 24px; font-weight: 600; }
+  .banner.hard { border-left-color: var(--red); } .mhead { margin: 12px 0 6px; font-size: 18px; line-height: 24px; font-weight: 600; }
   .mform { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 8px; }
   .mf { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; font-size: 14px; line-height: 20px; color: var(--dim); min-width: 0; }
   .mf input, .mf textarea, .mf select { width: 100%; box-sizing: border-box; color: var(--text); }
@@ -597,49 +592,62 @@ function boardFeedFailure(d, what) {
   return true;
 }
 
+function playoffNote(p) {
+  if (!p) return '';
+  return p.available
+    ? '<p class="muted" style="margin:9px 0 0">Playoff odds simulated over ' + esc(p.fixturesSimulated) + ' remaining regular-season fixtures (top ' + esc(p.playoffTeams) + (p.playoffTeamsAssumed ? ' assumed' : '') + ' qualify, ' + esc(p.trials) + ' deterministic trials; ties broken by points scored).</p>'
+    : '<p class="muted" style="margin:9px 0 0">P(playoffs) not simulated: ' + esc(p.reason || 'standings or remaining schedule unavailable') + '</p>';
+}
+function playoffCell(r) {
+  if (typeof r.playoffProbWith !== 'number') return '<td class="num muted">&mdash;</td>';
+  var d = Number(r.playoffDelta || 0), cls = d > 0 ? ' pos' : d < 0 ? ' neg' : '';
+  return '<td class="num' + cls + '">' + (r.playoffProbWith * 100).toFixed(1) + '% (' + (d >= 0 ? '+' : '') + (d * 100).toFixed(1) + ' pp)</td>';
+}
 function renderSeason(d) {
   if (boardFeedFailure(d, 'rest of season')) return;
-  el('lineupBody').innerHTML = '<div class="card"><h2>' + esc(d.team.name) + ' &middot; rest of season</h2>' +
-    '<div class="lines">' + box('Season value', d.total.toFixed(1)) +
-      box('Weeks left', (d.byWeek || []).length) +
-      box('Cheapest to drop', d.drop ? esc(d.drop.name) + ' (' + d.drop.cost.toFixed(1) + ')' : '—') +
-    '</div><p class="muted" style="margin:10px 0 0">The points your best legal starting lineup scores in every week ' +
-    'that remains, under your league’s rules. Every waiver claim and trade below is priced as the change in this number.</p>' +
-    provenance(d) + '</div>';
+  var pBox = d.playoffs && d.playoffs.available ? box('Playoff chance', (d.playoffs.baselineProb * 100).toFixed(1) + '%') : '';
+  el('lineupBody').innerHTML = '<div class="card"><h2>' + esc(d.team.name) + ' &middot; rest of season</h2><div class="lines">' +
+    box('Season value', d.total.toFixed(1)) + pBox + box('Weeks left', (d.byWeek || []).length) +
+    box('Cheapest to drop', d.drop ? esc(d.drop.name) + ' (' + d.drop.cost.toFixed(1) + ')' : '—') +
+    '</div><p class="muted" style="margin:10px 0 0">The points your best legal starting lineup scores in every week that remains, under your league’s rules. Every waiver claim and trade below is priced as the change in this number.</p>' +
+    playoffNote(d.playoffs) + provenance(d) + '</div>';
 }
-
 function renderWaivers(d) {
   if (boardFeedFailure(d, 'waiver board')) return;
+  var hasP = !!(d.playoffs && d.playoffs.available);
   var rows = (d.rows || []).map(function (r) {
     return '<tr><td class="pos"><strong>' + esc(r.add.name) + '</strong>' + (r.scarcity ? ' <span class="muted">(fills a replacement-level slot)</span>' : '') + '</td>' +
-      '<td>' + esc(r.drop.name) + '</td><td class="num">+' + r.gain.toFixed(1) + '</td>' +
+      '<td>' + esc(r.drop.name) + '</td>' + (hasP ? playoffCell(r) : '') + '<td class="num">+' + r.gain.toFixed(1) + '</td>' +
       '<td class="num">' + esc(r.weeksStarting) + '</td><td class="num">' + (r.bid === null ? 'priority' : '$' + esc(r.bid)) + '</td></tr>';
   }).join('');
   var streams = (d.streaming || []).map(function (s) {
     return '<tr><td><strong>' + esc(s.add.name) + '</strong></td><td>' + esc(s.drop.name) + '</td><td class="num">+' + s.gain.toFixed(1) + '</td></tr>';
   }).join('');
-  el('lineupBody').innerHTML = '<div class="card"><h2>Waiver board &middot; ' + esc(d.team.name) + '</h2>' +
-    (d.mode === 'faab' ? '<div class="lines">' + box('Budget left', '$' + esc(d.budget)) + box('Most one claim may spend', '$' + esc(d.cap)) + '</div>' : '<p class="muted">This league claims by waiver priority, so there is no bid.</p>') +
-    (rows ? '<table style="margin-top:10px"><tr><th>Add</th><th>Drop</th><th class="num">Rest-of-season gain</th><th class="num">Weeks starting</th><th class="num">Bid</th></tr>' + rows + '</table>'
+  var pBox = hasP ? box('Playoff chance', (d.playoffs.baselineProb * 100).toFixed(1) + '%') : '';
+  var top = d.mode === 'faab'
+    ? '<div class="lines">' + pBox + box('Budget left', '$' + esc(d.budget)) + box('Most one claim may spend', '$' + esc(d.cap)) + '</div>'
+    : (pBox ? '<div class="lines">' + pBox + '</div>' : '') + '<p class="muted">This league claims by waiver priority, so there is no bid.</p>';
+  el('lineupBody').innerHTML = '<div class="card"><h2>Waiver board &middot; ' + esc(d.team.name) + '</h2>' + top +
+    (rows ? '<table style="margin-top:10px"><tr><th>Add</th><th>Drop</th>' + (hasP ? '<th class="num">P(playoffs)</th>' : '') + '<th class="num">Rest-of-season gain</th><th class="num">Weeks starting</th><th class="num">Bid</th></tr>' + rows + '</table>'
       : '<p class="muted">Nobody on the wire improves your starting lineup over the weeks that remain.</p>') +
-    provenance(d) + '</div>' +
-    '<div class="card"><h2>Streaming &middot; this week only</h2>' +
+    playoffNote(d.playoffs) + provenance(d) + '</div><div class="card"><h2>Streaming &middot; this week only</h2>' +
     (streams ? '<table><tr><th>Add</th><th>Drop</th><th class="num">Gain this week</th></tr>' + streams + '</table>' : '<p class="muted">No streamer beats who you have this week.</p>') +
     '<p class="muted" style="margin:9px 0 0">Streaming is priced on this week alone and never spends the rest-of-season budget. Nothing is claimed for you.</p></div>';
 }
-
 function renderTrades(d) {
   if (boardFeedFailure(d, 'trade finder')) return;
+  var hasP = !!(d.playoffs && d.playoffs.available);
   var list = (d.proposals || []).map(function (t) {
     var names = function (xs) { return xs.map(function (x) { return esc(x.name); }).join(' + '); };
     return '<tr><td>' + esc(t.teamName) + '</td><td class="neg">' + names(t.give) + '</td><td class="pos">' + names(t.get) + '</td>' +
-      '<td class="num pos">+' + t.youGain.toFixed(1) + '</td><td class="num pos">+' + t.themGain.toFixed(1) + '</td></tr>';
+      (hasP ? playoffCell(t) : '') + '<td class="num pos">+' + t.youGain.toFixed(1) + '</td><td class="num pos">+' + t.themGain.toFixed(1) + '</td></tr>';
   }).join('');
   el('lineupBody').innerHTML = '<div class="card"><h2>Trades both sides gain from &middot; ' + esc(d.team.name) + '</h2>' +
-    (list ? '<table><tr><th>With</th><th>You give</th><th>You get</th><th class="num">Your gain</th><th class="num">Their gain</th></tr>' + list + '</table>'
+    (hasP ? '<div class="lines">' + box('Playoff chance', (d.playoffs.baselineProb * 100).toFixed(1) + '%') + '</div>' : '') +
+    (list ? '<table style="margin-top:10px"><tr><th>With</th><th>You give</th><th>You get</th>' + (hasP ? '<th class="num">P(playoffs)</th>' : '') + '<th class="num">Your gain</th><th class="num">Their gain</th></tr>' + list + '</table>'
       : '<p class="muted">No trade was found that improves both starting lineups over the weeks that remain.</p>') +
     '<p class="muted" style="margin:9px 0 0">Every proposal gains for the other manager too — their gain is the argument that gets it accepted. Nothing is sent to ESPN.</p>' +
-    provenance(d) + '</div>';
+    playoffNote(d.playoffs) + provenance(d) + '</div>';
 }
 
 // ---- hand-typed leagues ----------------------------------------------------------------------
@@ -706,7 +714,8 @@ function manualListsText(l) {
     scoring: (l.scoring || []).map(function (r) { return statName(r.statId) + ' = ' + r.points; }).join('\n'),
     slots: (l.slots || []).map(function (x) { return (Object.prototype.hasOwnProperty.call(SLOT_NAMES, x.slotId) ? SLOT_NAMES[x.slotId] : x.slotId) + ' x ' + x.count; }).join('\n'),
     schedule: (l.schedule || []).map(function (m) { return m.week + ': ' + m.home + (m.away === null || m.away === undefined ? '' : ' vs ' + m.away); }).join('\n'),
-    byes: Object.keys(l.byes || {}).map(function (t) { return proTeamName(t) + ' = ' + l.byes[t]; }).join('\n')
+    byes: Object.keys(l.byes || {}).map(function (t) { return proTeamName(t) + ' = ' + l.byes[t]; }).join('\n'),
+    standings: (l.standings || []).map(function (s) { return s.teamId + ': ' + s.wins + '-' + s.losses + (s.ties ? '-' + s.ties : '') + ', ' + s.pointsFor; }).join('\n')
   };
 }
 
@@ -723,9 +732,9 @@ function manualTeamHtml(t, i) {
 function manualRawFromLeague(l) {
   var lists = manualListsText(l), faab = l.faab || null, text = function (v) { return v === null || v === undefined ? '' : String(v); };
   return {
-    name: text(l.name), season: text(l.season), lastWeek: text(l.lastWeek), playoff: text(l.playoffStart),
+    name: text(l.name), season: text(l.season), lastWeek: text(l.lastWeek), playoff: text(l.playoffStart), playoffTeams: text(l.playoffTeams),
     faabBudget: faab ? text(faab.budget) : '', faabSpent: faab ? text(faab.spent) : '',
-    scoring: lists.scoring, slots: lists.slots, schedule: lists.schedule, byes: lists.byes,
+    scoring: lists.scoring, slots: lists.slots, schedule: lists.schedule, byes: lists.byes, standings: lists.standings,
     teams: (l.teams || []).map(function (t) { return { teamId: text(t.teamId), name: text(t.name), mine: t.mine === true, roster: (t.roster || []).join(', '), starting: (t.starting || []).join(', ') }; })
   };
 }
@@ -735,8 +744,8 @@ function manualRawFromForm() {
   for (var i = 0; i < manualTeamCount; i++) {
     teams.push({ teamId: el('mTeamId' + i).value, name: el('mTeamName' + i).value, mine: !!el('mMine' + i).checked, roster: el('mRoster' + i).value, starting: el('mStart' + i).value });
   }
-  return { name: el('mName').value, season: el('mSeason').value, lastWeek: el('mLastWeek').value, playoff: el('mPlayoff').value,
-    faabBudget: el('mFaabBudget').value, faabSpent: el('mFaabSpent').value, scoring: el('mScoring').value, slots: el('mSlots').value, schedule: el('mSchedule').value, byes: el('mByes').value, teams: teams };
+  return { name: el('mName').value, season: el('mSeason').value, lastWeek: el('mLastWeek').value, playoff: el('mPlayoff').value, playoffTeams: el('mPlayoffTeams').value,
+    faabBudget: el('mFaabBudget').value, faabSpent: el('mFaabSpent').value, scoring: el('mScoring').value, slots: el('mSlots').value, schedule: el('mSchedule').value, byes: el('mByes').value, standings: el('mStandings').value, teams: teams };
 }
 
 function renderManualForm(l, id) { drawManualForm(manualRawFromLeague(l), id); }
@@ -760,11 +769,13 @@ function drawManualForm(r, id) {
     '<p class="mstepline" id="mStepLine">Step ' + (manualStep + 1) + ' of ' + MANUAL_STEPS.length + ' &middot; ' + MANUAL_STEPS[manualStep] + '</p>' +
     step(0, '<div class="mform">' + mField('mName', 'League name', mInput('mName', r.name)) + mField('mSeason', 'Season (year)', mInput('mSeason', r.season, 'number', ' min="2000" max="2100"')) +
       mField('mLastWeek', 'Last regular-season week', mInput('mLastWeek', r.lastWeek, 'number', ' min="1" max="25"')) + mField('mPlayoff', 'Playoffs start in week (blank if none)', mInput('mPlayoff', r.playoff, 'number', ' min="1" max="25"')) +
+      mField('mPlayoffTeams', 'Playoff spots (blank for default)', mInput('mPlayoffTeams', r.playoffTeams, 'number', ' min="1" max="19"')) +
       mField('mFaabBudget', 'FAAB budget in dollars (blank if none)', mInput('mFaabBudget', r.faabBudget, 'number', ' min="0"')) + mField('mFaabSpent', 'FAAB spent in dollars', mInput('mFaabSpent', r.faabSpent, 'number', ' min="0"')) + '</div>') +
     step(1, statPickerHtml() + '<div class="mform">' + mField('mScoring', 'Scoring: one rule per line, ESPN stat id = points or stat name = points (for example Passing TD = 4)', mArea('mScoring', r.scoring, 6)) + '</div>') +
     step(2, '<div class="mform">' + mField('mSlots', 'Starting slots: one per line, position x count (for example RB x 2; QB, RB, WR, TE, FLEX, D/ST, K)', mArea('mSlots', r.slots, 6)) + '</div>') +
     step(3, byePickerHtml() + '<div class="mform">' + mField('mSchedule', 'Schedule: one game per line, week: home team id vs away team id', mArea('mSchedule', r.schedule, 4)) +
-      mField('mByes', 'Bye weeks: one per line, NFL team = week (for example KC = 6)', mArea('mByes', r.byes, 4)) + '</div>') +
+      mField('mByes', 'Bye weeks: one per line, NFL team = week (for example KC = 6)', mArea('mByes', r.byes, 4)) +
+      mField('mStandings', 'Standings (optional, for P(playoffs): team id: W-L-T, points)', mArea('mStandings', r.standings, 3)) + '</div>') +
     step(4, r.teams.map(manualTeamHtml).join('') + '<button class="ghost" type="button" id="mAddTeam">Add a team</button>') +
     '<div class="mbar" data-no-glass><span class="muted grow" id="mNote" role="status"></span>' +
     (manualStep > 0 ? '<button class="ghost" type="button" id="mBack">Back</button>' : allLeagues().length ? '<button class="ghost" type="button" id="mCancel">Cancel</button>' : '') +
@@ -908,6 +919,11 @@ function readManualForm() {
     lastWeek: numOrNull(el('mLastWeek').value) || 17,
     playoffStart: numOrNull(el('mPlayoff').value)
   };
+  var playoffTeams = numOrNull(el('mPlayoffTeams') && el('mPlayoffTeams').value);
+  if (playoffTeams !== null) league.playoffTeams = playoffTeams;
+  var standings = manualLines(el('mStandings') && el('mStandings').value, /^(\d+)\s*:\s*(\d+)\s*-\s*(\d+)(?:\s*-\s*(\d+))?(?:\s*[,;]\s*(\d+(?:\.\d+)?))?$/, 'Standings', '"team id: W-L-T, points"', problems,
+    function (m) { return { teamId: Number(m[1]), wins: Number(m[2]), losses: Number(m[3]), ties: m[4] ? Number(m[4]) : 0, pointsFor: m[5] ? Number(m[5]) : 0 }; });
+  if (standings.length) league.standings = standings;
   if (!league.scoring.some(function (r) { return r.points !== 0; })) {
     problems.push(league.scoring.length
       ? 'Scoring: every rule is worth 0 points, so every player would project 0.0. Enter your league\u2019s scoring as stat id = points.'

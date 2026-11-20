@@ -12,6 +12,7 @@
  *                     |                             | suggestion (B12) and the orientation-cube face markers (B9).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Export STL parsing, binary glTF 2.0 (.glb), Apple USDZ (.usdz)
  *                     |                             | and interactive 3D mesh crop, rotation/lay-flat and measurement.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Export deterministic square fiducial detector and SVG target (B3).
  */
 
 export * from './geometry/geometry-types';
@@ -28,6 +29,7 @@ export * from './geometry/mesh-ops';
 export * from './raster/raster-types';
 export * from './raster/silhouette';
 export * from './raster/face-marker';
+export * from './raster/fiducial';
 export * from './grid/views';
 export * from './grid/occupancy-grid';
 export * from './grid/silhouette-carver';

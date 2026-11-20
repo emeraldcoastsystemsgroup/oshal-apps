@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.57.0, T9: Intelligent Career follows the Create concierge pattern (Intelligent Trades 1.54.0 the worked example). The front desk is career-concierge, an inline bot that answers in the app with career-hunter's own speaking, advisor and hard rules, the same tool authorizations, the same Career facts and its own authorization binding; career-hunter stays the worker for career-application tickets, the engine rail and the studio calls.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0, one concierge (Roger, 2026-11-14): career-concierge is the one assistant a person talks to and no longer hands anything to career-hunter, which is declared as the engine's worker. The Speaking and Answering rules are still carried word for word; the hard rules are the concierge's own; it authorizes every route tool, and the worker's list is as it was.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: expect specialistContext registration loop in lib/native-career-read.js to include REVIEWER alongside AGENT and CONCIERGE.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,7 +69,7 @@ test('every route-backed tool is authorized for the concierge; the worker keeps 
 test('the concierge reads Career\'s facts, is bound like the worker and is a registered store concierge', () => {
   const read = readFileSync(join(root, 'lib', 'native-career-read.js'), 'utf8');
   assert.match(read, new RegExp(`const CONCIERGE = '${CONCIERGE}';`));
-  assert.match(read, /for \(const agentId of \[AGENT, CONCIERGE\]\) ctx\.specialistContext\.register\(\{agentId, toolName:'career_database'/);
+  assert.match(read, /for \(const agentId of \[AGENT, CONCIERGE, REVIEWER\]\) ctx\.specialistContext\.register\(\{agentId, toolName:'career_database'/);
   const catalog = yaml.load(readFileSync(join(root, 'authorization.yaml'), 'utf8'));
   const bots = Object.fromEntries(catalog.bindings.bots.map((bot) => [bot.id, bot.allOf]));
   assert.deepEqual(bots[CONCIERGE], ['app.open', 'career.execute'], 'its turns spend the caller\'s provider money, as the worker\'s do');

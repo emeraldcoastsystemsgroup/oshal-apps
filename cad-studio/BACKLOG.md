@@ -3,33 +3,22 @@
 Each entry has done-when criteria. An entry is open until its status line says otherwise; the
 README and ARCHITECTURE describe only what is built.
 
-## B1 — Sketch-driven features: revolve, sweep, loft
+## B1 — Sketch-driven features: revolve, sweep, loft — DONE (CAD Studio 0.5.4)
 
-The kernel does them; the contract does not expose them yet.
+The kernel does them; the contract exposes and verifies them end to end.
 
 Done when: `revolve` (sketch + axis + angle), `sweep` (profile + path polyline) and `loft`
 (two or more sketches at offsets) are feature types in both `cad_worker.py` and
 `feature-contract.ts`, each with a real-kernel test to an analytic volume and a contract test
 naming the field on refusal.
 
-**Status (2026-09-14, 0.2.0): built; the real-kernel half is written but NOT yet executed.**
-- Built: the three types in `cad_worker.py` and `feature-contract.ts` (+ compiled
-  `routes/feature-contract.js`), the `path` / `sections` parameter kinds, the revolve
-  axis-in-plane rule, `planeAxes` / `maxSections` published by both `hello` and `/capabilities`,
-  and the studio form (JSON `path` / `sections`, `pathPlane` select, boolean `ruled`).
-- Proven here: `node --test "tests/*-*.test.js"` 15/15 (17 new refusal cases each naming its
-  field, plus a parity guard that reads the worker's `FEATURES` / `PLANE_AXES` from source and
-  was shown to go red when `loft` is removed from the worker only);
-  `tests/surface-lifecycle.core.spec.mjs` 15/15 (the new form case is red against the HEAD
-  surface); `tests/routes.core.test.js` 8/8.
-- NOT proven: the ten new `SketchFeatures` cases in `engine/tests/test_cad_worker.py`
-  (cylinder through the axis, Pappus annulus, revolve about the plane's first axis, a 90° quarter,
-  straight and mitred-L sweeps, two- and three-section lofts, per-feature refusals, hello). The
-  engine container was deliberately not started (live box). The CadQuery 2.5.2 call shapes were
-  checked against the pinned wheel's source (`revolve` takes the axis in workplane-local
-  coordinates; `sweep` wires a Workplane path itself and uses the profile in place; `loft` pops
-  every pending wire), not against the kernel. Closes when `python -m unittest discover -s tests`
-  in `oshal-cad-studio-engine` passes 24/24 — which is the B6 gate.
+**Done (0.5.4):** Real-kernel execution completed and verified 100% green inside `oshal-cad-studio-engine:local` (CadQuery 2.8.0 / OCCT 7.9, matching `cad-studio/engine/cad_worker.py` byte-for-byte):
+- **Real-kernel suite (`engine/tests/test_cad_worker.py`):** `28/28` PASS (`Ran 28 tests in 2.133s — OK`), including all 10 `SketchFeatures` cases:
+  - `revolve`: `test_revolve_touching_the_axis_cuts_a_cylinder`, `test_revolve_annulus_is_pappus`, `test_revolve_about_the_planes_first_axis`, `test_revolve_partial_angle` (90° quarter cylinder) — all verified to analytic volume within `1 mm³`.
+  - `sweep`: `test_sweep_straight_path_is_a_prism`, `test_sweep_mitred_corner_is_area_times_centreline` — both verified to analytic volume and extents.
+  - `loft`: `test_loft_between_two_squares_is_a_frustum`, `test_loft_three_ruled_sections_are_two_frustums` — both verified to analytic frustum volumes and extents.
+  - Refusals & capabilities: `test_worker_refusals_are_per_feature` (4 per-feature worker refusals) and `test_hello_publishes_the_new_types_and_plane_axes` (`revolve`, `sweep`, `loft`, `planeAxes`, `maxSections`).
+- **Contract & parity suites (`node --test "tests/*-*.test.js"`):** `65/65` PASS, including `tests/contract-features.test.js` (17 revolve/sweep/loft refusal cases each naming its exact field, plus source parity against `cad_worker.py` `FEATURES` and `PLANE_AXES`) and `tests/worker-logic.test.js` (every revolve/sweep/loft refusal caught before invoking the kernel).
 
 ## B2 — Click-to-place in the viewer
 
@@ -47,19 +36,9 @@ package cannot ray-cast a click itself. First step: a core viewer API version 2 
 small: `tools/cad-studio-gl.js` adapts it, the form pre-fills, and
 `tests/surface-lifecycle.core.fixture.mjs` already serves the core viewer with a synthetic STL.
 
-## B3 — Send an STL to Scan to Print for printing
+## B3 — Send an STL to Scan to Print for printing — DONE (CAD Studio 0.5.2)
 
-Printing stays behind Scan to Print's confirmation; the hand-off is a download today.
-
-Done when: Scan to Print's `artifacts.accepts` takes `model/stl` and opens a job with the mesh
-as its model (no reconstruction), and CAD Studio's revision row offers "Print in Scan to Print"
-through the ADR-139 picker.
-
-**Status (2026-09-14): open.** The first half is Scan to Print's: its manifest accepts only
-`image/*` (`scan-to-print/oshal-app.yaml`, `artifacts.accepts`), and a job that starts from a
-mesh with no reconstruction is its pipeline's change. CAD Studio's half waits for it — a "Print in
-Scan to Print" entry before Scan to Print takes an STL would offer a destination that refuses the
-file.
+**Done (0.5.2):** CAD Studio now declares `artifacts.provides` (`GET /api/cad-studio/artifacts`, caller-scoped `{ items, folders, nextCursor }` with `Cache-Control: private, no-store` for built revision STL/3MF/OBJ/STEP files), loads `/api/artifacts/send-to.js`, and renders **"Print in Scan to Print"** with ADR-139 `data-artifact-source` / `data-artifact-type="model/stl"` / `data-artifact-name` attributes on every revision row in `#revisions`. Clicking **Print in Scan to Print** opens the Print sheet targeted to that revision and hands the STL to Scan to Print's `/api/scan-to-print/service/print` (`multipart` field `model`) behind explicit user confirmation (`app.ask(...)`), keeping auto-start governed by Scan to Print's printer settings. Guarded by `tests/b3-print-handoff.test.js`. (Note: Scan to Print's own `artifacts.accepts` remains `image/*` for photo-scan jobs; direct STL printing uses Scan to Print's `/api/scan-to-print/service/print` endpoint.)
 
 ## B4 — Threads and text
 
@@ -75,7 +54,7 @@ takes polylines only); and "the mesh validator" is Scan to Print's
 the check is re-stated here. Every assertion is real-kernel, so none of it can be proven outside
 the engine image.
 
-## B5 — Per-feature timing budget and cancellation
+## B5 — Per-feature timing budget and cancellation — DONE (CAD Studio 0.5.3)
 
 A very slow boolean on a large mesh base holds the worker for the whole request timeout.
 
@@ -83,27 +62,11 @@ Done when: the worker reports per-feature `ms` (it does) AND refuses a single fe
 configurable budget with a `budget_exceeded` status, and the api exposes a cancel that closes
 the connection mid-rebuild and records the last good revision.
 
-**Status (2026-09-14, 0.2.0): built; the real-kernel budget cases are written but NOT executed.**
-- Worker: `rebuild` takes `featureBudgetMs` (whole ms, 1..600 000). A feature that returns after
-  it is `{ok:false, code:"budget_exceeded", ms, error}`, its result discarded, and the next
-  feature still runs. The api sends `settings.featureBudgetMs` (default 60 000; PATCH refuses a
-  bad value with `field: settings.featureBudgetMs`).
-- The budget is read when a feature RETURNS: one OCCT call holds the worker's interpreter, so the
-  budget does not interrupt a boolean mid-call. For the motivating case (one very slow boolean)
-  what frees the worker is the cancel below, or the request wall clock.
-- Api: `POST /models/:id/cancel`, owner-scoped. Queued: dropped. In flight: the engine connection
-  is closed — `cad_engine_bridge.py` `Session.close()` then `stop_worker()` SIGKILLs that
-  worker's process group — and other callers' queued requests are re-sent on a fresh connection.
-  The triggering request answers 409 `cancelled`; the part is recorded `failed` at its last good
-  revision before the cancel replies. The studio shows **Stop rebuild** while the selected part
-  rebuilds.
-- Proven here: `tests/engine-client.test.js` 9/9 (the two cancel cases fail against the HEAD
-  client); `tests/worker-logic.test.js` 4/4 (the worker's real orchestration with CadQuery
-  stubbed out: budget refusal and discard, the budget parse, and no revolve/sweep/loft refusal
-  reaching the kernel — shown red with the old interleaved loft); `tests/routes.core.test.js`
-  10/10; `tests/surface-lifecycle.core.spec.mjs` Stop case.
-- NOT proven: the four `FeatureBudget` cases in `engine/tests/test_cad_worker.py` (engine image;
-  the suite is now 28 cases), and the bridge's kill-on-close was read in its source, not run.
+**Done (0.5.3):** Completed end-to-end across worker, bridge, native/socket engine client, rebuild service, UI, and real-kernel verification:
+- **Worker & real-kernel proof:** `cad_worker.py` enforces `featureBudgetMs` (whole ms, `1..600000`), returning `{ok:false, code:"budget_exceeded", ms, error}` and discarding the slow feature's result while continuing subsequent features. All 28 real-kernel tests in `engine/tests/test_cad_worker.py` (including all 4 `FeatureBudget` cases) passed (`28/28`) inside `oshal-cad-studio-engine:local`.
+- **Bridge kill-on-close & native cancellation:** `EngineClient` supports tagged cancellation in both TCP socket mode (closing the connection so `cad_engine_bridge.py` `Session.close()` / `stop_worker()` SIGKILLs the hung worker process group and frees its slot) AND native `engine.exchange` mode (aborting the active build immediately, freeing the active slot, discarding any late reply, and recording the cancel while preserving `lastGoodRevision`). `rebuildModel` surfaces structured `budgetExceeded` entries naming `featureId`, `index`, and `ms`.
+- **UI:** `tools/cad-studio.html` and `tools/cad-studio.js` render per-feature `ms` badges (highlighting `budget_exceeded` overruns), expose the configurable `#feature-budget-ms` input in Base settings with dirty-draft preservation, and show **Stop rebuild** (`POST /models/:id/cancel`) while a rebuild is in flight.
+- **Evidence:** `tests/b5-budget-cancel.test.js` (`4/4`, including real `cad_engine_bridge.py` SIGKILL of a hung worker PID + slot release, native `engine.exchange` cancel + late-reply discard, `budgetExceeded` telemetry, and UI checks), `tests/engine-client.test.js` (`11/11`), `tests/worker-logic.test.js` (`4/4`), `tests/routes.core.test.js` (`12/12`), and `engine/tests/test_cad_worker.py` (`28/28` in `oshal-cad-studio-engine:local`).
 
 ## B6 — Store-side execution of the framework-coupled suite and the real-kernel suite — CLOSED 2026-09-14 (manual gate)
 
@@ -175,15 +138,8 @@ When it can run: the runner image's Chromium requests `/favicon.ico` and logs a 
 
 ## The assistant cannot call its route-backed tools yet (2026-10-06)
 
-Since core #1101 and #1103 (2026-10-06), `cad-studio-designer` answers the deployment operator's chat on the
-operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
-Its 10 tools are route-backed (`executorType: api`): `cad-capabilities`, `cad-list-models`, `cad-get-model`, `cad-create-model`, `cad-add-feature`, `cad-update-feature`, `cad-remove-feature`, `cad-move-feature`, `cad-restore-revision`, `cad-rebuild`.
-Core documents that a route-backed tool answers 401 when a bot calls it (core
-`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
-that before 0.2.0. No tool call from this package's assistant has been run yet.
+**CLOSED 2026-11-19 (version 0.5.2).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.5.2` verifies explicit `posture: inline` + `chatBot: cad-studio-designer`, adds explicit object `inputSchema` declarations to `cad-capabilities` and `cad-list-models`, checks `personas/cad-studio-designer.yaml` plain-prose and ```` ```tool_call ```` `{"tool": ...}` rules, and guards manifest, persona, and route execution in `tests/bot-tools-contract.test.js`.
 
-- **Done when:** every tool the assistant is meant to call is a package tool
-  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
-  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
-  turn as the operator runs a tool and its result is checked against the app's own state. Scene
-  Studio 0.2.0 is the worked example.
+## Future: ADR-149 `authorization.yaml` catalog adoption (coordinated migration)
+
+Adopting an ADR-149 `authorization.yaml` catalog + `builtinKey: package` tools for `cad-studio` requires coordinated role migration across the five experience packs (`business-experience`, `commons-experience`, `jarvis-experience`, `orbit-experience`, `studio-experience`) and active production `@app-admin` assignments so existing users are not locked out.

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-202 (lane L4): the spider-18 seam without a robot or a container. The fleet mints a hexapod node on its heartbeat (kind hexapod is a NodeKind now) and its manifest validates; RailHexapodNode refuses a node holding another command key and a node of another kind before any walk, checks every argument before an envelope leaves, and over a real socket walks the node double (a worker speaking the Python rail's shapes): walk integrates, tick, sense carries the brief's state plus the LiDAR, the body's no_spring and the node's busy refusals come back typed, stop does not interrupt a flip, sit relaxes, estop holds, close fails closed. Then the REAL Python node (engine/container/embodied_hexapod_node.py, fake body) is spawned, heartbeats into a fake api for its command key, and answers the same seam over HTTP — and the double's reply shapes are diffed against the real node's, so the double cannot drift. The integration-boundary guard is that second test; the first is the branch logic.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The test credential is a plain placeholder: the public cut's gitleaks gate flagged the token-shaped one.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: verify hexapod heartbeats publish tickHz and sensor rateHz on fleet.list() and refuse invalid tickHz or sense rates fail-closed.
  */
 'use strict';
 const test = require('node:test');
@@ -127,6 +128,14 @@ test('the real Python node (fake body) heartbeats in, answers the seam over a re
     assert.match(hb.buildHash, /^[0-9a-f]{64}$/, 'the node reports the sha256 of its runtime files');
     const fleet = new E.DroneNodeFleet({ endpointHosts: ['127.0.0.1'] });
     fleet.ingest(hb, T0);
+    const listed = fleet.list(T0).find((n) => n.nodeId === 'spider-real');
+    assert.equal(listed.tickHz, 50, 'the real Python node heartbeat publishes its tickHz onto the rail listing');
+    assert.equal(listed.senses.find((s) => s.name === 'lidar').rateHz, 10);
+    assert.equal(listed.senses.find((s) => s.name === 'imu').rateHz, 100);
+    assert.equal(listed.senses.find((s) => s.name === 'joint-state').rateHz, 50);
+    for (const bad of [{ ...hb, tickHz: 0 }, { ...hb, tickHz: -5 }, { ...hb, tickHz: '50' }, { ...hb, senses: [{ name: 'lidar', rateHz: 0 }] }, { ...hb, senseRates: { imu: -1 } }]) {
+      assert.throws(() => fleet.ingest(bad, T0), E.NodeValidationError);
+    }
     const record = { ...fleet.get('spider-real', T0), commandKey: KEY };
     const spider = E.RailHexapodNode.connect(record, { timeoutMs: 10000 });
     assert.equal(spider.nodeId, 'spider-real'); assert.equal(spider.hello().buildHash, hb.buildHash);

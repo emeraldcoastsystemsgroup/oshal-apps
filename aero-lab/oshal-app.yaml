@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: UX audit (aero-lab--aero-lab): two views (Sizing & flight envelope; Vehicle record & build package with Export Build Files); one primary Run 24 h Energy Loop; closed design groups with Reset to preset; the field's own decimals with the full value on focus; one-line presets; the engine block in a popover on its badge; the analysis-document disclosure under the verdict; a phone bottom bar with the design vector as a sheet.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window, with its model menu). Draft with AI no longer draws a chat of its own over POST /api/aero-lab/chat: it holds the kernel's one chat window as the Aero Designer (aero-designer), told the screen before each turn (the design on the sliders field by field, the loaded preset's record, the latest run). The page tells POST /api/aero-lab/draft/design its sliders before each turn, and the concierge offers a draft with the new propose-aero-draft tool (POST /api/aero-lab/draft), checked exactly as a /chat reply's draft is; the page shows it with Apply to sliders and nothing runs until Run. /chat and draft-aero-design stay for their callers. Needs a kernel with /shared/ui/js/jarvis-chat-frame.js (00c62f98 or later).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7: BACKLOG Item E auto-install/refresh of engine/container/ on first call when Docker socket is reachable (plus native engine.status probe); declare explicit posture: inline + chatBot: aero-designer and object inputSchema on aero-capabilities.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — aero-lab ("Aero Lab")
 # Packages the validated aerosim persistent-flight simulator (5-round adversarial
@@ -44,7 +45,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.4.6
+version: 1.4.7
 status: active
 
 source:
@@ -96,6 +97,7 @@ testing:
 bots:
   - agentId: b0ae0000-0000-0000-0000-000000000001
     name: aero-designer
+    posture: inline
     persona: personas/aero-designer.yaml
     role: engineering/aero-design-drafting
     capabilities:
@@ -122,6 +124,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/aero-lab/capabilities" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. Call FIRST. A capability reported false means that command will return 503 —
       say so; never estimate numbers the engine cannot produce.
@@ -350,6 +353,8 @@ ui:
       icon: codicon codicon-symbol-structure
       iframeUrl: /api/aero-lab/app
       section: top
+
+chatBot: aero-designer
 
 routes:
   - module: routes/package-smoke.js

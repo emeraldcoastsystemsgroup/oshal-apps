@@ -15,6 +15,9 @@
  *                     |                             | cancelRebuild stops it — the rebuild's own failure path then
  *                     |                             | records the cancel and keeps the last good revision. A
  *                     |                             | cancelled rebuild answers 409.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B5 (0.5.3): surface structured `budgetExceeded` entries
+ *                     |                             | on BuildOutcome whenever one or more features overrun
+ *                     |                             | settings.featureBudgetMs, naming featureId, index, and ms.
  */
 
 import fs from 'node:fs';
@@ -33,8 +36,11 @@ const MESH_FILE = 'base.stl';
 
 export interface RebuildDeps { pool: QueryablePool; engine: EngineClient; dataRoot: string; engineBuild: string | null; timeoutMs?: number }
 
+/** @description One feature that exceeded the per-feature timing budget and had its result discarded. */
+export interface BudgetExceededEntry { featureId: string | null; index: number; ms: number; error: string }
+
 /** @description The outcome the routes report beside the model. */
-export interface BuildOutcome { ok: boolean; code?: string; error?: string; reason?: string; ms?: number }
+export interface BuildOutcome { ok: boolean; code?: string; error?: string; reason?: string; ms?: number; budgetExceeded?: BudgetExceededEntry[] }
 
 interface EngineResult { report: Record<string, unknown>; features: Array<Record<string, unknown>>; exports?: { step?: string; stl?: string; svg?: Record<string, string> }; ms?: number }
 
@@ -140,8 +146,12 @@ async function runRebuild(deps: RebuildDeps, model: ModelRow, tag: string): Prom
     const row = await recordBuild(deps.pool, sub, model.model_id, { features: model.features, report: result.report, featureStatus: result.features, engineBuild: deps.engineBuild, ms });
     if (!row) throw new EngineFailure('engine_error', 'the model vanished during the rebuild');
     if (row.revision !== nextRevision) logger.warn({ modelId: model.model_id, expected: nextRevision, actual: row.revision }, 'revision drifted under the lock');
+    const budgetExceeded: BudgetExceededEntry[] = (Array.isArray(result.features) ? result.features : [])
+      .filter((f) => f && f.code === 'budget_exceeded')
+      .map((f) => ({ featureId: typeof f.id === 'string' ? f.id : null, index: Number(f.index ?? 0), ms: Number(f.ms ?? 0), error: String(f.error ?? 'budget_exceeded') }));
+    if (budgetExceeded.length) logger.warn({ modelId: model.model_id, budgetExceeded }, 'one or more features exceeded the per-feature timing budget');
     logger.info({ modelId: model.model_id, revision: row.revision, ms, features: model.features.length }, 'model rebuilt');
-    return { model: row, build: { ok: true, ms } };
+    return { model: row, build: { ok: true, ms, ...(budgetExceeded.length ? { budgetExceeded } : {}) } };
   } catch (error) {
     const failure = error instanceof EngineFailure ? error : new EngineFailure('engine_error', error instanceof Error ? error.message : String(error));
     logger.error({ err: error, modelId: model.model_id, code: failure.code }, 'model rebuild failed');

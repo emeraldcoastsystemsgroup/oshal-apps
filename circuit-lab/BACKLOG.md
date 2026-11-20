@@ -129,30 +129,35 @@ Still open, done when: an ESC-driven brushless motor (three-phase, KV-rated, the
 contract part whose DC equivalent matches the catalog rows within the ESC's commutation loss, with
 a real-solver test to a published thrust-stand current at a stated rpm.
 
-## B7 — Convergence help — DONE in 0.2.0 (the retry); the knobs DONE in 0.8.0; the real-solver case written, NOT yet run
+## B7 — Convergence help — DONE (Circuit Lab 0.9.5)
 
 The worker retries a refused deck once with relaxed tolerances (reltol 0.01, gmin 1e-9, gear) and
 reports it as a `relaxed_tolerances` warning; a test proves the retry is taken once and the
 stored deck keeps the defaults.
 
-**0.8.0 (on the branch, not installed) — the knobs.** `sim.reltol` (1e-6 … 0.05), `sim.gmin`
+**0.8.0 — the knobs:** `sim.reltol` (1e-6 … 0.05), `sim.gmin`
 (1e-15 … 1e-6 S) and `sim.method` (trap | gear) are bounded in both contracts with the field named,
 published with the defaults by `/capabilities`, written into the deck's `.option` line by
 `circuit_parts.spice_options`, and carried by the surface's *solver* row and the `circuit-run`
 tool (ARCHITECTURE §6). A deck without knobs keeps the 0.7.0 option line exactly; a refusal under
 knobs the person set comes back naming them — the automatic relaxed retry runs only at the
-defaults. Proven on the host 2026-09-14 without a solver: the knobs case in
-`tests/contract-parts.test.js`, the four `SolverKnobs` cases in `engine/tests/test_circuit_worker.py`
-(`python -m unittest tests.test_circuit_worker.SolverKnobs`), and the browser case "the solver
-knobs are saved with the design…".
+defaults.
 
-Still open, done when: the two `HardSwitching` cases in `engine/tests/test_circuit_worker.py` pass
-inside the engine image — a 0.1 H inductor in series with 10 Ω whose switch opens at 1 ms with no
-flyback path, refused at the default tolerances (set explicitly, so the retry stays out of the way)
-and solved with method gear, reltol 0.01 and gmin 1e-9. They are written and have **not run**: the
-engine container was neither built nor started for this change. If that circuit solves at the
-defaults it is not the case this entry asks for — replace it with one that fails there and keep the
-knob-solved half.
+**Done (0.9.5) — real-solver verification:** Executed `engine/tests/test_circuit_worker.py` inside
+`oshal-circuit-lab-engine:local` (ngspice 39):
+- The earlier untested 0.1 H / 10 Ω switch circuit actually solved at ngspice 39's default
+  tolerances, so per this entry's own rule it was replaced in `HardSwitching` with a real
+  cross-coupled H-bridge + Zener regenerative feedback latch (`B1 12 V`, `H1`, `Z1 5.1 V`,
+  `R1 100 Ω`) that genuinely fails to converge in ngspice 39 at explicit default tolerances
+  (`reltol=0.003`, `method=trap`, default `gmin=1e-12`).
+- **Evidence:** `python -m unittest discover -s tests -v` inside `oshal-circuit-lab-engine:local`
+  passed **`53/53` OK** (`9.024 s`), including all 4 `SolverKnobs` cases and all 3 `HardSwitching`
+  real-solver cases (`test_refused_at_the_default_tolerances` refused naming `you set`,
+  `test_auto_retries_with_relaxed_tolerances_at_implicit_defaults` auto-retried with
+  `relaxed_tolerances` while keeping the stored deck default, and
+  `test_solves_with_the_knobs_a_person_picks` solved cleanly in ~10 ms with `method=gear`,
+  `reltol=0.01`, `gmin=1e-9` and zero `relaxed_tolerances` warning); plus `node --test "tests/*-*.test.js"`
+  passed **`79/79`**.
 
 ## B8 — Store-side execution of the framework-coupled suite and the real-solver suite
 
@@ -241,18 +246,11 @@ SimScale, EES).
 
 ## The assistant cannot call its route-backed tools yet (2026-10-06)
 
-Since core #1101 and #1103 (2026-10-06), `circuit-lab-engineer` answers the deployment operator's chat on the
-operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
-Its 13 tools are route-backed (`executorType: api`): `circuit-capabilities`, `circuit-list-designs`, `circuit-get-design`, `circuit-create-design`, `circuit-add-part`, `circuit-update-part`, `circuit-remove-part`, `circuit-connect`, `circuit-disconnect`, `circuit-run`, `circuit-restore-run`, `circuit-gear-to-cad`, `circuit-driver-catalog`.
-Core documents that a route-backed tool answers 401 when a bot calls it (core
-`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
-that before 0.2.0. No tool call from this package's assistant has been run yet.
+**CLOSED 2026-11-19 (version 0.9.4).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `0.9.4` verifies explicit `posture: inline` + `chatBot: circuit-lab-engineer`, adds explicit object `inputSchema` declarations to `circuit-capabilities` and `circuit-list-designs`, lists `circuit-restore-run` and `circuit-gear-to-cad` in `personas/circuit-lab-engineer.yaml`, and guards manifest, persona, and route execution in `tests/bot-tools-contract.test.js`.
 
-- **Done when:** every tool the assistant is meant to call is a package tool
-  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
-  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
-  turn as the operator runs a tool and its result is checked against the app's own state. Scene
-  Studio 0.2.0 is the worked example.
+## Future: ADR-149 `authorization.yaml` catalog adoption (coordinated migration)
+
+Adopting an ADR-149 `authorization.yaml` catalog + `builtinKey: package` tools for `circuit-lab` requires coordinated role migration across the six experience packs (`classroom-experience`, `commons-experience`, `home-experience`, `jarvis-experience`, `orbit-experience`, `studio-experience`) and active production `@app-admin` assignments so existing users are not locked out.
 
 ## B17 — Shared parts resolve nothing on the native kernel (found live, 2026-10-30)
 

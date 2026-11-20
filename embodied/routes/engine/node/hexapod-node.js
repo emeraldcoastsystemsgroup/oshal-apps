@@ -17,6 +17,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A refusal decided at home (a bad argument, another kind, a closed
  *                     |                             | seam) carries its message as `reason` too, so a route's 503 body
  *                     |                             | and a suite's check read the same explanation as a node refusal.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: publish `senseRates` on SPIDER_18_MANIFEST from
+ *                     |                             | the owned parts-catalog rows (ld19-lidar, bno055-imu) and SPIDER_18_TICK_HZ.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SPIDER_18_MANIFEST = exports.RailHexapodNode = exports.HEXAPOD_COMMANDS = exports.HEXAPOD_ACTUATOR_COUNT = exports.HEXAPOD_KIND = void 0;
@@ -25,6 +27,8 @@ exports.validateTargets = validateTargets;
 exports.isNoSpring = isNoSpring;
 exports.isBusy = isBusy;
 exports.isHexapodNode = isHexapodNode;
+const hexapod_spec_1 = require("../design/hexapod-spec");
+const parts_catalog_1 = require("../design/parts-catalog");
 const bridge_client_1 = require("../physics/bridge-client");
 /** The node kind the spider heartbeats as. */
 exports.HEXAPOD_KIND = 'hexapod';
@@ -139,6 +143,8 @@ exports.RailHexapodNode = RailHexapodNode;
  * contract's (hexapod-spec.ts) and the gait player's cap: 0.2 m/s is the stride cap over the stance time, the lane's
  * starting choice, not a measurement.
  */
+const LIDAR_RATE_HZ = (0, parts_catalog_1.boughtRow)('ld19-lidar').rateHz ?? 10;
+const IMU_RATE_HZ = (0, parts_catalog_1.boughtRow)('bno055-imu').rateHz ?? 100;
 exports.SPIDER_18_MANIFEST = Object.freeze({
     nodeId: 'embodied-hexapod',
     kind: 'hexapod',
@@ -146,6 +152,7 @@ exports.SPIDER_18_MANIFEST = Object.freeze({
     safetyClass: 2,
     senses: ['pose', 'imu', 'joint-state', 'foot-contact', 'lidar', 'spring'],
     acts: ['walk', 'stop', 'pose', 'flip', 'jump', 'sit', 'e-stop'],
-    envelope: { legs: 6, actuators: exports.HEXAPOD_ACTUATOR_COUNT, standHeightMm: 90, massTargetG: 1900, springStoredJ: 3.61, maxSpeedMps: 0.2, tickHz: 50 },
+    envelope: { legs: 6, actuators: exports.HEXAPOD_ACTUATOR_COUNT, standHeightMm: 90, massTargetG: 1900, springStoredJ: 3.61, maxSpeedMps: 0.2, tickHz: hexapod_spec_1.SPIDER_18_TICK_HZ },
+    senseRates: Object.freeze({ pose: hexapod_spec_1.SPIDER_18_TICK_HZ, imu: IMU_RATE_HZ, 'joint-state': hexapod_spec_1.SPIDER_18_TICK_HZ, 'foot-contact': hexapod_spec_1.SPIDER_18_TICK_HZ, lidar: LIDAR_RATE_HZ, spring: hexapod_spec_1.SPIDER_18_TICK_HZ }),
 });
 //# sourceMappingURL=hexapod-node.js.map

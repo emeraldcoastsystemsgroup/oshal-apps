@@ -18,6 +18,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /season (SV, the drop candidate, replacement levels), GET /waivers (rest-of-season board with bid and drop, streaming lane), GET /trades (two-sided proposals, both gains shown), and owner-scoped hand-typed league CRUD (/manual-leagues).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | With no projection for the current week (the feed answered no players and there is no cached copy), /season, /waivers and /trades answer the league, the team and projectionFeed {ok:false, reason} with no numbers, instead of a season value of 0.0, an empty waiver board read as "nobody improves your lineup" and weeks claimed as priced from their own projection. Every board also carries projectionFeed so an older cached copy is named. Guard: tests/fantasy-boards-no-projection.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | /season, /waivers and /trades refuse a league whose scoring gives every stat 0 points with scoring {ok:false, reason} and no numbers, before any feed is read (sweep 9: "Nobody on the wire improves your starting lineup" on all-0.0 projections). Guard: tests/fantasy-zero-scoring.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Backlog A2: build a deterministic remaining-schedule playoff simulator (fantasy-playoff-sim.ts) in planFor using current standings, remaining regular-season fixtures, and player spread history; surface P(playoffs) baseline/with/delta on /season, /waivers and /trades and rank waivers/trades by playoffDelta when available (with optional ?rankBy=sv override).
  *
  * @module fantasy-manage-routes
  */
@@ -25,13 +26,17 @@
 import type { Request, Response, Router } from 'express';
 import type { Pool } from 'pg';
 import { createChildLogger } from '@/shared/logger';
+import type { PlayerWeekActual } from '@/features/fantasy-leagues';
 import type { FantasyPlayer } from './fantasy-scoring';
 import { resolveLeagueContext, type LeagueContext } from './fantasy-context';
 import { scoringRefusedBody, zeroScoringReason } from './fantasy-manual';
 import { leagueRequestOf, requireSub, sendContextFailure } from './fantasy-http';
 import { seasonFeeds, type FeedState } from './fantasy-feed';
 import { buildSeasonPlan, type BuiltPlan } from './fantasy-plan';
+import { createPlayoffSimulator, type PlayoffSimulator } from './fantasy-playoff-sim';
+import { historyFor } from './fantasy-roster';
 import { dropCandidate, replacementLevel, seasonValue } from './fantasy-season';
+import { readPlayerWeeks } from './fantasy-store';
 import { waiverBoard } from './fantasy-waivers';
 import { findTrades } from './fantasy-trades';
 import {
@@ -40,12 +45,51 @@ import {
 
 const log = createChildLogger({ module: 'fantasy-football-manage' });
 
-/** A season plan with the caller's feeds, and the current week's pool of players. */
+/** A season plan with the caller's feeds, current pool, and playoff simulator. */
 interface Planned {
   built: BuiltPlan;
   pool: Record<number, FantasyPlayer>;
   generatedAt: string | null;
   feed: FeedState;
+  playoffSim: PlayoffSimulator;
+  rankBy: 'playoffs' | 'sv';
+}
+
+/** Merge stored and fetched completed-week stat lines strictly before the current week. */
+function mergeCompletedWeeks(
+  stored: PlayerWeekActual[], fetched: PlayerWeekActual[], week: number, ids: number[],
+): PlayerWeekActual[] {
+  const wanted = new Set(ids);
+  const byKey = new Map<string, PlayerWeekActual>();
+  for (const row of [...stored, ...fetched]) {
+    if (row.week < week && wanted.has(row.playerId)) byKey.set(`${row.playerId}:${row.week}`, row);
+  }
+  return [...byKey.values()].sort((a, b) => a.week - b.week);
+}
+
+/** Build the remaining-schedule playoff simulator for a resolved league and plan. */
+async function simulatorFor(
+  pool: Pool, sub: string, ctx: LeagueContext, built: BuiltPlan, currentPool: Record<number, FantasyPlayer>, fetchedWeeks: PlayerWeekActual[],
+): Promise<PlayoffSimulator> {
+  const playerIds = [...new Set([...ctx.teams.flatMap((t) => t.rosterPlayerIds), ...Object.keys(currentPool).map(Number)])];
+  const stored = playerIds.length
+    ? await readPlayerWeeks(pool, sub, ctx.season, ctx.week, playerIds).catch((err: unknown): PlayerWeekActual[] => {
+      log.error({ err, season: ctx.season, leagueKey: ctx.key, week: ctx.week }, 'player-week history read failed for playoff simulation; weighing projections alone');
+      return [];
+    })
+    : [];
+  const history = historyFor(mergeCompletedWeeks(stored, fetchedWeeks, ctx.week, playerIds), ctx.settings.scoring);
+  return createPlayoffSimulator({
+    plan: built.plan,
+    teams: ctx.teams.map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
+    targetTeamId: ctx.own.teamId,
+    standings: ctx.standings,
+    fixtures: ctx.matchups.map((m) => ({ week: m.matchupPeriodId, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId })),
+    currentWeek: ctx.week,
+    playoffStart: ctx.playoffStart,
+    playoffTeams: ctx.playoffTeams,
+    history,
+  });
 }
 
 /**
@@ -53,18 +97,26 @@ interface Planned {
  * @param pool - Postgres pool.
  * @param sub - Caller's subject.
  * @param ctx - The league.
- * @param q - Query (playoffWeight).
- * @returns The plan, the current week's pool, its cache age and the feed's state.
+ * @param q - Query (playoffWeight, rankBy).
+ * @returns The plan, the current week's pool, its cache age, feed state, and playoff simulator.
  */
 async function planFor(pool: Pool, sub: string, ctx: LeagueContext, q: Record<string, unknown>): Promise<Planned> {
-  const { feeds, generatedAt, feed } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
+  const { feeds, generatedAt, feed, weeks } = await seasonFeeds(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
   const weight = Number(q.playoffWeight);
   const built = buildSeasonPlan({
     currentWeek: ctx.week, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart,
     playoffWeight: Number.isFinite(weight) && weight > 0 && weight <= 5 ? weight : undefined,
     feeds, byes: ctx.byes, slots: ctx.settings.slots, scoring: ctx.settings.scoring,
   });
-  return { built, pool: feeds.get(ctx.week) || {}, generatedAt, feed };
+  const currentPool = feeds.get(ctx.week) || {};
+  const rankBy = String(q.rankBy || '').toLowerCase() === 'sv' ? 'sv' : 'playoffs';
+  const playoffSim = feed.ok
+    ? await simulatorFor(pool, sub, ctx, built, currentPool, weeks)
+    : createPlayoffSimulator({
+      plan: built.plan, teams: [], targetTeamId: ctx.own.teamId, standings: [], fixtures: [],
+      currentWeek: ctx.week, playoffStart: ctx.playoffStart, playoffTeams: ctx.playoffTeams,
+    });
+  return { built, pool: currentPool, generatedAt, feed, playoffSim, rankBy };
 }
 
 /**
@@ -184,6 +236,7 @@ function seasonBody(ctx: LeagueContext, p: Planned): Record<string, unknown> {
     byWeek: sv.weeks.map((w) => ({ week: w.week, weight: w.weight, value: w.value })),
     drop: drop ? { playerId: drop.playerId, name: nameOf(drop.playerId, p, ctx), cost: drop.cost } : null,
     replacement: replacementLevel(Object.values(p.pool), ctx.settings.slots, ctx.settings.scoring, ctx.teams.length).byPosition,
+    playoffs: p.playoffSim.info,
   };
 }
 
@@ -201,6 +254,8 @@ function waiversBody(ctx: LeagueContext, p: Planned): Record<string, unknown> {
     pool: p.pool,
     budget: ctx.faab ? Math.max(0, ctx.faab.budget - ctx.faab.spent) : null,
     teams: ctx.teams.length,
+    playoffSim: p.playoffSim,
+    rankBy: p.rankBy,
   });
   return { mode: ctx.faab ? 'faab' : 'rolling', ...board };
 }
@@ -216,9 +271,14 @@ async function tradesBody(ctx: LeagueContext, p: Planned): Promise<Record<string
     { teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds },
     ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
     p.built.plan,
+    undefined,
+    undefined,
+    { playoffSim: p.playoffSim, rankBy: p.rankBy },
   );
   const named = (ids: number[]) => ids.map((id) => ({ playerId: id, name: nameOf(id, p, ctx) }));
   return {
+    objective: p.playoffSim.info.available && p.rankBy !== 'sv' ? 'playoffs' : 'sv',
+    playoffs: p.playoffSim.info,
     proposals: proposals.map((t) => ({
       ...t, give: named(t.give), get: named(t.get),
       youDrop: t.youDrop === null ? null : { playerId: t.youDrop, name: nameOf(t.youDrop, p, ctx) },

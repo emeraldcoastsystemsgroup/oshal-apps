@@ -43,6 +43,7 @@
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key ciphertext.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner checks and the existing independent print.send permission before sending current models.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): expose GET /printers/:printerId/status alongside POST and attach bounded, fail-safe live printer status to the latest submission in GET /jobs/:jobId/submissions.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -236,7 +237,7 @@ function registerSettings(router, deps) {
 }
 /** @description Register status routes with their existing caller and confirmation contracts. */
 function registerStatus(router, deps) {
-    router.post('/printers/:printerId/status', async (req, res) => {
+    const readStatus = async (req, res) => {
         try {
             const loaded = await (0, print_service_1.loadPrinter)(deps.pool, req.scanSub, (0, data_dir_1.requireUuid)(req.params.printerId));
             if (!loaded) {
@@ -251,17 +252,25 @@ function registerStatus(router, deps) {
                 res.status(400).json({ error: 'invalid_printer_id', message: error.message });
                 return;
             }
+            if (error instanceof print_service_1.PrinterKeyUnreadable) {
+                res.status(409).json({ error: 'printer_key_unreadable', message: error.message });
+                return;
+            }
             logger.error({ err: error }, 'Printer status failed');
             res.status(500).json({ error: 'status_failed' });
         }
-    });
+    };
+    router.get('/printers/:printerId/status', readStatus);
+    router.post('/printers/:printerId/status', readStatus);
 }
 /** @description Register history routes with their existing caller and confirmation contracts. */
 function registerHistory(router, deps) {
     router.get('/jobs/:jobId/submissions', async (req, res) => {
         try {
+            const sub = req.scanSub;
             const jobId = (0, data_dir_1.requireUuid)(req.params.jobId);
-            res.json({ submissions: await (0, job_store_1.listSubmissions)(deps.pool, req.scanSub, jobId) });
+            const rows = await (0, job_store_1.listSubmissions)(deps.pool, sub, jobId);
+            res.json({ submissions: await (0, print_service_1.attachLiveStatus)(serviceDepsOf(deps), sub, rows) });
         }
         catch (error) {
             if (error instanceof RangeError) {

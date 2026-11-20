@@ -23,6 +23,9 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.9 (UX audit 2026-11-06): sort products newest-first by updated_at and
  *                     |                             | render the one-line #phase-stepper bar above product posters so phases 7+
  *                     |                             | and closed progress are visible without scrolling.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B14: render pre-click engine container liveness diagnostics on the Product banner (#engine-liveness) and Settings status list (#settings-liveness).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: render joint fit clearance line (#design-fit-note) and honest strength estimate line (#design-strength-note) on posters that carry them.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: collect/fill the named Pi bay thermal solve brief option, display unmeasured/reasoned-only banners and closure lines so reasoned phases never read as engine-verified, and mark reasoned closures distinctly on the stepper.
  */
 window.DesignStudioScreens = (function screens() {
   'use strict';
@@ -60,7 +63,11 @@ window.DesignStudioScreens = (function screens() {
   function collectBrief() {
     const num = (id) => { const v = $(id).value.trim(); return v === '' ? undefined : Number(v); };
     const targets = { massG: num('new-mass'), sizeMm: $('new-size').value.trim() || undefined, costUsd: num('new-cost'), runtimeMin: num('new-runtime') };
-    return { name: $('new-name').value.trim(), brief: { what: $('new-what').value.trim(), requirements: $('new-requirements').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean), targets } };
+    const thermalEl = $('new-thermal-solve');
+    const noteEl = $('new-thermal-note');
+    const thermalNote = noteEl ? noteEl.value.trim() : '';
+    const thermalSolve = thermalEl && thermalEl.checked ? { mode: 'pi-bay', ...(thermalNote ? { note: thermalNote } : {}) } : undefined;
+    return { name: $('new-name').value.trim(), brief: { what: $('new-what').value.trim(), requirements: $('new-requirements').value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean), targets, ...(thermalSolve ? { thermalSolve } : {}) } };
   }
   function collectProposal(list, proposal) {
     const kept = new Set([...list.querySelectorAll('li[data-kind] input:checked')].map((cb) => cb.closest('li').dataset.kind));
@@ -70,6 +77,9 @@ window.DesignStudioScreens = (function screens() {
     $('new-name').value = project.name; $('new-what').value = project.brief.what || ''; $('new-requirements').value = (project.brief.requirements || []).join('\n');
     const t = project.brief.targets || {};
     $('new-mass').value = t.massG === undefined ? '' : t.massG; $('new-size').value = t.sizeMm || ''; $('new-cost').value = t.costUsd === undefined ? '' : t.costUsd; $('new-runtime').value = t.runtimeMin === undefined ? '' : t.runtimeMin;
+    const thermal = project.brief.thermalSolve && project.brief.thermalSolve.mode === 'pi-bay';
+    if ($('new-thermal-solve')) $('new-thermal-solve').checked = !!thermal;
+    if ($('new-thermal-note')) { $('new-thermal-note').hidden = !thermal; $('new-thermal-note').value = thermal && project.brief.thermalSolve.note ? project.brief.thermalSolve.note : ''; }
   }
 
   // ── Product: one poster per phase, one button each ──
@@ -92,9 +102,19 @@ window.DesignStudioScreens = (function screens() {
     d.append(ul);
     return d;
   }
-  function closureLine(closure) {
+  function isReasonedClosure(closure, entry) {
+    if (!closure) return false;
+    if (closure.reasonedOnly === true) return true;
+    if (closure.measuredByEngine === false && closure.unmeasuredNotice) return true;
+    return !!(entry && entry.engine === 'reasoned' && entry.kind !== 'brief' && entry.kind !== 'build');
+  }
+  function closureLine(closure, entry) {
     if (!closure) return el('p', { class: 'closed' }, 'open');
-    return el('p', { class: `closed${closure.stale ? ' stale' : ''}` }, `${closure.stale ? 'stale · closed' : 'closed'} ${when(closure.closed_at)} by ${closure.closed_by} at ${closure.revision}${closure.stale ? ' · the artifact has moved on; close it again' : ''}`);
+    const reasoned = isReasonedClosure(closure, entry);
+    const label = reasoned
+      ? (closure.stale ? 'stale · closed (reasoned only — no engine measured this phase)' : 'closed (reasoned only — no engine measured this phase)')
+      : (closure.stale ? 'stale · closed' : 'closed');
+    return el('p', { class: `closed${reasoned ? ' unmeasured' : ''}${closure.stale ? ' stale' : ''}`, dataset: reasoned ? { reasonedOnly: '1', measuredByEngine: '0' } : undefined }, `${label} ${when(closure.closed_at)} by ${closure.closed_by} at ${closure.revision}${closure.stale ? ' · the artifact has moved on; close it again' : ''}`);
   }
   function renderStepper(rows) {
     const nav = $('phase-stepper');
@@ -103,8 +123,9 @@ window.DesignStudioScreens = (function screens() {
     const next = rows.find(({ entry, closure }) => !(closure && !closure.stale) && entry.kind !== 'build') || rows[rows.length - 1];
     rows.forEach(({ entry, closure }, i) => {
       const state = closure && !closure.stale ? 'closed' : closure && closure.stale ? 'stale' : next && next.entry.kind === entry.kind ? 'active' : 'open';
-      const mark = state === 'closed' ? '✓ ' : state === 'stale' ? '! ' : '';
-      const b = el('button', { type: 'button', class: 'phase-step-pill', dataset: { state, phase: entry.kind } }, `${mark}${i + 1} · ${TITLES[entry.kind] || entry.kind}`);
+      const reasoned = state === 'closed' && isReasonedClosure(closure, entry);
+      const mark = reasoned ? '~ ' : state === 'closed' ? '✓ ' : state === 'stale' ? '! ' : '';
+      const b = el('button', { type: 'button', class: 'phase-step-pill', title: reasoned ? 'Closed (reasoned only — no engine measured this phase)' : undefined, dataset: { state, phase: entry.kind, ...(reasoned ? { reasonedOnly: '1' } : {}) } }, `${mark}${i + 1} · ${TITLES[entry.kind] || entry.kind}`);
       b.onclick = () => { const p = $(`poster-${entry.kind}`); if (p && p.scrollIntoView) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
       nav.append(b);
     });
@@ -113,10 +134,16 @@ window.DesignStudioScreens = (function screens() {
     host.textContent = '';
     renderStepper(rows);
     rows.forEach(({ entry, view, closure }, i) => {
-      const poster = el('article', { class: `poster${entry.kind === 'build' ? ' wide' : ''}`, id: `poster-${entry.kind}`, dataset: { stage: view.stage || '', engine: entry.engine, closed: closure && !closure.stale ? '1' : '0' } });
+      const reasoned = isReasonedClosure(closure, entry) || !!view.reasonedOnly;
+      const poster = el('article', { class: `poster${entry.kind === 'build' ? ' wide' : ''}`, id: `poster-${entry.kind}`, dataset: { stage: view.stage || '', engine: entry.engine, closed: closure && !closure.stale ? '1' : '0', reasonedOnly: reasoned ? '1' : '0' } });
       poster.append(el('p', { class: 'step' }, `${i + 1} · ${TITLES[entry.kind] || entry.kind} · ${entry.engine}`), el('h2', null, TITLES[entry.kind] || entry.kind));
       const fig = el('p', { class: 'figure' }); fig.append(el('span', { id: `${entry.kind}-figure` }, view.figure ? view.figure[0] : '—'), el('small', { id: `${entry.kind}-sub` }, view.figure ? view.figure[1] : ''));
-      poster.append(fig, el('p', { class: `stage ${view.tone || ''}`, id: `${entry.kind}-stage`, role: 'status' }, view.line || ''), closureLine(closure));
+      poster.append(fig, el('p', { class: `stage ${view.tone || ''}`, id: `${entry.kind}-stage`, role: 'status' }, view.line || ''));
+      if (view.unmeasuredBanner) poster.append(el('p', { class: 'unmeasured-banner', id: `${entry.kind}-unmeasured-banner`, dataset: { reasonedOnly: '1' } }, view.unmeasuredBanner));
+      if (view.thermalNote) poster.append(el('p', { class: 'thermal-note', id: `${entry.kind}-thermal-note`, dataset: { thermalStatus: view.thermalStatus || 'reasoned-unmeasured' } }, view.thermalNote));
+      if (view.fitNote) poster.append(el('p', { class: `fit-note ${view.fitTone || ''}`, id: `${entry.kind}-fit-note` }, view.fitNote));
+      if (view.strengthNote) poster.append(el('p', { class: 'strength-note', id: `${entry.kind}-strength-note`, dataset: { strengthStatus: view.strengthStatus || 'unmeasured' } }, view.strengthNote));
+      poster.append(closureLine(closure, entry));
       const act = el('div', { class: 'act' }); act.append(actionButton(entry, view, closure, onAction));
       if (view.secondary) { const b = el('button', { type: 'button', class: 'btn', id: `act2-${entry.kind}` }, view.secondary.label); b.onclick = () => onAction(entry, view, view.secondary); act.append(b); }
       if (Array.isArray(view.files) && view.files.length) poster.append(filesList(entry, view.files));
@@ -213,8 +240,9 @@ window.DesignStudioScreens = (function screens() {
   }
   function openCloseDialog(entry, view) {
     const typed = !!(view.action && view.action.typed) || !view.evidence;
+    const reasoned = !!view.reasonedOnly || (entry.engine === 'reasoned' && entry.kind !== 'brief' && entry.kind !== 'build');
     $('close-title').textContent = entry.kind === 'brief' ? 'Confirm the brief' : `Close the ${TITLES[entry.kind] || entry.kind} phase`;
-    $('close-what').textContent = typed ? 'No engine on this swarm measured this phase: write what closes it, in your own words, and name what it was read from.' : `The engine's evidence line as read now, with the revision it was read at. ${view.line}`;
+    $('close-what').textContent = reasoned ? 'No engine measured this phase (reasoned only): write what closes it in your own words and name what it was read from. The closure will be recorded as reasoned/unmeasured.' : typed ? 'No engine on this swarm measured this phase: write what closes it, in your own words, and name what it was read from.' : `The engine's evidence line as read now, with the revision it was read at. ${view.line}`;
     $('close-evidence').value = view.evidence || ''; $('close-evidence').readOnly = !typed;
     $('close-revision').value = view.revision || ''; $('close-revision').readOnly = !typed;
     $('close-help').textContent = typed ? 'What was measured or decided, by whom, with what.' : 'The engine\'s evidence line, in its own numbers.';
@@ -238,5 +266,27 @@ window.DesignStudioScreens = (function screens() {
     if (!$('build-dialog').open) $('build-dialog').showModal();
   }
 
-  return { renderProducts, renderProposal, collectBrief, collectProposal, fillBrief, renderProduct, onePrimary, renderSettings, collectSettings, openCloseDialog, openBuildDialog, TITLES };
+  /** Pre-click container liveness banner on the Product screen (B14): shown only when an engine container is stopped. */
+  function renderLivenessBanner(host, issues) {
+    if (!host) return;
+    host.textContent = '';
+    if (!Array.isArray(issues) || !issues.length) { host.hidden = true; return; }
+    host.hidden = false;
+    host.append(el('p', { class: 'liveness-title' }, `${issues.length === 1 ? 'An engine container is stopped' : `${issues.length} engine containers are stopped`} — actions using ${issues.length === 1 ? 'it' : 'them'} will not succeed until restarted:`));
+    const ul = el('ul', { class: 'liveness-items' });
+    for (const item of issues) ul.append(el('li', { dataset: { engine: item.engine, state: item.state } }, item.reason));
+    host.append(ul);
+  }
+  /** Engine container status strip inside Settings (B14). */
+  function renderSettingsLiveness(host, liveness) {
+    if (!host) return;
+    host.textContent = '';
+    if (!liveness) return;
+    for (const entry of Object.values(liveness)) {
+      const pill = el('span', { class: 'liveness-pill', dataset: { engine: entry.engine, state: entry.state } }, `${entry.name}: ${entry.state === 'up' ? entry.reason : entry.state === 'stopped' ? entry.reason : entry.state}`);
+      host.append(pill);
+    }
+  }
+
+  return { renderProducts, renderProposal, collectBrief, collectProposal, fillBrief, renderProduct, onePrimary, renderSettings, collectSettings, openCloseDialog, openBuildDialog, renderLivenessBanner, renderSettingsLiveness, TITLES };
 }());

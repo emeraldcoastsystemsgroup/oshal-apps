@@ -41,10 +41,10 @@ As built:
 - The header must already place the image orthographically in the world frame. A phone's
   perspective frame needs B2's `reprojectToCanonicalView` first, and the route does not take
   intrinsics or a pose.
-- The surface has no upload control for it yet.
+- **0.10.2 update:** The surface now exposes the depth-map upload panel (`#depth-panel` under Capture → Advanced) with 16-bit PNG / float32 raw format selection, placement header inputs, client-side size and numeric validation, and status feedback wired to `POST /jobs/:id/depth`.
 
-Evidence: `tests/engine-depth-upload.test.js` (5 cases: decoding, refusals) and
-`tests/depth.core.test.js` (3 HTTP cases, framework-coupled; see B8 for the cavity over HTTP).
+Evidence: `tests/engine-depth-upload.test.js` (5 cases: decoding, refusals),
+`tests/depth.core.test.js` (3 HTTP cases, framework-coupled; see B8 for the cavity over HTTP), and `tests/quick-wins-b1-b4-b9-b11-b13.test.js` (UI controls and upload wiring).
 
 ## B2 — Perspective range images → canonical orthographic view
 
@@ -89,7 +89,33 @@ Done when: a marker detector (deterministic, no model) finds a fiducial square i
 registration takes its pixel size as the scale anchor for that view, and the report's
 `dimensionSources` gains `fiducial`.
 
-Measurement reconciliation also remains open: native synthetic 60 x 40 x 30 mm
+**Fiducial detector & automatic scale anchor DONE in 0.10.4.**
+- **Detector (`src-routes/engine/raster/fiducial.ts`):** `detectFiducialSquare(raster)` is 100%
+  deterministic (zero ML model): Otsu darkness thresholding with contrast floor, 4-connected
+  component extraction, bounding-box aspect & size guards, 6×6 outer-border solidity, light
+  quiet-zone check, and high-contrast concentric inner-ring or mixed-cell verification (also
+  recognising orientation-cube face markers from B9). Solid dark objects, discs, flat frames,
+  border-clipped squares, tiny markers, and ambiguous dual markers are rejected with zero false
+  positives. `fiducialSquareSvg(sideMm)` renders a crisp printable calibration square target.
+- **Scale anchor & silhouette separation (`src-routes/engine/grid/silhouette-carver.ts`,
+  `src-routes/engine/raster/silhouette.ts`):** `ViewSilhouette` accepts optional
+  `fiducialMmPerPx`; `registerSilhouettes` holds fiducial view scales exact in the joint log-space
+  least-squares solve, allows reconstruction with zero manual ruler entries when at least one view
+  has a fiducial anchor, and records `'fiducial'` in `dimensionSources` (reflected in the report
+  and engineering drawing notes). `extractSilhouette` accepts optional `excludeBoxes` so even a
+  small object beside a larger fiducial is isolated cleanly.
+- **Routes & surface (`src-routes/job-routes.ts`, `src-routes/scan-to-print-routes.ts`,
+  `tools/scan-to-print.{html,js}`):** `POST /jobs/:id/images` runs `detectFiducialSquare` and stores
+  the detection summary on `silhouette.fiducial` (returning `fiducialsDetected`); optional
+  `fiducialMm` (`5..500 mm`) is validated in `parseSettings`, advertised on `/capabilities`, wired
+  into `POST /reconstruct` and `POST /depth`, and exposed in `2 · Scale` (`#fiducial-mm`).
+- **Evidence:** `tests/engine-fiducial.test.js` (`5/5` pass, registered as `engine-fiducial` in
+  `tests/test-lab.yaml`): synthetic box + known-size concentric fiducial and orientation-cube
+  markers recover `60 × 40 × 30 mm` (`72 000 mm³`) within 1 voxel with zero ruler dimensions and
+  `dimensionSources` reporting `fiducial`, small-object isolation via `excludeBoxes`, negative
+  controls with zero false positives, printable SVG, and `fiducialMm` settings/UI validation.
+
+Measurement reconciliation remains open: native synthetic 60 x 40 x 30 mm
 views with entered 80 x 40 x 30 mm dimensions produced a fresh 70 x 40 x 30 mm
 mesh and 25% front/top proportion warnings. Uniform per-view scaling averages
 axis scales; changing a ruler entry is not an exact CAD axis resize. See the
@@ -110,12 +136,36 @@ Done when: the manifest declares `artifacts.provides` with a `list` route return
 artifacts (`{items, folders, nextCursor}` per BUILDING-EXTENSIONS), and the cockpit picker shows
 a job's STL.
 
+**Done in 0.10.2.** `oshal-app.yaml` declares `artifacts.provides` (`model/stl`, `image/svg+xml`,
+`model/obj`, `list: /api/scan-to-print/artifacts`), bound to `scan.read` in `authorization.yaml`.
+`GET /api/scan-to-print/artifacts` (`src-routes/exchange-routes.ts`) returns caller-scoped
+`{ items, folders, nextCursor }` with `Cache-Control: private, no-store` for current reconstructed
+jobs only, excluding drafts and other owners' jobs.
+
+Evidence: `tests/quick-wins-b1-b4-b9-b11-b13.test.js` and `tests/catalog-bindings.test.js`.
+
 ## B5 — Print progress read-back
 
 Submission rows record the host's answer at upload time only.
 
 Done when: `GET /printers/:id/status` results are attached to the latest submission on read and
 the surface shows `printing 43 %` from the host's own progress field for each of the three hosts.
+
+**Done in 0.10.3.** `extractProgress` (`src-routes/engine/print/printer-adapters.ts`) reads each
+host's own progress field into a clamped integer percentage (`0..100`): OctoPrint
+`progress.completion`, Moonraker `display_status.progress` / `virtual_sdcard.progress` (queried
+via `/printer/objects/query?print_stats&display_status&virtual_sdcard`), PrusaLink `job.progress`,
+and Bambu `percent` / `mc_percent`. `GET /printers/:printerId/status` is exposed on both person and
+service mounts (sharing the existing `scan.read` binding), and `attachLiveStatus`
+(`src-routes/print-service.ts`) attaches bounded (`2.5 s` timeout, fail-safe offline fallback) live
+status to the latest non-failed submission on read in `GET /jobs/:jobId/submissions` and
+`GET /submissions` without touching older rows or hanging on offline hosts. The surface
+(`tools/scan-to-print.js`) renders `printing 43 %` (and `printing (offline)` when unreachable) on
+submissions and status checks across every host kind.
+
+Evidence: `tests/wave-c2-b5-b7-b12.test.js` (4 B5 cases covering unit adapter extraction, loopback
+OctoPrint/Moonraker/Bambu route read-back, bounded timeout/offline/failed-row guards, and surface
+`printing 43 %` rendering) and `tests/catalog-bindings.test.js`.
 
 ## B6 — Store-side execution of the framework-coupled route suite
 
@@ -136,12 +186,17 @@ fixture without its bottom face then fills to exactly 72 000 mm³ with `closed: 
 with a genuine side through-hole is NOT filled by the seal; the point-cloud route exposes the flag
 and the report records `sealedBase: true`.
 
-**Done in 0.4.0.** `fillSolidFromSurface(grid, closeRadius, { sealBase: true })` caps the holes
-in the lowest occupied layer before the flood; the lattice box with its underside removed fills to
-exactly 72 000 mm³ with `closed: true`; a 12 x 10 mm side window and a missing lid both still leak
-with the flag on; `POST /jobs/:id/pointcloud` takes `sealBase` (an unreadable value is refused 422)
-and the report and response record `sealedBase` with a warning that the base face is an assumption.
-Cases: `engine-depth-lidar` (three) and `routes-core` (one), both registered in `tests/test-lab.yaml`.
+**Done in 0.4.0; hardened in 0.10.3.** `fillSolidFromSurface(grid, closeRadius, { sealBase: true })` caps the holes
+in the lowest occupied layer before the flood (with a 2-layer bed-contact band fallback in 0.10.3
+for one-sided dome and 1-voxel jittered table rims, writing strictly to layer `k`); the lattice box
+with its underside removed fills to exactly 72 000 mm³ with `closed: true`; an open-bottom dome and
+a 1-voxel jittered one-sided box close watertight; a 12 x 10 mm side window, a bed-touching arch,
+and a missing lid all still leak with the flag on; `POST /jobs/:id/pointcloud` takes `sealBase` (an
+unreadable value is refused 422), the report and response record `sealedBase` with a warning that
+the base face is an assumption, and `tools/scan-to-print.html` exposes `#pointcloud-settings` and
+`#pc-seal` directly inside the LiDAR file capture tab.
+Cases: `engine-depth-lidar` (three), `routes-core` (one), and `wave-c2-b5-b7-b12` (three), all
+registered in `tests/test-lab.yaml`.
 
 ## B8 — Hull + depth fusion in one job
 
@@ -205,7 +260,7 @@ As built:
   Perspective and skew are not corrected.
 - The cube must stand clear of the object and be smaller than it in every photo. The silhouette
   keeps only the largest component.
-- There is no download route or surface control for the printable faces yet.
+- **0.10.2 update:** `GET /api/scan-to-print/markers` (`src-routes/exchange-routes.ts`, bound to `scan.read`) serves either a printable 6-face SVG sheet (`?download=1`) or a single face (`?view=<face>&sideMm=<10..200>`), and Capture → Advanced exposes `#download-markers` ("Download cube markers (SVG)").
 
 Evidence:
 - `tests/engine-face-marker.test.js`, 8 cases. Each face names its view beside an object. Rotations
@@ -216,6 +271,7 @@ Evidence:
 - `tests/markers.core.test.js`, 3 HTTP cases. Six photos arrive assigned and reconstruct to
   72 000 mm³ with no PATCH. A duplicate front, a plain photo and a smudged marker stay unassigned
   with their reasons. Video frames showing a marker stay unassigned.
+- `tests/quick-wins-b1-b4-b9-b11-b13.test.js` and `tests/catalog-bindings.test.js`: 6-face SVG sheet, single-face SVG sizing, invalid query refusals, and UI link.
 
 ## B10 — Consistency solve for registration
 
@@ -281,8 +337,10 @@ matching the fully visible part voxel for voxel. A C-shaped part does the same a
 Limit, as built: the mirror only restores material hidden INSIDE a view's bounding box.
 Registration keys on each silhouette's bounding box, so a view that loses one side's extreme
 registers off-centre and too small before any mirror runs. The fixtures hide an interior region for
-that reason. Still open: the reconstruct route does not take `symmetry` yet, so the assertion is
-engine-only until the job settings carry it.
+that reason. **0.10.2 update:** `POST /jobs` and `POST /jobs/:id/reconstruct` (plus `POST /depth`)
+now accept and persist `symmetry: 'x' | 'y'` (or clear with `'none'`/`null`), `/capabilities`
+publishes `symmetryAxes: ['x', 'y']`, and `#symmetry` in 3 · Model exposes the Mirror X / Mirror Y
+choice. Evidence: `tests/quick-wins-b1-b4-b9-b11-b13.test.js`.
 
 ## B12 — Video: automatic square-on frame suggestion
 
@@ -325,8 +383,11 @@ Evidence:
   with a fake ffmpeg. Front, right and back get frames 3, 9 and 15; top, left and bottom get none.
   After the person assigns front, that view and frame drop out.
 - `tests/surface-suggest.test.js`, 3 VM cases on the packaged closures. Asking only reads, and
-  "assign all" writes exactly the proposed pairs. The panel has not been exercised in a real
-  browser.
+  "assign all" writes exactly the proposed pairs.
+- **0.10.3 update:** `POST /jobs/:id/video` shares `buildFrameSuggestions` with
+  `GET /jobs/:id/frame-suggestions` to include read-only proposals on video ingest without
+  auto-assigning any view, and `uploadVideo` automatically surfaces the ranked suggestions for
+  one-click confirmation (`tests/wave-c2-b5-b7-b12.test.js`, 2 B12 route + surface cases).
 
 ## B13 — Printability pre-check beyond topology
 
@@ -358,8 +419,11 @@ thin at 0.4 mm and passes at 0.25 mm; a thin fin is located; a ceiling reads 90�
 passes on 0.2 mm layers and fails on 0.4 mm layers; the band holds; failures reach the SVG; RangeError
 refusals). Registered as `engine-print-checks` in `tests/test-lab.yaml`.
 
-Still open: the job routes do not yet accept a nozzle or layer height, so an app build is checked
-against the published defaults (0.4 mm / 0.2 mm / 2 perimeters) until the settings body carries them.
+**0.10.2 update:** `parseSettings` and the job/reconstruct/depth/pointcloud routes now accept,
+validate (`layerHeightMm <= nozzleMm` and safe machine bounds), and persist `nozzleMm`,
+`layerHeightMm`, and `perimeters`, `/capabilities` publishes `printCheck` bounds, and 3 · Model
+exposes `#pc-nozzle`, `#pc-layer`, and `#pc-perimeters` with report print-check summaries.
+Evidence: `tests/quick-wins-b1-b4-b9-b11-b13.test.js`.
 
 ## B14 — Native LiDAR ingest with a pairing token
 

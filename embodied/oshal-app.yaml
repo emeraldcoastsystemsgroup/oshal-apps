@@ -80,7 +80,10 @@ description: >-
   a drone that reports itself lost recovers by a global search and its registered
   trail back to the pad. Deterministic, no hardware — every view says simulated.
 # 0.20.3: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
-version: 0.20.3
+# 0.20.4: BACKLOG B26 (stability.ts, propulsion.ts and arm-mjcf.ts/arm-room-mjcf.ts read gravity and air density from a Medium rather than file-local literals) and B32 (index 1-element MuJoCo sensor.adr arrays with [0] in embodied_hexapod.py for NumPy 2.5 compatibility, with the shipped gait re-certified under the new engine build hash).
+# 0.20.5: declare explicit posture: inline on embodied-operator, add explicit object inputSchema on all read-only tools, document embodied-capabilities/embodied-physics-status/embodied-physics-reports in personas/embodied-operator.yaml, and guard the inline bot-tool contract for oshald.
+# 0.20.6: Design Studio B3 — publish node tickHz (from heartbeat hello / capability manifest) and sensor rates (senses[].rateHz for lidar, imu, joint-state) on GET /api/embodied/physics/status nodes[], SPIDER_18_MANIFEST on GET /capabilities, and sensor rateHz on GET /build/hexapod bought/senses rows (no engine runtime files changed; certified buildHash preserved).
+version: 0.20.6
 
 # ADR-139 — "Send to…" destination: a Spaces scan built into this engine's scene shape becomes a
 # scenario this owner can reset a world onto (BACKLOG B23). The endpoint redeems the handle as the
@@ -153,6 +156,7 @@ testing:
 bots:
   - agentId: 6206a063-907d-4507-b8e4-9332150051f4
     name: embodied-operator
+    posture: inline
     persona: personas/embodied-operator.yaml
     role: robotics/embodied-operator
     capabilities:
@@ -197,6 +201,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/capabilities" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. The envelope numbers returned are the SAME limits the primitives enforce, so
       quote them rather than guessing.
@@ -211,6 +216,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/state" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Owner-scoped. Use the snapshot as the only source of positions and modes; never infer a
       location the snapshot does not show.
@@ -225,6 +231,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/physics/status" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. If engine.connected is false, say the physics engine container is down and quote
       engine.installHint verbatim; the kinematic truth model always works without it.
@@ -239,6 +246,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/physics/reports" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Read-only. Quote the verdict facets as they are; a policy "beats" the controller only when all
       three are true. Certification is the person's action on the tile (Certify), never assume it.
@@ -253,6 +261,11 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/build/drone" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        fit: { type: string, enum: [recon-mini, recon-3d], description: "Optional drone fit (default recon-mini)." }
     usageInstructions: >-
       Read-only and generated. Pass ?fit=recon-mini or ?fit=recon-3d. Quote the sizing and mass
       numbers as computed, and say they are momentum-theory placeholders until aero-lab's propeller
@@ -268,6 +281,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/world" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Owner-scoped. These ids (surf-N, obj-N) are what a clear-surface task takes. An empty world
       means the room has not been explored yet: the person runs the explore task first.
@@ -302,6 +316,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/tasks" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Owner-scoped. Quote a rehearsal's issues verbatim; executing a task is not available to
       bots — tell the person to click Execute, which asks for an explicit confirmation.
@@ -316,6 +331,7 @@ tools:
     executor: { executorType: api, apiEndpoint: "GET /api/embodied/log" }
     defaultAuthMode: auto
     requiresApproval: false
+    inputSchema: { type: object, additionalProperties: false, properties: {} }
     usageInstructions: >-
       Owner-scoped. The log is the evidence of what the swarm did; read refusal reasons verbatim.
     routingTags: [embodied, log, refusal]

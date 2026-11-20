@@ -19,6 +19,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — GET /season (SV, the drop candidate, replacement levels), GET /waivers (rest-of-season board with bid and drop, streaming lane), GET /trades (two-sided proposals, both gains shown), and owner-scoped hand-typed league CRUD (/manual-leagues).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | With no projection for the current week (the feed answered no players and there is no cached copy), /season, /waivers and /trades answer the league, the team and projectionFeed {ok:false, reason} with no numbers, instead of a season value of 0.0, an empty waiver board read as "nobody improves your lineup" and weeks claimed as priced from their own projection. Every board also carries projectionFeed so an older cached copy is named. Guard: tests/fantasy-boards-no-projection.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | /season, /waivers and /trades refuse a league whose scoring gives every stat 0 points with scoring {ok:false, reason} and no numbers, before any feed is read (sweep 9: "Nobody on the wire improves your starting lineup" on all-0.0 projections). Guard: tests/fantasy-zero-scoring.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Backlog A2: build a deterministic remaining-schedule playoff simulator (fantasy-playoff-sim.ts) in planFor using current standings, remaining regular-season fixtures, and player spread history; surface P(playoffs) baseline/with/delta on /season, /waivers and /trades and rank waivers/trades by playoffDelta when available (with optional ?rankBy=sv override).
  *
  * @module fantasy-manage-routes
  */
@@ -30,28 +31,71 @@ const fantasy_manual_1 = require("./fantasy-manual");
 const fantasy_http_1 = require("./fantasy-http");
 const fantasy_feed_1 = require("./fantasy-feed");
 const fantasy_plan_1 = require("./fantasy-plan");
+const fantasy_playoff_sim_1 = require("./fantasy-playoff-sim");
+const fantasy_roster_1 = require("./fantasy-roster");
 const fantasy_season_1 = require("./fantasy-season");
+const fantasy_store_1 = require("./fantasy-store");
 const fantasy_waivers_1 = require("./fantasy-waivers");
 const fantasy_trades_1 = require("./fantasy-trades");
 const fantasy_manual_2 = require("./fantasy-manual");
 const log = (0, logger_1.createChildLogger)({ module: 'fantasy-football-manage' });
+/** Merge stored and fetched completed-week stat lines strictly before the current week. */
+function mergeCompletedWeeks(stored, fetched, week, ids) {
+    const wanted = new Set(ids);
+    const byKey = new Map();
+    for (const row of [...stored, ...fetched]) {
+        if (row.week < week && wanted.has(row.playerId))
+            byKey.set(`${row.playerId}:${row.week}`, row);
+    }
+    return [...byKey.values()].sort((a, b) => a.week - b.week);
+}
+/** Build the remaining-schedule playoff simulator for a resolved league and plan. */
+async function simulatorFor(pool, sub, ctx, built, currentPool, fetchedWeeks) {
+    const playerIds = [...new Set([...ctx.teams.flatMap((t) => t.rosterPlayerIds), ...Object.keys(currentPool).map(Number)])];
+    const stored = playerIds.length
+        ? await (0, fantasy_store_1.readPlayerWeeks)(pool, sub, ctx.season, ctx.week, playerIds).catch((err) => {
+            log.error({ err, season: ctx.season, leagueKey: ctx.key, week: ctx.week }, 'player-week history read failed for playoff simulation; weighing projections alone');
+            return [];
+        })
+        : [];
+    const history = (0, fantasy_roster_1.historyFor)(mergeCompletedWeeks(stored, fetchedWeeks, ctx.week, playerIds), ctx.settings.scoring);
+    return (0, fantasy_playoff_sim_1.createPlayoffSimulator)({
+        plan: built.plan,
+        teams: ctx.teams.map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })),
+        targetTeamId: ctx.own.teamId,
+        standings: ctx.standings,
+        fixtures: ctx.matchups.map((m) => ({ week: m.matchupPeriodId, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId })),
+        currentWeek: ctx.week,
+        playoffStart: ctx.playoffStart,
+        playoffTeams: ctx.playoffTeams,
+        history,
+    });
+}
 /**
  * @description Build the season plan for a league from the caller's cached feeds.
  * @param pool - Postgres pool.
  * @param sub - Caller's subject.
  * @param ctx - The league.
- * @param q - Query (playoffWeight).
- * @returns The plan, the current week's pool, its cache age and the feed's state.
+ * @param q - Query (playoffWeight, rankBy).
+ * @returns The plan, the current week's pool, its cache age, feed state, and playoff simulator.
  */
 async function planFor(pool, sub, ctx, q) {
-    const { feeds, generatedAt, feed } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
+    const { feeds, generatedAt, feed, weeks } = await (0, fantasy_feed_1.seasonFeeds)(pool, sub, ctx.season, ctx.week, ctx.lastWeek);
     const weight = Number(q.playoffWeight);
     const built = (0, fantasy_plan_1.buildSeasonPlan)({
         currentWeek: ctx.week, lastWeek: ctx.lastWeek, playoffStart: ctx.playoffStart,
         playoffWeight: Number.isFinite(weight) && weight > 0 && weight <= 5 ? weight : undefined,
         feeds, byes: ctx.byes, slots: ctx.settings.slots, scoring: ctx.settings.scoring,
     });
-    return { built, pool: feeds.get(ctx.week) || {}, generatedAt, feed };
+    const currentPool = feeds.get(ctx.week) || {};
+    const rankBy = String(q.rankBy || '').toLowerCase() === 'sv' ? 'sv' : 'playoffs';
+    const playoffSim = feed.ok
+        ? await simulatorFor(pool, sub, ctx, built, currentPool, weeks)
+        : (0, fantasy_playoff_sim_1.createPlayoffSimulator)({
+            plan: built.plan, teams: [], targetTeamId: ctx.own.teamId, standings: [], fixtures: [],
+            currentWeek: ctx.week, playoffStart: ctx.playoffStart, playoffTeams: ctx.playoffTeams,
+        });
+    return { built, pool: currentPool, generatedAt, feed, playoffSim, rankBy };
 }
 /**
  * @description What every management response says about its league and its numbers' provenance.
@@ -175,6 +219,7 @@ function seasonBody(ctx, p) {
         byWeek: sv.weeks.map((w) => ({ week: w.week, weight: w.weight, value: w.value })),
         drop: drop ? { playerId: drop.playerId, name: nameOf(drop.playerId, p, ctx), cost: drop.cost } : null,
         replacement: (0, fantasy_season_1.replacementLevel)(Object.values(p.pool), ctx.settings.slots, ctx.settings.scoring, ctx.teams.length).byPosition,
+        playoffs: p.playoffSim.info,
     };
 }
 /**
@@ -191,6 +236,8 @@ function waiversBody(ctx, p) {
         pool: p.pool,
         budget: ctx.faab ? Math.max(0, ctx.faab.budget - ctx.faab.spent) : null,
         teams: ctx.teams.length,
+        playoffSim: p.playoffSim,
+        rankBy: p.rankBy,
     });
     return { mode: ctx.faab ? 'faab' : 'rolling', ...board };
 }
@@ -201,9 +248,11 @@ function waiversBody(ctx, p) {
  * @returns The body.
  */
 async function tradesBody(ctx, p) {
-    const proposals = await (0, fantasy_trades_1.findTrades)({ teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds }, ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })), p.built.plan);
+    const proposals = await (0, fantasy_trades_1.findTrades)({ teamId: ctx.own.teamId, name: ctx.own.name, rosterIds: ctx.own.rosterPlayerIds }, ctx.teams.filter((t) => t.teamId !== ctx.own.teamId).map((t) => ({ teamId: t.teamId, name: t.name, rosterIds: t.rosterPlayerIds })), p.built.plan, undefined, undefined, { playoffSim: p.playoffSim, rankBy: p.rankBy });
     const named = (ids) => ids.map((id) => ({ playerId: id, name: nameOf(id, p, ctx) }));
     return {
+        objective: p.playoffSim.info.available && p.rankBy !== 'sv' ? 'playoffs' : 'sv',
+        playoffs: p.playoffSim.info,
         proposals: proposals.map((t) => ({
             ...t, give: named(t.give), get: named(t.get),
             youDrop: t.youDrop === null ? null : { playerId: t.youDrop, name: nameOf(t.youDrop, p, ctx) },

@@ -8,6 +8,7 @@
  *                     |                             | from the parts model so a number is never hand-typed twice:
  *                     |                             | propulsion sizing, the printed part list, the mass budget, the
  *                     |                             | electronics with approximate prices.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: pass the explicit air Medium to `sizeHover`.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sizingTable = sizingTable;
@@ -17,15 +18,17 @@ exports.electronicsTable = electronicsTable;
 exports.designMarkdown = designMarkdown;
 const parts_model_1 = require("./parts-model");
 const propulsion_1 = require("./propulsion");
+const medium_1 = require("../medium/medium");
 const n0 = (v) => v.toFixed(0);
 const n1 = (v) => v.toFixed(1);
 /** @description The sizing table across candidate props, masses and batteries, plus the chosen fits. */
 function sizingTable() {
     const rows = ['| Props | AUW | Battery | Disc loading | P electrical | Hover (theory) | Thrust per motor: hover / T:W 2 |', '|---|---|---|---|---|---|---|'];
+    const air = (0, medium_1.mediumById)('air');
     for (const propIn of [5, 6, 7])
         for (const auwG of [750, 850])
             for (const [cells, mAh, g] of [[4, 1500, 175], [4, 2200, 240]]) {
-                const s = (0, propulsion_1.sizeHover)({ propIn, auwG, cells, mAh });
+                const s = (0, propulsion_1.sizeHover)({ propIn, auwG, cells, mAh }, undefined, air);
                 rows.push(`| ${propIn} in | ${auwG} g | ${cells}S ${mAh} mAh, ${g} g | ${n0(s.discLoadingNm2)} N/m² | ${n0(s.pElectricalW)} W | ${n1(s.hoverMin)} min | ${n0(s.thrustPerMotorHoverG)} g / ${n0(s.thrustPerMotorTw2G)} g |`);
             }
     for (const id of Object.keys(parts_model_1.DRONE_FITS)) {

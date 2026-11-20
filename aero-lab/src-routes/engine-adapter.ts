@@ -71,6 +71,11 @@
  *                     |                             | sends each request through the kernel's
  *                     |                             | engine.exchange intent (one request per call,
  *                     |                             | bounded by the kernel's 55 s relay).
+ * 2026-11-19 08:55:00 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (BACKLOG Item E): auto-install/refresh
+ *                     |                             | engine/container/ via single-flight EngineAutoInstaller
+ *                     |                             | on the first missing/stale container call when a Docker
+ *                     |                             | socket is reachable, plus native engine.status probing;
+ *                     |                             | refusal path with installHint stays unchanged on failure.
  */
 
 import * as fs from 'fs';
@@ -80,6 +85,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { createChildLogger } from '@/shared/logger';
 import { engineBuildHash } from './engine-build-hash';
 import { LineSplitter, openContainerChannel, openNativeChannel, type ChannelFailure, type ChannelHandlers, type EngineChannel, type NativeChannelOptions } from './engine-channel';
+import { EngineAutoInstaller, isInstallableFailure, type InstallRunner } from './engine-installer';
 
 const logger = createChildLogger({ module: 'aero-engine-adapter' });
 
@@ -203,6 +209,16 @@ export interface AeroEngineAdapterOptions {
   timeoutsMs?: Partial<Record<AeroCmd, number>>;
   /** Native kernel: send requests through the kernel's `engine.exchange` intent (forces the container transport). */
   exchange?: NativeChannelOptions['exchange'];
+  /** Native kernel: probe `engine.status` to request lazy image preparation on first use. */
+  readStatus?: () => Promise<unknown>;
+  /** Item E: explicitly enable/disable auto-running engine/install-engine.sh on first missing/stale call. */
+  autoInstall?: boolean;
+  /** Injectable Docker socket availability flag for unit tests. */
+  dockerAvailable?: boolean;
+  /** Injectable installer runner for unit tests. */
+  runInstaller?: InstallRunner;
+  /** Cooldown (ms) after a failed auto-install before trying again. */
+  installCooldownMs?: number;
 }
 
 interface QueuedRequest {
@@ -392,6 +408,8 @@ export class AeroEngineAdapter {
   private readonly packageEngineDir: string;
   private readonly engineAddr?: string;
   private readonly exchange?: NativeChannelOptions['exchange'];
+  private readonly readStatus?: () => Promise<unknown>;
+  private readonly installer: EngineAutoInstaller | null;
   private readonly pythonOverride?: string;
   private readonly workerOverride?: string;
   private readonly appPackageDir?: string;
@@ -409,6 +427,7 @@ export class AeroEngineAdapter {
 
   constructor(opts: AeroEngineAdapterOptions = {}) {
     this.exchange = opts.exchange;
+    this.readStatus = opts.readStatus;
     this.appPackageDir = opts.appPackageDir;
     this.engineDir = resolveEngineDir(opts.appPackageDir, opts.engineDir);
     this.pythonOverride = opts.pythonPath;
@@ -421,6 +440,27 @@ export class AeroEngineAdapter {
     const choice = resolveTransport(opts, () => this.localStatus().present);
     this.transport = choice.transport;
     this.engineAddr = choice.engineAddr;
+    this.installer = this.transport === 'container' && !this.exchange
+      ? new EngineAutoInstaller({
+          engineDir: this.packageEngineDir,
+          engineAddr: this.engineAddr || DEFAULT_ENGINE_ADDR,
+          defaultAddr: DEFAULT_ENGINE_ADDR,
+          autoInstall: opts.autoInstall,
+          dockerAvailable: opts.dockerAvailable,
+          runInstaller: opts.runInstaller,
+          cooldownMs: opts.installCooldownMs,
+        })
+      : null;
+  }
+
+  /**
+   * @description Ask the native kernel's `engine.status` intent for engine lifecycle readiness
+   * (requests lazy preparation without starting a container). Returns null off the native kernel.
+   * @returns Raw lifecycle status object or null.
+   */
+  async refreshNativeStatus(): Promise<unknown | null> {
+    if (!this.readStatus) return null;
+    return this.readStatus();
   }
 
   /**
@@ -478,12 +518,30 @@ export class AeroEngineAdapter {
   /**
    * @description Send one command over the frozen §5b protocol. Serialized FIFO; beyond
    * queueCap waiting requests it rejects engine_busy immediately (the engine is CPU-bound
-   * — an unbounded queue would just time everything out later).
+   * — an unbounded queue would just time everything out later). On container transport with
+   * a reachable Docker socket (Item E), a missing or stale container automatically triggers
+   * single-flight engine/install-engine.sh and retries once before surfacing the exact refusal.
    * @param cmd - Frozen command name.
    * @param args - Command args; export gets workDir injected here (§5c).
    * @returns The worker's `result` verbatim.
    */
-  request(cmd: AeroCmd, args: Record<string, unknown> = {}): Promise<unknown> {
+  async request(cmd: AeroCmd, args: Record<string, unknown> = {}): Promise<unknown> {
+    try {
+      return await this.executeOnce(cmd, args);
+    } catch (err) {
+      if (err instanceof AeroEngineError && this.installer?.canAttempt() && isInstallableFailure(err.code, err.message)) {
+        const outcome = await this.installer.ensureInstalled(err.message);
+        if (outcome.ok && !this.disposed) {
+          this.capsCache = null;
+          return this.executeOnce(cmd, args);
+        }
+      }
+      throw err;
+    }
+  }
+
+  /** Execute one command without auto-install retry. */
+  private executeOnce(cmd: AeroCmd, args: Record<string, unknown>): Promise<unknown> {
     const status = this.engineStatus();
     if (!status.present) {
       const missing = !fs.existsSync(this.engineDir)

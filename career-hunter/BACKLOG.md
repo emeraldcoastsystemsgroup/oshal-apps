@@ -4,13 +4,14 @@
 
 These come from the coordinator decisions in Roger's UX audit (2026-11-05). They were measured, not built tonight.
 
-- **Highest salary ranks pay across currencies.** `BROWSE_SORT_MAP.salary` in `src-routes/career-browse-feed.ts` orders by
-  `COALESCE(p.salary_max,p.salary_min,0)` and never reads `salary_currency`, so an INR 1,200,000–1,600,000 posting outranks
-  $200,000 USD roles. The order is served by the expression index `idx_corpus_pay`, which only a writable corpus can build
-  (a request reads the corpus read-only), so a currency-aware key would scan the active corpus (6.7 s measured without the
-  index) until the nightly pull builds a matching index. Done when: Highest salary ranks USD pay (or pay converted to annual
-  USD) ahead of other currencies, the nightly pull builds the matching index without slowing the pull or the match, and a
-  regression case with an INR posting above a USD one fails on the old order.
+- **Highest salary ranks pay across currencies (shipped in 1.68.16).** `lib/career-pay.js` (`annualUsdPayExpr`) normalizes
+  salary sorting to annual USD equivalents across all supported currencies (USD, GBP, CHF, EUR, SGD, CAD, AUD, NZD, AED,
+  PLN, BRL, CNY, DKK, HKD, SEK, NOK, MXN, ZAR, INR, JPY) and pay periods (`year`/`month`/`hour`) while preserving raw
+  displayed salary & currency verbatim. `engine/jobhunter/db.py` (`PAY_USD_INDEX_SQL` / `_ensure_pay_usd_index`)
+  builds `idx_corpus_pay_usd` on writable ingests (skipping read-only snapshots),
+  `src-routes/career-browse-feed.ts` walks `idx_corpus_pay_usd` with zero temp B-tree sort (retaining `idx_corpus_pay`
+  fallback on pre-index read-only corpora), and `src-routes/career-board-feed.ts` applies the same currency-aware order on
+  My jobs. Guard: `tests/career-currency-salary-sort.test.mjs`.
 - **The Discover swipe deck as the Job Board's phone layout.** Mobile left the menu; its deck (Pass, Save, Undo, More) is not
   yet the phone layout of the board's New matches stage. Done when: at 412 px the New matches stage offers the deck, its
   actions reach the same approval routes, and `/api/career-hunter/mobile` opens the board stage.
@@ -57,11 +58,12 @@ These come from the coordinator decisions in Roger's UX audit (2026-11-05). They
   jobs is stored with the place the employer states for it, or the board is recorded as stating none; a job offered in
   several places is found from each of them; the added requests per pull are counted and bounded; and a regression case
   holding a list row with no place fails on the present readers.
-- **Stop the page reader following a redirect to a private address.** The pull's browser screens each request's address, but
-  Playwright 1.59.1 does not call a route handler for a redirected request. Measured 2026-11-04: a 302 to `127.0.0.1` was
-  followed and loaded, with the handler seeing only the first address. Every `web` source the pull reads has this exposure, on
-  the host's network. Done when: a test with a real browser shows a redirect to a private address loads nothing into a result,
-  through the shipped reader.
+- **Stop the page reader following a redirect to a private address (shipped in 1.68.16).** `engine/jobhunter/browser_read_policy.cjs`
+  (`createReadProxy`, `checkDestination`, hardened `publicAddress`) and `engine/jobhunter/browser_fetch.cjs` now route all
+  Chromium traffic (including `301`/`302`/`303`/`307`/`308` navigation and subresource redirects) through an ephemeral
+  loopback policy proxy with `bypass: '<-loopback>'` so redirects to loopback (`127.0.0.1`, `::1`, `localhost`), RFC1918,
+  link-local / cloud metadata (`169.254.0.0/16`, `fe80::/10`), CGNAT (`100.64.0.0/10`), ULA, and 6to4 addresses are
+  refused fail-closed before a connection is opened. Guard: `tests/career-browser-redirect-ssrf.test.mjs`.
 - **Find employers not yet in the corpus.** The review only rechecks employers already listed. Done when: new employers
   come from a stated, reviewed list, each passing the same evidence rules, and the report shows how many were added.
 - **Check existing sources against their employer.** Older discovery accepted name matches, and at least one source (Crown

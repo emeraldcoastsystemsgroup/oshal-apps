@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0: live CAD viewport tools for Measure in mm/in (RP-CAD-01), 7-orientation 3D View Cube + Fit to view (RP-CAD-02), iOS USDZ Quick Look + Android GLB Scene Viewer + ISO/IEC 18004 SVG QR View in AR (RP-CAD-04), and honest Scan to Print / OctoPrint / Moonraker / PrusaLink / local slicer Send to printer handoff (RP-CAD-05).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com   | 0.5.2 (BACKLOG B3): fix Scan to Print service upload multipart field ("model" matching scan-to-print/service-routes), parse outcome.started/message, require explicit confirmation before dispatching, and allow opening the Print sheet for any built revision from the revision list.
  */
 (function () {
   'use strict';
@@ -292,7 +293,7 @@
     return openAr;
   }
 
-  async function refreshSwarmPrinters(app, listNode) {
+  async function refreshSwarmPrinters(app, listNode, getRevision) {
     if (!listNode) return;
     listNode.replaceChildren();
     const note = document.createElement('p');
@@ -310,7 +311,7 @@
         const row = document.createElement('div'); row.className = 'row';
         const lbl = document.createElement('span'); lbl.textContent = `${p.label} (${p.kind})`; lbl.style.flex = '1';
         const sendBtn = document.createElement('button'); sendBtn.type = 'button'; sendBtn.className = 'ghost'; sendBtn.textContent = 'Queue STL';
-        sendBtn.addEventListener('click', () => queueViaScanToPrint(app, p, sendBtn));
+        sendBtn.addEventListener('click', () => queueViaScanToPrint(app, p, sendBtn, typeof getRevision === 'function' ? getRevision() : undefined));
         row.append(lbl, sendBtn); listNode.appendChild(row);
       });
     } catch (_) {
@@ -318,29 +319,38 @@
     }
   }
 
-  async function queueViaScanToPrint(app, printer, btn) {
+  async function queueViaScanToPrint(app, printer, btn, revision) {
     const m = app.getModel();
     if (!m || m.revision < 1) return;
+    const rev = Number.isInteger(revision) && revision >= 1 ? revision : m.revision;
+    const stem = (m.title || 'part').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'part';
+    const fileName = `${stem}-r${rev}.stl`;
+    if (typeof app.ask === 'function') {
+      const ok = await app.ask(`Send ${fileName} to ${printer.label} (${printer.kind}) via Scan to Print?\n\nAuto-start stays governed by the printer's setting in Scan to Print.`, { yes: 'Send to Scan to Print' });
+      if (!ok) return;
+    }
     const statusEl = document.getElementById('printer-status-msg');
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
-      const stlRes = await fetch(`/api/cad-studio/models/${m.model_id}/artifacts/stl?revision=${m.revision}`, { credentials: 'same-origin' });
+      const stlRes = await fetch(`/api/cad-studio/models/${m.model_id}/artifacts/stl?revision=${rev}`, { credentials: 'same-origin' });
       if (!stlRes.ok) throw new Error('Could not read revision STL');
       const blob = new Blob([await stlRes.arrayBuffer()], { type: 'model/stl' });
       const form = new FormData();
-      form.append('file', blob, `${(m.title || 'part').replace(/[^A-Za-z0-9._-]+/g, '_')}.stl`);
-      form.append('printerId', printer.printer_id);
-      form.append('confirm', 'true');
+      form.append('model', blob, fileName);
+      form.append('printerId', printer.printer_id || printer.printerId || '');
       const res = await fetch('/api/scan-to-print/service/print', { method: 'POST', body: form, credentials: 'same-origin' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-      const msg = data.started ? `Sent to ${printer.label} and started.` : `Uploaded to ${printer.label} (${data.state || 'stored'} — start on the printer when sliced).`;
+      const outcome = data.outcome || data;
+      const msg = outcome.message || (outcome.started
+        ? `Sent ${fileName} to ${printer.label} and started.`
+        : `Uploaded ${fileName} to ${printer.label} — start on the printer when ready.`);
       if (statusEl) statusEl.textContent = msg;
       app.toast(msg, 'ok');
     } catch (err) {
       if (statusEl) statusEl.textContent = err.message;
       app.toast(err.message, 'error');
-    } finally { btn.disabled = false; }
+    } finally { if (btn) btn.disabled = false; }
   }
 
   function readDirectConfig() {
@@ -355,21 +365,25 @@
 
   function bindPrinterSheet(app) {
     const trigger = document.getElementById('send-printer'), sheet = document.getElementById('print-sheet');
-    if (!trigger || !sheet) return;
+    if (!trigger || !sheet) return null;
     const statusEl = document.getElementById('printer-status-msg');
+    let targetRevision = null;
     sheet.addEventListener('click', (ev) => { if (ev.target === sheet || ev.target.closest?.('[data-cs-close]')) sheet.close(); });
-    trigger.addEventListener('click', () => {
+    const openPrinterSheet = (revision) => {
       const m = app.getModel();
       if (!m || m.revision < 1) { app.toast('Build the part before sending to a printer.', 'error'); return; }
+      const rev = Number.isInteger(revision) && revision >= 1 ? revision : m.revision;
+      targetRevision = rev;
       document.getElementById('export-sheet')?.close();
       const stem = (m.title || 'part').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'part';
       const dl3mf = document.getElementById('printer-dl-3mf'), dlStl = document.getElementById('printer-dl-stl');
-      if (dl3mf) { dl3mf.setAttribute('href', `/api/cad-studio/models/${m.model_id}/artifacts/3mf?revision=${m.revision}&download`); dl3mf.setAttribute('download', `${stem}-r${m.revision}.3mf`); }
-      if (dlStl) { dlStl.setAttribute('href', `/api/cad-studio/models/${m.model_id}/artifacts/stl?revision=${m.revision}&download`); dlStl.setAttribute('download', `${stem}-r${m.revision}.stl`); }
-      if (statusEl) statusEl.textContent = readDirectConfig().baseUrl ? 'Ready to check status or upload.' : 'No direct printer URL configured yet. Configure one below or download 3MF/STL for your slicer.';
-      void refreshSwarmPrinters(app, document.getElementById('stp-printer-list'));
+      if (dl3mf) { dl3mf.setAttribute('href', `/api/cad-studio/models/${m.model_id}/artifacts/3mf?revision=${rev}&download`); dl3mf.setAttribute('download', `${stem}-r${rev}.3mf`); }
+      if (dlStl) { dlStl.setAttribute('href', `/api/cad-studio/models/${m.model_id}/artifacts/stl?revision=${rev}&download`); dlStl.setAttribute('download', `${stem}-r${rev}.stl`); }
+      if (statusEl) statusEl.textContent = readDirectConfig().baseUrl ? `Ready to check status or upload revision r${rev}.` : `Revision r${rev} selected. Pick a Scan to Print printer, configure a direct HTTP URL below, or download 3MF/STL.`;
+      void refreshSwarmPrinters(app, document.getElementById('stp-printer-list'), () => targetRevision);
       if (!sheet.open) sheet.showModal();
-    });
+    };
+    trigger.addEventListener('click', () => openPrinterSheet());
     document.getElementById('printer-check')?.addEventListener('click', async () => {
       const cfg = readDirectConfig();
       if (!cfg.baseUrl) { if (statusEl) statusEl.textContent = 'No printer URL is configured. Enter an http:// or https:// printer address first.'; return; }
@@ -390,13 +404,14 @@
         app.toast(out.message, 'ok');
       } catch (err) { if (statusEl) statusEl.textContent = err.message; app.toast(err.message, 'error'); }
     });
+    return openPrinterSheet;
   }
 
   function initCadViewportTools(app) {
     const syncCube = bindViewCube(app);
     const onMeasure = bindMeasureTools(app);
     const openAr = bindArSheet(app);
-    bindPrinterSheet(app);
+    const openPrinterSheet = bindPrinterSheet(app);
     return {
       attachViewer(viewer) {
         if (!viewer || !viewer.setCallbacks) return;
@@ -406,9 +421,12 @@
         const q = new URLSearchParams(window.location.search);
         if (q.get('ar') === '1' && openAr) openAr();
       },
+      openPrinterSheet(revision) {
+        if (openPrinterSheet) openPrinterSheet(revision);
+      },
     };
   }
 
   window.CadStudioQr = { encodeQrMatrix, renderQrSvg };
-  window.CadViewportTools = { initCadViewportTools, formatMeasureReadout };
+  window.CadViewportTools = { initCadViewportTools, formatMeasureReadout, queueViaScanToPrint };
 })();

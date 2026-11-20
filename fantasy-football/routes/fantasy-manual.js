@@ -24,6 +24,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Deleting a hand-typed league also deletes its own week-ledger rows (ff_weeks, league key `manual:<id>`), owner-scoped. Sweep 8: a deleted league's week-5 row stayed behind in every later league's record. Guard: tests/fantasy-week-record-league.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Deleting a hand-typed league also deletes its own start/sit calls (ff_calls, league_id `manual:<id>`), owner-scoped; they stayed behind after the league and its weeks were gone. Guard: tests/fantasy-week-record-league.test.js and the real-PostgreSQL tests/fantasy-isolation.spec.ts.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | A scoring table that gives every stat 0 points is refused (zeroScoringReason). Sweep 9: a league saved with the form's "0 = 0" line projected every player 0.0 and the boards still advised on it ("Your lineup is already the best legal one"). The boards refuse such a league from either source with the same reason. Guard: tests/fantasy-zero-scoring.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Optional `standings` (wins/losses/ties/pointsFor per team) and `playoffTeams` on hand-typed leagues for remaining-schedule P(playoffs) simulation (Backlog A2); omitted when unset for full backward compatibility.
  *
  * @module fantasy-manual
  */
@@ -157,6 +158,46 @@ function parseTeams(body, errors) {
         errors.push('exactly one team must be marked mine: true');
     return teams;
 }
+/** Validate optional standings and playoffTeams fields without injecting empty keys when omitted. */
+function parseStandings(body, ids, errors) {
+    const out = {};
+    if (body?.playoffTeams !== undefined && body?.playoffTeams !== null) {
+        const maxPlayoffs = Math.max(1, ids.size - 1);
+        const n = int(body.playoffTeams, 1, maxPlayoffs);
+        if (n === null)
+            errors.push(`playoffTeams must be an integer from 1 to ${maxPlayoffs}`);
+        else
+            out.playoffTeams = n;
+    }
+    if (body?.standings !== undefined && body?.standings !== null) {
+        if (!Array.isArray(body.standings) || body.standings.length > exports.MANUAL_LIMITS.teams) {
+            errors.push(`standings must be an array of up to ${exports.MANUAL_LIMITS.teams} {teamId, wins, losses, ties, pointsFor} rows`);
+            return out;
+        }
+        const list = [];
+        const seen = new Set();
+        for (const s of body.standings) {
+            const teamId = int(s?.teamId, 1, 1000);
+            const wins = int(s?.wins, 0, 30);
+            const losses = int(s?.losses, 0, 30);
+            const ties = int(s?.ties ?? 0, 0, 30);
+            const pf = Number(s?.pointsFor ?? 0);
+            if (teamId === null || !ids.has(teamId) || wins === null || losses === null || ties === null || !Number.isFinite(pf) || pf < 0) {
+                errors.push('each standings row needs a teamId from teams, integer wins/losses/ties (0-30), and non-negative pointsFor');
+            }
+            else if (seen.has(teamId)) {
+                errors.push(`standings lists team ${teamId} more than once`);
+            }
+            else {
+                seen.add(teamId);
+                list.push({ teamId, wins, losses, ties, pointsFor: Math.round(pf * 100) / 100 });
+            }
+        }
+        if (list.length)
+            out.standings = list;
+    }
+    return out;
+}
 /**
  * @description Validate the schedule, byes, FAAB and season shape.
  * @param body - The submitted document.
@@ -193,7 +234,12 @@ function parseSeason(body, teams, errors) {
         errors.push('lastWeek must be 1-25');
     if (body?.playoffStart !== undefined && body?.playoffStart !== null && playoffStart === null)
         errors.push('playoffStart must be 1-25');
-    return { schedule, byes, faab: faab && faab.budget !== null ? { budget: faab.budget, spent: faab.spent } : null, lastWeek: lastWeek ?? 17, playoffStart };
+    const standingsExtra = parseStandings(body, ids, errors);
+    return {
+        schedule, byes,
+        faab: faab && faab.budget !== null ? { budget: faab.budget, spent: faab.spent } : null,
+        lastWeek: lastWeek ?? 17, playoffStart, ...standingsExtra,
+    };
 }
 /**
  * @description Validate a submitted hand-typed league.

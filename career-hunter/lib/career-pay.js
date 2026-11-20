@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share unit-aware pay-range predicates and sourced occupation estimates across search and the owner's board.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Require explicit comparable currency and pay units instead of treating unknown employer rates as annual USD.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Match CTO/CIO only as whole words in displayed estimates and real SQLite feed filters, preserving specific occupation rules.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Export deterministic annual USD-equivalent salary sort expression (annualUsdPayExpr) and idx_corpus_pay_usd index name shared by corpus index creation, open search and My jobs sorting.
  */
 'use strict';
 const fs = require('fs');
@@ -107,4 +108,21 @@ function decoratePay(job, query = {}) {
       method: 'Title-matched occupation, 25th–75th percentile wages. Not employer-listed or adjusted for experience, local market, or part-time hours.'}};
 }
 
-module.exports = {PayRangeError, range, payFilter, decoratePay};
+const SALARY_USD_INDEX = 'idx_corpus_pay_usd';
+const SALARY_USD_RATES = Object.freeze({
+  USD: 1.0, GBP: 1.27, CHF: 1.13, EUR: 1.08, SGD: 0.74, CAD: 0.72, AUD: 0.65,
+  NZD: 0.60, AED: 0.27, PLN: 0.25, BRL: 0.18, CNY: 0.14, DKK: 0.145, HKD: 0.128,
+  SEK: 0.095, NOK: 0.093, MXN: 0.055, ZAR: 0.055, INR: 0.012, JPY: 0.0065,
+});
+
+/** Deterministic annual USD-equivalent sort key; matches idx_corpus_pay_usd verbatim when prefix is empty or 'p.'. */
+function annualUsdPayExpr(prefix = '') {
+  const col = name => `${prefix}${name}`;
+  const num = rate => (Number.isInteger(rate) ? `${rate}.0` : String(rate));
+  const fx = Object.entries(SALARY_USD_RATES).map(([code, rate]) => `WHEN '${code}' THEN ${num(rate)}`).join(' ');
+  return `ROUND(COALESCE(NULLIF(${col('salary_max')},0),NULLIF(${col('salary_min')},0),0)`
+    + ` * (CASE COALESCE(${col('salary_period')},'') WHEN 'year' THEN 1.0 WHEN 'month' THEN 12.0 WHEN 'hour' THEN 2080.0 ELSE 0.0 END)`
+    + ` * (CASE UPPER(COALESCE(${col('salary_currency')},'')) ${fx} ELSE 0.0 END))`;
+}
+
+module.exports = {PayRangeError, range, payFilter, decoratePay, SALARY_USD_INDEX, SALARY_USD_RATES, annualUsdPayExpr};

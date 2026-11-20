@@ -24,6 +24,9 @@
  * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0, Work history: POST /resume/master-undo is Undo for a main-résumé change (the engine's base-undo puts back the earlier profile from its backup only while the profile is still exactly what that change left), the signed-in owner's own store only, bound to career.change.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.68.7 (Roger, 2026-11-17: "the bullets for oshal now should be oswarm and updated"): GET /resume/master-section also reads field `portfolio`, the saved portfolio whole with the main résumé's exact revision (engine portfolio.read_section), for its Edit form on Other experience; the form saves through POST /resume/master-edit (an edit of field portfolio) and Undo through POST /resume/master-undo. No new route and no new binding.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Read bounded contact facts and preserve uniquely recorded date precision from this packet's original profile snapshot for format downloads, without a current-profile fallback or rewriting stored content.
+ * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: sync documentGeneration.inputsHash via career-application-draft.markEdited() after saving an edited tailored packet so returning to Review documents never forces regeneration.
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: include Resume_ATS.{docx,rtf} and CoverLetter.{docx,rtf} in transactional RENDERED_PACKET_FILES snapshots/rollbacks, expose meta.templateFamily from application.json, and forward optional templateFamily to rerender.
+ * 29 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: GET /resume/master-section also reads field `years`, the person's own years by skill and in total beside the years counted from the roles, with the main résumé's exact revision, for Work history's Years by skill form. Its save is the existing POST /resume/master-edit (an edit of field `years`) and its Undo the existing POST /resume/master-undo; no route is added.
  */
 
 /**
@@ -97,12 +100,16 @@ const RENDERED_PACKET_FILES = [
   'application.json',
   'Resume_ATS.html',
   'Resume_ATS.pdf',
+  'Resume_ATS.docx',
+  'Resume_ATS.rtf',
   'Resume_Premium.html',
   'Resume_Premium.pdf',
   'Resume_1page.html',
   'Resume_1page.pdf',
   'CoverLetter.html',
   'CoverLetter.pdf',
+  'CoverLetter.docx',
+  'CoverLetter.rtf',
 ];
 
 async function hasApplicationPacket(appsDir: string, entryName: string): Promise<boolean> {
@@ -163,6 +170,7 @@ async function readDoc(dir: string): Promise<ResumeDocument> {
       title: data.title,
       url: data.url,
       include_oshal: data.include_oshal,
+      templateFamily: typeof data.template_family === 'string' ? data.template_family : undefined,
       additionalExperience: data.additional_experience,
       storiesCited: Array.isArray(data.stories_cited) ? data.stories_cited : [],
     },
@@ -237,6 +245,7 @@ async function saveAndRerenderPacket(
   resume: unknown,
   cover: unknown,
   lease: RunLease,
+  templateFamily?: string | null,
 ): Promise<Awaited<ReturnType<typeof runCareerCliAwait>>> {
   const paths = RENDERED_PACKET_FILES.map((name) => path.join(dir, name));
   const snapshots = await snapshotFilesAsync(paths);
@@ -245,9 +254,9 @@ async function saveAndRerenderPacket(
   try {
     await writeDoc(dir, resume, cover);
     previousPaths = pointPacketPaths(userSub, postingId, dir);
-    const result = await runCareerCliAwait(ctx.pool, userSub, ['rerender'], {
-      CH_JOB: String(postingId),
-    }, { preclaimed: lease });
+    const extraEnv: Record<string, string> = { CH_JOB: String(postingId) };
+    if (templateFamily) extraEnv.CH_TEMPLATE_FAMILY = templateFamily;
+    const result = await runCareerCliAwait(ctx.pool, userSub, ['rerender'], extraEnv, { preclaimed: lease });
     committed = result.ok;
     return result;
   } finally {
@@ -453,7 +462,7 @@ async function getMasterSection(ctx: AppContext, req: Request, res: Response): P
     return /^(0|[1-9]\d{0,6})$/.test(text) && Number(text) <= 1_000_000 ? Number(text) : null;
   };
   const index = integer(req.query.index), offset = integer(req.query.offset);
-  if (!['overview', 'headline', 'summary', 'clearance', 'competencies', 'skills', 'experience', 'education', 'certifications', 'licenses', 'portfolio'].includes(field) || index === null || index > 9999 || offset === null) {
+  if (!['overview', 'headline', 'summary', 'clearance', 'competencies', 'skills', 'experience', 'education', 'certifications', 'licenses', 'portfolio', 'years'].includes(field) || index === null || index > 9999 || offset === null) {
     res.status(400).json({ ok: false, error: 'Choose a valid master section and page.' }); return;
   }
   await masterRequest(ctx, sub, 'base-section', { field, index, offset, limit: 20 }, res);
@@ -629,8 +638,10 @@ async function saveResume(ctx: AppContext, req: Request, res: Response): Promise
   const lease = tryAcquireRun(userSub, 'user-store');
   if (rejectEngineClaim(res, lease, 'resume rerender')) return;
   try {
+    const family = typeof body.templateFamily === 'string'
+      ? require('../lib/career-docx-export').normalizeFamily(body.templateFamily) : null;
     const result = await saveAndRerenderPacket(
-      ctx, userSub, postingId, dir, body.resume, body.cover, lease,
+      ctx, userSub, postingId, dir, body.resume, body.cover, lease, family,
     );
     if (result.limitReason) {
       rejectEngineStart(
@@ -642,6 +653,11 @@ async function saveResume(ctx: AppContext, req: Request, res: Response): Promise
       logger.error({ err: result.err, userSub, postingId }, 'resume rerender failed');
       res.status(500).json({ ok: false, error: result.err.slice(-400) });
       return;
+    }
+    try {
+      require('../lib/career-application-draft').markEdited(userPaths(userSub).userDir, postingId);
+    } catch (err) {
+      logger.warn({ err, userSub, postingId }, 'resume edit state sync failed');
     }
     res.json({ ok: true });
   } catch (err) {

@@ -23,6 +23,7 @@ SEQ | AUTHOR                                    | DESCRIPTION
     |                                           | tasks.hexapod_certify.load_certified (refused by name otherwise) --
     |                                           | and then `hexapod.step {command}` lets that policy shape the gait in
     |                                           | the container; `hexapod.certify` runs the gate under the check lock.
+3   | maintainer@emeraldcoastsystemsgroup.com   | B32: index 1-element MuJoCo sensor.adr arrays with `[0]` before int() cast for NumPy 2.5 compatibility.
 """
 from __future__ import annotations
 
@@ -139,8 +140,8 @@ class HexapodPlant:
         self.free_dof = int(m.jnt_dofadr[free])
         self.floor = m.geom("floor").id
         self.foot_geoms = [m.geom(f"{leg}-foot").id for leg in LEG_IDS]
-        self.gyro_adr = int(m.sensor("gyro").adr)
-        self.accel_adr = int(m.sensor("accel").adr)
+        self.gyro_adr = int(m.sensor("gyro").adr[0])
+        self.accel_adr = int(m.sensor("accel").adr[0])
         spring = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, "spring")
         self.spring_jnt = None if spring < 0 else spring
         self.spring_qpos = None if spring < 0 else int(m.jnt_qposadr[spring])

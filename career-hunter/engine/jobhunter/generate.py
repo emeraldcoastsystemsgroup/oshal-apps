@@ -13,6 +13,9 @@
 
 # 46 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
 # 47 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding, enforce zero numeric '+' suffixes and zero stray inline bold in normalization and prompts, inject deterministic Verified Experience Tenure Table (skill_tenure), and run mandatory pre-return resume review through the dynamically-loaded career-resume-reviewer Swarm bot (resume_review) persisting structured resume_review metadata in application.json.
+# 48 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: integrate pure-stdlib multi-template OOXML executive resume & cover-letter pipeline (docx_resume) into _packet_files and rerender_packet, emitting matched .docx, .rtf, and <=2-page LibreOffice .pdf artifacts with template_family persisted in application.json and clean single-line candidate names.
+# 49 | maintainer@emeraldcoastsystemsgroup.com | Enforce person-confirmed skill/career year figures (years_truth.enforce) and restore miswritten recorded terms (term_fidelity.restore) as final deterministic passes in _tailored_packet, persisting years_truth and term_fidelity receipts in application.json.
+# 50 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass is given the additional experience chosen for the packet, so the career total it holds a low claim to is the one the receipt records.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -33,6 +36,7 @@ from . import (
     claims_fix,
     config,
     db,
+    docx_resume,
     enrich,
     letter_evidence,
     profile,
@@ -40,6 +44,8 @@ from . import (
     role_hierarchy,
     role_plan,
     skill_tenure,
+    term_fidelity,
+    years_truth,
 )
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -735,35 +741,47 @@ def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
     data, resume_reviewed = resume_review.review_resume(
         data, prof_doc, selected, posting, roles, embargo, ranked)
     data = _sanitize(data)
-    return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed
+    data, years_fixed = years_truth.enforce(data, prof_doc, selected)
+    data, terms_fixed = term_fidelity.restore(data, prof_doc, selected, posting)
+    return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed
 
 
-def _packet_files(outdir, data, ctx):
-    """Render the unchanged packet templates, keeping linked groups in one compact section."""
-    # Split experience for the 1-page compact: detailed (2011+) vs a one-line earlier-career.
+def _packet_files(outdir, data, ctx, family: str | None = None):
+    """Render HTML templates and matched executive DOCX/RTF/PDF artifacts."""
     resume = data["resume"]
     resume["experience"] = role_hierarchy.ordered(resume.get("experience", []) or [])
-    _exp = resume["experience"]
-    recent, earlier = role_hierarchy.compact(_exp, _start_year)
+    recent, earlier = role_hierarchy.compact(resume["experience"], _start_year)
+    clean_contact = dict(ctx.get("contact") or {})
+    if clean_contact.get("name"):
+        clean_contact["name"] = docx_resume.clean_candidate_name(clean_contact["name"])
+    render_ctx = {**ctx, "contact": clean_contact}
 
+    docx_info = docx_resume.build_packet_docx_artifacts(
+        outdir, clean_contact, resume, data.get("cover"),
+        str(render_ctx.get("company") or ""), str(render_ctx.get("title") or ""),
+        str(render_ctx.get("today") or ""), family=family,
+    )
     renders = {
-        "Resume_ATS": _env.get_template("resume.html").render(r=resume, **ctx),
-        "Resume_Premium": _env.get_template("resume_premium.html").render(r=resume, **ctx),
-        "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **ctx),
-        "CoverLetter": _env.get_template("cover.html").render(c=data["cover"], **ctx),
+        "Resume_ATS": _env.get_template("resume.html").render(r=resume, **render_ctx),
+        "Resume_Premium": _env.get_template("resume_premium.html").render(r=resume, **render_ctx),
+        "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **render_ctx),
+        "CoverLetter": _env.get_template("cover.html").render(c=data["cover"], **render_ctx),
     }
-    paths = {}
+    paths: dict = {"template_family": docx_info["family"]}
+    lo_pdfs = {"Resume_ATS": docx_info.get("resume_pdf"), "CoverLetter": docx_info.get("cover_pdf")}
     for name, html in renders.items():
-        hp = outdir / f"{name}.html"
-        pp = outdir / f"{name}.pdf"
+        hp, pp = outdir / f"{name}.html", outdir / f"{name}.pdf"
         hp.write_text(html, encoding="utf-8")
-        _render_pdf(hp, pp)
-        paths[name] = pp
-
+        if lo_pdfs.get(name) and Path(lo_pdfs[name]).is_file():
+            paths[name] = Path(lo_pdfs[name])
+        else:
+            _render_pdf(hp, pp)
+            paths[name] = pp
     return paths
 
 
-def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '', additional_experience=None) -> dict:
+def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '',
+                 additional_experience=None, template_family: str | None = None) -> dict:
     """Generate a tailored resume + cover for one job, pulling from the (possibly
     enriched) career DB and tailoring to THIS posting. New experience the candidate
     wants reflected is added to the career DB first via profile.augment() — the
@@ -789,7 +807,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         # Gate the personal open-source (OSHAL) work on the opt-in flag, then pick the
         # matching system prompt (ban vs allow). OFF mode is byte-identical to before.
         selected = additional_experience or []
-        data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed = _tailored_packet(
+        data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed = _tailored_packet(
             prof, selected, row, company_doc, include_oshal, guidance)
 
         # Put the requisition number in the folder name when it's a clean id (referral/
@@ -802,14 +820,17 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
 
         ctx = {"contact": contact, "company": company_doc, "title": title,
                "job_url": row["url"], "today": _today()}
-        paths = _packet_files(outdir, data, ctx)
+        paths = _packet_files(outdir, data, ctx, family=template_family)
 
         (outdir / "application.json").write_text(
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
+                        "template_family": paths["template_family"],
                         "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],
                         "url": row["url"], "stories_cited": stories_cited, "roles_carried": roles_carried,
                         "claims_check": claims_checked, "resume_review": resume_reviewed,
+                        "years_truth": years_truth.receipt(skill_tenure.compute_tenure(prof_doc, selected), years_fixed),
+                        "term_fidelity": terms_fixed,
                         "profile_snapshot": prof_doc,
                         "job_context": {"description": row['description'],
                             **row.get('description_context', {'basis':'corpus-description'}),
@@ -827,15 +848,14 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         else:
             db.set_status(conn, posting_id, "generated",
                           resume_path=str(paths["Resume_ATS"]), cover_path=str(paths["CoverLetter"]))
-        return {"dir": str(outdir), "resume_ats": str(paths["Resume_ATS"]),
+        return {"dir": str(outdir), "template_family": paths["template_family"],
+                "resume_ats": str(paths["Resume_ATS"]),
                 "resume_premium": str(paths["Resume_Premium"]),
                 "resume_1page": str(paths["Resume_1page"]), "cover": str(paths["CoverLetter"])}
 
 
-def rerender_packet(posting_id: int) -> str:
-    """Re-render an existing packet's PDFs from its application.json — NO LLM call — applying
-    the dash sanitizer and current templates. Preserves the already-written content; only
-    re-renders. Returns the packet directory."""
+def rerender_packet(posting_id: int, family: str | None = None) -> str:
+    """Re-render an existing packet's DOCX/RTF/PDF/HTML from its application.json — NO LLM call."""
     with db.connect() as conn:
         row = _job_row(conn, posting_id)
     if not row or not row["resume_path"]:
@@ -844,22 +864,12 @@ def rerender_packet(posting_id: int) -> str:
     data = json.loads((outdir / "application.json").read_text(encoding="utf-8"))
     gen = _sanitize(data.get("generated") or {})
     data["generated"] = gen
-    resume = gen["resume"]
-    contact = _sanitize(profile.load().get("profile", {}))
-    resume["experience"] = role_hierarchy.ordered(resume.get("experience", []) or [])
-    _exp = resume["experience"]
-    recent, earlier = role_hierarchy.compact(_exp, _start_year)
+    snap_contact = ((data.get("profile_snapshot") or {}).get("profile") or {})
+    contact = _sanitize(snap_contact or profile.load().get("profile", {}))
     ctx = {"contact": contact, "company": _company_doc(data.get("company")), "title": data.get("title"),
            "job_url": data.get("url"), "today": _today()}
-    renders = {
-        "Resume_ATS": _env.get_template("resume.html").render(r=resume, **ctx),
-        "Resume_Premium": _env.get_template("resume_premium.html").render(r=resume, **ctx),
-        "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **ctx),
-        "CoverLetter": _env.get_template("cover.html").render(c=gen["cover"], **ctx),
-    }
-    for name, html in renders.items():
-        (outdir / f"{name}.html").write_text(html, encoding="utf-8")
-        _render_pdf(outdir / f"{name}.html", outdir / f"{name}.pdf")
+    paths = _packet_files(outdir, gen, ctx, family=family or data.get("template_family"))
+    data["template_family"] = paths["template_family"]
     (outdir / "application.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
     return str(outdir)
 

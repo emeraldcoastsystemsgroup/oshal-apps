@@ -444,3 +444,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: circuit-bot-tools-contract
+    name: Inline concierge posture, tool schemas, tool_call fence, and route principal execution
+    purpose: Verify circuit-lab-engineer declares explicit inline posture, chatBot binding, object inputSchemas on all thirteen tools, plain-prose + ```tool_call {"tool": ...} syntax, and route execution under caller principal.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/bot-tools-contract.test.js
+    expected:
+      - circuit-lab-engineer declares posture inline and chatBot circuit-lab-engineer with object inputSchemas on all thirteen tools.
+      - personas/circuit-lab-engineer.yaml teaches plain prose and ```tool_call with "tool" naming all thirteen tools.
+      - GET /capabilities and GET /designs execute cleanly under caller principal.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

@@ -22,6 +22,12 @@
  *                     |                             | exactly the missing-underside case and nothing else — a gap in a
  *                     |                             | side wall still leaks and is still reported, because the seal only
  *                     |                             | ever touches that one layer.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Base sealing bed-contact band (BACKLOG B7): when the lowest occupied
+ *                     |                             | layer alone has a 1-voxel rim break from real LiDAR jitter or a
+ *                     |                             | curved dome resting on Z = 0, project the 2-layer bed contact band
+ *                     |                             | (k and k + 1) into layer k alone to cap the footprint while still
+ *                     |                             | never touching layers above the bed (side holes, arches and missing
+ *                     |                             | lids still leak).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parsePly = parsePly;
@@ -255,6 +261,40 @@ function lowestOccupiedLayer(grid) {
     }
     return -1;
 }
+/** @description Flood empty cells in a 2-D occupancy slice from its border; returns cells reached from outside. */
+function floodLayerBorder(slice, nx, ny) {
+    const reached = new Uint8Array(nx * ny);
+    const queue = new Int32Array(nx * ny);
+    let head = 0;
+    let tail = 0;
+    for (let j = 0; j < ny; j += 1) {
+        for (let i = 0; i < nx; i += 1) {
+            if (i !== 0 && i !== nx - 1 && j !== 0 && j !== ny - 1)
+                continue;
+            const at = i + nx * j;
+            if (slice[at] === 0 && reached[at] === 0) {
+                reached[at] = 1;
+                queue[tail++] = at;
+            }
+        }
+    }
+    while (head < tail) {
+        const at = queue[head++];
+        const i = at % nx;
+        const j = (at - i) / nx;
+        const steps = [[i < nx - 1, 1], [i > 0, -1], [j < ny - 1, nx], [j > 0, -nx]];
+        for (const [open, step] of steps) {
+            if (!open)
+                continue;
+            const q = at + step;
+            if (slice[q] === 0 && reached[q] === 0) {
+                reached[q] = 1;
+                queue[tail++] = q;
+            }
+        }
+    }
+    return reached;
+}
 /**
  * @description Cap the holes in one Z layer: flood the layer's empty cells in 2-D from its border,
  * then set every empty cell the flood could not reach. On the lowest occupied layer of a scan this
@@ -266,39 +306,41 @@ function lowestOccupiedLayer(grid) {
 function capLayerHoles(grid, k) {
     const layer = grid.nx * grid.ny;
     const base = k * layer;
-    const reached = new Uint8Array(layer);
-    const queue = new Int32Array(layer);
-    let head = 0;
-    let tail = 0;
-    for (let j = 0; j < grid.ny; j += 1) {
-        for (let i = 0; i < grid.nx; i += 1) {
-            if (i !== 0 && i !== grid.nx - 1 && j !== 0 && j !== grid.ny - 1)
-                continue;
-            const at = i + grid.nx * j;
-            if (grid.data[base + at] === 0 && reached[at] === 0) {
-                reached[at] = 1;
-                queue[tail++] = at;
-            }
-        }
-    }
-    while (head < tail) {
-        const at = queue[head++];
-        const i = at % grid.nx;
-        const j = (at - i) / grid.nx;
-        const steps = [[i < grid.nx - 1, 1], [i > 0, -1], [j < grid.ny - 1, grid.nx], [j > 0, -grid.nx]];
-        for (const [open, step] of steps) {
-            if (!open)
-                continue;
-            const q = at + step;
-            if (grid.data[base + q] === 0 && reached[q] === 0) {
-                reached[q] = 1;
-                queue[tail++] = q;
-            }
-        }
-    }
+    const reached = floodLayerBorder(grid.data.subarray(base, base + layer), grid.nx, grid.ny);
     let capped = 0;
     for (let at = 0; at < layer; at += 1) {
         if (grid.data[base + at] === 0 && reached[at] === 0) {
+            grid.data[base + at] = 1;
+            capped += 1;
+        }
+    }
+    return capped;
+}
+/**
+ * @description Fallback for a one-sided scan whose table-contact rim spans one voxel of Z jitter
+ * across layers `k` and `k + 1` (for example a dome or phone LiDAR edge on Z = 0). Unions those
+ * two bed-contact slices in 2-D; if that footprint encloses an interior, writes the closed cap
+ * onto layer `k` only so side walls, arches touching Z = 0, and missing lids still leak.
+ */
+function capBedContactBand(grid, k) {
+    const layer = grid.nx * grid.ny;
+    const base = k * layer;
+    const next = (k + 1) * layer;
+    const band = new Uint8Array(layer);
+    for (let at = 0; at < layer; at += 1) {
+        if (grid.data[base + at] === 1 || grid.data[next + at] === 1)
+            band[at] = 1;
+    }
+    const reached = floodLayerBorder(band, grid.nx, grid.ny);
+    let interior = 0;
+    for (let at = 0; at < layer; at += 1)
+        if (band[at] === 0 && reached[at] === 0)
+            interior += 1;
+    if (interior === 0)
+        return 0;
+    let capped = 0;
+    for (let at = 0; at < layer; at += 1) {
+        if (grid.data[base + at] === 0 && (band[at] === 1 || reached[at] === 0)) {
             grid.data[base + at] = 1;
             capped += 1;
         }
@@ -330,7 +372,8 @@ function fillSolidFromSurface(grid, closeRadius = 1, options = {}) {
         const k = lowestOccupiedLayer(grid);
         if (k < 0)
             throw new RangeError('Base sealing needs at least one solid voxel; the point cloud produced an empty grid');
-        capLayerHoles(grid, k);
+        if (capLayerHoles(grid, k) === 0 && k + 1 < grid.nz - 1)
+            capBedContactBand(grid, k);
         sealedBase = true;
     }
     const reached = new Uint8Array(grid.data.length);

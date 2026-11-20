@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.4 (Roger, 2026-11-16: "i can not find where to see my expanded experience"): the page also draws Expanded experience (career-work-history-engagements.js): each job's card ends with the client engagements placed under it, and the summary line under the heading counts jobs, client engagements and client accounts with links to them. save() takes a step to run once a change is saved, answers whether it was, keeps the refusal's words for the form that asked, and reads the page again when the main résumé moved meanwhile (409), so the next try is made on what is saved. A job form and an engagement form are never open at once; the concierge waits for either.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve explicit employer/client hierarchy with independent records, subtle indentation and consistent editor/export identity.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Put direct Tab in, Tab out and Add sub-engagement beside existing actions while preserving one-level relationships, drafts and the revision-checked save/Undo path.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: each time the page reads the main résumé it has the Years by skill section read too (CareerYearsBySkill.load), so the years counted from the jobs and the revision that section saves on follow a job just saved; a person with no main résumé gets no section.
  */
 (function (win) {
   'use strict';
@@ -40,6 +41,7 @@
     if (state.editing === 'new' && state.revision && state.revision !== answer.revision) state.newParent = '';
     state.doc = answer; state.revision = typeof answer.revision === 'string' ? answer.revision : '';
     render();
+    if (win.CareerYearsBySkill) await win.CareerYearsBySkill.load({ profile: Boolean(state.revision) });
     return answer;
   }
 

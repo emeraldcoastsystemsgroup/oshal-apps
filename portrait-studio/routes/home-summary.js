@@ -7,10 +7,19 @@ exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Restrict saved summary evidence to exact verified owners and current read permission.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.17.9: enforce portrait.view and portrait.read before querying ps_portraits as well as after, so unauthorized callers trigger zero database reads while preserving mid-request revocation checks.
  */
 const express_1 = require("express");
+const SUMMARY_PERMISSIONS = ['portrait.view', 'portrait.read'];
 const clip = (v, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
 const date = (v) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toISOString() : 'date unavailable'; };
+async function hasSummaryPermissions(ctx) {
+    for (const permission of SUMMARY_PERMISSIONS) {
+        if (!(await ctx.authorization.authorize({ permission })).allowed)
+            return false;
+    }
+    return true;
+}
 /** @description Read saved summary facts under exact owner and current app permission.
  * @param ctx Bound package context. @returns The read-only summary router.
  */
@@ -21,6 +30,10 @@ function createHomeSummaryRoutes(ctx) {
         const actor = ctx.authorization?.currentActor(), sub = actor?.sub;
         if (!sub || !actor?.isActive) {
             res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        if (!(await hasSummaryPermissions(ctx))) {
+            res.status(403).json({ error: 'portrait_permission_denied' });
             return;
         }
         const now = new Date();
@@ -42,11 +55,9 @@ function createHomeSummaryRoutes(ctx) {
         else if (!items.length)
             items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "portrait-studio" });
         items.push({ text: "Saved generation states distinguish work in progress, failed work and completed portraits. The five-day window uses the last update, not a separate completion timestamp. Existing image review/export remains in Portrait Studio; document preparation sends only selected metadata.", tone: 'neutral', fix: "portrait-studio" });
-        for (const permission of ['portrait.view', 'portrait.read']) {
-            if (!(await ctx.authorization.authorize({ permission })).allowed) {
-                res.status(403).json({ error: 'portrait_permission_denied' });
-                return;
-            }
+        if (!(await hasSummaryPermissions(ctx))) {
+            res.status(403).json({ error: 'portrait_permission_denied' });
+            return;
         }
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });

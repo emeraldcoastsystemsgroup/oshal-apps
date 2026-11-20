@@ -8,6 +8,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D7, lane @ds-fab: the print set under a product over the same loopback - 404 no_print_set before one is begun; begin refused by field; begun from the design's rows (pending every part); a watertight STL kept by multipart with its sha256 and the kernel's figures from the meta; a non-watertight STL recorded unprintable with the fault; a part without a program recorded unprintable by JSON reason; a part outside the set 409; an STL over the cap 413; finish refused 409 set_incomplete naming the part still unaccounted, then 200 with the manifest's sha256; every file served by the name the manifest lists with its content type and bytes (an STL downloads as <product>-<part>.stl), the state file and a name outside the manifest 404, another subject 404; a hand-off recorded for a file of the set and refused for another; begin again wipes the set. The data root is a temporary directory named by DESIGN_STUDIO_DATA_DIR.
  *
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D9, lane @ds-plant: the mechanism under a product over the same loopback - 404 no_mechanism with the brief's task before a save; PUT refused by name against the design's bound parts (part_not_bound, unknown_motor, cycle, bad_mechanism with the field); 201 then 200 as revision 2 with the task read from the brief when the body states none; the project read carries it; the lift example creates seven phases, two bindings and its mechanism with the task from its line; POST /plant-spec composes the engine's spec from the mechanism and the reads the page sends (every number one of those; part_not_read and motor_not_read by name); the body contract of the lift from a generated plant's read; another subject 404; delete removes the mechanism row.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3/B15: assert closed spider body contract publishes plant.tickS and senses[].rateHz with missing: [], test Pi bay thermal solve brief option over /plan & /projects, and verify reasoned-only closure honesty metadata on /close and /phase-brief.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express. Not part of the store-CI bare job (the glob is tests/*-*.test.js); run locally:
  * OSHAL_CORE_ROOT=$HOME/Documents/projects/oshal/src node --test tests/routes.core.test.js
@@ -173,9 +174,12 @@ test('the body contract is body_incomplete naming the reads it lacks, then publi
   assert.equal(body.json.walker.policySha256, F.reads.simulate.certificate.policySha256); assert.equal(body.json.walker.kind, 'certified-gait'); assert.deepEqual(body.json.walker.command, ['vx', 'vy', 'vyaw']);
   assert.equal(body.json.node.endpoint, F.reads.controller.node.endpoint);
   assert.equal(body.json.senses.find((s) => s.name === 'lidar').mount, F.reads.sensors.senses[0].mount);
+  assert.equal(body.json.senses.find((s) => s.name === 'lidar').rateHz, 10);
+  assert.equal(body.json.senses.find((s) => s.name === 'imu').rateHz, 100);
+  assert.equal(body.json.senses.find((s) => s.name === 'joints').rateHz, 50);
   assert.equal(body.json.senses.find((s) => s.name === 'joints').count, F.reads.sensors.senses[2].count);
   assert.deepEqual(body.json.senses.filter((s) => !s.present).map((s) => s.name), ['vision', 'audio', 'thermal', 'touch']);
-  for (const m of body.json.missing) assert.match(m, /^senses\.\w+\.rateHz/, 'only the rates no engine stated are missing');
+  assert.deepEqual(body.json.missing, [], 'B3: closed spider with engine tickHz and sense rates has missing: []');
 });
 
 test('the Home summary counts products, phases and closures; delete removes the project with its rows', async () => {
@@ -340,5 +344,80 @@ test('an engine order: refused by name outside the vocabulary, 202 with no page 
   await call('POST', `/orders/${order.id}/claim`, {}); await call('POST', `/orders/${order.id}/finish`, { ok: false, result: { refused: 'no such button' } });
   const done = await filing;
   assert.equal(done.status, 201); assert.equal(done.json.order.status, 'failed'); assert.equal(done.json.order.result.refused, 'no such button');
+  assert.equal((await call('DELETE', `/projects/${id}`)).status < 300, true);
+});
+
+test('B9 fit-check route reports clearance fit and interference in mm, and close refuses design with fit_interference', async () => {
+  const created = await call('POST', '/projects', { example: 'lift-1' });
+  const id = created.json.project.id;
+  const goodParts = [
+    { model_id: 'm-base', id: 'base', state: 'built', base: { kind: 'box', sizeX: 200, sizeY: 200, sizeZ: 10 }, features: [{ id: 'h1', type: 'hole', params: { diameter: 5, x: 85, y: 85 } }] },
+    { model_id: 'm-col', id: 'column', state: 'built', base: { kind: 'box', sizeX: 40, sizeY: 40, sizeZ: 400 }, features: [{ id: 'p1', type: 'hole', params: { diameter: 6, axis: 'y', x: 0, z: 390 } }] },
+    { model_id: 'm-car', id: 'carriage', state: 'built', base: { kind: 'box', sizeX: 80, sizeY: 60, sizeZ: 40 }, features: [{ id: 'bore', type: 'box-cut', params: { size: [42, 42, 42], center: [0, 0, 20] } }] },
+  ];
+  const fit = await call('POST', `/projects/${id}/fit-check`, { parts: goodParts });
+  assert.equal(fit.status, 200);
+  assert.equal(fit.json.ok, true);
+  assert.equal(fit.json.verdict, 'fit');
+  assert.equal(fit.json.joints[1].clearanceMm, 1);
+  assert.equal(fit.json.strength.measured, false);
+  assert.match(fit.json.strength.line, /No engine strength estimate measured for 2 kg/);
+
+  const badParts = goodParts.slice(0, 2).concat([{ ...goodParts[2], features: [{ id: 'bore', type: 'box-cut', params: { size: [38, 38, 42], center: [0, 0, 20] } }] }]);
+  const clash = await call('POST', `/projects/${id}/fit-check`, { parts: badParts });
+  assert.equal(clash.status, 200);
+  assert.equal(clash.json.ok, false);
+  assert.equal(clash.json.verdict, 'interference');
+  assert.equal(clash.json.minClearanceMm, -1);
+
+  const bound = await call('POST', `/projects/${id}/bind`, { phase: 'design', artifact: { engine: 'cad-studio', kind: 'cad-models', modelIds: ['m-base', 'm-col', 'm-car'], read: { fitCheck: clash.json } } });
+  assert.equal(bound.status, 201);
+  const refused = await call('POST', `/projects/${id}/close`, { phase: 'design', evidence: 'trying to close with interference', revision: 'r1' });
+  assert.equal(refused.status, 422);
+  assert.equal(refused.json.error, 'fit_interference');
+  assert.match(refused.json.message, /carriage-slide.*-1\.00 mm/);
+  assert.equal((await call('DELETE', `/projects/${id}`)).status < 300, true);
+});
+
+test('B15: Pi bay thermal solve brief option and honest reasoned-only phase closures over HTTP', async () => {
+  const caps = await call('GET', '/capabilities');
+  assert.deepEqual(caps.json.thermalSolveModes, ['none', 'pi-bay']);
+
+  const badThermal = await call('POST', '/plan', { brief: { what: 'pi enclosure', thermalSolve: 'invalid-mode' } });
+  assert.equal(badThermal.status, 400);
+  assert.equal(badThermal.json.field, 'brief.thermalSolve');
+
+  const planned = await call('POST', '/plan', { brief: { what: 'wheeled bot', requirements: ['holds a Raspberry Pi', 'two drive motors', 'one camera sensor'], thermalSolve: { mode: 'pi-bay', note: 'vented aluminum plate' } } });
+  assert.equal(planned.status, 200);
+  assert.deepEqual(planned.json.brief.thermalSolve, { mode: 'pi-bay', status: 'reasoned-unmeasured', note: 'vented aluminum plate' });
+  assert.ok(planned.json.unsolved.some((u) => /Pi bay thermal solve.*no thermal engine/i.test(u)));
+
+  const created = await call('POST', '/projects', { name: 'pi-bot', brief: planned.json.brief });
+  assert.equal(created.status, 201);
+  const id = created.json.project.id;
+  assert.deepEqual(created.json.project.brief.thermalSolve, { mode: 'pi-bay', status: 'reasoned-unmeasured', note: 'vented aluminum plate' });
+
+  // Close a reasoned phase (mechanical): must record honest reasoned-only metadata and stamp persisted evidence.
+  const closedMech = await call('POST', `/projects/${id}/close`, { phase: 'mechanical', evidence: 'torque margin checked by hand', revision: 'reasoned' });
+  assert.equal(closedMech.status, 201);
+  assert.equal(closedMech.json.closure.engine, 'reasoned');
+  assert.equal(closedMech.json.closure.measuredByEngine, false);
+  assert.equal(closedMech.json.closure.reasonedOnly, true);
+  assert.equal(closedMech.json.closure.unmeasuredNotice, 'no engine measured this phase (reasoned only)');
+  assert.match(closedMech.json.closure.evidence, /no engine measured this phase \(reasoned only\)/);
+
+  const briefMech = await call('GET', `/projects/${id}/phase-brief/mechanical`);
+  assert.equal(briefMech.status, 200);
+  assert.equal(briefMech.json.closures[0].reasonedOnly, true);
+  assert.equal(briefMech.json.closures[0].measuredByEngine, false);
+
+  // Close an engine-bound phase (design) with a bound engine read: measuredByEngine is true, reasonedOnly is false.
+  await call('POST', `/projects/${id}/bind`, { phase: 'design', artifact: { engine: 'cad-studio', kind: 'cad-models', modelIds: ['m1'], read: { route: '/api/cad-studio/models', readAt: 'now', models: [{ modelId: 'm1', revision: 1, state: 'built' }] } } });
+  const closedDesign = await call('POST', `/projects/${id}/close`, { phase: 'design', evidence: 'parts-complete · 1 of 1 built', revision: 'm1@r1' });
+  assert.equal(closedDesign.status, 201);
+  assert.equal(closedDesign.json.closure.measuredByEngine, true);
+  assert.equal(closedDesign.json.closure.reasonedOnly, false);
+  assert.equal(closedDesign.json.closure.unmeasuredNotice, null);
+  assert.equal(closedDesign.json.closure.evidence, 'parts-complete · 1 of 1 built');
   assert.equal((await call('DELETE', `/projects/${id}`)).status < 300, true);
 });

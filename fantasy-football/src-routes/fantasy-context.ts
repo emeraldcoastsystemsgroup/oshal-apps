@@ -22,6 +22,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | A schedule read that THROWS is logged at ERROR before it degrades to no schedule; the catch came over from sports-edge swallowing it. The fallback is unchanged.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | A league shape read (mSettings+mTeam: the FAAB budget, the last week, the first playoff week) that comes back empty no longer reads as "the league does not bid": the skill returns null once its retries fail, and the null body used to become faab null, lastWeek 17 and playoffStart null, so the waiver board of a FAAB league said it claims by waiver priority, with no bid on any row. The read now captures its classified failure; a transport or 5xx/429 failure answers through the unreachable-ESPN path (503 naming the transport), and a refusal or a read that threw answers 502 naming the unread shape. A read that throws is logged at ERROR. Nothing season-long is priced on an assumed shape.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Where the runtime cannot carry ESPN's sign-in cookies (the native kernel's skill reports credentialSupport.supported false: no connection lookup, and its egress refuses a package Cookie), no answer tells a person to connect ESPN, which cannot help there. credentialUnsupported() gives the skill's sentence; answerUnreachable answers a `credential-unsupported` league failure 403 with it; espnContext's private-league answer and its own-team answer (a public league reads, but no team can be matched to an account) say it too, naming the hand-typed league. Elsewhere the messages are unchanged. Guard: tests/fantasy-native-credential.test.js.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | Carry team standings and playoffTeams on LeagueContext from ESPN's existing mSettings+mTeam read and from hand-typed leagues for P(playoffs) schedule simulation (Backlog A2).
  *
  * @module fantasy-context
  */
@@ -37,6 +38,7 @@ import {
   type FantasyReadOptions, type FantasyTeam, type LeagueSettings,
 } from '@/features/fantasy-leagues';
 import { readManualLeague, type ManualLeague } from './fantasy-manual';
+import { extractEspnStandings, type TeamStanding } from './fantasy-playoff-sim';
 import { listLeagues } from './fantasy-store';
 
 const log = createChildLogger({ module: 'fantasy-football-context' });
@@ -135,6 +137,10 @@ export interface LeagueContext {
   faab: { budget: number; spent: number } | null;
   lastWeek: number;
   playoffStart: number | null;
+  /** Current standings per team (ESPN mTeam or hand-typed table), empty when absent. */
+  standings: TeamStanding[];
+  /** Number of teams that qualify for the playoffs, or null when not stated. */
+  playoffTeams: number | null;
   /** The caller's own ESPN credential on the ESPN branch; always null on the manual branch. */
   cred: FantasyCredential | null;
 }
@@ -208,7 +214,8 @@ async function espnContext(pool: Pool, sub: string, req: LeagueRequest): Promise
   return { ok: true, ctx: {
     source: 'espn', key: leagueId, season: req.season, week, settings, teams, own,
     matchups: schedule.matchups, scheduleFailure: schedule.failure, byes: {},
-    faab: shape?.faab ?? null, lastWeek: shape?.lastWeek ?? DEFAULT_LAST_WEEK, playoffStart: shape?.playoffStart ?? null, cred,
+    faab: shape?.faab ?? null, lastWeek: shape?.lastWeek ?? DEFAULT_LAST_WEEK, playoffStart: shape?.playoffStart ?? null,
+    standings: shape?.standings ?? [], playoffTeams: shape?.playoffTeams ?? null, cred,
   } };
 }
 
@@ -225,11 +232,13 @@ function ownTeamMissing(cred: FantasyCredential | null): ContextResult {
   return { ok: false, status: 404, body: { error: 'no team in that league belongs to this ESPN account' } };
 }
 
-/** A league's FAAB budget and season shape, as the season-long boards price from them. */
+/** A league's FAAB budget, season shape, standings and playoff field size, as the season-long boards price from them. */
 interface LeagueShape {
   faab: { budget: number; spent: number } | null;
   lastWeek: number;
   playoffStart: number | null;
+  standings: TeamStanding[];
+  playoffTeams: number | null;
 }
 
 /** A shape read: the shape, or null with the classified reason ESPN did not return it (null when the read threw). */
@@ -264,10 +273,12 @@ async function espnShape(season: number, leagueId: string, teamId: number, cred:
   const budget = Number(acq.acquisitionBudget);
   const spent = Number(team?.transactionCounter?.acquisitionBudgetSpent) || 0;
   const regular = Number(body.settings?.scheduleSettings?.matchupPeriodCount);
+  const { standings, playoffTeams } = extractEspnStandings(body);
   return { shape: {
     faab: acq.isUsingAcquisitionBudget && Number.isFinite(budget) ? { budget, spent } : null,
     lastWeek: Number(body.status?.finalScoringPeriod) || DEFAULT_LAST_WEEK,
     playoffStart: Number.isFinite(regular) && regular > 0 ? regular + 1 : null,
+    standings, playoffTeams,
   }, failure: null };
 }
 
@@ -312,7 +323,9 @@ async function manualContext(pool: Pool, sub: string, req: LeagueRequest): Promi
     teams, own, matchups: manualMatchups(m), scheduleFailure: null,
     byes: Object.fromEntries(Object.entries(m.byes).map(([k, v]) => [Number(k), v])),
     faab: m.faab ? { budget: m.faab.budget, spent: m.faab.spent } : null,
-    lastWeek: m.lastWeek, playoffStart: m.playoffStart, cred: null,
+    lastWeek: m.lastWeek, playoffStart: m.playoffStart,
+    standings: m.standings ? [...m.standings] : [],
+    playoffTeams: m.playoffTeams ?? null, cred: null,
   } };
 }
 

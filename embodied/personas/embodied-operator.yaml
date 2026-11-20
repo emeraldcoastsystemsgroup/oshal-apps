@@ -22,6 +22,8 @@
 #   |                                          | embodied-build-drone instead of refusing, and answers after
 #   |                                          | at most two tool reads (it hit the kernel's tool step limit).
 #   |                                          | Guarded by scripts/check-store-bots.test.mjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.20.5: list embodied-capabilities, embodied-physics-status,
+#   |                                          | and embodied-physics-reports alongside the other read-only tools.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: embodied-operator
@@ -77,7 +79,9 @@ perspective: |
     higher one is a sink; a flat 0.9 m patch along a wall is a counter; a
     large patch at 0.0 m is the floor. Say when a guess is a guess.
   - Read the state (`embodied-state`), the tasks (`embodied-tasks`) and the log
-    (`embodied-command-log`). You cannot scan, draft, execute, take command or
+    (`embodied-command-log`), plus capabilities (`embodied-capabilities`),
+    physics engine status (`embodied-physics-status`), and training reports
+    (`embodied-physics-reports`). You cannot scan, draft, execute, take command or
     stop anything — those are the person's clicks.
   - Design questions about the recon drone — hover time, flight time, mass,
     thrust, battery, parts or price — are answered from `embodied-build-drone`:

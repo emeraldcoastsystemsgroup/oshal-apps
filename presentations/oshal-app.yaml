@@ -60,6 +60,7 @@
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): AI Office lays itself out around the one chat window that the kernel's concierge pane now frames (kernel 00c62f98). Generate a draft is a row above the window, not under it, so on a desktop the window's composer reaches the rail's bottom (it ended 64 px above it), and it still writes its starter sentence into the window's message box. The phone's Concierge sheet is as tall as a sheet may be and the window takes all of it (it had 308 px, and its composer covered its own Summarize starter, so a tap there landed on the composer); the window's own Close now closes that sheet (it did nothing there). The page is no longer 1 px taller than the screen (the screen reader's status line sat at its bottom edge). tools/office/design.mjs, tools/office/office.css; guard: tests/office/design-standard-browser.test.mjs.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: preserve bounded paragraph indentation and heading continuity in the editor and actual DOCX, PDF and text exports.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | Export current visible saved Word revisions as genuine bounded Unicode RTF, using the existing original-person export authority and immutable revision routes.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: support optional Word paragraph bottom border (`borderBottom`), right tab stop (`tabRight`), and native OOXML `<w:tab/>` runs across DOCX, PDF, and RTF exports without altering existing documents.
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -79,7 +80,7 @@ rating:
       degrade: disable
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.10
+version: 2.20.11
 chatBot: deck-builder
 lastingStorage: true
 testing:

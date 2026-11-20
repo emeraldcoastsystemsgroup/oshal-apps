@@ -130,26 +130,9 @@ physical evidence, not the rule.
 
 ---
 
-## E. The engine container is installed and updated by hand
+## E. The engine container is installed and updated by hand — DONE 1.4.7
 
-Since 1.2.0 the engine runs in the package's own container (`engine/container/`, built by
-`engine/install-engine.sh`). Nothing installs or refreshes it automatically: after installing the
-package, and after any update that changes the engine tree, someone has to run
-
-```sh
-docker exec <api-container> sh /app/workspace-shared/deployed-apps/aero-lab/engine/install-engine.sh
-```
-
-The app fails honestly in the meantime — a missing or stale container is refused with that exact
-command in `capability_unavailable`, and the surface prints it — so no result is ever fabricated.
-But a person who installs aero-lab from the store and opens it gets a dead lab until they read the
-banner and have shell access to the box.
-
-**Done when:** installing or updating aero-lab on a box with a docker socket leaves a working engine
-container with no operator step — either the package declares a post-install command the installer
-runs, or the first engine call builds and starts it — and the refusal path is unchanged when that
-cannot happen (capabilities false, the exact command, no fabricated numbers). The store-wide half of
-this is core BACKLOG "Package-owned engine containers need a documented pattern" (2026-09-14).
+**Done (1.4.7):** `src-routes/engine-installer.ts` (`EngineAutoInstaller`) and `src-routes/engine-adapter.ts` now automatically run `engine/install-engine.sh` on the first missing or out-of-date container call whenever a Docker socket is reachable (`AERO_LAB_AUTO_INSTALL=0` disables), coalescing concurrent calls behind a single-flight lock with a post-failure cooldown and retrying once after a successful build/start/selftest. On the native Rust kernel (`oshald`), `GET /capabilities` also probes `engine.status` (`nativeStatus(ctx)`) to trigger lazy image preparation without starting a container. When no Docker socket is reachable or `install-engine.sh` fails, the refusal path is unchanged (`capability_unavailable`, `capabilities: null`, the exact `installHint` command, zero fabricated numbers). Guarded by `tests/aero-engine-auto-install.test.cjs`.
 
 ---
 
@@ -177,15 +160,8 @@ certified ledger (`BOM.csv` 1998.1 g). Open:
 
 ## The assistant cannot call its route-backed tools yet (2026-10-06)
 
-Since core #1101 and #1103 (2026-10-06), `aero-designer` answers the deployment operator's chat on the
-operator's own Antigravity login, from the shared concierge node. One chat turn as the operator on 2026-10-06 confirmed it.
-Its 6 tools are route-backed (`executorType: api`): `aero-capabilities`, `aero-polar`, `aero-evaluate`, `aero-screen`, `aero-export`, `draft-aero-design`.
-Core documents that a route-backed tool answers 401 when a bot calls it (core
-`docs/security/remote-application-execution.md`, "Limits"), and Scene Studio's director hit exactly
-that before 0.2.0. No tool call from this package's assistant has been run yet.
+**CLOSED 2026-11-19 (version 1.4.7).** The 2026-10-06 `401` refusal occurred on the retired TypeScript core before `oshald` (`package_api_tools.rs`) executed route-backed `executorType: api` tools directly under the caller's verified principal (`200 OK`, zero `401`). `1.4.7` declares explicit `posture: inline` + `chatBot: aero-designer`, adds an explicit object `inputSchema` to `aero-capabilities`, verifies `personas/aero-designer.yaml` plain-prose and ```` ```tool_call ```` `{"tool": ...}` rules, and guards the manifest, persona, and route handler execution in `tests/aero-bot-tools-contract.test.cjs`.
 
-- **Done when:** every tool the assistant is meant to call is a package tool
-  (`executor: { executorType: builtin, builtinKey: package }`) bound in an ADR-149 authorization
-  catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
-  turn as the operator runs a tool and its result is checked against the app's own state. Scene
-  Studio 0.2.0 is the worked example.
+## Future: ADR-149 `authorization.yaml` catalog adoption (coordinated migration)
+
+Adopting an ADR-149 `authorization.yaml` catalog + `builtinKey: package` tools requires coordinated operator role migration so active production `@app-admin` role assignments for `aero-lab` are not locked out.

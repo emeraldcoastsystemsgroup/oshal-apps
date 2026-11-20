@@ -29,6 +29,8 @@
  *                     |                             | spider-18's senses and the brief's section 3.3 acts, floor class
  *                     |                             | 2 so the kinetic e-stop rule applies. SPIDER_18_MANIFEST (the
  *                     |                             | instance) lives in node/hexapod-node.ts beside the seam.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Design Studio B3: optional `senseRates` map (Hz per declared
+ *                     |                             | sense) on CapabilityManifest, validated fail-closed when present.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CONFIRM_EXEMPT_ACTS = exports.KIND_VOCABULARY = void 0;
@@ -76,6 +78,22 @@ function listIssues(field, value, allowed) {
         issues.push(`${field} repeats an entry`);
     return issues;
 }
+/** @description Collect issues with optional senseRates: keys must be declared senses, values positive finite numbers. */
+function senseRateIssues(value, senses) {
+    if (value === undefined)
+        return [];
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+        return ['senseRates must be an object of positive numbers'];
+    const declared = Array.isArray(senses) ? new Set(senses) : null;
+    const issues = [];
+    for (const [k, v] of Object.entries(value)) {
+        if (declared && !declared.has(k))
+            issues.push(`senseRates.${k} is not listed in senses`);
+        if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0)
+            issues.push(`senseRates.${k} must be a positive finite number`);
+    }
+    return issues;
+}
 /**
  * @description Validate a candidate manifest. Fail-closed: any issue refuses the whole manifest.
  * @param input - Untrusted input.
@@ -111,11 +129,16 @@ function validateManifest(input) {
         for (const [k, v] of Object.entries(m.envelope))
             if (typeof v !== 'number' || !Number.isFinite(v))
                 issues.push(`envelope.${k} must be a finite number`);
+    issues.push(...senseRateIssues(m.senseRates, m.senses));
     if (issues.length)
         return { ok: false, issues };
     return {
         ok: true,
-        manifest: { nodeId: m.nodeId, kind: kind, model: m.model.trim(), safetyClass: sc, senses: [...m.senses], acts: [...m.acts], envelope: { ...m.envelope } },
+        manifest: {
+            nodeId: m.nodeId, kind: kind, model: m.model.trim(), safetyClass: sc,
+            senses: [...m.senses], acts: [...m.acts], envelope: { ...m.envelope },
+            ...(m.senseRates !== undefined ? { senseRates: { ...m.senseRates } } : {}),
+        },
     };
 }
 /**

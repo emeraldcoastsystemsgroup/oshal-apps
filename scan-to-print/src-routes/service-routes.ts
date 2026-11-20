@@ -41,6 +41,7 @@
  *                     |                             | print and a service call choose the printer and read the owner's
  *                     |                             | auto-start the same way.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep service job printing on its original print.send boundary when sharing the owner guard.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): attach bounded, fail-safe live printer status to the latest submission in GET /submissions.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
@@ -54,7 +55,7 @@ import { requireUuid } from './data-dir';
 import { BAMBU_KIND, fileKindOf } from './engine/print/printer-adapters';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { type PrintRouteDeps, printJob, serviceDepsOf } from './print-routes';
-import { type LoadedPrinter, type PrintModel, type PrintOutcome, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
+import { type LoadedPrinter, type PrintModel, type PrintOutcome, attachLiveStatus, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
 
 const logger = createChildLogger({ module: 'scan-to-print-service-routes' });
 
@@ -181,7 +182,11 @@ function registerReads(router: Router, deps: PrintRouteDeps): void {
   });
 
   router.get('/submissions', async (req: ServiceRequest, res: Response) => {
-    try { res.json({ submissions: await listRecentSubmissions(deps.pool, req.scanSub as string) }); } catch (error) { logger.error({ err: error }, 'Service submissions failed'); res.status(500).json({ error: 'list_failed' }); }
+    try {
+      const sub = req.scanSub as string;
+      const rows = await listRecentSubmissions(deps.pool, sub);
+      res.json({ submissions: await attachLiveStatus(serviceDepsOf(deps), sub, rows) });
+    } catch (error) { logger.error({ err: error }, 'Service submissions failed'); res.status(500).json({ error: 'list_failed' }); }
   });
 }
 

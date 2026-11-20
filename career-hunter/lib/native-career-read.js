@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: register specialistContext reader for career-resume-reviewer (cb000000-0000-0000-0000-000000000006) alongside career-hunter and career-concierge so oshald admits pre-return resume review turns over career-worker-rail. Guard: tests/career-native-read-specialist-bots.test.mjs.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Expose asOfDate, companySentCount, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on career_database snapshots.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Preserve saved résumé presence without a corpus and share the bounded owner-profile reader with the concierge status tool.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.57.2, T72: the facts' sample count starts from the person's own scored signals (CROSS JOIN, idx_user_scored) instead of walking every active posting of the 7.4 GB shared corpus. Measured on the test slot's corpus: 1,374 ms warm for a person with 7 signals and none scored, now under 1 ms; 179 ms for 5,000 signals with 2,000 scored, now 12 ms; 4 ms for 300,000 with 60,000 scored, now 18 ms. Cold, the old walk passed the kernel's 30 s deadline, so the first concierge question after each Career reload refused.
@@ -32,6 +33,8 @@ const companySent = require('./career-company-sent');
 const AGENT = 'cb000000-0000-0000-0000-000000000001';
 /** Career's front-desk concierge (1.57.0, T9): the bot that answers in the app reads the same facts as the worker. */
 const CONCIERGE = 'cb000000-0000-0000-0000-000000000005';
+/** Career's inline resume reviewer (1.68.15/1.68.21): reads the same specialist facts on worker-rail turns. */
+const REVIEWER = 'cb000000-0000-0000-0000-000000000006';
 const FACTS = Object.freeze(['profile.present', 'profile.roles', 'matches.sample_count', 'signals.total',
   'pipeline.applied', 'pipeline.generated', 'pipeline.promoted', 'jobs.saved', 'source.corpus_modified_ms', 'source.owner_modified_ms']);
 const logger = createChildLogger({module:'native-career-read'});
@@ -281,7 +284,7 @@ function createNativeCareerReadRoutes(ctx, root = '/career') {
         remoteOnly:await readRemoteOnly(ctx.pool,principal.subject,{strict:true})}));
     } catch (err) { throw refused(err); }
   };
-  for (const agentId of [AGENT, CONCIERGE]) ctx.specialistContext.register({agentId, toolName:'career_database', facts:[...FACTS], read:readFacts});
+  for (const agentId of [AGENT, CONCIERGE, REVIEWER]) ctx.specialistContext.register({agentId, toolName:'career_database', facts:[...FACTS], read:readFacts});
   return function nativeReadRegistration(_req, _res, next) { next(); };
 }
 module.exports = {createNativeCareerReadRoutes, readCareerSnapshot, sampledMatchesSql, FACTS, NO_RESUME};

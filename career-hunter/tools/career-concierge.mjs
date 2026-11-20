@@ -4,11 +4,14 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0 (Roger, 2026-11-14: "i want one concierge for the entire app that can do everything that needs to be done in the app"). One assistant, one conversation, on every Career page. A page with no document of its own (Home, Find jobs, My jobs, Settings and the rest) now hands the concierge the same record My résumé and Work history do, the person's Career record, with the page's name and what is open on it, so the kernel keeps one conversation for all of them and the pane shows it on each page; before, each such page began a new conversation that knew nothing of the last. Before a turn on any page but My résumé (which does it itself), text typed in the Word document is saved into the main résumé, and after a turn or an approved card the document is brought up to date (CareerResumeOffice.settle), so what the concierge reads and what My résumé shows are the same thing. The page's context names the tools that page's work uses, which is what the kernel ranks a turn's tools by. An earlier message is shown as the person typed it, without the page details sent along with it.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (lane MARQUEE1): a Concierge press that came before the concierge mounted (career-frame.js keeps it as data-career-concierge="wanted") opens the concierge as soon as it mounts, instead of being lost; opening or closing clears the button's aria-busy.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9 (Roger, 2026-11-16, "for the last time": every chat surface is the core Jarvis chat window). My résumé no longer draws a résumé editor of its own for a job's tailored résumé; this concierge is that résumé's chat too. The page says which document it has open on <html data-career-record> (`master`, or the posting id of a job's tailored résumé) and the concierge follows it: the window opens that document's own conversation (doc:career-hunter:<posting id> for a tailored résumé, the conversation the kernel files its turns under), and the help line speaks of this job's résumé and cover letter. A page may open the concierge from its own control (openCareerConcierge: My résumé's Edit with AI on a phone), which mounts it first, with its stylesheet, where Career's frame did not; the focus goes back to that control when the concierge closes. One mount per page, however often it is asked for.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: propagate Intelligent Career's light/slate/teal frame skin (career-frame.css + data-career-frame="concierge") into the same-origin Jarvis concierge iframe whenever Career's frame is active, surviving theme updates and reloads.
  */
 const APP='career-hunter';
 const EDITING=['resume-studio','work-history'];
 const OFFICE_SCRIPT='/api/career-hunter/static/career-resume-office.js';
 const STYLESHEET='/api/career-hunter/static/career-concierge.css';
+const FRAME_STYLESHEET='/api/career-hunter/static/career-frame.css';
+const SKIN_ID='career-concierge-skin';
 /** A job's tailored résumé is named by its posting id (the main résumé by `master`). */
 const POSTING=/^[1-9]\d{0,14}$/;
 /** The help line before a conversation starts: on a page, on an editing page, and on a job's tailored résumé. */
@@ -112,6 +115,31 @@ function tidyEarlier(win,log){
  observer.observe(log,{childList:true});
  return()=>observer.disconnect();
 }
+/** Apply Intelligent Career's skin into the same-origin concierge iframe whenever Career's frame is active. */
+function applyCareerSkin(win,frame){
+ if(!frame)return{sync(){},stop(){}};
+ let guard=null;
+ const sync=()=>{
+  if(!win.document.documentElement.hasAttribute('data-career-frame'))return;
+  try{
+   const fdoc=frame.contentDocument;
+   if(!fdoc||!fdoc.documentElement||fdoc.URL==='about:blank')return;
+   const root=fdoc.documentElement;
+   if(root.getAttribute('data-career-frame')!=='concierge')root.setAttribute('data-career-frame','concierge');
+   if(fdoc.head&&!fdoc.getElementById(SKIN_ID)){
+    const link=fdoc.createElement('link');link.id=SKIN_ID;link.rel='stylesheet';link.href=FRAME_STYLESHEET;fdoc.head.append(link);
+   }
+   guard?.disconnect();
+   if(typeof win.MutationObserver==='function'){
+    guard=new win.MutationObserver(()=>{if(root.getAttribute('data-career-frame')!=='concierge')root.setAttribute('data-career-frame','concierge');});
+    guard.observe(root,{attributes:true,attributeFilter:['data-theme','data-career-frame']});
+   }
+  }catch{/* cross-origin or unloading frame */}
+ };
+ const onMsg=event=>{if(event.origin===win.location.origin&&event.source===frame.contentWindow&&event.data?.type==='oshal-orb')sync();};
+ frame.addEventListener('load',sync);win.addEventListener('message',onMsg);sync();
+ return{sync,stop(){frame.removeEventListener('load',sync);win.removeEventListener('message',onMsg);guard?.disconnect();}};
+}
 const panes=new WeakMap();
 /**
  * @description Mount Career's concierge on a page once, however often it is asked for (Career's frame on every Career
@@ -162,6 +190,7 @@ async function mount(win){
   prompts:editing?[{label:'Change a date',prompt:'I want to change the start or end month of one of my jobs.'},{label:'Improve a bullet',prompt:'Suggest a stronger first bullet for my most recent job.'}]
    :[{label:'My résumé',prompt:'Is my resume loaded?'},{label:'Saved jobs',prompt:'How many jobs have I saved?'}]});
  host.append(assistant.element);doc.body.append(host);
+ const skin=applyCareerSkin(win,assistant.element.querySelector('iframe.jarvis-chat-frame'));
  const help=assistant.element.querySelector('.ef-assistant-help');
  /** The help line for the document the page has open; the shared pane hands a changed line to the window. */
  function word(){help.textContent=POSTING.test(declared())?HELP.tailored:editing?HELP.editing:HELP.page;}
@@ -174,7 +203,7 @@ async function mount(win){
   doc.querySelectorAll('.cf-concierge-toggle').forEach(button=>{button.setAttribute('aria-expanded',String(open));button.removeAttribute('aria-busy');});
   opener?.setAttribute('aria-expanded',String(open));
   if(outer)outer.setAttribute('data-ef-concierge',open?'open':'closed');
-  if(open){nameBack(doc,back);assistant.element.querySelector('textarea').focus();}
+  if(open){skin.sync();nameBack(doc,back);assistant.element.querySelector('textarea').focus();}
   else{const from=opener;opener=null;(from?.isConnected&&from.getClientRects().length?from:doc.querySelector('.cf-concierge-toggle'))?.focus();}
   win.dispatchEvent(new win.Event('resize'));
  }
@@ -192,6 +221,6 @@ async function mount(win){
  const release=keepMark(win,outer,host);
  // A press that came while this module was on its way (career-frame.js) opens the concierge now.
  show(html.dataset.careerConcierge==='wanted');assistant.refresh();
- win.addEventListener('pagehide',()=>{release();releaseTidy();follow?.disconnect();panes.delete(win);doc.removeEventListener('input',drafted);doc.removeEventListener('click',click);doc.removeEventListener('keydown',key);win.removeEventListener('oshal-package-tool-done',approved);assistant.destroy();host.remove();delete html.dataset.careerConcierge;outer?.removeAttribute('data-ef-concierge');},{once:true});
+ win.addEventListener('pagehide',()=>{skin.stop();release();releaseTidy();follow?.disconnect();panes.delete(win);doc.removeEventListener('input',drafted);doc.removeEventListener('click',click);doc.removeEventListener('keydown',key);win.removeEventListener('oshal-package-tool-done',approved);assistant.destroy();host.remove();delete html.dataset.careerConcierge;outer?.removeAttribute('data-ef-concierge');},{once:true});
  return{open(from){opener=from||null;show(true);}};
 }

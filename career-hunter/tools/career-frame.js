@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: the Résumé section holds My résumé, then Work history (the new page where a person edits their jobs, months and bullets), then Other experience and Improve it. My résumé shows the Concierge button too: Career's concierge is that page's one assistant now (AI Office's editor opens there with its own concierge off), so the person can ask it to change a job or a bullet and see the change in the document.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2 (Roger, 2026-11-16, from his phone: "Half of this page on mobile is taken by the header"). On a phone the row of a section's pages is one line that scrolls sideways (career-frame.css); after drawing it the frame scrolls the open page's tab into view (showCurrentTab), so a page at the end of the row (Improve it) is never off screen when it opens.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.68.8 (lane MARQUEE1; the coordinator's one-chat-window live check on the test slot, 2026-11-17 02:44Z, at 412: Career's Concierge pressed, "did not show the chat window"). The bar draws Concierge before Career's concierge has mounted (career-concierge.mjs and the shared assistant are still on their way, seconds on a busy or just-started installation), and a press then reached no handler and was lost: the button did nothing. A press before the concierge is ready is now kept (data-career-concierge="wanted", the button aria-busy) and the concierge opens as soon as it mounts; one that cannot load clears it with the reason.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: stageChip reads active `stats.applied` (matching the mutually exclusive Applied stage) instead of total `stats.tracked`, falling back to `stats.tracked` only when `applied` is absent.
  */
 (function (root) {
   'use strict';
@@ -239,7 +240,7 @@
     var n = function (value) { return Number.isFinite(Number(value)) ? Number(value) : 0; };
     if (!stats) return null;
     if (n(stats.interviewing) > 0) return { count: n(stats.interviewing), label: 'interviewing', query: 'view=interviewing' };
-    var applied = n(stats.tracked) || n(stats.applied);
+    var applied = typeof stats.applied === 'number' ? n(stats.applied) : n(stats.tracked);
     if (applied > 0) return { count: applied, label: 'applied', query: 'view=status' };
     if (n(stats.saved) > 0) return { count: n(stats.saved), label: 'saved', query: 'view=saved' };
     return null;

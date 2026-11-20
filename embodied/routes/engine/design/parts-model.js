@@ -21,6 +21,7 @@
  *                     |                             | keeps what is the fit's: how many, and the role the motor plays
  *                     |                             | on its prop. No number moved: the bought part keeps id `motor`,
  *                     |                             | the same fields in the same order and the same values.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: pass the explicit air Medium to `sizeHover`.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DRONE_FITS = void 0;
@@ -30,6 +31,7 @@ exports.fitById = fitById;
 const sensor_set_1 = require("../drone/sensor-set");
 const airframe_1 = require("./airframe");
 const propulsion_1 = require("./propulsion");
+const medium_1 = require("../medium/medium");
 const parts_catalog_1 = require("./parts-catalog");
 /**
  * @description A fit's bought part built from one of this package's owned rows: the row gives the name, one unit's mass
@@ -109,7 +111,7 @@ function buildDrone(fitId) {
     const printedG = parts.filter((p) => p.id !== 'pad').reduce((a, p) => a + p.qty * p.massEachG, 0);
     const boughtG = bought.reduce((a, p) => a + p.qty * p.massEachG, 0);
     const allUpG = Math.round(printedG + boughtG + fit.batteryG);
-    const sizing = (0, propulsion_1.sizeHover)({ propIn: fit.propIn, auwG: allUpG, cells: fit.cells, mAh: fit.mAh });
+    const sizing = (0, propulsion_1.sizeHover)({ propIn: fit.propIn, auwG: allUpG, cells: fit.cells, mAh: fit.mAh }, undefined, (0, medium_1.mediumById)('air'));
     const battery = { id: 'battery', name: `${fit.cells}S ${fit.mAh} mAh LiPo`, qty: 1, massEachG: fit.batteryG, role: '', approxUsdEach: fit.cells >= 6 ? 45 : 30 };
     const approxUsd = Math.round([...bought, battery].reduce((a, p) => a + p.qty * p.approxUsdEach, 0));
     return { fit, sensorSet, layout, parts, bought: [...bought, battery], massBudget: { printedG, boughtG, batteryG: fit.batteryG, allUpG }, sizing, tipSpeedMps: (0, propulsion_1.tipSpeedMps)(fit.propIn, fit.hoverRpm), approxUsd, printRules: PRINT_RULES };

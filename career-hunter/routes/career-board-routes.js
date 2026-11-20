@@ -1,10 +1,13 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 40 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: route draft.acceptCurrent through career-application-draft.acceptCurrent() on POST /jobs/:id/status so a user with saved documents and no missing required roles can review them directly without forced regeneration.
+ * 41 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: extend GET /resume and GET /resume/:id to serve matched executive DOCX/RTF/PDF artifacts with optional template family selection via lib/career-docx-export.js, and expose GET /resume/template for zero-PII reusable DOCX/DOTX/RTF templates under the existing career.read binding.
+ * 42 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19: tests/career-letter-truth-route.test.mjs failed once with "Cannot read properties of null (reading 'needsReview')"): GET /jobs/:id reads the saved job state (the preparation receipt) once, BEFORE the job's row, and answers `board` and `application` from that one read. It read the row first and the receipt last, so a read the engine finished during answered a completed receipt over a row from before the documents were saved: no cover letter, no claims check, needsGeneration true. Prepare application stops waiting on that answer (tools/career-job-actions.js poll) and showed step 1 again after a preparation that had worked. The engine saves the documents and the row first and the completed receipt last, so a receipt read first always has its documents. GET /jobs already read in this order. Guard: tests/career-ready-with-documents.test.mjs.
  * 39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "the popup says that there is no information about the job", Torch Technologies on My jobs): POST /jobs/:id/details (lib/career-job-details.js) reads a job's missing description through the kernel's egress at the address the engine's readers use and keeps it as the person's copy; GET /jobs/:id?details=read reads it for that one view when the job has none, for the sheet while Career is preparing the person's applications and cannot keep it (a read keeps nothing), and says why in details_read when it cannot. A plain GET /jobs/:id reads nothing, as before. Guard: tests/career-job-details.test.mjs.
  * 38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): POST /jobs/:id/generate hands experienceChosen (true only when Prepare application or bulk Prepare sends it, after the person saw the Other experience boxes) to the draft writer, which keeps the choice on the job's tailoring and as the person's last choice. Nothing else in the route changed. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 37 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): GET /jobs answers `home` (the person's saved Matching area as the page shows it: known, label, radiusMiles, line, settingsUrl) and refuses a distance filter or sort it cannot honour with 400 and the closed code (home_location_required, invalid_within, places_unavailable) plus `home`; GET /jobs/:id carries the same place fields as every card (location, workplaceType, lat, lon, distanceMiles). An unreadable Matching area gives a job detail without distance, never a failed read.
- * 36 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount, asOfDate, and tracked-application age fields (daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /jobs and GET /jobs/:id.
+ * 36 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: Attach owner-scoped companySentCount and tracked-application age fields (asOfDate, daysSinceSent, daysSinceApplied, ageDays, olderThan30Days) on GET /jobs and GET /jobs/:id.
  * 35 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15 on the test server, 2026-11-15: the Concierge, asked to draft a job the nightly pass had not marked, said "The draft stopped … the job details are unavailable" and never where to paste them): GET /jobs/:id carries details_needed, the words "… paste it in Prepare application, step 1 · Tailor." (lib/career-pasted-details.js notice), when the job has no description and the nightly pass marked it or its last preparation stopped for missing details (job_details_unavailable or job_context_unavailable). career_job is what the Concierge and Jarvis read after career_draft, so their reply carries the words; the application page decides the same. The generate route, its refusal and when the engine tries the employer page are unchanged. Guard: tests/career-paste-details-unmarked.test.mjs.
  * 34 | maintainer@emeraldcoastsystemsgroup.com | 1.66.0 (Roger, 2026-11-15: "make the user get the position details and paste them before generating the resume"): POST /jobs/:id/generate takes jobDescription, the description the person pasted from the posting (200 to 20,000 characters, lib/career-pasted-details.js), and hands it to the engine as CH_JOB_DESCRIPTION; it is never logged. A job the nightly pass marked "details needed" that still has no description is refused before the engine starts (409 job_details_needed) with words that say to paste it in Prepare application, step 1 · Tailor; the page, the Concierge and Jarvis's career_draft all start preparation here.
  * 33 | maintainer@emeraldcoastsystemsgroup.com | Persist removal as one relationship tombstone and derive saved membership from that status without rewriting board receipts.
@@ -37,6 +40,39 @@
  * 30 | maintainer@emeraldcoastsystemsgroup.com | Report exact actionable match counts with the same owner scope as the match page, separately from saved and application history; unreadable scope remains unknown.
  * 31 | maintainer@emeraldcoastsystemsgroup.com | Register full original-owner application progress before dynamic posting routes and extract existing update handlers to keep the registrar bounded without changing their behavior.
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerBoardRoutes = registerCareerBoardRoutes;
 exports.registerCareerResumeAlias = registerCareerResumeAlias;
@@ -69,6 +105,8 @@ const pastedDetails = require('../lib/career-pasted-details');
 const companySent = require('../lib/career-company-sent');
 const place = require('../lib/career-job-place');
 const jobDetails = require('../lib/career-job-details');
+const docxExport = require('../lib/career-docx-export');
+const path = __importStar(require("path"));
 const logger = (0, logger_1.createChildLogger)({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
     'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred', 'rejected',
@@ -88,7 +126,7 @@ async function getJobs(ctx, req, res) {
     }
     const db = (0, career_user_store_1.openUserDb)(userSub);
     if (!db) {
-        res.json({ jobs: [], empty: true, home: place.homeView(homeOrNone(userSub)) });
+        res.json({ jobs: [], empty: true, asOfDate: companySent.asOfDateString(), home: place.homeView(homeOrNone(userSub)) });
         return;
     }
     const started = Date.now();
@@ -99,8 +137,7 @@ async function getJobs(ctx, req, res) {
         const currentQueue = Object.entries(state.jobs).filter(([, value]) => value.favorite || value.workflowEnteredAt || value.applicationDraft).map(([id]) => Number(id));
         scope = (0, career_search_scope_1.readJobSearchScope)((0, career_user_store_1.userPaths)(userSub).userDir);
         const result = (0, career_board_feed_1.fetchBoardPage)(db, query, scope, query.status === 'saved' ? boardState.favoriteIds(state, db) : query.status === 'queue' && query.current === '1' ? currentQueue : undefined, feedback.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.favoriteIds(state, db));
-        const emails = emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir);
-        const nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
+        const emails = emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
         result.jobs = result.jobs.map(job => companySent.decorateJobSentAndAge(workflowRoutes.decorate(db, (0, career_user_store_1.userPaths)(userSub).userDir, emailUpdates.decorate(emails, boardState.decorateJob(state, job))), sentCounts, nowMs));
         logger.info({
             userSub,
@@ -270,7 +307,84 @@ function serveHtmlPreview(res, filePath, userDir) {
         res.status(404).json({ error: 'no html preview' });
     }
 }
-function serveResumeFile(req, res, postingId) {
+async function serveFormattedPacket(req, res, resolved, userDir, kind) {
+    const format = docxExport.normalizeFormat(req.query.format, false);
+    const rawFamily = typeof req.query.family === 'string' && req.query.family.trim() ? req.query.family.trim() : '';
+    const family = rawFamily ? docxExport.normalizeFamily(rawFamily) : null;
+    if (!format) {
+        res.status(400).json({ error: 'Choose pdf, docx, or rtf format.' });
+        return;
+    }
+    if (rawFamily && !family) {
+        res.status(400).json({ error: 'Choose Standard, Professional, Leadership, or Technical.' });
+        return;
+    }
+    const packetDir = path.dirname(resolved), meta = docxExport.packetMeta(packetDir);
+    if (!family || family === meta.family) {
+        const sibling = format === 'pdf' ? resolved : docxExport.siblingArtifactPath(resolved, format);
+        const contained = sibling ? resolvePacketPath(sibling, userDir) : null;
+        if (contained) {
+            res.setHeader('Content-Type', docxExport.MIME_BY_FORMAT[format]);
+            if (format !== 'pdf') {
+                const suffix = kind === 'cover_path' ? 'Cover_Letter' : `Resume_${meta.family || 'Executive'}`;
+                const fname = docxExport.safeFilename([meta.name, meta.company, suffix].filter(Boolean).join('_'), format);
+                res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+            }
+            res.sendFile(contained, (err) => { if (err) {
+                logger.error({ err }, 'resume serve failed');
+                res.status(404).end();
+            } });
+            return;
+        }
+    }
+    const appJson = resolvePacketPath(path.join(packetDir, 'application.json'), userDir);
+    if (!appJson) {
+        res.status(404).json({ error: 'packet source not found' });
+        return;
+    }
+    try {
+        const out = await docxExport.renderPacketArtifact({
+            packetJsonPath: appJson, kind: kind === 'cover_path' ? 'cover' : 'resume', format, family: family || meta.family || '',
+        });
+        res.setHeader('Content-Type', out.mime);
+        res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+        res.send(out.bytes);
+    }
+    catch (err) {
+        logger.error({ err }, 'formatted resume export failed');
+        res.status(502).json({ error: 'Could not render the requested format.' });
+    }
+}
+async function serveBlankTemplate(req, res) {
+    const userSub = (0, career_user_store_1.callerSub)(req);
+    if (!userSub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    const rawFamily = typeof req.query.family === 'string' && req.query.family.trim() ? req.query.family.trim() : 'Professional';
+    const family = docxExport.normalizeFamily(rawFamily);
+    const format = docxExport.normalizeFormat(req.query.format || 'docx', true);
+    if (!family) {
+        res.status(400).json({ error: 'Choose Standard, Professional, Leadership, or Technical.' });
+        return;
+    }
+    if (!format || format === 'pdf') {
+        res.status(400).json({ error: 'Choose docx, dotx, or rtf template format.' });
+        return;
+    }
+    res.setHeader('Cache-Control', 'private, no-store');
+    try {
+        const out = await docxExport.renderBlankTemplate({ family, format });
+        res.setHeader('Content-Type', out.mime);
+        res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+        res.send(out.bytes);
+    }
+    catch (err) {
+        logger.error({ err, family, format }, 'blank template export failed');
+        res.status(502).json({ error: 'Could not render the requested template.' });
+    }
+}
+async function serveResumeFile(req, res, postingId) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
@@ -290,6 +404,10 @@ function serveResumeFile(req, res, postingId) {
     res.setHeader('Cache-Control', 'private, no-store');
     const resolved = filePath ? resolvePacketPath(filePath, userDir) : null;
     if (req.query.submitted === '1') {
+        if (req.query.format && String(req.query.format).toLowerCase() !== 'pdf') {
+            res.status(400).json({ error: 'Only the retained submitted PDF is available.' });
+            return;
+        }
         try {
             const queued = require('../lib/career-submission-queue'), native = require('../lib/career-submission-native'), saved = Object.values(queued.read(userDir).items).filter((value) => value.postingId === postingId && value.status === 'submitted').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
             if (saved) {
@@ -321,6 +439,10 @@ function serveResumeFile(req, res, postingId) {
     }
     if (req.query.as === 'html') {
         serveHtmlPreview(res, resolved, userDir);
+        return;
+    }
+    if (req.query.format || req.query.family) {
+        await serveFormattedPacket(req, res, resolved, userDir, kind);
         return;
     }
     res.sendFile(resolved, (err) => {
@@ -428,7 +550,8 @@ async function applyStatus(ctx, req, res, db, userSub, input) {
     }
     if (draftMutation) {
         const record = { ...signal, status: signal?.status, has_resume: !!signal?.resume_path, has_cover: !!signal?.cover_path };
-        res.json({ ok: true, application: applicationDraft[draftInput?.restore === true ? 'restore' : 'save']((0, career_user_store_1.userPaths)(userSub).userDir, postingId, record, draftInput) });
+        const op = draftInput?.restore === true ? 'restore' : draftInput?.acceptCurrent === true ? 'acceptCurrent' : 'save';
+        res.json({ ok: true, application: applicationDraft[op]((0, career_user_store_1.userPaths)(userSub).userDir, postingId, record, draftInput) });
         return;
     }
     if (!status && favorite === true && signal?.status === 'dismissed')
@@ -531,6 +654,9 @@ async function getJob(ctx, req, res) {
         return;
     }
     try {
+        // The preparation receipt, read once and BEFORE the row: the engine saves the documents and the row first and the
+        // completed receipt last, so an answer that says complete always carries the documents it is complete with.
+        const saved = boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir);
         const row = db.prepare(`SELECT p.*, CASE WHEN ${(0, career_search_scope_1.fullyRemoteSql)()} THEN 1 ELSE 0 END AS remote,
               c.name AS company, c.industry, c.homepage, c.careers_url,
               COALESCE(c.referral,0) AS referral, s.fit_score, s.ai_fit_score,
@@ -550,12 +676,12 @@ async function getJob(ctx, req, res) {
         row.matched = parseJsonList(row.ai_fit_matched);
         row.gaps = parseJsonList(row.ai_fit_gaps);
         res.setHeader('Cache-Control', 'private, no-store');
-        const application = applicationDraft.view((0, career_user_store_1.userPaths)(userSub).userDir, postingId, row);
+        const application = applicationDraft.view((0, career_user_store_1.userPaths)(userSub).userDir, postingId, row, saved);
         const nowMs = Date.now(), sentCounts = companySent.companySentCounts(db, nowMs);
         delete row.resume_path;
         delete row.cover_path;
         const placed = place.decorate(fit.decorateFit(pay.decoratePay(row)), homeOrNone(userSub));
-        const job = companySent.decorateJobSentAndAge({ ...emailUpdates.decorate(emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.decorateJob(boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir), placed)), application }, sentCounts, nowMs);
+        const job = companySent.decorateJobSentAndAge({ ...emailUpdates.decorate(emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.decorateJob(saved, placed)), application }, sentCounts, nowMs);
         // ?details=read (the posting sheet, while Career cannot keep a copy): a job with no description is read for this view only.
         const viewRead = req.query.details === 'read' && !/\S/.test(String(job.description ?? '')) ? await jobDetails.readForView(ctx, db, postingId) : null;
         const shown = viewRead?.description ? { ...job, description: viewRead.description, description_context: viewRead.description_context } : job;
@@ -871,7 +997,8 @@ function registerCareerBoardRoutes(router, ctx) {
     router.get('/jobs/purge-generated', (req, res) => { void previewGeneratedPurge(ctx, req, res); });
     router.delete('/jobs/purge-generated', (req, res) => { void purgeGenerated(ctx, req, res); });
     router.get('/analytics', getAnalytics);
-    router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));
+    router.get('/resume/template', (req, res) => { void serveBlankTemplate(req, res); });
+    router.get('/resume', (req, res) => { void serveResumeFile(req, res, Number(req.query.id)); });
     router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
     router.get('/jobs/updates', getJobUpdates);
     router.post('/jobs/updates/check', (req, res) => checkJobUpdates(ctx, req, res));
@@ -887,6 +1014,5 @@ function registerCareerBoardRoutes(router, ctx) {
  * @returns Nothing.
  */
 function registerCareerResumeAlias(router) {
-    router.get('/resume/:id', (req, res) => serveResumeFile(req, res, Number(req.params.id)));
+    router.get('/resume/:id', (req, res) => { void serveResumeFile(req, res, Number(req.params.id)); });
 }
-//# sourceMappingURL=career-board-routes.js.map

@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: Applications stages are a mutually exclusive workflow filter — Applied (?view=status) filters and counts strictly status='applied' so jobs promoted to Interviewing/Offer or moved to Closed leave Applied and appear only in their current stage.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Read the exact actionable personal-match count separately from saved and application stages.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | ?view=approve, the address the To approve stage had, is in the map of old addresses: it opens Saved, where Career's picks lead. The live Job Board already did this by itself; the unserved board page reads this map and used to bounce to the approvals address, which now forwards back.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 6 and 9. (a) To approve is no longer a stage. A job Career picks for a person is shown at the top of Saved and is prepared on the one application page, so the control and Home's pipeline lose that entry and counts() no longer reads the application records; picks() reads them and returns the picked jobs the person has done nothing with yet. (b) The stages follow the bar: My jobs is New matches, Saved, Getting ready and Removed; Applications is Applied, Interviewing, Offer and Closed. The control draws the row of the section its current stage is in, so a page has one row and it never disagrees with the bar. The More menu is gone: Offer, Closed and Removed are tabs, and Document records, Queued for documents and Needs your answer are not offered (the live Job Board never read ?status=, so each opened Saved; those jobs are all in Getting ready). (c) counts() carries the Getting ready and Applied totals GET /jobs/stats answers as queued and tracked, which Home's cards looked up under those names and never found. PIPELINE is the order Home draws.
@@ -15,7 +16,7 @@
     { id: 'saved', label: 'Saved', status: 'saved', href: BOARD + '?view=saved', count: 'saved', side: 'jobs' },
     { id: 'preparing', label: 'Getting ready', status: 'queue', href: BOARD + '?view=queue', count: 'queue', side: 'jobs' },
     { id: 'dismissed', label: 'Removed', status: 'dismissed', href: BOARD + '?view=dismissed', side: 'jobs' },
-    { id: 'applied', label: 'Applied', status: 'tracked', href: BOARD + '?view=status', count: 'tracked', side: 'applications' },
+    { id: 'applied', label: 'Applied', status: 'applied', href: BOARD + '?view=status', count: 'applied', side: 'applications' },
     { id: 'interviewing', label: 'Interviewing', status: 'interview', href: BOARD + '?view=interviewing', count: 'interview', side: 'applications' },
     { id: 'offer', label: 'Offer', status: 'offer', href: BOARD + '?view=offer', count: 'offer', side: 'applications' },
     { id: 'closed', label: 'Closed', status: 'rejected', href: BOARD + '?view=closed', count: 'rejected', side: 'applications' },
@@ -23,7 +24,7 @@
   /** Home's pipeline, in the order a job moves. */
   const PIPELINE = ['matches', 'saved', 'preparing', 'applied', 'interviewing', 'offer'].map((id) => STAGES.find((stage) => stage.id === id));
   /** ?view= values, old and new, to the board status they open. */
-  const VIEW_STATUS = { matches: '', queue: 'queue', status: 'tracked', saved: 'saved', approve: 'saved', interviewing: 'interview', offer: 'offer', closed: 'rejected', dismissed: 'dismissed' };
+  const VIEW_STATUS = { matches: '', queue: 'queue', status: 'applied', saved: 'saved', approve: 'saved', interviewing: 'interview', offer: 'offer', closed: 'rejected', dismissed: 'dismissed' };
   /** How many of Career's picks a page shows at once; the next ones follow as these are prepared or removed. */
   const PICK_LIMIT = 10;
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -70,6 +71,8 @@
         out.saved = Number(data.saved) || 0;
         if(Number.isSafeInteger(data.matches)&&data.matches>=0)out.matches=data.matches;
         for (const row of data.byStatus || []) out[row.status] = Number(row.n) || 0;
+        if (typeof data.applied === 'number') out.applied = data.applied;
+        if (typeof data.interviewing === 'number' && out.interview == null) out.interview = data.interviewing;
         if (typeof data.queued === 'number') out.queue = data.queued;
         if (typeof data.tracked === 'number') out.tracked = data.tracked;
       }

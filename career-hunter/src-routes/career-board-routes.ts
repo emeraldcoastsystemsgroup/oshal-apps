@@ -1,5 +1,8 @@
 /**
  * CHANGE LOG
+ * 40 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: route draft.acceptCurrent through career-application-draft.acceptCurrent() on POST /jobs/:id/status so a user with saved documents and no missing required roles can review them directly without forced regeneration.
+ * 41 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: extend GET /resume and GET /resume/:id to serve matched executive DOCX/RTF/PDF artifacts with optional template family selection via lib/career-docx-export.js, and expose GET /resume/template for zero-PII reusable DOCX/DOTX/RTF templates under the existing career.read binding.
+ * 42 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19: tests/career-letter-truth-route.test.mjs failed once with "Cannot read properties of null (reading 'needsReview')"): GET /jobs/:id reads the saved job state (the preparation receipt) once, BEFORE the job's row, and answers `board` and `application` from that one read. It read the row first and the receipt last, so a read the engine finished during answered a completed receipt over a row from before the documents were saved: no cover letter, no claims check, needsGeneration true. Prepare application stops waiting on that answer (tools/career-job-actions.js poll) and showed step 1 again after a preparation that had worked. The engine saves the documents and the row first and the completed receipt last, so a receipt read first always has its documents. GET /jobs already read in this order. Guard: tests/career-ready-with-documents.test.mjs.
  * 39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "the popup says that there is no information about the job", Torch Technologies on My jobs): POST /jobs/:id/details (lib/career-job-details.js) reads a job's missing description through the kernel's egress at the address the engine's readers use and keeps it as the person's copy; GET /jobs/:id?details=read reads it for that one view when the job has none, for the sheet while Career is preparing the person's applications and cannot keep it (a read keeps nothing), and says why in details_read when it cannot. A plain GET /jobs/:id reads nothing, as before. Guard: tests/career-job-details.test.mjs.
  * 38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): POST /jobs/:id/generate hands experienceChosen (true only when Prepare application or bulk Prepare sends it, after the person saw the Other experience boxes) to the draft writer, which keeps the choice on the job's tailoring and as the person's last choice. Nothing else in the route changed. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 37 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): GET /jobs answers `home` (the person's saved Matching area as the page shows it: known, label, radiusMiles, line, settingsUrl) and refuses a distance filter or sort it cannot honour with 400 and the closed code (home_location_required, invalid_within, places_unavailable) plus `home`; GET /jobs/:id carries the same place fields as every card (location, workplaceType, lat, lon, distanceMiles). An unreadable Matching area gives a job detail without distance, never a failed read.
@@ -76,6 +79,8 @@ const pastedDetails = require('../lib/career-pasted-details');
 const companySent = require('../lib/career-company-sent');
 const place = require('../lib/career-job-place');
 const jobDetails = require('../lib/career-job-details');
+const docxExport = require('../lib/career-docx-export');
+import * as path from 'path';
 
 const logger = createChildLogger({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
@@ -211,7 +216,69 @@ function serveHtmlPreview(res: Response, filePath: string, userDir: string): voi
   }
 }
 
-function serveResumeFile(req: Request, res: Response, postingId: number): void {
+async function serveFormattedPacket(
+  req: Request,
+  res: Response,
+  resolved: string,
+  userDir: string,
+  kind: string,
+): Promise<void> {
+  const format = docxExport.normalizeFormat(req.query.format, false);
+  const rawFamily = typeof req.query.family === 'string' && req.query.family.trim() ? req.query.family.trim() : '';
+  const family = rawFamily ? docxExport.normalizeFamily(rawFamily) : null;
+  if (!format) { res.status(400).json({ error: 'Choose pdf, docx, or rtf format.' }); return; }
+  if (rawFamily && !family) { res.status(400).json({ error: 'Choose Standard, Professional, Leadership, or Technical.' }); return; }
+  const packetDir = path.dirname(resolved), meta = docxExport.packetMeta(packetDir);
+  if (!family || family === meta.family) {
+    const sibling = format === 'pdf' ? resolved : docxExport.siblingArtifactPath(resolved, format);
+    const contained = sibling ? resolvePacketPath(sibling, userDir) : null;
+    if (contained) {
+      res.setHeader('Content-Type', docxExport.MIME_BY_FORMAT[format]);
+      if (format !== 'pdf') {
+        const suffix = kind === 'cover_path' ? 'Cover_Letter' : `Resume_${meta.family || 'Executive'}`;
+        const fname = docxExport.safeFilename([meta.name, meta.company, suffix].filter(Boolean).join('_'), format);
+        res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+      }
+      res.sendFile(contained, (err: unknown) => { if (err) { logger.error({ err }, 'resume serve failed'); res.status(404).end(); } });
+      return;
+    }
+  }
+  const appJson = resolvePacketPath(path.join(packetDir, 'application.json'), userDir);
+  if (!appJson) { res.status(404).json({ error: 'packet source not found' }); return; }
+  try {
+    const out = await docxExport.renderPacketArtifact({
+      packetJsonPath: appJson, kind: kind === 'cover_path' ? 'cover' : 'resume', format, family: family || meta.family || '',
+    });
+    res.setHeader('Content-Type', out.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(out.bytes);
+  } catch (err) {
+    logger.error({ err }, 'formatted resume export failed');
+    res.status(502).json({ error: 'Could not render the requested format.' });
+  }
+}
+
+async function serveBlankTemplate(req: Request, res: Response): Promise<void> {
+  const userSub = callerSub(req);
+  if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const rawFamily = typeof req.query.family === 'string' && req.query.family.trim() ? req.query.family.trim() : 'Professional';
+  const family = docxExport.normalizeFamily(rawFamily);
+  const format = docxExport.normalizeFormat(req.query.format || 'docx', true);
+  if (!family) { res.status(400).json({ error: 'Choose Standard, Professional, Leadership, or Technical.' }); return; }
+  if (!format || format === 'pdf') { res.status(400).json({ error: 'Choose docx, dotx, or rtf template format.' }); return; }
+  res.setHeader('Cache-Control', 'private, no-store');
+  try {
+    const out = await docxExport.renderBlankTemplate({ family, format });
+    res.setHeader('Content-Type', out.mime);
+    res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(out.bytes);
+  } catch (err) {
+    logger.error({ err, family, format }, 'blank template export failed');
+    res.status(502).json({ error: 'Could not render the requested template.' });
+  }
+}
+
+async function serveResumeFile(req: Request, res: Response, postingId: number): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   if (!Number.isFinite(postingId)) { res.status(400).json({ error: 'id required' }); return; }
@@ -222,15 +289,16 @@ function serveResumeFile(req: Request, res: Response, postingId: number): void {
   res.setHeader('Cache-Control','private, no-store');
   const resolved = filePath ? resolvePacketPath(filePath, userDir) : null;
   if(req.query.submitted==='1'){
+    if (req.query.format && String(req.query.format).toLowerCase() !== 'pdf') {
+      res.status(400).json({ error: 'Only the retained submitted PDF is available.' }); return;
+    }
     try{const queued=require('../lib/career-submission-queue'),native=require('../lib/career-submission-native'),saved=Object.values(queued.read(userDir).items).filter((value:any)=>value.postingId===postingId&&value.status==='submitted').sort((a:any,b:any)=>b.createdAt.localeCompare(a.createdAt))[0] as any;
       if(saved){const input=native.snapshot(userDir,saved.id),name=kind==='cover_path'?'CoverLetter.pdf':'Resume_ATS.pdf',bytes=Buffer.from(input.task.documents[name],'base64');const expected=kind==='cover_path'?saved.coverSha256:saved.resumeSha256;if(queued.digest(bytes)!==expected){res.status(409).json({error:'Submitted document evidence changed.'});return;}if(req.query.as!=='html'){res.type('pdf').send(bytes);return;}if(!resolved||queued.digest(require('fs').readFileSync(resolved))!==expected){res.status(404).json({error:'The exact submitted HTML is unavailable. Download the retained PDF.'});return;}}
     }catch(error){logger.error({err:error},'submitted document read failed');res.status(409).json({error:'Submitted document evidence unavailable.'});return;}
   }
-  if (!resolved) {
-    res.status(404).json({ error: 'not found' });
-    return;
-  }
+  if (!resolved) { res.status(404).json({ error: 'not found' }); return; }
   if (req.query.as === 'html') { serveHtmlPreview(res, resolved, userDir); return; }
+  if (req.query.format || req.query.family) { await serveFormattedPacket(req, res, resolved, userDir, kind); return; }
   res.sendFile(resolved, (err: unknown) => {
     if (err) { logger.error({ err }, 'resume serve failed'); res.status(404).end(); }
   });
@@ -311,7 +379,7 @@ async function applyStatus(ctx: AppContext, req: Request, res: Response, db: Non
   if(undoManual){res.json(manualSubmission.undoManualSubmission(db,userPaths(userSub).userDir,postingId,req.body.reason));return;}
   const signal = db.prepare('SELECT s.status,s.resume_path,s.cover_path,p.url,p.active FROM corpus.postings_corpus p LEFT JOIN user_signals s ON s.posting_id=p.id WHERE p.id=?').get(postingId) as {status?: string,resume_path?:string,cover_path?:string} | undefined;
   if(input.reviewMutation){res.json(applicationWorkflow.review(userPaths(userSub).userDir,postingId,{...signal,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path},input.reviewInput));return;}
-  if(draftMutation){const record={...signal,status:signal?.status,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path};res.json({ok:true,application:applicationDraft[draftInput?.restore===true?'restore':'save'](userPaths(userSub).userDir,postingId,record,draftInput)});return;}
+  if(draftMutation){const record={...signal,status:signal?.status,has_resume:!!signal?.resume_path,has_cover:!!signal?.cover_path};const op=draftInput?.restore===true?'restore':draftInput?.acceptCurrent===true?'acceptCurrent':'save';res.json({ok:true,application:applicationDraft[op](userPaths(userSub).userDir,postingId,record,draftInput)});return;}
   if (!status && favorite === true && signal?.status === 'dismissed') status = 'new';
   if (status && ['applied','interview','offer','rejected'].includes(signal?.status || '') && ['new','promoted','generated','deferred'].includes(status)) {
     res.status(409).json({error:'A submitted application cannot return to document preparation.'}); return;
@@ -362,6 +430,9 @@ async function getJob(ctx: AppContext, req: Request, res: Response): Promise<voi
   const db = openUserDb(userSub);
   if (!db) { res.status(404).json({ error: 'no data' }); return; }
   try {
+    // The preparation receipt, read once and BEFORE the row: the engine saves the documents and the row first and the
+    // completed receipt last, so an answer that says complete always carries the documents it is complete with.
+    const saved = boardState.readBoardState(userPaths(userSub).userDir);
     const row = db.prepare(
       `SELECT p.*, CASE WHEN ${fullyRemoteSql()} THEN 1 ELSE 0 END AS remote,
               c.name AS company, c.industry, c.homepage, c.careers_url,
@@ -380,11 +451,11 @@ async function getJob(ctx: AppContext, req: Request, res: Response): Promise<voi
     row.matched = parseJsonList(row.ai_fit_matched);
     row.gaps = parseJsonList(row.ai_fit_gaps);
     res.setHeader('Cache-Control','private, no-store');
-    const application=applicationDraft.view(userPaths(userSub).userDir,postingId,row);
+    const application=applicationDraft.view(userPaths(userSub).userDir,postingId,row,saved);
     const nowMs=Date.now(),sentCounts=companySent.companySentCounts(db,nowMs);
     delete row.resume_path;delete row.cover_path;
     const placed=place.decorate(fit.decorateFit(pay.decoratePay(row)),homeOrNone(userSub));
-    const job=companySent.decorateJobSentAndAge({...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(boardState.readBoardState(userPaths(userSub).userDir), placed)),application},sentCounts,nowMs);
+    const job=companySent.decorateJobSentAndAge({...emailUpdates.decorate(emailUpdates.read(userPaths(userSub).userDir), boardState.decorateJob(saved, placed)),application},sentCounts,nowMs);
     // ?details=read (the posting sheet, while Career cannot keep a copy): a job with no description is read for this view only.
     const viewRead=req.query.details==='read'&&!/\S/.test(String(job.description??''))?await jobDetails.readForView(ctx,db,postingId):null;
     const shown=viewRead?.description?{...job,description:viewRead.description,description_context:viewRead.description_context}:job;
@@ -597,7 +668,8 @@ export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void
   router.get('/jobs/purge-generated', (req, res) => { void previewGeneratedPurge(ctx, req, res); });
   router.delete('/jobs/purge-generated', (req, res) => { void purgeGenerated(ctx, req, res); });
   router.get('/analytics', getAnalytics);
-  router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));
+  router.get('/resume/template', (req, res) => { void serveBlankTemplate(req, res); });
+  router.get('/resume', (req, res) => { void serveResumeFile(req, res, Number(req.query.id)); });
   router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
   router.get('/jobs/updates',getJobUpdates);
   router.post('/jobs/updates/check',(req,res)=>checkJobUpdates(ctx,req,res));
@@ -614,5 +686,5 @@ export function registerCareerBoardRoutes(router: Router, ctx: AppContext): void
  * @returns Nothing.
  */
 export function registerCareerResumeAlias(router: Router): void {
-  router.get('/resume/:id', (req, res) => serveResumeFile(req, res, Number(req.params.id)));
+  router.get('/resume/:id', (req, res) => { void serveResumeFile(req, res, Number(req.params.id)); });
 }

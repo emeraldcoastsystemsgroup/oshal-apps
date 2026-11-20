@@ -7,6 +7,8 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 0.7.0 review: the operator persona's authorizations name exactly the manifest's five tools (the four reads auto, print-to-3d-printer ask) plus bash and write_file off, so the install seeds the printer bot's agent_tools rows; without the block every call is refused as unregistered.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify added calibration routes, source tool bindings and actual operator auto/ask policies.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: verify HTTP bindings for scan-to-print-tools.js, 3D mesh crop/transform/undo/reset, and revocable read-only share links.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: verify HTTP bindings for GET /artifacts (B4) and GET /markers (B9).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: verify GET /printers/:printerId/status on both person and service mounts shares the single scan.read binding (B5).
  */
 'use strict';
 const test = require('node:test');
@@ -24,17 +26,17 @@ test('every literal route under every manifest mount matches exactly one http bi
   assert.deepEqual(mounts, MOUNTS);
   const rows = mountedRoutes().map((row) => ({ ...row, relative: relativeToMount(row.request, mounts) }))
     .map((row) => ({ ...row, matches: matchBindings(catalog.http, row.method, row.relative) }));
-  assert.equal(rows.length, 49, 'six print service routes, Home, the smoke, the app, four scripts, capabilities, 25 object/share routes and 8 printer routes');
+  assert.equal(rows.length, 52, 'six print service routes, Home, the smoke, the app, four scripts, capabilities, artifacts, markers, 25 object/share routes and 9 printer routes');
   const describe = (row) => `${row.method} ${row.request} (${row.file} "${row.pattern}") -> ${row.relative}`;
   assert.deepEqual(rows.filter((row) => row.matches.length === 0).map(describe), [], 'an unbound route is denied authorization_operation_unbound');
   assert.deepEqual(rows.filter((row) => row.matches.length > 1).map(describe), [], 'two matching bindings deny the request');
   const used = new Set(rows.map((row) => row.matches[0].id));
   assert.deepEqual(catalog.http.filter((binding) => !used.has(binding.id)).map((binding) => binding.id), [], 'a binding no route serves is a typo');
-  assert.equal(catalog.http.length, 45);
+  assert.equal(catalog.http.length, 47);
   const root = rows.filter((row) => row.relative === '/');
   assert.deepEqual(root.map((row) => row.mount).sort(), ['/api/scan-to-print/_smoke', '/api/scan-to-print/home-summary']);
   const shared = rows.filter((row) => row.mount === '/api/scan-to-print/service' && rows.some((other) => other.mount === '/api/scan-to-print' && other.method === row.method && other.relative === row.relative));
-  assert.deepEqual(shared.map((row) => `${row.method} ${row.relative}`).sort(), ['GET /jobs', 'GET /printers', 'POST /jobs/p6/print'].sort(),
+  assert.deepEqual(shared.map((row) => `${row.method} ${row.relative}`).sort(), ['GET /jobs', 'GET /printers', 'GET /printers/p10/status', 'POST /jobs/p6/print'].sort(),
     'the print service shares exactly these operations with the person\'s routes, through one binding each');
 });
 
@@ -46,6 +48,8 @@ test('opening needs app.open, source changes scan.source.change, reconstruction 
   assert.deepEqual(need('GET', '/api/scan-to-print/app'), ['app.open']);
   assert.deepEqual(need('GET', '/api/scan-to-print/assets/scan-to-print-camera.js'), ['app.open']);
   assert.deepEqual(need('GET', '/api/scan-to-print/assets/scan-to-print-tools.js'), ['app.open']);
+  assert.deepEqual(need('GET', '/api/scan-to-print/artifacts'), ['scan.read']);
+  assert.deepEqual(need('GET', '/api/scan-to-print/markers'), ['scan.read']);
   assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/mesh/crop`), ['scan.edit']);
   assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/mesh/transform`), ['scan.edit']);
   assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/shares`), ['scan.edit']);
@@ -58,6 +62,7 @@ test('opening needs app.open, source changes scan.source.change, reconstruction 
   assert.deepEqual(need('POST', '/api/scan-to-print/printers'), ['printer.manage']);
   assert.deepEqual(need('PATCH', `/api/scan-to-print/printers/${id}`), ['printer.manage'], 'auto-start is a printer setting');
   assert.deepEqual(need('POST', `/api/scan-to-print/printers/${id}/status`), ['scan.read']);
+  assert.deepEqual(need('GET', `/api/scan-to-print/printers/${id}/status`), ['scan.read']);
   assert.deepEqual(need('GET', `/api/scan-to-print/service/printers/${id}/status`), ['scan.read']);
   assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/print`), ['print.send']);
   assert.deepEqual(need('POST', `/api/scan-to-print/service/jobs/${id}/print`), ['print.send']);

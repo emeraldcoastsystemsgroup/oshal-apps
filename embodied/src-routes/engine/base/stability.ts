@@ -10,12 +10,14 @@
  *                     |                             | tip over each edge, and two checks — a horizontal wrench at a
  *                     |                             | height, and a travel speed. These numbers ARE the capability
  *                     |                             | manifest's envelope; the planner refuses what they refuse.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B26: read gravity from the supplied Medium (default air) and EARTH_SURFACE_GRAVITY_MPS2 from the committed medium row rather than a file-local literal.
  */
 
 import type { Vec3 } from '../math/vec';
+import { EARTH_SURFACE_GRAVITY_MPS2, mediumById, type Medium } from '../medium/medium';
 
-/** @description Standard gravity (m/s²). */
-export const G = 9.81;
+/** @description Standard Earth-surface gravity (m/s²), from the committed medium property row. */
+export const G = EARTH_SURFACE_GRAVITY_MPS2;
 
 /** @description One lumped mass in the base frame: x forward, y left, z up, origin at the floor centre. */
 export interface MassItem {
@@ -86,22 +88,24 @@ export function combinedCenterOfMass(items: readonly MassItem[]): { mass: number
 }
 
 /** @description Energy to lift the centre of mass from height h over an edge at horizontal distance d. */
-const tipEnergy = (mass: number, h: number, d: number): number => (d <= 0 ? 0 : mass * G * (Math.hypot(d, h) - h));
+const tipEnergy = (mass: number, h: number, d: number, g: number): number => (d <= 0 ? 0 : mass * g * (Math.hypot(d, h) - h));
 
 /**
  * @description Compute the full tip budget for a set of masses on a footprint.
  * @param items - Every lumped mass, including the arm and any payload.
  * @param footprint - The caster footprint.
+ * @param medium - The medium whose gravity vector sets weight and tip energy; defaults to air.
  * @returns The budget. A negative margin means the centre of mass is already outside the polygon.
  */
-export function tipBudget(items: readonly MassItem[], footprint: Footprint): TipBudget {
+export function tipBudget(items: readonly MassItem[], footprint: Footprint, medium: Medium = mediumById('air') as Medium): TipBudget {
   const { mass, com } = combinedCenterOfMass(items);
+  const g = Math.hypot(medium.gravityMps2[0], medium.gravityMps2[1], medium.gravityMps2[2]);
   const hx = footprint.length / 2 - footprint.casterInset;
   const hy = footprint.width / 2 - footprint.casterInset;
   const margin: Edges = { front: hx - com[0], rear: hx + com[0], left: hy - com[1], right: hy + com[1] };
-  const weight = mass * G;
+  const weight = mass * g;
   const cap = (d: number): number => Math.max(0, d) * weight;
-  const en = (d: number): number => tipEnergy(mass, com[2], d);
+  const en = (d: number): number => tipEnergy(mass, com[2], d, g);
   return {
     totalMass: mass,
     com,

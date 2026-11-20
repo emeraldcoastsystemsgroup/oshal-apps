@@ -23,6 +23,10 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Export `SCALE_DISAGREEMENT` so the video lane's frame suggestion
  *                     |                             | (BACKLOG B12) refuses a frame by the same 10 % the registration
  *                     |                             | warns at, rather than a second number that could drift.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Fiducial scale anchors (BACKLOG B3): a view silhouette may carry
+ *                     |                             | `fiducialMmPerPx` from a detected fiducial square, fixing that
+ *                     |                             | view's log scale in the joint least-squares registration and
+ *                     |                             | marking directly anchored axes as `fiducial` in `dimensionSources`.
  */
 
 import type { Vec3 } from '../geometry/geometry-types';
@@ -36,6 +40,8 @@ export interface ViewSilhouette {
   view: ViewName;
   /** The object mask from {@link extractSilhouette}. */
   mask: Mask;
+  /** Optional scale anchor (mm per pixel) from a detected fiducial square in this view. */
+  fiducialMmPerPx?: number;
 }
 
 /** @description A dimension the person measured with a ruler: the scale anchor. */
@@ -47,7 +53,7 @@ export interface KnownDimension {
 }
 
 /** @description Where each world size came from — shown on the drawing's title block. */
-export type DimensionSource = 'known' | 'derived' | 'assumed';
+export type DimensionSource = 'known' | 'fiducial' | 'derived' | 'assumed';
 
 /** @description Everything needed to map a world point into one photo's pixels. */
 export interface ViewCalibration {
@@ -114,29 +120,48 @@ function pixelExtents(box: PixelBox): { uPx: number; vPx: number } {
 }
 
 /** @description Reject inputs that cannot register: no views, a duplicate view, an empty mask, no anchor. */
-function validateInputs(silhouettes: ViewSilhouette[], known: KnownDimension[]): Map<ViewName, PixelBox> {
+function validateInputs(silhouettes: ViewSilhouette[], known: KnownDimension[]): { boxes: Map<ViewName, PixelBox>; fiducialScales: Map<ViewName, number> } {
   if (silhouettes.length === 0) throw new RangeError('At least one view silhouette is required');
-  if (known.length === 0) throw new RangeError('At least one known dimension is required to set the scale');
   for (const dim of known) {
     if (!(dim.mm > 0) || !Number.isFinite(dim.mm)) throw new RangeError(`Known ${dim.axis} dimension must be a positive number`);
   }
   const boxes = new Map<ViewName, PixelBox>();
+  const fiducialScales = new Map<ViewName, number>();
   for (const s of silhouettes) {
     if (boxes.has(s.view)) throw new RangeError(`View "${s.view}" was supplied twice`);
     const { bbox } = maskStats(s.mask);
     if (!bbox) throw new RangeError(`View "${s.view}" has an empty silhouette`);
     boxes.set(s.view, bbox);
+    if (s.fiducialMmPerPx !== undefined) {
+      if (!(s.fiducialMmPerPx > 0) || !Number.isFinite(s.fiducialMmPerPx)) {
+        throw new RangeError(`View "${s.view}" fiducialMmPerPx must be a positive number`);
+      }
+      fiducialScales.set(s.view, s.fiducialMmPerPx);
+    }
   }
-  return boxes;
+  if (known.length === 0 && fiducialScales.size === 0) {
+    throw new RangeError('At least one known dimension or fiducial scale anchor is required to set the scale');
+  }
+  return { boxes, fiducialScales };
+}
+
+/** @description Axes directly measured by at least one view carrying a fiducial scale anchor. */
+function fiducialAnchoredAxes(fiducialScales: Map<ViewName, number>): Set<Axis> {
+  const axes = new Set<Axis>();
+  for (const view of fiducialScales.keys()) {
+    axes.add(VIEW_FRAMES[view].u.axis);
+    axes.add(VIEW_FRAMES[view].v.axis);
+  }
+  return axes;
 }
 
 /**
- * @description Axes whose size can be reached from the known dimensions: a view that shows one
- * reached axis reaches the other it shows. What is left is visible to no view that connects to a
- * measurement, and is assumed.
+ * @description Axes whose size can be reached from the known dimensions or fiducial-anchored views:
+ * a view that shows one reached axis reaches the other it shows. What is left is visible to no
+ * view that connects to a scale anchor, and is assumed.
  */
-function reachableAxes(boxes: Map<ViewName, PixelBox>, known: Set<Axis>): Set<Axis> {
-  const reached = new Set(known);
+function reachableAxes(boxes: Map<ViewName, PixelBox>, seeds: Set<Axis>): Set<Axis> {
+  const reached = new Set(seeds);
   let grew = true;
   while (grew) {
     grew = false;
@@ -178,34 +203,46 @@ function solveLinear(m: Float64Array[], b: Float64Array): Float64Array {
 /**
  * @description The joint fit. Every view says, for each of its two image axes,
  * `log extent(axis) = log mmPerPx(view) + log pixels`: linear in log space. Unknowns are the log
- * extent of each free axis and the log scale of each view; fixed axes move to the right-hand side.
- * Least squares over all equations at once, solved through the normal equations.
+ * extent of each free axis and the log scale of each non-fiducial view; fixed axes and fiducial
+ * view scales move to the right-hand side. Least squares over all equations at once, solved
+ * directly through the normal equations.
  */
-function solveLogFit(boxes: Map<ViewName, PixelBox>, fixedLog: Partial<Record<Axis, number>>, free: Axis[]): { logSize: Record<Axis, number>; logScale: Map<ViewName, number> } {
+function solveLogFit(
+  boxes: Map<ViewName, PixelBox>,
+  fixedLog: Partial<Record<Axis, number>>,
+  free: Axis[],
+  fixedScaleLog: Map<ViewName, number>,
+): { logSize: Record<Axis, number>; logScale: Map<ViewName, number> } {
   const views = [...boxes.keys()];
-  const n = free.length + views.length;
+  const freeViews = views.filter((view) => !fixedScaleLog.has(view));
+  const n = free.length + freeViews.length;
+  if (n === 0) return { logSize: { ...fixedLog } as Record<Axis, number>, logScale: new Map(fixedScaleLog) };
   const ata = Array.from({ length: n }, () => new Float64Array(n));
   const atb = new Float64Array(n);
-  views.forEach((view, vi) => {
+  for (const view of views) {
+    const vi = freeViews.indexOf(view);
     const { uPx, vPx } = pixelExtents(boxes.get(view) as PixelBox);
     const frame = VIEW_FRAMES[view];
     for (const [axis, px] of [[frame.u.axis, uPx], [frame.v.axis, vPx]] as [Axis, number][]) {
-      const row = new Float64Array(n);
       const ai = free.indexOf(axis);
-      if (ai >= 0) row[ai] = 1;
-      row[free.length + vi] = -1;
-      const rhs = Math.log(px) - (ai >= 0 ? 0 : (fixedLog[axis] as number));
+      if (ai < 0 && vi < 0) continue;
+      const row = new Float64Array(n);
+      let rhs = Math.log(px);
+      if (ai >= 0) row[ai] = 1; else rhs -= fixedLog[axis] as number;
+      if (vi >= 0) row[free.length + vi] = -1; else rhs += fixedScaleLog.get(view) as number;
       for (let r = 0; r < n; r += 1) {
         if (row[r] === 0) continue;
         atb[r] += row[r] * rhs;
         for (let c = 0; c < n; c += 1) ata[r][c] += row[r] * row[c];
       }
     }
-  });
+  }
   const x = solveLinear(ata, atb);
   const logSize = { ...fixedLog } as Record<Axis, number>;
   free.forEach((axis, i) => { logSize[axis] = x[i]; });
-  return { logSize, logScale: new Map(views.map((view, vi) => [view, x[free.length + vi]] as const)) };
+  const logScale = new Map(fixedScaleLog);
+  freeViews.forEach((view, vi) => { logScale.set(view, x[free.length + vi]); });
+  return { logSize, logScale };
 }
 
 /** @description Round to the fit's significant digits so solver roundoff never moves a voxel boundary. */
@@ -237,51 +274,56 @@ function calibrateView(view: ViewName, box: PixelBox, sizeMm: Vec3, mmPerPx: num
   };
 }
 
-/** @description Pin each axis the fit cannot reach to the first known dimension, and say so. */
-function assumeUnreachable(reached: Set<Axis>, known: KnownDimension[], fixedLog: Partial<Record<Axis, number>>, sources: Partial<Record<Axis, DimensionSource>>, warnings: string[]): void {
+/** @description Reference extent for assuming an unseen axis when only ruler or fiducial anchors exist. */
+function fallbackExtentMm(known: KnownDimension[], boxes: Map<ViewName, PixelBox>, fiducialScales: Map<ViewName, number>): number {
+  if (known.length > 0) return known[0].mm;
+  const [view, scale] = [...fiducialScales.entries()][0];
+  return settle(pixelExtents(boxes.get(view) as PixelBox).uPx * scale);
+}
+
+/** @description Pin each axis the fit cannot reach to the fallback anchor extent, and say so. */
+function assumeUnreachable(reached: Set<Axis>, fallbackMm: number, fixedLog: Partial<Record<Axis, number>>, sources: Partial<Record<Axis, DimensionSource>>, warnings: string[]): void {
   for (const axis of ['x', 'y', 'z'] as Axis[]) {
     if (reached.has(axis)) continue;
-    fixedLog[axis] = Math.log(known[0].mm);
+    fixedLog[axis] = Math.log(fallbackMm);
     sources[axis] = 'assumed';
-    warnings.push(`Extent along ${axis.toUpperCase()} is not visible in any supplied view; assumed ${known[0].mm} mm. Add a view that shows it, or enter it as a known dimension.`);
+    warnings.push(`Extent along ${axis.toUpperCase()} is not visible in any supplied view; assumed ${fallbackMm} mm. Add a view that shows it, or enter it as a known dimension.`);
   }
 }
 
 /**
  * @description Resolve the object's world size and every view's pixel calibration from the
- * silhouettes and the known dimension(s), JOINTLY: one least-squares fit in log space over every
- * view's two axis measurements, with the known dimensions held exact. Each view then reports its
- * residual, so a photo that is not square to its face is named with a number rather than inferred
- * from the order the views happened to be read in. Three views that close a single loop share
- * that loop's misfit equally, since no fit can tell which of the three is skewed. A fourth view
- * closing a second loop makes the skewed view carry the LARGEST residual, not the only one: least
- * squares averages, so a view measuring the same axis pair carries part of the error. Warnings
- * are ordered worst first. An axis no supplied view connects to a measurement is
- * ASSUMED equal to the first known dimension and flagged; the drawing carries that flag.
- * @param silhouettes - One mask per supplied view.
- * @param known - One to three measured extents.
+ * silhouettes, known dimension(s), and/or per-view fiducial scale anchors, JOINTLY: one
+ * least-squares fit in log space over every view's two axis measurements, with known dimensions
+ * and fiducial view scales held exact. Each view reports its residual, and warnings are ordered
+ * worst first. An axis no supplied view connects to an anchor is ASSUMED and flagged.
+ * @param silhouettes - One mask per supplied view (optionally carrying `fiducialMmPerPx`).
+ * @param known - Zero to three measured extents (at least one known dimension or fiducial anchor required).
  * @returns The registration.
  * @throws RangeError when the inputs cannot register (see {@link validateInputs}).
  */
 export function registerSilhouettes(silhouettes: ViewSilhouette[], known: KnownDimension[]): Registration {
-  const boxes = validateInputs(silhouettes, known);
+  const { boxes, fiducialScales } = validateInputs(silhouettes, known);
   const fixedLog: Partial<Record<Axis, number>> = {};
   const sources: Partial<Record<Axis, DimensionSource>> = {};
   for (const dim of known) { fixedLog[dim.axis] = Math.log(dim.mm); sources[dim.axis] = 'known'; }
-  const reached = reachableAxes(boxes, new Set(known.map((d) => d.axis)));
+  const fidAxes = fiducialAnchoredAxes(fiducialScales);
+  const reached = reachableAxes(boxes, new Set([...known.map((d) => d.axis), ...fidAxes]));
+  const fallbackMm = fallbackExtentMm(known, boxes, fiducialScales);
   const warnings: string[] = [];
-  assumeUnreachable(reached, known, fixedLog, sources, warnings);
+  assumeUnreachable(reached, fallbackMm, fixedLog, sources, warnings);
   const free = (['x', 'y', 'z'] as Axis[]).filter((axis) => fixedLog[axis] === undefined);
-  for (const axis of free) sources[axis] = 'derived';
-  const fit = solveLogFit(boxes, fixedLog, free);
-  const sizeOf = (axis: Axis) => (sources[axis] === 'derived' ? settle(Math.exp(fit.logSize[axis])) : Math.exp(fixedLog[axis] as number));
+  for (const axis of free) sources[axis] = fidAxes.has(axis) ? 'fiducial' : 'derived';
+  const fixedScaleLog = new Map([...fiducialScales.entries()].map(([view, scale]) => [view, Math.log(scale)] as const));
+  const fit = solveLogFit(boxes, fixedLog, free, fixedScaleLog);
+  const sizeOf = (axis: Axis) => (sources[axis] === 'derived' || sources[axis] === 'fiducial' ? settle(Math.exp(fit.logSize[axis])) : Math.exp(fixedLog[axis] as number));
   const sizeMm: Vec3 = { x: sizeOf('x'), y: sizeOf('y'), z: sizeOf('z') };
   for (const dim of known) sizeMm[dim.axis] = dim.mm;
-  for (const axis of ['x', 'y', 'z'] as Axis[]) if (sources[axis] === 'assumed') sizeMm[axis] = known[0].mm;
+  for (const axis of ['x', 'y', 'z'] as Axis[]) if (sources[axis] === 'assumed') sizeMm[axis] = fallbackMm;
   const views: ViewCalibration[] = [];
   const residuals: ViewResidual[] = [];
   for (const [view, box] of boxes) {
-    const mmPerPx = settle(Math.exp(fit.logScale.get(view) as number));
+    const mmPerPx = fiducialScales.has(view) ? settle(fiducialScales.get(view) as number) : settle(Math.exp(fit.logScale.get(view) as number));
     views.push(calibrateView(view, box, sizeMm, mmPerPx));
     residuals.push(residualOf(view, box, mmPerPx, sizeMm));
   }

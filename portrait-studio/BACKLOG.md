@@ -120,37 +120,7 @@ provider changes or generated-image behavior is introduced.
 
 ## E. The Home summary reads a different identity rail than its six siblings (2026-09-14)
 
-**Context:** the shared store gate `scripts/media-home.test.cjs` drives every packaged Home
-summary through one harness and has failed three portrait-studio cases on every run of
-`feat/package-test-catalog-pilots` (`401 !== 200`). The cause is not the assertions. Six apps
-(brand-graphics, creative-studio, daily-trade-recap, lora, print-ingest, storage) resolve the
-caller as `req.oidc.user.sub` plus `req.oidc.isAuthenticated()`. portrait-studio
-`routes/home-summary.js:21` instead resolves it from the ADR-149 authorization rail:
-`ctx.authorization?.currentActor()`, refusing when there is no `sub` or the actor is not active.
-The harness builds each route with `createHomeSummaryRoutes({ pool })` and supplies identity only
-on the request as `oidc`, so no authorization context exists and portrait-studio refuses before it
-reads anything.
-
-**This is a harness gap, not a proven live defect.** On the box the framework supplies
-`ctx.authorization`, so `currentActor()` has something to resolve. Nobody has confirmed the live
-tile either way, and that confirmation is the first step below - do not "fix" this by weakening the
-refusal.
-
-**Who decides:** the package owner, because the two repairs are not equivalent. Making
-portrait-studio read `req.oidc` aligns it with its siblings but steps it back off the authorization
-rail the rest of the package moved to in 1.13.0/1.14.1. Teaching the harness to build an
-authorization context keeps the rail and makes the gate able to cover any future package that
-adopts it. The second is the better shape if the rail is intended; the first is correct only if the
-migration of this route was unintentional.
-
-**Done when:**
-- The live tile is checked first on an installed box as a signed-in user, and the result is recorded
-  here - whether it returns data or 401 decides which repair is right.
-- Whichever rail is chosen, `media-home.test.cjs` exercises portrait-studio through the SAME
-  identity path the running route uses, and the three cases (bounded owner SELECTs, unavailable
-  sources without inventing zero, partial-failure isolation) pass without relaxing the 401 case that
-  already passes.
-- If the authorization rail is kept, the harness gains a real authorization context rather than a
-  stub that returns a fixed actor, so a package that fails closed on an inactive actor still fails
-  closed in the gate.
-- The store gate goes green for this job without any assertion being deleted.
+**CLOSED 2026-11-19 (version 1.17.9).**
+- **Harness rail fixed:** `scripts/media-home.test.cjs` (commit `f8f19ca3`) models both `req.oidc` and `ctx.authorization.currentActor()` / `authorize()` from one fixture; all `36/36` cases pass (`6/6` `portrait-studio` cases green, including inactive-actor `401` and missing-permission `403`).
+- **Live Production tile confirmed:** `GET /api/portrait-studio/home-summary` on Production (`:38788`, 2026-11-19) returned `200 OK` with live `metrics`, `tiles`, `items`, and `asOf`, confirming the ADR-149 authorization rail is live and healthy.
+- **Pre-read authorization hardening (`1.17.9`):** `src-routes/home-summary.ts` and `routes/home-summary.js` now enforce `portrait.view` and `portrait.read` **before** executing the two `ps_portraits` SQL queries as well as after (preventing unauthorized database reads while keeping mid-request revocation refusal), guarded by `tests/home-summary-authz.test.cjs` (`3/3` pass, Test Lab case `home-summary-authz`).
