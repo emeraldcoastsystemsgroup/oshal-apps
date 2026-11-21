@@ -33,6 +33,8 @@
 # 32 | maintainer@emeraldcoastsystemsgroup.com | Align Test Lab catalog declarations with the kernel loader contract (remove unsupported regressionTests blocks, quote colon-containing expectations, set closed sideEffects/cleanup on disposable external suites, and bound timeoutMs to 300000).
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.20.2: readiness 1.20.2; phone-control-phone-scroll registers the phone scroll guard (tests/phone-control-phone-scroll.test.cjs, which the gate job's own glob runs): in a stand-in Today frame at 412x915 with touch, a finger swipe and a wheel turn move the device list, every row's buttons can rest clear of the floating Jarvis button, the page paints no positioned dot, and a device screen is still the fixed full-frame session. tests/live/phone-scroll-live.cjs (case phone-control-live-phone-scroll) is the same check read-only on a loopback installation, with the list lengthened in the browser only.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: readiness 1.20.3; phone-control-one-chat-window registers the Chromium guard (tests/phone-control-one-chat-window.test.cjs) proving Device Concierge, Connection Concierge and Today's Phone & Device Control screen mount the kernel's one chat window with device-concierge.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: readiness 1.20.4; phone-control-device-path now holds two declarations: the Fire TV guide's and Play a Show on a TV's computer-plan way (the kernel's `template` checks in its own words, the tool's own input fields, and what the bridge's play_title does on a scripted Fire TV, so the case needs python3). phone-control-play-way-live registers the check on a test slot (tests/phone-control-play-way-live-proof.mjs): a made-up person, a made-up computer and a made-up Fire TV the application saved, and the kernel's own device.path answer; no real device is contacted. phone-control-play-way-proof registers the check of that check against a stand-in kernel (tests/phone-control-play-way-live-proof.test.mjs, which the gate job's own glob runs).
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4, the same release: phone-control-play-way-disposable registers the check on a throwaway kernel (tests/live/play-way-disposable.sh: a throwaway PostgreSQL and oshald on a random loopback port, this package as its only store application, one local model for Jarvis), which is how the kernel's reading of the declaration is known before any delivery. Its first run found two things the check then learned: a person needs the Jarvis application's chat-user role for a turn, and a computer reads as connected with its control off for 45 seconds after it joins, so the check waits before it asks.
 version: 1
 cases:
   - id: package-readiness
@@ -43,7 +45,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.20.3 with its store open.
+      - The installed phone-control package answers its identity and version 1.20.4 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -238,8 +240,8 @@ cases:
     installation: never
 
   - id: phone-control-device-path
-    name: The Fire TV guide declares a way the kernel's path planner can offer
-    purpose: Check the guide tool's devicePath declaration against the closed lists the kernel accepts and against the guide's own package and steps; the kernel's reading of it and a real phone are outside this case.
+    name: The Fire TV guide and Play a Show on a TV declare ways the kernel's path planner can offer
+    purpose: Check both devicePath declarations against the closed shapes and lists the kernel accepts (crates/api/src/device_paths.rs template, in its words), the guide's against its own package and steps, and the play tool's against its own input fields and against what its plan does on a scripted Fire TV; the kernel's reading of them, a real phone and a real TV are outside this case.
     level: unit
     runner:
       kind: node-test
@@ -247,18 +249,44 @@ cases:
       files:
         - tests/phone-control-device-path.test.cjs
     expected:
-      - Exactly one tool declares devicePath, and it is the read-only Fire TV guide.
-      - Every field and value is on the lists the kernel accepts; a field outside them fails the case.
-      - The declared application is the package the guide answers, and the declared jobs are the wake and resume the guide's steps describe.
-      - The declaration claims no read of the TV, as the guide says the phone's page is not the TV screen.
+      - Exactly two tools declare devicePath, the read-only Fire TV guide (companion-app) and Play a Show on a TV (computer-plan), and each is a declaration the kernel takes.
+      - Every field and value is on the lists the kernel accepts; a field outside a shape, a value off a list, a target or slot that is no input field name, or a computer-plan declaration on a tool with no computerPlan fails the case.
+      - The guide's declared application is the package the guide answers, its jobs are the wake and resume its steps describe, and it claims no read of the TV.
+      - "The play tool's target (id) and slot field (title) are its own input fields and fill every field it requires; its plan on a scripted Fire TV wakes first, opens Prime Video, presses the remote's keys, types nothing and answers what is playing, and is refused on a TV without Prime Video's Fire TV package."
     prerequisites:
       - runner:node-test
       - runtime:store-pinned-toolchain
+      - runtime:python3
     sideEffects: none
     isolation:
-      mode: none
+      mode: disposable
+      cleanup: A scripted TV in memory and a temporary home folder that is removed; no adb, network or device is contacted.
     limits:
-      timeoutMs: 30000
+      timeoutMs: 120000
+    installation: never
+
+  - id: phone-control-play-way-proof
+    name: The test-slot check of the play way, against a stand-in kernel
+    purpose: Run tests/phone-control-play-way-live-proof.mjs as a child process against a stand-in kernel on a loopback port that answers the kernel's own addresses with made-up values, so the check's judgment and exit codes are known before its first run on an installed package. It proves nothing about the kernel.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-play-way-live-proof.test.mjs
+    expected:
+      - Production's port and an address that is not loopback are refused before any request.
+      - person makes the made-up person with this application's operator role and, where the installation lists a Jarvis application, its chat-user role, a computer by a join code and a join whose credential is not kept, and the TV by the application's device and record routes; no credential is printed.
+      - "check waits until the made-up computer reads as not connected, then exits 0 on a plan that offers the tool as declared, 2 when the turn carries no device.path answer for tv.play-title, and 1 on a plan without the tool's way, a way that cannot wake, a withheld way, an unexpected state or an older package; it never asks for a command as the made-up computer."
+      - remove forgets the kept ways, removes the TV and the computer, takes the role back and deactivates the person with the administrator's confirmation; when one of the person's records could not be removed it stops before that, exits 1 and keeps the person file.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: A stand-in kernel on a loopback port and a temporary folder, both removed; no kernel, network or device is contacted.
+    limits:
+      timeoutMs: 60000
     installation: never
 
   - id: phone-control-rp-features
@@ -754,6 +782,57 @@ cases:
       mode: live
     limits:
       timeoutMs: 120000
+    installation: never
+
+  - id: phone-control-play-way-live
+    name: On a test slot the kernel offers Play a Show on a TV as a way to a Fire TV the application saved
+    purpose: After phone-control 1.20.4 is installed on a test slot whose kernel reads how computer-plan (kernel commit 2816eff1 or later), as a made-up test person with a made-up computer (a record that never connects, so nothing can be sent to it) and a made-up Fire TV saved through the application's own routes, ask Jarvis how it reaches that TV to play a title and read the kernel's own device.path answer in the reply's tool record. Make the person once with `person`; run node phone-control/tests/phone-control-play-way-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>; `remove` takes everything back. It refuses port 38788 and any address that is not loopback.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/phone-control-play-way-live-proof.mjs
+    expected:
+      - The installed package answers version 1.20.4 or later, and the person's device inventory holds the made-up Fire TV as a Fire TV with its ADB route, recorded by Phone & Device Control.
+      - "The kernel's device.path answer for job tv.play-title lists a way whose second step is an application's own tool, run by a plan on your computer: hand the step to app phone-control, tool phone-control-play-show, with id the TV as it was saved and title the title; its wake words do not say it cannot wake, and its check asks what the TV says is playing."
+      - The way reads as not available now because the made-up computer is not connected, so no step is taken; the check exits 0, exits 2 when Jarvis did not call device.path (nothing is proven either way), and 1 on any other result.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:phone-control-1.20.4
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: The check calls only the test slot and writes only the made-up person's own records there (a computer, a saved TV, its inventory record, the check's conversation). Where the kernel copies join codes and device records between its slots, it copies the made-up computer's too. `remove` forgets the kept ways, removes the TV and the computer, takes the role back and deactivates the person.
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: phone-control-play-way-disposable
+    name: On a throwaway kernel the kernel offers Play a Show on a TV as a way, and a refused declaration is no way
+    purpose: Boot a throwaway PostgreSQL and oshald (a kernel at or after commit 2816eff1) on a random loopback port with this package as its only store application and one local model for Jarvis, and run the play-way check's person, check and remove against it. With MUTATE the copied manifest carries a declaration outside the shape, and the check must end with 1. No installation, slot or device is touched.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/play-way-disposable.sh
+        - tests/phone-control-play-way-live-proof.mjs
+    expected:
+      - "The check exits 0: the kernel's device.path answer lists the way by the application's own tool with id as the saved TV and title as the title, wake words that do not say it cannot wake, a check of what the TV says is playing, and the state not available now because the made-up computer is not connected."
+      - "With MUTATE='s/devicePath: { how: computer-plan, reaches/devicePath: { how: computer-plan, address: 192.0.2.7, reaches/' the package still loads, the plan lists no way by the application's own tool, and the check exits 1."
+      - The check exits 2 when the local model did not call device.path; nothing is proven either way by that run.
+    prerequisites:
+      - service:docker
+      - fixture:oshald-binary
+      - fixture:kernel-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Stop the throwaway oshald and PostgreSQL container and remove the temporary folder; the made-up person, computer and TV go with them.
+    limits:
+      timeoutMs: 300000
     installation: never
 
   - id: phone-control-ble-takeover

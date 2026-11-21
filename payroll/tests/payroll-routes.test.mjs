@@ -17,6 +17,7 @@
  * 2026-08-01 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | v1.1 — void-run gates (no confirm → 428 untouched; a draft cannot be voided; a void cannot be voided; a duplicate void surfaces 409 not 500), the approval audit trail is recorded, run-creation date validation, and a BLANKET tenant-isolation sweep that fails if any payroll query anywhere reaches the database without a user_sub predicate.
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
  * 2026-10-13 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the Finance hand-off notes carried the run's time as a raw UTC instant ('Last updated: 2026-10-13T12:25:22.142Z'). The surface's own fmtStamp runs here: a saved instant reads in the viewer's zone with its zone name, and the hand-off note uses it.
+ * 6                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 14: run creation checks the pay date against the Federal Reserve calendar (a holiday pay date is stored on the banking day before and the answer says why; with moving turned off it is kept and the answer says it will not fund; Friday 2026-07-03 stays because an IRS holiday is not a bank closure), and a pay date outside the tax year the tables hold is a 422 in words with nothing written.
  */
 
 import { test } from 'node:test';
@@ -366,6 +367,63 @@ test('run creation rejects an inverted period and a pay date before period end',
     ...AUTHED, body: { periodStart: '2026-07-01', periodEnd: '2026-07-14', payDate: '2026-07-02' } });
   assert.equal(early.statusCode, 400);
   assert.equal(early.body.error, 'bad_pay_date');
+});
+
+/** A pool that answers run creation: company settings, no prior run, the INSERT echoed back, no employees. */
+function runCreationPool(company) {
+  return makePool((sql, params) => {
+    if (/FROM payroll_company/.test(sql)) return { rows: [{ user_sub: 'user-1', pay_frequency: 'biweekly', ...company }], rowCount: 1 };
+    if (/INSERT INTO payroll_runs/.test(sql)) {
+      return { rows: [{ run_id: params[0], period_start: params[2], period_end: params[3], pay_date: params[4] }], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  });
+}
+
+test('a pay date on a Reserve Bank HOLIDAY moves to the banking day before, and says why', async () => {
+  // Christmas Day 2026 is a Friday and a K.8 closure. A weekend-only check
+  // would have kept it and nobody would have been paid that day.
+  const pool = runCreationPool({ shift_pay_date: true });
+  const res = await call(pool, 'post', '/runs', {
+    ...AUTHED, body: { periodStart: '2026-12-07', periodEnd: '2026-12-20', payDate: '2026-12-25' } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.payDate.requested, '2026-12-25');
+  assert.equal(res.body.payDate.payDate, '2026-12-24');
+  assert.equal(res.body.payDate.shifted, true);
+  assert.match(res.body.payDate.reason, /Christmas Day — Federal Reserve Banks are closed/);
+  const insert = pool.calls.find((c) => /INSERT INTO payroll_runs/.test(c.sql));
+  assert.equal(insert.params[4], '2026-12-24', 'the run is STORED on the day that funds');
+});
+
+test('with moving turned off the holiday pay date is kept, and the answer says it will not fund', async () => {
+  const pool = runCreationPool({ shift_pay_date: false });
+  const res = await call(pool, 'post', '/runs', {
+    ...AUTHED, body: { periodStart: '2026-12-07', periodEnd: '2026-12-20', payDate: '2026-12-25' } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.payDate.payDate, '2026-12-25');
+  assert.equal(res.body.payDate.shifted, false);
+  assert.match(res.body.payDate.reason, /payroll would not fund\./);
+  assert.match(res.body.payDate.reason, /kept because moving pay dates is turned off in Settings/);
+});
+
+test('Friday 2026-07-03 funds: an IRS holiday is NOT a Reserve Bank closure, so the date stays', async () => {
+  const pool = runCreationPool({ shift_pay_date: true });
+  const res = await call(pool, 'post', '/runs', {
+    ...AUTHED, body: { periodStart: '2026-06-15', periodEnd: '2026-06-28', payDate: '2026-07-03' } });
+  assert.equal(res.body.payDate.payDate, '2026-07-03');
+  assert.equal(res.body.payDate.shifted, false);
+  assert.equal(res.body.payDate.reason, '');
+});
+
+test('a pay date outside the tax year the tables hold is REFUSED in words, with nothing written', async () => {
+  const pool = runCreationPool({ shift_pay_date: true });
+  const res = await call(pool, 'post', '/runs', {
+    ...AUTHED, body: { periodStart: '2026-12-21', periodEnd: '2027-01-03', payDate: '2027-01-08' } });
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.error, 'tax_year_not_covered');
+  assert.match(res.body.message, /Pay date 2027-01-08 is in 2027\. The federal tax tables held here are for tax year 2026 only/);
+  assert.match(res.body.message, /Nothing was taken from another year/);
+  assert.deepEqual(pool.calls.filter((c) => /^\s*(INSERT|UPDATE|DELETE)\b/i.test(c.sql)), [], 'no run was created');
 });
 
 test('surface inline scripts parse (vm.Script — the world 1.0.1 lesson)', () => {

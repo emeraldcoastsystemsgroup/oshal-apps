@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Map isolated, uniformly scaled groups to world-space geometry without changing child source coordinates.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: propagate group flipX and flipY transforms into child world geometry, rotation parity, shadows and path bounds.
  */
 import { demand } from './model-validation.mjs';
 
@@ -16,14 +17,21 @@ export function parentGroup(project, id) { return project.layers.find(layer => l
  * @returns {object} Child geometry in parent coordinates. */
 export function throughGroup(layer, group) {
   const scale = group.w / group.baseWidth, angle = group.rotation * Math.PI / 180;
-  const dx = (layer.x + layer.w / 2 - group.baseWidth / 2) * scale;
-  const dy = (layer.y + layer.h / 2 - group.baseHeight / 2) * scale;
+  const fgx = group.flipX ? -1 : 1, fgy = group.flipY ? -1 : 1;
+  const dx = (layer.x + layer.w / 2 - group.baseWidth / 2) * scale * fgx;
+  const dy = (layer.y + layer.h / 2 - group.baseHeight / 2) * scale * fgy;
   const w = layer.w * scale, h = layer.h * scale;
-  return { ...layer, x: group.x + group.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle) - w / 2,
+  const flipX = fgx * (layer.flipX ? -1 : 1) < 0, flipY = fgy * (layer.flipY ? -1 : 1) < 0;
+  const next = { ...layer, x: group.x + group.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle) - w / 2,
     y: group.y + group.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) - h / 2,
-    w, h, rotation: layer.rotation + group.rotation,
+    w, h, rotation: group.rotation + fgx * fgy * layer.rotation,
     ...(layer.strokeWidth===undefined?{}:{strokeWidth:layer.strokeWidth*scale}),...(layer.fontSize===undefined?{}:{fontSize:layer.fontSize*scale}),...(layer.radius===undefined?{}:{radius:layer.radius*scale}),...(layer.dash===undefined?{}:{dash:layer.dash.map(value=>value*scale)}),...(layer.blur===undefined?{}:{blur:layer.blur*scale}),
-    ...(layer.shadow?{shadow:{...layer.shadow,blur:layer.shadow.blur*scale,offsetX:scale*(layer.shadow.offsetX*Math.cos(angle)-layer.shadow.offsetY*Math.sin(angle)),offsetY:scale*(layer.shadow.offsetX*Math.sin(angle)+layer.shadow.offsetY*Math.cos(angle))}}:{}) };
+    ...(layer.shadow?{shadow:{...layer.shadow,blur:layer.shadow.blur*scale,offsetX:scale*(fgx*layer.shadow.offsetX*Math.cos(angle)-fgy*layer.shadow.offsetY*Math.sin(angle)),offsetY:scale*(fgx*layer.shadow.offsetX*Math.sin(angle)+fgy*layer.shadow.offsetY*Math.cos(angle))}}:{}) };
+  if (layer.type !== 'adjustment') {
+    if (flipX) next.flipX = true; else delete next.flipX;
+    if (flipY) next.flipY = true; else delete next.flipY;
+  }
+  return next;
 }
 
 /** @description Resolve stable child geometry for overlays, hit testing and source-pixel selections.
@@ -58,9 +66,12 @@ function curveExtrema(a, b, c, d) {
 }
 
 function curveBounds(layer) {
-  const angle = layer.rotation * Math.PI / 180;
-  const mapped = (x, y) => ({ x: layer.x + layer.w / 2 + (x * layer.w - layer.w / 2) * Math.cos(angle) - (y * layer.h - layer.h / 2) * Math.sin(angle),
-    y: layer.y + layer.h / 2 + (x * layer.w - layer.w / 2) * Math.sin(angle) + (y * layer.h - layer.h / 2) * Math.cos(angle) });
+  const angle = layer.rotation * Math.PI / 180, fx = layer.flipX ? -1 : 1, fy = layer.flipY ? -1 : 1;
+  const mapped = (x, y) => {
+    const dx = (x * layer.w - layer.w / 2) * fx, dy = (y * layer.h - layer.h / 2) * fy;
+    return { x: layer.x + layer.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle),
+      y: layer.y + layer.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) };
+  };
   return layer.contours.flatMap(contour => contour.nodes.flatMap((a, index) => {
     if (!contour.closed && index === contour.nodes.length - 1) return [];
     const d = contour.nodes[(index + 1) % contour.nodes.length];

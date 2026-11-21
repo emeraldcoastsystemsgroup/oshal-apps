@@ -139,11 +139,19 @@ On the owner's account: the carriage has a real pocket; the base plate and the c
 
 **Done when:** the three parts carry their features, the plant is rebuilt, a policy passes the gate or the baseline is chosen as the controller by name, a new print set is made and one part is printed and fitted on the column.
 
-## B12 — A person who is not an administrator has never run this
+## B12 — A person who is not an administrator has never run this — BUILT in 0.4.14 with `engineering-shelf` 1.0.0; run on a throwaway kernel, not yet on an installation
 
-Every proof ran as the operator persona or the owner. The automated path cannot grant a test person an application role. Native route tools run under the caller's admission (`crates/oshald/src/package_api_tools.rs`), which is the reason to expect it works, not evidence that it does. A person needs design-studio, cad-studio, circuit-lab, embodied and scan-to-print each assigned; there is no one engineering role.
+**Built in 0.4.14:** the store package `engineering-shelf` 1.0.0 declares one role, **Engineer**, whose one assignment gives Design Studio, CAD Studio, Circuit Lab, Embodied Swarm (each `@app-admin`, the one role an application without a catalog has) and Scan to Print (`maker`). It is a package of its own because a role across applications needs a catalog on the application that declares it, and a catalog on Design Studio would stop every `@app-admin` assignment people hold on it today. `tests/design-studio-nonadmin-live-proof.mjs` is the check: `person`, `check`, `remove`.
 
-**Done when:** a composite template grants the engineering shelf in one assignment, and a non-administrator signs in and runs New product, a partner-built part, Simulate and Make the print set.
+**What was run (2026-11-20):** `tests/live/nonadmin-disposable.sh run` on a throwaway kernel (the oshald binary of kernel commit 2816eff1, a throwaway PostgreSQL, the six packages of this checkout, throwaway containers of this computer's CAD Studio and embodied engine images, the local model). A made-up person who held nothing was answered 403 by each of the five; after ONE assignment (preview, apply) each answered 200 and the person administered nothing; after the revoke each answered 403 again. Signed in on the kernel's sign-in page at 1440 × 900 and 412 × 915 the person ran New product (eight posters), one message to the design partner (it filed one `cad-create` order; the open page built the Carriage, 148.638 g by the kernel, and bound it), Simulate (the base plate and the column through the same order route, the mechanism saved on the Mechanism screen, Build the plant: 5 bodies, 1 actuator, 3.437 kg; Run the baselines: the PD baseline reached 5 of 5 in 3.56 s) and Make the print set (3 of 3 parts exported watertight, the poster read fabricated). No application answered 401 or 403. The check exited 0. Train the policy and Certify were not pressed; nothing was sent to a printer.
+
+**Two defects those runs found, fixed in 0.4.14:** the product page said "engine container is stopped — actions using it will not succeed" for a CAD engine nobody had asked yet, which then built the next part (`tools/design-studio-stages.js`, guard in `tests/ux-words.test.js`); and the design partner's own second bind dropped the part its order had just bound, because a bind on Design with no parts list was accepted (`src-routes/phase-model.ts` `refuseDroppedParts`, guards in `tests/phase-model.test.js` and `tests/routes.core.test.js`).
+
+**Not done:** the check has not run on an installation. On a test slot the engines, the model and the person's kernel tier are the installation's own.
+
+Was: every proof ran as the operator persona or the owner. The automated path cannot grant a test person an application role. Native route tools run under the caller's admission (`crates/oshald/src/package_api_tools.rs`), which is the reason to expect it works, not evidence that it does. A person needs design-studio, cad-studio, circuit-lab, embodied and scan-to-print each assigned; there is no one engineering role.
+
+**Done when:** a composite template grants the engineering shelf in one assignment, and a non-administrator signs in and runs New product, a partner-built part, Simulate and Make the print set. Close it when `design-studio-nonadmin-live-proof.mjs check` exits 0 on a test slot with design-studio 0.4.14 and engineering-shelf 1.0.0 installed.
 
 ## B13 — A new package reads "Application unavailable" with no reason — DONE (surface & order copy) in 0.4.11
 
@@ -154,6 +162,8 @@ Installing a package grants nobody but the operator. The owner's account got `40
 **Done when:** a delivery of a new package says who holds it, the cockpit names the missing access to an administrator, and the delivery recipe has an assignment step.
 
 ## B14 — A stopped engine is invisible until a person hits it — DONE (Product & Settings liveness) in 0.4.11
+
+**0.4.14:** an engine nobody has asked yet (CAD Studio and Circuit Lab answer `connected: false` with `contacted: false` until a first request) reads *waiting* and raises no banner; a failed engine and an installation with no engine still read stopped.
 
 **Done in 0.4.11 (Design Studio UI):** `readEngines` reads `/capabilities` for `cad-studio`, `circuit-lab` and `scan-to-print` alongside `embodied/physics/status`; `engineLiveness` and `engineBannerIssues` surface stopped engine containers cleanly on the Product banner (`#engine-liveness`) and Settings status pills (`#settings-liveness`) before any button is pressed. Evidence: `tests/ux-words.test.js`. (Host-level health-check alerting remains a host-ops concern.)
 
@@ -175,6 +185,18 @@ Was: Mechanical on a machine that is not the spider, Sensors, and the spider's h
 
 **Done when:** they are deleted or kept on purpose.
 
+## B17 — Asked in words, the design partner writes part programs CAD Studio refuses (the local model)
+
+Seen 2026-11-20 on a throwaway kernel with the local model, as a person who is not an administrator. Asked in words for a box with a square cut and one hole, the partner filed six `cad-create` orders at each screen size and none built a part. At 412 wide it answered that the hole's parameters had to be nested in `params`; at 1440 wide the turn ended "tool step limit reached before bot produced an answer". Given the part's program as CAD Studio's contract writes it, it built the part in one or two orders (one refused once with "feature.type must be one of hole, boss, box-add, box-cut, …"). `tests/design-studio-nonadmin-live-proof.mjs` therefore gives the program in its message; it proves the order and the person's access, not this.
+
+**Done when:** on the installation's local model the partner builds a two-feature part from a sentence in one turn, and a Test Lab case holds it.
+
+## B18 — A deleted product leaves its print set files, and its plant reports stay in embodied
+
+`DELETE /projects/{id}` removes the project's rows (`src-routes/project-store.ts` `deleteProject`); the print set folder under the person's lasting directory is removed only when a new set is begun (`src-routes/print-set-store.ts` `beginSet`), and embodied has no route that deletes a product's `plant-<product id>-*` report files (`embodied/src-routes/embodied-plant-routes.ts`). The non-administrator check's `remove` says so for the two products it makes.
+
+**Done when:** deleting a product removes its print set folder, and embodied offers the owner a delete of a product's plant reports that the delete calls.
+
 ## Roadmap
 
 Status as of 2026-11-01. The full picture across packages is in the kernel's `docs/backlog/design-to-build.md`.
@@ -183,6 +205,6 @@ Status as of 2026-11-01. The full picture across packages is in the kernel's `do
 |---|---|---|
 | Now, paused for publishing | B11 finish the lift through one fitted print | waiting on the owner's answer in the rail |
 | Next | B9 fit check & strength honesty (done in 0.4.12); B10 batched edits (done in 0.4.11) | B9 done, B10 done |
-| Next | B12 non-admin role; B13 actionable 403 copy (done in 0.4.11) | B12 not started, B13 done |
+| Next | B12 non-admin role; B13 actionable 403 copy (done in 0.4.11) | B12 built in 0.4.14 and run on a throwaway kernel, the test-slot run is open; B13 done |
 | Then | B14 engine liveness UI (done in 0.4.11), B3 body tick/sense rates (done in 0.4.13), B8 meshes and more task kinds | B14 UI done, B3 done, B8 open |
 | Later | B15 honest reasoned closures & Pi bay thermal solve option (done in 0.4.13) | B15 done |

@@ -22,9 +22,13 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Per-feature time budget (BACKLOG B5): FEATURE_BUDGET_MS is the
  *                     |                             | range the worker accepts, published in the contract, and
  *                     |                             | validateFeatureBudget refuses a setting outside it by field.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Threads and text (BACKLOG B4): ISO metric `thread` (external
+ *                     |                             | boss / internal hole) and embossed/debossed `text` (bundled
+ *                     |                             | OFL-1.1 LiberationSans-Regular.ttf font), with strict bounds
+ *                     |                             | and cross-field validation naming the offending field.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FEATURE_INPUT_SCHEMA = exports.FEATURE_SPECS = exports.ContractError = exports.PLANE_AXES = exports.FEATURE_BUDGET_MS = exports.LIMITS = exports.VIEWS = exports.AXES = exports.PLANES = exports.FACE_SELECTORS = exports.EDGE_SELECTORS = exports.FEATURE_TYPES = exports.BASE_KINDS = void 0;
+exports.FEATURE_INPUT_SCHEMA = exports.FEATURE_SPECS = exports.ContractError = exports.PLANE_AXES = exports.FEATURE_BUDGET_MS = exports.LIMITS = exports.BUNDLED_FONT_NAME = exports.TEXT_LIMITS = exports.TEXT_FACES = exports.TEXT_MODES = exports.THREAD_LIMITS = exports.THREAD_HANDEDNESS = exports.THREAD_KINDS = exports.VIEWS = exports.AXES = exports.PLANES = exports.FACE_SELECTORS = exports.EDGE_SELECTORS = exports.FEATURE_TYPES = exports.BASE_KINDS = void 0;
 exports.validateFeature = validateFeature;
 exports.validateBase = validateBase;
 exports.validateFeatureList = validateFeatureList;
@@ -32,12 +36,19 @@ exports.validateFeatureBudget = validateFeatureBudget;
 exports.describeContract = describeContract;
 const node_crypto_1 = require("node:crypto");
 exports.BASE_KINDS = ['box', 'cylinder', 'sketch', 'contours', 'mesh'];
-exports.FEATURE_TYPES = ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate'];
+exports.FEATURE_TYPES = ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate', 'thread', 'text'];
 exports.EDGE_SELECTORS = ['all', 'vertical', 'horizontal', 'top', 'bottom', 'parallel-x', 'parallel-y', 'parallel-z'];
 exports.FACE_SELECTORS = ['none', 'top', 'bottom', 'front', 'back', 'left', 'right'];
 exports.PLANES = ['XY', 'XZ', 'YZ'];
 exports.AXES = ['x', 'y', 'z'];
 exports.VIEWS = ['front', 'back', 'left', 'right', 'top', 'bottom', 'iso'];
+exports.THREAD_KINDS = ['external', 'internal'];
+exports.THREAD_HANDEDNESS = ['right', 'left'];
+exports.THREAD_LIMITS = Object.freeze({ minDiameterMm: 2, maxDiameterMm: 200, minPitchMm: 0.35, maxPitchMm: 6, minLengthMm: 1, maxLengthMm: 300, maxClearanceMm: 0.5 });
+exports.TEXT_MODES = ['emboss', 'deboss'];
+exports.TEXT_FACES = ['top', 'bottom', 'front', 'back', 'left', 'right'];
+exports.TEXT_LIMITS = Object.freeze({ minLength: 1, maxLength: 64, minSizeMm: 2, maxSizeMm: 200, minDepthMm: 0.2, maxDepthMm: 50 });
+exports.BUNDLED_FONT_NAME = 'LiberationSans-Regular.ttf';
 exports.LIMITS = Object.freeze({ maxFeatures: 200, maxPoints: 2000, maxDimensionMm: 2000, minDimensionMm: 0.01, maxMeshBase64Chars: 90 * 1024 * 1024, maxSections: 32 });
 /** The per-feature wall-clock budget range, ms (FEATURE_BUDGET_MS in cad_worker.py). */
 exports.FEATURE_BUDGET_MS = Object.freeze({ min: 1, max: 600_000 });
@@ -90,6 +101,35 @@ exports.FEATURE_SPECS = Object.freeze({
     'mirror': { doc: 'Mirror across a plane through the origin.', required: {}, optional: { plane: { kind: 'enum', values: exports.PLANES, doc: "mirror plane (default 'YZ')" } } },
     'rotate': { doc: 'Rotate about an axis through the origin, then re-seat on the bed.', required: { degrees: { kind: 'number', min: -360, max: 360, doc: 'angle, degrees' } }, optional: { axis: axis("rotation axis (default 'z')") } },
     'translate': { doc: 'Move the solid.', required: {}, optional: { dx: coord('X shift, mm'), dy: coord('Y shift, mm'), dz: coord('Z shift, mm') } },
+    'thread': { doc: 'ISO 68-1 metric helical thread on a boss (external) or hole (internal) by nominal diameter and pitch.',
+        required: {
+            kind: { kind: 'enum', values: exports.THREAD_KINDS, doc: "'external' (threaded boss) or 'internal' (threaded hole)" },
+            nominalDiameterMm: { kind: 'number', min: exports.THREAD_LIMITS.minDiameterMm, max: exports.THREAD_LIMITS.maxDiameterMm, doc: 'nominal ISO metric major diameter, mm (2..200, e.g. 10 for M10)' },
+            pitchMm: { kind: 'number', min: exports.THREAD_LIMITS.minPitchMm, max: exports.THREAD_LIMITS.maxPitchMm, doc: 'thread pitch, mm (0.35..6.0, < half nominalDiameterMm, e.g. 1.5 for M10×1.5)' },
+            lengthMm: { kind: 'number', min: exports.THREAD_LIMITS.minLengthMm, max: exports.THREAD_LIMITS.maxLengthMm, doc: 'threaded length along the axis, mm (1..300, >= pitchMm)' },
+        },
+        optional: {
+            axis: axis("thread axis (default 'z')"),
+            x: coord('centre X, mm (ignored when axis is x)'),
+            y: coord('centre Y, mm (ignored when axis is y)'),
+            z: coord('centre Z, mm (ignored when axis is z)'),
+            from: coord('start coordinate along the axis, mm (default: top of current solid for external, top − lengthMm for internal)'),
+            handedness: { kind: 'enum', values: exports.THREAD_HANDEDNESS, doc: "'right' (default) or 'left'" },
+            clearanceMm: { kind: 'number', min: 0, max: exports.THREAD_LIMITS.maxClearanceMm, doc: 'radial fit clearance for 3D printing, mm (0..0.5, default 0)' },
+        } },
+    'text': { doc: `Emboss or deboss text on a named face using the bundled ${exports.BUNDLED_FONT_NAME} font.`,
+        required: {
+            text: { kind: 'string', minLength: exports.TEXT_LIMITS.minLength, maxLength: exports.TEXT_LIMITS.maxLength, doc: 'printable label text (1..64 characters)' },
+            sizeMm: { kind: 'number', min: exports.TEXT_LIMITS.minSizeMm, max: exports.TEXT_LIMITS.maxSizeMm, doc: 'font size, mm (2..200)' },
+            depthMm: { kind: 'number', min: exports.TEXT_LIMITS.minDepthMm, max: exports.TEXT_LIMITS.maxDepthMm, doc: 'emboss height or deboss depth, mm (0.2..50)' },
+        },
+        optional: {
+            mode: { kind: 'enum', values: exports.TEXT_MODES, doc: "'emboss' (default, raised) or 'deboss' (cut into face)" },
+            face: { kind: 'enum', values: exports.TEXT_FACES, doc: "target face: top (default), bottom, front, back, left, right" },
+            x: coord('horizontal offset along face, mm (default 0)'),
+            y: coord('vertical offset along face, mm (default 0)'),
+            angleDeg: { kind: 'number', min: -360, max: 360, doc: 'rotation in the face plane, degrees (default 0)' },
+        } },
 });
 function num(value, field, min, max) {
     if (typeof value !== 'number' || !Number.isFinite(value))
@@ -138,6 +178,16 @@ function vec3(value, field, asDimension) {
         throw new ContractError(`${field} must be [x, y, z]`, field);
     return value.map((v, i) => (asDimension ? dimension(v, `${field}[${i}]`) : coordinate(v, `${field}[${i}]`)));
 }
+function printableString(value, field, minLength, maxLength) {
+    if (typeof value !== 'string')
+        throw new ContractError(`${field} must be a non-empty string`, field);
+    const trimmed = value.trim();
+    if (trimmed.length < minLength || trimmed.length > maxLength)
+        throw new ContractError(`${field} must be ${minLength}..${maxLength} characters`, field);
+    if (/[\x00-\x1f\x7f]/.test(trimmed))
+        throw new ContractError(`${field} must contain printable characters only`, field);
+    return trimmed;
+}
 function param(spec, value, field) {
     switch (spec.kind) {
         case 'dimension': return dimension(value, field);
@@ -147,6 +197,7 @@ function param(spec, value, field) {
             if (typeof value !== 'string' || !spec.values.includes(value))
                 throw new ContractError(`${field} must be one of ${spec.values.join(', ')}`, field);
             return value;
+        case 'string': return printableString(value, field, spec.minLength, spec.maxLength);
         case 'points': return points(value, field);
         case 'path': return pathPoints(value, field);
         case 'sections': return sections(value, field);
@@ -214,6 +265,21 @@ function crossCheck(type, out) {
         const repeat = offsets.findIndex((o, i) => offsets.indexOf(o) !== i);
         if (repeat >= 0)
             throw new ContractError(`loft.params.sections[${repeat}].offset ${offsets[repeat]} repeats an earlier section; each section needs its own plane`, `params.sections[${repeat}].offset`);
+    }
+    if (type === 'thread') {
+        const dNom = out.nominalDiameterMm;
+        const pitch = out.pitchMm;
+        const length = out.lengthMm;
+        const clearance = out.clearanceMm ?? 0;
+        const kind = out.kind;
+        if (pitch >= dNom * 0.5)
+            throw new ContractError('thread.params.pitchMm must be less than half of nominalDiameterMm', 'params.pitchMm');
+        if (length < pitch)
+            throw new ContractError('thread.params.lengthMm must be >= pitchMm', 'params.lengthMm');
+        const hFund = (Math.sqrt(3) / 2) * pitch;
+        const rMaj = dNom / 2 + (kind === 'internal' ? clearance : -clearance);
+        if (rMaj - (5 / 8) * hFund <= 0.25)
+            throw new ContractError('thread.params.clearanceMm leaves insufficient thread core radius for nominalDiameterMm and pitchMm', 'params.clearanceMm');
     }
 }
 /**
@@ -304,6 +370,7 @@ function describeContract() {
         worldFrame: 'right-handed, Z up, millimetres; the footprint is centred on X = Y = 0, the part rests on Z = 0, the front faces −Y',
         bases: { box: 'sizeX, sizeY, sizeZ', cylinder: 'diameter, height', sketch: 'plane, points [[u,v]…], height', contours: 'views {front|top|right: [[u,v]…]} in mm, size {x,y,z} — the scan bridge (intersection of extruded outlines)', mesh: 'stl (base64) sewn into a solid' },
         features, edgeSelectors: exports.EDGE_SELECTORS, faceSelectors: exports.FACE_SELECTORS, planes: exports.PLANES, planeAxes: exports.PLANE_AXES, axes: exports.AXES, views: exports.VIEWS, limits: exports.LIMITS, featureBudgetMs: exports.FEATURE_BUDGET_MS,
+        threadLimits: exports.THREAD_LIMITS, textLimits: exports.TEXT_LIMITS, bundledFont: exports.BUNDLED_FONT_NAME,
         rules: ['features apply in list order; a refused feature is reported with its reason and skipped, the model stays buildable', 'every parameter is checked before the kernel runs; unknown parameters are refused', 'same base + same list = same STEP/STL bytes', 'a feature that runs past settings.featureBudgetMs is refused with code budget_exceeded and its result discarded; POST /models/{id}/cancel stops a running rebuild and the part stays at its last good revision'],
     };
 }

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Generate a bounded per-user offline application autofill bookmarklet with conservative ATS field matching and no submit or network capability.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Refuse unknown and lookalike hosts before decoding PII, reject hidden/off-screen honeypots, and state the field-event boundary accurately.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: read the address a record keeps in application_contact (profile.application_contact, or at the top of the record): address1, city, state, state_abbrev, postal_code and country, ahead of the city and state guessed from the location line. The normalised profile also carries stateAbbrev. The Apply Profile overlay still wins over the record, so the autofill helper, the Send step's approval and Fill it in on my Chrome all type the street, the postal code and the country a person's record holds.
  */
 
 'use strict';
@@ -109,8 +110,8 @@ function profileSections(careerDb, applyProfile) {
   const career = record(careerDb);
   const overlay = record(applyProfile);
   return [overlay, record(overlay.profile), record(overlay.contact), record(overlay.address),
-    record(overlay.legal), record(overlay.eligibility), record(career.profile),
-    record(career.contact), career];
+    record(overlay.legal), record(overlay.eligibility), record(record(career.profile).application_contact),
+    record(career.profile), record(career.contact), record(career.application_contact), career];
 }
 
 /** Add one nonempty bounded value to the normalized bookmarklet payload. */
@@ -138,6 +139,7 @@ function addContactFields(target, sections) {
     addressLine1: ['address_line_1', 'addressLine1', 'address1', 'street_address', 'streetAddress'],
     addressLine2: ['address_line_2', 'addressLine2', 'address2', 'apartment', 'suite'],
     postalCode: ['postal_code', 'postalCode', 'zip_code', 'zipCode', 'zip'], country: ['country', 'country_name', 'countryName'],
+    stateAbbrev: ['state_abbrev', 'stateAbbrev', 'state_code', 'stateCode'],
     linkedin: ['linkedin', 'linkedin_url', 'linkedinUrl'], website: ['website', 'portfolio', 'portfolio_url', 'portfolioUrl'],
     github: ['github', 'github_url', 'githubUrl'], currentCompany: ['current_company', 'currentCompany', 'current_employer'],
     currentTitle: ['current_title', 'currentTitle', 'job_title', 'jobTitle'],

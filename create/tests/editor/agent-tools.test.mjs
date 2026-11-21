@@ -3,6 +3,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: Jarvis asked for a white background and every new project was refused. Colour names become hex under colour fields only; unknown names are still refused.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a slip in an approved new layer no longer refuses the batch: fields its type lacks are dropped and a colour that is not one falls to the default; a bad type and an update stay refused.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: the three batches the local model drew were refused only after approval. The schema the kernel checks before holding a card states each rule the validator refuses, and the worked drawing in the contract is itself valid.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify create-apply-edits flipX/flipY update patches, flip-back restoration, locked/invalid/adjustment refusals and editingContract flip guidance.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,4 +88,21 @@ test('a slip in an approved new layer is forgiven, and what is saved is still th
  assert.throws(()=>applyAgentOperations(base,[{type:'add',layer:{id:'x',type:'shape',x:0,y:0,w:1,h:1}}]),/Unsupported layer type/);
  const saved=applyAgentOperations(base,[{type:'add',layer:{id:'r',type:'rect',x:0,y:0,w:1,h:1}}]);
  assert.throws(()=>applyAgentOperations(saved,[{type:'update',id:'r',patch:{fill:'rocket red'}}]),/Use a hex color or transparent/,'an edit to an existing layer stays exact');
+});
+
+test('agent update patches flip layers horizontally/vertically, flip back cleanly and refuse locked or invalid flip values', () => {
+ const src='/api/create/project-assets/12345678-1234-1234-1234-123456789abc';
+ const original=applyAgentOperations(blankProject({title:'Photo flip'}),[{type:'add',images:{photo:{src,width:40,height:40}},layer:{id:'photo',type:'image',assetId:'photo',x:10,y:10,w:40,h:40}}]);
+ const before=JSON.stringify(original);
+ const flipped=applyAgentOperations(original,[{type:'update',id:'photo',patch:{flipX:true,flipY:true}}]);
+ assert.equal(flipped.layers[0].flipX,true);assert.equal(flipped.layers[0].flipY,true);
+ const restored=applyAgentOperations(flipped,[{type:'update',id:'photo',patch:{flipX:false,flipY:false}}]);
+ assert.equal(JSON.stringify(restored),before);
+ assert.throws(()=>applyAgentOperations(original,[{type:'update',id:'photo',patch:{flipX:'yes'}}]),/Flip horizontal/);
+ assert.throws(()=>applyAgentOperations(original,[{type:'update',id:'photo',patch:{flipY:1}}]),/Flip vertical/);
+ const locked=applyAgentOperations(original,[{type:'update',id:'photo',patch:{locked:true}}]);
+ assert.throws(()=>applyAgentOperations(locked,[{type:'update',id:'photo',patch:{flipX:true}}]),/Unlock/);
+ const withAdj=applyAgentOperations(original,[{type:'add',layer:{id:'adj',type:'adjustment',scope:'stack',exposure:.5}}]);
+ assert.throws(()=>applyAgentOperations(withAdj,[{type:'update',id:'adj',patch:{flipX:true}}]),/Adjustment layers cannot be flipped/);
+ assert.match(editingContract().conventions.flip,/flipX.*flipY/);
 });

@@ -9,6 +9,8 @@
  *                     |                             | computes it (same file list, same framing, CRLF folded to LF),
  *                     |                             | so the api can refuse a container built from a different
  *                     |                             | engine than the package now ships. A spec runs both.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Include bundled OFL-1.1 font in RUNTIME_FILES so engine build
+ *                     |                             | hash tracks font changes (BACKLOG B4).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -20,7 +22,7 @@ const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = require("node:crypto");
 /** The files the image bakes that change the engine's answers (mirror of RUNTIME_FILES in the bridge). */
-exports.RUNTIME_FILES = ['cad_worker.py', 'container/cad_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt'];
+exports.RUNTIME_FILES = ['cad_worker.py', 'container/cad_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt', 'fonts/LiberationSans-Regular.ttf'];
 /**
  * @description Hash the engine tree, or null when it is not readable at all.
  * @param engineDir - The package's engine/ directory.

@@ -8,6 +8,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Phone & Device Control 1.20.3: remove phone-control/tools/computer-link.js from PENDING_BESPOKE_CHAT_SURFACES now that phone-control mounts jarvis-chat-frame.js.
  * 4   | maintainer@emeraldcoastsystemsgroup.com | Intelligent Operations 1.9.4: remove experience/command-helper.js, experience/console.js, and experience/pod-console.js from PENDING_BESPOKE_CHAT_SURFACES now that all three mount jarvis-chat-frame.js.
  * 5   | maintainer@emeraldcoastsystemsgroup.com | Little Monsters 1.9.4: remove little-monsters/tools/tutor-chat.html from PENDING_BESPOKE_CHAT_SURFACES now that Class Tutor mounts jarvis-chat-frame.js, ratcheting pending bespoke concierge surfaces across the store to zero.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com | Engineering shelf 1.0.0: add engineering-shelf to HEADLESS_BACKEND_PACKAGES. It declares one role across the five engineering applications and has no screen, bot, tool or ticketType; it is hidden from the application lists, so there is no first screen for a person to be dropped onto.
  */
 
 import assert from 'node:assert/strict';
@@ -29,6 +30,7 @@ const yaml = createRequire(path.join(TOOLCHAIN, 'package.json'))('js-yaml');
 export const HEADLESS_BACKEND_PACKAGES = new Set([
   'devops',
   'dev-workspace-index',
+  'engineering-shelf',
   'daily-trade-recap',
   'hello-oshal',
   'program-instructions',

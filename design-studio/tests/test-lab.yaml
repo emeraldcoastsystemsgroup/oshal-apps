@@ -6,6 +6,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9 (lane @ds-plant): the mechanism as data (refused by name, the task from the brief's line, the plant spec from the reads, the lift example, the body contract of a generated plant), the mechanism routes in the route suite, the lift in the browser suite (Create the parts, the Mechanism screen, Build the plant through Certify), and the lift end to end on the real CAD kernel and embodied engine images with its prerequisites named.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7 (lane @ds-fab): the print set as data (STL parsed back and checked watertight, the set input and part meta refused by field, the sheet, BOM and manifest on disk), the print-set routes in the route suite, the Fabricate poster in the browser suite (made through the fixture's CAD Studio, unprintable parts listed, the hanger's one-file set, Send to printer), and one small part through the real CAD Studio engine image with its prerequisite named - it skips loudly with the reason when the image is absent.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B3/B15: document closed-spider body contract tickS & senses[].rateHz with missing: [] and honest reasoned-only closures + Pi bay thermal solve brief option across unit, route, surface and browser suites.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.14 (BACKLOG B12): register the check of Design Studio as a person who is not an administrator on a test slot (design-studio-nonadmin-live), the same check on a throwaway kernel with throwaway engines (design-studio-nonadmin-disposable), the ux-words case's new expectation that an engine nobody has asked yet reads waiting and raises no banner, and the model and route cases' new expectation that a bind cannot drop the bound parts.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -39,6 +40,7 @@ cases:
       - "validateClosure refuses missing_evidence (422) without the evidence line or the revision, and missing_step on the build phase."
       - "The body contract's actuator ranges, torques, rpm, timestep, tickS, sha, endpoint and senses[].rateHz equal the fixture reads with missing: [] for a closed spider; absent rates stay named in missing."
       - "B15: Pi bay thermal solve brief option validates and surfaces as unsolved, and reasoned closures record honest unmeasured metadata."
+      - "0.4.14: a cad-models artifact without its parts list is refused on artifact.modelIds, and a bind on Design with no list is refused while CAD Studio parts are bound; a list (empty included), nothing bound, or another engine taking Design over is accepted."
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -193,6 +195,7 @@ cases:
       - "B15: POST /plan and /projects accept thermalSolve: {mode:'pi-bay'} as reasoned-unmeasured, and closing a reasoned phase stamps measuredByEngine: false, reasonedOnly: true and unmeasuredNotice."
       - "PUT /print-set/parts/plate with a box STL answers exported with the box's sha256; an open mesh answers unprintable '3 open edges'; an STL over 8 MiB is 413 stl_too_large; GET /print-set/plate.stl is model/stl, byte-equal, named <product>-plate.stl; set.json and ../set.json are 404."
       - "GET /mechanism is 404 no_mechanism with the brief's task before a save; PUT is 422 part_not_bound, unknown_motor or cycle by name and 400 bad_mechanism with the field, then 201 and 200 as revision 2; the lift example creates seven phases, two bindings and its mechanism with the task from its line; POST /plant-spec composes the spec from the reads (422 part_not_read, motor_not_read); the lift's body contract carries the one actuator from the row."
+      - "0.4.14: POST /bind on Design answers 400 for a cad-models artifact without modelIds and 409 for an artifact of another kind with no list while a part is bound; the bound part stands."
     prerequisites:
       - runner:node-test
       - fixture:core-checkout
@@ -261,6 +264,7 @@ cases:
       - Absent reads say the engine is not installed or not answering here; failed reads name the engine and what to do.
       - Only the next open phase keeps btn-primary.
       - B3/B15: stages extract engine tickHz & sensor rateHz without inventing absent rates, and reasoned phases/Pi bay thermal solve render honest unmeasured banners and closure copy.
+      - An engine nobody has asked yet (connected false, contacted false, no last error; pinned, ready, running or prepared on first use) reads waiting and raises no banner; a failed engine and an installation with no engine still read stopped.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -290,4 +294,58 @@ cases:
     limits:
       timeoutMs: 15000
       maxMemoryMb: 256
+    installation: never
+  - id: design-studio-nonadmin-live
+    name: On a test slot a person who is not an administrator runs New product, a partner-built part, Simulate and Make the print set
+    purpose: After design-studio 0.4.14 and engineering-shelf 1.0.0 are installed on a test slot, make a made-up person who holds nothing, read that Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print each refuse them, give them ONE assignment (the engineering shelf's Engineer role, preview then apply) and read that all five answer and that the person administers nothing. Then sign in as that person on the slot's own sign-in page at 1440x900 and 412x915 and run the four steps through Design Studio's own screens. Make the person once with `person`; run node design-studio/tests/design-studio-nonadmin-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>; `remove` takes everything back. It refuses port 38788 and any address that is not loopback, never presses Send to printer and stops every write to the print service.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/design-studio-nonadmin-live-proof.mjs
+        - tests/helpers/nonadmin-proof.mjs
+        - tests/helpers/nonadmin-steps.mjs
+    expected:
+      - "`person` exits 0: each of the five applications answers 403 before the assignment and 200 after it, the one assignment's preview names all five with this package's role, and the person does not administer the installation."
+      - "`check` exits 0 when, at both sizes, New product opens a product whose chain has Design on CAD Studio, Simulate on embodied and Fabricate; the design partner's one turn on the rail builds the Carriage in CAD Studio and binds it; the lift's other parts are built through the same order route, the mechanism is saved on the Mechanism screen, Build the plant and Run the baselines reach a baseline; and Make the print set exports every part watertight and the Fabricate poster reads fabricated. No application answers 401 or 403 and the product page is not wider than the screen."
+      - "`check` exits 2 when nothing was refused or broken and a step could not run on this slot (an engine that is not running, in the engine's words, or a design partner that answered without building the part); the receipt names the step and the reason. It exits 1 on any refusal or failure."
+      - "Train the policy and Certify are not pressed (a training run is minutes to hours), and nothing is sent to a printer."
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:design-studio-0.4.14
+      - install:engineering-shelf-1.0.0
+      - browser:chromium
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: The check calls only the test slot and writes only the made-up person's own records there (two products, their CAD Studio parts, a mechanism and a print set each, and the check's two conversations). `remove` deletes the person's products, parts and circuits, takes the one assignment back, signs the person out everywhere and deactivates them. Two things have no delete route and stay, the plant-<product id>-* report files in embodied's reports folder and the print set files under the person's folder in this package's lasting directory; `remove` says so.
+    limits:
+      timeoutMs: 2400000
+    installation: never
+  - id: design-studio-nonadmin-disposable
+    name: On a throwaway kernel a person who is not an administrator runs the four steps
+    purpose: Boot a throwaway PostgreSQL and oshald (a kernel at or after commit 2816eff1) on a random loopback port with engineering-shelf, design-studio, cad-studio, circuit-lab, embodied and scan-to-print from this checkout as its only store applications, start one throwaway container per engine named in ENGINES from the images on this computer and pin them for that kernel only, and run the non-administrator check's person, check and remove against it. No installation, slot, printer or outside account is touched.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/nonadmin-disposable.sh
+        - tests/design-studio-nonadmin-live-proof.mjs
+    expected:
+      - "The package engineering-shelf loads beside the five and the kernel resolves its Engineer role: one preview and one apply give the person all five applications, and taking the assignment back makes all five refuse again."
+      - The exit code is the check's (0, 2 or 1 as the live case states).
+    prerequisites:
+      - service:docker
+      - fixture:oshald-binary
+      - fixture:kernel-checkout
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Stop the throwaway oshald, PostgreSQL and engine containers and remove the temporary folder; the made-up person and everything they made go with them.
+    limits:
+      timeoutMs: 2400000
     installation: never

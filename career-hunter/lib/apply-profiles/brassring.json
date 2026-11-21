@@ -1,0 +1,574 @@
+{
+  "id": "brassring",
+  "version": 1,
+  "document": "docx",
+  "steps": {},
+  "press": {
+    "open": [
+      "Apply",
+      "Apply to job",
+      "Apply to jobs",
+      "Apply now"
+    ],
+    "continue": [
+      "Save and continue",
+      "Save and Continue",
+      "Next",
+      "Continue"
+    ],
+    "back": [
+      "Back",
+      "Previous",
+      "Previous Step"
+    ],
+    "add-entry": [],
+    "delete-entry": []
+  },
+  "fields": [
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Email address",
+          "Email Address (Login)"
+        ]
+      },
+      "slot": "email"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Phone number",
+          "Home phone",
+          "Mobile phone"
+        ]
+      },
+      "slot": "phone"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Zip/Postal code",
+          "Zip/Postal Code"
+        ]
+      },
+      "slot": "address.postal"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "First Name",
+          "Given Name",
+          "Legal First Name",
+          "First name (legal)"
+        ]
+      },
+      "slot": "name.first"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Middle Name"
+        ]
+      },
+      "slot": "name.middle"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Last Name",
+          "Family Name",
+          "Surname",
+          "Legal Last Name",
+          "Last name (legal)"
+        ]
+      },
+      "slot": "name.last"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Email",
+          "Email Address",
+          "E-mail",
+          "E-mail Address",
+          "Your Email"
+        ]
+      },
+      "slot": "email"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Phone",
+          "Phone Number",
+          "Mobile Phone",
+          "Mobile Phone Number",
+          "Mobile Number",
+          "Cell Phone",
+          "Telephone",
+          "Primary Phone",
+          "Contact Phone"
+        ]
+      },
+      "slot": "phone"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Phone Type",
+          "Phone Device Type"
+        ]
+      },
+      "slot": "phone.type"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Address",
+          "Street Address",
+          "Address Line 1",
+          "Address 1",
+          "Street"
+        ]
+      },
+      "slot": "address.line1"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Address Line 2",
+          "Address 2"
+        ]
+      },
+      "slot": "address.line2"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "City",
+          "Town or City"
+        ]
+      },
+      "slot": "address.city"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "State",
+          "State/Province",
+          "State or Province",
+          "Province"
+        ]
+      },
+      "slot": "address.state"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "ZIP",
+          "ZIP Code",
+          "Postal Code",
+          "ZIP/Postal Code",
+          "Zip / Postal Code",
+          "Postcode"
+        ]
+      },
+      "slot": "address.postal"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Country",
+          "Country/Region"
+        ]
+      },
+      "slot": "address.country"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "LinkedIn",
+          "LinkedIn Profile",
+          "LinkedIn URL",
+          "LinkedIn Profile URL"
+        ]
+      },
+      "slot": "links.linkedin"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Website",
+          "Personal Website",
+          "Portfolio",
+          "Portfolio URL"
+        ]
+      },
+      "slot": "links.website"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "GitHub",
+          "GitHub URL",
+          "GitHub Profile"
+        ]
+      },
+      "slot": "links.github"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "How did you hear about us?",
+          "How did you hear about this job?",
+          "How did you hear about this position?",
+          "How did you hear about this opportunity?"
+        ]
+      },
+      "slot": "source.heard"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Are you legally authorized to work in the United States?",
+          "Are you authorized to work in the United States?",
+          "Are you legally eligible to work in the United States?"
+        ]
+      },
+      "slot": "eligibility.authorized"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Will you now or in the future require sponsorship for employment visa status?",
+          "Will you now or in the future require visa sponsorship?",
+          "Do you now or will you in the future require sponsorship?",
+          "Will you require sponsorship to work in the United States?"
+        ]
+      },
+      "slot": "eligibility.sponsorship"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "I agree to the terms and conditions",
+          "I have read and agree to the terms and conditions",
+          "I have read and consent to the terms and conditions"
+        ]
+      },
+      "slot": "attest.terms"
+    }
+  ],
+  "groups": [],
+  "equivalents": {
+    "MBA": [
+      "MBA",
+      "Master of Business Administration",
+      "Master's Degree"
+    ],
+    "MS": [
+      "MS",
+      "M.S.",
+      "Master of Science",
+      "Master's Degree"
+    ],
+    "MA": [
+      "MA",
+      "M.A.",
+      "Master of Arts",
+      "Master's Degree"
+    ],
+    "BS": [
+      "BS",
+      "B.S.",
+      "Bachelor of Science",
+      "Bachelor's Degree"
+    ],
+    "BA": [
+      "BA",
+      "B.A.",
+      "Bachelor of Arts",
+      "Bachelor's Degree"
+    ],
+    "PhD": [
+      "PhD",
+      "Ph.D.",
+      "Doctor of Philosophy",
+      "Doctorate"
+    ],
+    "Associate": [
+      "Associate",
+      "Associate's Degree",
+      "Associate of Science",
+      "Associate of Arts"
+    ],
+    "United States": [
+      "United States",
+      "United States of America",
+      "USA",
+      "US",
+      "U.S."
+    ],
+    "Alabama": [
+      "Alabama",
+      "AL"
+    ],
+    "Alaska": [
+      "Alaska",
+      "AK"
+    ],
+    "Arizona": [
+      "Arizona",
+      "AZ"
+    ],
+    "Arkansas": [
+      "Arkansas",
+      "AR"
+    ],
+    "California": [
+      "California",
+      "CA"
+    ],
+    "Colorado": [
+      "Colorado",
+      "CO"
+    ],
+    "Connecticut": [
+      "Connecticut",
+      "CT"
+    ],
+    "Delaware": [
+      "Delaware",
+      "DE"
+    ],
+    "District of Columbia": [
+      "District of Columbia",
+      "DC"
+    ],
+    "Florida": [
+      "Florida",
+      "FL"
+    ],
+    "Georgia": [
+      "Georgia",
+      "GA"
+    ],
+    "Hawaii": [
+      "Hawaii",
+      "HI"
+    ],
+    "Idaho": [
+      "Idaho",
+      "ID"
+    ],
+    "Illinois": [
+      "Illinois",
+      "IL"
+    ],
+    "Indiana": [
+      "Indiana",
+      "IN"
+    ],
+    "Iowa": [
+      "Iowa",
+      "IA"
+    ],
+    "Kansas": [
+      "Kansas",
+      "KS"
+    ],
+    "Kentucky": [
+      "Kentucky",
+      "KY"
+    ],
+    "Louisiana": [
+      "Louisiana",
+      "LA"
+    ],
+    "Maine": [
+      "Maine",
+      "ME"
+    ],
+    "Maryland": [
+      "Maryland",
+      "MD"
+    ],
+    "Massachusetts": [
+      "Massachusetts",
+      "MA"
+    ],
+    "Michigan": [
+      "Michigan",
+      "MI"
+    ],
+    "Minnesota": [
+      "Minnesota",
+      "MN"
+    ],
+    "Mississippi": [
+      "Mississippi",
+      "MS"
+    ],
+    "Missouri": [
+      "Missouri",
+      "MO"
+    ],
+    "Montana": [
+      "Montana",
+      "MT"
+    ],
+    "Nebraska": [
+      "Nebraska",
+      "NE"
+    ],
+    "Nevada": [
+      "Nevada",
+      "NV"
+    ],
+    "New Hampshire": [
+      "New Hampshire",
+      "NH"
+    ],
+    "New Jersey": [
+      "New Jersey",
+      "NJ"
+    ],
+    "New Mexico": [
+      "New Mexico",
+      "NM"
+    ],
+    "New York": [
+      "New York",
+      "NY"
+    ],
+    "North Carolina": [
+      "North Carolina",
+      "NC"
+    ],
+    "North Dakota": [
+      "North Dakota",
+      "ND"
+    ],
+    "Ohio": [
+      "Ohio",
+      "OH"
+    ],
+    "Oklahoma": [
+      "Oklahoma",
+      "OK"
+    ],
+    "Oregon": [
+      "Oregon",
+      "OR"
+    ],
+    "Pennsylvania": [
+      "Pennsylvania",
+      "PA"
+    ],
+    "Rhode Island": [
+      "Rhode Island",
+      "RI"
+    ],
+    "South Carolina": [
+      "South Carolina",
+      "SC"
+    ],
+    "South Dakota": [
+      "South Dakota",
+      "SD"
+    ],
+    "Tennessee": [
+      "Tennessee",
+      "TN"
+    ],
+    "Texas": [
+      "Texas",
+      "TX"
+    ],
+    "Utah": [
+      "Utah",
+      "UT"
+    ],
+    "Vermont": [
+      "Vermont",
+      "VT"
+    ],
+    "Virginia": [
+      "Virginia",
+      "VA"
+    ],
+    "Washington": [
+      "Washington",
+      "WA"
+    ],
+    "West Virginia": [
+      "West Virginia",
+      "WV"
+    ],
+    "Wisconsin": [
+      "Wisconsin",
+      "WI"
+    ],
+    "Wyoming": [
+      "Wyoming",
+      "WY"
+    ]
+  },
+  "decline": [
+    "I do not wish to answer",
+    "I don't wish to answer",
+    "I do not want to answer",
+    "Decline to self-identify",
+    "Decline To Self Identify",
+    "Prefer not to say",
+    "I prefer not to answer",
+    "Prefer not to answer",
+    "I don't wish to self-identify",
+    "I choose not to disclose"
+  ],
+  "signature": {
+    "page": "questions",
+    "name": [],
+    "date": []
+  },
+  "upload": {
+    "resume": [
+      "resume",
+      "cv",
+      "resume/cv",
+      "résumé",
+      "upload resume",
+      "upload your resume",
+      "attach resume",
+      "resume or cv",
+      "upload résumé/cv",
+      "upload resume/cv",
+      "attach résumé"
+    ],
+    "cover": [
+      "cover letter"
+    ]
+  }
+}

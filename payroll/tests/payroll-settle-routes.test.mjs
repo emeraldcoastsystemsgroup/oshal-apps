@@ -22,6 +22,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-02 05:10:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — 428 zero-query proofs for NOC apply / EFW2 / check allocation, the deliberate absence of a gate on return import, trace persistence on ACH generation (and its absence on a prenote), return-vs-NOC payment transitions, NOC application refusing a non-applicable code and a bad check digit, and 401 before any query on every settlement route.
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | The personal-data stub is asynchronous, as the native kernel's personal_data intents are (PDATA-01), so every seal and open on these paths is proven awaited: a missed await would store or return a Promise, not the envelope or the digits.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 14 through the surface: the 2027 IRS list arrives marked as a draft and unverified, a year only K.8 holds answers the Federal Reserve half and refuses the IRS half in words, and a year neither table holds is a 422 naming the table and year, never a 500 and never a computed guess.
  */
 
 import { test } from 'node:test';
@@ -487,4 +488,53 @@ test('the pay-date route reports a shift and the resulting deposit due date', as
   assert.equal(res.body.payDate, '2026-12-24');
   assert.match(res.body.reason, /Christmas Day/);
   assert.equal(res.body.deposit.dueDate, '2027-01-15');
+});
+
+test('the 2027 holidays arrive marked as a DRAFT list, with what each calendar holds', async () => {
+  const res = await call(makePool(), 'get', '/calendar/holidays', { ...AUTHED, query: { year: 2027 } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.irs.length, 13, 'the draft Publication 15 (2027) prints thirteen lines');
+  assert.equal(res.body.irsVerified, false);
+  assert.equal(res.body.irsBasis, 'draft');
+  assert.match(res.body.irsNote, /early-release draft/);
+  assert.deepEqual(res.body.coverage.federalReserve.years, [2026, 2027, 2028, 2029, 2030]);
+  assert.deepEqual(res.body.coverage.irs.map((y) => y.year), [2026, 2027]);
+});
+
+test('a year only K.8 holds answers the Federal Reserve half and REFUSES the IRS half in words', async () => {
+  const res = await call(makePool(), 'get', '/calendar/holidays', { ...AUTHED, query: { year: 2029 } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.federalReserve.length, 11);
+  assert.equal(res.body.federalReserveRefusal, '');
+  assert.deepEqual(res.body.irs, [], 'no IRS dates are invented for 2029');
+  assert.match(res.body.irsRefusal, /There is no list for 2029/);
+  assert.equal(res.body.irsVerified, false);
+});
+
+test('a year NEITHER calendar holds is a 422 naming the table and year, not a 500', async () => {
+  const res = await call(makePool(), 'get', '/calendar/holidays', { ...AUTHED, query: { year: 2031 } });
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.error, 'calendar_year_not_covered');
+  assert.equal(res.body.table, 'federal-reserve');
+  assert.equal(res.body.year, 2031);
+  assert.match(res.body.message, /has no year 2031/);
+
+  const company = (sql) => (/payroll_company/.test(sql)
+    ? { rows: [{ user_sub: 'user-1', depositor_status: 'semiweekly' }], rowCount: 1 }
+    : { rows: [], rowCount: 0 });
+  const payDate = await call(makePool(company), 'get', '/calendar/pay-date', { ...AUTHED, query: { date: '2031-03-03' } });
+  assert.equal(payDate.statusCode, 422);
+  assert.match(payDate.body.message, /Nothing was assumed from another year/);
+});
+
+test('a pay date K.8 covers but no IRS list does: funding is answered, the deposit date is refused', async () => {
+  const company = (sql) => (/payroll_company/.test(sql)
+    ? { rows: [{ user_sub: 'user-1', depositor_status: 'semiweekly' }], rowCount: 1 }
+    : { rows: [], rowCount: 0 });
+  // Wednesday 2029-07-04 is a Reserve Bank closure → moves to Tuesday the 3rd.
+  const res = await call(makePool(company), 'get', '/calendar/pay-date', { ...AUTHED, query: { date: '2029-07-04' } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.payDate, '2029-07-03');
+  assert.equal(res.body.deposit, null);
+  assert.match(res.body.depositRefusal, /no list for 2029/);
 });

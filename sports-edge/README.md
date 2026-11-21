@@ -73,6 +73,46 @@ around 66-67% straight up in the NFL and 68-70% in the NBA, with sharper Brier s
 That gap is exactly why the staking gate exists and why it starts closed. Reproduce the numbers
 with the walk-forward harness described under [Verifying](#verifying).
 
+### Wire signal walk-forward (Item A — negative result, 0.12.3)
+
+`refreshWorld` previously ingested followed teams, their injury wires, head coaches, and upcoming
+matchups into World Intelligence (`world_items`) without `buildPreview` reading any of it back.
+Before letting archived news move a line, candidate pre-kickoff signals were tested walk-forward
+against the current ensemble as Control (`node sports-edge/tests/walk-forward-wire-signal.mjs`):
+
+- **Completed 2025 seasons (NFL 223, NBA 1,081, NCAAF 638 — 1,942 games):** **0 / 1,942 (0.0%)**
+  games have archived `world_items` (the World archive began `2026-08-18`).
+- **Live 2026 archive coverage & ingest cost (`2026-08-18` to `2026-11-20`):** only followed teams
+  were ingested — **1/32 NFL** (`SEA`), **0/30 NBA**, **1 NCAAF** (`ARK`) — with **0% opponent
+  coverage**, spending **2,598 feed pulls**, **91,673 fetched items**, **14,923 archived items**,
+  and **16,581 LLM classifications**.
+- **Strict pre-kickoff walk-forward on the 20 completed 2026 games with archived `world_items`**
+  (UTC days `[kickoff - 7d, kickoff - 1d]` vs `[kickoff - 37d, kickoff - 8d]`, zero same-day
+  leakage; NFL `SEA` n=10, NCAAF `ARK` n=10):
+
+| Variant (Combined 2026, n=20) | SU% | Brier | ΔBrier | MAE (pts) | ΔMAE | Paired t (Brier) |
+|---|---:|---:|---:|---:|---:|---:|
+| Control (current ensemble) | 70.0% | 0.2417 | — | 13.85 | — | — |
+| 7d-vs-30d team sentiment delta (w=5 pts) | 70.0% | 0.2418 | +0.0001 | 13.87 | +0.02 | +0.17 |
+| 7d-vs-30d team sentiment delta (w=10 pts) | 70.0% | 0.2419 | +0.0002 | 13.91 | +0.06 | +0.20 |
+| Injury-wire 7d volume burst penalty (w=1.5 pts) | 65.0% | 0.2537 | +0.0120 | 14.12 | +0.27 | +1.94 |
+| Combined (sentDelta*5 - injBurst*1.0) | 65.0% | 0.2519 | +0.0102 | 14.11 | +0.26 | +1.81 |
+| Raw 7d team sentiment (w=5 pts, uncentered) | 70.0% | 0.2405 | -0.0012 | 13.88 | +0.03 | -0.94 |
+
+Per-league split: NFL `SEA` (n=10) Control `0.2875` Brier / `11.81` MAE vs `sentDelta` `0.2885` /
+`11.82`, `injBurst` `0.3021` / `12.05`, raw 7d sentiment `0.2875` / `11.88`; NCAAF `ARK` (n=10)
+Control `0.1959` Brier / `15.89` MAE vs `sentDelta` `0.1951` / `15.91`, `injBurst` `0.2052` /
+`16.19`, raw 7d sentiment `0.1934` / `15.88`. Every de-biased and injury-burst signal worsened
+Control; raw one-sided sentiment added MAE noise (`+0.07` pts NFL, `+0.03` pts combined) and
+injected a pro-followed-team positive-mean bias with no opponent archive to difference against.
+
+**Decision (0.12.3):** negative result recorded; unused World wire ingest retired in `refreshWorld`
+(returns `{ subjects: 0, newItems: 0 }` with zero feed pulls, LLM classifications, or
+`sports_world_pulls` writes). Team following, ESPN coach/roster readers, game previews, line
+capture, grading, and Sports Quant are unchanged. Reproducible via
+`node sports-edge/tests/walk-forward-wire-signal.mjs` and guarded by
+`tests/sports-wire-walk-forward.test.js`.
+
 ---
 
 ## How the line is built
@@ -307,6 +347,5 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 
 | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|
-| team-news-classification | news item | T1 | none | template | not yet measured | none recorded |
 | sports-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->

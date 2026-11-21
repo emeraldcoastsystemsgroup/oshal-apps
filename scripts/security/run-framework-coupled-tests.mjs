@@ -9,6 +9,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin OSHAL_CORE_ROOT as well as OSHAL_CORE_DIR for every core suite. The suites now resolve OSHAL_CORE_ROOT first, as the Test Lab sandbox does, so a value left in the caller's shell would otherwise outrank the checkout this gate names.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Discover the framework-coupled browser specs (<package>/tests/<name>.core.spec.mjs) as well. Five of them - animatronics, cad-studio, circuit-lab, embodied, scan-to-print - were run by no gate: the bare-checkout CI excludes them and this gate matched only .core.test.js. They are node:test files, so the same per-package node --test run drives them; the security workflow already installs Chromium for the Vids proof.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Check every Test Lab case that registers a framework-coupled suite against core's own catalog loader and runner admission rule, loaded from the framework checkout. A case must be runnable on a fully verified image or wait only on prerequisites withheld by name; anything else fails the gate naming the case. This is the regression guard for the twenty cases that sat pending under names the Lab did not know.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Support optional `--suite <package>/tests/<file>` scoping in runCoreSuites and the CLI (failing closed if the named suite is not discovered by discoverCoreSuites), so individual registered core suites such as scan-to-print/tests/routes.core.test.js can be executed and red-tested directly against the pinned toolchain as well as in the full run.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -50,11 +51,15 @@ export function discoverCoreSuites(storeRoot) {
  * @param options - `{ storeRoot, frameworkRoot, run }`; `run` is the spawn seam for tests.
  * @returns The number of suites that ran and passed.
  */
-export function runCoreSuites({ storeRoot, frameworkRoot, run = spawnSync }) {
+export function runCoreSuites({ storeRoot, frameworkRoot, run = spawnSync, suite }) {
   const store = resolve(storeRoot);
-  const suites = discoverCoreSuites(store);
-  if (suites.length === 0) {
+  const discovered = discoverCoreSuites(store);
+  if (discovered.length === 0) {
     throw new Error('No framework-coupled node suites (*/tests/*.core.test.js) were discovered — refusing a vacuous pass');
+  }
+  const suites = suite ? [suite] : discovered;
+  if (suite && !discovered.includes(suite)) {
+    throw new Error(`Framework-coupled suite is not discovered by the runner: ${suite}`);
   }
   // A node:test child inherits NODE_TEST_CONTEXT from any node:test parent and then reports to that
   // parent over a side channel instead of through its exit code: a genuinely failing suite exits 0.
@@ -152,10 +157,15 @@ export function checkLabRegistrations({ storeRoot, suites, lab }) {
   return checked;
 }
 
-/** @description Execute the non-empty framework-coupled package suite with the locked Vitest binary. */
-export function runFrameworkCoupledTests({ storeRoot, frameworkRoot }) {
+/** @description Execute the non-empty framework-coupled package suite with the locked Vitest binary, or a single discovered core suite when `--suite` is given. */
+export function runFrameworkCoupledTests({ storeRoot, frameworkRoot, suite }) {
   const store = resolve(storeRoot);
   const framework = resolve(frameworkRoot);
+  if (suite) {
+    const ran = runCoreSuites({ storeRoot: store, frameworkRoot: framework, suite });
+    console.log(`Framework-coupled node suites passed: ${ran} (${suite})`);
+    return;
+  }
   const vitest = resolve(framework, 'node_modules', 'vitest', 'vitest.mjs');
   const config = resolve(store, 'scripts', 'security', 'framework-coupled.vitest.config.mjs');
   const required = [
@@ -188,13 +198,13 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
-    if (!['--store', '--framework'].includes(flag) || !value) {
-      throw new Error('Usage: run-framework-coupled-tests.mjs --store <store> --framework <framework>');
+    if (!['--store', '--framework', '--suite'].includes(flag) || !value) {
+      throw new Error('Usage: run-framework-coupled-tests.mjs --store <store> --framework <framework> [--suite <pkg/tests/file>]');
     }
     values[flag.slice(2)] = value;
   }
   if (!values.store || !values.framework) throw new Error('Both --store and --framework are required');
-  return { storeRoot: values.store, frameworkRoot: values.framework };
+  return { storeRoot: values.store, frameworkRoot: values.framework, suite: values.suite };
 }
 
 if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {

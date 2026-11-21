@@ -1,3 +1,4 @@
+/** CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): accept kubernetes-node in Alertmanager source mappings so node-level alerts normalize with kind kubernetes-node. */
 /** CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S2 (1.7.0): Disconnect. The Systems card revokes the installation's producer tokens at the kernel, then asks stopWatching with disconnect: the watch stops even though the installation was reporting a moment ago (its token is gone, so no report can bring the card back), what it owed is closed as for a retired server, and its chart history and readings stay (forgetInstallation keepHistory) for the same name enrolled again. */
 /** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | ADR-216 S1 (1.6.0): a delivery to a source the person removed answers 410 Gone with REMOVED, where it was 404 like an unknown source (the route passed only sources not removed). The kernel's producer door is to end a token whose own route answers 410, so a removed source's server stops for good with no second step; the caller now passes the removed sources too. */
 /** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved on the real stack (2026-11-04). Whether a resolve can be believed is asked per alert, from what the heartbeat says Prometheus lists. The watch also clears what no resolve ever came for, as after a reboot. Stopping the watch closes everything on the row, with a label that keeps it off the phone, because a retired server cleared nothing. */
@@ -11,7 +12,7 @@ import {processingTransaction} from './pipeline';
 import {admit,hash} from './intake';
 import {HEARTBEAT,SILENT,recordBeat,noteAlerts,watchClock,claimSilence,settleSilence,settleResolve,scanSilence,installationRow,pendingNotices,clearNotices,forgetInstallation,recoveryDoubted,holdResolves,clearedAlerts,retiringAlerts,settleCleared,installationState} from './installations';
 const fail=(status,message)=>{throw Object.assign(Error(message),{status});};
-const KINDS=['kubernetes-pod','container','workload','host'],LABEL=/^[A-Za-z_][A-Za-z0-9_]{0,63}$/,TEXT=/^[\x20-\x7e]{1,128}$/;
+const KINDS=['kubernetes-node','kubernetes-pod','container','workload','host'],LABEL=/^[A-Za-z_][A-Za-z0-9_]{0,63}$/,TEXT=/^[\x20-\x7e]{1,128}$/;
 const SCHEMA='urn:oshal:operations:alert:1',MAX_ALERTS=100;
 const ownerRequired=owner=>{if(typeof owner!=='string'||!owner)fail(401,'A verified caller is required.');};
 const key=sourceId=>'ingest:'+sourceId;

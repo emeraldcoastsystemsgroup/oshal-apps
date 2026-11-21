@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Show each bounded browser press with shared words and owner-scoped evidence. -->
+<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Show each bounded browser press with shared words and owner-scoped evidence.
+ 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: a Filled in on your Chrome section lists the person's assisted applications (GET /apply-runs) with their state and a link to the job, and opens each one's receipt of what Career did on the employer's form (tools/career-apply-receipt.js) when it has one. -->
 <!--
   Submissions — the print-queue view of the desktop worker.
 
@@ -172,12 +173,14 @@
   <div class="apply-counters" id="applyCounters" aria-label="Submission runs"></div>
   <p id="submissionNotice" role="status" hidden></p>
   <div id="list" data-ds-work><div class="empty">Loading…</div></div>
+  <section id="assistActivity" hidden aria-labelledby="assistActivityTitle"><h2 id="assistActivityTitle">Filled in on your Chrome</h2><div id="assistList"></div></section>
 </div>
 <div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbimg" alt="Submission screenshot"/></div>
 
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script src="/api/career-hunter/static/career-status-line.js"></script>
 <script src="/api/career-hunter/static/career-submit.js"></script>
+<script src="/api/career-hunter/static/career-apply-receipt.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 // APPLICATION_PROVENANCE_START
@@ -496,10 +499,24 @@ async function poll(){
   }finally{pollBusy=false;}
 }
 
+/* Fill it in on my Chrome: each assisted application, its state, its job, and the receipt of what Career did once it has one. */
+const ASSIST_WORDS={approved:'Opening the form',queued:'Waiting for your computer',running:'Career is filling in the form',waiting:'Waiting for you',ready:'Ready for you to submit',
+  submitted:'Submitted by you',not_seen:'Not seen yet',paused:'Paused',failed:'Your computer stopped',stopped:'Stopped'};
+let assistSig='';
+async function renderAssist(){
+  let runs=[];
+  try{const r=await fetch('/api/career-hunter/apply-runs',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);runs=(await r.json()).runs||[];}
+  catch(e){console.warn('career: assisted applications unread',e.message);return;}
+  const sig=JSON.stringify(runs.map(r=>[r.id,r.status,r.updatedAt]));if(sig===assistSig)return;assistSig=sig;
+  $('assistActivity').hidden=!runs.length;
+  $('assistList').innerHTML=runs.map(r=>`<details class="assist-row" data-run="${esc(r.id)}"><summary><b>${esc(r.title)}</b> · ${esc(r.company)} · ${esc(ASSIST_WORDS[r.status]||r.status)}</summary><p><a href="/api/career-hunter/board-native?view=queue&amp;application=${encodeURIComponent(r.postingId)}&amp;step=review" data-career-tool="career-board">Open this application</a></p><div data-receipt></div></details>`).join('');
+  $('assistList').querySelectorAll('details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open&&unread(d))CareerApplyReceipt.mount(d.dataset.run,d.querySelector('[data-receipt]'));}));
+}
+const unread=d=>!d.querySelector('[data-receipt]').childElementCount;
 const nsel=$('nodeSel');
 if(nsel) nsel.addEventListener('change', ()=>{ lastSig=''; poll(); });
 loadWorkers();
-poll();
-setInterval(()=>{ if(!document.hidden){loadWorkers();poll();} }, 15000);
+poll();renderAssist();
+setInterval(()=>{ if(!document.hidden){loadWorkers();poll();renderAssist();} }, 15000);
 </script>
 </body></html>

@@ -1,6 +1,7 @@
 # CHANGE LOG
 # SEQ | AUTHOR | DESCRIPTION
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Keep explicitly linked client roles as independent records under one employer, with bounded one-level relationships and pure presentation ordering.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.69.1 (Roger, 2026-11-20: a generated résumé listed one client engagement twice, once under its employer and once on its own): a recorded title or employer written with " - " ("GSquared Funding - Commercial Finance") reaches this match as ", " after the packet's dash cleanup, so the exact comparison failed, the role read as left out, and it was restored beside the model's own copy. recorded_roles now compares words, not the separators between them.
 """Explicit employer/client relationships; no read migrates the owner's profile."""
 from __future__ import annotations
 import re
@@ -156,11 +157,24 @@ def has_links(roles):
     return any(any(role.get(key) for key in FIELDS) for role in roles if isinstance(role, dict))
 
 
+# What separates the parts of a title or employer: spaces, commas, hyphens and dashes, slashes, bars and middle dots.
+# The packet's dash cleanup (generate._dewash) turns a recorded " - " into ", ", so a comparison must not see them.
+_SEPARATORS = re.compile(r"[\s,\-\u2010-\u2015/|\u00b7]+")
+
+
+def anchor(value) -> str:
+    """@description A recorded title or employer as an exact identity: its words in order, case folded, with no
+    separator between them counted. "GSquared Funding - Commercial Finance" and "GSquared Funding, Commercial Finance"
+    are one anchor; a different word is a different anchor. @param value - A title or employer. @returns The anchor."""
+    return _SEPARATORS.sub(' ', str(value or '')).strip().casefold()
+
+
 def recorded_roles(item, entries, strict=False):
-    """Only exact recorded title/employer anchors can bind generated text to a saved hierarchy identity."""
+    """Only exact recorded title/employer anchors (the same words in the same order) can bind generated text to a
+    saved hierarchy identity."""
     text = lambda value: ' '.join(str(value or '').split()).casefold()
-    found = [entry for entry in entries if text(item.get('title')) == text(entry['title'])
-             and text(item.get('org')) == text(entry['org'])]
+    found = [entry for entry in entries if anchor(item.get('title')) == anchor(entry['title'])
+             and anchor(item.get('org')) == anchor(entry['org'])]
     key = text(item.get('role'))
     if key:
         found = [entry for entry in found if text(entry['key']) == key]

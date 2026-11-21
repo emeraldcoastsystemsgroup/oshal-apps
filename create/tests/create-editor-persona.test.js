@@ -10,6 +10,7 @@
  *   editor studio" while Create home was docked. The persona says where it opens and never that it is open now.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Tie served natural-edit guidance to the actual recursive group contract/model and approval boundary.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Match the entire current apply-tool contract context to the actual editing contract and native prompt size bound.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify persona and embedded contract advertise flipX/flipY updates.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -81,4 +82,6 @@ test('current apply-tool context contains the full source editing contract witho
  assert.match(tool,/required:\n        - id\n        - baseRevision\n        - operations/);
  assert.match(block[1],/Hold the exact edit card for approval/);
  assert.match(persona.replace(/\s+/g,' '),/Never replace missing contract information with remembered rules/);
+ assert.match(persona.replace(/\s+/g,' '),/Flip any paint layer or group horizontally or vertically with update patch \{ flipX, flipY \}/);
+ assert.match(editingContract().conventions.flip,/flipX.*flipY/);
 });

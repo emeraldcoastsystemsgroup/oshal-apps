@@ -62,7 +62,7 @@ link here.
 
 ## 3. Per-workweek hours, and the FLSA records behind them
 
-- **Status:** PARTLY SHIPPED
+- **Status:** SHIPPED
 - **Shipped (v2, 2026-08-01):** earnings are rows, each carrying a workweek index
   (`src-routes/payroll-ledger.ts`), so overtime is computed **per workweek** and never averaged
   across them — 30 hours one week and 50 the next owes ten hours of premium even though the period
@@ -70,10 +70,29 @@ link here.
   nondiscretionary bonus lifts it (29 CFR 778.117). The derived row is **premium-only**: an early
   draft emitted a full time-and-a-half row on top of hours already paid straight and paid the base
   hours twice, which is why `src-routes/payroll-codes.ts` says so where the derivation lives.
-- **Still open:** the record-keeping half. Hours are recorded per workweek, not per workday, so the
-  daily record 29 CFR 516.2 requires cannot be produced from stored rows.
-- **Done when:** hours can be recorded per workday, and the 29 CFR 516.2 daily and weekly record set
-  is retrievable for the full retention period from stored rows rather than reconstructed.
+- **Shipped (v2.4, 2026-11-20): hours by the workday, and the 29 CFR 516.2 record from stored rows.**
+  An earning row carries the day it was worked (`work_date`), and a dated row's workweek comes from
+  the date and the employer's fixed workweek start (Settings: the day and the time of day, 516.2(a)(5)),
+  never from a typed index; a date outside the period, or an undated hour beside dated ones, is refused
+  in words (`src-routes/payroll-workweek.ts`). The register's **Hours by day** editor records them.
+  **Reports → FLSA payroll record** (`src-routes/payroll-flsa-records.ts`) answers each 516.2(a) item
+  for an employee and date range from the rows stored when the run was paid: name and number, home
+  address, date of birth if under 19, the title the regulation allows for sex and the occupation, the
+  workweek start, hours each workday and each workweek, the regular rate in a workweek with overtime,
+  the basis of pay, payments left out of the regular rate, straight time, premium, every addition and
+  deduction, wages paid, and the date and period, with each period's keep-until date (516.5(a): three
+  years; 516.6(a)(1): two for time cards). An item not on file is named, and a period whose hours were
+  entered for the period rather than by the day says so. Paid runs are never deleted (a void corrects
+  them) and an employee with history is terminated, not deleted, so the record is the stored rows.
+- **The defect this closed:** a workweek that two checks split (every semimonthly period splits some)
+  was computed on each check's share alone, so 18 hours on one check and 32 on the next owed no
+  overtime anywhere. With dated rows, the later check reads what earlier paid checks recorded for that
+  workweek (voided ones left out) and pays the premium over the whole workweek at its weighted regular
+  rate, less any premium already paid. A line moved to earning rows keeps the deductions set on the
+  employee form.
+- **Where it stops:** a line entered as hours for the whole period (the hours-and-rate line) still
+  cannot answer 516.2(a)(7)'s daily half or split a workweek with another check; the record names that
+  period, and entering its hours by the day fixes both.
 
 ## 4. Protected identifiers — SSN, addresses, and the employer EIN
 
@@ -112,17 +131,50 @@ link here.
 
 ## 7. Multiple garnishment orders with statutory priority
 
-- **Status:** SHIPPED
+- **Status:** PARTLY SHIPPED
 - **Shipped (v2, 2026-08-01):** deductions are typed rows (`src-routes/payroll-codes.ts`) with annual
-  caps, arrears when net pay runs out, and garnishments carrying an explicit priority — an
-  income-withholding order first with its own 50–65% CCPA percentages, then a federal levy, then a
-  student loan, then an ordinary creditor writ at the 25%/30× ceiling — all applied under ONE shared
-  CCPA disposable-earnings cap rather than per order.
-- **The defect this closed:** before it, a single garnishment field had no CCPA Title III cap at all
+  caps, arrears when net pay runs out, and garnishment codes for support, a federal levy, a student loan
+  and an ordinary creditor writ.
+- **The defect this closed then:** before it, a single garnishment field had no CCPA Title III cap at all
   and could exceed the legally protected wage.
-- **Still worth knowing:** per-order *remittance* — producing the payment and reference each agency
-  wants — is not modelled; the deduction is computed, withheld and shown on the stub, and the
-  employer remits it. That is the same "oshal computes, you execute" line the whole package holds.
+- **Corrected (v2.4, 2026-11-20): the shipped orders did not reach a paid run, and their ceilings were
+  wrong.** Four defects, each read in the code: approval recomputed every line from hours and rate, so
+  a line built from earning rows lost its rows and its deduction elections at the moment it was paid;
+  the balance write-back that moves arrears and year-to-date was never called; it would have counted
+  carried arrears twice; and the one shared room every order drew on was the 25 percent creditor limit,
+  so a support order was held to 25 percent where 15 U.S.C. 1673(b)(2) allows 50 to 65, and a levy and
+  an agency order were held to the creditor limit too. `src-routes/payroll-garnish.ts` is now the one
+  allocator both engines use:
+  - **cumulative federal ceilings** (29 CFR 870.11(b)(2) and its four illustrations): support up to its
+    own percentage, a creditor writ up to the 15 U.S.C. 1673(a) limit (29 CFR 870.10's 30-times-minimum-
+    wage floor per pay period), each less what orders with priority already took;
+  - **a federal agency order, including a student loan** (31 CFR 285.11(i)): the order's amount up to 15
+    percent of disposable *pay*, which is also after health insurance premiums, and behind an order with
+    priority at most 25 percent of disposable pay less that order;
+  - **a federal tax levy**: no CCPA ceiling (15 U.S.C. 1673(b)(1)(C)); it takes take-home pay above the
+    amount IRS Publication 1494 (Rev. 12-2025) exempts for 2026, by the employee's filing status,
+    dependents and additional standard deductions (a statement not returned counts as married filing
+    separately with none, IRM 5.11.5.4.1), until the amount owed is paid;
+  - **priority**: support before other legal process (42 U.S.C. 666(b)(7); 31 CFR 285.11(i)(3)(i)),
+    except that a levy goes ahead of support entered after it (26 U.S.C. 6334(a)(8)).
+  Approval keeps an earning-row line on its own engine, moves each order's own balance once the run is
+  paid, and refuses (409, with each employee's reason) a run whose garnishment facts are missing.
+  Employees → **orders** is where a person enters each order and its facts.
+- **Refused rather than guessed, by design:** which of two or more non-support orders comes first is
+  State law or other federal law (29 CFR 870.1(a)), so the person states it and a check without it is
+  refused; how several support orders share a ceiling they exceed together is the work state's law (42
+  U.S.C. 666(b)(6)(A)(i)(IV)), so that check is refused until each order's amount is entered as
+  allocated; a levy whose statement year is not 2026 is refused, because only the 2026 Publication 1494
+  is held. A state's own lower garnishment limit is entered on the order; no state's limits are held.
+- **Still open:** voiding a paid run negates its lines but does not roll back the balances (year-to-date,
+  lifetime, arrears) that approval moved on its orders; per-order *remittance* (the payment and reference
+  each agency wants) is not modelled, so the employer remits what the stub shows withheld; and the
+  Publication 1494 held is 2026's (`PUB1494_BASE`, `PUB1494_PER_DEPENDENT`, `PUB1494_ADDITIONAL`,
+  `LEVY_TABLE_YEAR`).
+- **Done when:** a void restores each election's balance from the voided run's deduction rows, with a
+  test that approve-then-void leaves every balance where it began; each order's withheld amounts can be
+  listed per pay date with its payee and case number for remittance; and each new year's Publication 1494
+  is transcribed from that year's publication when the IRS issues it.
 
 ## 8. Deposit schedule and due dates
 
@@ -132,6 +184,25 @@ link here.
   `src-routes/payroll-reports.ts`), including the $100,000 next-business-day rule that overrides the
   status, and Pub 15's extra-day-per-legal-holiday allowance for the semiweekly window — which is
   **not** a next-business-day roll and can land later than one.
+- **Corrected (v2.4, 2026-11-20): the deposit report did not use the calendar it was credited with.**
+  `GET /reports/deposits` rolled a due date off weekends only and tested the $100,000 rule on each
+  payday alone. January 2026 liabilities came out due Monday February 16 (Washington's Birthday)
+  instead of Tuesday the 17th; a Friday payday before Memorial Day came out due Wednesday instead of
+  Thursday; and two paydays adding to $100,000 in one month never triggered the next-day rule. The
+  report now goes through `src-routes/payroll-deposits.ts`, which groups paydays by **deposit period**
+  (the calendar month, or Wednesday to Friday and Saturday to Tuesday, split where a period spans two
+  quarters), takes every due date from the IRS legal-holiday calendar (item 14), makes the One-Day
+  test on taxes **accumulated in the period** and starts anew after the day it is met, turns a monthly
+  depositor semiweekly from the next day for the rest of the year and the next, and reports the
+  $2,500 pay-with-return test per quarter. Sources: 26 CFR 31.6302-1(b), (c) and (f)(4) (eCFR, current
+  to 2026-11-18) and Publication 15 (2026), section 11; the tests are built from that publication's
+  Spruce Co., Green, Inc., Elm, Inc., Fir Co. and Rose Co. examples and the regulation's Memorial Day
+  example.
+- **The depositor status is worked out, not guessed:** Settings has a lookback helper that takes the
+  four Form 941 line 12 amounts (July 2024 to June 2025 for 2026, or calendar 2024 for a Form 944
+  filer) and answers monthly or semiweekly against the $50,000 line. The package holds no payroll
+  from the lookback period, so it asks for the amounts. Form 943, 944 and 945 depositors are not
+  modelled; the package produces Form 941 only.
 - **Note:** the amount is what the ledger says is owed. Whether it was *paid* is item 12.
 
 ## 9. Benefits, accruals, pay rates, payment records, and contractors
@@ -231,12 +302,31 @@ link here.
   while the IRS observes it on that Friday. DC Emancipation Day is an IRS legal holiday the Fed does
   not observe at all. Friday 2026-07-03 is both at once: banks open, payroll funds, deposit deadline
   moves. A single shared `isHoliday()` gets one of the two wrong, silently.
-- **Still open, annually:** `IRS_HOLIDAYS_VERIFIED_THROUGH` is 2026. Only that year's list has been
-  read from that year's Pub 15; later years are computed from the same rules (which reproduce the
-  verified 2026 list exactly) and returned with `verified: false`.
+- **Shipped (v2.4, 2026-11-20): both calendars are transcribed tables with the years they hold.**
+  The Federal Reserve calendar is the Board's K.8 schedule for 2026 to 2030 (last update July 8,
+  2026), row for row with its own Saturday and Sunday footnote markers. The IRS calendar is the
+  twelve-line list in Publication 15 (2026), section 11, plus the thirteen-line 2027 list from the
+  IRS **early-release draft** of Publication 15 (2027) dated October 15, 2026. A draft is marked
+  "not for filing", so the 2027 list is returned with `verified: false` and its basis named. The
+  observance rules (5 U.S.C. 6103(a) for K.8, D.C. Code 28-2701 for the IRS lists) are kept only as
+  cross-checks the tests run against the tables.
+- **What changed in behaviour:** a date in a year a table does not hold is **refused by name**
+  (`CalendarCoverageError`, a 422 in words on every route) where it used to be computed from the
+  rules and flagged. A due date reports unverified when either the payday's year or the due date's
+  year is unverified, so a December 2026 payday due in January 2027 says so. And two defects closed:
+  creating a run shifted a pay date off a weekend only, so a pay date on a Reserve Bank holiday
+  (Christmas Friday 2026) was kept and would not have funded; and a pay date outside the tax year
+  surfaced as a 500 from the first line. Run creation now uses the Federal Reserve calendar and
+  answers with the reason, and the tax-year refusal is a 422 in words.
+- **Still open, annually:** `IRS_HOLIDAYS_VERIFIED_THROUGH` is 2026. On 2026-11-20 the final
+  Publication 15 (2027) had not been published (`irs.gov/pub/irs-pdf/p15.pdf` was still the 2026
+  edition), so the 2027 list could only be read from the draft. No IRS list is held for 2028 or
+  later, and K.8 prints no year after 2030.
 - **Done when:** each new tax year's Pub 15 legal-holiday list is transcribed from that year's
-  publication and `IRS_HOLIDAYS_VERIFIED_THROUGH` moves with it. Re-read it rather than trusting the
-  derivation.
+  **final** publication and `IRS_HOLIDAYS_VERIFIED_THROUGH` moves with it (for 2027: compare the
+  thirteen lines with the final Publication 15 (2027), set the list's basis to `publication` and move
+  the constant), and each new K.8 column is added when the Board publishes it. Re-read the document
+  rather than trusting the cross-check rule.
 
 ## 15. Check printing, and the MICR line that is refused
 

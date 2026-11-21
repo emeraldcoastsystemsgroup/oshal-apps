@@ -27,6 +27,8 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 15:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — earnings rows with per-workweek FLSA overtime derivation and the weighted regular rate; independent per-base pre-tax reduction; ordered deduction application with 402(g) sharing, garnishment priority under one CCPA ceiling, and arrears; imputed-income and reported-tips handling (taxed, not paid).
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: garnishment orders go through payroll-garnish. The shared room had been the 25 percent creditor limit, so a support order was held to 25 percent where 15 U.S.C. 1673(b)(2) allows 50 to 65; a levy and an agency order were held to the creditor limit too. Each order now meets its own cumulative federal ceiling (29 CFR 870.11), the levy takes take-home pay above the Publication 1494 exempt amount, and a check whose priority or allocation facts are missing carries refusals that stop approval.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: earning rows may carry the workday they were worked; a workweek that an earlier check also paid is computed over the whole workweek (its hours, its weighted regular rate, less premium already paid; 29 CFR 778.104), where the overtime used to be computed on this check's share alone; derived premium rows carry the workweek's first day so the next check can see them.
  *
  * @module payroll-payrun
  */
@@ -34,9 +36,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.unknownEarningsCodes = unknownEarningsCodes;
 exports.unknownDeductionCodes = unknownDeductionCodes;
 exports.deriveFlsaOvertime = deriveFlsaOvertime;
+exports.workweekTotals = workweekTotals;
 exports.computeCheck = computeCheck;
 const payroll_codes_1 = require("./payroll-codes");
 const payroll_engine_1 = require("./payroll-engine");
+const payroll_garnish_1 = require("./payroll-garnish");
 const payroll_tax_tables_1 = require("./payroll-tax-tables");
 /** Round half-up to whole cents. */
 function cents(v) {
@@ -80,7 +84,7 @@ function unknownDeductionCodes(rows) {
  * @param rows - Earnings rows for the period.
  * @returns Derived premium rows to append, the hours-worked map, and warnings.
  */
-function deriveFlsaOvertime(rows) {
+function deriveFlsaOvertime(rows, carried = {}, weekStarts = {}) {
     const warnings = [];
     const weeks = new Map();
     for (const r of rows) {
@@ -92,65 +96,94 @@ function deriveFlsaOvertime(rows) {
     const premiumRows = [];
     const workweekHours = {};
     for (const [wk, wkRows] of [...weeks.entries()].sort((a, b) => a[0] - b[0])) {
-        let hoursWorked = 0;
-        let straightEarnings = 0;
-        let explicitOtHours = 0;
-        for (const r of wkRows) {
-            const def = (0, payroll_codes_1.earningsCode)(r.code);
-            if (!def)
-                continue;
-            const g = rowGross(r, def);
-            if (def.hoursWorked)
-                hoursWorked += safe(r.hours);
-            if (def.regularRate === 'included' || def.regularRate === 'included-no-hours')
-                straightEarnings += g;
-            if (def.regularRate === 'premium') {
-                explicitOtHours += safe(r.hours);
-                // An OT row pays straight time PLUS a premium. Only the straight-time
-                // portion belongs in the regular-rate numerator; counting the premium
-                // there would inflate the rate the premium is computed from.
-                if (def.multiplier > 1)
-                    straightEarnings += cents(g / def.multiplier);
+        const t = workweekTotals(wkRows);
+        workweekHours[wk] = t.hours;
+        const prior = carried[wk];
+        if (prior && prior.hours > 0) {
+            const row = straddlingPremium(wk, t, prior, weekStarts[wk]);
+            if (row) {
+                premiumRows.push(row);
+                warnings.push(`Week ${wk}: ${prior.hours + t.hours} hours worked in the workweek, ${prior.hours} of them paid on an earlier check — ${row.amountCents} of FLSA premium is owed on this check (29 CFR 778.104).`);
             }
-        }
-        workweekHours[wk] = hoursWorked;
-        if (hoursWorked <= 0)
             continue;
-        const regularRate = straightEarnings / hoursWorked;
-        const overHours = Math.max(0, hoursWorked - 40);
-        if (overHours > 0 && explicitOtHours === 0) {
+        }
+        if (t.hours <= 0)
+            continue;
+        const regularRate = t.straightCents / t.hours;
+        const overHours = Math.max(0, t.hours - 40);
+        if (overHours > 0 && t.explicitOtHours === 0) {
             // Straight time was recorded past 40 with no overtime row — owe the premium.
             premiumRows.push({
                 code: 'OTP', hours: 0, rateCents: 0,
                 amountCents: cents(regularRate * 0.5 * overHours),
-                workweek: wk, memo: `derived FLSA premium, week ${wk}`,
+                workweek: wk, memo: `derived FLSA premium, week ${wk}`, workDate: weekStarts[wk],
             });
-            warnings.push(`Week ${wk}: ${hoursWorked} hours worked with no overtime recorded — ${overHours} hours of FLSA premium were derived at the weighted regular rate.`);
+            warnings.push(`Week ${wk}: ${t.hours} hours worked with no overtime recorded — ${overHours} hours of FLSA premium were derived at the weighted regular rate.`);
         }
-        else if (explicitOtHours > 0) {
+        else if (t.explicitOtHours > 0) {
             // Overtime was entered at a base rate; top up if nondiscretionary pay lifted
             // the regular rate above that base.
-            const premiumAlreadyPaid = wkRows.reduce((a, r) => {
-                const d = (0, payroll_codes_1.earningsCode)(r.code);
-                if (!d || d.regularRate !== 'premium')
-                    return a;
-                const g = rowGross(r, d);
-                return a + (d.multiplier > 1 ? g - cents(g / d.multiplier) : g);
-            }, 0);
-            const premiumOwed = cents(regularRate * 0.5 * explicitOtHours);
-            const topUp = premiumOwed - premiumAlreadyPaid;
-            {
-                if (topUp > 0) {
-                    premiumRows.push({
-                        code: 'OTP', hours: 0, rateCents: 0, amountCents: topUp,
-                        workweek: wk, memo: `regular-rate top-up on ${explicitOtHours} OT hours, week ${wk}`,
-                    });
-                    warnings.push(`Week ${wk}: nondiscretionary pay raised the regular rate, so ${topUp} of additional overtime premium was added (29 CFR 778.117).`);
-                }
+            const premiumOwed = cents(regularRate * 0.5 * t.explicitOtHours);
+            const topUp = premiumOwed - t.premiumCents;
+            if (topUp > 0) {
+                premiumRows.push({
+                    code: 'OTP', hours: 0, rateCents: 0, amountCents: topUp,
+                    workweek: wk, memo: `regular-rate top-up on ${t.explicitOtHours} OT hours, week ${wk}`, workDate: weekStarts[wk],
+                });
+                warnings.push(`Week ${wk}: nondiscretionary pay raised the regular rate, so ${topUp} of additional overtime premium was added (29 CFR 778.117).`);
             }
         }
     }
     return { premiumRows, workweekHours, warnings };
+}
+/**
+ * @description Hours worked, straight-time earnings, explicit overtime hours and
+ * premium already paid, for rows of one workweek.
+ *
+ * An OT row pays straight time PLUS a premium. Only the straight-time portion
+ * belongs in the regular-rate numerator; counting the premium there would
+ * inflate the rate the premium is computed from.
+ * @param rows - Earning rows of one workweek.
+ * @returns The four totals.
+ */
+function workweekTotals(rows) {
+    const out = { hours: 0, straightCents: 0, explicitOtHours: 0, premiumCents: 0 };
+    for (const r of rows) {
+        const def = (0, payroll_codes_1.earningsCode)(r.code);
+        if (!def)
+            continue;
+        const g = rowGross(r, def);
+        if (def.hoursWorked)
+            out.hours += safe(r.hours);
+        if (def.regularRate === 'included' || def.regularRate === 'included-no-hours')
+            out.straightCents += g;
+        if (def.regularRate === 'premium') {
+            out.explicitOtHours += safe(r.hours);
+            if (def.multiplier > 1)
+                out.straightCents += cents(g / def.multiplier);
+            out.premiumCents += def.multiplier > 1 ? g - cents(g / def.multiplier) : g;
+        }
+    }
+    return out;
+}
+/**
+ * The premium still owed for a workweek split across two checks. 29 CFR 778.104
+ * makes the workweek the unit, so the regular rate and the hours over 40 are
+ * taken over the whole workweek, and what earlier checks already paid as
+ * premium is subtracted.
+ */
+function straddlingPremium(wk, t, prior, weekStart) {
+    const hours = prior.hours + t.hours;
+    if (hours <= 40)
+        return null;
+    const rate = (prior.straightCents + t.straightCents) / hours;
+    const owed = cents(rate * 0.5 * (hours - 40)) - prior.premiumCents - t.premiumCents;
+    if (owed <= 0)
+        return null;
+    return {
+        code: 'OTP', hours: 0, rateCents: 0, amountCents: owed, workweek: wk, workDate: weekStart,
+        memo: `derived FLSA premium, week ${wk}, counting ${prior.hours} hours paid on an earlier check`,
+    };
 }
 /** Split gross across tax bases according to each code's taxability. */
 function buildBases(all) {
@@ -218,21 +251,57 @@ function applyPreTax(deds, grossCents, bases, age, ytdDeferral) {
             bases.stateCents = Math.max(0, bases.stateCents - want);
         total += want;
         applied.push({
-            code: def.code, label: def.label, requestedCents: requestedAmount(d, grossCents),
+            electionId: d.electionId, code: def.code, label: def.label, requestedCents: requestedAmount(d, grossCents),
             appliedCents: want, arrearsAddedCents: 0, reason,
         });
     }
     return { applied, total, warnings };
 }
-/** The CCPA ceiling for one garnishment code against disposable earnings. */
-function garnishmentCeiling(def, d, disposable, periods) {
-    if (def.code === 'GARN_SUPPORT') {
-        const pctAllowed = Math.min(65, safe(d.supportCcpaPct, 50)) / 100;
-        return disposable * pctAllowed;
+/**
+ * Health insurance premiums: 31 CFR 285.11(c) takes them out of "disposable
+ * pay" for a federal agency order, though not out of CCPA disposable earnings.
+ * Medical, dental and vision coverage are read as health insurance; an FSA or
+ * HSA contribution is not a premium.
+ */
+const HEALTH_PREMIUM_CODES = new Set(['MED125', 'DEN125', 'VIS125']);
+/** A garnishment election as the allocator sees it. */
+function garnishmentOrder(d, def) {
+    return {
+        electionId: d.electionId, code: def.code, label: def.label, amountCents: cents(safe(d.amountCents)) + cents(safe(d.arrearsCents)),
+        orderPct: d.orderPct, supportCcpaPct: d.supportCcpaPct, servedOn: d.servedOn, enteredOn: d.enteredOn,
+        priorityRank: d.priorityRank, levy: d.levy,
+    };
+}
+/** Voluntary post-tax deductions in effect when the earliest levy was served. */
+function voluntaryBeforeLevy(rows, grossCents) {
+    const levyDates = rows.filter((x) => x.def.code === 'GARN_LEVY' && x.d.servedOn).map((x) => String(x.d.servedOn)).sort();
+    if (!levyDates.length)
+        return 0;
+    return rows.filter((x) => x.def.garnishmentPriority === undefined && (!x.d.effectiveFrom || x.d.effectiveFrom < levyDates[0]))
+        .reduce((a, x) => a + requestedAmount(x.d, grossCents), 0);
+}
+/**
+ * Allocate the garnishment orders, then turn the result into applied rows.
+ * A levy carries no arrears: what it did not take stays on its balance.
+ */
+function applyGarnishments(rows, applied, check) {
+    const garn = rows.filter((x) => x.def.garnishmentPriority !== undefined);
+    if (!garn.length)
+        return { total: 0, warnings: [], refusals: [] };
+    const result = (0, payroll_garnish_1.allocateGarnishments)(garn.map((x) => garnishmentOrder(x.d, x.def)), {
+        payDate: check.payDate, periodsPerYear: check.periods, federalMinWageCents: payroll_tax_tables_1.FEDERAL_MIN_WAGE_CENTS,
+        disposableCents: check.disposableEarningsCents, healthPremiumCents: check.healthCents, cashCents: check.cashCents,
+        voluntaryPostTaxCents: voluntaryBeforeLevy(rows, check.grossCents),
+    });
+    const warnings = [...result.warnings, ...result.refusals.map((r) => `Garnishment not computed: ${r}`)];
+    for (const a of result.applied) {
+        const arrears = a.code === 'GARN_LEVY' ? 0 : a.shortfallCents;
+        if (arrears > 0)
+            warnings.push(`${a.label}: ${arrears} carried to arrears — ${a.reason}`);
+        applied.push({ electionId: a.electionId, code: a.code, label: a.label, requestedCents: a.requestedCents, appliedCents: a.appliedCents,
+            arrearsAddedCents: arrears, reason: a.reason || undefined });
     }
-    if (def.code === 'GARN_STUDENT')
-        return disposable * 0.15;
-    return (0, payroll_engine_1.ccpaCapCents)(disposable, periods);
+    return { total: result.totalCents, warnings, refusals: result.refusals };
 }
 /**
  * @description Assemble a paycheck from earnings and deduction rows.
@@ -252,7 +321,7 @@ function computeCheck(earnings, deductions, w4, opts) {
     if (badD.length)
         warnings.push(`Unknown deduction code(s) ignored: ${badD.join(', ')}.`);
     // ── Earnings, with FLSA overtime derived per workweek ─────────────────────
-    const derived = deriveFlsaOvertime(earnings);
+    const derived = deriveFlsaOvertime(earnings, opts.carriedWorkweeks || {}, opts.weekStarts || {});
     warnings.push(...derived.warnings);
     const allRows = [...earnings, ...derived.premiumRows];
     const priced = allRows
@@ -292,26 +361,25 @@ function computeCheck(earnings, deductions, w4, opts) {
     // cash tips are taxable but not payable, so they cannot fund a deduction.
     let available = cashEarningsCents + nontaxablePaidCents - pre.total - totalTax;
     const postApplied = [];
-    let postTotal = 0;
-    let garnTotal = 0;
-    let garnishmentRoom = (0, payroll_engine_1.ccpaCapCents)(disposableEarningsCents, periods);
-    const ordered = [...active]
+    const post = [...active]
         .map((d) => ({ d, def: (0, payroll_codes_1.deductionCode)(d.code) }))
         .filter((x) => x.def !== null)
-        .filter((x) => !(x.def.reduces.fit || x.def.reduces.fica || x.def.reduces.futa || x.def.reduces.state || x.def.countsToward402g))
-        .sort((a, b) => (a.def.garnishmentPriority ?? 99) - (b.def.garnishmentPriority ?? 99));
-    for (const { d, def } of ordered) {
+        .filter((x) => !(x.def.reduces.fit || x.def.reduces.fica || x.def.reduces.futa || x.def.reduces.state || x.def.countsToward402g));
+    // Garnishment orders first, each under its own federal ceiling (payroll-garnish).
+    // Reimbursements are not earnings, so they never fund one.
+    const health = pre.applied.filter((a) => HEALTH_PREMIUM_CODES.has(a.code)).reduce((a, x) => a + x.appliedCents, 0);
+    const garn = applyGarnishments(post, postApplied, {
+        grossCents, disposableEarningsCents, healthCents: health, periods,
+        cashCents: Math.max(0, cashEarningsCents - pre.total - totalTax), payDate: String(opts.payDate || ''),
+    });
+    warnings.push(...garn.warnings);
+    available -= garn.total;
+    let postTotal = garn.total;
+    const garnTotal = garn.total;
+    for (const { d, def } of post.filter((x) => x.def.garnishmentPriority === undefined)) {
         const requested = requestedAmount(d, grossCents);
         let allowed = requested;
         let reason;
-        if (def.garnishmentPriority !== undefined) {
-            const ceiling = Math.min(garnishmentCeiling(def, d, disposableEarningsCents, periods), garnishmentRoom);
-            if (allowed > ceiling) {
-                allowed = Math.max(0, cents(ceiling));
-                reason = 'Reduced by the CCPA disposable-earnings ceiling, applied in statutory priority.';
-            }
-            garnishmentRoom = Math.max(0, garnishmentRoom - allowed);
-        }
         if (allowed > available) {
             allowed = Math.max(0, available);
             reason = 'Insufficient net pay this period.';
@@ -326,10 +394,8 @@ function computeCheck(earnings, deductions, w4, opts) {
         }
         available -= allowed;
         postTotal += allowed;
-        if (def.garnishmentPriority !== undefined)
-            garnTotal += allowed;
         postApplied.push({
-            code: def.code, label: def.label, requestedCents: requested,
+            electionId: d.electionId, code: def.code, label: def.label, requestedCents: requested,
             appliedCents: allowed, arrearsAddedCents: arrearsAdded, reason,
         });
     }
@@ -351,6 +417,7 @@ function computeCheck(earnings, deductions, w4, opts) {
         postTaxCents: postTotal,
         garnishmentCents: garnTotal,
         disposableEarningsCents,
+        garnishmentRefusals: garn.refusals,
         netCents,
         workweekHours: derived.workweekHours,
         qualifiedOvertimeCents,

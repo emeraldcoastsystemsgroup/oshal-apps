@@ -40,6 +40,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.11: BACKLOG B10 (batched `features: [...]` in `cad-edit` orders while preserving single-feature input), B13 (actionable HTTP 403 missing-access / administrator role-requirement guidance), and B14 (pre-click engine container liveness diagnostics on Product and Settings).
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.12: BACKLOG B9 (joint fit / interference clearance check in mm across CAD Studio part envelopes, pockets and bores; POST /projects/{id}/fit-check; blocking parts-complete and closure on interference; honest measured/unmeasured load strength reporting on the Design poster).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.13: BACKLOG B3 (record engine-published tickHz and sensor rateHz from embodied 0.20.6 in controller/sensors reads so GET /projects/{id}/body publishes plant.tickS and senses[].rateHz with missing: [] for a closed spider) and BACKLOG B15 (honest reasoned-only closure metadata/evidence/UI banners naming that no engine measured the phase, plus named Pi bay thermal solve option in the brief).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Release 0.4.14 (BACKLOG B12, a person who is not an administrator): the new package engineering-shelf declares one Engineer role that gives Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print in one assignment, and tests/design-studio-nonadmin-live-proof.mjs runs New product, a partner-built part, Simulate and Make the print set as a made-up person who holds only that assignment. Its runs found two defects, fixed here. An engine nobody has asked yet read as a stopped engine: the product page said actions using CAD Studio would not succeed on a kernel whose CAD engine built the next part; it now reads waiting and raises no banner. A bind on Design that carried no parts list was accepted: the design partner's own second bind dropped the part its order had just built and bound, and the Design poster read no part bound; a bind that would unbind bound CAD Studio parts by leaving their list out is now refused by field (artifact.modelIds), as is a cad-models artifact with no list. No route was added and no role or grant changed.
 name: design-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -64,7 +65,7 @@ description: >-
   engine's evidence line and the artifact revision. The design partner on the
   right rail works through the chain with you. The spider is the first product;
   a lifting machine is the first whose plant is generated from its own design.
-version: 0.4.13
+version: 0.4.14
 status: active
 scope: person
 # The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel
@@ -239,7 +240,7 @@ tools:
       required: [projectId, phase, artifact]
     defaultAuthMode: auto
     requiresApproval: false
-    usageInstructions: Put only numbers you READ from an engine's tool reply in artifact.read, with the route and the moment; never a number from memory. Each bind is a new revision of that phase's binding.
+    usageInstructions: Put only numbers you READ from an engine's tool reply in artifact.read, with the route and the moment; never a number from memory. Each bind is a new revision of that phase's binding. A part a cad-create order built is bound by that order; never bind it again (a bind on Design that leaves out the modelIds list while parts are bound is refused).
     routingTags: [design, bind, artifact]
     tags: [design-studio, route-backed]
 

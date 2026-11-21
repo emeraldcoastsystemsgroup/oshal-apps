@@ -23,6 +23,8 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — carved the schema/queries out of payroll-routes.ts and added v1.1 storage: prior-YTD onboarding columns (mid-year switch from another payroll system), birth_date for the 402(g) catch-up tier, hire/termination dates, explicit k401/health/roth/supplemental-FIT line columns (W-2 box 12 + honest stubs), per-line proration and bonus method, engine warnings persisted per line, and run kind/corrects_run_id/approved_by/approved_at for void runs and an approval audit trail.
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: an hours-and-rate line applies the employee's garnishment orders through payroll-garnish and records each order's deduction row; approval recomputes a line built from earning rows with the earning-row engine (it used to recompute every line from hours and rate, replacing the earning rows and the deduction elections), refuses a run whose garnishment facts are missing (GarnishmentRefusalError), and moves each election's balance after the run is marked paid.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: an employee's occupation, the title that may stand for sex on payroll records (Mr., Mrs., Miss, Ms.) and home address are editable through the employee form (29 CFR 516.2(a)(2) and (4)), each written only when sent.
  *
  * @module payroll-store
  */
@@ -40,7 +42,10 @@ export {
 };
 import { computePaycheck, type CompProfile, type PayInputs, type Paycheck, type YtdBefore } from './payroll-engine';
 import {
-  DEFAULT_SUTA_RATE_PCT, DEFAULT_SUTA_WAGE_BASE_CENTS, PAY_PERIODS, TAX_YEAR,
+  applyOrdersToHoursCheck, electionFromRow, isGarnishmentCode, type GarnishmentApplied,
+} from './payroll-garnish';
+import {
+  DEFAULT_SUTA_RATE_PCT, DEFAULT_SUTA_WAGE_BASE_CENTS, FEDERAL_MIN_WAGE_CENTS, PAY_PERIODS, TAX_YEAR,
   minimumWageCents, type FilingStatus,
 } from './payroll-tax-tables';
 
@@ -56,6 +61,22 @@ export class NegativeNetError extends Error {
     super('negative_net_pay');
     this.name = 'NegativeNetError';
   }
+}
+
+/** Thrown when approval meets a check whose garnishment facts are missing. */
+export class GarnishmentRefusalError extends Error {
+  constructor(public readonly refusals: Array<{ employeeId: string; name: string; reasons: string[] }>) {
+    super('garnishment_facts_missing');
+    this.name = 'GarnishmentRefusalError';
+  }
+}
+
+/** What approval needs from the earning-row side, passed in so this module never imports it. */
+export interface ApprovalHooks {
+  /** Recompute a line built from earning rows with the earning-row engine, on the approving client. */
+  recomputeRowsLine?: (q: Queryable, run: Row, emp: Row) => Promise<{ garnishmentRefusals?: string[] }>;
+  /** Move each deduction election's balance by what the run took. */
+  settleBalances?: (q: Queryable, runId: string) => Promise<void>;
 }
 
 /** A database row. Values are driver-typed; callers coerce. */
@@ -92,6 +113,7 @@ const EMPLOYEE_COLUMNS = Object.freeze([
   'prior_ytd_year', 'prior_ytd_taxable_wages_cents', 'prior_ytd_ss_taxable_cents', 'prior_ytd_deferral_cents',
   'prior_ytd_supplemental_cents', 'prior_ytd_gross_cents', 'prior_ytd_fit_cents', 'prior_ytd_ss_cents',
   'prior_ytd_medicare_cents', 'prior_ytd_state_cents', 'status',
+  'occupation', 'name_prefix', 'address_line1', 'address_line2', 'city', 'postal_code',
 ] as const);
 
 /** Company columns writable through the API. FROZEN — same rule. */
@@ -254,6 +276,7 @@ export function companyDefaults(sub: string): Row {
     contact_email: '',
     kind_of_employer: 'N',
     employment_code: 'R',
+    workweek_start_time: '00:00',
   };
 }
 
@@ -321,8 +344,12 @@ const EMPLOYEE_FIELD_OF_COLUMN: Record<string, string> = {
   prior_ytd_supplemental_cents: 'priorYtdSupplementalCents', prior_ytd_gross_cents: 'priorYtdGrossCents',
   prior_ytd_fit_cents: 'priorYtdFitCents', prior_ytd_ss_cents: 'priorYtdSsCents',
   prior_ytd_medicare_cents: 'priorYtdMedicareCents', prior_ytd_state_cents: 'priorYtdStateCents',
-  status: 'status',
+  status: 'status', occupation: 'occupation', name_prefix: 'namePrefix', address_line1: 'addressLine1',
+  address_line2: 'addressLine2', city: 'city', postal_code: 'postalCode',
 };
+
+/** 29 CFR 516.2(a)(4): "sex may be indicated by use of the prefixes Mr., Mrs., Miss., or Ms." */
+const NAME_PREFIXES = ['', 'Mr.', 'Mrs.', 'Miss', 'Ms.'];
 
 /** Full column map with create-time defaults for everything absent. */
 function employeeColsFull(b: Record<string, unknown>): Record<string, unknown> {
@@ -364,6 +391,12 @@ function employeeColsFull(b: Record<string, unknown>): Record<string, unknown> {
     prior_ytd_medicare_cents: money(b.priorYtdMedicareCents),
     prior_ytd_state_cents: money(b.priorYtdStateCents),
     status: b.status === 'terminated' ? 'terminated' : 'active',
+    occupation: String(b.occupation || '').trim().slice(0, 80),
+    name_prefix: NAME_PREFIXES.includes(String(b.namePrefix || '')) ? String(b.namePrefix || '') : '',
+    address_line1: String(b.addressLine1 || '').trim().slice(0, 200),
+    address_line2: String(b.addressLine2 || '').trim().slice(0, 200),
+    city: String(b.city || '').trim().slice(0, 100),
+    postal_code: String(b.postalCode || '').trim().slice(0, 20),
   };
 }
 
@@ -526,10 +559,11 @@ function inputsFromLine(l: Row): PayInputs {
  * @param runId - The draft run.
  * @param approvedBy - Caller recorded on the audit trail.
  * @param acceptNegativeNet - Explicit override for an unpayable check.
+ * @param hooks - The earning-row recompute and the balance write-back, supplied by the routes.
  * @returns The paid run row, or null when nothing matched a draft.
  */
 export async function approveRun(
-  pool: Pool, sub: string, runId: string, approvedBy: string, acceptNegativeNet: boolean,
+  pool: Pool, sub: string, runId: string, approvedBy: string, acceptNegativeNet: boolean, hooks: ApprovalHooks = {},
 ): Promise<Row | null> {
   return withTransaction(pool, async (q) => {
     const run = (await q.query(
@@ -537,14 +571,7 @@ export async function approveRun(
       [runId, sub])).rows[0];
     if (!run) return null;
 
-    const lines = (await q.query(
-      'SELECT * FROM payroll_run_lines WHERE run_id = $1 AND user_sub = $2', [runId, sub])).rows;
-    for (const line of lines) {
-      const emp = (await q.query(
-        'SELECT * FROM payroll_employees WHERE employee_id = $1 AND user_sub = $2',
-        [line.employee_id, sub])).rows[0];
-      if (emp) await recomputeLineOn(q, sub, run, emp, inputsFromLine(line));
-    }
+    await recomputeForApproval(q, sub, run, hooks);
 
     if (!acceptNegativeNet) {
       const bad = (await q.query(
@@ -559,17 +586,46 @@ export async function approveRun(
       `UPDATE payroll_runs SET status = '${RUN_PAID}', approved_by = $3, approved_at = now(), updated_at = now()
         WHERE run_id = $1 AND user_sub = $2 AND status = '${RUN_DRAFT}' RETURNING *`,
       [runId, sub, approvedBy]);
+    if (paid.rows[0] && hooks.settleBalances) await hooks.settleBalances(q, runId);
     return paid.rows[0] || null;
   });
 }
 
+/**
+ * Recompute every line of a run being approved, each on the engine that built
+ * it, and refuse the run when any check's garnishment facts are missing.
+ */
+async function recomputeForApproval(q: Queryable, sub: string, run: Row, hooks: ApprovalHooks): Promise<void> {
+  const lines = (await q.query(
+    'SELECT * FROM payroll_run_lines WHERE run_id = $1 AND user_sub = $2', [run.run_id, sub])).rows;
+  const refused: Array<{ employeeId: string; name: string; reasons: string[] }> = [];
+  for (const line of lines) {
+    const emp = (await q.query(
+      'SELECT * FROM payroll_employees WHERE employee_id = $1 AND user_sub = $2',
+      [line.employee_id, sub])).rows[0];
+    if (!emp) continue;
+    const check = line.uses_earning_rows === true && hooks.recomputeRowsLine
+      ? await hooks.recomputeRowsLine(q, run, emp)
+      : await recomputeLineOn(q, sub, run, emp, inputsFromLine(line));
+    const reasons = check.garnishmentRefusals || [];
+    if (reasons.length) {
+      refused.push({ employeeId: String(emp.employee_id), name: `${emp.first_name || ''} ${emp.last_name || ''}`.trim(), reasons });
+    }
+  }
+  if (refused.length) throw new GarnishmentRefusalError(refused);
+}
+
 /** Compute + upsert one run line against a pool; returns the stored breakdown. */
-export async function recomputeLine(pool: Pool, sub: string, run: Row, emp: Row, inputs: PayInputs): Promise<Paycheck> {
+export async function recomputeLine(
+  pool: Pool, sub: string, run: Row, emp: Row, inputs: PayInputs,
+): Promise<Paycheck & { garnishmentRefusals: string[] }> {
   return recomputeLineOn(pool, sub, run, emp, inputs);
 }
 
 /** Compute + upsert one run line against any queryable (pool or txn client). */
-async function recomputeLineOn(pool: Queryable, sub: string, run: Row, emp: Row, inputs: PayInputs): Promise<Paycheck> {
+async function recomputeLineOn(
+  pool: Queryable, sub: string, run: Row, emp: Row, inputs: PayInputs,
+): Promise<Paycheck & { garnishmentRefusals: string[] }> {
   const company = await getCompany(pool, sub);
   const periods = PAY_PERIODS[String(run.pay_frequency)] || 26;
   const payDate = isoDate(run.pay_date);
@@ -590,6 +646,8 @@ async function recomputeLineOn(pool: Queryable, sub: string, run: Row, emp: Row,
     futaCreditReductionPct: num(company.futa_credit_reduction_pct),
     minimumWageCents: minimumWageCents(stateCode, payDate),
   });
+  const elections = await garnishmentElections(pool, sub, String(emp.employee_id), payDate);
+  const orders = applyOrdersToHoursCheck(check, elections, { periodsPerYear: periods, payDate, federalMinWageCents: FEDERAL_MIN_WAGE_CENTS });
   const cols = LINE_COLUMNS.join(', ');
   const placeholders = LINE_COLUMNS.map((_, i) => `$${i + 4}`).join(', ');
   const updates = LINE_COLUMNS.map((k) => `${k} = EXCLUDED.${k}`).join(', ');
@@ -604,7 +662,39 @@ async function recomputeLineOn(pool: Queryable, sub: string, run: Row, emp: Row,
      ON CONFLICT (run_id, employee_id) DO UPDATE SET ${updates}, updated_at = now()`,
     [run.run_id, emp.employee_id, sub, ...lineValues(inputs, check)],
   );
-  return check;
+  if (elections.length) await storeGarnishmentRows(pool, sub, run, String(emp.employee_id), orders.applied);
+  return Object.assign(check, { garnishmentRefusals: orders.refusals });
+}
+
+/** The employee's garnishment orders active on a pay date. */
+async function garnishmentElections(q: Queryable, sub: string, employeeId: string, payDate: string) {
+  const r = await q.query(
+    `SELECT * FROM payroll_deduction_elections
+      WHERE user_sub = $1 AND employee_id = $2 AND active = true
+        AND code IN ('GARN_SUPPORT', 'GARN_LEVY', 'GARN_STUDENT', 'GARN_CREDITOR')
+        AND (effective_from IS NULL OR effective_from <= $3)
+        AND (effective_to IS NULL OR effective_to >= $3)`, [sub, employeeId, payDate]);
+  return r.rows.map((e: Row) => electionFromRow(e)).filter((e) => isGarnishmentCode(e.code));
+}
+
+/**
+ * Record what each order took on this check, so approval can move its balance.
+ * Written only while the run is a draft, like the line itself.
+ */
+async function storeGarnishmentRows(q: Queryable, sub: string, run: Row, employeeId: string, rows: GarnishmentApplied[]) {
+  await q.query(
+    `DELETE FROM payroll_line_deductions WHERE user_sub = $1 AND run_id = $2 AND employee_id = $3
+        AND EXISTS (SELECT 1 FROM payroll_runs r WHERE r.run_id = $2 AND r.user_sub = $1 AND r.status = '${RUN_DRAFT}')`,
+    [sub, run.run_id, employeeId]);
+  for (const a of rows) {
+    await q.query(
+      `INSERT INTO payroll_line_deductions
+         (deduction_id, user_sub, run_id, employee_id, code, requested_cents, applied_cents, arrears_added_cents, reason, election_id)
+       SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+        WHERE EXISTS (SELECT 1 FROM payroll_runs r WHERE r.run_id = $3 AND r.user_sub = $2 AND r.status = '${RUN_DRAFT}')`,
+      [crypto.randomUUID(), sub, run.run_id, employeeId, a.code, a.requestedCents, a.appliedCents,
+        a.code === 'GARN_LEVY' ? 0 : a.shortfallCents, a.reason, a.electionId || '']);
+  }
 }
 
 /**

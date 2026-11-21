@@ -34,7 +34,10 @@ Open `/cockpit/?app=cad-studio`.
    anywhere in the swarm — ADR-139 "Open in CAD Studio").
 2. **Add features** in the right rail — the form is generated from the contract the server
    enforces: hole, boss, box-add, box-cut (pocket / slot), sketch-extrude, revolve, sweep and loft
-   (each add or cut), fillet, chamfer, shell, cut-plane, scale, mirror, rotate, translate. Every add / edit / disable / move /
+   (each add or cut), fillet, chamfer, shell, cut-plane, scale, mirror, rotate, translate, ISO metric
+   `thread` (external boss or internal hole by nominal diameter and pitch), and embossed/debossed
+   `text` (rendered with the bundled SIL OFL 1.1 `engine/fonts/LiberationSans-Regular.ttf` font;
+   licence in `engine/fonts/LICENSE.txt`). Every add / edit / disable / move /
    remove **rebuilds the part** and produces a new **revision**. A feature the kernel refuses (a
    fillet radius larger than the edge allows) is shown **skipped with the kernel's reason** — the
    part stays buildable; fix the number. A feature that takes longer than the per-feature budget

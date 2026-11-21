@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve editable cubic nodes and flatten bounded closed paths for robust polygon booleans.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: include flipX and flipY when flattening vector path geometry for booleans.
  */
 import clipping from './polygon-clipping.mjs';
 import { demand } from './model-validation.mjs';
@@ -33,7 +34,8 @@ export function traceShape(ctx, layer) {
 }
 
 function point(layer, x, y) {
-  const angle = layer.rotation * Math.PI / 180, dx = x - layer.w / 2, dy = y - layer.h / 2;
+  const angle = layer.rotation * Math.PI / 180;
+  const dx = (x - layer.w / 2) * (layer.flipX ? -1 : 1), dy = (y - layer.h / 2) * (layer.flipY ? -1 : 1);
   return [layer.x + layer.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle),
     layer.y + layer.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle)];
 }

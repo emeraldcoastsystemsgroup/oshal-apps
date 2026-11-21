@@ -13,6 +13,8 @@
  *                     |                             | called (the stub raises if it is — a valid loft is the
  *                     |                             | positive control that it does). Branch logic only: geometry
  *                     |                             | is the engine image's real-kernel suite.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Add pre-kernel refusal checks for ISO metric `thread` and
+ *                     |                             | embossed/debossed `text` features (BACKLOG B4).
  */
 'use strict';
 const test = require('node:test');
@@ -62,7 +64,7 @@ test('the budget parse accepts whole ms in range and refuses everything else by 
   for (const bad of ['0', '600001', '2.5', "'60000'", 'True']) assert.match(out.budgets[bad].error, /featureBudgetMs must/, bad);
 });
 
-test('every revolve, sweep and loft refusal happens before the kernel is called', () => {
+test('every revolve, sweep, loft, thread and text refusal happens before the kernel is called', () => {
   const expected = {
     revolveAxisOffPlane: /axis must be one of \['x', 'z'\]/,
     revolveXYAxisZ: /axis must be one of \['x', 'y'\]/,
@@ -74,6 +76,14 @@ test('every revolve, sweep and loft refusal happens before the kernel is called'
     loftSectionNotObject: /sections\[1\] must be an object/,
     loftRuledNotBool: /ruled must be true or false/,
     loftTooManySections: /sections must be a list of 2\.\.32/,
+    threadBadKind: /kind must be one of/,
+    threadPitchTooLarge: /pitchMm must be less than half/,
+    threadLengthTooShort: /lengthMm must be >= pitchMm/,
+    threadBadClearance: /clearanceMm must be <= 0\.5/,
+    textEmpty: /text must be 1\.\.64/,
+    textTooLong: /text must be 1\.\.64/,
+    textBadMode: /mode must be one of/,
+    textBadFace: /face must be one of/,
   };
   assert.deepEqual(Object.keys(out.refusals).sort(), Object.keys(expected).sort());
   for (const [name, pattern] of Object.entries(expected)) {
@@ -82,6 +92,7 @@ test('every revolve, sweep and loft refusal happens before the kernel is called'
     assert.doesNotMatch(status.error, KERNEL_REACHED, `${name} reached the kernel before refusing`);
     assert.match(status.error, pattern, name);
   }
-  // Positive control: a valid loft does call the (stubbed) kernel, so the check above can fail.
+  // Positive controls: valid loft and text reach the (stubbed) kernel, so the check above can fail.
   assert.match(out.validLoftReachesKernel.error, KERNEL_REACHED);
+  assert.match(out.validTextReachesKernel.error, KERNEL_REACHED);
 });

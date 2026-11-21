@@ -16,6 +16,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — stable, league-qualified entity ids, the team/injury split, disambiguated queries, matchup keying by event id, dedup, the restart-proof cool-down, and an ingest that reports a failure instead of throwing into a pass that is also capturing lines.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Item A (0.12.3): guard that refreshWorld wire ingest is retired after negative walk-forward results while retaining the pure subject-naming module contracts.
  */
 
 const test = require('node:test');
@@ -141,4 +142,21 @@ test('a malformed answer totals to zero rather than NaN', async () => {
   const r = await ingestSubject(async () => ({ perSource: [{}, { fetched: 'x' }] }), subjects(1)[0], 15);
   assert.equal(r.fetched, 0);
   assert.equal(r.newItems, 0);
+});
+
+test('refreshWorld wire ingest is retired after negative Item A walk-forward evaluation', async () => {
+  const Module = require('node:module');
+  const orig = Module._load;
+  Module._load = (req, ...rest) => (req === '@/shared/logger'
+    ? { createChildLogger: () => ({ debug() {}, info() {}, warn() {}, error() {} }) }
+    : orig.call(Module, req, ...rest));
+  try {
+    const resolved = require.resolve('../routes/sports-refresh.js');
+    delete require.cache[resolved];
+    const refresh = require('../routes/sports-refresh.js');
+    assert.equal(refresh.WORLD_WIRE_INGEST_RETIRED, true);
+    assert.deepEqual(await refresh.refreshWorld(null, 'any-user'), { subjects: 0, newItems: 0 });
+  } finally {
+    Module._load = orig;
+  }
 });

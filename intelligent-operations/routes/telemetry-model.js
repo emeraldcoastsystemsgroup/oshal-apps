@@ -4,12 +4,13 @@ exports.streamConfiguration = streamConfiguration;
 exports.normalizeTelemetry = normalizeTelemetry;
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Validate standard OTLP JSON logs/metrics and decoded CloudWatch subscriptions without guessing resource identities.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bound initial bank budgets and their explicitly configured growth ceilings.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): accept kubernetes-node in telemetry stream configurations.
  */
 // @ts-nocheck
 const intake_1 = require("./intake");
 const fail = (status, message) => { throw Object.assign(Error(message), { status }); };
 const clean = (v, n = 512) => typeof v === 'string' && v.length > 0 && v.length <= n && v.trim() === v && !/[\x00-\x1f\x7f]/.test(v);
-const kinds = ['host', 'aws-resource', 'azure-resource', 'gcp-resource', 'kubernetes-pod', 'container', 'workload'];
+const kinds = ['host', 'aws-resource', 'azure-resource', 'gcp-resource', 'kubernetes-node', 'kubernetes-pod', 'container', 'workload'];
 function streamConfiguration(input) {
     if (!input || !kinds.includes(input.resourceKind) || !clean(input.idAttribute, 128) || !clean(input.scopeAttribute, 128))
         fail(400, 'Choose a resource kind and explicit resource ID/scope attributes.');

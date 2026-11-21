@@ -1,3 +1,4 @@
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): map kubernetes-node alerts to recorded Kubernetes node inventory assets in pinned evidence packets. */
 /** CHANGE LOG: sealed series | maintainer@emeraldcoastsystemsgroup.com | What an independent review proved once a heartbeat fed this bank every minute (2026-11-03): each metric row sealed about 480 bytes, so a normal packet filled about 89% of the 64 KiB investigation input, a few repeated reports made it unstartable for good, and the capture transaction carried every stored packet. A packet now seals metrics as one series per reading, with what every row repeated left out (the packet names the resource and the source already), and it is bounded in bytes: the oldest go first and truncated says so. A batch reads its duplicates once per bank instead of three statements per observation, because each statement is a kernel log line. */
 /** CHANGE LOG: inventory evidence | maintainer@emeraldcoastsystemsgroup.com | A pinned packet carries the alert's own summary, description and labels (untrusted, bounded) and the resource's recorded inventory facts with the node it runs on, so an investigation can name the pod, namespace and node even without retained telemetry (R17). */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Share the atomic packet pin with the original-user scheduled evidence consumer. */
@@ -101,7 +102,7 @@ export async function pinTelemetryEvidence(pool,owner,workId){
 }
 /** @description Pin within an existing owner-scoped transaction so worker completion and packet persistence commit together.
  * @param c Active original-caller SQL transaction. @param owner Verified caller. @param workId Capture reservation. @returns Immutable bounded evidence packet. */
-const KIND={'kubernetes-pod':['kubernetes','pod'],container:['kubernetes','container'],workload:['kubernetes','workload'],host:['import','host']};
+const KIND={'kubernetes-node':['kubernetes','node'],'kubernetes-pod':['kubernetes','pod'],container:['kubernetes','container'],workload:['kubernetes','workload'],host:['import','host']};
 const bounded=(value,max)=>typeof value==='string'?value.slice(0,max):null;
 /** The alert's own words and labels as the producer sent them: untrusted text, bounded. */
 function alertText(delivery){

@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: comprehensive automated QA suite for pure-stdlib OOXML executive resume pipeline (all 4 families, .dotx, blank templates, cover letters, zero theme-font leaks, Quick Styles, ATS/RTF primitives, exact headline parity across DOCX/RTF/PDF, automatic <=2-page compaction guard, python-docx round-trip, and zero-PII enforcement).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: add unit coverage for _soffice_cmd() /usr/bin/sh fallback when /bin/sh is absent (bwrap sandbox without /bin) while keeping direct invocation when /bin/sh exists or for non-script binaries.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the zero-PII scan also reads docx_parse.py, the parse résumé's writer.
 """Automated QA checks for jobhunter.docx_ooxml and jobhunter.docx_resume."""
 from __future__ import annotations
 
@@ -255,6 +256,7 @@ class TestDocxResumePipeline(unittest.TestCase):
         targets = [
             ENGINE_DIR / "jobhunter" / "docx_ooxml.py",
             ENGINE_DIR / "jobhunter" / "docx_resume.py",
+            ENGINE_DIR / "jobhunter" / "docx_parse.py",
             ENGINE_DIR / "jobhunter" / "templates" / "resume.html",
             ENGINE_DIR / "jobhunter" / "templates" / "resume_premium.html",
             ENGINE_DIR / "jobhunter" / "templates" / "resume_1page.html",

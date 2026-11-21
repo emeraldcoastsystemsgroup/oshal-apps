@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Share only the current selected-layer summary through the existing read-only surface bridge, retiring unavailable context.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Add the current image region as bounded scalar fields (kind, target layer, source-pixel bounds, area, point count) and whether it is ready or must be reselected. Still read-only: no outline points, pixels or asset references.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose the current document identity and revision to the automatic save/refresh handoff; distinguish saved-project editing tools from read-only bridge messages.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: expose flipX and flipY booleans on the selected paint/group layer in bounded read-only editor context.
  */
 import { state, subscribe, dirty } from './editor-state.mjs';
 import { resolveSelection, selectionSummary } from './region-select.mjs';
@@ -32,6 +33,7 @@ export function editorSnapshot(reason) {
   if (selected) Object.assign(fields, { layerId: clipped(selected.id, 100), layerType: selected.type,
     layerName: clipped(selected.name, 120), locked: selected.locked,
     x: selected.x, y: selected.y, width: selected.w, height: selected.h,
+    ...(selected.type !== 'adjustment' ? { flipX: Boolean(selected.flipX), flipY: Boolean(selected.flipY) } : {}),
     ...(selected.type === 'text' ? { text: clipped(selected.text, 1000) } : {}) });
   const region = !fields.regionKind ? '' : fields.regionState === 'ready'
     ? ` Region selected (${fields.regionKind}, ${fields.regionWidth} × ${fields.regionHeight} source pixels).` : ' The selected region must be reselected.';

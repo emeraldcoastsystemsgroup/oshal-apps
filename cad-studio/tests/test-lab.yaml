@@ -17,6 +17,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.3.2: register phone-editor (one app bar row on a phone, Project and Rebuild in More, content within 74 px).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register surface-design-standard (the design standard's contract, New part as the empty canvas's first action, one primary, no native dialog, the Part menu, and the five planned controls RP-CAD-01 to -05 in their places); phone-editor now ends the app bar with Export and More.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update surface-design-standard for live RP-CAD-01..05 controls (zero planned placeholders) and register rp-cad-exports-print-measure covering OBJ/MTL, 3MF, GLB, USDZ, sharp-edge mm/in measurement, AR QR, and honest printer queue handoff.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.5.5 (BACKLOG B4): 18 feature types (thread and text), 34 real-kernel cases including watertight threaded-boss STL mesh validation, and b4-thread-text-mesh contract suite.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -46,10 +47,10 @@ cases:
       files:
         - tests/contract-features.test.js
     expected:
-      - Sixteen feature types and five base kinds validate; a typo'd parameter is refused naming the field.
+      - Eighteen feature types and five base kinds validate; a typo'd parameter is refused naming the field.
       - The worker's FEATURES registry and PLANE_AXES, read from cad_worker.py's source, equal the contract's.
       - settings.featureBudgetMs outside 1..600000 whole ms is refused naming the field, and the range equals the worker's.
-      - engine-build-hash.js and cad_engine_bridge.py --build-hash produce the same digest.
+      - engine-build-hash.js and cad_engine_bridge.py --build-hash produce the same digest including the bundled font.
     prerequisites:
       - runner:node-test
       - python3
@@ -160,7 +161,7 @@ cases:
       files:
         - engine/tests/test_cad_worker.py
     expected:
-      - 28 unittest cases pass under `python -m unittest discover -s tests` in oshal-cad-studio-engine, including revolve, sweep and loft to analytic volumes and the per-feature budget.
+      - 34 unittest cases pass under `python -m unittest discover -s tests` in oshal-cad-studio-engine, including revolve/sweep/loft, per-feature budget, ISO metric thread, embossed/debossed text, and threaded-boss STL mesh validation.
     prerequisites:
       - engine-container:oshal-cad-studio-engine
     sideEffects: none
@@ -442,4 +443,25 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: b4-thread-text-mesh
+    name: Threads, text, bundled OFL font, and binary STL mesh validation (B4)
+    purpose: Verify the self-contained binary STL mesh validator (watertight edge census, winding, positive volume, degenerate check, Euler chi=2), bundled LiberationSans-Regular.ttf OFL-1.1 font and LICENSE integrity, and UI form handling for thread and text features.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/b4-thread-text-mesh.test.js
+    expected:
+      - Binary STL validator accepts closed outward manifold solids (chi=2) and rejects open, inverted, and mis-wound meshes.
+      - engine/fonts/LiberationSans-Regular.ttf has a valid TrueType SFNT header alongside engine/fonts/LICENSE.txt (SIL OFL 1.1).
+      - tools/cad-studio.js renders typed select and string inputs for thread and text parameters without coercing text to NaN.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

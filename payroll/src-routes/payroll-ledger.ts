@@ -19,6 +19,8 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 19:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — append-only change audit, earning-row and deduction-election persistence, the v2 line assembly that stores per-check earning + deduction ROWS, payment records with check-number uniqueness, and the arrears write-back that makes a carried balance real rather than advisory.
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: elections are read through payroll-garnish's electionFromRow (an order's dates, priority and levy statement); each check's deduction row records its election; the write-back, which nothing had called, now runs at approval, moves each election's own balance, and carries forward this check's shortfall instead of counting the old arrears twice.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: earning rows, entered and derived, store and read back the workday they were worked (work_date).
  *
  * @module payroll-ledger
  */
@@ -27,6 +29,7 @@ import * as crypto from 'crypto';
 import type { AppContext } from '@/app/composition/app-context';
 import { computeCheck, type DeductionRow, type EarningRow, type PayCheck } from './payroll-payrun';
 import { deductionCode } from './payroll-codes';
+import { electionFromRow } from './payroll-garnish';
 import { money, num, type Row } from './payroll-store';
 
 type Pool = AppContext['pool'];
@@ -86,24 +89,25 @@ export async function setLineEarnings(
   for (const r of rows) {
     await q.query(
       `INSERT INTO payroll_line_earnings
-         (earning_id, user_sub, run_id, employee_id, code, hours, rate_cents, amount_cents, workweek, memo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         (earning_id, user_sub, run_id, employee_id, code, hours, rate_cents, amount_cents, workweek, memo, work_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [crypto.randomUUID(), sub, runId, employeeId, String(r.code || '').toUpperCase(),
         num(r.hours), money(r.rateCents), money(r.amountCents),
-        Math.max(1, Math.trunc(num(r.workweek, 1)) || 1), String(r.memo || '')]);
+        Math.max(1, Math.trunc(num(r.workweek, 1)) || 1), String(r.memo || ''), r.workDate || null]);
   }
 }
 
 /** The operator-entered earning rows for one check (derived premium rows excluded). */
 export async function getLineEarnings(q: Queryable, sub: string, runId: string, employeeId: string): Promise<EarningRow[]> {
   const r = await q.query(
-    `SELECT code, hours, rate_cents, amount_cents, workweek, memo
+    `SELECT code, hours, rate_cents, amount_cents, workweek, memo, work_date
        FROM payroll_line_earnings
       WHERE user_sub = $1 AND run_id = $2 AND employee_id = $3 AND derived = false
       ORDER BY workweek, created_at`, [sub, runId, employeeId]);
   return r.rows.map((x: Row) => ({
     code: String(x.code), hours: num(x.hours), rateCents: money(x.rate_cents),
     amountCents: money(x.amount_cents), workweek: num(x.workweek, 1), memo: String(x.memo || ''),
+    ...(x.work_date ? { workDate: x.work_date instanceof Date ? x.work_date.toISOString().slice(0, 10) : String(x.work_date).slice(0, 10) } : {}),
   }));
 }
 
@@ -115,15 +119,9 @@ export async function getDeductionRows(q: Queryable, sub: string, employeeId: st
         AND (effective_from IS NULL OR effective_from <= $3)
         AND (effective_to IS NULL OR effective_to >= $3)
       ORDER BY code`, [sub, employeeId, onDate]);
-  return r.rows.map((e: Row) => ({
-    code: String(e.code),
-    amountCents: money(e.amount_cents),
-    percentOfGross: e.percent_of_gross === null || e.percent_of_gross === undefined ? undefined : num(e.percent_of_gross),
-    annualLimitCents: e.annual_limit_cents === null || e.annual_limit_cents === undefined ? undefined : money(e.annual_limit_cents),
-    ytdCents: money(e.ytd_cents),
-    arrearsCents: money(e.arrears_cents),
-    supportCcpaPct: e.support_ccpa_pct === null || e.support_ccpa_pct === undefined ? undefined : num(e.support_ccpa_pct),
-  }));
+  // One reader for both engines (payroll-garnish), so a garnishment order's
+  // dates, priority and levy statement reach the check the same way everywhere.
+  return r.rows.map((e: Row) => electionFromRow(e));
 }
 
 /** Persist what each deduction actually did on this check. */
@@ -133,10 +131,11 @@ async function storeLineDeductions(q: Queryable, sub: string, runId: string, emp
   for (const d of check.deductions) {
     await q.query(
       `INSERT INTO payroll_line_deductions
-         (deduction_id, user_sub, run_id, employee_id, code, requested_cents, applied_cents, arrears_added_cents, reason)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         (deduction_id, user_sub, run_id, employee_id, code, requested_cents, applied_cents, arrears_added_cents, reason,
+          election_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [crypto.randomUUID(), sub, runId, employeeId, d.code,
-        d.requestedCents, d.appliedCents, d.arrearsAddedCents, d.reason || '']);
+        d.requestedCents, d.appliedCents, d.arrearsAddedCents, d.reason || '', d.electionId || '']);
   }
 }
 
@@ -149,10 +148,11 @@ async function storeDerivedEarnings(q: Queryable, sub: string, runId: string, em
     if (!String(e.memo || '').includes('derived') && !String(e.memo || '').includes('top-up')) continue;
     await q.query(
       `INSERT INTO payroll_line_earnings
-         (earning_id, user_sub, run_id, employee_id, code, hours, rate_cents, amount_cents, workweek, gross_cents, derived, memo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11)`,
+         (earning_id, user_sub, run_id, employee_id, code, hours, rate_cents, amount_cents, workweek, gross_cents, derived, memo,
+          work_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12)`,
       [crypto.randomUUID(), sub, runId, employeeId, e.code, num(e.hours), money(e.rateCents),
-        money(e.amountCents), num(e.workweek, 1), money(e.grossCents), String(e.memo || '')]);
+        money(e.amountCents), num(e.workweek, 1), money(e.grossCents), String(e.memo || ''), e.workDate || null]);
   }
 }
 
@@ -225,29 +225,37 @@ export async function recomputeLineV2(
 
 /**
  * @description Write back what each deduction consumed: YTD toward its annual
- * ceiling, and the arrears balance carried forward.
+ * ceiling, the lifetime total (a levy's balance is its amount less this), and
+ * the arrears balance carried forward.
  *
  * Called only at APPROVAL, never on a draft recompute — otherwise editing a
  * draft twice would double-count the year-to-date and shrink the ceiling.
+ *
+ * The arrears carried forward is this check's shortfall, nothing more: what was
+ * asked for already included the arrears brought in, so "old arrears minus what
+ * was taken plus the shortfall" counted the old balance twice. A row records the
+ * election it came from, so two orders under one code each move their own
+ * balance; a row from before that was recorded falls back to the code.
  * @param q - Transaction client.
  * @param sub - Owning OIDC sub.
  * @param runId - The run being approved.
  */
 export async function settleDeductionBalances(q: Queryable, sub: string, runId: string): Promise<void> {
   const rows = (await q.query(
-    `SELECT employee_id, code, applied_cents, arrears_added_cents
+    `SELECT employee_id, code, applied_cents, arrears_added_cents, election_id
        FROM payroll_line_deductions WHERE user_sub = $1 AND run_id = $2`, [sub, runId])).rows;
   for (const d of rows) {
-    const def = deductionCode(String(d.code));
-    if (!def) continue;
+    if (!deductionCode(String(d.code))) continue;
+    const byElection = String(d.election_id || '') !== '';
     await q.query(
       `UPDATE payroll_deduction_elections
           SET ytd_cents = ytd_cents + $4,
               lifetime_cents = lifetime_cents + $4,
-              arrears_cents = GREATEST(0, arrears_cents - $4 + $5),
+              arrears_cents = $5,
               updated_at = now()
-        WHERE user_sub = $1 AND employee_id = $2 AND code = $3 AND active = true`,
-      [sub, d.employee_id, d.code, money(d.applied_cents), money(d.arrears_added_cents)]);
+        WHERE user_sub = $1 AND employee_id = $2 AND active = true
+          AND ${byElection ? 'election_id = $3' : 'code = $3'}`,
+      [sub, d.employee_id, byElection ? d.election_id : d.code, money(d.applied_cents), money(d.arrears_added_cents)]);
   }
 }
 

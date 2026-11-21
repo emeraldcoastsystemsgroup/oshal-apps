@@ -27,6 +27,7 @@
  * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: sync documentGeneration.inputsHash via career-application-draft.markEdited() after saving an edited tailored packet so returning to Review documents never forces regeneration.
  * 28 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: include Resume_ATS.{docx,rtf} and CoverLetter.{docx,rtf} in transactional RENDERED_PACKET_FILES snapshots/rollbacks, expose meta.templateFamily from application.json, and forward optional templateFamily to rerender.
  * 29 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: GET /resume/master-section also reads field `years`, the person's own years by skill and in total beside the years counted from the roles, with the main résumé's exact revision, for Work history's Years by skill form. Its save is the existing POST /resume/master-edit (an edit of field `years`) and its Undo the existing POST /resume/master-undo; no route is added.
+ * 30 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: RENDERED_PACKET_FILES includes Resume_Parse.docx, which a re-render now writes, so a re-render's snapshot and rollback cover the parse résumé too.
  */
 
 /**
@@ -102,6 +103,7 @@ const RENDERED_PACKET_FILES = [
   'Resume_ATS.pdf',
   'Resume_ATS.docx',
   'Resume_ATS.rtf',
+  'Resume_Parse.docx',
   'Resume_Premium.html',
   'Resume_Premium.pdf',
   'Resume_1page.html',

@@ -3,6 +3,7 @@ SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Document complete package test registration and honest isolated execution boundaries (0.4.2).
 2 | maintainer@emeraldcoastsystemsgroup.com | Point to the marketing suite spec, its market scan, and this package's BACKLOG.md (the end-to-end suite work with done-when criteria).
 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: person-facing product references and brand rule name Open Swarm.
+4 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: document P1 audience store (migration 003, /api/marketing/audience/* routes, and RLS tests).
 -->
 # Marketing Engine (marketing-engine) — Open Swarm app package
 
@@ -47,9 +48,10 @@ Open work, with a done-when on every item: [BACKLOG.md](BACKLOG.md).
   rollup — covered by the dependency-free `tests/*.test.mjs` suite.
 - The surface (`tools/marketing-engine.html`) and package copies of the four bot
   personas (`personas/*.yaml`).
-- Migrations `001-marketing-core.sql` + `002-marketing-metrics.sql` — all tables
-  owner FORCE-RLS on `user_sub`, mirrored at the route factories' lazy-DDL
-  chokepoints.
+- Migrations `001-marketing-core.sql`, `002-marketing-metrics.sql`, and
+  `003-marketing-audience.sql` — all tables owner FORCE-RLS (`user_sub` on core/metrics,
+  exact-owner `owner_sub` on the five audience tables), mirrored at the route factories'
+  lazy-DDL chokepoints.
 
 ## Stays in the OSHAL kernel
 
@@ -109,6 +111,10 @@ page. Errors render honestly: `not_connected` → "Connect *channel* in Connecto
 | `GET /experiments` · `POST /experiments` · `PATCH /experiments/:id` | ICE registry + legal status transitions |
 | `GET /budget/proposals` · `POST /budget/proposals/:id/decide` | Approve (requires `confirm: true`, then applies) or reject |
 | `GET /utm?url&source&medium&campaign&content` | UTM-tagged link |
+| `GET /audience/contacts` · `POST /audience/contacts` | List/segment contacts (`list`, `tag`, `consentState`, `channel`, `purpose`, `suppressed`, `q`) and upsert contacts with sign-up consent evidence (refuses re-confirming suppressed addresses) |
+| `GET /audience/contacts/:id/consent-export` · `DELETE /audience/contacts/:id` | Export recorded consent evidence JSON (`formText`, `recordedAt`, `ip`, `userAgent`, `utm`, `tokenHash`), lists, and suppressions; delete exports evidence first and removes contact, consents, and memberships (plus matching suppression with `?purgeSuppression=true`) |
+| `GET /audience/lists` · `POST /audience/lists` · `POST /audience/lists/:id/members` · `DELETE /audience/lists/:id/members/:contactId` | Manage owner-scoped audience lists and memberships |
+| `GET /audience/suppressions` · `POST /audience/suppressions` · `DELETE /audience/suppressions/:id` | Manage normalized SHA-256 hash suppressions; adding a suppression revokes active consents for that contact and channel |
 
 Service routes (`/api/marketing-ops`, service auth): `POST /ingest`, `POST /weekly` —
 the schedule handlers. `GET /api/marketing/_smoke` is the service-auth readiness probe.

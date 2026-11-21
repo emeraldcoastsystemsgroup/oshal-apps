@@ -42,6 +42,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount interactive 3D mesh crop/rotate/undo/reset routes, caller-scoped read-only share links, GLB/USDZ capabilities, and scan-to-print-tools.js (0.10.0).
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: mount artifact-exchange source (`GET /artifacts`, B4) and printable orientation-cube markers (`GET /markers`, B9), and advertise `printCheck` bounds (B13) and `symmetryAxes` (B11) on `/capabilities`.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4: advertise deterministic fiducial square scale-anchor bounds (`fiducial`, BACKLOG B3) on `/capabilities`.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 0.10.6 (BACKLOG B16 Option C): report `slicerConfigured: true` and `slicerBackend: 'engine' | 'command' | 'none'` when the package slicer engine (`slice_gcode`) is configured, and expose `slicerExchange` test seam + generic G-code profile/bounds metadata on `/capabilities`.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -126,9 +127,11 @@ function nativeSlicer(ctx, options) {
 /** @description The dependencies the person's print routes and the print service share. */
 function printDeps(ctx, opts) {
     const env = opts.env ?? process.env;
+    const baseSlicer = nativeSlicer(ctx, slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect));
+    const slicer = opts.slicerExchange ? { ...baseSlicer, exchange: opts.slicerExchange } : baseSlicer;
     return {
         context: ctx.authorization ? ctx : undefined, pool: ctx.pool, dataRoot: opts.dataRoot ?? (0, data_dir_1.resolveDataRoot)(env), env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl,
-        slicer: nativeSlicer(ctx, slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect)), bambuIo: opts.bambuIo,
+        slicer, bambuIo: opts.bambuIo,
     };
 }
 /**
@@ -147,19 +150,14 @@ function capabilitiesOf(env, deps) {
     catch (error) {
         ffmpeg = { configured: false, error: error instanceof Error ? error.message : String(error) };
     }
-    let slicerConfigured = false;
-    try {
-        slicerConfigured = (0, slicer_1.resolveSlicerConfig)(env) !== null;
-    }
-    catch {
-        slicerConfigured = false;
-    }
+    const engineConfigured = (0, slicer_engine_1.isEngineGcodeConfigured)(deps.slicer, env);
+    const slicer = (0, slicer_1.resolveSlicerBackend)(env, engineConfigured);
     return {
         app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, printCheck: print_checks_1.PRINT_CHECK_LIMITS, symmetryAxes: ['x', 'y'], fiducial: { min: fiducial_1.FIDUCIAL_LIMITS.fiducialMmMin, max: fiducial_1.FIDUCIAL_LIMITS.fiducialMmMax }, upload: (0, upload_limits_1.effectiveUploadLimits)(job_routes_1.UPLOAD_LIMITS, env),
         exports: ['stl', 'obj', 'glb', 'usdz', 'svg', 'report', 'gcode'],
-        depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
+        depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured: slicer.configured, slicerBackend: slicer.backend }, video: ffmpeg,
         printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
-        slicerEngine: { address: `${deps.slicer.host}:${deps.slicer.port}`, expectedBuildHash: deps.slicer.expectedBuildHash, installHint: deps.slicer.installHint },
+        slicerEngine: { address: `${deps.slicer.host}:${deps.slicer.port}`, expectedBuildHash: deps.slicer.expectedBuildHash, installHint: deps.slicer.installHint, configured: engineConfigured, gcodeProfiles: slicer_1.GCODE_PROFILES, gcodeLimits: slicer_1.GCODE_SLICE_LIMITS },
     };
 }
 /**

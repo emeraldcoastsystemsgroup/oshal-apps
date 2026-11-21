@@ -5,6 +5,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The permissions report now carries the separately named generate action; deny it with the other write actions here.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a refused agent project says why in `detail`, over the real route, before any query.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify compiled GET /editing-contract advertises 1.20.3 and flipX/flipY conventions.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -105,7 +106,7 @@ test('agent edits need both read and change before decoding a body; contract doe
   assert.equal(pool.queries.length,0);
  }
  const pool=emptyPool(),api=await startApi(t,pool);
- const contract=await api.call('/editing-contract');assert.equal(contract.status,200);assert.equal(contract.body.editor,'create');assert.equal(pool.queries.length,0);
+ const contract=await api.call('/editing-contract');assert.equal(contract.status,200);assert.equal(contract.body.editor,'create');assert.equal(contract.body.sourceVersion,'1.20.3');assert.match(contract.body.conventions.flip,/flipX.*flipY/);assert.equal(pool.queries.length,0);
  assert.equal((await api.call(`/projects/${ID}/operations`,'POST',{id:'00000000-0000-4000-8000-000000000002',baseRevision:1,operations:[]})).status,400);
  assert.equal((await api.call('/agent-projects','POST',{title:'x',owner:'bob'})).status,400);assert.equal(pool.queries.length,0);
 });

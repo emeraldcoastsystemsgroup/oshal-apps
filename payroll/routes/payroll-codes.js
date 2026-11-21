@@ -26,6 +26,7 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 15:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — the earnings-code catalog (regular/OT/double-time/holiday/PTO/sick/bereavement/jury/shift-differential/on-call/commission/bonus discretionary+nondiscretionary/cash+charge tips/severance/retro/imputed GTL + vehicle/reimbursement) and the deduction-code catalog (Section 125 medical-dental-vision-FSA-HSA-dependent care, 401(k) pre-tax + Roth, garnishments by statutory priority, dues, loan repayment, charitable), each carrying an independent FIT/FICA/FUTA/state taxability profile and an FLSA regular-rate treatment.
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: the garnishment notes say what each order may take and on what base (support before a levy only when entered before it; a levy has no CCPA ceiling; a federal agency order is 15% of disposable pay after health premiums), and the agency code's label names what it covers.
  *
  * @module payroll-codes
  */
@@ -222,25 +223,25 @@ exports.DEDUCTION_CODES = {
         code: 'GARN_SUPPORT', label: 'Child / spousal support',
         reduces: { fit: false, fica: false, futa: false, state: false },
         countsToward402g: false, statutory: true, garnishmentPriority: 1, allowArrears: true,
-        note: 'Income-withholding order. Highest priority; its own CCPA percentages (50–65%).',
+        note: 'Income-withholding order. Ahead of every order but a levy served before it was entered; its own CCPA percentage (50–65%, 15 U.S.C. 1673(b)(2)).',
     },
     GARN_LEVY: {
         code: 'GARN_LEVY', label: 'Federal tax levy',
         reduces: { fit: false, fica: false, futa: false, state: false },
         countsToward402g: false, statutory: true, garnishmentPriority: 2, allowArrears: true,
-        note: 'IRS levy. Ranks after support.',
+        note: 'IRS levy (Form 668-W). No CCPA ceiling: take-home pay above the Publication 1494 exempt amount, until the amount owed is paid.',
     },
     GARN_STUDENT: {
-        code: 'GARN_STUDENT', label: 'Student loan garnishment',
+        code: 'GARN_STUDENT', label: 'Federal agency wage garnishment (includes student loans)',
         reduces: { fit: false, fica: false, futa: false, state: false },
         countsToward402g: false, statutory: true, garnishmentPriority: 3, allowArrears: true,
-        note: 'Administrative wage garnishment, capped at 15% of disposable earnings.',
+        note: 'Administrative wage garnishment (31 CFR 285.11(i)): the order amount up to 15% of disposable pay, which is after health insurance premiums.',
     },
     GARN_CREDITOR: {
         code: 'GARN_CREDITOR', label: 'Creditor garnishment',
         reduces: { fit: false, fica: false, futa: false, state: false },
         countsToward402g: false, statutory: true, garnishmentPriority: 4, allowArrears: true,
-        note: 'Ordinary creditor writ. Lowest priority; 25%/30x CCPA ceiling.',
+        note: 'Ordinary creditor writ. The 25%/30x CCPA ceiling, counting every order paid before it (29 CFR 870.11).',
     },
     DUES: {
         code: 'DUES', label: 'Union dues',

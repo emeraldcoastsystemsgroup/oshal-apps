@@ -27,6 +27,7 @@
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Show failed TAP diagnostics from the middle of long suites and optionally retain complete failed-check output privately without changing any verdict.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | OSHAL_KERNEL_PLATFORM: a suite that renders the kernel's shared UI (Career's concierge panel uses the shared assistant) gets the kernel's `platform` folder from STORE_CI_KERNEL_PLATFORM, an explicit read-only path the operator sets (an export of the commit production runs). It is never found by looking around, and without it such a step stays a named skip, which fails the gate.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | Scoped by default (Roger, 2026-11-14: "we ran the full suite today, we dont need to do it every time"). A change to one package waited for every package's suites, 12 to 15 minutes, and unrelated one-test timeouts under load failed the gate four times in one night. A run now does the publish wall, the structural rules and the suites of the packages the change touches or reaches (scripts/store-ci-scope.mjs decides; anything it cannot place runs everything), says before it starts what it runs and what it leaves to the scheduled full run, and ends on a line that says scoped: the full-pass line is printed by a full run only. --full runs every job, --plan prints the plan and runs nothing, --base measures from another commit, --retry-from reruns the jobs that failed in a first run on the same tree plus the publish wall, and STORE_CI_RESULT_FILE receives the result for the hook, store-push and the scheduled full run. An argument this runner does not know is refused, so a mistyped --full cannot quietly run less.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Require sharp + express + multer in the pinned toolchain for scan-to-print's HTTP route suite (tests/routes.core.test.js, BACKLOG B6), so a clone whose toolchain predates sharp fails closed naming npm ci --prefix scripts/toolchain rather than with a raw MODULE_NOT_FOUND.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -622,6 +623,10 @@ function resolveStep(step, required, capabilities) {
     const absent = suffices.modules.filter((name) => !findModuleRoot(name));
     if (absent.length) toolchainGap = `no ${absent.join(' + ')} — ${INSTALL}`;
     for (const key of step.env.filter((k) => k === 'OSHAL_FRAMEWORK' || k === 'OSHAL_CORE_ROOT')) env[key] = TOOLCHAIN;
+  }
+  if (step.workingDirectory === 'scan-to-print' && /\broutes\.core\.test\.js\b/.test(step.run)) {
+    const absent = ['express', 'multer', 'sharp'].filter((name) => !findModuleRoot(name));
+    if (absent.length) toolchainGap = `no ${absent.join(' + ')} — ${INSTALL}`;
   }
   const missing = [...needed].filter((key) => capabilities[key] && !capabilities[key].value);
   for (const key of needed) {

@@ -2,17 +2,25 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 202 | maintainer@emeraldcoastsystemsgroup.com | 1.73.0: how Career fills in a form, and Submit after approval (CHANGELOG.md 202)
+# 201 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: a résumé for upload forms, labelled for parsers (CHANGELOG.md 201)
+# 200 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0: Fill it in on my Chrome on any employer site and engine (CHANGELOG.md 200)
+# 199 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: Fill it in on my Chrome, stopping at Review (CHANGELOG.md 199)
+# 198 | maintainer@emeraldcoastsystemsgroup.com | 1.69.3: Send gives Word, RTF and PDF, named for the job (CHANGELOG.md 198)
+# 197 | maintainer@emeraldcoastsystemsgroup.com | 1.69.2: old screen addresses open My jobs on their stage (CHANGELOG.md 197)
+# 196 | maintainer@emeraldcoastsystemsgroup.com | 1.69.1: a role or engagement whose record has " - " is written once
+# 195 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: on a phone New matches is a swipe deck (Pass, Save, a real Undo, More), and /mobile opens it (notes in CHANGELOG.md).
 # 194 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25: a job read never says ready before its documents can be read
-# 193 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: Work history has Years by skill: a person states their own years per skill and in total, as résumés then state them (notes in CHANGELOG.md).
-# 192 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass holds a career total to the roles' dates and leaves years in a field as written
-# 191 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: generated résumés and letters state the person's own years by skill (years_by_skill, career_years), enforced by code after every model pass; a miswritten recorded term is restored (full notes in CHANGELOG.md).
-# 190 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: register specialistContext reader for career-resume-reviewer (cb000000-0000-0000-0000-000000000006) in lib/native-career-read.js so oshald admits pre-return resume review turns over career-worker-rail; route shell-wrapper soffice binaries through /usr/bin/sh when /bin/sh is absent in engine/jobhunter/docx_resume.py so LibreOffice PDF/RTF conversion runs cleanly inside oshald's bwrap sandbox. Guards: tests/career-native-read-specialist-bots.test.mjs, tests/career-docx-pipeline.test.py.
-# 189 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: integrate pure-stdlib OOXML executive resume & cover-letter pipeline (`engine/jobhunter/docx_ooxml.py`, `docx_resume.py`, `lib/career-docx-export.js`) across 4 verified template families (Standard, Professional, Leadership, Technical) with zero Word theme-font leaks, Quick Styles, automatic <=2-page LibreOffice compaction, clean single-line candidate names, verbatim headline parity across DOCX/RTF/PDF/HTML, blank zero-PII templates (`GET /resume/template`), and native experience-shell `intelligent-career` group navigation (`tools/career-job-actions.js`) for post-edit Review -> Send (Orbit) continuity.
-# 188 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: sync `documentGeneration.inputsHash` via `markEdited()` on tailored résumé save so returning to `2 · Review documents` never forces regeneration; add `acceptCurrent()` + clickable Tailor/Review step navigation and `Review current documents` on Prepare application; always show `Review documents →` beside `Back to main résumé` for any open tailored job on My résumé.
-# 187 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: fix tailored résumé editing transition from active AI Office Main résumé (`openOffice(j, epoch)` race guard, immediate `officeView(false)` cleanup, `#tailoredBar` Direct editing toolbar with Undo/Redo and section quick-jumps, resting editable outlines); align downloaded packet Word (`.docx`) and cover letter formatting with the clean PDF templates (`tools/career-export-model.js`); filter `Applied` (`?view=status`) strictly to `status = 'applied'` so Interviewing, Offer, and Closed applications leave `Applied` with mutually exclusive stage counts (`tools/career-stages.js`, `tools/career-job-lists.js`, `tools/career-frame.js`).
-# 186 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: enable direct inline editing of tailored job résumés, cover letters, and classic fallback previews on My résumé (`tools/career-tailored-editor.js`), activating `Save & return to application` on the first edit; propagate Intelligent Career's light/slate/teal frame skin (`career-frame.css` + `data-career-frame="concierge"`) into the embedded Concierge iframe (`tools/career-concierge.mjs`, `tools/career-frame.css`, `tools/career-concierge.css`); fix multi-role Java tenure undercounting for start-of-title/line names and engagement tech lists in `engine/jobhunter/skill_tenure.py`.
-# 185 | maintainer@emeraldcoastsystemsgroup.com | 1.68.16: add fail-closed SSRF redirect guard proxy (`createReadProxy` + `bypass: '<-loopback>'`) in `browser_read_policy.cjs`/`browser_fetch.cjs` blocking 301/302/303/307/308 navigation and subresource redirects to loopback, RFC1918, link-local/metadata, CGNAT, ULA and 6to4 addresses; normalize `sort=salary` to annual USD equivalents (`annualUsdPayExpr` + `idx_corpus_pay_usd`) across open search and My jobs while preserving raw displayed currency and zero temp B-tree sorts.
-# 184 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: remove blind boldmetrics auto-bolding and numeric '+' suffixes (preserving C++, Security+, A+, etc.), add deterministic non-overlapping per-skill tenure calculator (skill_tenure.py), declare dynamically-loaded inline Swarm bot career-resume-reviewer (cb000000-0000-0000-0000-000000000006, personas/career-resume-reviewer.yaml) routed over career-worker-rail for mandatory pre-return resume audit/repair, fix parenthetical year attribution in claims_check, and surface resume_review metadata in Prepare application.
+# 193 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: Work history has Years by skill (CHANGELOG.md 193)
+# 192 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: career total held to the roles' dates (CHANGELOG.md 192)
+# 191 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: résumés state the person's own years by skill (CHANGELOG.md 191)
+# 190 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: résumé reviewer reads the career record (CHANGELOG.md 190)
+# 189 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: Word, RTF and PDF résumé and letter pipeline in pure-stdlib OOXML (CHANGELOG.md 189)
+# 188 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: back to Review documents after editing a tailored résumé (CHANGELOG.md 188)
+# 187 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: tailored résumé editing reliability on My résumé (CHANGELOG.md 187)
+# 186 | maintainer@emeraldcoastsystemsgroup.com | 1.68.17: direct inline editing of tailored résumés and letters (CHANGELOG.md 186)
+# 185 | maintainer@emeraldcoastsystemsgroup.com | 1.68.16: the page reader refuses redirects to private addresses (CHANGELOG.md 185)
+# 184 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: résumé typography cleanup and per-skill tenure (CHANGELOG.md 184)
 # 183 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: preserve recorded month/year precision across generation and cloned packet snapshots without inventing months, add Professional Word/PDF export inside My résumé's More menu, and offer Word/PDF/RTF format downloads beside generated packet/cover views while keeping submitted PDFs exact.
 # 182 | maintainer@emeraldcoastsystemsgroup.com | 1.68.13: Work history places direct Tab in, Tab out and Add sub-engagement controls beside existing actions, preserving explicit one-level links, independent entries, drafts and revision-checked Save/Undo.
 # 181 | maintainer@emeraldcoastsystemsgroup.com | 1.68.12: explicitly group client engagements under one employer with revision-checked links, preserved independent records and consistent document indentation.
@@ -29,7 +37,7 @@
 # 170 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: posting location, workplace type, and straight-line distance from Matching area home on My jobs (full notes in CHANGELOG.md).
 # 169 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3: carry current roles and roles within 20 years on every generated or tailored résumé (`role_plan.py`) (full notes in CHANGELOG.md).
 # 168 | maintainer@emeraldcoastsystemsgroup.com | 1.67.2: compact 52px phone document bar and folded AI Office header on My résumé (full notes in CHANGELOG.md).
-# 167 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1: move historical manifest release notes and architecture prose verbatim to CHANGELOG.md so oshal-app.yaml stays well within the 128 KiB package-smoke readiness ceiling; add tests/career-package-smoke.test.mjs.
+# 167 | maintainer@emeraldcoastsystemsgroup.com | 1.67.1 (CHANGELOG.md 167)
 # 166 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0: per-employer confirmed-sent counts and badge, deterministic tracked-application age fields, 4,096-character work-history bullet preservation and inline glyph splitting, and My résumé Main vs Tailored banner (full notes in CHANGELOG.md).
 # Earlier entries: see career-hunter/CHANGELOG.md.
 # -----------------------------------------------------------------------------
@@ -95,7 +103,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.68.25
+version: 1.73.0
 
 localEditing:
   itemId: master
@@ -345,6 +353,13 @@ bots:
     role: "browser worker: sends one approved application form; not for conversation"
     conversation: false
     capabilities: [application-submission]
+  - agentId: cb000000-0000-0000-0000-000000000007
+    name: career-apply-assist
+    posture: node
+    persona: Plan only what an approved form run leaves by pointing at the packet's facts, saved answers or the page's own options. Never write a value or press Submit.
+    role: "form planner: points the kernel's approved form run at facts; not for conversation"
+    conversation: false
+    capabilities: [application-assist]
   - agentId: cb000000-0000-0000-0000-000000000006
     name: career-resume-reviewer
     persona: personas/career-resume-reviewer.yaml
@@ -1455,15 +1470,18 @@ ui:
     # and Removed; Applications is Applied (?view=status), Interviewing, Offer and Closed. The row of
     # stages on the page shows the side it is on. To approve is not a stage: the jobs Career picked
     # lead Saved, and /approvals and ?view=approve still answer and open them there.
-    # Prepare & submit, Application status, Approvals and Mobile left the menu in 1.48.1 (UX audit
-    # 2026-11-06); their routes and addresses still answer. To bring one back, restore its entry
-    # from git history (career-hunter 1.47.11).
+    # The screens merged into it in 1.48.1 keep their addresses (formerly, kernel ALIAS1).
     - toolName: career-board
       label: My jobs
       icon: codicon codicon-briefcase
       iframeUrl: /api/career-hunter/board-native
       section: top
       group: Job Search
+      formerly:
+        - { screen: career-submissions, query: { view: queue } }
+        - { screen: career-application-status, query: { view: status } }
+        - { screen: career-approvals, query: { view: approve } }
+        - { screen: career-mobile, query: { view: matches } }
     # Still a tile and still served, so a host can open it. Career's own bar lists it in no menu:
     # Applications links to it while something is being sent from the person's computer.
     - toolName: career-submission-activity
@@ -1620,6 +1638,13 @@ routes:
     requiresAi: false
   - module: lib/career-submission-routes.js
     factory: createCareerSubmissionRoutes
+    mountPath: /api/career-hunter
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: lib/career-apply-routes.js
+    factory: createCareerApplyRoutes
     mountPath: /api/career-hunter
     auth: oidc
     requiresAuth: true
@@ -1832,6 +1857,12 @@ workflows:
     phases:
       - {name: submit-approved-application, bot: career-submission-browser}
       - {name: complete, action: complete}
+  - id: career-hunter:career-apply
+    ticketType: career-apply
+    name: Assisted Career Application
+    phases:
+      - {name: fill-approved-application, bot: career-apply-assist}
+      - {name: complete, action: complete}
 
 # ─────────────────────────────────────────────────────────────────────────────
 # THEMING
@@ -1904,6 +1935,8 @@ staticFiles:
     files:
       - career-accounts.js
       - career-application.js
+      - career-apply-assist.js
+      - career-apply-receipt.js
       - career-bulk-queue.js
       - career-change-bar.js
       - career-concierge.css
@@ -1924,6 +1957,7 @@ staticFiles:
       - career-leaflet.js
       - career-local-sources.json
       - career-mark.svg
+      - career-match-deck.js
       - career-navigation.js
       - career-resume-office.js
       - career-export-model.js

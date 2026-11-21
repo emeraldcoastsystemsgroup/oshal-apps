@@ -11,6 +11,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 5: after I applied the application page's line leads with Applied (it led with Sent, which Career could not know). It reads Sent only when the person's computer reported it, Career holds the confirmation page, or the submission record says submitted; a job the person marked and one with no record of how it was sent read Applied. The sentences under the word are unchanged.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Use the same main résumé name in actual Tailor/no-résumé flows and Other experience, preserving source links and view-only behavior.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Review of 1.55.0, item 7: after I applied, a computer attempt that did not go through is closed through the submission queue's own cancel route, so the activity page stops showing it as waiting on the person. (An attempt that needs answers or whose outcome is not known shows its own screen and offers no I applied.)
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.69.3 (Roger, 2026-11-20: Workday refuses the PDF; he needs Word, RTF and PDF, named for the job): one press of Download résumé and cover letter starts each document in Word, RTF and PDF and the posting as text, every file named <Company> - <Job title> - Job <id> - <document>.<ext>.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the résumé row on Send also offers For upload forms (.docx), the parse résumé (GET /resume?kind=parse&format=docx), named <Company> - <Job title> - Job <id> - Resume (for upload).docx, with a line saying where to use it; Download résumé and cover letter takes it too, eight files from one press. Red before: seven files and no such link.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -137,25 +139,30 @@ test('a job that came from Career\'s picks is recorded through the route Mark ap
   } finally { await again.context.close(); }
 });
 
-test('Download résumé and cover letter starts both files and leaves a link to each', async () => {
+test('Download résumé and cover letter starts each document in Word, RTF and PDF, the résumé for upload forms and the posting, every file named for the job', async () => {
   const state = { job: ready(), computer: false, writes: [] };
   const { page, context } = await open(state, DESKTOP);
   try {
     await toSend(page, DESKTOP);
     const started = [];
-    page.on('download', (download) => started.push(new URL(download.url()).searchParams.get('kind')));
+    page.on('download', (download) => started.push(download.suggestedFilename()));
     await page.getByRole('button', { name: 'Download résumé and cover letter', exact: true }).click();
-    await page.waitForFunction(() => document.querySelectorAll('#downloadLinks a').length === 2);
-    for (let waited = 0; started.length < 2 && waited < 100; waited++) await page.waitForTimeout(50);
-    assert.deepEqual(started.sort(), ['cover', 'resume'], 'two downloads from one press');
-    assert.deepEqual(await page.locator('#downloadLinks a').evaluateAll((links) => links.map((a) => [a.textContent, a.getAttribute('href'), a.hasAttribute('download')])),
-      [['Résumé (PDF)', '/api/career-hunter/resume?id=7&kind=resume', true], ['Cover letter (PDF)', '/api/career-hunter/resume?id=7&kind=cover', true]]);
+    for (let waited = 0; started.length < 8 && waited < 240; waited++) await page.waitForTimeout(50);
+    const base = 'Example Co - Office Manager - Job 7 - ';
+    assert.deepEqual(started.sort(), [...['Resume', 'Cover Letter'].flatMap((doc) => ['docx', 'rtf', 'pdf'].map((ext) => base + doc + '.' + ext)), base + 'Resume (for upload).docx', base + 'Job Posting.txt'].sort(), 'eight named files from one press');
+    assert.match(await page.locator('#downloadLinks').innerText(), /8 files, each named for this job/);
+    const links = await page.locator('#sendFiles a[data-file]').evaluateAll((nodes) => nodes.map((a) => [a.textContent, a.getAttribute('href'), a.getAttribute('download')]));
+    assert.deepEqual(links.slice(0, 4), [['Word (.docx)', '/api/career-hunter/resume?id=7&kind=resume&format=docx', base + 'Resume.docx'], ['RTF', '/api/career-hunter/resume?id=7&kind=resume&format=rtf', base + 'Resume.rtf'], ['PDF', '/api/career-hunter/resume?id=7&kind=resume&format=pdf', base + 'Resume.pdf'],
+      ['For upload forms (.docx)', '/api/career-hunter/resume?id=7&kind=parse&format=docx', base + 'Resume (for upload).docx']], 'the résumé for upload forms sits beside Word, RTF and PDF');
+    assert.equal(await page.locator('#sendFiles .hint').first().innerText(), 'For upload forms is your résumé laid out for a site that reads it to fill in its form, such as Workday’s Autofill with Resume: one column, every value on its own labelled line.');
   } finally { await context.close(); }
   const one = { job: { ...ready(), has_cover: false }, computer: false, writes: [] };
   const single = await open(one, PHONE);
   try {
     await toSend(single.page, PHONE);
     assert.deepEqual(await single.page.locator('.send-ways > *').allTextContents(), ['Open the employer’s form', 'Download résumé', 'I applied'], 'the button names only what there is to download');
+    assert.equal(await single.page.locator('#sendFiles a[data-file="parse:docx"]').isVisible(), true, 'on a phone too');
+    assert.ok(await single.page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), 'four résumé buttons at 412 px, nothing wider than the screen');
   } finally { await single.context.close(); }
 });
 

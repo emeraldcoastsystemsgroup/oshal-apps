@@ -9,6 +9,7 @@
 7 | maintainer@emeraldcoastsystemsgroup.com | Offer reviewed PSD import and separately guarded immutable original/report controls.
 8 | maintainer@emeraldcoastsystemsgroup.com | Load shared editor styles and retain opaque disclosures above the canvas.
 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor, grade D): one app row (the image's document menu with New, Open, My projects, Save a copy, Export, autosave and Delete last; Undo, Redo, a Saved caption and one primary Add that opens the Insert tools); the save footer goes; the Insert tools (Image, Text, Rectangle, Ellipse, Draw, Vector pen, Adjustment layer, OSHAL files, Templates) are one group that is a sheet on a phone and a tool rail on a desktop; the pen's Closed path, Finish and Cancel and the Select tool's shape, Whole image and Clear appear in the canvas bar only while their tool is on; the duplicate Selected layer form is deleted (the shared Format inspector edits those fields); Canvas settings move into Format when nothing is selected; the brand swatches sit with the other Format tools.
+10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: add accessible Flip horizontal and Flip vertical toggle controls in the Format inspector.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -99,6 +100,10 @@
           <button id="deleteLayer" data-selected disabled aria-label="Delete selected layer" title="Delete selected layer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14M7 5V2h6v3M5 5l1 12h8l1-12M8 8v6m4-6v6"/></svg></button>
         </div>
       </section>
+      <div id="flipControls" class="flip-controls" role="group" aria-label="Flip layer">
+        <button id="flipHorizontal" type="button" aria-pressed="false" disabled>Flip horizontal</button>
+        <button id="flipVertical" type="button" aria-pressed="false" disabled>Flip vertical</button>
+      </div>
       <section id="brandPanel" class="brand-panel" aria-labelledby="brandPanelTitle" hidden>
         <h2 id="brandPanelTitle">Your brand <button id="editBrand" type="button">Edit kit</button></h2>
         <div id="brandSetup" hidden><p class="hint">Save your colors, fonts and logo once and they appear here.</p><button id="setupBrand" type="button" class="wide">Set up your brand kit</button></div>

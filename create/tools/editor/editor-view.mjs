@@ -9,6 +9,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enable validated group duplication through the existing human Duplicate control.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a short Saved caption replaces the Save button and the Unsaved changes footer (Save returns only when automatic saving is off or a save failed), the document menu's title and Delete follow the open image, Export takes the primary look once the canvas has content, the Select tool shows its shape, Whole image and Clear only while it is on or a region exists, and the deleted duplicate layer form is no longer rendered.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: sync Flip horizontal and Flip vertical toggle pressed and disabled states with the selected layer.
  */
 import { $, state, canEdit, dirty, edit, notify, error } from './editor-state.mjs';
 import { autosaveReady, hasContent } from './editor-projects.mjs';
@@ -144,6 +145,10 @@ function renderProperties() {
   for (const control of document.querySelectorAll('[data-selected]')) control.disabled = !canEdit() || !layer || layer.locked;
   $('ungroupLayer').disabled = !canEdit() || layer?.type !== 'group' || layer.locked;
   $('duplicateLayer').disabled = !canEdit() || !layer || layer.locked;
+  const flippable = Boolean(canEdit() && layer && !layer.locked && layer.type !== 'adjustment');
+  $('flipHorizontal').disabled = !flippable; $('flipVertical').disabled = !flippable;
+  $('flipHorizontal').setAttribute('aria-pressed', String(Boolean(layer?.flipX)));
+  $('flipVertical').setAttribute('aria-pressed', String(Boolean(layer?.flipY)));
   if (!layer) return;
   for (const control of document.querySelectorAll('#properties [data-property]')) {
     const neutral = control.dataset.neutral === undefined ? undefined : Number(control.dataset.neutral);

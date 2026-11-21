@@ -14,6 +14,7 @@
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the Generate an image panel.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Mount the shared editor shell while preserving existing domain controls and AI handoff.
  * 15 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a new text, rectangle or ellipse layer lands 16 px down and right of the layer above it instead of on top of it at (180, 160); canvas size and background are edited in the shared Format inspector when nothing is selected (Canvas settings is gone from the tool rail); the app row's menus (the document menu and Export close after a choice, on Escape and on a press outside them; Export… opens Export, a sheet on a phone; the phone's one primary Add opens the Insert tools as a sheet while a desktop keeps them open as the tool rail) are bound here, without a new served module.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: bind Flip horizontal and Flip vertical toggle controls to validated undoable layer updates.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -70,6 +71,8 @@ function bindProperties() {
   });
   $('applyCrop').onclick = handle(() => changeSelected({ crop: Object.fromEntries(['x', 'y', 'w', 'h'].map(key => [key, Number($(`crop${key.toUpperCase()}`).value) / 100])) }));
   $('resetCrop').onclick = handle(() => changeSelected({ crop: { x: 0, y: 0, w: 1, h: 1 } }));
+  $('flipHorizontal').onclick = handle(() => { const layer = state.project.layers.find(item => item.id === state.selected); if (layer) changeSelected({ flipX: !layer.flipX }); });
+  $('flipVertical').onclick = handle(() => { const layer = state.project.layers.find(item => item.id === state.selected); if (layer) changeSelected({ flipY: !layer.flipY }); });
   for (const [id, look] of Object.entries(IMAGE_FILTER_LOOKS)) $('filterLook').append(new Option(look.label, id));
   $('filterLook').onchange = handle(() => {
     const id = $('filterLook').value; $('filterLook').value = '';

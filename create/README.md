@@ -834,3 +834,7 @@ owner isolation and stale-save refusal. The existing PostgreSQL concurrency and 
 ## Editor entry and mobile layout — 1.18.5
 
 Create opens the editable Office and Video workspaces. Blank Word, PowerPoint and spreadsheet choices remain available when the legacy starter catalog cannot be read. Phone starter and template cards fit the viewport.
+
+## Flip horizontally and vertically — 1.20.3
+
+Every paint layer (`image`, `text`, `rect`, `ellipse`, `freehand`, `path`) and `group` accepts optional boolean `flipX` and `flipY` transforms (omitted when `false` in canonical JSON). **Flip horizontal** (`#flipHorizontal`) and **Flip vertical** (`#flipVertical`) toggles in the Format inspector and concierge `create-apply-edits` `update` patches (`{ flipX, flipY }`) share the same validated undo/save/export path across Canvas preview, PNG/JPEG export, SVG export, hit-testing, source-pixel region selection, and group transforms. See [EDITOR.md](EDITOR.md#flip-horizontally-and-vertically-1203). No route, permission, migration, or `authorization.yaml` change.

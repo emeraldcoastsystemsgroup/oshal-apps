@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: a link that names the Mobile screen (career-mobile) opens the Job Board on New matches (?view=matches), where its swipe deck is the phone layout now; it opened the board on Saved. Guard: tests/career-match-deck-page.test.mjs.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16, Torch Technologies on My jobs): detailsNeeded(job) is also false once the job has a description (the posting sheet read it from the employer's posting, or the person pasted one); a job with no description reads as before. A list row carries no description, so rows are unchanged. Guard: tests/career-job-details-sheet-browser.test.mjs.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: qualify member tool names (`career-hunter--<tool>`) inside the native experience shell when hosted under the intelligent-career group (iframe data-hosted-app, parent ?app=intelligent-career, or CareerFrame cache) even when parent.document has no legacy [data-view] ribbon nodes, and navigate directly inside #tool-frame when carrying query params so post-edit return to 2 · Review documents never lands on My jobs or fails silently.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | 1.66.1 (Lane VER15, 2026-11-15): DETAILS_NEEDED, the words for a job Career could not read, ends with what to do after pasting: "… paste it in Prepare application, step 1 · Tailor, and generate your résumé and cover letter there." (lib/career-pasted-details.js NEEDED says the same). Guard: tests/career-paste-details-unmarked.test.mjs.
@@ -79,6 +80,7 @@
   function navigate(tool,href,options){
     if(root.parent===root){root.location.href=href;return;}
     if(tool==='career-approvals')href='/api/career-hunter/board-native?view=approve';
+    if(tool==='career-mobile')href='/api/career-hunter/board-native?view=matches';
     const query=new URL(href,root.location.href).searchParams;query.delete('v');
     try{
       if(root.frameElement?.id==='tool-frame'&&query.size&&String(href).startsWith('/api/career-hunter/')){

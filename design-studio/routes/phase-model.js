@@ -21,6 +21,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: add named Pi bay thermal solve option (`thermalSolve`)
  *                     |                             | on Brief and honest reasoned-phase closure helpers (`closureHonesty`,
  *                     |                             | `honestEvidence`) so reasoned closures explicitly state no engine measured them.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.14 (found by the non-administrator proof, BACKLOG B12): a cad-models artifact must carry its list of parts (artifact.modelIds). The design partner, after its cad-create order had built and bound a part, bound the phase again with an artifact that named the part another way and carried no list; the bind was accepted, the list was gone, and the Design poster read no part bound. Such a bind is now refused by field, in words that say the order bound the part already; and a bind on Design that carries no list at all while parts are bound (the partner also used kinds of its own) is refused the same way by refuseDroppedParts, which the bind route calls with the newest binding.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ModelError = exports.PHASE_BRIEFS = exports.UNMEASURED_CLOSURE_NOTICE = exports.THERMAL_SOLVE_MODES = exports.ENGINES = exports.PHASE_KINDS = void 0;
@@ -30,6 +31,7 @@ exports.validatePhases = validatePhases;
 exports.validateThermalSolve = validateThermalSolve;
 exports.validateBrief = validateBrief;
 exports.validateArtifact = validateArtifact;
+exports.refuseDroppedParts = refuseDroppedParts;
 exports.validateClosure = validateClosure;
 exports.isReasonedPhase = isReasonedPhase;
 exports.closureHonesty = closureHonesty;
@@ -239,10 +241,28 @@ function validateArtifact(kind, value) {
         throw new ModelError('artifact.kind is a short lowercase word naming the artifact kind (design-fit, certificate, circuit-design, cad-models, node, print-set, ...)', 'bad_artifact', 'artifact.kind');
     if (value.read !== undefined && !isRecord(value.read))
         throw new ModelError('artifact.read is the engine reply excerpt as an object', 'bad_artifact', 'artifact.read');
+    // A cad-models artifact IS the list of the person's CAD Studio parts bound to Design: one without the list replaces the bound parts with none.
+    if (value.kind === 'cad-models' && !(Array.isArray(value.modelIds) && value.modelIds.every((id) => typeof id === 'string' && id.length > 0 && id.length <= 80))) {
+        throw new ModelError('a cad-models artifact lists the bound CAD Studio parts in artifact.modelIds (their model ids); a part a cad-create order built is bound already, so read the product instead of binding it again', 'bad_artifact', 'artifact.modelIds');
+    }
     const text = JSON.stringify(value);
     if (text.length > 64 * 1024)
         throw new ModelError('artifact is larger than 64 KB; bind a reference and the excerpt the contract needs, never a whole report', 'bad_artifact', 'artifact');
     return JSON.parse(text);
+}
+/**
+ * @description Refuse a bind on Design that would unbind CAD Studio parts by leaving their list out. The list changes only by a
+ * bind that carries one (an order that builds a part, Settings, an empty list to unbind on purpose); an artifact that names a
+ * part another way would replace the list with nothing.
+ * @param current - The newest Design artifact, or null. @param next - The validated artifact about to be bound.
+ * @returns Nothing.
+ * @throws ModelError `bad_artifact` on `artifact.modelIds` (409) when parts are bound and the new artifact carries no list.
+ */
+function refuseDroppedParts(current, next) {
+    const held = current && current.engine === 'cad-studio' && Array.isArray(current.modelIds) ? current.modelIds : [];
+    if (!held.length || next.engine !== 'cad-studio' || Array.isArray(next.modelIds))
+        return;
+    throw new ModelError(`this bind would unbind the ${held.length} CAD Studio part${held.length === 1 ? '' : 's'} bound to Design: an artifact for Design on CAD Studio carries its parts in artifact.modelIds. A part a cad-create order built is bound already, so read the product instead of binding it again`, 'bad_artifact', 'artifact.modelIds', 409);
 }
 /**
  * @description Validate a closure (D2): refused as `missing_evidence` without BOTH an evidence line and the artifact revision it was

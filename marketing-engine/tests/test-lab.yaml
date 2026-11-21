@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The home-summary case also expects RFC 3339 draft times and the persona's no-unlisted-campaigns and no-conversion rules (sweep 13).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: register product-name guard (tests/product-name.test.mjs) in the plain-Node marketing-engine job.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10: register phone-first-screen (lane mobilesweep1).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: register marketing-audience (unit + route-table parity) and marketing-audience-rls (enforcing-role disposable PostgreSQL RLS proof).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -259,4 +260,51 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+
+  - id: marketing-audience
+    name: Audience store model, segmentation, consent export, and route parity
+    purpose: Exercise compiled marketing-audience-model, route-table parity on marketing-routes, and marketing-audience handlers with synthetic pools.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-audience.test.mjs
+    expected:
+      - Email normalization and SHA-256 hashing are case- and whitespace-invariant; consent evidence preserves formText, recordedAt, ip, userAgent, utm, and tokenHash.
+      - Segmentation filters contacts deterministically by list, tag, consentState, channel, purpose, suppressed, and search query.
+      - All 20 legacy routes remain registered alongside all 11 /audience/* routes; handlers enforce auth, refuse re-confirming suppressed addresses, export evidence before delete, and validate inputs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-audience-rls
+    name: Audience store enforcing-role PostgreSQL FORCE RLS and deletion proof
+    purpose: Apply migrations 001-003 as a NOSUPERUSER NOBYPASSRLS table-owning role in a disposable PostgreSQL 16 instance and prove cross-owner isolation, consent evidence export, and zero-row deletion.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-audience-rls.test.mjs
+    expected:
+      - All five audience tables are owned by the enforcing role with ENABLE and FORCE ROW LEVEL SECURITY and an exact-owner policy carrying no operator bypass.
+      - A second owner, an unstamped connection, and a system/operator stamp read zero rows from every one of the five tables and cannot mutate another owner's rows.
+      - Consent export returns the exact evidence JSON recorded at sign-up, and deleting a contact exports that evidence first and leaves zero rows behind.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Removes its uniquely labeled tmpfs PostgreSQL container (or temporary schema/role when OSHAL_TEST_POSTGRES is provided) and verifies removal before exit.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
     installation: never

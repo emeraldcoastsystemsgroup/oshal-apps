@@ -7,6 +7,10 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 2.3.6: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): register payroll-ux-batch7 covering keyboard role="tab" switching, phone 4+More navigation, and the 4-step Add employee dialog/sheet.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: register product-name guard (tests/product-name.test.mjs) in the plain-Node payroll job.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 14): the calendar case now expects transcribed tables with explicit years and a refusal for a year neither holds.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 8): register payroll-deposits (lookback status, deposit-period schedule, One-Day rule, $2,500 test, and both deposit routes).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 7): register payroll-garnish (Publication 1494, cumulative federal ceilings, levy and support priority, refusals, both engines, order routes and approval).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 3): register payroll-flsa-records (workweek placement, split-workweek overtime, the earnings route, the 29 CFR 516.2 record and its route).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -60,8 +64,86 @@ cases:
       files:
         - tests/payroll-calendar.test.mjs
     expected:
-      - Federal Reserve and IRS holiday rules produce their separately expected dates.
-      - Deposit and pay-date calculations handle year boundaries and flag unverified years.
+      - The transcribed Federal Reserve (K.8 2026-2030) and IRS legal-holiday lists produce their separately expected dates and agree with the statutory rules used to cross-check them.
+      - Deposit and pay-date calculations handle year boundaries and flag a year whose list is a draft.
+      - A date in a year a calendar does not hold is refused by name rather than computed.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-deposits
+    name: Federal deposit schedule
+    purpose: Exercise the compiled deposit-schedule module and its two routes against the worked examples in Publication 15 (2026) section 11 and 26 CFR 31.6302-1.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-deposits.test.mjs
+    expected:
+      - The lookback period and the $50,000 line give the depositor status, and an unheld year or an amount that is not whole cents is refused in words.
+      - Deposits group by deposit period with due dates from the IRS legal-holiday calendar, including the semiweekly extra day for a holiday.
+      - The $100,000 next-day rule is tested on taxes accumulated in the period, restarts after the day it is met, and makes a monthly depositor semiweekly from the next day.
+      - The $2,500 pay-with-return test is reported per quarter, and both routes are owner-scoped, answer 422 in words, and 401 before any query.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-garnish
+    name: Garnishment orders in priority
+    purpose: Exercise the compiled garnishment allocator, both pay engines that use it, the order routes and approval against 15 U.S.C. 1673, 29 CFR 870, 31 CFR 285.11, 26 U.S.C. 6334 and Publication 1494 (2026).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-garnish.test.mjs
+    expected:
+      - Publication 1494 (2026) exempt amounts match every printed cell and the publication's four examples, and another year's table is refused.
+      - Each order meets its own federal ceiling counting what orders with priority took, and a levy takes take-home pay above the exempt amount.
+      - Support entered before a levy goes first; missing priority or allocation facts are refused in words and stop approval with 409.
+      - Approval keeps an earning-row line on its own engine and settles each order's balance by election after the run is paid.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: >-
+        The runner removes the disposable container and staged files; all business records are synthetic
+        in-memory fixtures.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    installation: never
+  - id: payroll-flsa-records
+    name: Hours by day and the FLSA record
+    purpose: Exercise the compiled workweek placement, the overtime engine for a workweek two checks share, the earnings route and the 29 CFR 516.2 record against 29 CFR 516 and 778.104.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-flsa-records.test.mjs
+    expected:
+      - A dated row's workweek comes from its date and the employer's workweek start, and a date outside the period or an undated hour beside dated ones is refused in words.
+      - A workweek two checks split is paid over the whole workweek at its weighted regular rate, less premium already paid, with voided checks left out.
+      - The 516.2 record answers each item from stored rows, names what is not on file, reads only, and answers only the caller's employee.
     prerequisites:
       - runner:node-test
     sideEffects: none

@@ -30,6 +30,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: stamp and return honest reasoned-only metadata on
  *                     |                             | closures without a verifying engine read, and publish named Pi bay
  *                     |                             | thermal solve options on GET /capabilities.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.14 (found by the non-administrator proof, BACKLOG B12): POST /bind
+ *                     |                             | on Design refuses an artifact that would unbind the bound CAD Studio
+ *                     |                             | parts by carrying no list (409 bad_artifact, artifact.modelIds). The
+ *                     |                             | design partner's own second bind had dropped the part its order built.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.callerSub = callerSub;
@@ -275,7 +279,10 @@ function registerPhases(router, pool) {
         const body = (req.body ?? {});
         try {
             const phase = phaseInChain(c.project, body.phase);
-            const binding = await (0, project_store_1.bindArtifact)(pool, c.sub, c.project.id, phase.kind, (0, phase_model_1.validateArtifact)(phase.kind, body.artifact));
+            const artifact = (0, phase_model_1.validateArtifact)(phase.kind, body.artifact);
+            if (phase.kind === 'design')
+                (0, phase_model_1.refuseDroppedParts)((0, project_store_1.latestBindings)(await (0, project_store_1.listBindings)(pool, c.sub, c.project.id)).design?.artifact, artifact);
+            const binding = await (0, project_store_1.bindArtifact)(pool, c.sub, c.project.id, phase.kind, artifact);
             logger.info({ sub: c.sub, projectId: c.project.id, phase: phase.kind, revision: binding.revision }, 'Artifact bound');
             res.status(201).json({ binding, ...(await projectView(pool, c.sub, c.project)) });
         }

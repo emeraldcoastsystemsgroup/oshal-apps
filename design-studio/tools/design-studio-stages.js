@@ -37,6 +37,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B13/B14: replace generic 403 copy with actionable missing-access / administrator role guidance (no route path), and read sibling engine `/capabilities` for pre-click container liveness diagnostics (`engineLiveness`, `engineBannerIssues`).
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: read mechanism for CAD-bound designs, evaluate joint fit / clearance in mm via DesignStudioFit, block parts-complete on interference or unverified joint geometry, and surface honest measured/unmeasured strength status on the Design poster.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B3/B15: record engine-published sensor rateHz and node senses/tickHz in sensors & controller reads (never inventing rates), surface Pi bay thermal solve honesty on the Brief poster, and flag reasoned phases as unmeasured by any engine.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.14 (found by the non-administrator proof, BACKLOG B12): an engine nobody has asked yet is not a stopped engine. CAD Studio and Circuit Lab answer connected false with contacted false until a first request reaches the engine, and the product page read that as "engine container is stopped — actions using it will not succeed until restarted" on a kernel whose CAD engine built the next part. Such an engine (pinned, ready, running, or prepared on first use, with no last error) now reads waiting and raises no banner; one that failed, or one the installation has none of, still reads stopped.
  */
 window.DesignStudioStages = (function stages() {
   'use strict';
@@ -515,6 +516,8 @@ window.DesignStudioStages = (function stages() {
   }
 
   /** Evaluate container liveness for one engine read before any button is pressed (B14). */
+  /** The lifecycle states of an engine nobody has asked yet that is not stopped (the kernel's engine.status words). */
+  const WAITING = ['pinned', 'ready', 'running', 'preparing', 'not-prepared'];
   function probeState(engine, capRead, fallbackRead, field) {
     const r = capRead || fallbackRead;
     const name = ENGINE_NAME[engine] || engine;
@@ -527,6 +530,10 @@ window.DesignStudioStages = (function stages() {
     if (!r.ok) return { engine, name, state: 'stopped', reason: `${name} status unavailable (${r.error || `HTTP ${r.status}`})` };
     const info = r.body && (r.body[field] || r.body.engine);
     if (info && (info.connected === false || info.ready === false)) {
+      // CAD Studio and Circuit Lab answer connected false until a first request has reached the engine (contacted false, no
+      // lastError). An engine that is pinned, ready or running, or one the kernel prepares on first use, is waiting, not stopped.
+      const life = info.lifecycle && info.lifecycle.state;
+      if (info.contacted === false && !info.lastError && WAITING.includes(life)) return { engine, name, state: 'waiting', reason: `${name} engine has not been asked yet; its status is known after the first request` };
       const why = info.reason || info.error || 'engine container is stopped or unreachable';
       return { engine, name, state: 'stopped', reason: `${name} engine container is stopped: ${why}`, installHint: info.installHint || null };
     }

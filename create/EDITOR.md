@@ -15,6 +15,7 @@ their tool is on, and the bar keeps one height so the canvas never moves.
 
 Format is the shared inspector, the only layer form: layer name, geometry,
 appearance, outline, shadow and text (with the brand, basic and Office fonts)
+plus **Flip horizontal** and **Flip vertical** toggles
 through Create's existing validated operations. With nothing selected it shows
 the canvas: width, height, background and Transparent. Its More tools holds the
 selected layer's advanced tools (image mask, filters and crop; vector path;
@@ -79,6 +80,33 @@ A conflicting save does not overwrite a newer revision. Autosave pauses and the
 draft stays in the current canvas. Reopen the saved project or use **Save a copy**.
 Network failures stop automatic retries until another edit or an explicit Save
 (the Save button returns beside the caption after a failed save).
+
+## Flip horizontally and vertically (1.20.3)
+
+Every paint layer (`image`, `text`, `rect`, `ellipse`, `freehand`, `path`) and
+`group` supports optional boolean `flipX` (horizontal mirror) and `flipY`
+(vertical mirror) transforms around its local center. False values are omitted
+from canonical normalized JSON so unflipped projects keep their exact existing
+document shape. Non-boolean values, locked layers/ancestors, and adjustment
+layer flips are refused cleanly.
+
+- **On screen:** Select any unlocked paint or group layer and use **Flip
+  horizontal** (`#flipHorizontal`) or **Flip vertical** (`#flipVertical`) in
+  the Format inspector. Each toggle updates `aria-pressed`, records one undoable
+  history step, autosaves with the project, and survives save/reopen,
+  duplicate, and JSON export/import.
+- **By concierge tool:** `create-apply-edits` (`POST /projects/:id/operations`)
+  accepts `flipX` and `flipY` booleans in `update` patches (and `add` layers),
+  for example `{ "type": "update", "id": "photo-layer", "patch": { "flipX": false, "flipY": false } }`
+  to flip back to the original orientation. The read-only editor context
+  reports current `flipX` and `flipY` booleans for the selected paint or group
+  layer.
+- **Rendering, export and coordinates:** Canvas preview, PNG/JPEG export, and
+  SVG export share the same center-anchored mirror transform (`scale(flipX ? -1 : 1, flipY ? -1 : 1)`),
+  preserving masks, crop, filters, opacity, rotation, drop shadows, and nested
+  group transforms. Hit-testing, source-pixel region selection, and group
+  ungrouping invert and compose flips accurately. No route, permission,
+  migration, or `authorization.yaml` change is introduced.
 
 ## Image filters (1.8.3)
 

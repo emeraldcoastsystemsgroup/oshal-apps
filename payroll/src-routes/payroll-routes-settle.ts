@@ -19,6 +19,7 @@
  * -----------------------------------------------------------------------------
  * 2026-08-02 04:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — return/NOC import matched on the stored ACH trace, the settlement view that names who was NOT paid, confirm-gated NOC application, the RT-6 and EFW2 artifacts, check-number allocation with rendered checks, and the two banking calendars exposed for the run screen.
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com | Await every sealIdentifier/openIdentifier (now asynchronous, PDATA-01): NOC correction sealing and application, the EFW2 employer EIN and each employee SSN.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 14: the holidays answer carries what each calendar holds and where it came from (the K.8 years, each IRS year with final-publication or draft basis), so the screen states coverage rather than implying every year is known; a year neither table holds is refused by the shared guard with 422.
  *
  * @module payroll-routes-settle
  */
@@ -30,7 +31,8 @@ import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/sha
 import { outcomeFor, parseAchReturnFile, type AchEvent } from './payroll-ach-returns';
 import { allocateCheckNumbers, checkDocument } from './payroll-checks';
 import {
-  depositDueDate, fedBankingClosures, irsLegalHolidays, resolvePayDate,
+  calendarCoverage, depositDueDate, fedBankingClosures, irsLegalHolidays, isCalendarCoverageError,
+  resolvePayDate,
 } from './payroll-calendar';
 import { buildEfw2, type Efw2Employee } from './payroll-efw2';
 import { formRt6 } from './payroll-rt6';
@@ -324,18 +326,45 @@ function returnRoutes(router: Router, ctx: AppContext, guarded: Guarded): void {
   }));
 }
 
+/**
+ * Run a calendar lookup, turning a year the table does not hold into words.
+ * Anything other than a coverage refusal is a real fault and is rethrown.
+ */
+function answerOrRefusal<T>(fn: () => T): { value: T | null; refusal: string; error: unknown } {
+  try {
+    return { value: fn(), refusal: '', error: null };
+  } catch (err) {
+    if (!isCalendarCoverageError(err)) throw err;
+    return { value: null, refusal: err.message, error: err };
+  }
+}
+
 /** Register the calendar, filing and check routes. */
 function settlementArtifactRoutes(router: Router, ctx: AppContext, guarded: Guarded): void {
-  /** GET /calendar/holidays — both calendars, because they disagree. */
+  /**
+   * GET /calendar/holidays — both calendars, because they disagree.
+   *
+   * Each calendar answers for itself: K.8 prints 2026 to 2030 while an IRS
+   * list is held for fewer years, so one may answer where the other refuses.
+   * A refusal travels as words beside the calendar that could answer; only
+   * when neither holds the year is the whole request refused (422).
+   */
   router.get('/calendar/holidays', guarded('calendar.holidays', async (req, res) => {
     const year = Number(String(req.query.year || TAX_YEAR).replace(/\D/g, '')) || TAX_YEAR;
-    const irs = irsLegalHolidays(year);
+    const fed = answerOrRefusal(() => fedBankingClosures(year));
+    const irs = answerOrRefusal(() => irsLegalHolidays(year));
+    if (fed.refusal && irs.refusal) throw fed.error;
     res.json({
       year,
-      federalReserve: fedBankingClosures(year),
-      irs: irs.holidays,
-      irsVerified: irs.verified,
-      irsNote: irs.note,
+      federalReserve: fed.value || [],
+      federalReserveRefusal: fed.refusal,
+      irs: irs.value ? irs.value.holidays : [],
+      irsRefusal: irs.refusal,
+      irsVerified: irs.value ? irs.value.verified : false,
+      irsBasis: irs.value ? irs.value.basis : '',
+      irsSource: irs.value ? irs.value.source : '',
+      irsNote: irs.value ? irs.value.note : '',
+      coverage: calendarCoverage(),
       note: 'These deliberately differ. The Federal Reserve calendar decides whether payroll funds; '
         + 'the IRS calendar decides when a deposit is due.',
     });
@@ -345,11 +374,11 @@ function settlementArtifactRoutes(router: Router, ctx: AppContext, guarded: Guar
   router.get('/calendar/pay-date', guarded('calendar.paydate', async (req, res, sub) => {
     const date = isoDate(req.query.date || new Date());
     const company = await getCompany(ctx.pool, sub);
+    // A year K.8 does not print throws here and the guard answers 422.
     const check = resolvePayDate(date, req.query.direction === 'later' ? 'later' : 'earlier');
-    res.json({
-      ...check,
-      deposit: depositDueDate(check.payDate, String(company.depositor_status || 'monthly')),
-    });
+    const deposit = answerOrRefusal(
+      () => depositDueDate(check.payDate, String(company.depositor_status || 'monthly')));
+    res.json({ ...check, deposit: deposit.value || null, depositRefusal: deposit.refusal });
   }));
 
   /** GET /forms/rt6 — the Florida quarterly reemployment return. */

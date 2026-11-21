@@ -92,6 +92,8 @@
     "embodied|routes/embodied-routes.js|createEmbodiedRoutes|/api/embodied|oidc|machine-write",
     "embodied|routes/home-summary.js|createHomeSummaryRoutes|/api/embodied/home-summary|oidc|no-sql-write",
     "embodied|routes/package-smoke.js|createPackageSmokeRoutes|/api/embodied/_smoke|service|no-sql-write",
+    "engineering-shelf|routes/package-smoke.js|createPackageSmokeRoutes|/api/engineering-shelf/_smoke|service|no-sql-write",
+    "engineering-shelf|routes/shelf-routes.js|createShelfRoutes|/api/engineering-shelf/_smoke|service|no-sql-write",
     "fantasy-football|routes/fantasy-routes.js|createFantasyFootballRoutes|/api/fantasy-football|oidc|machine-write",
     "fantasy-football|routes/home-summary.js|createHomeSummaryRoutes|/api/fantasy-football/home-summary|oidc|no-sql-write",
     "fantasy-football|routes/package-smoke.js|createPackageSmokeRoutes|/api/fantasy-football/_smoke|service|no-sql-write",

@@ -1,0 +1,188 @@
+<!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR | DESCRIPTION
+  -----------------------------------------------------------------------------
+  3 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: How Career fills in a form, three choices that save at once with Undo: Typing (Like a person, the default, slower and changing nothing inside the page, or Fast), Window (In front, the default, or Behind my other windows, which is offered only with Fast) and Submit (Stop before Submit, the default, or Submit after I approve), with a line saying why Like a person is the default. The standing answers gain Protected veteran and Disability (No, Yes, or blank, which declines that question on the form) and Citizenship.
+  2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (the owner's answer to design question 1, "its configuration"): the Attestations group, two switches off by default: Tick the employer's terms box for me, and Sign the self-identification form with my name and today's date, each saying what Career does in his name and what happens when it is off. A switch saves at once with the revision the page read and offers Undo, which puts the earlier answers back while nothing changed after; Save answers offers Undo too.
+  1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.4): Saved answers, reached from Settings. Answers Career may give on an employer's form for you: the standing ones you give up front (authorized to work, needs sponsorship, how you heard about the job, phone type), and every answer you kept on an application card with Keep this answer for next time, each with its question's words, your answer, where it came from and when, and Remove. Saves name the revision the page read (GET and POST /saved-answers), so another window's change is never overwritten. Designed after the saved screening-question answers of the job sites' own application settings: a short form, then a list with one Remove per answer; one column at 412 px.
+-->
+<html lang="en" data-career-surface="saved-answers" data-ds-category="settings" data-ds-first-action="tap">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saved answers</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ds-page); color: var(--ds-ink); font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px 24px 48px; }
+  .wrap, .wrap * { overflow-wrap: anywhere; }
+  h1 { font-size: 22px; line-height: 28px; margin: 4px 0 6px; }
+  h2 { font-size: 18px; line-height: 24px; margin: 0 0 8px; }
+  .lead, .note { color: var(--ds-ink-2); margin: 0 0 12px; }
+  .card { background: var(--ds-surface); border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); padding: 14px 16px; margin: 14px 0; }
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+  label { display: block; font-weight: 600; font-size: 14px; }
+  select, input { display: block; width: 100%; min-height: 44px; margin-top: 6px; padding: 0 10px; font: inherit; color: var(--ds-ink);
+    background: var(--ds-surface-2); border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+  .actions button { min-height: 44px; }
+  ul.answers { list-style: none; margin: 0; padding: 0; }
+  ul.answers li { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--ds-hairline); }
+  ul.answers li:first-child { border-top: 0; }
+  .question { margin: 0; }
+  .answer { margin: 2px 0 0; font-weight: 600; }
+  .from { margin: 2px 0 0; color: var(--ds-ink-2); font-size: 13px; }
+  .answers button { min-height: 44px; flex: 0 0 auto; }
+  #status:empty { display: none; }
+  label.switch { display: flex; gap: 14px; align-items: flex-start; font-weight: 400; margin: 14px 0 0; cursor: pointer; }
+  label.switch b { display: block; font-size: 15px; }
+  label.switch small { display: block; color: var(--ds-ink-2); font-size: 13px; line-height: 18px; margin-top: 2px; }
+  label.switch input { appearance: none; flex: 0 0 64px; width: 64px; height: 44px; min-height: 44px; margin: 0; padding: 0; border: 0; border-radius: 22px;
+    background: var(--ds-surface-3, #ccd1df); position: relative; cursor: pointer; }
+  label.switch input::before { content: ''; position: absolute; top: 6px; left: 6px; width: 32px; height: 32px; border-radius: 50%; background: var(--ds-surface, #fff); transition: left .15s; }
+  label.switch input:checked { background: var(--ds-accent, #2f6fde); }
+  label.switch input:checked::before { left: 26px; }
+  fieldset.choices { border: 0; margin: 14px 0 0; padding: 0; }
+  fieldset.choices legend { font-weight: 600; margin-bottom: 4px; }
+  fieldset.choices label.choice { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 8px 0 0; min-height: 44px; cursor: pointer; }
+  fieldset.choices label.choice input { width: 22px; height: 22px; margin: 2px 0 0; flex: 0 0 22px; }
+  fieldset.choices label.choice small { display: block; color: var(--ds-ink-2); font-size: 13px; line-height: 18px; }
+  label.switch input:focus-visible { outline: 2px solid var(--ds-accent-ink, #1d4fa8); outline-offset: 2px; }
+  a { color: var(--ds-accent-ink); }
+  @media (max-width: 640px) { .wrap { padding: 12px 14px 40px; } .fields { grid-template-columns: minmax(0, 1fr); } ul.answers li { flex-direction: column; } }
+</style>
+<link rel="stylesheet" href="/api/career-hunter/static/career-frame.css"><script src="/api/career-hunter/static/career-frame.js"></script></head>
+<body>
+<main class="wrap" data-ds-work>
+  <p><a data-career-tool="career-settings" href="/api/career-hunter/settings">← Settings</a></p>
+  <h1>Saved answers</h1>
+  <p class="lead">When Career fills in an employer’s form on your Chrome, it uses these answers. A question none of them answers comes to you as a card.</p>
+  <p id="status" role="status" aria-live="polite">Loading your saved answers…</p>
+  <form class="card" id="standing" hidden>
+    <h2>Answers you give up front</h2>
+    <div class="fields">
+      <label for="workAuthorization">Authorized to work where the job is
+        <select id="workAuthorization"><option value="">Ask me each time</option><option>Yes</option><option>No</option></select></label>
+      <label for="sponsorship">Needs visa sponsorship
+        <select id="sponsorship"><option value="">Ask me each time</option><option>No</option><option>Yes</option></select></label>
+      <label for="heard">How you heard about the job
+        <input id="heard" maxlength="200" placeholder="For example: LinkedIn"></label>
+      <label for="phoneType">Phone type
+        <select id="phoneType"><option value="">Ask me each time</option><option>Mobile</option><option>Home</option><option>Work</option></select></label>
+      <label for="veteranStatus">Protected veteran
+        <select id="veteranStatus"><option value="">Decline on the form</option><option>No</option><option>Yes</option></select>
+        <small class="note">Blank means Career declines the veteran question on the form.</small></label>
+      <label for="disabilityStatus">Disability
+        <select id="disabilityStatus"><option value="">Decline on the form</option><option>No</option><option>Yes</option></select>
+        <small class="note">Blank means Career declines the disability question on the form.</small></label>
+      <label for="citizenship">Citizenship
+        <input id="citizenship" maxlength="200" placeholder="For example: U.S. citizen">
+        <small class="note">For a form that asks it apart from work authorization. Blank: Career leaves it to you.</small></label>
+    </div>
+    <div class="actions"><button type="submit" class="ck-primary" id="save">Save answers</button><span class="note" id="saved" role="status"></span><button type="button" class="ck-btn" id="savedUndo" hidden>Undo</button></div>
+  </form>
+  <section class="card" id="attest" hidden aria-labelledby="attestTitle">
+    <h2 id="attestTitle">Attestations</h2>
+    <p class="note">Some employers ask you to agree to their terms and to sign their self-identification form. Career does these for you only when you switch them on here, only on a form you approved, and always in your name.</p>
+    <label class="switch" for="attestTerms"><input type="checkbox" role="switch" id="attestTerms"><span><b>Tick the employer’s terms box for me</b><small>Career ticks the box that says you agree to the employer’s terms, in your name. Off, Career stops there and you tick it yourself.</small></span></label>
+    <label class="switch" for="attestSign"><input type="checkbox" role="switch" id="attestSign"><span><b>Sign the self-identification form with my name and today’s date</b><small>Career types your name and today’s date as your signature on the employer’s self-identification form, in your name. Off, Career stops there and you sign it yourself.</small></span></label>
+    <div class="actions"><span class="note" id="attestSaved" role="status"></span><button type="button" class="ck-btn" id="attestUndo" hidden>Undo</button></div>
+  </section>
+  <section class="card" id="flags" hidden aria-labelledby="flagsTitle">
+    <h2 id="flagsTitle">How Career fills in a form</h2>
+    <p class="note" id="flagsWhy">Like a person is the default. It is slower, and it changes nothing inside the employer’s page: Career only reads the page, and your computer’s own mouse and keyboard do every click, key and paste, as you would. Fast is quicker, but the browser add-on then sets each value inside the page, which a site can tell from a person.</p>
+    <fieldset class="choices" id="flagInput"><legend>Typing</legend>
+      <label class="choice"><input type="radio" name="flagInput" value="person-like"><span><b>Like a person</b><small>Slower; nothing is changed inside the page. Needs the window in front.</small></span></label>
+      <label class="choice"><input type="radio" name="flagInput" value="fast"><span><b>Fast</b><small>The add-on sets each value inside the page.</small></span></label></fieldset>
+    <fieldset class="choices" id="flagWindow"><legend>Window</legend>
+      <label class="choice"><input type="radio" name="flagWindow" value="foreground"><span><b>In front</b><small>You see it work and can take over at any time.</small></span></label>
+      <label class="choice"><input type="radio" name="flagWindow" value="background"><span><b>Behind my other windows</b><small>Only with Fast.</small></span></label></fieldset>
+    <fieldset class="choices" id="flagSubmit"><legend>Submit</legend>
+      <label class="choice"><input type="radio" name="flagSubmit" value="stop-before-submit"><span><b>Stop before Submit</b><small>You press Submit yourself.</small></span></label>
+      <label class="choice"><input type="radio" name="flagSubmit" value="submit-after-approval"><span><b>Submit after I approve</b><small>When you approve a job, Career checks the Review page and presses Submit once if nothing is wrong, and keeps the employer’s confirmation.</small></span></label></fieldset>
+    <div class="actions"><span class="note" id="flagsSaved" role="status"></span><button type="button" class="ck-btn" id="flagsUndo" hidden>Undo</button></div>
+  </section>
+  <section class="card" id="keptCard" hidden aria-labelledby="keptTitle">
+    <h2 id="keptTitle">Answers you kept from applications</h2>
+    <ul class="answers" id="kept"></ul>
+  </section>
+</main>
+<script>
+'use strict';
+(() => {
+  const API = '/api/career-hunter', $ = (id) => document.getElementById(id), FIELDS = ['workAuthorization', 'sponsorship', 'heard', 'phoneType', 'veteranStatus', 'disabilityStatus', 'citizenship'];
+  const FLAGS = { input: 'flagInput', window: 'flagWindow', submit: 'flagSubmit' };
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let current = null;
+  /** @description One request to the Saved answers route; a refusal says why in words. @returns {Promise<object>} */
+  async function call(body) {
+    const response = await fetch(API + '/saved-answers', { method: body ? 'POST' : 'GET', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(data.error || 'Saved answers are unavailable (HTTP ' + response.status + ').');
+    return data;
+  }
+  function when(value) { const at = Date.parse(value); return Number.isFinite(at) ? new Date(at).toLocaleDateString() : ''; }
+  /** @description Draw the form and the kept answers from what the route answered. @returns {void} */
+  function draw(data) {
+    current = data;
+    for (const key of FIELDS) $(key).value = data.standing[key] || '';
+    $('attestTerms').checked = data.attest.terms === true;
+    $('attestSign').checked = data.attest.selfIdSignature === true;
+    for (const [key, name] of Object.entries(FLAGS)) for (const box of document.getElementsByName(name)) box.checked = box.value === data.flags[key];
+    for (const box of document.getElementsByName('flagWindow')) if (box.value === 'background') box.disabled = data.flags.input === 'person-like';
+    $('standing').hidden = false;
+    $('attest').hidden = false;
+    $('flags').hidden = false;
+    $('keptCard').hidden = false;
+    $('kept').innerHTML = data.answers.length ? data.answers.map((item) => `<li><div><p class="question">${esc(item.text)}</p><p class="answer">${esc(item.value)}</p><p class="from">${item.source === 'card' ? 'Kept from an application card' : 'Saved here'}${when(item.savedAt) ? ' · ' + esc(when(item.savedAt)) : ''}</p></div><button type="button" class="ck-btn" data-remove="${esc(item.id)}" aria-label="Remove the answer to ${esc(item.text)}">Remove</button></li>`).join('')
+      : '<li><p class="note">None yet. When you tick Keep this answer for next time on a question card, the answer is listed here.</p></li>';
+    $('status').textContent = '';
+  }
+  $('standing').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    $('save').disabled = true;
+    try {
+      draw(await call({ revision: current.revision, standing: Object.fromEntries(FIELDS.map((key) => [key, $(key).value.trim()])) }));
+      saved('saved', 'savedUndo', 'Saved.');
+    } catch (error) { $('status').textContent = error.message; } finally { $('save').disabled = false; }
+  });
+  /** @description Say a save worked, and offer Undo while it is the last change. @returns {void} */
+  function saved(line, undo, words) { $(line).textContent = words; $(undo).hidden = !current.undo; for (const other of ['savedUndo', 'attestUndo', 'flagsUndo']) if (other !== undo) $(other).hidden = true; }
+  async function flag(key, box) {
+    for (const other of document.getElementsByName(FLAGS[key])) other.disabled = true;
+    try { draw(await call({ revision: current.revision, flags: { [key]: box.value } })); saved('flagsSaved', 'flagsUndo', 'Saved.'); }
+    catch (error) { draw(current); $('flagsSaved').textContent = error.message; }
+    finally { for (const other of document.getElementsByName(FLAGS[key])) other.disabled = key === 'window' && other.value === 'background' && current.flags.input === 'person-like'; }
+  }
+  for (const [key, name] of Object.entries(FLAGS)) for (const box of document.getElementsByName(name)) box.addEventListener('change', () => flag(key, box));
+  async function attest(key, box) {
+    box.disabled = true;
+    try { draw(await call({ revision: current.revision, attest: { [key]: box.checked } })); saved('attestSaved', 'attestUndo', 'Saved.'); }
+    catch (error) { box.checked = !box.checked; $('attestSaved').textContent = error.message; } finally { box.disabled = false; }
+  }
+  $('attestTerms').addEventListener('change', () => attest('terms', $('attestTerms')));
+  $('attestSign').addEventListener('change', () => attest('selfIdSignature', $('attestSign')));
+  async function undo(line, button) {
+    button.disabled = true;
+    try { draw(await call({ revision: current.revision, undo: current.undo })); $(line).textContent = 'Put back as it was.'; button.hidden = true; }
+    catch (error) { $(line).textContent = error.message; } finally { button.disabled = false; }
+  }
+  $('attestUndo').addEventListener('click', () => undo('attestSaved', $('attestUndo')));
+  $('flagsUndo').addEventListener('click', () => undo('flagsSaved', $('flagsUndo')));
+  $('savedUndo').addEventListener('click', () => undo('saved', $('savedUndo')));
+  $('kept').addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-remove]'); if (!button) return;
+    button.disabled = true;
+    try { draw(await call({ revision: current.revision, remove: button.dataset.remove })); $('status').textContent = 'Removed.'; }
+    catch (error) { button.disabled = false; $('status').textContent = error.message; }
+  });
+  call().then(draw).catch((error) => { $('status').textContent = error.message; });
+})();
+</script>
+</body>
+</html>

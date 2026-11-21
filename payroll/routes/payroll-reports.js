@@ -14,15 +14,16 @@
  * DEPOSIT SCHEDULE — federal employment taxes are not due quarterly, which is
  * the mistake the v1 quarterly-liability report invited. A monthly depositor owes
  * by the 15th of the following month; a semiweekly depositor owes on a Wednesday
- * or Friday depending on the payday; and ANY single payday accumulating $100,000
- * of liability is due the NEXT BUSINESS DAY regardless of status. Reporting the
- * quarter total tells an employer nothing about whether they are already late.
+ * or Friday depending on the payday; and taxes ACCUMULATING to $100,000 within
+ * a deposit period are due the NEXT BUSINESS DAY regardless of status. Reporting
+ * the quarter total tells an employer nothing about whether they are already late.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 19:30:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — the balancing GL journal, the per-payday federal deposit schedule with monthly/semiweekly due dates and the $100,000 next-day rule, the deduction register, and labor distribution by department.
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 8: the deposit schedule rolled due dates off weekends only and applied the $100,000 rule to each payday alone. It now hands the year's paydays to payroll-deposits, which groups them by deposit period, takes due dates from the IRS legal-holiday calendar with the semiweekly extra-day allowance, accumulates the One-Day test over the period, and reports the $2,500 pay-with-return test per quarter.
  *
  * @module payroll-reports
  */
@@ -31,6 +32,7 @@ exports.runJournal = runJournal;
 exports.depositSchedule = depositSchedule;
 exports.deductionRegister = deductionRegister;
 exports.laborDistribution = laborDistribution;
+const payroll_deposits_1 = require("./payroll-deposits");
 const payroll_store_1 = require("./payroll-store");
 /** Chart-of-accounts codes. Deliberately conventional; an export maps them. */
 const ACCT = {
@@ -96,32 +98,23 @@ async function runJournal(pool, sub, runId) {
         totalDebitsCents, totalCreditsCents, balanced: totalDebitsCents === totalCreditsCents,
     };
 }
-/** Move a date to the next business day (weekends only; bank holidays are a backlog item). */
-function nextBusinessDay(iso) {
-    let d = iso;
-    for (let i = 0; i < 7; i += 1) {
-        const day = new Date(`${d}T00:00:00Z`).getUTCDay();
-        if (day !== 0 && day !== 6)
-            return d;
-        d = (0, payroll_store_1.addDays)(d, 1);
-    }
-    return d;
-}
-/** $100,000 of accumulated liability on one payday is due the NEXT BUSINESS DAY. */
-const NEXT_DAY_THRESHOLD_CENTS = 10_000_000;
 /**
  * @description The federal employment-tax deposit schedule for a year.
  *
- * Liability per payday = federal income tax withheld + BOTH halves of FICA.
- * The due date follows the company's depositor status, except that the
- * $100,000 next-day rule overrides both.
+ * Liability per payday = federal income tax withheld + BOTH halves of FICA
+ * (26 CFR 31.6302-1(e)(1): the employee tax under section 3102, the employer
+ * tax under section 3111 and the income tax withheld under section 3402). A
+ * void is a paid run of negated amounts on its own pay date, so it counts
+ * against the period it falls in. Grouping, due dates, the One-Day rule and the
+ * $2,500 test are payroll-deposits, which reads the IRS legal-holiday calendar.
  * @param pool - Postgres pool.
  * @param sub - Owning OIDC sub.
  * @param year - Tax year.
  * @param depositorStatus - 'monthly' or 'semiweekly'.
- * @returns One obligation per payday, in date order.
+ * @param today - Today, YYYY-MM-DD.
+ * @returns Obligations by deposit period, any forced status change, and the quarter summary.
  */
-async function depositSchedule(pool, sub, year, depositorStatus) {
+async function depositSchedule(pool, sub, year, depositorStatus, today) {
     const rows = (await pool.query(`SELECT r.pay_date,
             COALESCE(SUM(l.fit_cents + l.ss_cents + l.medicare_cents + l.addl_medicare_cents
                        + l.er_ss_cents + l.er_medicare_cents),0) AS liability
@@ -129,33 +122,8 @@ async function depositSchedule(pool, sub, year, depositorStatus) {
        JOIN payroll_runs r ON r.run_id = l.run_id AND r.user_sub = l.user_sub
       WHERE l.user_sub = $1 AND r.status = 'paid' AND date_part('year', r.pay_date) = $2
       GROUP BY r.pay_date ORDER BY r.pay_date`, [sub, year])).rows;
-    return rows.map((r) => {
-        const payDate = (0, payroll_store_1.isoDate)(r.pay_date);
-        const liabilityCents = Number(r.liability || 0);
-        if (liabilityCents >= NEXT_DAY_THRESHOLD_CENTS) {
-            return {
-                payDate, liabilityCents, dueDate: nextBusinessDay((0, payroll_store_1.addDays)(payDate, 1)),
-                rule: '$100,000 next-business-day rule — this overrides the depositor status.',
-            };
-        }
-        if (depositorStatus === 'semiweekly') {
-            // Wed/Thu/Fri paydays deposit the following Wednesday; Sat–Tue the following Friday.
-            const dow = new Date(`${payDate}T00:00:00Z`).getUTCDay();
-            const isWedToFri = dow >= 3 && dow <= 5;
-            let due = (0, payroll_store_1.addDays)(payDate, 1);
-            const wanted = isWedToFri ? 3 : 5; // Wednesday or Friday
-            for (let i = 0; i < 14; i += 1) {
-                if (new Date(`${due}T00:00:00Z`).getUTCDay() === wanted)
-                    break;
-                due = (0, payroll_store_1.addDays)(due, 1);
-            }
-            return { payDate, liabilityCents, dueDate: nextBusinessDay(due), rule: 'Semiweekly depositor.' };
-        }
-        // Monthly: the 15th of the following month.
-        const d = new Date(`${payDate}T00:00:00Z`);
-        const due = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 15)).toISOString().slice(0, 10);
-        return { payDate, liabilityCents, dueDate: nextBusinessDay(due), rule: 'Monthly depositor — due the 15th of the following month.' };
-    });
+    const paydays = rows.map((r) => ({ payDate: (0, payroll_store_1.isoDate)(r.pay_date), liabilityCents: Number(r.liability || 0) }));
+    return (0, payroll_deposits_1.buildDepositSchedule)(paydays, depositorStatus === 'semiweekly' ? 'semiweekly' : 'monthly', year, today);
 }
 /** Every deduction taken in a period, by code — what each payee is owed. */
 async function deductionRegister(pool, sub, from, to) {

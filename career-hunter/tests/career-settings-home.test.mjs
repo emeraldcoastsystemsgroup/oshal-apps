@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Judge's report 2026-11-11, changes 1 and 14: the sections read What I'm looking for, Companies I want, Imports, Check for new jobs now, Email updates and Résumé and materials, each with one line in a job seeker's words; every section still opens the controls it held; the example job titles are ordinary ones; and no line a person can open on the page names the vendor's platform or one person's field.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Pull jobs now is the administrator's (career-settings-administrator.test.mjs), so the section a job seeker opens is checked by the one button every person has there. The rows' full lines are still what the page ships; what each person sees of them is held by that file.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep Career's own Accounts section in the real Settings navigation without changing the existing sections or admission checks.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the in-place sections are the links that open a section; Saved answers is its own page, checked by its address and words.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -78,7 +79,10 @@ test('the sections are named in a job seeker\'s words and each still opens its o
   try {
     const home = page.getByRole('list', { name: 'Settings sections' });
     await home.waitFor();
-    assert.deepEqual(await home.locator('a').evaluateAll((links) => links.map((a) => [a.dataset.open, a.firstChild.textContent, a.querySelector('small').textContent])), SECTIONS.map(([id, name, line]) => [id, name, line]));
+    assert.deepEqual(await home.locator('a[data-open]').evaluateAll((links) => links.map((a) => [a.dataset.open, a.firstChild.textContent, a.querySelector('small').textContent])), SECTIONS.map(([id, name, line]) => [id, name, line]));
+    // Saved answers (1.70.0) is its own page, linked from the list, not a section that opens in place.
+    assert.deepEqual(await home.locator('#savedAnswersLink').evaluate((a) => [a.getAttribute('href'), a.firstChild.textContent, a.querySelector('small').textContent]),
+      ['/api/career-hunter/saved-answers-ui', 'Saved answers', 'Answers Career may give on an employer’s form, and the ones you kept']);
     assert.match(await page.locator('.lede').innerText(), /^What you are looking for, the companies you want, and how Career checks for jobs and replies\.$/);
     for (const [id, name, , control] of SECTIONS) {
       await home.getByRole('link', { name: new RegExp('^' + name) }).click();

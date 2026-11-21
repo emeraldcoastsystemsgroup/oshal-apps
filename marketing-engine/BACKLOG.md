@@ -174,14 +174,18 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
 
 ## P1 — Audience and compliant email
 
-### Audience store: contacts, recipient consent, lists, suppression
-- **Remaining:** migration 003 with `oshal_marketing_contacts`, `…_consents` (channel, purpose,
-  status, evidence JSON: form text, time, IP, user agent, UTM, token hash), `…_lists`,
-  `…_list_members`, `…_suppressions` (normalized hash + reason), all owner FORCE RLS; routes to list,
-  segment by list/tag/consent state, and delete a contact with its evidence exported first.
-- **Done when:** an RLS test on the enforcing role proves another owner reads zero rows from every
-  table, a deleted contact leaves no row behind, and the consent export shows the evidence recorded
-  at sign-up.
+### ~~Audience store: contacts, recipient consent, lists, suppression~~ — DONE in `0.6.0`
+- **Delivered (`0.6.0`):** migration `003-marketing-audience.sql` with `oshal_marketing_contacts`,
+  `oshal_marketing_consents` (channel, purpose, status, evidence JSON: `formText`, `recordedAt`,
+  `ip`, `userAgent`, `utm`, `tokenHash`), `oshal_marketing_lists`, `oshal_marketing_list_members`,
+  and `oshal_marketing_suppressions` (normalized lowercase SHA-256 hash + reason), all exact-owner
+  FORCE RLS (`oshal.current_sub`, no operator bypass); session-authenticated `/api/marketing/audience/*`
+  routes to list, segment by list/tag/consent state/channel/purpose/suppression/search, manage lists
+  and suppressions, export sign-up consent evidence, and delete a contact with its evidence exported
+  first.
+- **Proven by:** `tests/marketing-audience.test.mjs` (unit, route-table parity, and route handlers)
+  and `tests/marketing-audience-rls.test.mjs` (disposable PostgreSQL 16 enforcing-role RLS proof
+  across all five tables, sign-up evidence export, and zero-row delete verification).
 
 ### CSV import with consent attestation
 - **Remaining:** import that requires the owner to state the consent source, stores it per contact,

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove offline Greenhouse and Ashby autofill, profile normalization, non-overwrite behavior, and the absence of network, upload, or submit actions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Reject hidden honeypots and lookalike hosts before profile decoding, while documenting that normal field events can activate host-page handlers.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: a record that keeps its address in profile.application_contact (address1, city, state, state_abbrev, postal_code, country) yields the street, city, the state and its abbreviation, the postal code and the country; the Apply Profile overlay still wins. Red before: only the city and state from the location line.
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -13,6 +14,17 @@ import vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const { createAutofillBookmarklet, normalizeAutofillProfile } = require('../lib/autofill-bookmarklet');
+
+test('a record that keeps its address in profile.application_contact gives the street, city, state, its abbreviation, postal code and country', () => {
+  const result = normalizeAutofillProfile({
+    profile: { name: 'Robin Sample', email: 'robin@example.test', phone: '555-0199', location: 'Elsewhere, CA',
+      application_contact: { address1: '9 Sample Road', city: 'Madison', state: 'Wisconsin', state_abbrev: 'WI', postal_code: '53703', country: 'United States' } },
+  }, {});
+  assert.deepEqual(result, { fullName: 'Robin Sample', firstName: 'Robin', lastName: 'Sample', city: 'Madison', state: 'Wisconsin', email: 'robin@example.test',
+    phone: '555-0199', addressLine1: '9 Sample Road', postalCode: '53703', country: 'United States', stateAbbrev: 'WI' });
+  assert.equal(normalizeAutofillProfile({ application_contact: { address1: '9 Sample Road' } }, {}).addressLine1, '9 Sample Road', 'also at the top of the record');
+  assert.equal(normalizeAutofillProfile({ profile: { application_contact: { city: 'Madison' } } }, { city: 'Overlay town' }).city, 'Overlay town', 'the Apply Profile overlay still wins');
+});
 
 class FakeElement {
   constructor(attributes = {}, label = '') {

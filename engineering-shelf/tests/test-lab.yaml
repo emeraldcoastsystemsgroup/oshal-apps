@@ -1,0 +1,101 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: register readiness, the package contract of the engineering shelf's one role, and the check that the role gives exactly what Design Studio's four steps need.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0, before its first release: readiness is the store's package-smoke pair and routes/shelf-routes.js only registers the catalog's adapter at the same mount; package-contract's expectations say so, and kernel-activation runs the package in the kernel's own package runner (needs the kernel checkout, so it is registered here and kept out of the store-ci glob).
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed engineering shelf readiness
+    purpose: Read installed package identity without grants, business records or provider access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - Installed package identity is engineering-shelf at its declared version.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: package-contract
+    name: The engineering shelf's one role and what it maps
+    purpose: Verify what the kernel requires of an application that declares a role across applications (the two capabilities, a version 1
+      package-local catalog, an ordinary application, a template that maps the package and every required application), the kernel's rule that
+      "@app-admin" maps only an application without a catalog and a declared role maps one with a catalog (read from the five manifests in this
+      repository), a catalog that grants one read, no screen, bot, tool or table, and the compiled routes on a local listener.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-contract.test.mjs
+    expected:
+      - The Engineer template maps this package, Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print once each; all five are required and none is an optional choice.
+      - Each mapped application exists and is active; the four without a catalog are mapped "@app-admin" and Scan to Print is mapped a role its catalog declares.
+      - The package is hidden, declares no screen, bot, tool or table, and its catalog grants app.open and nothing else.
+      - The manifest declares the store's package-smoke readiness route first and the adapter's factory second, both at /api/engineering-shelf/_smoke with service authentication and no model.
+      - The adapter factory registers an adapter for the catalog's one resource and refuses to run without the authorization port; the adapter admits an active, identified caller holding an own grant with no fields, and nobody else; the factory serves no path.
+      - GET /api/engineering-shelf/_smoke, through both routers composed at the one mount, answers the package and its version; without its folder readiness answers 503; POST and any other path answer 404.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: engineer-role-closure
+    name: The Engineer role gives exactly what Design Studio's four steps need
+    purpose: List the calls a person's browser makes in New product, a partner-built part, Simulate and Make the print set, hold the list to
+      Design Studio's own page code, and admit each call the way the kernel does (a catalog's binding and permissions, or the tier of an
+      application without a catalog). A role renamed in one of the five, a catalog added to one, or a new call to an application the role does
+      not map fails here.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engineer-role-closure.test.mjs
+    expected:
+      - Every call of the four steps is admitted by the role the template gives for that application, and Send to printer is admitted too.
+      - The applications the template maps are exactly the five the steps call; the page code reaches no other application.
+      - The design partner's tools call Design Studio's own routes only.
+      - A role that falls short, a renamed role, an unmapped application and a named role on an application without a catalog are each refused in words.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: kernel-activation
+    name: The engineering shelf in the kernel's own package runner
+    purpose: >-
+      Start the kernel's package runner (crates/host-process/bridge/runner.js in the kernel checkout at OSHAL_KERNEL_ROOT or its
+      default folder) on this package with the manifest's route declarations and its catalog, the way the kernel's load message
+      carries them, and call readiness with the Engineer role's grant. It fails, never skips, when the checkout is absent.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kernel/shelf-activation.test.mjs
+    expected:
+      - The store's readiness pair alone is refused at activation with "An installed authorization resource has no registered adapter".
+      - The manifest's two declarations activate the package, and GET /api/engineering-shelf/_smoke answers 200 with the package and its version for a caller holding the own grant.
+      - A tenant grant is refused 403 application_resource_denied by the package's adapter, and another path under the mount answers 404.
+    prerequisites:
+      - runner:node-test
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never

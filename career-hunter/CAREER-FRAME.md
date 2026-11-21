@@ -98,7 +98,8 @@ Career's pages already paint from those tokens, so they wear it with no change o
 3. If the page measures the window (`100dvh`) or pins a part to the top, give the frame its share with
    `var(--cf-top)` and `var(--cf-bottom)`; section 4 of `career-frame.css` has the existing cases.
 
-`career-mobile.html` keeps its own complete phone shell and does not load the frame.
+`career-mobile.html` keeps its own complete phone shell and does not load the frame. No route serves it since 1.69.0:
+`/mobile` hands off to the New matches stage of My jobs, whose phone layout is the swipe deck.
 
 ## Checking it
 

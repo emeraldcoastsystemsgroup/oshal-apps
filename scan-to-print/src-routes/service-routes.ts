@@ -42,10 +42,16 @@
  *                     |                             | auto-start the same way.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep service job printing on its original print.send boundary when sharing the owner guard.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): attach bounded, fail-safe live printer status to the latest submission in GET /submissions.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B16 Option C: slice posted `.stl` files into generic `.gcode` for HTTP printer hosts via `SCAN_TO_PRINT_SLICER_CMD` or the package slicer engine (`slice_gcode`), honouring owner `autoStart` at start time.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { AsyncResource } from 'node:async_hooks';
+import { execFile as execFileCb } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import multer from 'multer';
 import { createChildLogger } from '@/shared/logger';
 import { requireTrustedServiceUserIdentity } from '@/shared/middleware/trusted-service-user-identity';
@@ -53,11 +59,14 @@ import { randomBytes } from 'node:crypto';
 import { getPrinterAutoStart, listJobs, listPrinters, listRecentSubmissions, type JobRow } from './job-store';
 import { requireUuid } from './data-dir';
 import { BAMBU_KIND, fileKindOf } from './engine/print/printer-adapters';
+import { defaultGcodeProfileForKind, resolveSlicerBackend, sliceStl } from './engine/print/slicer';
+import { SlicerEngineError, isEngineGcodeConfigured, sliceToGcode } from './printing/slicer-engine';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { type PrintRouteDeps, printJob, serviceDepsOf } from './print-routes';
-import { type LoadedPrinter, type PrintModel, type PrintOutcome, attachLiveStatus, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
+import { type LoadedPrinter, type PrintModel, type PrintOutcome, attachLiveStatus, evaluateStart, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
 
 const logger = createChildLogger({ module: 'scan-to-print-service-routes' });
+const execFile = promisify(execFileCb);
 
 /** @description Largest model the service accepts in one request. */
 export const SERVICE_MODEL_MAX_BYTES = 64 * 1024 * 1024;
@@ -120,6 +129,33 @@ function modelOf(file: Express.Multer.File): PrintModel | null {
   return null;
 }
 
+/** @description Slice a posted STL into G-code for an HTTP printer via command or engine. */
+async function slicePostedStl(deps: PrintRouteDeps, printer: LoadedPrinter, model: PrintModel): Promise<{ fileName: string; bytes: Uint8Array } | PrintOutcome> {
+  const slicer = resolveSlicerBackend(deps.env, isEngineGcodeConfigured(deps.slicer, deps.env));
+  if (slicer.backend === 'none') {
+    return { status: 409, uploaded: false, started: false, fileName: null, message: `${printer.row.kind} hosts take sliced G-code from the print service; slice the model first.` };
+  }
+  const fileName = printerFileName(model.name, '.gcode');
+  if (slicer.backend === 'engine') {
+    try {
+      const sliced = await sliceToGcode(deps.slicer, model.bytes, model.name, { profile: defaultGcodeProfileForKind(printer.row.kind) });
+      return { fileName, bytes: sliced.bytes };
+    } catch (error) {
+      if (!(error instanceof SlicerEngineError)) throw error;
+      const status = error.code === 'unavailable' || error.code === 'busy' ? 503 : error.code === 'refused' ? 422 : 502;
+      return { status, uploaded: false, started: false, fileName: null, message: error.reason ?? error.message, ...(error.code === 'unavailable' ? { installHint: deps.slicer.installHint } : {}) };
+    }
+  }
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-svc-slice-'));
+  try {
+    const stlPath = path.join(work, 'in.stl'), gcodePath = path.join(work, 'out.gcode');
+    fs.writeFileSync(stlPath, model.bytes);
+    const res = await sliceStl(slicer.command as NonNullable<typeof slicer.command>, stlPath, gcodePath, deps.execFile ?? ((f, a, o) => execFile(f, a, o)), (p) => fs.existsSync(p));
+    if (!res.ok) return { status: 502, uploaded: false, started: false, fileName: null, message: res.error ?? 'slicer failed' };
+    return { fileName, bytes: new Uint8Array(fs.readFileSync(gcodePath)) };
+  } finally { fs.rmSync(work, { recursive: true, force: true }); }
+}
+
 /**
  * @description Send a posted model to a loaded printer. A model this package slices (STL) starts under
  * the owner's auto-start, read at start time; the caller's own machine instructions (a sliced
@@ -127,6 +163,19 @@ function modelOf(file: Express.Multer.File): PrintModel | null {
  */
 async function sendModel(deps: PrintRouteDeps, sub: string, printer: LoadedPrinter, model: PrintModel): Promise<PrintOutcome> {
   if (printer.row.kind === BAMBU_KIND) return sendToBambu(serviceDepsOf(deps), printer, model, autoStartNow(deps, sub, printer.row.printer_id), 'service');
+  if (model.kind === 'stl') {
+    const sliced = await slicePostedStl(deps, printer, model);
+    if ('status' in sliced) return sliced;
+    const decision = await evaluateStart(autoStartNow(deps, sub, printer.row.printer_id));
+    const outcome = await sendToHttpPrinter(serviceDepsOf(deps), printer, sliced, decision.go);
+    if (outcome.uploaded && decision.error) {
+      outcome.notStartedReason = `whether to start could not be read (${decision.error}); nothing was started`;
+      outcome.message = `Uploaded, not started: ${outcome.notStartedReason}`;
+    } else if (outcome.uploaded && !decision.go) {
+      outcome.message = 'Uploaded. Auto-start is off for this printer, so it waits on the printer for someone to start it.';
+    }
+    return outcome;
+  }
   if (model.kind !== 'gcode') return { status: 409, uploaded: false, started: false, fileName: null, message: `${printer.row.kind} hosts take sliced G-code from the print service; slice the model first.` };
   const outcome = await sendToHttpPrinter(serviceDepsOf(deps), printer, { fileName: model.name, bytes: model.bytes }, false);
   return outcome.uploaded ? { ...outcome, message: 'Uploaded. Posted G-code waits on the printer host for someone to start it.' } : outcome;
@@ -227,7 +276,7 @@ function registerFilePrint(router: Router, deps: PrintRouteDeps): void {
       const printer = await loadPrinter(deps.pool, sub, chosen.printerId);
       if (!printer) { res.status(404).json({ error: 'printer_not_found' }); return; }
       const outcome = await sendModel(deps, sub, printer, model);
-      const fileKind = printer.row.kind === BAMBU_KIND ? 'gcode.3mf' : model.kind;
+      const fileKind = printer.row.kind === BAMBU_KIND ? 'gcode.3mf' : model.kind === 'stl' ? 'gcode' : model.kind;
       const submission = outcome.status === 409 ? null : await recordAttempt(deps.pool, sub, { jobId: null, sourceName: String(req.file.originalname || 'model').slice(0, 200), printer, fileKind, outcome, requestedBy: 'service' });
       const failed = outcome.status >= 400 ? { error: 'print_not_sent', message: outcome.message, ...(outcome.installHint ? { installHint: outcome.installHint } : {}) } : {};
       res.status(outcome.status).json({ ...failed, ...answer(outcome, printer, submission, await autoStartForReply(deps, sub, printer.row.printer_id)) });

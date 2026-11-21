@@ -1,3 +1,7 @@
+# 127 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: register assisted-application-flags (How Career fills in a form: Typing, Window and Submit on Roger's defaults with Undo, the flags in the packet under its digest and on the approval in words, veteran and disability standing answers as selfid facts, Career's one Submit recorded only with its confirmation, and the job page's line when he used the mouse).
+# 126 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: register parse-resume (the parse résumé's format, structure and real parse against the executive Word résumé), parse-resume-download (Résumé for upload forms on Send over the real compiled route) and parse-resume-live; the packet's Word résumé is now the parse résumé, and a generation writes Resume_Parse.docx.
+# 125 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: register assisted-application (the approval packet, sync, write-back and receipt over the real routes, store, engine and docx_resume.py) and assisted-application-pages (Fill it in on my Chrome on Step 3 · Send, the receipt in Submission activity and on the job page, and Saved answers, in Chromium at 1440x900 and 412x915 over the real routes).
+# 124 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: register match-deck-routes, match-deck-page and match-deck-live: the swipe deck that is the phone layout of New matches. Pass, Save and Undo are the board's own writes with a reversal each, owner-scoped and refused where they should be, on the real compiled routes over a real store; the shipped page in Chromium at 412x915 and 1440x900 over those routes; and on the installed package a test person passes, saves, undoes and opens a match on the test slot.
 # 123 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25: register ready-with-documents: a job read (GET /jobs/:id) the engine finishes during never says the preparation is complete without its documents and claims check (the store gate's one-in-many failure of letter-truth-route on 2026-11-19). The read is held after the job's row, over the real routes, engine and SQLite driver, until the engine has written its last receipt.
 # 122 | maintainer@emeraldcoastsystemsgroup.com | 1.68.24: register years-edit, years-by-skill-page and years-by-skill-live: Work history's Years by skill section reads the years counted from the roles, the person's own figure and what a résumé states from the table generation reads, saves the whole form as one revision-checked main-résumé edit that writes exactly years_by_skill and career_years, refuses a bad row whole in words that name it, and undoes; in Chromium at 1440x900 and 412x915; and on the installed package as a test person.
 # 121 | maintainer@emeraldcoastsystemsgroup.com | 1.68.22: register years-truth (the person's own years by skill enforced on generated documents, both ways, and recorded-term fidelity).
@@ -2146,7 +2150,7 @@ cases:
     expected:
       - The headline and bullet edits land in career_db.json with roles, titles and unsent fields intact; a removed role refuses the save in words.
       - With an empty headline and a skill holding semicolons, the untouched document says Matches your master resume on open and on Save, sends nothing, and a forced save changes no byte, snapshot or history; a bullet edit saves only that bullet.
-    prerequisites: [runner:node-test, fixture:career-python]
+    prerequisites: [runner:node-test, fixture:python-engine]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove the temporary career profiles."}
     limits: {timeoutMs: 60000}
@@ -3369,6 +3373,7 @@ cases:
     expected:
       - A résumé prepared before the check that leaves the current role out reads as needing generation and names the role.
       - Generate finishes ready and its résumé starts with the two current roles and then the newest ended role, the model's own entries after them.
+      - The same generation writes Resume_Parse.docx beside the other documents; the plain line reader reads its first role as the current one, 02/2024 to Present, and every role on the résumé once.
     prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Close the rail listener and remove the temporary store root."}
@@ -4088,6 +4093,77 @@ cases:
     limits:
       timeoutMs: 300000
     installation: never
+  - id: match-deck-routes
+    name: The phone deck's Pass, Save and Undo are the board's own writes, each with a reversal, on the real routes
+    purpose: >-
+      Career's real compiled board and surface routes (GET /jobs, GET /jobs/:id, GET /jobs/stats, POST /jobs/:id/status,
+      GET /mobile) over a real SQLite corpus and a real store for each of two made-up people: what the swipe deck of New
+      matches asks of them.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-match-deck-routes.test.mjs]}
+    expected:
+      - Pass (status dismissed) moves a job from New matches to Removed and status new puts it back as it was; Save (favorite true) moves it to Saved without starting an application and favorite false puts it back; the counts follow.
+      - None of those writes reaches the other person's store, and the other person's own writes do not reach the first one's.
+      - A signed-out caller is refused (401) on every read and write, an unknown job is 404, a body that is not a move is 400, and nothing is written; a job already applied to, interviewing, offered or closed cannot be sent back to new (409).
+      - After acting on 24 of the first 25 matches, the first page read again holds the one job still held and the five not yet seen, and page 2 holds none of them.
+      - GET /mobile answers a hand-off page to /board-native?view=matches with no script; authorization.yaml still binds /mobile and /board-native to app.open; the board page loads career-match-deck.js before its own script and /static serves it.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up people's stores under the test's temporary folder."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: match-deck-page
+    name: New matches is a swipe deck at 412 and the list it was at 1440, over the real routes
+    purpose: >-
+      The shipped My jobs page in Chromium at 412x915 with touch and at 1440x900, served by Career's real compiled surface
+      routes and reading and writing through its real compiled board routes over a real SQLite store, as a made-up person.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-match-deck-page.test.mjs]}
+    expected:
+      - At 412 one card shows the employer, the title, the place, pay only when the posting states it and the fit; Undo, Pass, Save and More are 44 px targets on the screen above the bottom bar, Pass and Save the wide ones; nothing is wider than the screen.
+      - Pass and Save by button and by swipe change the person's store as the board's own buttons do; Undo puts each job back in the store and on top; a job that moved to Getting ready since is left there, said in words, and nothing is written.
+      - More opens the job's details and writes nothing; the buttons keep keyboard focus after acting and the card under the lead one is not a tab stop.
+      - The end of the deck says how many were saved and passed with Open Saved and Find jobs and keeps Undo; the wait for the list, a list that cannot be read (with Try again), a Pass that cannot be sent (the card comes back), a Save that cannot be confirmed (Undo checks it) and a stage with no matches (No matches yet, Find jobs) each say what happened.
+      - A deck of 30 with 25 a page shows every job once and none twice; /api/career-hunter/mobile opens the deck at 412 and the list at 1440.
+      - At 1440 the stage is the list of rows with Save and Not interested, the search row and the pager, with no card and no deck buttons; a link naming career-mobile opens the board with view=matches.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the made-up people's stores under the test's temporary folder and close the browser contexts."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1024}
+    installation: never
+  - id: match-deck-live
+    name: On the installed package a test person passes, saves, undoes and opens a match on a phone, and sees the list on a computer
+    purpose: >-
+      After career-hunter 1.69.0 is installed on a test slot, as a test person with a made-up résumé and a few openings
+      Career scored for them, signed in on /login: at 412x915 open My jobs, press New matches, and on the person's own
+      matches press Pass, Undo, Save, Undo and More, swipe right and undo, then open /api/career-hunter/mobile; at
+      1440x900 read the same stage as a list. Make the person once with `person`; run node
+      career-hunter/tests/career-match-deck-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-match-deck-live-proof.mjs
+    expected:
+      - After each press Career's own record of the job is what the press means (dismissed, new, saved, not saved), the line on the page says so, and the lead card is the next job or the same job again; More writes nothing.
+      - The buttons are Undo, Pass, Save and More, 44 px targets on the screen; nothing scrolls sideways; /api/career-hunter/mobile opens the deck; at 1440x900 the stage is rows with Save and Not interested and no card.
+      - The only writes are the four moves of the one job the check holds; the check exits 0 and leaves that job as it found it.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.69.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Writes only the test person's own record of one job on the test slot, never production, and ends with the job as
+        it found it. Every other request that is not GET or HEAD is stopped and listed, a read that would make Career
+        fetch an employer's page is stopped too, and the sessions the check signed in with are signed out. `remove` takes
+        the test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
   - id: resume-reviewer
     name: Dynamically-loaded career-resume-reviewer Swarm bot enforces ATS typography, tenure truth and zero contradictions
     purpose: Verify boldmetrics removal across all three HTML resume templates, zero numeric '+' suffixes with C++/Security+/A+ preservation, non-overlapping per-skill tenure math, career-resume-reviewer manifest/persona/authz declaration, fail-closed worker-rail routing, contradiction repair and needs_review escalation, and Prepare application review surfacing.
@@ -4181,4 +4257,117 @@ cases:
     sideEffects: none
     isolation: {mode: pure}
     limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
+  - id: assisted-application
+    name: Fill it in on my Chrome, the approval packet and what Career does with the kernel's record
+    purpose: Prove the assisted application's approved input (browser-task version 2), its approval, bind, start and Go on, and the sync that reads the kernel's record, keeps verified pictures, writes the receipt and writes back what the person kept, all through Career's real routes on a made-up person's real store.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-packet.test.mjs, tests/career-apply-sync.test.mjs, tests/career-apply-sites.test.mjs]}
+    expected:
+      - Any public employer site is filled, never refused as site_unsupported. A site Career names no engine for is the generic site (careful general rules, no page kinds guessed, Next or Continue to move, a stop before any button that sends); a company page embedding Greenhouse, Lever, Ashby or SmartRecruiters is approved at that engine's own form address from the source's engine, token and job id (or gh_jid / ashby_jid), never a guessed one; SAP SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS (at its in_iframe address), Oracle Recruiting Cloud and Taleo are recognised by host and get their own rules; no profile presses a submit word, signs for him or maps State to anything but the state.
+      - The packet's Word résumé is the parse résumé (its own Resume_Parse.docx byte for byte, else the same digest from docx_resume.py --kind parse; never Resume_ATS.docx), which every site's rules upload; the PDF résumé and cover letter, only the roles on this job's résumé with their recorded dates (a year alone stays a year), education, facts and the site's rules; approval publishes the frozen input before any kernel call.
+      - Bind, start, a lost acknowledgement and Go on send exactly the approved bytes on executor orbit-apply-v1, never a second start of one attempt; another person, no person, a changed packet and a site without rules are refused.
+      - A run in progress reads as one line; a kept answer is saved by its question id and a kept month is written through the engine's revision-checked edit only over a year alone, once per card, this run's cards only.
+      - An ended attempt keeps only pictures matching the kernel's digest, writes apply-receipt.json with every change and its source, and records Submitted by you only with the verified confirmation; a mismatched result, Not seen and Stop record nothing.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in and no employer site is contacted."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: assisted-application-flags
+    name: How Career fills in a form (typing, window, submit) and the veteran and disability standing answers
+    purpose: Prove the person's three settings for an assisted application and his standing self-identification answers through Career's real routes on a made-up person's real store, and the Saved answers page in Chromium at 1440x900 and 412x915.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-flags.test.mjs]}
+    expected:
+      - The settings start on Like a person, In front and Stop before Submit, save with Undo, and refuse an unknown choice and Behind my other windows with Like a person; the page says why Like a person is the default.
+      - The packet carries them as task.flags under its digest (a changed setting is another approval, and one changed after approval does not reach that run); the approval says each in a sentence, its last line that Career presses Submit once when he chose Submit after I approve.
+      - Veteran and disability status save as Yes, No or blank (anything else refused, Undo puts them back) and reach the packet as selfid.veteran and selfid.disability, yes or no, with no fact for a blank one; citizenship as eligibility.citizenship.
+      - Career's own Submit is recorded applied only with the employer's confirmation verified (submittedBy career); its Submit not seen is Not seen yet with its words; the job page says Paused because you used the mouse when he did, and the kernel's clipboard note is on the receipt.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+  - id: assisted-application-pages
+    name: Fill it in on my Chrome on Step 3 · Send, its receipt, and Saved answers in Chromium
+    purpose: Drive the shipped career-application.html, career-submissions.html and career-saved-answers.html at 1440x900 and 412x915 with every Career call going to the real routes on a made-up person's store and the kernel's own routes stood in.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-send-step.test.mjs, tests/career-apply-receipt.test.mjs, tests/career-apply-saved-answers.test.mjs]}
+    expected:
+      - Fill it in on my Chrome is offered, first and the one filled button, only when the Job Apply computer reports browser-apply; the ways to send by hand and Send it for me from my computer stay.
+      - Its approval screen shows the files with versions, the facts, the jobs on this résumé (a year alone says Career asks for the months) and the stop at Review; Approve and start starts the exact packet, the page follows the run, a question card is answered in place with Keep and saved into Saved answers, and Stop goes through the kernel's confirmed ticket cancel.
+      - Submission activity and the job page show the receipt of what Career did, each change with where its value came from; Not seen yet offers I applied.
+      - Saved answers saves the standing answers where the packet reads them, lists and removes kept answers, and refuses a save from a stale window.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+  - id: parse-resume
+    name: The parse résumé is laid out for an employer's parser, and a plain reader recovers every role from it
+    purpose: >-
+      The engine's docx_parse.py on a made-up person with six roles (one held by year only, one client engagement under
+      its employer) and two schools, read back the way an upload form reads a résumé: its Word paragraphs and pdftotext
+      of its LibreOffice PDF through the plain line reader of tests/helpers/resume_line_parser.py, beside the same
+      person's executive Word résumé through the same reader.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/career-parse-resume.test.mjs]}
+    expected:
+      - No w:tab, w:tbl, text box, w:cols above 1, header or footer part or reference, drawing or theme font in any part; one font (Arial); two renders are the same bytes.
+      - The headings are exactly Contact Information, Summary, Experience, Education, Certifications, Skills; contact lines are Name, Email, Phone, Address (street, city, state ZIP, country from profile.application_contact) and LinkedIn.
+      - Every role appears once with Job Title, Company, Location, Start Date and End Date in that order (the engagement's Company is the client, Through its employer), then its bullets; every date is MM/YYYY, a year alone or Present; schools are School, Degree, Field of Study, Start Date, End Date.
+      - The reader recovers all six roles' title, company and dates exactly from the parse résumé (Word paragraphs and PDF text) and none of them from the executive Word résumé; export-packet --kind parse gives the same bytes and refuses PDF.
+    prerequisites: [runner:node-test, runner:python, fixture:python-engine]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Every file is written under a temporary folder the contract removes."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: parse-resume-download
+    name: Résumé for upload forms downloads from Send through the real route
+    purpose: >-
+      GET /resume?id=<job>&kind=parse&format=docx through Career's real compiled board routes over Express and HTTP on
+      made-up people's real stores, and the Send step's For upload forms (.docx) link and Download résumé and cover
+      letter in Chromium at 1440x900 and 412x915.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-parse-resume-route.test.mjs, tests/career-apply-by-hand.test.mjs]}
+    expected:
+      - The packet's own Resume_Parse.docx is served byte for byte; a packet made before 1.72.0 gets one rendered from its application.json (the export's bytes) and nothing is written into the packet.
+      - It is Word only (400 for PDF or RTF); nobody signed in is refused (401) and another person's job is not found (404).
+      - Send's résumé row offers For upload forms (.docx) beside Word, RTF and PDF, named <Company> - <Job title> - Job <id> - Resume (for upload).docx, with one line saying where to use it; Download résumé and cover letter starts eight named files; nothing is wider than a 412 px screen.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the HTTP listener and the browser and remove the temporary store root."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1024}
+    installation: never
+  - id: parse-resume-live
+    name: On the installed package a test person downloads the résumé for upload forms and a plain reader recovers every job
+    purpose: >-
+      After career-hunter 1.72.0 is installed on a test slot, as a test person with a made-up résumé of four jobs (one
+      by year only), prepare one job with the slot's real model, sign in on /login at 1440x900 and 412x915, open Step 3
+      · Send, press For upload forms (.docx) and read the file. Make the person once with `person`; run node
+      career-hunter/tests/career-parse-resume-live-proof.mjs check http://127.0.0.1:38798 <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-parse-resume-live-proof.mjs
+    expected:
+      - The download is named <Company> - <Job title> - Job <id> - Resume (for upload).docx and holds no tab, table, text box, column, header or footer.
+      - The plain line reader recovers every job on that job's résumé once, with its exact title and employer and its dates as MM/YYYY, a year alone or Present; nothing scrolls sideways; the page makes no write; the check exits 0 and discards the job's documents.
+    prerequisites:
+      - runner:node
+      - runner:python
+      - credential:test-person
+      - install:career-hunter-1.72.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Writes only the test person's own store on the test slot, never production: one prepared job, whose documents the
+        check discards at the end. Every other request that is not GET or HEAD is stopped and listed. `remove` takes the
+        test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
     installation: never

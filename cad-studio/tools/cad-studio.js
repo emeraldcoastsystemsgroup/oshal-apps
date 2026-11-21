@@ -41,6 +41,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.0: live Measure (mm/in), 7-orientation 3D View Cube + Fit to view, Wavefront OBJ + MTL and 3MF exports, View in AR (USDZ + GLB + QR), and honest Send to printer handoff with zero planned placeholders remaining (RP-CAD-01 to -05).
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.2 (BACKLOG B3): add "Print in Scan to Print" link with ADR-139 data-artifact-* attributes on every revision row and expose ask() on window.CadStudioApp for confirmed Scan to Print STL handoff.
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.3 (BACKLOG B5): display per-feature timing (ms) and budget_exceeded status in the feature list, add configurable featureBudgetMs input in Base settings with dirty-draft preservation, and notify on per-feature budget overruns.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.5 (BACKLOG B4): generate typed select and text inputs for `thread` (`kind`, `handedness`) and `text` (`text`, `mode: emboss|deboss`, `face`) features in the parameter form.
  */
 (function () {
   'use strict';
@@ -414,16 +415,24 @@
   const JSON_PLACEHOLDERS = { points: '[[0,0],[30,0],[0,30]]', path: '[[0,0],[0,40],[30,40]]', size: '[x, y, z]', center: '[x, y, z]',
     sections: '[{"points":[[-10,-10],[10,-10],[10,10],[-10,10]],"offset":20},{"points":[[-5,-5],[5,-5],[5,5],[-5,5]],"offset":50}]' };
   const BOOLEAN_PARAMS = new Set(['through', 'ruled']);
+  const STRING_PARAMS = new Set(['text']);
   function renderTypeOptions() {
     const sel = $('feature-type'); sel.replaceChildren();
     Object.keys((state.caps && state.caps.contract.features) || {}).forEach((t) => sel.appendChild(el('option', { value: t, text: t })));
     renderParamsForm({});
   }
-  function fieldFor(name, doc, value) {
+  function fieldFor(name, doc, value, type) {
     const enumMatch = /one of|\(default '([^']+)'\)/.test(doc) ? doc : null;
-    const selectors = { edges: state.caps.contract.edgeSelectors, openFace: state.caps.contract.faceSelectors, axis: state.caps.contract.axes, plane: state.caps.contract.planes, pathPlane: state.caps.contract.planes, keep: ['below', 'above'], mode: ['add', 'cut'] };
+    const selectors = {
+      edges: state.caps.contract.edgeSelectors, openFace: state.caps.contract.faceSelectors,
+      face: ['top', 'bottom', 'front', 'back', 'left', 'right'], axis: state.caps.contract.axes,
+      plane: state.caps.contract.planes, pathPlane: state.caps.contract.planes,
+      keep: ['below', 'above'], kind: ['external', 'internal'], handedness: ['right', 'left'],
+      mode: type === 'text' ? ['emboss', 'deboss'] : ['add', 'cut'],
+    };
     if (selectors[name]) { const s = el('select', { 'data-param': name }, [el('option', { value: '', text: '(default)' })].concat(selectors[name].map((v) => el('option', { value: v, text: v })))); if (value !== undefined) s.value = String(value); return s; }
     if (BOOLEAN_PARAMS.has(name)) { const s = el('select', { 'data-param': name }, [el('option', { value: '', text: '(default)' }), el('option', { value: 'true', text: 'true' }), el('option', { value: 'false', text: 'false' })]); if (value !== undefined) s.value = String(value); return s; }
+    if (STRING_PARAMS.has(name)) return el('input', { type: 'text', 'data-param': name, 'data-string': '1', placeholder: 'OSHAL', value: value !== undefined ? String(value) : '', style: 'width:220px' });
     if (JSON_PLACEHOLDERS[name]) return el('input', { type: 'text', 'data-param': name, 'data-json': '1', placeholder: JSON_PLACEHOLDERS[name], value: value !== undefined ? JSON.stringify(value) : '', style: 'width:220px' });
     void enumMatch;
     return el('input', { type: 'number', step: 'any', 'data-param': name, value: value !== undefined ? String(value) : '' });
@@ -436,7 +445,7 @@
     if (!spec) return;
     [['required', spec.required], ['optional', spec.optional]].forEach(([group, params]) => Object.entries(params).forEach(([name, doc]) => {
       form.appendChild(el('label', { text: name + (group === 'required' ? ' *' : '') }));
-      form.appendChild(fieldFor(name, doc, values[name]));
+      form.appendChild(fieldFor(name, doc, values[name], type));
       form.appendChild(el('div', { class: 'doc', text: doc }));
     }));
   }
@@ -446,6 +455,7 @@
       const name = node.getAttribute('data-param'); const raw = node.value;
       if (raw === '' || raw === undefined) return;
       if (node.getAttribute('data-json')) { params[name] = JSON.parse(raw); return; }
+      if (node.getAttribute('data-string')) { params[name] = raw; return; }
       if (BOOLEAN_PARAMS.has(name)) { params[name] = raw === 'true'; return; }
       params[name] = node.tagName === 'SELECT' ? raw : Number(raw);
     });

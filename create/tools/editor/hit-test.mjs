@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: invert horizontal and vertical layer flips in worldToLayer so picking and source-pixel lookups follow flipped geometry.
  */
 import { traceVector, traceShape } from './vector-geometry.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -18,8 +19,9 @@ import { number, validateProject } from './model-validation.mjs';
  * @returns {{x:number,y:number}} Layer-local point in project pixels. */
 export function worldToLayer(layer, point) {
   const angle = -layer.rotation * Math.PI / 180, x = point.x - layer.x - layer.w / 2, y = point.y - layer.y - layer.h / 2;
-  return { x: x * Math.cos(angle) - y * Math.sin(angle) + layer.w / 2,
-    y: x * Math.sin(angle) + y * Math.cos(angle) + layer.h / 2 };
+  const fx = layer.flipX ? -1 : 1, fy = layer.flipY ? -1 : 1;
+  return { x: (x * Math.cos(angle) - y * Math.sin(angle)) * fx + layer.w / 2,
+    y: (x * Math.sin(angle) + y * Math.cos(angle)) * fy + layer.h / 2 };
 }
 
 function painted(color) { return color !== 'transparent' && !/^#[a-f0-9]{3}0$|^#[a-f0-9]{6}00$/i.test(color); }

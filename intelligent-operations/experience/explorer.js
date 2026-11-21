@@ -1,3 +1,4 @@
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): map kubernetes-node alerts to provider kubernetes, kind node in Systems and topology explorer. */
 /* CHANGE LOG: ux audit words | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the funnel says Events evaluated and Matched a rule, not Incoming cohort and Percolator wall. */
 /* CHANGE LOG: installations label | maintainer@emeraldcoastsystemsgroup.com | Each system says whether a heartbeat filed its host, from every asset before any filter, so the tree's group label does not change when a filter hides the host. */
 /* CHANGE LOG: local times | maintainer@emeraldcoastsystemsgroup.com | Graph and observation times in the viewer's local time. */
@@ -71,8 +72,8 @@ function systemInventory(data,records=[],filter={}){
   const group=groups.get(k);group.count++;if(a.kind==='cluster')group.name=a.name;if(a.properties?.monitoredBy)group.monitored=true;
   const native=JSON.stringify([a.provider,a.scope,a.nativeId]);if(!index.has(native))index.set(native,[]);index.get(native).push(a);
  }
- const providers={'kubernetes-pod':'kubernetes',container:'kubernetes',workload:'kubernetes','aws-resource':'aws','azure-resource':'azure','gcp-resource':'gcp',host:'import'};
- const kinds={'kubernetes-pod':'pod',container:'container',workload:'workload',host:'host'},seenEvents=new Set();
+ const providers={'kubernetes-node':'kubernetes','kubernetes-pod':'kubernetes',container:'kubernetes',workload:'kubernetes','aws-resource':'aws','azure-resource':'azure','gcp-resource':'gcp',host:'import'};
+ const kinds={'kubernetes-node':'node','kubernetes-pod':'pod',container:'container',workload:'workload',host:'host'},seenEvents=new Set();
  for(const record of records){
   const event=record?.normalized,resource=event?.data?.resource,time=Date.parse(event?.time);
   if(record?.decision!=='validated'||typeof record.id!=='string'||seenEvents.has(record.id)||!Number.isFinite(time)||time>Date.parse(data.asOf)||!resource)continue;

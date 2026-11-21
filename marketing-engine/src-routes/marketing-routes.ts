@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Type the pool via AppContext['pool'] instead of importing a QueryablePool that core never exported — the ambient stub compiled standalone but broke the shared whole-store framework build for every sibling package.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Split at the 800-line decomposition threshold, with no behavior change: the shared constants, helpers and lazy DDL moved to ./marketing-support, the inline-bot turn runner and prompts to ./marketing-bots, the publish rails plus the consent→cap→confirm gate and the channel consent PUT to ./marketing-publish, the campaign/content handlers to ./marketing-campaigns, and the scorecard/experiment/budget/UTM handlers to ./marketing-measure. This module is now imports plus createMarketingRoutes, registering the same twenty routes in the same order.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Project pending (`status = 'proposed'`) budget proposals as `approvals` on `GET /api/marketing/budget/proposals` for the cross-application Approvals screen (`/cockpit/?screen=approvals`).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 audience store routes (`/audience/contacts`, `/audience/lists`, `/audience/suppressions`, consent export, and export-first contact delete) from ./marketing-audience.
  *
  * @module marketing-routes
  */
@@ -25,6 +26,7 @@ import {
 import {
   createExperiment, decideBudgetProposal, getScorecard, getUtm, patchExperiment, rebuildScorecard,
 } from './marketing-measure';
+import { registerAudienceRoutes } from './marketing-audience';
 
 // ---------------------------------------------------------------------------
 // Schema + factory
@@ -100,6 +102,8 @@ export function createMarketingRoutes(ctx: AppContext): Router {
     res.json({ proposals, approvals: formatBudgetApprovals(proposals) });
   }));
   router.post('/budget/proposals/:id/decide', authed(ctx, decideBudgetProposal));
+
+  registerAudienceRoutes(router, ctx);
 
   return router;
 }

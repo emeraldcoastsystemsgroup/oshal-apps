@@ -10,6 +10,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register ux-home-and-review: the app opens on Games once a team is followed, the review left the menu and hides its brief without a connected action.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.12.0 (F22): register sports-quant (outlier-trimmed robustness and read-only quant routes) and sports-quant-browser (collapsible Sports Quant Concierge rail across 1440x900 and 412x915).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.12.2 (Roger, 2026-11-16: every concierge is the core Jarvis chat window): the Concierge rail is the kernel's one chat window. Register sports-edge-one-chat-window (the window in the rail at 1440x900 and 412x915 touch, the model pick on the turn, the board on context.screen_state, an approved card reloading the Record) in place of sports-quant-browser, whose suite is retired with the rail's own chat it tested; sports-quant also expects the mount.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.12.3 (BACKLOG Item A): register sports-wire-walk-forward (zero-lookahead walk-forward benchmark of archived world_items candidate signals vs Control and verification that unused refreshWorld wire ingest is retired at zero cost).
 version: 1
 cases:
   - id: package-readiness
@@ -392,4 +393,32 @@ cases:
       cleanup: Stop the fixture server.
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: sports-wire-walk-forward
+    name: Wire signal walk-forward benchmark and ingest retirement (Item A)
+    purpose: >-
+      Verify strict pre-kickoff zero-lookahead walk-forward evaluation of archived world_items
+      candidate signals against the current ensemble (Control), confirm the negative result, and
+      prove refreshWorld retires unused World wire ingest at zero feed/SQL/LLM cost.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-wire-walk-forward.test.js
+    expected:
+      - Pre-kickoff windows exclude same-day and post-game buckets (zero lookahead).
+      - De-biased sentiment delta and injury-wire burst fail to beat Control Brier and MAE.
+      - refreshWorld is retired and makes zero World service, ingestFeeds, or sports_world_pulls calls.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/walk-forward-wire-signal.mjs
+        - tests/walk-forward-wire-signal-data.json
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

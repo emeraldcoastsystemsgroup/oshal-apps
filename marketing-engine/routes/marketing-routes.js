@@ -8,6 +8,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Type the pool via AppContext['pool'] instead of importing a QueryablePool that core never exported — the ambient stub compiled standalone but broke the shared whole-store framework build for every sibling package.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Split at the 800-line decomposition threshold, with no behavior change: the shared constants, helpers and lazy DDL moved to ./marketing-support, the inline-bot turn runner and prompts to ./marketing-bots, the publish rails plus the consent→cap→confirm gate and the channel consent PUT to ./marketing-publish, the campaign/content handlers to ./marketing-campaigns, and the scorecard/experiment/budget/UTM handlers to ./marketing-measure. This module is now imports plus createMarketingRoutes, registering the same twenty routes in the same order.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Project pending (`status = 'proposed'`) budget proposals as `approvals` on `GET /api/marketing/budget/proposals` for the cross-application Approvals screen (`/cockpit/?screen=approvals`).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Wire P1 audience store routes (`/audience/contacts`, `/audience/lists`, `/audience/suppressions`, consent export, and export-first contact delete) from ./marketing-audience.
  *
  * @module marketing-routes
  */
@@ -53,6 +54,10 @@ const marketing_support_1 = require("./marketing-support");
 const marketing_publish_1 = require("./marketing-publish");
 const marketing_campaigns_1 = require("./marketing-campaigns");
 const marketing_measure_1 = require("./marketing-measure");
+const marketing_audience_1 = require("./marketing-audience");
+// ---------------------------------------------------------------------------
+// Schema + factory
+// ---------------------------------------------------------------------------
 /** @description Map proposed budget-ledger rows into cross-application approval items. */
 function formatBudgetApprovals(proposals) {
     return proposals
@@ -75,9 +80,6 @@ function formatBudgetApprovals(proposals) {
         };
     });
 }
-// ---------------------------------------------------------------------------
-// Schema + factory
-// ---------------------------------------------------------------------------
 /**
  * @description Route factory for the marketing-engine package (mounted at /api/marketing, oidc,
  * requiresAuth). Serves the board surface at GET / and the caller-scoped JSON API around it; all
@@ -118,5 +120,6 @@ function createMarketingRoutes(ctx) {
         res.json({ proposals, approvals: formatBudgetApprovals(proposals) });
     }));
     router.post('/budget/proposals/:id/decide', (0, marketing_support_1.authed)(ctx, marketing_measure_1.decideBudgetProposal));
+    (0, marketing_audience_1.registerAudienceRoutes)(router, ctx);
     return router;
 }

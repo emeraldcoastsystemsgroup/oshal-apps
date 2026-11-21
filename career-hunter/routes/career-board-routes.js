@@ -4,6 +4,7 @@
  * 40 | maintainer@emeraldcoastsystemsgroup.com | 1.68.19: route draft.acceptCurrent through career-application-draft.acceptCurrent() on POST /jobs/:id/status so a user with saved documents and no missing required roles can review them directly without forced regeneration.
  * 41 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: extend GET /resume and GET /resume/:id to serve matched executive DOCX/RTF/PDF artifacts with optional template family selection via lib/career-docx-export.js, and expose GET /resume/template for zero-PII reusable DOCX/DOTX/RTF templates under the existing career.read binding.
  * 42 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19: tests/career-letter-truth-route.test.mjs failed once with "Cannot read properties of null (reading 'needsReview')"): GET /jobs/:id reads the saved job state (the preparation receipt) once, BEFORE the job's row, and answers `board` and `application` from that one read. It read the row first and the receipt last, so a read the engine finished during answered a completed receipt over a row from before the documents were saved: no cover letter, no claims check, needsGeneration true. Prepare application stops waiting on that answer (tools/career-job-actions.js poll) and showed step 1 again after a preparation that had worked. The engine saves the documents and the row first and the completed receipt last, so a receipt read first always has its documents. GET /jobs already read in this order. Guard: tests/career-ready-with-documents.test.mjs.
+ * 43 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: GET /resume?id=<job>&kind=parse&format=docx serves the job's parse résumé (the Send step's Résumé for upload forms): the packet's own Resume_Parse.docx, else rendered from its application.json by docx_resume.py, Word only (400 otherwise), from the signed-in person's own packet.
  * 39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "the popup says that there is no information about the job", Torch Technologies on My jobs): POST /jobs/:id/details (lib/career-job-details.js) reads a job's missing description through the kernel's egress at the address the engine's readers use and keeps it as the person's copy; GET /jobs/:id?details=read reads it for that one view when the job has none, for the sheet while Career is preparing the person's applications and cannot keep it (a read keeps nothing), and says why in details_read when it cannot. A plain GET /jobs/:id reads nothing, as before. Guard: tests/career-job-details.test.mjs.
  * 38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): POST /jobs/:id/generate hands experienceChosen (true only when Prepare application or bulk Prepare sends it, after the person saw the Other experience boxes) to the draft writer, which keeps the choice on the job's tailoring and as the person's last choice. Nothing else in the route changed. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 37 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): GET /jobs answers `home` (the person's saved Matching area as the page shows it: known, label, radiusMiles, line, settingsUrl) and refuses a distance filter or sort it cannot honour with 400 and the closed code (home_location_required, invalid_within, places_unavailable) plus `home`; GET /jobs/:id carries the same place fields as every card (location, workplaceType, lat, lon, distanceMiles). An unreadable Matching area gives a job detail without distance, never a failed read.
@@ -355,6 +356,42 @@ async function serveFormattedPacket(req, res, resolved, userDir, kind) {
         res.status(502).json({ error: 'Could not render the requested format.' });
     }
 }
+/** The job's parse résumé: the packet's own Resume_Parse.docx, else rendered from its application.json. Word only. */
+async function serveParseResume(req, res, resolved, userDir) {
+    if (docxExport.normalizeFormat(req.query.format || 'docx', false) !== 'docx') {
+        res.status(400).json({ error: 'The résumé for upload forms is a Word (.docx) file.' });
+        return;
+    }
+    const packetDir = path.dirname(resolved), meta = docxExport.packetMeta(packetDir);
+    const fname = docxExport.safeFilename([meta.name, meta.company, 'Resume_For_Upload'].filter(Boolean).join('_'), 'docx');
+    const sendHeaders = () => {
+        res.setHeader('Content-Type', docxExport.MIME_BY_FORMAT.docx);
+        res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+    };
+    const own = resolvePacketPath(path.join(packetDir, docxExport.PARSE_FILE), userDir);
+    if (own) {
+        sendHeaders();
+        res.sendFile(own, (err) => { if (err) {
+            logger.error({ err }, 'parse resume serve failed');
+            res.status(404).end();
+        } });
+        return;
+    }
+    const appJson = resolvePacketPath(path.join(packetDir, 'application.json'), userDir);
+    if (!appJson) {
+        res.status(404).json({ error: 'packet source not found' });
+        return;
+    }
+    try {
+        const out = await docxExport.renderPacketArtifact({ packetJsonPath: appJson, kind: 'parse', format: 'docx' });
+        sendHeaders();
+        res.send(out.bytes);
+    }
+    catch (err) {
+        logger.error({ err }, 'parse resume export failed');
+        res.status(502).json({ error: 'Could not render the résumé for upload forms.' });
+    }
+}
 async function serveBlankTemplate(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
@@ -435,6 +472,10 @@ async function serveResumeFile(req, res, postingId) {
     }
     if (!resolved) {
         res.status(404).json({ error: 'not found' });
+        return;
+    }
+    if (req.query.kind === 'parse') {
+        await serveParseResume(req, res, resolved, userDir);
         return;
     }
     if (req.query.as === 'html') {

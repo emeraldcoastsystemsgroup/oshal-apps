@@ -17,6 +17,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: no timer at module load or factory time, POST /refresh/run runs exactly one pass in the request and refuses an unauthenticated caller, and the manifest's refresh-pass schedule is a person-activated route call to that path.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | upcomingGames reads the scoreboard by month (ESPN answers every day range with HTTP 400 since 2026-10-11), merges months and keeps only the window.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | A month holding more than 100 NBA events: a stubbed scoreboard answers only its first 100 without a limit, and every in-window game must still be found. POST /refresh/run is bounded: a second call inside the interval answers not_due and reads nothing from ESPN (so no ratings rebuild), a non-operator cannot force a pass (403), an operator can, and the pass reads only the caller's followed teams.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Item A (0.12.3): verify POST /refresh/run reports retired zero-cost world counts ({subjects:0,newItems:0}) and writes nothing to sports_world_pulls.
  */
 
 'use strict';
@@ -121,6 +122,8 @@ test('POST /refresh/run runs one pass inside the request and refuses an unauthen
     await handler({ oidc: { user: { sub: 'person-1' } }, body: {} }, res);
     assert.equal(res.code, 200, JSON.stringify(res.body));
     assert.equal(res.body.ran, true);
+    assert.deepEqual(res.body.result.world, { subjects: 0, newItems: 0 }, 'retired wire ingest spends zero World pulls');
+    assert.equal(pool.sql.some((q) => /INSERT INTO sports_world_pulls|SELECT .* FROM sports_world_pulls/i.test(q)), false, 'retired wire ingest does not read or write sports_world_pulls');
     assert.ok(pool.sql.some((q) => /sports_followed_teams/.test(q)), 'the pass read the caller\'s followed teams through the request pool');
     const status = refresh.refreshStatus();
     assert.ok(status.lastRun, 'the status panel sees the pass');

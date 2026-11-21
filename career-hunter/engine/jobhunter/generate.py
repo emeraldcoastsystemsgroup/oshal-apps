@@ -16,6 +16,7 @@
 # 48 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: integrate pure-stdlib multi-template OOXML executive resume & cover-letter pipeline (docx_resume) into _packet_files and rerender_packet, emitting matched .docx, .rtf, and <=2-page LibreOffice .pdf artifacts with template_family persisted in application.json and clean single-line candidate names.
 # 49 | maintainer@emeraldcoastsystemsgroup.com | Enforce person-confirmed skill/career year figures (years_truth.enforce) and restore miswritten recorded terms (term_fidelity.restore) as final deterministic passes in _tailored_packet, persisting years_truth and term_fidelity receipts in application.json.
 # 50 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass is given the additional experience chosen for the packet, so the career total it holds a low claim to is the one the receipt records.
+# 51 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: _packet_files also writes Resume_Parse.docx (docx_parse), the job's résumé as labelled lines for an employer's résumé parser, from the same résumé and the recorded roles of the packet's profile; generate_for and rerender_packet hand those roles over.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -36,6 +37,7 @@ from . import (
     claims_fix,
     config,
     db,
+    docx_parse,
     docx_resume,
     enrich,
     letter_evidence,
@@ -746,8 +748,9 @@ def _tailored_packet(prof, selected, row, company_doc, include_oshal, guidance):
     return data, prof_doc, stories_cited, roles_carried, claims_checked, resume_reviewed, years_fixed, terms_fixed
 
 
-def _packet_files(outdir, data, ctx, family: str | None = None):
-    """Render HTML templates and matched executive DOCX/RTF/PDF artifacts."""
+def _packet_files(outdir, data, ctx, family: str | None = None, roles: list | None = None):
+    """Render HTML templates, matched executive DOCX/RTF/PDF artifacts and the parse résumé (Resume_Parse.docx,
+    with the recorded `roles` for each role's recorded dates and location)."""
     resume = data["resume"]
     resume["experience"] = role_hierarchy.ordered(resume.get("experience", []) or [])
     recent, earlier = role_hierarchy.compact(resume["experience"], _start_year)
@@ -767,7 +770,8 @@ def _packet_files(outdir, data, ctx, family: str | None = None):
         "Resume_1page": _env.get_template("resume_1page.html").render(r=resume, recent=recent, earlier=earlier, **render_ctx),
         "CoverLetter": _env.get_template("cover.html").render(c=data["cover"], **render_ctx),
     }
-    paths: dict = {"template_family": docx_info["family"]}
+    paths: dict = {"template_family": docx_info["family"],
+                   "Resume_Parse": docx_parse.render_parse_resume(clean_contact, resume, outdir / docx_parse.FILE_NAME, roles=roles)}
     lo_pdfs = {"Resume_ATS": docx_info.get("resume_pdf"), "CoverLetter": docx_info.get("cover_pdf")}
     for name, html in renders.items():
         hp, pp = outdir / f"{name}.html", outdir / f"{name}.pdf"
@@ -820,7 +824,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
 
         ctx = {"contact": contact, "company": company_doc, "title": title,
                "job_url": row["url"], "today": _today()}
-        paths = _packet_files(outdir, data, ctx, family=template_family)
+        paths = _packet_files(outdir, data, ctx, family=template_family, roles=prof_doc.get("roles"))
 
         (outdir / "application.json").write_text(
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
@@ -851,7 +855,8 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         return {"dir": str(outdir), "template_family": paths["template_family"],
                 "resume_ats": str(paths["Resume_ATS"]),
                 "resume_premium": str(paths["Resume_Premium"]),
-                "resume_1page": str(paths["Resume_1page"]), "cover": str(paths["CoverLetter"])}
+                "resume_1page": str(paths["Resume_1page"]), "resume_parse": str(paths["Resume_Parse"]),
+                "cover": str(paths["CoverLetter"])}
 
 
 def rerender_packet(posting_id: int, family: str | None = None) -> str:
@@ -868,7 +873,8 @@ def rerender_packet(posting_id: int, family: str | None = None) -> str:
     contact = _sanitize(snap_contact or profile.load().get("profile", {}))
     ctx = {"contact": contact, "company": _company_doc(data.get("company")), "title": data.get("title"),
            "job_url": data.get("url"), "today": _today()}
-    paths = _packet_files(outdir, gen, ctx, family=family or data.get("template_family"))
+    paths = _packet_files(outdir, gen, ctx, family=family or data.get("template_family"),
+                          roles=(data.get("profile_snapshot") or {}).get("roles"))
     data["template_family"] = paths["template_family"]
     (outdir / "application.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
     return str(outdir)

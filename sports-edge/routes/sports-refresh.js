@@ -32,11 +32,12 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | upcomingGames reads the scoreboard by month (dates=YYYYMM) and filters to the window: ESPN now answers every day range with HTTP 400 "Failed to get events endpoint" (measured 2026-10-11 for NFL, NBA and college football, past and future ranges alike), so line capture, previews and the followed-games list found no game at all. Guard: tests/sports-refresh-schedule.test.js.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | A requested pass is bounded by the deployment's refreshIntervalMinutes: runRefreshPass reads the caller's last pass start (sports_settings scope `__refresh_pass__:<sub>`) and answers skipped 'not_due' with nextDueAt until the interval (less a 10-minute slack for the schedule's own jitter) has passed; only an operator's {force:true} skips the check. POST /refresh/run had no brake but the in-process `running` flag, so any signed-in caller could run back-to-back passes, each a full line capture, grading, preview and World ingest, and a stale-ratings rebuild (~30 ESPN reads) on every call while ratings stayed stale. The pass also reads only the caller's own followed teams (WHERE user_sub = $1), which is what the schedule offer says and what the native kernel's per-person SQL scope already gave it. Guard: tests/sports-refresh-schedule.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Export FOLLOWED_GAMES_HORIZON_DAYS so GET /games can name the window an empty Games list covers.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Item A (0.12.3): retire unused World wire ingest in refreshWorld after walk-forward evaluation against the current ensemble found zero historical coverage on completed 2025 seasons (0/1,942 games) and no Brier/MAE improvement on the 2026 SEA+ARK archived wire series (de-biased sentiment delta and injury-wire burst both worsened Brier and MAE despite 16,581 classifications). refreshWorld now returns {subjects:0,newItems:0} at zero ingest/roster/DB cost.
  *
  * @module sports-refresh
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.REFRESH_SCHEDULE = exports.FOLLOWED_GAMES_HORIZON_DAYS = void 0;
+exports.REFRESH_SCHEDULE = exports.WORLD_WIRE_INGEST_RETIRED = exports.FOLLOWED_GAMES_HORIZON_DAYS = void 0;
 exports.currentSeason = currentSeason;
 exports.refreshRatings = refreshRatings;
 exports.getRatings = getRatings;
@@ -55,13 +56,11 @@ exports.lastPassAt = lastPassAt;
 exports.nextDueAt = nextDueAt;
 exports.runRefreshPass = runRefreshPass;
 const logger_1 = require("@/shared/logger");
-const world_data_1 = require("@/features/world-data");
 const sports_preview_1 = require("./sports-preview");
 const sports_ledger_1 = require("./sports-ledger");
 const sports_espn_1 = require("./sports-espn");
 const sports_store_1 = require("./sports-store");
 const sports_line_store_1 = require("./sports-line-store");
-const sports_world_1 = require("./sports-world");
 const log = (0, logger_1.createChildLogger)({ module: 'sports-refresh' });
 /**
  * ESPN client options wired to this module's logger. A FAILED read logs at warn, not debug: the box
@@ -91,22 +90,12 @@ const CAPTURE_LEAGUES = ['nfl', 'nba', 'ncaaf'];
 /** How far ahead to capture lines. Wider than the preview horizon on purpose — see captureLines. */
 const CAPTURE_HORIZON_DAYS = 21;
 /**
- * Hours between World pulls of the same subject.
- *
- * Six matches the shared layer's own depth refresh, which is not a coincidence: pulling a team more
- * often than the archive is refreshed buys nothing but classification cost. The injury wire is the
- * one thing that genuinely moves faster, and it gets the same cool-down anyway — a pass runs every
- * three hours, so a scratched starter is picked up within a cycle of the news breaking.
+ * Unused World wire ingest retired in 0.12.3 (BACKLOG Item A).
+ * Walk-forward evaluation against the current ensemble found zero historical coverage on completed
+ * 2025 seasons (0/1,942 games) and no Brier or MAE improvement on the 2026 archived wire series
+ * despite 16,581 classifications, so refreshWorld no longer triggers feed pulls or LLM classification.
  */
-const WORLD_COOLDOWN_HOURS = 6;
-/**
- * Subjects pulled per pass. The cap is what keeps a long follow list from turning the loop into a
- * feed crawler: the pass also has lines to capture and settled calls to grade, and those have
- * deadlines that news coverage does not.
- */
-const MAX_WORLD_SUBJECTS_PER_PASS = 12;
-/** Items per feed variant. Matches the World route's own default. */
-const WORLD_ITEM_LIMIT = 15;
+exports.WORLD_WIRE_INGEST_RETIRED = true;
 /**
  * @description The season year ESPN uses for a league right now. The NFL keys a season by the year
  * it STARTS; the NBA keys it by the year it ENDS. Getting this backwards rates teams on the wrong
@@ -366,101 +355,21 @@ async function captureLines(pool) {
     }
     return tally;
 }
-/** @description Find conflicting stored ESPN IDs without choosing whichever owner's row happened to arrive first.
- * @param rows Followed rows from the existing deployment-wide public archive query.
- * @returns Subject IDs for which coach discovery must wait for a consistent team selection.
- */
-function conflictingCoachTeams(rows) {
-    const ids = new Map();
-    for (const row of rows) {
-        const entity = (0, sports_world_1.teamEntityId)(row.league, row.team);
-        if (!ids.has(entity))
-            ids.set(entity, new Set());
-        ids.get(entity).add(String(row.team_id));
-    }
-    return new Set([...ids].filter(([, values]) => values.size > 1).map(([entity]) => entity));
-}
 /**
- * @description Pull this deployment's followed teams — and the games they are about to play —
- * through the shared World Intelligence layer.
+ * @description Retired World wire ingest hook (BACKLOG Item A, 0.12.3).
  *
- * THIS PACKAGE DOES NOT READ FEEDS. It names subjects and hands them over, which is the operator's
- * standard and the reason it is worth the indirection: World fetches once, dedupes by content hash,
- * classifies against one rubric, and stores a time series every other application can read. A
- * second news reader in here would pull the same wire a second time, classify it a second time, and
- * produce a second answer nobody could reconcile with the first.
- *
- * The whole thing is a NO-OP when the layer is switched off (ENABLE_WORLD_INTELLIGENCE, TSDB_URL,
- * ARANGO_URL) — a deployment without it keeps a working odds maker, just without the wires.
- * @param pool - Postgres pool.
- * @param lastPulled - Persistent subject timestamps shared with the ingest pass.
- * @param sub - Whose followed teams; omitted means every followed team in this store.
- * @returns Followed team, injury and known-coach subjects within the pass budget.
+ * Previously pulled followed teams, injury wires, coaches, and upcoming matchups into World
+ * Intelligence while buildPreview never read world_items back. Walk-forward evaluation
+ * (`tests/walk-forward-wire-signal.mjs`) found zero coverage on completed 2025 seasons and no
+ * statistically or practically meaningful Brier/MAE improvement over the current ensemble on the
+ * 2026 archived wire series. Returns zero counts without issuing ESPN roster reads, World feed
+ * pulls, LLM classifications, or sports_world_pulls writes.
+ * @param _pool - Unused; retained for call-site compatibility.
+ * @param _sub - Unused; retained for call-site compatibility.
+ * @returns Zero subject and new-item counts.
  */
-async function followedWorldSubjects(pool, lastPulled, sub) {
-    const followed = sub
-        ? await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams WHERE user_sub = $1 ORDER BY league, team, team_id, display_name', [sub])
-        : await pool.query('SELECT DISTINCT league, team, team_id, display_name FROM sports_followed_teams ORDER BY league, team, team_id, display_name');
-    const subjects = [];
-    const seen = new Set();
-    const conflicts = conflictingCoachTeams(followed.rows);
-    for (const row of followed.rows) {
-        const team = (0, sports_world_1.teamSubjects)({
-            league: row.league,
-            team: String(row.team),
-            displayName: row.display_name ? String(row.display_name) : null,
-        });
-        if (seen.has(team[0].entity))
-            continue;
-        seen.add(team[0].entity);
-        // Keep a whole team/injury/coach group together; slicing away only its coach could starve it.
-        if ((0, sports_world_1.dueSubjects)(subjects, lastPulled, WORLD_COOLDOWN_HOURS).length > MAX_WORLD_SUBJECTS_PER_PASS - 3)
-            break;
-        subjects.push(...team);
-        if (!(0, sports_world_1.dueSubjects)([team[0]], lastPulled, WORLD_COOLDOWN_HOURS).length)
-            continue;
-        if (conflicts.has(team[0].entity)) {
-            log.warn({ entity: team[0].entity }, 'Conflicting followed ESPN team IDs; coach discovery skipped');
-            continue;
-        }
-        const current = await (0, sports_espn_1.teamHeadCoach)(row.league, String(row.team_id ?? ''), String(row.team), espn);
-        const coach = current ? (0, sports_world_1.coachSubject)(current.name, current.teamName, row.league) : null;
-        if (coach)
-            subjects.push(coach);
-    }
-    return subjects;
-}
-/** @description Ingest deployment-public sports subjects through the existing shared World service.
- * @param pool Current deployment database pool. @param sub Whose followed teams name the subjects (omitted: all).
- * @returns Actual subject and new-item counts.
- */
-async function refreshWorld(pool, sub) {
-    const svc = (0, world_data_1.createWorldIntelligenceService)();
-    if (!svc)
-        return { subjects: 0, newItems: 0 };
-    const lastPulled = await (0, sports_store_1.worldPullTimes)(pool);
-    const subjects = await followedWorldSubjects(pool, lastPulled, sub);
-    // The matchup subjects come from previews already built this pass, so a game nobody follows never
-    // gets a subject — the same team-first discipline the rest of the package is built on.
-    const upcoming = await pool.query(`SELECT league, event_id, home_team, away_team FROM sports_previews
-     WHERE game_date > now() AND game_date < now() + interval '8 days'`);
-    for (const row of upcoming.rows) {
-        subjects.push((0, sports_world_1.matchupSubject)(row.league, String(row.event_id), String(row.home_team), String(row.away_team)));
-    }
-    const due = (0, sports_world_1.dueSubjects)((0, sports_world_1.dedupeSubjects)(subjects), lastPulled, WORLD_COOLDOWN_HOURS)
-        .slice(0, MAX_WORLD_SUBJECTS_PER_PASS);
-    const ingest = (query, entity, label, sources, opts) => (0, world_data_1.ingestFeeds)(svc, query, entity, label, sources, opts);
-    let newItems = 0;
-    for (const subject of due) {
-        const result = await (0, sports_world_1.ingestSubject)(ingest, subject, WORLD_ITEM_LIMIT);
-        newItems += result.newItems;
-        if (result.error)
-            log.warn({ entity: subject.entity, err: result.error }, 'world subject ingest failed');
-        await (0, sports_store_1.recordWorldPull)(pool, subject, result);
-    }
-    if (due.length)
-        log.info({ subjects: due.length, newItems, feeds: sports_world_1.SPORTS_FEED_IDS.length }, 'world subjects refreshed');
-    return { subjects: due.length, newItems };
+async function refreshWorld(_pool, _sub) {
+    return { subjects: 0, newItems: 0 };
 }
 /** The manifest's schedule (oshal-app.yaml `schedules:` refresh-pass) that fires a pass as the person who activated it. */
 exports.REFRESH_SCHEDULE = Object.freeze({ app: 'sports-edge', name: 'refresh-pass', route: '/api/sports-edge/refresh/run' });

@@ -4,10 +4,12 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume ... i cant submit any resimes untill this is taken care of"): Prepare application end to end on a made-up candidate whose current role is first with no end date. Real: the COMPILED board routes (POST /jobs/:id/generate, GET /jobs/:id), the engine dispatch, runner and launcher, the Python engine (prepare_job: scoring commit, generate_for, the Jinja templates, application.json) and the application draft. Doubled: the model (a scripted answer on the package's rail path that leaves the three newest roles out, as production's model did), Chromium (a stand-in that writes a one-line PDF), the kernel leaves in tests/helpers/career-route-harness.mjs and the request identity (an issuer for the rail grant). (1) A résumé prepared before the check that leaves the current role out reads as needing generation and names the role. (2) Generate makes a résumé that carries it first. Red on store main d28c8c02, green with role_plan.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.14: expect recorded month precision ("Feb 2024 to Present") on the restored current role ("2024-02" to Present).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the same generation writes Resume_Parse.docx beside the other documents, and the plain line reader (tests/helpers/resume_line_parser.py) reads its first role as the current one, Feb 2024 (02/2024) to Present, exactly.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import {spawnSync} from 'node:child_process';
 import {chmodSync,mkdirSync,mkdtempSync,readFileSync,readdirSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -116,4 +118,10 @@ test('Generate makes a résumé that carries the current role first, though the 
  assert.equal(written[0].span,'Feb 2024 to Present');
  assert.deepEqual(written.slice(3).map(e=>e.title),['Platform Director','Operations Manager'],'the model\'s own entries follow, as written');
  assert.deepEqual(job.application.missingRoles,[]);assert.equal(job.application.needsGeneration,false,'the new résumé is ready to review');
+ const apps=join(modules.store.userPaths(SUB).userDir,'applications'),folder=join(apps,readdirSync(apps).find(name=>name.endsWith('__82')));
+ const read=spawnSync(process.env.JOBHUNTER_PYTHON||'python3',[new URL('./helpers/resume_line_parser.py',import.meta.url).pathname,join(folder,'Resume_Parse.docx')],{encoding:'utf8'});
+ assert.equal(read.status,0,read.stderr);
+ const parsed=JSON.parse(read.stdout);
+ assert.deepEqual([parsed[0].title,parsed[0].company,parsed[0].start,parsed[0].end],[...CURRENT,'02/2024','Present'],'the parse résumé is written with the packet, its current role first and exact');
+ assert.equal(parsed.length,written.length,'every role on the résumé, once');
 });

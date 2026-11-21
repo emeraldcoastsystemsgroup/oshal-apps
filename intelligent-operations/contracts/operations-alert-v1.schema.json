@@ -92,6 +92,7 @@
                 "aws-resource",
                 "azure-resource",
                 "gcp-resource",
+                "kubernetes-node",
                 "kubernetes-pod",
                 "container",
                 "workload"

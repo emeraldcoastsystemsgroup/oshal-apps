@@ -1,3 +1,4 @@
+/** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): resolve kubernetes-node alerts to provider kubernetes, kind node during temporal graph correlation. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: caller refusal names the product Open Swarm. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Lane M2 (1.8.1): readGraph accepts removed source ids/URIs and filters out topology scans whose sourceId or source_uri is removed so removed sources do not leave stale or unknown assets in systemsSummary. */
 /** CHANGE LOG: bounded history | maintainer@emeraldcoastsystemsgroup.com | Reconstruct from each collection's scans since its latest complete scan, so periodic live discovery cannot outgrow the 200-scan budget (it would have within a day at five-minute intervals). */
@@ -40,8 +41,8 @@ export async function readGraph(pool,owner,at=new Date().toISOString(),collectio
 }
 function eventAsset(record,graph){
  const resource=record.normalized?.data?.resource;
- const provider={'kubernetes-pod':'kubernetes',container:'kubernetes',workload:'kubernetes','aws-resource':'aws','azure-resource':'azure','gcp-resource':'gcp',host:'import'}[resource?.kind];
- const kind={'kubernetes-pod':'pod',container:'container',workload:'workload',host:'host'}[resource?.kind];
+ const provider={'kubernetes-node':'kubernetes','kubernetes-pod':'kubernetes',container:'kubernetes',workload:'kubernetes','aws-resource':'aws','azure-resource':'azure','gcp-resource':'gcp',host:'import'}[resource?.kind];
+ const kind={'kubernetes-node':'node','kubernetes-pod':'pod',container:'container',workload:'workload',host:'host'}[resource?.kind];
  const matches=graph.assets.filter(a=>a.provider===provider&&a.scope===resource?.scope&&a.nativeId===resource?.id&&(!kind||a.kind===kind));
  return matches.length===1?matches[0].id:'unresolved-'+record.id.slice(0,48);
 }

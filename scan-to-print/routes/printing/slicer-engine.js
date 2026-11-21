@@ -28,6 +28,9 @@
  *                     |                             | assembler is guarded, so an oversized or hostile line fails the
  *                     |                             | request instead of throwing out of the socket handler; a slice
  *                     |                             | result of the wrong shape is a typed engine error.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B16 Option C: add `isEngineGcodeConfigured` and
+ *                     |                             | `sliceToGcode` (calling the `slice_gcode` verb over TCP or
+ *                     |                             | `engine.exchange`, verifying decoded byte count and SHA-256).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -41,6 +44,8 @@ exports.lineAssembler = lineAssembler;
 exports.slicerRequest = slicerRequest;
 exports.uploadThroughEngine = uploadThroughEngine;
 exports.sliceToArchive = sliceToArchive;
+exports.isEngineGcodeConfigured = isEngineGcodeConfigured;
+exports.sliceToGcode = sliceToGcode;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_net_1 = __importDefault(require("node:net"));
 const node_os_1 = __importDefault(require("node:os"));
@@ -345,5 +350,57 @@ async function sliceToArchive(opts, stl, name, profile) {
     return { fileName: result.fileName, bytes: new Uint8Array(Buffer.from(result.archive, 'base64')),
         estimate: { printSeconds: estimate.printSeconds, firstLayerSeconds: estimate.firstLayerSeconds, filamentGrams: typeof estimate.filamentGrams === 'number' ? estimate.filamentGrams : null },
         profile: profileOut };
+}
+/**
+ * @description True when the package's slicer engine is explicitly configured to slice generic G-code
+ * (either via native kernel `engine.exchange`, an injected socket seam, or a valid `SCAN_TO_PRINT_ENGINE_ADDR`).
+ * @param opts - Slicer engine options.
+ * @param env - Environment.
+ * @returns Whether the engine slicer is configured.
+ */
+function isEngineGcodeConfigured(opts, env) {
+    if (opts.exchange)
+        return true;
+    if (opts.connect)
+        return true;
+    return Boolean((env[exports.SLICER_ENGINE_ADDR_ENV] ?? '').trim()) && !opts.addrError;
+}
+/**
+ * @description Slice an STL into standard plain `.gcode` through the package's slicer engine (`slice_gcode`).
+ * @param opts - Engine options (TCP or native `engine.exchange`).
+ * @param stl - STL bytes.
+ * @param name - Base name for the output file.
+ * @param settings - Optional validated generic print settings.
+ * @returns Validated G-code bytes, SHA-256 digest, and estimates.
+ * @throws SlicerEngineError.
+ */
+async function sliceToGcode(opts, stl, name, settings = {}) {
+    let raw;
+    try {
+        raw = (await slicerRequest(opts, 'slice_gcode', { stl: Buffer.from(stl).toString('base64'), name, ...settings }));
+    }
+    catch (error) {
+        if (error instanceof SlicerEngineError && error.code === 'refused' && /unknown command 'slice_gcode'/i.test(error.message)) {
+            const msg = 'the running slicer engine does not support slice_gcode yet';
+            throw new SlicerEngineError('unavailable', msg, `${msg} — rebuild it: ${opts.installHint}`);
+        }
+        throw error;
+    }
+    if (!raw || typeof raw.gcodeBase64 !== 'string' || !raw.gcodeBase64 || typeof raw.bytes !== 'number' || typeof raw.sha256 !== 'string' || typeof raw.fileName !== 'string') {
+        throw new SlicerEngineError('engine_error', 'the slicer engine sent an unreadable G-code slice result');
+    }
+    const bytes = new Uint8Array(Buffer.from(raw.gcodeBase64, 'base64'));
+    const digest = (0, node_crypto_1.createHash)('sha256').update(bytes).digest('hex');
+    if (bytes.byteLength !== raw.bytes || digest !== raw.sha256.toLowerCase()) {
+        throw new SlicerEngineError('engine_error', 'the slicer engine G-code payload failed integrity verification');
+    }
+    const est = (raw.estimate && typeof raw.estimate === 'object' ? raw.estimate : {});
+    const prof = (raw.profile && typeof raw.profile === 'object' ? raw.profile : {});
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    return {
+        fileName: raw.fileName, bytes, sha256: digest, slicer: typeof raw.slicer === 'string' ? raw.slicer : 'orca-slicer',
+        estimate: { printSeconds: num(est.printSeconds), filamentGrams: num(est.filamentGrams), filamentMm: num(est.filamentMm), layers: num(est.layers) },
+        profile: Object.fromEntries(Object.entries(prof).filter(([, v]) => typeof v === 'string')),
+    };
 }
 //# sourceMappingURL=slicer-engine.js.map

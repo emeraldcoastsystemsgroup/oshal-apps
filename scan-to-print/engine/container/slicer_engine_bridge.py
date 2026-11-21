@@ -20,6 +20,8 @@
 #   |                                           | tmpfs counted against the container's memory. The self-test also
 #   |                                           | resolves every filament the engine lists for every printer model
 #   |                                           | against the profile tree actually in the image.
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B16 Option C: advertise `slice_gcode` in the bridge hello
+#   |                                           | frame and prove generic STL-to-G-code slicing in `--selftest`.
 """slicer_engine_bridge -- TCP front for slicer_worker.py (stdlib only)."""
 import argparse
 import hashlib
@@ -192,7 +194,13 @@ def _run_session(conn: socket.socket, hello: dict, slots: threading.BoundedSemap
 def serve(host: str, port: int, max_connections: int) -> None:
     """@description Accept loop: one thread + one worker per connection, bounded by slots."""
     engine_hash = build_hash(ENGINE_DIR)
-    hello = {"bridge": {"protocol": PROTOCOL, "buildHash": engine_hash, "python": sys.version.split()[0], "port": port}}
+    hello = {"bridge": {
+        "protocol": PROTOCOL,
+        "buildHash": engine_hash,
+        "python": sys.version.split()[0],
+        "port": port,
+        "capabilities": ["hello", "profiles", "slice", "slice_gcode", "upload_bambu"],
+    }}
     slots = threading.BoundedSemaphore(max_connections)
     server = socket.create_server((host, port), reuse_port=False)
     _log(f"listening on {host}:{port} build={engine_hash[:12]} slots={max_connections}")
@@ -243,31 +251,48 @@ def _all_filaments_resolve() -> dict:
     return {"checked": total, "failed": failed, "firstFailure": first}
 
 
+def _check_gcode_selftest(res: dict) -> list:
+    """@description Verify the generic slice_gcode self-test result."""
+    import base64
+    raw = base64.b64decode(res.get("gcodeBase64") or "", validate=True)
+    text = raw.decode("utf-8", "replace")
+    return [
+        res.get("ok") is True and res.get("slicer") == "orca-slicer",
+        len(raw) == res.get("bytes") and len(raw) > 500,
+        hashlib.sha256(raw).hexdigest() == res.get("sha256"),
+        "G1 " in text and "; gcode_flavor = marlin" in text,
+    ]
+
+
 def selftest() -> int:
-    """@description Slice a 20 mm cube for a Bambu Lab P2S through the real worker and check the
-    archive a printer would receive; exit 0 only when every check holds."""
+    """@description Slice a 20 mm cube for a Bambu Lab P2S and generic Marlin G-code through the real worker."""
     import base64
     import io
     import zipfile
     proc = subprocess.Popen(_worker_cmd(), cwd=ENGINE_DIR, env=_worker_env(), stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    req = {"id": 1, "cmd": "slice", "args": {"stl": base64.b64encode(_cube_stl(20)).decode(), "name": "selftest-cube",
-                                              "modelId": "N7", "nozzle": "0.4", "filament": "Bambu PLA Basic", "plate": "Textured PEI Plate"}}
-    proc.stdin.write((json.dumps({"id": 0, "cmd": "hello"}) + "\n" + json.dumps(req) + "\n").encode("utf-8"))
+    stl_b64 = base64.b64encode(_cube_stl(20)).decode()
+    req_bambu = {"id": 1, "cmd": "slice", "args": {"stl": stl_b64, "name": "selftest-cube",
+                                                   "modelId": "N7", "nozzle": "0.4", "filament": "Bambu PLA Basic", "plate": "Textured PEI Plate"}}
+    req_gcode = {"id": 2, "cmd": "slice_gcode", "args": {"stl": stl_b64, "name": "selftest-cube", "profile": "marlin"}}
+    payload = "\n".join(json.dumps(r) for r in ({"id": 0, "cmd": "hello"}, req_bambu, req_gcode)) + "\n"
+    proc.stdin.write(payload.encode("utf-8"))
     proc.stdin.flush()
     proc.stdin.close()
     lines = [json.loads(l) for l in proc.stdout if l.strip()]
     proc.wait(timeout=600)
-    ok = len(lines) == 2 and lines[0].get("ok") and lines[1].get("ok")
+    ok = len(lines) == 3 and all(line.get("ok") for line in lines)
     if not ok:
-        print(json.dumps({"selftest": False, "lines": lines[:2]}))
+        print(json.dumps({"selftest": False, "lines": lines[:3]}))
         return 1
     res = lines[1]["result"]
+    gcode_res = lines[2]["result"]
     with zipfile.ZipFile(io.BytesIO(base64.b64decode(res["archive"]))) as z:
         names = set(z.namelist())
         info = z.read("Metadata/slice_info.config").decode()
         gcode = z.read("Metadata/plate_1.gcode").decode("utf-8", "replace")
     resolvable = _all_filaments_resolve()
     checks = [
+        "slice_gcode" in (lines[0]["result"].get("capabilities") or []),
         resolvable["failed"] == 0,
         "Metadata/plate_1.gcode" in names and "Metadata/plate_1.png" in names and "Metadata/plate_1_small.png" in names,
         'key="printer_model_id" value="N7"' in info,
@@ -275,9 +300,10 @@ def selftest() -> int:
         "; printer_model = Bambu Lab P2S" in gcode,
         res["estimate"]["printSeconds"] > 60 and res["estimate"]["firstLayerSeconds"] > 0,
         (res["estimate"]["filamentGrams"] or 0) > 1,
+        *_check_gcode_selftest(gcode_res),
     ]
-    print(json.dumps({"selftest": all(checks), "orcaSlicer": lines[0]["result"]["orcaSlicer"], "profiles": resolvable, "estimate": res["estimate"],
-                      "bytes": res["bytes"], "ms": res["ms"], "checks": checks}))
+    print(json.dumps({"selftest": all(checks), "orcaSlicer": lines[0]["result"]["orcaSlicer"], "profiles": resolvable,
+                      "estimate": res["estimate"], "gcodeBytes": gcode_res["bytes"], "bytes": res["bytes"], "ms": res["ms"], "checks": checks}))
     return 0 if all(checks) else 1
 
 

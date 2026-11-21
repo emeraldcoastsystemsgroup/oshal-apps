@@ -18,6 +18,9 @@
  * -----------------------------------------------------------------------------
  * 2026-07-31 23:00:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — company settings, employee CRUD w/ W-4 + election profiles, pay-run lifecycle (draft → approve behind confirm → paid), pay-stub payload, liability + W-2-preview reports.
  * 2026-08-01 11:00:00 | maintainer@emeraldcoastsystemsgroup.com | v1.1 — persistence carved into payroll-store.ts (this file was nearing the 1000-line cap). New: POST /runs/:id/void (confirm-gated linked reversal, the correction mechanism a paid run previously had no way to get), approval audit trail on approve/void, per-line tips + FLSA-qualified-overtime + proration + bonus-method inputs, GET /states coverage honesty, weekend pay-date shifting, and a W-2 preview that now emits box 12 (D deferrals / TT qualified overtime / TP cash tips) and box 14b as TY2026 requires.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 14: a new run's pay date is checked against the Federal Reserve calendar (payroll-calendar), not only the weekend, so a pay date on a Reserve Bank holiday moves to the banking day before and the response says why; a pay date outside the tax year the tables hold, or in a year the calendar does not hold, is refused with 422 and plain words where it used to surface as a 500 from the first line.
+ * 4                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: approval keeps a line built from earning rows on the earning-row engine and moves each deduction election's balance once the run is paid (both passed to approveRun as hooks); a run with a garnishment order whose facts are missing is refused with 409 and the reason for each employee.
+ * 5                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: the run read carries each employee's hourly rate, which the Hours by day editor prices each workday's hours at.
  *
  * @module payroll-routes
  */
@@ -29,13 +32,14 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { supportedStates, stateSupport } from './payroll-state-tax';
-import { registerV2Routes } from './payroll-routes-v2';
+import { isCalendarCoverageError, resolvePayDate } from './payroll-calendar';
+import { recomputeEarningRowLine, registerV2Routes } from './payroll-routes-v2';
 import { registerSettlementRoutes } from './payroll-routes-settle';
-import { createPayments, recordAudit } from './payroll-ledger';
+import { createPayments, recordAudit, settleDeductionBalances } from './payroll-ledger';
 import { PAY_PERIODS, TAX_YEAR, DEFAULT_SUTA_RATE_PCT, DEFAULT_SUTA_WAGE_BASE_CENTS } from './payroll-tax-tables';
 import type { PayInputs } from './payroll-engine';
 import {
-  KIND_REGULAR, KIND_VOID, NegativeNetError, RUN_DRAFT, RUN_PAID, addDays, approveRun,
+  GarnishmentRefusalError, KIND_REGULAR, KIND_VOID, NegativeNetError, RUN_DRAFT, RUN_PAID, addDays, approveRun,
   createVoidRun, employeeCols,
   ensurePayrollSchema, fmtUtc, getCompany, insertEmployee, isoDate, isoDateOrNull, money,
   normalizeDates, normalizeRows, num, recomputeLine, scrubSecrets, updateCompany, updateEmployee, type Row,
@@ -78,18 +82,37 @@ function guarded(
       await ensurePayrollSchema(ctx.pool);
       await fn(req, res, sub);
     } catch (err) {
+      // A date in a year a calendar table does not hold is a refusal the person
+      // can act on, not a fault: say which table and which year.
+      if (isCalendarCoverageError(err)) {
+        logger.warn({ op, table: err.table, year: err.year }, 'payroll calendar year not covered');
+        if (!res.headersSent) {
+          res.status(422).json({
+            error: err.code, message: err.message, table: err.table, year: err.year, covered: err.covered,
+          });
+        }
+        return;
+      }
       logger.error({ err, op }, 'payroll route failed');
       if (!res.headersSent) res.status(500).json({ error: 'internal_error', message: (err as Error).message });
     }
   };
 }
 
-/** Shift a pay date off Saturday/Sunday back to the preceding Friday. */
-function shiftOffWeekend(iso: string): string {
-  const day = new Date(`${iso}T00:00:00Z`).getUTCDay();
-  if (day === 6) return addDays(iso, -1);
-  if (day === 0) return addDays(iso, -2);
-  return iso;
+/**
+ * @description Refuse a pay date the tax tables do not cover, in words.
+ * @param payDate - The pay date, YYYY-MM-DD.
+ * @returns A 422 body, or null when the date is in the tax year the tables hold.
+ */
+function taxYearRefusal(payDate: string): Record<string, unknown> | null {
+  const year = Number(payDate.slice(0, 4));
+  if (year === TAX_YEAR) return null;
+  return {
+    error: 'tax_year_not_covered',
+    message: `Pay date ${payDate} is in ${year}. The federal tax tables held here are for tax year ${TAX_YEAR} only, `
+      + `so a ${year} payroll cannot be computed. Nothing was taken from another year's tables.`,
+    table: 'federal tax tables', year, covered: [TAX_YEAR],
+  };
 }
 
 /** Derive the next pay period from the frequency and the last run's end. */
@@ -277,8 +300,13 @@ function runRoutes(router: Router, ctx: AppContext): void {
     const auto = derivePeriod(freq, last ? isoDate(last.period_end) : null, isoDate(new Date()));
     const start = isoDateOrNull(b.periodStart) || auto.start;
     const end = isoDateOrNull(b.periodEnd) || auto.end;
-    let payDate = isoDateOrNull(b.payDate) || auto.payDate;
-    if (company.shift_pay_date !== false) payDate = shiftOffWeekend(payDate);
+    const requestedPayDate = isoDateOrNull(b.payDate) || auto.payDate;
+    const refusal = taxYearRefusal(requestedPayDate);
+    if (refusal) { res.status(422).json(refusal); return; }
+    // The Federal Reserve calendar decides whether the date funds. A year K.8
+    // does not print throws, and the guard turns that into a 422 in words.
+    const funding = resolvePayDate(requestedPayDate, 'earlier');
+    const payDate = company.shift_pay_date !== false ? funding.payDate : requestedPayDate;
     if (end < start) { res.status(400).json({ error: 'bad_period', message: 'periodEnd is before periodStart.' }); return; }
     if (payDate < end) { res.status(400).json({ error: 'bad_pay_date', message: 'payDate cannot precede the period end.' }); return; }
 
@@ -304,14 +332,25 @@ function runRoutes(router: Router, ctx: AppContext): void {
         bonusMethod: 'aggregate', otIsFlsaQualified: true, bonusIsDiscretionary: false,
       });
     }
-    res.json({ run: normalizeDates(run), lineCount: employees.length });
+    res.json({
+      run: normalizeDates(run),
+      lineCount: employees.length,
+      payDate: {
+        requested: requestedPayDate,
+        payDate,
+        shifted: payDate !== requestedPayDate,
+        // Why the date moved, or — when moving is turned off — why it will not fund.
+        reason: payDate !== requestedPayDate ? funding.reason
+          : funding.shifted ? `${funding.reason.split(' Moved to ')[0]} The date was kept because moving pay dates is turned off in Settings.` : '',
+      },
+    });
   }));
 
   router.get('/runs/:id', guarded(ctx, 'runs.read', async (req, res, sub) => {
     const run = await ownedRun(ctx, sub, String(req.params.id));
     if (!run) { res.status(404).json({ error: 'not_found' }); return; }
     const lines = (await ctx.pool.query(
-      `SELECT l.*, e.first_name, e.last_name, e.comp_type FROM payroll_run_lines l
+      `SELECT l.*, e.first_name, e.last_name, e.comp_type, e.hourly_rate_cents FROM payroll_run_lines l
          JOIN payroll_employees e ON e.employee_id = l.employee_id AND e.user_sub = l.user_sub
         WHERE l.run_id = $1 AND l.user_sub = $2 ORDER BY e.last_name, e.first_name`, [run.run_id, sub])).rows;
     const voided = (await ctx.pool.query(
@@ -341,7 +380,10 @@ function runRoutes(router: Router, ctx: AppContext): void {
     // consume the same wage-base room. Fail closed on an unpayable check.
     const override = (req.body as Record<string, unknown> | undefined)?.acceptNegativeNet === true;
     try {
-      const run = await approveRun(ctx.pool, sub, String(req.params.id), sub, override);
+      const run = await approveRun(ctx.pool, sub, String(req.params.id), sub, override, {
+        recomputeRowsLine: (q, r, emp) => recomputeEarningRowLine(q, sub, r, emp),
+        settleBalances: (q, runId) => settleDeductionBalances(q, sub, runId),
+      });
       if (!run) {
         res.status(409).json({ error: 'not_draft_or_missing', message: 'Run is missing or already approved.' }); return;
       }
@@ -352,6 +394,15 @@ function runRoutes(router: Router, ctx: AppContext): void {
         { pay_date: isoDate(run.pay_date), payments });
       res.json({ ok: true, run: normalizeDates(run), payments });
     } catch (err) {
+      if (err instanceof GarnishmentRefusalError) {
+        res.status(409).json({
+          error: 'garnishment_facts_missing',
+          message: `${err.refusals.length} employee(s) have a garnishment order that cannot be computed. Nothing was approved. `
+            + err.refusals.map((r) => `${r.name}: ${r.reasons.join(' ')}`).join(' '),
+          employees: err.refusals,
+        });
+        return;
+      }
       if (err instanceof NegativeNetError) {
         res.status(409).json({
           error: 'negative_net_pay',

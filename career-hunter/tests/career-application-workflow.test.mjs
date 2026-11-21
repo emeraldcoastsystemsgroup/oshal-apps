@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive saved-job preparation settings, review and automatic readiness through the shipped owner writer with disposable people/jobs and external-work tripwires.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.69.3 (Roger, 2026-11-20: Workday refuses the PDF; he needs Word, RTF and PDF, named for the job): Send offers each document in Word, RTF and PDF and the posting as text, every file named <Company> - <Job title> - Job <id> - <document>.<ext>.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: Send's résumé row also offers For upload forms (.docx), the parse résumé (kind=parse), named <Company> - <Job title> - Job <id> - Resume (for upload).docx: seven links.
  */
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -168,4 +170,28 @@ test('Getting ready shows the real writer’s stopped-job reason on the actual l
 test('promotion tool without a favorite field honors the owner’s preparation choice',async()=>{
  const f=fixture();await settings(f,'automatic');const n=starts.length;
  await f.call('POST','/jobs/1/status',{status:'promoted'});assert.equal(starts.length,n+1);assert.equal((await f.job()).json.job.board.workflow.mode,'automatic');
+});
+test('Send offers the résumé and cover letter in Word, RTF and PDF and the posting as text, each named for the job',async()=>{
+ const f=fixture();assert.equal((await settings(f)).status,200);await save(f);complete(f);
+ const {page,context}=await screen(f,{name:'career-application.html'},'?application=1');
+ try{
+  await page.waitForFunction(()=>document.getElementById('application').getAttribute('aria-busy')==='false');
+  await page.getByRole('button',{name:'Review complete · ready to submit'}).click();
+  await page.waitForFunction(()=>document.getElementById('applicationState').textContent.includes('Ready to submit'));
+  await page.getByRole('button',{name:'Continue to send'}).click();
+  await page.locator('#sendFiles').waitFor();
+  const links=await page.locator('#sendFiles a[data-file]').evaluateAll(nodes=>nodes.map(node=>[node.dataset.file,node.getAttribute('href'),node.getAttribute('download')]));
+  const job=(await f.job()).json.job,base=`${job.company} - ${job.title} - Job 1 - `;
+  assert.equal(links.length,7,JSON.stringify(links));
+  assert.deepEqual(links.find(([file])=>file==='parse:docx'),['parse:docx','/api/career-hunter/resume?id=1&kind=parse&format=docx',base+'Resume (for upload).docx'],'the résumé for upload forms');
+  for(const part of ['resume','cover'])for(const format of ['docx','rtf','pdf']){
+   const link=links.find(([file])=>file===part+':'+format);assert.ok(link,part+':'+format);
+   assert.equal(link[1],`/api/career-hunter/resume?id=1&kind=${part}&format=${format}`);
+   assert.equal(link[2],base+(part==='cover'?'Cover Letter':'Resume')+'.'+format);
+  }
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Text (.txt)'}).click()]);
+  assert.equal(download.suggestedFilename(),base+'Job Posting.txt');
+  const text=readFileSync(await download.path(),'utf8');assert.ok(text.startsWith(job.title+'\r\n'+job.company),text.slice(0,200));
+  assert.equal(await page.locator('#downloadPdf').count(),0,'the review step is not on the Send step');
+ }finally{await context.close();}
 });

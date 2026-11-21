@@ -7,6 +7,10 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Serialise the lazy schema bootstrap under a package-owned advisory lock so concurrent first requests on a fresh database no longer race on CREATE TABLE (2.3.5).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 2.3.7: UX audit batch 7 (payroll-home SPLIT): 4-step Add Employee wizard (Name & status / Pay / Federal W-4 & state / Elections & prior YTD), semantic ARIA tablist + phone 4+More bottom bar, 44px W-4 switches, dynamic state picker from /api/payroll/states, and 1-sentence lede with Help sheet. Guard: tests/payroll-ux-batch7.test.mjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: what a person reads or hears in Payroll names the product Open Swarm; technical identifiers keep their forms.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 14): both banking calendars are transcribed tables with their years (Federal Reserve K.8 2026-2030; IRS Publication 15 (2026) list plus the 2027 early-release draft, marked unverified); a year a table does not hold is refused in words; run creation moves a pay date off a Federal Reserve holiday and says why.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 8): the deposit report groups paydays by deposit period with IRS-holiday due dates, applies the $100,000 rule to taxes accumulated in the period, reports a forced switch to semiweekly and the $2,500 pay-with-return test; Settings works out the depositor status from the four lookback quarters.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 7): garnishment orders through one allocator with cumulative federal ceilings (support at its own percentage, agency orders per 31 CFR 285.11, the federal levy against the 2026 Publication 1494 exempt amount), support before a levy only when entered before it, refusals where priority is state law; approval keeps earning-row lines on their engine and settles each order's balance; Employees > orders; migration 002 adds the order facts.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 3): hours by the workday on earning rows with the workweek from the employer's fixed workweek; a workweek two checks split is paid over the whole workweek; Reports > FLSA payroll record (29 CFR 516.2) from stored rows with keep-until dates; migration 003 adds the work date, the workweek start time and the employee's occupation and title.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — payroll ("Payroll")
@@ -55,7 +59,7 @@ description: >-
   dollar, and every tax constant cites the primary IRS/SSA document it was
   verified against. Open Swarm computes and produces; your bank and the agencies
   execute. It transmits nothing.
-version: 2.3.8
+version: 2.4.0
 status: active
 
 theme: ocean
@@ -135,6 +139,8 @@ routes:
 # verifies the route's DDL against it.
 migrations:
   - migrations/001-payroll.sql
+  - migrations/002-payroll-garnishment-orders.sql
+  - migrations/003-payroll-flsa-records.sql
 
 ui:
   static:

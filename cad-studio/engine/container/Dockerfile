@@ -1,7 +1,9 @@
 # CAD Studio engine container -- built LOCALLY by engine/install-engine.sh from the official
 # python image plus the exact PyPI pins in requirements.txt / requirements-lock.txt (CadQuery on
-# the OCCT kernel). Nothing third-party is committed to the package and the image is never
-# published. The OCCT wheels link against libGL/X11 even headless, hence the runtime libs.
+# the OCCT kernel). The engine tree also ships a compact OFL-1.1 font under fonts/ (with
+# fonts/LICENSE.txt) for embossed/debossed text features because the slim base image installs
+# libfontconfig1/libfreetype6 without system fonts. The image is never published. The OCCT wheels
+# link against libGL/X11 even headless, hence the runtime libs.
 FROM python:3.11-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

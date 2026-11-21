@@ -1,12 +1,13 @@
 /**
  * CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): accept kubernetes-node as a first-class alert resource kind alongside kubernetes-pod.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate the bounded Operations JSON alert profile locally without authenticating, persisting or dispatching it.
  */
 (function (root) {
   'use strict';
   const SCHEMA = 'urn:oshal:operations:alert:1';
   const MAX_BYTES = 65536;
-  const KINDS = ['host', 'aws-resource', 'azure-resource', 'gcp-resource', 'kubernetes-pod', 'container', 'workload'];
+  const KINDS = ['host', 'aws-resource', 'azure-resource', 'gcp-resource', 'kubernetes-node', 'kubernetes-pod', 'container', 'workload'];
   const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
   const clean = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max && value === value.trim() && !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
   function absoluteUri(value) {

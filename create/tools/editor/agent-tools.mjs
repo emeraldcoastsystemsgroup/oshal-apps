@@ -9,6 +9,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.19.2: align editingContract sourceVersion with the manifest version.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.0: align editingContract sourceVersion with the manifest version.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.1: align editingContract sourceVersion with the manifest version.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: document flipX and flipY in editingContract and align sourceVersion with the manifest version.
  */
 import { applyOperation, createProject, validateProject } from './model.mjs';
 import { COMMON, FIELDS } from './model-validation.mjs';
@@ -80,10 +81,11 @@ export function applyAgentOperations(value, operations) {
   return validateProject(next, { assetMode: 'reference' });
 }
 export function editingContract() {
-  return { editor: 'create', version: 1, sourceVersion: '1.20.1', maxOperations: 16, maxInputBytes: 16384,
+  return { editor: 'create', version: 1, sourceVersion: '1.20.3', maxOperations: 16, maxInputBytes: 16384,
     operations: forms, operationSchema,
     conventions: { drawing: 'Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.',
       coordinates: 'Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.',
+      flip: 'Every paint layer and group accepts optional boolean flipX (horizontal mirror) and flipY (vertical mirror) in add or update patch. Set flipX/flipY to false to flip back; false values are omitted from normalized JSON. Adjustment layers cannot be flipped.',
       opacity: '0..1', masks: 'Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.',
       adjustments: 'Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.',
       appearance: 'Version 4 shape primitives (rect/ellipse layer types) accept shape rectangle|rounded-rectangle|ellipse|triangle|diamond and radius 0..4096. Outlines on primitives/freehand/path accept dash (up to16 lengths .1..512), cap butt|round|square, join miter|round|bevel. Every paint layer/group supports shadow null or {color six-digit hex, opacity0..1, blur0..64, offsetX/offsetY -512..512}; parent-coordinate pixels, source alpha preserved. Shadows have an aggregate bounded scratch pixel budget. Group shadows must be removed before ungrouping; transformed child paint scales with the group.',
@@ -104,6 +106,7 @@ export function editingContract() {
       { type: 'add', layer: { id: 'hull', type: 'rect', name: 'Hull', x: 340, y: 200, w: 120, h: 400, fill: '#e63946', stroke: '#1b2a4a', strokeWidth: 6 } },
       { type: 'add', layer: { id: 'window', type: 'ellipse', name: 'Window', x: 370, y: 280, w: 60, h: 60, fill: '#87ceeb', stroke: '#1b2a4a', strokeWidth: 4 } },
       { type: 'add', layer: { id: 'flame', type: 'path', name: 'Flame', x: 350, y: 600, w: 100, h: 140, fill: '#ff8c00', contours: [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0.5, y: 1 }] }] } },
+      { type: 'update', id: 'photo-layer', patch: { flipX: true, flipY: false } },
     ], psd: { profileVersion:1, inspectTool:'create-inspect-psd', importTool:'create-import-psd', sourceTool:'create-psd-source',
       maxBytes:4194304, dimensions:2048, pixelLayers:32, groupDepth:4,
       supported:'RGB8 PSDv1 raw/RLE pixel layers, normal isolated groups, opacity and placement. Preserve immutable original; inspect losses and explicit mode before held import.',

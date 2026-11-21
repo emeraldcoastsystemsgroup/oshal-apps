@@ -37,6 +37,13 @@
 #   |                                           | the worker when the connection closes). loft now
 #   |                                           | validates every section before it builds any
 #   |                                           | geometry, so a bad section never reaches the kernel.
+# 4 | maintainer@emeraldcoastsystemsgroup.com   | Threads and text (BACKLOG B4): ISO 68-1 metric
+#   |                                           | helical thread (external boss / internal hole with
+#   |                                           | nominal diameter, pitch, length, axis, handedness,
+#   |                                           | and fit clearance) using axial-guide sweep +
+#   |                                           | fuse-then-clip for watertight manifold STLs, and
+#   |                                           | embossed/debossed text rendered with the bundled
+#   |                                           | OFL-1.1 LiberationSans-Regular.ttf font.
 """cad_worker -- CAD Studio's deterministic rebuild worker (CadQuery / OCCT).
 
 Protocol (one JSON object per line on stdin, one per line on stdout):
@@ -82,6 +89,14 @@ PLANE_AXES = {"XY": ("x", "y"), "XZ": ("x", "z"), "YZ": ("y", "z")}
 MAX_SECTIONS = 32
 FEATURE_BUDGET_MS = {"min": 1, "max": 600000}
 LIMITS = {"maxFeatures": 200, "maxPoints": 2000, "maxDimensionMm": 2000.0, "minDimensionMm": 0.01}
+THREAD_KINDS = ("external", "internal")
+THREAD_HANDEDNESS = ("right", "left")
+THREAD_LIMITS = {"minDiameterMm": 2.0, "maxDiameterMm": 200.0, "minPitchMm": 0.35, "maxPitchMm": 6.0, "minLengthMm": 1.0, "maxLengthMm": 300.0, "maxClearanceMm": 0.5}
+TEXT_MODES = ("emboss", "deboss")
+TEXT_FACES = ("top", "bottom", "front", "back", "left", "right")
+TEXT_LIMITS = {"minLength": 1, "maxLength": 64, "minSizeMm": 2.0, "maxSizeMm": 200.0, "minDepthMm": 0.2, "maxDepthMm": 50.0}
+BUNDLED_FONT_NAME = "LiberationSans-Regular.ttf"
+BUNDLED_FONT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", BUNDLED_FONT_NAME)
 
 
 class FeatureError(Exception):
@@ -451,12 +466,129 @@ def feat_translate(shape, p):
     return shape.translate(tuple(d))
 
 
+def _parse_thread_params(p):
+    """Validate all thread parameters before touching the kernel."""
+    kind = _choice(p.get("kind"), "kind", THREAD_KINDS)
+    d_nom = _num(p.get("nominalDiameterMm"), "nominalDiameterMm", THREAD_LIMITS["minDiameterMm"], THREAD_LIMITS["maxDiameterMm"])
+    pitch = _num(p.get("pitchMm"), "pitchMm", THREAD_LIMITS["minPitchMm"], THREAD_LIMITS["maxPitchMm"])
+    length = _num(p.get("lengthMm"), "lengthMm", THREAD_LIMITS["minLengthMm"], THREAD_LIMITS["maxLengthMm"])
+    axis = _choice(p.get("axis", "z"), "axis", AXES)
+    handedness = _choice(p.get("handedness", "right"), "handedness", THREAD_HANDEDNESS)
+    clearance = _num(p.get("clearanceMm", 0.0), "clearanceMm", 0.0, THREAD_LIMITS["maxClearanceMm"])
+    if pitch >= d_nom * 0.5:
+        raise FeatureError("pitchMm must be less than half of nominalDiameterMm")
+    if length < pitch:
+        raise FeatureError("lengthMm must be >= pitchMm")
+    h_fund = (math.sqrt(3.0) / 2.0) * pitch
+    r_maj = d_nom / 2.0 + (clearance if kind == "internal" else -clearance)
+    r_min = r_maj - (5.0 / 8.0) * h_fund
+    if r_min <= 0.25:
+        raise FeatureError("clearanceMm leaves insufficient thread core radius for nominalDiameterMm and pitchMm")
+    others = [a for a in AXES if a != axis]
+    u = _num(p.get(others[0], 0.0), others[0], -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"])
+    v = _num(p.get(others[1], 0.0), others[1], -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"])
+    start = _num(p.get("from"), "from", -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"]) if "from" in p else None
+    return kind, r_maj, r_min, pitch, length, axis, u, v, start, handedness == "left"
+
+
+def _build_iso_thread_solid(r_maj, r_min, pitch, length, lefthand):
+    """Build a watertight ISO 68-1 metric helical thread solid along +Z over [0, length]."""
+    overlap = min(0.1 * pitch, max(0.05, r_min * 0.25))
+    r_in = r_min - overlap
+    half_crest = pitch / 16.0
+    half_in = min(half_crest + (r_maj - r_in) / math.sqrt(3.0), 0.46 * pitch)
+    z_start, sweep_h = -pitch, length + 2.0 * pitch
+    helix = cq.Wire.makeHelix(pitch=pitch, height=sweep_h, radius=r_min,
+                              center=(0.0, 0.0, z_start), dir=(0.0, 0.0, 1.0), lefthand=lefthand)
+    aux_spine = cq.Edge.makeLine(cq.Vector(0.0, 0.0, z_start), cq.Vector(0.0, 0.0, z_start + sweep_h))
+    pts = [(r_in, z_start - half_in), (r_maj, z_start - half_crest),
+           (r_maj, z_start + half_crest), (r_in, z_start + half_in)]
+    tooth_wire = cq.Workplane("XZ").polyline(pts).close().val()
+    thread_solid = cq.Solid.sweep(tooth_wire, [], helix, makeSolid=True, isFrenet=False, mode=aux_spine)
+    core_tall = cq.Workplane("XY").workplane(offset=z_start - pitch).circle(r_min).extrude(sweep_h + 2.0 * pitch)
+    combined = core_tall.union(cq.Workplane("XY").newObject([thread_solid]))
+    clip = cq.Workplane("XY").circle(r_maj + 1.0).extrude(length)
+    return combined.intersect(clip)
+
+
+def _place_along_axis(solid, axis, u, v, start):
+    if axis == "z":
+        return solid.translate((u, v, start))
+    if axis == "x":
+        return solid.rotate((0, 0, 0), (0, 1, 0), 90.0).translate((start, u, v))
+    return solid.rotate((0, 0, 0), (1, 0, 0), -90.0).translate((u, start, v))
+
+
+def feat_thread(shape, p):
+    """ISO 68-1 metric helical thread on a boss (external) or hole (internal)."""
+    kind, r_maj, r_min, pitch, length, axis, u, v, start, lefthand = _parse_thread_params(p)
+    bb = shape.val().BoundingBox()
+    hi = [bb.xmax, bb.ymax, bb.zmax][_axis_index(axis)]
+    if start is None:
+        start = hi if kind == "external" else hi - length
+    build_len = length + 0.5 if kind == "internal" and start + length >= hi - 1e-6 else length
+    solid = _place_along_axis(_build_iso_thread_solid(r_maj, r_min, pitch, build_len, lefthand), axis, u, v, start)
+    return shape.union(solid) if kind == "external" else shape.cut(solid)
+
+
+def _parse_text_params(p):
+    """Validate all embossed/debossed text parameters before touching the kernel."""
+    raw = p.get("text")
+    if not isinstance(raw, str):
+        raise FeatureError("text must be a non-empty string")
+    text = raw.strip()
+    if len(text) < TEXT_LIMITS["minLength"] or len(text) > TEXT_LIMITS["maxLength"]:
+        raise FeatureError(f"text must be {TEXT_LIMITS['minLength']}..{TEXT_LIMITS['maxLength']} characters")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
+        raise FeatureError("text must contain printable characters only")
+    size_mm = _num(p.get("sizeMm"), "sizeMm", TEXT_LIMITS["minSizeMm"], TEXT_LIMITS["maxSizeMm"])
+    depth_mm = _num(p.get("depthMm"), "depthMm", TEXT_LIMITS["minDepthMm"], TEXT_LIMITS["maxDepthMm"])
+    mode = _choice(p.get("mode", "emboss"), "mode", TEXT_MODES)
+    face = _choice(p.get("face", "top"), "face", TEXT_FACES)
+    x = _num(p.get("x", 0.0), "x", -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"])
+    y = _num(p.get("y", 0.0), "y", -LIMITS["maxDimensionMm"], LIMITS["maxDimensionMm"])
+    angle_deg = _num(p.get("angleDeg", 0.0), "angleDeg", -360.0, 360.0)
+    return text, size_mm, depth_mm, mode, face, x, y, angle_deg
+
+
+def _orient_on_face(solid, bb, face):
+    cx, cy, cz = (bb.xmin + bb.xmax) / 2.0, (bb.ymin + bb.ymax) / 2.0, (bb.zmin + bb.zmax) / 2.0
+    if face == "top":
+        return solid.translate((cx, cy, bb.zmax))
+    if face == "bottom":
+        return solid.rotate((0, 0, 0), (1, 0, 0), 180.0).translate((cx, cy, bb.zmin))
+    if face == "front":
+        return solid.rotate((0, 0, 0), (1, 0, 0), 90.0).translate((cx, bb.ymin, cz))
+    if face == "back":
+        return solid.rotate((0, 0, 0), (1, 0, 0), 90.0).rotate((0, 0, 0), (0, 0, 1), 180.0).translate((cx, bb.ymax, cz))
+    if face == "right":
+        return solid.rotate((0, 0, 0), (1, 0, 0), 90.0).rotate((0, 0, 0), (0, 0, 1), 90.0).translate((bb.xmax, cy, cz))
+    return solid.rotate((0, 0, 0), (1, 0, 0), 90.0).rotate((0, 0, 0), (0, 0, 1), -90.0).translate((bb.xmin, cy, cz))
+
+
+def feat_text(shape, p):
+    """Embossed or debossed text on a named face using the bundled open-licensed font."""
+    text, size_mm, depth_mm, mode, face, x, y, angle_deg = _parse_text_params(p)
+    if not os.path.isfile(BUNDLED_FONT_PATH):
+        raise FeatureError(f"bundled font {BUNDLED_FONT_NAME} is missing from the engine tree")
+    overlap = min(0.05, depth_mm * 0.25)
+    z_off = -overlap if mode == "emboss" else -depth_mm
+    solid = cq.Workplane("XY").workplane(offset=z_off).text(
+        text, size_mm, depth_mm + overlap, combine=False, fontPath=BUNDLED_FONT_PATH)
+    if angle_deg != 0.0:
+        solid = solid.rotate((0, 0, 0), (0, 0, 1), angle_deg)
+    if x != 0.0 or y != 0.0:
+        solid = solid.translate((x, y, 0.0))
+    placed = _orient_on_face(solid, shape.val().BoundingBox(), face)
+    return shape.union(placed) if mode == "emboss" else shape.cut(placed)
+
+
 FEATURES = {
     "hole": feat_hole, "boss": feat_boss, "box-add": feat_box_add, "box-cut": feat_box_cut,
     "sketch-extrude": feat_sketch_extrude, "revolve": feat_revolve, "sweep": feat_sweep, "loft": feat_loft,
     "fillet": feat_fillet, "chamfer": feat_chamfer, "shell": feat_shell,
     "cut-plane": feat_cut_plane, "scale": feat_scale, "mirror": feat_mirror, "rotate": feat_rotate,
-    "translate": feat_translate,
+    "translate": feat_translate, "thread": feat_thread, "text": feat_text,
 }
 
 
@@ -594,7 +726,8 @@ def hello():
             "ocp": getattr(OCP, "__version__", "unknown"), "bases": sorted(BASES), "features": sorted(FEATURES),
             "edgeSelectors": sorted(EDGE_SELECTORS), "faceSelectors": ["none"] + sorted(FACE_SELECTORS), "limits": LIMITS,
             "planeAxes": {k: list(v) for k, v in PLANE_AXES.items()}, "maxSections": MAX_SECTIONS,
-            "featureBudgetMs": FEATURE_BUDGET_MS}
+            "featureBudgetMs": FEATURE_BUDGET_MS, "threadLimits": THREAD_LIMITS, "textLimits": TEXT_LIMITS,
+            "bundledFont": BUNDLED_FONT_NAME}
 
 
 def handle(request):

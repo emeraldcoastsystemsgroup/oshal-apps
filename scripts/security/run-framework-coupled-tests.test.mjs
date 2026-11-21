@@ -7,14 +7,21 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The gate pins OSHAL_CORE_ROOT to the same checkout as OSHAL_CORE_DIR, and a stale OSHAL_CORE_ROOT in the caller's environment does not leak through to the suites.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Discovery covers the .core.spec.mjs browser specs; a real failing ESM spec turns the gate red, and a plain .spec.mjs or a .core.spec.js is not picked up.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Cover the Test Lab registration check through its lab seam: an admitted case passes; an unknown prerequisite name fails naming the case; withheld-by-name prerequisites keep a case pending without failing; an unknown name cannot hide behind a withheld one; any other pending reason fails; cases that register no core suite, and smoke cases, are not judged. The real-boundary run is the gate itself against the framework checkout.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Pin scan-to-print/tests/routes.core.test.js discovery in the real store (BACKLOG B6), `--suite` scoping and unknown-suite refusal, and CLI non-zero exit propagation when a scoped core suite fails.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { checkLabRegistrations, discoverCoreSuites, runCoreSuites } from './run-framework-coupled-tests.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const STORE_ROOT = resolve(HERE, '..', '..');
+const RUNNER_PATH = join(HERE, 'run-framework-coupled-tests.mjs');
 
 /** Build a throwaway store with the given `{ path: contents }` files. */
 function fixtureStore(files) {
@@ -169,4 +176,21 @@ test('any other pending reason on a framework-coupled case fails; cases that reg
   }, { page: 'The playwright runner is unavailable.', 'engine-only': 'Additional prerequisites require verification: anything:else.' });
   assert.throws(() => checkLabRegistrations({ storeRoot: '/store', suites: ['alpha/tests/surface.core.spec.mjs'], lab }),
     (err) => /\(1\)/.test(err.message) && /alpha:page - The playwright runner is unavailable\./.test(err.message) && !/engine-only/.test(err.message));
+});
+
+test('real store discovery includes scan-to-print/tests/routes.core.test.js and --suite scopes fail-closed', () => {
+  assert.ok(discoverCoreSuites(STORE_ROOT).includes('scan-to-print/tests/routes.core.test.js'));
+  const root = fixtureStore({ 'alpha/tests/a.core.test.js': PASSING, 'beta/tests/routes.core.test.js': FAILING });
+  try {
+    assert.equal(runCoreSuites({ storeRoot: root, frameworkRoot: root, suite: 'alpha/tests/a.core.test.js' }), 1);
+    assert.throws(() => runCoreSuites({ storeRoot: root, frameworkRoot: root, suite: 'beta/tests/missing.core.test.js' }),
+      /not discovered by the runner/);
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    const green = spawnSync(process.execPath, [RUNNER_PATH, '--store', root, '--framework', root, '--suite', 'alpha/tests/a.core.test.js'], { env, encoding: 'utf8' });
+    assert.equal(green.status, 0, green.stderr);
+    const red = spawnSync(process.execPath, [RUNNER_PATH, '--store', root, '--framework', root, '--suite', 'beta/tests/routes.core.test.js'], { env, encoding: 'utf8' });
+    assert.notEqual(red.status, 0, 'a failing scoped core suite must exit non-zero');
+    assert.match(`${red.stdout}${red.stderr}`, /beta\/tests\/routes\.core\.test\.js/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

@@ -11,6 +11,8 @@
 #   |                                           | shows up as "kernel refused" and fails the spec.
 #   |                                           | This proves branch logic only; the geometry is the
 #   |                                           | engine image's real-kernel suite.
+# 2 | maintainer@emeraldcoastsystemsgroup.com   | Add pre-kernel refusal checks for ISO metric thread
+#   |                                           | and embossed/debossed text features (BACKLOG B4).
 """Print one JSON object describing the worker's behaviour; tests/worker-logic.test.js asserts it.
 Usage: python worker_logic_harness.py <engine dir>"""
 import json
@@ -100,7 +102,16 @@ out = {
         "loftSectionNotObject": refusal("loft", {"sections": [{"points": SQUARE}, "square"]}),
         "loftRuledNotBool": refusal("loft", {"sections": [{"points": SQUARE}, {"points": SQUARE, "offset": 5}], "ruled": "yes"}),
         "loftTooManySections": refusal("loft", {"sections": [{"points": SQUARE, "offset": i} for i in range(33)]}),
+        "threadBadKind": refusal("thread", {"kind": "tapered", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 10}),
+        "threadPitchTooLarge": refusal("thread", {"kind": "external", "nominalDiameterMm": 6, "pitchMm": 3.5, "lengthMm": 10}),
+        "threadLengthTooShort": refusal("thread", {"kind": "external", "nominalDiameterMm": 10, "pitchMm": 2.0, "lengthMm": 1.5}),
+        "threadBadClearance": refusal("thread", {"kind": "external", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 10, "clearanceMm": 1.0}),
+        "textEmpty": refusal("text", {"text": "   ", "sizeMm": 8, "depthMm": 1.0}),
+        "textTooLong": refusal("text", {"text": "A" * 65, "sizeMm": 8, "depthMm": 1.0}),
+        "textBadMode": refusal("text", {"text": "OK", "mode": "engrave", "sizeMm": 8, "depthMm": 1.0}),
+        "textBadFace": refusal("text", {"text": "OK", "sizeMm": 8, "depthMm": 1.0, "face": "none"}),
     },
     "validLoftReachesKernel": refusal("loft", {"sections": [{"points": SQUARE}, {"points": SQUARE, "offset": 5}]}),
+    "validTextReachesKernel": refusal("text", {"text": "OSHAL", "sizeMm": 8, "depthMm": 1.0}),
 }
 print(json.dumps(out))

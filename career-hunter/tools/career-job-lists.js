@@ -1,4 +1,5 @@
 /* CHANGE LOG:
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0 (career-hunter backlog, "The Discover swipe deck as the Job Board's phone layout"): the phone deck of New matches is tools/career-match-deck.js now, and this page hands it its jobs, its status line, its posting sheet and its reads (CareerMatchDeck.attach). The card, the swipe, the four buttons and Undo left this file; see that file's entry for what changed in them. Here: a read that fails with no card to show is drawn by the deck with Try again instead of a bare line; the deck's refill reads the first page again (deckMore) and leaves out the jobs the visit has already saved or passed; `reading` says whether a read is still unanswered, so an answered empty list is never drawn as loading; `viewEpoch` counts the times the list was replaced (not added to), so a refusal that arrives late does not put a job into a list it no longer belongs to. At desktop width and in List the stage is as it was. Guard: tests/career-match-deck-page.test.mjs.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | 1.68.18: Filter Applied (?view=status) strictly to status='applied' (FEED.status='applied') so Interviewing, Offer, and Closed applications leave Applied and appear only in their current workflow stage.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "there are a bunch of jobs from torch technology that i want to apply for but in the my jobs initial screen the popup says that there is no information about the job"): the posting sheet never says "No description was provided." A job with a description shows it (and, when Career read it from the posting or the person pasted it, says so). A job with none is read from the employer's posting while the sheet says "Reading the job description from <employer>…" (POST /jobs/:id/details keeps it as the person's copy; when Career cannot keep it right now, GET /jobs/:id?details=read shows it for this view), and its fit is drawn again with it. One Career cannot read says so plainly: why (the posting is gone, the site refused or did not answer, the posting has no description, or Career cannot read that site), Open the posting, and Paste it in Prepare application, which opens step 1 · Tailor and its paste box; a site that did not answer also offers Try again. Links in the sheet are web addresses only (CareerJobActions.employerUrl). Guard: tests/career-job-details-sheet-browser.test.mjs.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, 194 saved jobs: "select multiple rows on a table and push all the applications to prepare application"): the page hands its stage, its filters, its status line and its redraws to the Table view (career-jobs-table.js) once the person is known, and while the Table is shown it loads and draws nothing of its own (load() and render() step aside). A List row of a job the bulk queue holds work for says so in its status line ("Queued to prepare", "Preparing…", "Preparation failed: …", "Queued: Remove"). New matches has no Table. Guard: tests/career-jobs-table-browser.test.mjs.
@@ -39,7 +40,7 @@
  function companySentBadge(job){const n=Math.floor(Number(job?.companySentCount));if(!(n>=1))return '';const co=String(job?.company||'this company').trim()||'this company',label=n===1?`1 confirmed application sent to ${co}`:`${n} confirmed applications sent to ${co}`;return ` <span class="company-sent-badge" role="img" aria-label="${esc(label)}" title="${esc(label)}">✓ ${n} sent</span>`;}
  const fields=['q','sort','per','min_score','pay_period','min_pay','max_pay','days','remote','within'];let page=1,firstPage=1,rows=[],exhausted=false,epoch=0,controller=null,memoryKey=null,earlier=query.get('earlier')==='1',busy=false,returnY=0,firstLoad=true,savingJobs=new Set();
  const phoneMedia=typeof window.matchMedia==='function'?window.matchMedia('(max-width: 640px)'):{matches:false,addEventListener:()=>{}};
- let matchLayout='deck',deckHistory=[];const removing=new Set();const preparationStates=new Map();const fitChecks=new Map(),fitResults=new Map();let fitRevision=0;
+ let matchLayout='deck',reading=false,loadError=null,viewEpoch=0;const removing=new Set();const preparationStates=new Map();const fitChecks=new Map(),fitResults=new Map();let fitRevision=0;
  /* What GET /resume/state says: unknown until it answers, and unknown again if it does not, in which case the page behaves as it did. */
  let resume={known:false,has:false,reading:false};
  const noResume=()=>resume.known&&!resume.has&&!resume.reading,readingResume=()=>resume.known&&!resume.has&&resume.reading;
@@ -118,7 +119,7 @@
  /** @description One status line: the word, its day when it has one, and how Career knows. @param {{kind:string,word:string,detail:string,day?:string}} line @returns {string} Markup. */
  function lineMarkup(line){return `<p class="app-line" data-line="${esc(line.kind)}"><b>${esc(line.word)}</b>${line.day?' · '+esc(line.day):''} · ${esc(line.detail)}</p>`;}
  /** @description Say how many jobs the list shows, with Career's picks and what is being sent counted in. @returns {void} */
- function showCount(){const n=$('list').querySelector('.match-deck')?rows.length:$('list').querySelectorAll('.job-row').length;$('requestState').textContent=n?countWords[0]+n+' shown'+countWords[1]:'';}
+ function showCount(){const n=$('list').querySelectorAll('.job-row').length;$('requestState').textContent=n?countWords[0]+n+' shown'+countWords[1]:'';}
  /** @description What the list shows: on the first page of Saved, Career's picks lead whatever the filters are (a pick is not a filtered result) and are not repeated below; later pages are the saved jobs only. @returns {Array<object>} Jobs. */
  function listed(){if(stage!=='saved'||firstPage>1||!picked.length)return rows;const ids=new Set(picked.map(job=>job.id));return [...picked,...rows.filter(job=>!ids.has(job.id))];}
  /** @description Under Career's picks, when the filters match none of the person's saved jobs: say so, with the way out. Without it the picks would look like the search's results. @returns {Array<[string,string]>} The one keyed note, or none. */
@@ -216,106 +217,25 @@
   return `<article class="job-row" data-job-id="${job.id}"${job.picked?' data-picked':''}><div class="summary">${job.picked?'<p class="pick-mark">Career picked this for you</p>':''}<button class="job-title" data-posting="${job.id}">${esc(job.title)}</button><p class="job-company muted">${esc(job.company)}${companySentBadge(job)}</p><div class="meta"><span>${esc(pay(job))}</span>${placeMeta(job)}${fitMarkup(job)}${job.posted_date?`<span>Posted ${esc(job.posted_date.slice(0,10))}</span>`:''}${job.active===0?'<span>Posting no longer active</span>':''}</div>${reply?`<button type="button" class="reply-line" data-reply="${job.id}">${esc(reply)}</button>`:''}${status}</div><div class="row-actions">${recommended?`<button class="btn${job.favorite?'':' primary'}" data-save="${job.id}" ${job.favorite?'disabled':''}>${job.favorite?'Saved':'Save'}</button><button class="btn" data-job-feedback="${job.id}">Not interested</button>`:`<button class="btn${done?'':' primary'}" data-open="${job.id}" data-done="${done}"${pending?.busy?' disabled aria-busy="true"':''}>${action}</button>${second}`}</div></article>`;
  }
 
- function deckCardMarkup(job,lead){
-  return `<article class="match-card ${lead?'lead':'peek'}" data-deck-id="${job.id}"><p class="co">${esc(job.company)}${companySentBadge(job)}</p><h2><button class="job-title" type="button" data-posting="${job.id}">${esc(job.title)}</button></h2><div class="meta"><span>${esc(pay(job))}</span>${placeMeta(job)}${job.ai_fit_score!=null?`<span>AI fit ${esc(job.ai_fit_score)}</span>`:CareerJobActions.detailsNeeded(job)?'<span class="details-needed-label">Details needed</span>':''}</div>${CareerJobActions.detailsNeeded(job)?detailsNote(job):`<p class="why">${esc(job.ai_fit_rationale||'Open this role to inspect full posting requirements and fit details.')}</p>`}</article>`;
- }
-
- async function actDeck(kind){
-  if(!rows.length&&kind!=='undo'&&kind!=='more')return;
-  if(kind==='undo'){
-   const last=deckHistory.pop();if(!last){$('actionState').textContent='Nothing to undo.';return;}
-   if(last.action==='save'){try{await CareerJobActions.favorite(last.job.id,false);}catch{}}
-   rows=[last.job,...rows.filter(j=>j.id!==last.job.id)];render();$('actionState').textContent='Restored '+last.job.title+'.';return;
-  }
-  if(kind==='more'){
-   if(!exhausted){page+=1;await load(true,false);}else if(rows[0]){await posting(rows[0].id);}
-   return;
-  }
-  const lead=rows[0];if(!lead)return;
-  const pending={job:lead,action:kind},actionEpoch=epoch;
-  rows=rows.slice(1);deckHistory.push(pending);render();
-  try{
-   if(kind==='save'){const res=await CareerJobActions.save(lead.id);moved(CareerStatusLine.move('saved',lead)+(res.error?' Its fit could not be checked: '+res.error:''));}
-   else{const response=await fetch('/api/career-hunter/jobs/'+lead.id+'/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'dismissed'})}),result=await response.json().catch(()=>({}));if(!response.ok||result.ok===false)throw Error(result.error||'Could not remove this job.');say(CareerStatusLine.move('removed',lead));}
-  }catch(err){
-   if(kind!=='save'||err.careerRunInProgress===true){
-    const index=deckHistory.indexOf(pending);if(index!==-1)deckHistory.splice(index,1);
-    if(epoch===actionEpoch&&!rows.some(job=>job.id===lead.id)){rows=[lead,...rows];render();}
-   }
-   $('actionState').textContent=err.message;
-  }
-  if(rows.length<2&&!exhausted&&!busy){page+=1;void load(true,false);}
- }
-
- /**
-  * @description The phone deck's swipe. The card follows the finger from anywhere on it (the title and the reason text
-  * included) once the movement is sideways; a drag past the threshold, or a quick flick, sends it off the screen and
-  * saves (right) or passes (left); anything shorter settles back. A touch the phone takes for scrolling never acts, and a
-  * tap still opens the job.
-  * @param {HTMLElement|null} card - The top card of the deck.
-  * @returns {void}
-  */
- function bindDeckSwipe(card){
-  if(!card)return;
-  const THRESHOLD=80,FLICK_DISTANCE=36,FLICK_SPEED=0.45,still=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  let pointer=null,sx=0,sy=0,dx=0,started=0,mode='';
-  const settle=()=>{card.classList.remove('dragging');card.style.transform='';delete card.dataset.swipe;};
-  card.onpointerdown=e=>{if(e.button||pointer!==null)return;pointer=e.pointerId;sx=e.clientX;sy=e.clientY;dx=0;started=e.timeStamp;mode='';};
-  card.onpointermove=e=>{
-   if(e.pointerId!==pointer)return;
-   dx=e.clientX-sx;const dy=e.clientY-sy;
-   if(!mode){
-    if(Math.abs(dx)<8&&Math.abs(dy)<8)return;
-    mode=Math.abs(dx)>Math.abs(dy)?'swipe':'scroll';
-    if(mode==='swipe'){card.setPointerCapture?.(pointer);card.classList.add('dragging');}
-   }
-   if(mode!=='swipe')return;
-   card.style.transform=`translateX(${dx}px) rotate(${dx/22}deg)`;
-   card.dataset.swipe=dx>24?'save':dx<-24?'pass':'';
-  };
-  const end=(e,cancelled)=>{
-   if(e.pointerId!==pointer)return;
-   pointer=null;
-   if(mode!=='swipe'){mode='';return;}
-   mode='swiped'; // the click that follows a drag is not a tap on the job
-   const speed=Math.abs(dx)/Math.max(1,e.timeStamp-started);
-   if(cancelled||!(Math.abs(dx)>THRESHOLD||(Math.abs(dx)>FLICK_DISTANCE&&speed>FLICK_SPEED))){settle();return;}
-   const kind=dx>0?'save':'pass';
-   if(still){void actDeck(kind);return;}
-   card.classList.remove('dragging');card.classList.add('flung');
-   card.style.transform=`translateX(${dx>0?130:-130}%) rotate(${dx>0?18:-18}deg)`;
-   setTimeout(()=>void actDeck(kind),170);
-  };
-  card.onpointerup=e=>end(e,false);
-  card.onpointercancel=e=>end(e,true);
-  card.addEventListener('click',e=>{if(mode==='swiped'){mode='';e.preventDefault();e.stopPropagation();}},true);
- }
-
  /** @description New matches with no résumé (or while a first one is read): what will appear, and the one step. @returns {void} */
  function renderWithoutResume(){
   const reading=readingResume();
-  setDeckActions(false);$('boardPhoneControls').hidden=true;
+  CareerMatchDeck.draw(false);$('boardPhoneControls').hidden=true;
   for(const id of ['keywordSearch','filters','searchModes'])if($(id))$(id).hidden=true;
   $('careerExclusions')?.remove();$('pager').innerHTML='';$('requestState').textContent='';
   $('list').innerHTML=reading
    ?'<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📄</div><h2>Reading your résumé</h2><p>Your matches appear here when Career has finished reading it.</p></div>'
    :'<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📄</div><h2>Add your résumé to get matches</h2><p>Career compares each job with your résumé. Add it and the jobs that fit you appear here.</p><a class="ck-primary" href="/api/career-hunter/resume-studio" data-career-tool="career-resume-studio">Add your résumé</a></div>';
  }
- /** @description Keep the phone deck's status and action row in one dock above the frame bar. @param {boolean} enabled @returns {void} */
- function setDeckActions(enabled){
-  $('matchActionDock').toggleAttribute('data-deck-active',enabled);
-  $('deckActionButtons').innerHTML=enabled?'<button type="button" class="ck-btn" data-deck-act="undo">Undo</button><button type="button" class="ck-btn" data-deck-act="pass">Pass</button><button type="button" class="ck-primary" data-deck-act="save">Save</button><button type="button" class="ck-btn" data-deck-act="more">More</button>':'';
- }
+ /** @description Whether New matches is shown as cards: on a phone, with Cards chosen. @returns {boolean} */
+ function deckLayout(){return recommended&&phoneMedia.matches&&matchLayout==='deck';}
+ /** @description The deck's refill: read the first page again and add what is new. The jobs just saved or passed have left it, so the next ones follow. @returns {Promise<void>} */
+ function deckMore(){page=1;return load(true,false);}
  function render(){
   if(window.CareerJobsTable?.active())return;
   rows=rows.filter(job=>!removing.has(job.id));picked=picked.filter(job=>!removing.has(job.id));
-  const useDeck=recommended&&phoneMedia.matches&&matchLayout==='deck'&&rows.length>0;setDeckActions(useDeck);
-  if(useDeck){
-   const lead=rows[0],peek=rows[1];
-   $('list').innerHTML=`<div class="match-deck"><p class="hint">Swipe right to save or left to pass, or use the buttons.</p><div class="match-deck-stage">${peek?deckCardMarkup(peek,false):''}${deckCardMarkup(lead,true)}</div></div>`;
-   bindDeckSwipe($('list').querySelector('.match-card.lead'));
-   $('pager').innerHTML='';return;
-  }
+  /* The deck shows one job; how many are left is the stage row's count, so the line that counts rows is cleared once a read has answered. */
+  if(CareerMatchDeck.draw(deckLayout())){if(!busy)$('requestState').textContent='';return;}
   const old=new Map([...$('list').querySelectorAll('[data-job-id]')].map(el=>[el.dataset.jobId,el]));
   const lead=stage==='status'&&firstPage<=1&&!filtered()?sending.map(entry=>['sending-'+Number(entry.postingId),sendingRow(entry)]):[];
   const nodes=[...lead,...listed().map(job=>[String(job.id),row(job)]),...filterNote()].map(([key,markup])=>{const prior=old.get(key);if(prior?.dataset.markup===markup)return prior;const template=document.createElement('template');template.innerHTML=markup;const next=template.content.firstElementChild;next.dataset.markup=markup;return next;});
@@ -327,13 +247,13 @@
  async function load(append=false,top=false){
   if(recommended){await resumeReady;if(noResume()||readingResume()){rows=[];renderWithoutResume();return;}}
   if(window.CareerJobsTable?.active()){address();remember();return CareerJobsTable.load();}
-  controller?.abort();controller=new AbortController();const current=++epoch;busy=true;$('list').setAttribute('aria-busy','true');$('requestState').textContent=rows.length?'Updating results…':'Loading jobs…';
+  controller?.abort();controller=new AbortController();const current=++epoch;if(!append)viewEpoch+=1;busy=true;reading=true;loadError=null;$('list').setAttribute('aria-busy','true');$('requestState').textContent=rows.length?'Updating results…':'Loading jobs…';if(!rows.length&&deckLayout())CareerMatchDeck.draw(true);
   const params=new URLSearchParams(filters());if(stage==='matches')params.set('matches','1');else params.set('status',FEED[stage]||stage);if(stage==='queue'&&!earlier)params.set('current','1');params.set('page',String(page));
-  try{const response=await fetch('/api/career-hunter/jobs?'+params,{signal:controller.signal,cache:'no-store'}),data=await response.json();if(current!==epoch)return;if(!response.ok){if(data.home)showHome(data.home);throw Object.assign(Error(data.message||data.error||'HTTP '+response.status),{code:data.error});}showHome(data.home);
+  try{const response=await fetch('/api/career-hunter/jobs?'+params,{signal:controller.signal,cache:'no-store'}),data=await response.json();if(current!==epoch)return;if(!response.ok){if(data.home)showHome(data.home);throw Object.assign(Error(data.message||data.error||'HTTP '+response.status),{code:data.error,status:response.status});}showHome(data.home);reading=false;
    firstPage=append?firstPage:page;const incoming=data.jobs||[];rows=CareerFeedback.unique([...new Map((append?[...rows,...incoming]:incoming).map(job=>[job.id,job])).values()]);exhausted=data.exhausted===true||incoming.length<Number($('per').value);
-   if(recommended){rows=CareerFeedback.visible(rows,data.exclusions||[]);CareerFeedback.configure(rows,data.exclusions,(rules)=>{rows=CareerFeedback.visible(rows,rules);render();void load();});}
+   if(recommended){rows=CareerMatchDeck.without(CareerFeedback.visible(rows,data.exclusions||[]));CareerFeedback.configure(rows,data.exclusions,(rules)=>{rows=CareerFeedback.visible(rows,rules);render();void load();});}
    countWords=[earlier?'Earlier preparation · ':'',data.pooled&&data.poolSize?' · ranked within '+data.poolSize.toLocaleString()+' matches':''];render();showCount();address();if(top)window.scrollTo({top:0,behavior:'instant'});else if(firstLoad&&returnY)window.scrollTo({top:returnY,behavior:'instant'});firstLoad=false;remember();landOnPicks();
-  }catch(error){if(current!==epoch||error.name==='AbortError')return;if(error.code==='home_location_required'){rows=[];render();$('requestState').textContent=error.message;return;}$('requestState').replaceChildren(document.createTextNode('Could not update jobs: '+error.message+'. '));const retry=document.createElement('button');retry.className='btn';retry.textContent='Retry';retry.onclick=()=>load(append,top);$('requestState').append(retry);}
+  }catch(error){if(current!==epoch||error.name==='AbortError')return;reading=false;if(error.code==='home_location_required'){rows=[];render();$('requestState').textContent=error.message;return;}loadError=error;if(!rows.length&&deckLayout()&&CareerMatchDeck.draw(true)){$('requestState').textContent='';return;}$('requestState').replaceChildren(document.createTextNode('Could not update jobs: '+error.message+'. '));const retry=document.createElement('button');retry.className='btn';retry.textContent='Retry';retry.onclick=()=>load(append,top);$('requestState').append(retry);}
   finally{if(current===epoch){busy=false;$('list').setAttribute('aria-busy','false');}}
  }
  /** @description Whether the saved job already has a tailoring workspace. */
@@ -424,7 +344,7 @@
  }
  document.addEventListener('click',async event=>{const el=event.target.closest('button');if(!el)return;
   if(el.hasAttribute('data-clear-filters')){$('clearFilters')?.click();return;}
-  if(el.dataset.deckAct){void actDeck(el.dataset.deckAct);return;}
+  if(el.dataset.deckAct){void CareerMatchDeck.act(el.dataset.deckAct);return;}
   if(el.dataset.reply){remember();CareerJobActions.openApplication(Number(el.dataset.reply),DONE.has(rows.find(j=>j.id===Number(el.dataset.reply))?.status));return;}
   if(el.dataset.application){remember();CareerJobActions.openApplication(Number(el.dataset.application),false);return;}
   if(el.dataset.removePick){void removePick(el,Number(el.dataset.removePick));return;}
@@ -462,9 +382,10 @@
    say('Could not remove this job: '+error.message+'. Try again.');
   }
  }
+ CareerMatchDeck.attach({rows:()=>rows,setRows:next=>{rows=next;},render,say,moved,posting:id=>void posting(id),more:deckMore,retry:()=>void load(),exhausted:()=>exhausted,reading:()=>reading,failed:()=>loadError,view:()=>viewEpoch,filtered,pay,place:placeMeta,badge:companySentBadge,note:detailsNote});
  void resumeAnswer.then(()=>{
   if(recommended&&(noResume()||readingResume())){
-   controller?.abort();epoch+=1;busy=false;rows=[];renderWithoutResume();$('list').setAttribute('aria-busy','false');
+   controller?.abort();epoch+=1;busy=false;reading=false;rows=[];renderWithoutResume();$('list').setAttribute('aria-busy','false');
   }else if(rows.length&&!busy)render();
  });
  if(stage==='saved'&&window.CareerStages?.picks)void CareerStages.picks().then(jobs=>{picked=jobs;picksRead=true;if(!firstLoad&&!busy){render();showCount();}landOnPicks();});

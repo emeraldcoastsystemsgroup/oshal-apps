@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203, lane @ds-app: the process as data, against the COMPILED modules with no framework import - the vocabulary in its one order; a hanger's brief proposes four phases and the spider's six lines all nine, each with the lines that asked for it, and a thermal need is named as unsolved; validatePhases orders, refuses an unknown kind, an engine the phase brief does not allow, a duplicate and a chain without brief or build; validateBrief and validateArtifact name the field they refuse; validateClosure refuses missing_evidence without the evidence line OR the revision and missing_step on the build phase; the body contract is built from bound reads with every value traced to the fixture reply and refuses body_incomplete when a required read is absent.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3/B15: verify closed spider body contract resolves plant.tickS and senses[].rateHz with missing: [] (while staying honest when no engine states rates), validate Pi bay thermal solve brief option, and verify reasoned-phase closure honesty helpers.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 0.4.14 (BACKLOG B12): a cad-models artifact without its list of parts is refused by field, with the two artifacts a design partner bound on a kernel after its order had bound the part; the list (empty included) and every other artifact kind are accepted as before. A bind on Design with no list at all is refused while parts are bound (refuseDroppedParts), and accepted when it carries a list, when nothing is bound, or when another engine takes Design over.
  */
 'use strict';
 const test = require('node:test');
@@ -49,6 +50,47 @@ test('validatePhases orders the chain and refuses an unknown kind, a disallowed 
   assert.equal(refused([{ kind: 'brief' }, { kind: 'design' }, { kind: 'design' }, { kind: 'build' }]).code, 'duplicate_phase');
   assert.equal(refused([{ kind: 'design' }, { kind: 'build' }]).code, 'bad_phases');
   assert.equal(M.validatePhases([{ kind: 'brief' }, { kind: 'simulate', engine: 'embodied', brain: 'anything' }, { kind: 'build' }])[1].brain, undefined, 'the package names no outside brain');
+});
+
+test('a cad-models artifact must carry its list of parts; the two binds the design partner made after its order are refused by field', () => {
+  const refusedBy = (fn) => { try { fn(); return null; } catch (e) { return e; } };
+  // The two artifacts a design partner bound after its cad-create order had built and bound the Carriage (a kernel run, 2026-11-20).
+  const strays = [
+    { engine: 'cad-studio', kind: 'cad-models', modelId: 'c3dae90b-f851-40bb-adf9-e7e0cf41cc2f', partId: 'carriage', read: { excerpt: 'massG: 148.638', revision: 1 } },
+    { engine: 'cad-studio', kind: 'cad-models', reference: { modelId: '483f09e9-eaa8-4fc1-8a91-5f01364bca15' }, read: { excerpt: 'massG 148.638', revision: 1, route: 'cad-model' } },
+  ];
+  for (const artifact of [...strays, { engine: 'cad-studio', kind: 'cad-models', modelIds: 'm1' }, { engine: 'cad-studio', kind: 'cad-models', modelIds: ['m1', 7] }, { engine: 'cad-studio', kind: 'cad-models', modelIds: [''] }]) {
+    const e = refusedBy(() => M.validateArtifact('design', artifact));
+    assert.ok(e, JSON.stringify(artifact));
+    assert.deepEqual([e.code, e.field, e.status], ['bad_artifact', 'artifact.modelIds', 400]);
+    assert.match(e.message, /bound already/);
+  }
+  // The list itself is accepted, empty included (Settings with every part unticked), and so is every other kind of artifact.
+  assert.deepEqual(M.validateArtifact('design', { engine: 'cad-studio', kind: 'cad-models', modelIds: ['m1', 'm2'], models: [{ partId: 'base', modelId: 'm1' }] }).modelIds, ['m1', 'm2']);
+  assert.deepEqual(M.validateArtifact('design', { engine: 'cad-studio', kind: 'cad-models', modelIds: [] }).modelIds, []);
+  assert.equal(M.validateArtifact('design', { engine: 'cad-studio', kind: 'cad-programs', parts: [{ id: 'base' }] }).kind, 'cad-programs');
+  assert.equal(M.validateArtifact('design', { engine: 'embodied', kind: 'design-fit', fit: 'spider-18' }).fit, 'spider-18');
+});
+
+test('a bind on Design that carries no parts list is refused while parts are bound, whatever it calls itself', () => {
+  const refusedBy = (fn) => { try { fn(); return null; } catch (e) { return e; } };
+  const bound = { engine: 'cad-studio', kind: 'cad-models', modelIds: ['m-carriage'], models: [{ partId: 'carriage', modelId: 'm-carriage' }] };
+  // What a design partner bound on a kernel after its order had bound the Carriage: a kind of its own, the part named another way, no list.
+  for (const stray of [{ engine: 'cad-studio', kind: 'cad-part', partId: 'carriage', read: { excerpt: 'massG: 148.638', revision: 1 } }, { engine: 'cad-studio', kind: 'design', reference: { modelId: 'm-carriage' } }, { engine: 'cad-studio', kind: 'cad-programs', parts: [{ id: 'carriage' }] }]) {
+    const e = refusedBy(() => M.refuseDroppedParts(bound, stray));
+    assert.ok(e, JSON.stringify(stray));
+    assert.deepEqual([e.code, e.field, e.status], ['bad_artifact', 'artifact.modelIds', 409]);
+    assert.match(e.message, /would unbind the 1 CAD Studio part bound to Design/);
+    assert.match(e.message, /bound already/);
+  }
+  assert.match(refusedBy(() => M.refuseDroppedParts({ ...bound, modelIds: ['a', 'b'] }, { engine: 'cad-studio', kind: 'x' })).message, /the 2 CAD Studio parts bound/);
+  // A bind that carries a list changes it (an order adds a part, Settings sets it, an empty list unbinds on purpose).
+  for (const next of [{ engine: 'cad-studio', kind: 'cad-models', modelIds: ['m-carriage', 'm-base'] }, { engine: 'cad-studio', kind: 'cad-models', modelIds: [] }]) assert.equal(refusedBy(() => M.refuseDroppedParts(bound, next)), null);
+  // Nothing bound yet, another engine taking Design over, or a binding that is not CAD Studio's: nothing to keep.
+  assert.equal(refusedBy(() => M.refuseDroppedParts(null, { engine: 'cad-studio', kind: 'design', read: {} })), null);
+  assert.equal(refusedBy(() => M.refuseDroppedParts({ engine: 'cad-studio', kind: 'cad-models', modelIds: [] }, { engine: 'cad-studio', kind: 'design' })), null);
+  assert.equal(refusedBy(() => M.refuseDroppedParts(bound, { engine: 'embodied', kind: 'design-fit', fit: 'spider-18' })), null);
+  assert.equal(refusedBy(() => M.refuseDroppedParts({ engine: 'embodied', kind: 'design-fit', fit: 'spider-18' }, { engine: 'cad-studio', kind: 'design' })), null);
 });
 
 test('validateBrief and validateArtifact name the field they refuse', () => {

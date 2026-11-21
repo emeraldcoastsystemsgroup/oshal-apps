@@ -44,6 +44,7 @@
  *                     |                             | printer key ciphertext.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner checks and the existing independent print.send permission before sending current models.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Print progress read-back (BACKLOG B5): expose GET /printers/:printerId/status alongside POST and attach bounded, fail-safe live printer status to the latest submission in GET /jobs/:jobId/submissions.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B16 Option C: fall back to the package's slicer engine (`slice_gcode`) when `SCAN_TO_PRINT_SLICER_CMD` is unset, report `slicerConfigured`/`slicerBackend` on `GET /printers`, and validate optional generic G-code slice settings.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -80,23 +81,49 @@ const execFile = (0, node_util_1.promisify)(node_child_process_1.execFile);
 function serviceDepsOf(deps) {
     return { pool: deps.pool, fetchImpl: deps.fetchImpl ?? ((url, init) => fetch(url, init)), slicer: deps.slicer, bambuIo: deps.bambuIo };
 }
-/** @description Ensure the requested file exists, slicing STL → G-code on demand when configured (HTTP hosts). */
-async function resolvePrintFile(deps, dir, fileKind) {
+/** @description Slice one STL into G-code via the package slicer engine (`slice_gcode`) and persist it at `gcode`. */
+async function sliceWithEngine(deps, stl, gcode, printerKind, title, sliceSettings) {
+    let completed = false;
+    try {
+        const settings = { profile: (0, slicer_1.defaultGcodeProfileForKind)(printerKind), ...sliceSettings };
+        const sliced = await (0, slicer_engine_1.sliceToGcode)(deps.slicer, new Uint8Array(node_fs_1.default.readFileSync(stl)), (0, export_stl_1.sanitizeSolidName)(title, 'part'), settings);
+        node_fs_1.default.writeFileSync(gcode, sliced.bytes);
+        completed = true;
+        return { ok: true, path: gcode };
+    }
+    catch (error) {
+        if (error instanceof slicer_engine_1.SlicerEngineError) {
+            const status = error.code === 'unavailable' || error.code === 'busy' ? 503 : error.code === 'refused' ? 422 : 502;
+            const errCode = error.code === 'unavailable' || error.code === 'busy' ? 'slicer_unavailable' : error.code === 'refused' ? 'slicer_refused' : 'slicer_failed';
+            return { ok: false, status, body: { error: errCode, message: error.reason ?? error.message, ...(error.code === 'unavailable' ? { installHint: deps.slicer.installHint } : {}) } };
+        }
+        throw error;
+    }
+    finally {
+        if (!completed)
+            node_fs_1.default.rmSync(gcode, { force: true });
+    }
+}
+/** @description Ensure the requested file exists, slicing STL → G-code on demand via command or engine (HTTP hosts). */
+async function resolvePrintFile(deps, dir, fileKind, printerKind, title, sliceSettings) {
     const stl = (0, data_dir_1.artifactPath)(dir, 'stl');
     if (!node_fs_1.default.existsSync(stl))
         return { ok: false, status: 409, body: { error: 'not_reconstructed', message: 'Reconstruct the object before printing.' } };
     if (fileKind === 'stl')
         return { ok: true, path: stl };
     const gcode = (0, data_dir_1.artifactPath)(dir, 'gcode');
-    if (node_fs_1.default.existsSync(gcode))
+    const hasCustom = Object.keys(sliceSettings).length > 0;
+    if (!hasCustom && node_fs_1.default.existsSync(gcode))
         return { ok: true, path: gcode };
-    const config = (0, slicer_1.resolveSlicerConfig)(deps.env);
-    if (!config) {
-        return { ok: false, status: 409, body: { error: 'needs_gcode', message: 'No slicer is configured on this swarm (SCAN_TO_PRINT_SLICER_CMD). Download the STL and slice it, or send the STL to an OctoPrint host that slices.' } };
+    const resolved = (0, slicer_1.resolveSlicerBackend)(deps.env, (0, slicer_engine_1.isEngineGcodeConfigured)(deps.slicer, deps.env));
+    if (resolved.backend === 'none') {
+        return { ok: false, status: 409, body: { error: 'needs_gcode', message: 'No slicer is configured on this swarm (SCAN_TO_PRINT_SLICER_CMD or slicer engine). Download the STL and slice it, or send the STL to an OctoPrint host that slices.' } };
     }
+    if (resolved.backend === 'engine')
+        return sliceWithEngine(deps, stl, gcode, printerKind, title, sliceSettings);
     let completed = false;
     try {
-        const result = await (0, slicer_1.sliceStl)(config, stl, gcode, deps.execFile ?? ((f, a, o) => execFile(f, a, o)), (p) => node_fs_1.default.existsSync(p));
+        const result = await (0, slicer_1.sliceStl)(resolved.command, stl, gcode, deps.execFile ?? ((f, a, o) => execFile(f, a, o)), (p) => node_fs_1.default.existsSync(p));
         if (!result.ok)
             return { ok: false, status: 502, body: { error: 'slicer_failed', message: result.error, stderr: result.stderr } };
         completed = true;
@@ -131,7 +158,8 @@ async function storeDraft(deps, sub, draft) {
 function registerPrinters(router, deps) {
     router.get('/printers', async (req, res) => {
         try {
-            res.json({ printers: await (0, job_store_1.listPrinters)(deps.pool, req.scanSub), kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured: (0, slicer_1.resolveSlicerConfig)(deps.env) !== null });
+            const slicer = (0, slicer_1.resolveSlicerBackend)(deps.env, (0, slicer_engine_1.isEngineGcodeConfigured)(deps.slicer, deps.env));
+            res.json({ printers: await (0, job_store_1.listPrinters)(deps.pool, req.scanSub), kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured: slicer.configured, slicerBackend: slicer.backend });
         }
         catch (error) {
             logger.error({ err: error }, 'List printers failed');
@@ -285,7 +313,8 @@ function registerHistory(router, deps) {
 /** @description An HTTP host's outcome for a job's STL or (sliced) G-code. */
 async function httpJobOutcome(deps, sub, job, printer, body, start) {
     const fileKind = body.fileKind === 'stl' ? 'stl' : 'gcode';
-    const resolved = await resolvePrintFile(deps, (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id), fileKind);
+    const sliceSettings = (0, slicer_1.parseGcodeSliceSettings)(body.sliceSettings !== undefined ? body.sliceSettings : body);
+    const resolved = await resolvePrintFile(deps, (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id), fileKind, printer.row.kind, job.title, sliceSettings);
     if (!resolved.ok)
         return { status: resolved.status, body: resolved.body };
     const fileName = `${(0, export_stl_1.sanitizeSolidName)(job.title, 'part')}-${job.job_id.slice(0, 8)}.${fileKind}`;

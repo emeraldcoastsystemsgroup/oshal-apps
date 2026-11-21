@@ -10,6 +10,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D9, lane @ds-plant: the lift example in Chromium over the real routes and the fixture's engines - the Design poster's Create the parts in CAD Studio builds the three programs once (tagged) and binds them, Define the mechanism opens the Mechanism screen with the parts' kernel figures, the two joints, the motor row from embodied's catalog (the lab's rows disabled with their reason), the payload and the task from the brief's line, Save writes revision 2, the Simulate poster goes Build the plant (the spec the page composed carries the kernel's masses and the row's numbers) -> built -> Run the baselines -> baseline (the engine's reached time) -> Train the policy -> training (the job) -> trained -> Certify -> certified -> Close the phase, after which the body contract publishes the one actuator from the row with the certified reach policy; a refused certificate reads trained again; the spider's Mechanism screen is read-only; 412 x 915 of the Mechanism screen.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: an absent engine reads "is not installed or not answering here", a failed read names the engine and what to do with no route path, and a reasoned phase closes with Mark done by hand.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | BACKLOG B3/B15: verify closed spider publishes plant.tickS and senses[].rateHz with missing: [], and verify Pi bay thermal solve brief option & honest reasoned-only phase closure banner/metadata in Chromium.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | 0.4.14: the B9 case re-reads the open product with Reload after it binds a strength result. It went to the address it was already on, which makes no new read, and timed out waiting for one (the case failed the same way on main).
  *
  * FRAMEWORK-COUPLED: OSHAL_CORE_ROOT=$HOME/Documents/projects/oshal/src node --test tests/design-studio.spec.mjs
  */
@@ -633,7 +634,7 @@ test('B9: Design poster checks each joint\'s clearance in mm, blocks parts-compl
   carriage.features[0].params.size = [42, 42, 42];
   const cur = (await api('GET', `/projects/${id}`)).json.bindings.design.artifact;
   await api('POST', `/projects/${id}/bind`, { phase: 'design', artifact: { ...cur, read: { ...(cur.read || {}), strength: { engine: 'calculix-fea', safetyFactor: 2.35, maxStressMpa: 18.4, allowableStressMpa: 43.2 } } } });
-  await goto(`#/product/${id}`);
+  await reload(); // the product is already open: the same address makes no new read, Reload does
   assert.equal(await stage('design'), 'parts-complete');
   assert.equal(await page.locator('#design-strength-note').getAttribute('data-strength-status'), 'ok');
   assert.match(await text('#design-strength-note'), /safety factor 2\.35 \(18\.4 MPa \/ 43\.2 MPa\) measured by calculix-fea/);

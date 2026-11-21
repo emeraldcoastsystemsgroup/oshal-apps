@@ -1309,3 +1309,24 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: engine-gcode-slicer
+    name: Generic STL-to-G-code slicing via package slicer engine (B16 Option C)
+    purpose: Prove the package slicer engine (`slice_gcode`) slices generic STL inputs to validated Marlin/Klipper G-code over `engine.exchange` and TCP, enforces bounded print settings and SHA-256 integrity, falls back cleanly behind `SCAN_TO_PRINT_SLICER_CMD`, and matches `engine/slicer_worker.py` over stdio JSON-lines.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-gcode-slicer.test.js
+    expected:
+      - resolveSlicerBackend prioritizes SCAN_TO_PRINT_SLICER_CMD, falls back to the package engine when configured, and otherwise reports none.
+      - sliceToGcode validates SHA-256 integrity, rejects tampered payloads and older engines lacking slice_gcode, and matches real slicer_worker.py hello and slice_gcode responses.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

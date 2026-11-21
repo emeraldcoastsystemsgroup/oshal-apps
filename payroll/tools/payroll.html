@@ -6,6 +6,10 @@
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): semantic role="tab" module buttons with arrow-key navigation, phone (<600px) 4+More bottom bar and sheet, 4-step Add employee dialog/sheet with blur validation and supported-state select, 44px W-4 switch rows, and single-sentence scope lede.
   2   | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: surface lede, notices, pay stub footer and confirmation prompts name the product Open Swarm.
+  3   | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 14): the Banking calendar panel states which years each calendar holds and where each list came from, shows a refusal in words for a year a calendar does not hold, and marks the 2027 IRS list as a draft; creating a run says why a pay date moved off a Federal Reserve holiday; the Settings switch names holidays as well as weekends.
+  4   | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 8): Pay & file gains a Federal tax deposits panel (each deposit period's amount and due date with the rule, holiday allowance, draft-calendar warning or refusal, any forced switch to semiweekly, and the $2,500 pay-with-return line per quarter); Settings gains a lookback helper that works out monthly or semiweekly from the four Form 941 line 12 amounts and fills Depositor status for the person to save.
+  5   | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 7): Employees gains a Garnishment orders panel per employee (the orders link on the roster): each order with what it is, its amount or percentage, the date served and its place in priority, and a form that asks for exactly the facts its limit and priority depend on (support percentage and entry date, a levy's Statement of Exemptions and Filing Status, the order of priority between non-support orders); the single Garnishment field is labelled as replaced once orders are on file.
+  6   | maintainer@emeraldcoastsystemsgroup.com | 2.4.0 (backlog item 3): the register's Hours by day editor records an hourly employee's hours on each workday of the period (overtime is then worked out per workweek, counting an earlier check's share of a split workweek); Reports gains the FLSA payroll record (29 CFR 516.2) per employee and date range, naming any item not on file; the employee form asks for title, occupation and home address; Settings asks the day and time the workweek begins.
   -----------------------------------------------------------------------------
   Payroll surface — run an ADP-style payroll over your own roster. Self-contained
   iframe page served by createPayrollRoutes at /api/payroll/. All work is
@@ -298,6 +302,57 @@
       <div id="empList" class="spin">Loading…</div>
     </div>
 
+    <div class="panel" id="ordersPanel" hidden>
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:6px">
+        <h2 style="margin:0" id="ordersTitle">Garnishment orders</h2>
+        <button type="button" class="btn ghost" onclick="closeOrders()">Close</button>
+      </div>
+      <div class="notice" style="margin-top:0">Each order is withheld within the federal limits: support up to its own
+        percentage, a creditor writ up to 25% of disposable earnings, a federal agency order up to 15% of disposable pay,
+        and a federal tax levy above the amount IRS Publication 1494 exempts. Where the order of priority is set by your
+        state's law, you set it here and the check says so. Where an order or your state sets a lower amount, enter that.</div>
+      <div id="ordersList" style="margin-top:10px"></div>
+      <h3 style="font-size:14px;margin:16px 0 8px" id="orderFormTitle">Add an order</h3>
+      <div class="grid">
+        <label class="field"><span>Type of order</span>
+          <select id="o_code" onchange="orderTypeSwap()">
+            <option value="GARN_SUPPORT">Child or spousal support</option>
+            <option value="GARN_LEVY">Federal tax levy (IRS Form 668-W)</option>
+            <option value="GARN_STUDENT">Federal agency wage garnishment (includes student loans)</option>
+            <option value="GARN_CREDITOR">Creditor garnishment (court writ)</option>
+          </select></label>
+        <label class="field"><span>Date served on you</span><input id="o_served" type="date" /></label>
+        <label class="field" data-o="amount"><span id="o_amountLabel">Amount per pay ($)</span><input id="o_amount" type="number" min="0" step="0.01" inputmode="decimal" /></label>
+        <label class="field" data-o="pct"><span id="o_pctLabel">Or a percentage the order directs (%)</span><input id="o_pct" type="number" min="0" step="0.01" inputmode="decimal" /></label>
+        <label class="field" data-o="support"><span>Most this support order may take</span>
+          <select id="o_supportPct">
+            <option value="">Choose…</option>
+            <option value="50">50%: supports another spouse or child, nothing over 12 weeks late</option>
+            <option value="55">55%: supports another spouse or child, some over 12 weeks late</option>
+            <option value="60">60%: no other spouse or child, nothing over 12 weeks late</option>
+            <option value="65">65%: no other spouse or child, some over 12 weeks late</option>
+          </select></label>
+        <label class="field" data-o="support"><span>Or a lower maximum the order or your state sets (%)</span><input id="o_supportLower" type="number" min="0" max="65" step="0.01" inputmode="decimal" /></label>
+        <label class="field" data-o="support"><span>Date the support order was entered</span><input id="o_entered" type="date" /></label>
+        <label class="field" data-o="levy"><span>Filing status on the employee's statement</span>
+          <select id="o_levyStatus">
+            <option value="">Statement not returned (counted as married filing separately, no dependents)</option>
+            <option value="single">Single</option><option value="mfj">Married filing jointly</option>
+            <option value="hoh">Head of household</option><option value="mfs">Married filing separately</option>
+          </select></label>
+        <label class="field" data-o="levy"><span>Dependents on the statement</span><input id="o_levyDeps" type="number" min="0" step="1" value="0" /></label>
+        <label class="field" data-o="levy"><span>Additional standard deductions (65 or older, blind)</span><input id="o_levyStd" type="number" min="0" max="4" step="1" value="0" /></label>
+        <label class="field" data-o="levy"><span>Date of the latest statement (if newer than the levy)</span><input id="o_levyStmt" type="date" /></label>
+        <label class="field" data-o="rank"><span>Order of priority among non-support orders (1 first)</span><input id="o_rank" type="number" min="1" max="99" step="1" /></label>
+        <label class="field"><span>Pay to</span><input id="o_payee" maxlength="120" /></label>
+        <label class="field"><span>Case number</span><input id="o_case" maxlength="60" /></label>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button type="button" class="btn primary" onclick="saveOrder(this)" id="o_save">Save order</button>
+        <button type="button" class="btn tertiary" onclick="resetOrderForm()">Clear</button>
+      </div>
+    </div>
+
     <dialog class="emp-dialog" id="empForm" data-ds-sheet aria-labelledby="empFormTitle">
       <div class="sheet-handle" aria-hidden="true"></div>
       <div class="emp-dialog-head">
@@ -322,6 +377,12 @@
           <label class="field" id="f_hours" for="e_hours"><span>Default hours / period</span><input id="e_hours" type="number" min="0" step="0.01" value="80" /></label>
           <label class="field" for="e_birth"><span>Birth date (401k catch-up tier)</span><input id="e_birth" type="date" /></label>
           <label class="field" for="e_hire"><span>Hire date</span><input id="e_hire" type="date" /></label>
+          <label class="field" for="e_prefix"><span>Title on payroll records</span>
+            <select id="e_prefix"><option value="">Not given</option><option>Mr.</option><option>Mrs.</option><option>Miss</option><option>Ms.</option></select></label>
+          <label class="field" for="e_occupation"><span>Occupation</span><input id="e_occupation" maxlength="80" /></label>
+          <label class="field" for="e_addr1"><span>Home address</span><input id="e_addr1" maxlength="200" autocomplete="off" /></label>
+          <label class="field" for="e_city"><span>City</span><input id="e_city" maxlength="100" /></label>
+          <label class="field" for="e_zip"><span>ZIP</span><input id="e_zip" maxlength="20" inputmode="numeric" /></label>
           <label class="field" id="f_term" for="e_term" hidden style="display:none"><span>Termination date</span><input id="e_term" type="date" /></label>
         </div>
       </div>
@@ -355,7 +416,7 @@
           <label class="field" for="e_roth"><span>Roth (%)</span><input id="e_roth" type="number" min="0" max="100" step="0.1" value="0" /></label>
           <label class="field" for="e_health"><span>Health premium ($/period)</span><input id="e_health" type="number" min="0" step="0.01" value="0" /></label>
           <label class="field" for="e_post"><span>Other post-tax ($/period)</span><input id="e_post" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="field" for="e_garn"><span>Garnishment ($/period) — CCPA-capped</span><input id="e_garn" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_garn"><span>Garnishment ($/period), creditor limit; not used once orders are on file</span><input id="e_garn" type="number" min="0" step="0.01" value="0" /></label>
           <label class="field" for="e_occ"><span>Tipped occupation code (W-2 14b)</span><input id="e_occ" maxlength="8" /></label>
         </div>
         <details style="margin-top:12px">
@@ -427,6 +488,18 @@
     </div>
     <section class="panel" id="payrollReview" hidden><h2>Continue this pay run</h2><p class="muted">Review the selected run with Finance or prepare a document. Run approval and payment settlement remain separate.</p><div class="connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></div></section>
     <div class="panel" id="runDetail" style="display:none"></div>
+    <div class="panel" id="dayHours" hidden>
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:6px">
+        <h2 style="margin:0" id="dayHoursTitle">Hours by day</h2>
+        <button type="button" class="btn ghost" onclick="$('dayHours').hidden = true">Close</button>
+      </div>
+      <div class="notice" style="margin-top:0">Enter the hours worked on each workday. Overtime is worked out per
+        workweek from them (29 CFR 778.104), counting hours an earlier check paid in a workweek this period splits,
+        and the days are kept as the daily record the FLSA asks for (29 CFR 516.2(a)(7)).</div>
+      <div class="grid" id="dayHoursGrid" style="margin-top:10px;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr))"></div>
+      <div class="muted" id="dayHoursKeep" style="font-size:12px;margin-top:8px"></div>
+      <div class="row" style="margin-top:12px"><button type="button" class="btn primary" onclick="saveDayHours(this)">Save hours</button></div>
+    </div>
   </div>
 
   <!-- ── Stubs ─────────────────────────────────────────────────────────── -->
@@ -461,6 +534,21 @@
       </div>
       <div id="w2Out" style="margin-top:12px"></div>
     </div>
+    <div class="panel">
+      <h2>FLSA payroll record</h2>
+      <div class="notice">What the Fair Labor Standards Act asks you to keep for each employee (29 CFR 516.2), read
+        from the pay runs you approved: hours each workday and each workweek, the regular rate in a week with
+        overtime, straight-time pay, overtime premium, every addition and deduction, and wages paid. Keep payroll
+        records at least 3 years and time cards at least 2 (29 CFR 516.5, 516.6). Anything not on file is named.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="min-width:220px"><span>Employee</span><select id="flsaEmp"></select></label>
+        <label class="field"><span>From pay date</span><input id="flsaFrom" type="date" /></label>
+        <label class="field"><span>To pay date</span><input id="flsaTo" type="date" /></label>
+        <button class="btn primary" onclick="loadFlsa(this)">Show record</button>
+        <button class="btn ghost" onclick="window.print()">Print</button>
+      </div>
+      <div id="flsaOut" style="margin-top:12px"></div>
+    </div>
   </div>
 
   <!-- ── Pay & file ────────────────────────────────────────────────────── -->
@@ -490,6 +578,17 @@
         <button class="btn primary" onclick="loadFormRt6()">FL RT-6</button>
       </div>
       <div id="formOut" style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <h2>Federal tax deposits</h2>
+      <div class="notice">What each deposit period owes and the day it is due, from your paid runs and the
+        <b>Depositor status</b> in Settings. Due dates follow the IRS legal-holiday calendar. You make each deposit
+        through EFTPS or your bank; Open Swarm does not send it.</div>
+      <div class="row" style="margin-top:10px">
+        <label class="field" style="width:110px"><span>Year</span><input id="depYear" type="number" /></label>
+        <button class="btn primary" onclick="loadDeposits(this)">Show deposits</button>
+      </div>
+      <div id="depOut" style="margin-top:12px"></div>
     </div>
     <div class="panel">
       <h2>Electronic W-2 filing (SSA EFW2)</h2>
@@ -583,12 +682,16 @@
         <label class="field"><span>SUTA rate (%)</span><input id="c_suta" type="number" min="0" max="100" step="0.01" /></label>
         <label class="field"><span>SUTA wage base ($)</span><input id="c_sutabase" type="number" min="0" step="0.01" /></label>
         <label class="field"><span>FUTA credit reduction (%)</span><input id="c_futacr" type="number" min="0" max="100" step="0.1" /></label>
-        <label class="field chk"><input id="c_shift" type="checkbox" /><span style="margin:0">Shift a weekend pay date to the prior Friday</span></label>
+        <label class="field chk"><input id="c_shift" type="checkbox" /><span style="margin:0">Move a pay date off a weekend or Federal Reserve holiday to the banking day before</span></label>
         <label class="field"><span>Legal name (for W-2 / 941)</span><input id="c_legal" /></label>
         <label class="field"><span>EIN</span><input id="c_ein" placeholder="12-3456789" /></label>
         <label class="field"><span>Address</span><input id="c_addr" /></label>
         <label class="field"><span>City</span><input id="c_city" /></label>
         <label class="field"><span>ZIP</span><input id="c_zip" /></label>
+        <label class="field"><span>Workweek begins on</span>
+          <select id="c_wkday"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option>
+            <option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></label>
+        <label class="field"><span>Workweek begins at (time of day)</span><input id="c_wktime" type="time" value="00:00" /></label>
         <label class="field"><span>Depositor status</span>
           <select id="c_dep"><option value="monthly">Monthly</option><option value="semiweekly">Semiweekly</option></select></label>
         <label class="field"><span>Your bank's routing number (ACH)</span><input id="c_odfi" /></label>
@@ -609,6 +712,18 @@
             <option value="M">Military</option><option value="Q">Medicare-qualified government</option>
             <option value="X">Railroad (CT-1)</option></select></label>
       </div>
+      <details class="notice" id="lookbackBox">
+        <summary><b>Monthly or semiweekly? Work it out from your lookback period</b></summary>
+        <div style="margin:8px 0">Enter the tax you reported on Form 941, line 12 for each quarter below, as first
+          filed: a later correction on Form 941-X does not count. Enter 0 for a quarter before your business started.</div>
+        <div class="row">
+          <label class="field" style="width:110px"><span>For year</span><input id="lbYear" type="number" /></label>
+          <label class="field chk"><input id="lb944" type="checkbox" /><span style="margin:0">I filed Form 944 for either of the two years before</span></label>
+          <button class="btn ghost" onclick="lookbackQuarters(this)">Show the quarters</button>
+        </div>
+        <div class="grid" id="lbFields" style="margin-top:8px"></div>
+        <div id="lbOut" style="margin-top:8px"></div>
+      </details>
       <div class="notice">The 0.6% FUTA rate assumes the full 5.4% state credit. Employers in a credit-reduction state
         (California and the U.S. Virgin Islands most recently) owe more — enter the extra percentage here.</div>
       <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveCompany()">Save settings</button></div>
@@ -771,6 +886,7 @@ async function loadCompany() {
   $('c_city').value = r.company.city || '';
   $('c_zip').value = r.company.postal_code || '';
   $('c_dep').value = r.company.depositor_status || 'monthly';
+  $('c_wkday').value = String(r.company.workweek_start_day || 0); $('c_wktime').value = r.company.workweek_start_time || '00:00';
   $('c_odfi').value = r.company.ach_odfi_routing || '';
   $('c_odfiname').value = r.company.ach_odfi_name || '';
   $('c_achid').value = r.company.ach_company_id || '';
@@ -782,6 +898,7 @@ async function loadCompany() {
   $('c_kind').value = r.company.kind_of_employer || 'N';
   $('c_emp').value = r.company.employment_code || 'R';
   $('repYear').value = r.taxYear;
+  if (!$('lbYear').value) $('lbYear').value = r.taxYear;
 }
 async function saveCompany() {
   try {
@@ -800,6 +917,7 @@ async function saveCompany() {
     await api('/company/identity', { method:'PUT', body: JSON.stringify({
       legalName: $('c_legal').value, addressLine1: $('c_addr').value, city: $('c_city').value,
       postalCode: $('c_zip').value, depositorStatus: $('c_dep').value,
+      workweekStartDay: Number($('c_wkday').value), workweekStartTime: $('c_wktime').value || '00:00',
       ...(ein && !ein.includes('•') ? { ein } : {}) }) });
     await loadCompany(); msg('Settings saved.');
   } catch (e) { msg(e.message, true); }
@@ -820,6 +938,7 @@ async function loadEmployees() {
         <td>${esc(e.filing_status)}${e.w4_step2 ? ' +step2' : ''}</td>
         <td><span class="chip ${e.status === 'active' ? 'paid' : 'draft'}">${esc(e.status)}</span></td>
         <td class="num"><a class="link" onclick="openEmpForm('${e.employee_id}')">edit</a> ·
+            <a class="link" onclick="openOrders('${e.employee_id}')">orders</a> ·
             <a class="link" onclick="removeEmployee('${e.employee_id}')">remove</a></td></tr>`).join('') +
       `</tbody></table><div class="muted" style="font-size:12px;margin-top:8px">${active.length} active</div>`;
 }
@@ -978,6 +1097,8 @@ function openEmpForm(id) {
   $('e_exempt').checked = !!(e && e.w4_exempt); $('e_exempt').setAttribute('aria-checked', $('e_exempt').checked ? 'true' : 'false');
   $('e_occ').value = e ? (e.tipped_occupation_code || '') : '';
   $('e_birth').value = e ? fmtD(e.birth_date) : '';
+  $('e_prefix').value = e ? (e.name_prefix || '') : ''; $('e_occupation').value = e ? (e.occupation || '') : '';
+  $('e_addr1').value = e ? (e.address_line1 || '') : ''; $('e_city').value = e ? (e.city || '') : ''; $('e_zip').value = e ? (e.postal_code || '') : '';
   $('e_hire').value = e ? fmtD(e.hire_date) : '';
   $('e_term').value = e ? fmtD(e.termination_date) : '';
   if ($('f_term')) { $('f_term').hidden = !e; $('f_term').style.display = e ? '' : 'none'; }
@@ -1021,6 +1142,8 @@ async function saveEmployeeInner() {
     stateRatePct: Number($('e_state').value), stateCode: $('e_statecode').value,
     stateAllowances: Number($('e_allow').value), w4Exempt: $('e_exempt').checked,
     tippedOccupationCode: $('e_occ').value,
+    namePrefix: $('e_prefix').value, occupation: $('e_occupation').value.trim(),
+    addressLine1: $('e_addr1').value.trim(), city: $('e_city').value.trim(), postalCode: $('e_zip').value.trim(),
     birthDate: $('e_birth').value || null, hireDate: $('e_hire').value || null,
     terminationDate: state.editingEmp ? ($('e_term').value || null) : null,
     priorYtdYear: $('p_year').value || null,
@@ -1037,6 +1160,150 @@ async function saveEmployeeInner() {
 async function removeEmployee(id) {
   if (!window.confirm('Remove this employee? (Terminates if they have pay history.)')) return;
   try { const r = await api('/employees/' + id, { method:'DELETE' }); await loadEmployees(); msg(r.terminated ? 'Employee terminated (has pay history).' : 'Employee deleted.'); }
+  catch (e) { msg(e.message, true); }
+}
+
+/* ── hours by day ─────────────────────────────────────────────────────── */
+/** Total hours across a line's workweeks (stored as JSON). */
+function weekHoursTotal(v) {
+  let o = v;
+  try { if (typeof v === 'string') o = JSON.parse(v); } catch (e) { o = {}; }
+  return Object.values(o || {}).reduce((a, h) => a + Number(h || 0), 0);
+}
+state.dayHoursFor = null; state.dayHoursKeep = [];
+/** The days of a period, YYYY-MM-DD. */
+function periodDays(start, end) {
+  const out = [];
+  for (let d = new Date(start + 'T00:00:00Z'); d.toISOString().slice(0, 10) <= end && out.length < 62; d.setUTCDate(d.getUTCDate() + 1)) out.push(d.toISOString().slice(0, 10));
+  return out;
+}
+/** The amounts on an hours-and-rate line, as earning rows, so moving to daily hours keeps them. */
+function linePayRows(l) {
+  const rows = [];
+  if (Number(l.bonus_cents)) rows.push({ code: l.bonus_is_discretionary ? 'BONUS_D' : 'BONUS_ND', amountCents: Number(l.bonus_cents), workweek: 1 });
+  if (Number(l.tips_cents)) rows.push({ code: 'TIPS_CASH', amountCents: Number(l.tips_cents), workweek: 1 });
+  if (Number(l.reimbursement_cents)) rows.push({ code: 'REIMB', amountCents: Number(l.reimbursement_cents), workweek: 1 });
+  return rows;
+}
+async function openDayHours(empId) {
+  const r = state.currentRun; const l = r.lines.find((x) => x.employee_id === empId);
+  state.dayHoursFor = empId;
+  const stored = (await api(`/runs/${r.run.run_id}/lines/${empId}/earnings`)).earnings;
+  const hours = {};
+  for (const e of stored) if (e.code === 'REG' && e.workDate) hours[e.workDate] = (hours[e.workDate] || 0) + Number(e.hours);
+  state.dayHoursKeep = stored.length ? stored.filter((e) => !(e.code === 'REG' && e.workDate) && e.code !== 'OT') : linePayRows(l);
+  $('dayHoursTitle').textContent = `Hours by day — ${l.first_name} ${l.last_name}`;
+  $('dayHoursGrid').innerHTML = periodDays(fmtD(r.run.period_start), fmtD(r.run.period_end)).map((d) => {
+    const label = new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    return `<label class="field"><span>${esc(label)}</span><input type="number" min="0" max="24" step="0.25" inputmode="decimal" data-day="${d}" value="${hours[d] || ''}" /></label>`;
+  }).join('');
+  const PAY_WORDS = { BONUS_ND: 'Bonus', BONUS_D: 'Discretionary bonus', TIPS_CASH: 'Cash tips', REIMB: 'Reimbursement' };
+  $('dayHoursKeep').textContent = state.dayHoursKeep.length ? `Kept on this check as well: ${state.dayHoursKeep.map((e) => (PAY_WORDS[e.code] || e.code) + ' ' + fmt$(e.amountCents)).join(', ')}.` : '';
+  $('dayHours').hidden = false;
+  $('dayHours').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+async function saveDayHours(btn) {
+  await once('dayhours', btn, async () => {
+    const r = state.currentRun; const l = r.lines.find((x) => x.employee_id === state.dayHoursFor);
+    try {
+      const days = [...document.querySelectorAll('#dayHoursGrid input[data-day]')].map((el) => ({ day: el.dataset.day, hours: toNum(el.value) })).filter((d) => d.hours > 0);
+      if (days.some((d) => d.hours > 24)) throw new RangeError('A workday has 24 hours at most.');
+      const rows = days.map((d) => ({ code: 'REG', hours: d.hours, rateCents: Number(l.hourly_rate_cents || 0), workDate: d.day, workweek: 1 }));
+      const out = await api(`/runs/${r.run.run_id}/lines/${state.dayHoursFor}/earnings`, { method: 'PUT', body: JSON.stringify({ earnings: [...rows, ...state.dayHoursKeep] }) });
+      $('dayHours').hidden = true;
+      await openRun(r.run.run_id);
+      msg(out.warnings && out.warnings.length ? 'Hours saved. ' + out.warnings[0] : 'Hours saved.');
+    } catch (e) { msg(e.message, true); }
+  });
+}
+
+/* ── garnishment orders ───────────────────────────────────────────────── */
+const ORDER_NAMES = { GARN_SUPPORT: 'Child or spousal support', GARN_LEVY: 'Federal tax levy', GARN_STUDENT: 'Federal agency wage garnishment', GARN_CREDITOR: 'Creditor garnishment' };
+state.ordersFor = null; state.editingOrder = null; state.orders = [];
+async function openOrders(empId) {
+  const e = state.employees.find((x) => x.employee_id === empId);
+  state.ordersFor = empId;
+  $('ordersTitle').textContent = 'Garnishment orders' + (e ? ' — ' + e.first_name + ' ' + e.last_name : '');
+  $('ordersPanel').hidden = false;
+  resetOrderForm();
+  await loadOrders();
+  $('ordersPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function closeOrders() { $('ordersPanel').hidden = true; state.ordersFor = null; }
+async function loadOrders() {
+  try {
+    const r = await api('/employees/' + state.ordersFor + '/deductions');
+    state.orders = r.elections.filter((x) => ORDER_NAMES[x.code] && x.active !== false);
+    $('ordersList').innerHTML = !state.orders.length ? '<div class="muted">No orders on file for this employee.</div>'
+      : `<table><thead><tr><th>Order</th><th class="num">Asks</th><th>Served</th><th>Priority</th></tr></thead><tbody>${state.orders.map(orderRow).join('')}</tbody></table>`;
+  } catch (e) { msg(e.message, true); }
+}
+function orderRow(o) {
+  const asks = o.code === 'GARN_LEVY' ? fmt$(o.amount_cents) + ' owed'
+    : (Number(o.order_pct) > 0 ? Number(o.order_pct) + '%' : fmt$(o.amount_cents) + '/pay');
+  const rank = o.code === 'GARN_SUPPORT' ? 'Support first' + (o.entered_on ? ' (entered ' + esc(fmtD(o.entered_on)) + ')' : '') : (o.priority_rank ? '#' + esc(o.priority_rank) : '—');
+  // The actions sit under the order's name, so the table needs no fifth column on a phone.
+  return `<tr><td>${esc(ORDER_NAMES[o.code])}<div class="muted" style="font-size:11px">${esc(o.payee || '')} ${esc(o.case_number || '')}</div>
+      <div style="margin-top:4px"><a class="link" onclick="editOrder('${o.election_id}')">edit</a> · <a class="link" onclick="removeOrder('${o.election_id}')">remove</a></div></td>
+    <td class="num">${asks}</td><td>${esc(fmtD(o.served_on) || '—')}</td><td>${rank}</td></tr>`;
+}
+function orderTypeSwap() {
+  const code = $('o_code').value;
+  const show = { amount: true, pct: code === 'GARN_STUDENT' || code === 'GARN_CREDITOR', support: code === 'GARN_SUPPORT', levy: code === 'GARN_LEVY', rank: code !== 'GARN_SUPPORT' };
+  document.querySelectorAll('#ordersPanel [data-o]').forEach((el) => { el.hidden = !show[el.dataset.o]; });
+  $('o_amountLabel').textContent = code === 'GARN_LEVY' ? 'Amount the levy says is owed ($)' : 'Amount per pay ($)';
+  $('o_pctLabel').textContent = code === 'GARN_STUDENT' ? 'Or the percentage of disposable pay it directs (at most 15%)' : 'Or the percentage of disposable earnings it directs (at most 25%)';
+}
+function resetOrderForm() {
+  state.editingOrder = null;
+  ['o_served', 'o_amount', 'o_pct', 'o_supportLower', 'o_entered', 'o_levyStmt', 'o_rank', 'o_payee', 'o_case'].forEach((id) => { $(id).value = ''; });
+  $('o_supportPct').value = ''; $('o_levyStatus').value = ''; $('o_levyDeps').value = 0; $('o_levyStd').value = 0;
+  $('o_code').disabled = false; $('orderFormTitle').textContent = 'Add an order';
+  orderTypeSwap();
+}
+function editOrder(id) {
+  const o = state.orders.find((x) => x.election_id === id);
+  if (!o) return;
+  resetOrderForm();
+  state.editingOrder = id;
+  $('o_code').value = o.code; $('o_code').disabled = true; $('orderFormTitle').textContent = 'Correct this order';
+  $('o_served').value = fmtD(o.served_on); $('o_amount').value = Number(o.amount_cents) ? fromC(o.amount_cents) : '';
+  $('o_pct').value = o.order_pct || ''; $('o_entered').value = fmtD(o.entered_on); $('o_rank').value = o.priority_rank || '';
+  const pct = String(Number(o.support_ccpa_pct || 0));
+  if (['50', '55', '60', '65'].includes(pct)) $('o_supportPct').value = pct; else if (Number(pct) > 0) $('o_supportLower').value = pct;
+  $('o_levyStatus').value = o.levy_filing_status || ''; $('o_levyDeps').value = o.levy_dependents || 0;
+  $('o_levyStd').value = o.levy_additional_std || 0; $('o_levyStmt').value = fmtD(o.levy_statement_on);
+  $('o_payee').value = o.payee || ''; $('o_case').value = o.case_number || '';
+  orderTypeSwap();
+}
+function orderBody() {
+  const lower = String($('o_supportLower').value).trim();
+  return {
+    code: $('o_code').value, servedOn: $('o_served').value, amountCents: toC($('o_amount').value),
+    orderPct: $('o_pct').value, supportCcpaPct: lower !== '' ? lower : $('o_supportPct').value,
+    enteredOn: $('o_entered').value, priorityRank: $('o_rank').value,
+    levyFilingStatus: $('o_levyStatus').value, levyDependents: $('o_levyDeps').value,
+    levyAdditionalStd: $('o_levyStd').value, levyStatementOn: $('o_levyStmt').value,
+    payee: $('o_payee').value, caseNumber: $('o_case').value,
+  };
+}
+async function saveOrder(btn) {
+  await once('order', btn, async () => {
+    try {
+      const body = orderBody();
+      if (state.editingOrder) {
+        await api(`/employees/${state.ordersFor}/deductions/${state.editingOrder}/order`, { method: 'PUT', body: JSON.stringify(body) });
+      } else {
+        await api(`/employees/${state.ordersFor}/deductions`, { method: 'POST', body: JSON.stringify(body) });
+      }
+      msg(state.editingOrder ? 'Order corrected. The next pay run uses it.' : 'Order saved. The next pay run withholds it.');
+      resetOrderForm(); await loadOrders();
+    } catch (e) { msg(e.message, true); }
+  });
+}
+async function removeOrder(id) {
+  if (!window.confirm('Stop withholding this order? Its history is kept.')) return;
+  try { await api(`/employees/${state.ordersFor}/deductions/${id}`, { method: 'DELETE' }); await loadOrders(); msg('Order stopped. Its history is kept.'); }
   catch (e) { msg(e.message, true); }
 }
 
@@ -1060,7 +1327,12 @@ async function createRun(btn) {
     if (ps) body.periodStart = ps;
     if (pe) body.periodEnd = pe;
     if (pd) body.payDate = pd;
-    try { const r = await api('/runs', { method:'POST', body: JSON.stringify(body) }); await loadRuns(); await openRun(r.run.run_id); msg('Draft run created.'); }
+    try {
+      const r = await api('/runs', { method:'POST', body: JSON.stringify(body) }); await loadRuns(); await openRun(r.run.run_id);
+      // Say why the pay date moved (or why it will not fund when moving is off) instead of changing it silently.
+      const why = r.payDate && r.payDate.reason;
+      msg(why ? 'Draft run created. ' + why : 'Draft run created.', !!(why && !r.payDate.shifted));
+    }
     catch (e) { msg(e.message, true); }
   });
 }
@@ -1110,10 +1382,12 @@ async function openRun(id) {
       const inp = (f, v, dis) => draft && !dis
         ? `<input class="cell" data-emp="${l.employee_id}" data-f="${f}" value="${v}" onchange="lineChanged(this)">` : esc(v);
       const hourly = l.comp_type === 'hourly';
+      const byDay = l.uses_earning_rows === true;
       return `<tr>
-        <td>${esc(l.first_name)} ${esc(l.last_name)}<div class="muted" style="font-size:11px">${l.comp_type}</div></td>
-        <td class="num">${inp('hours', Number(l.hours), !hourly)}</td>
-        <td class="num">${inp('otHours', Number(l.ot_hours), !hourly)}</td>
+        <td>${esc(l.first_name)} ${esc(l.last_name)}<div class="muted" style="font-size:11px">${l.comp_type}${
+          draft && hourly ? ` · <a class="link" onclick="openDayHours('${l.employee_id}')">Hours by day</a>` : ''}</div></td>
+        <td class="num">${byDay ? esc(weekHoursTotal(l.workweek_hours)) + ' <span class="small">by day</span>' : inp('hours', Number(l.hours), !hourly)}</td>
+        <td class="num">${byDay ? 'per week' : inp('otHours', Number(l.ot_hours), !hourly)}</td>
         <td class="num">${inp('bonus', fromC(l.bonus_cents))}</td>
         <td class="num">${inp('tips', fromC(l.tips_cents))}</td>
         <td class="num">${inp('reimb', fromC(l.reimbursement_cents))}</td>
@@ -1263,6 +1537,41 @@ async function loadStub() {
 /* ── reports ──────────────────────────────────────────────────────────── */
 function fillReportSelectors() {
   $('w2Emp').innerHTML = state.employees.map((e) => `<option value="${e.employee_id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('');
+  $('flsaEmp').innerHTML = $('w2Emp').innerHTML;
+  const y = $('repYear').value || $('taxYear').textContent;
+  if (!$('flsaFrom').value) $('flsaFrom').value = `${y}-01-01`;
+  if (!$('flsaTo').value) $('flsaTo').value = `${y}-12-31`;
+}
+async function loadFlsa(btn) {
+  await once('flsa', btn, async () => {
+    $('flsaOut').innerHTML = '';
+    try {
+      const r = await api(`/reports/flsa-records/${$('flsaEmp').value}?from=${encodeURIComponent($('flsaFrom').value)}&to=${encodeURIComponent($('flsaTo').value)}`);
+      $('flsaOut').innerHTML = renderFlsa(r);
+    } catch (e) { msg(e.message, true); }
+  });
+}
+function renderFlsa(r) {
+  const e = r.employee;
+  const gaps = e.gaps.length ? `<div class="notice"><b class="err">Not on file:</b> ${e.gaps.map(esc).join('; ')}</div>` : '';
+  const head = `<table><tbody><tr><td>Name</td><td>${esc(e.name)}</td></tr><tr><td>Employee number</td><td><code>${esc(e.employeeNumber.slice(0, 8))}</code></td></tr>
+    <tr><td>Home address</td><td>${esc(e.homeAddress || '—')}</td></tr><tr><td>Date of birth (under 19 only)</td><td>${esc(e.dateOfBirthIfUnder19 || '—')}</td></tr>
+    <tr><td>Occupation</td><td>${esc(e.occupation || '—')}</td></tr><tr><td>Workweek begins</td><td>${esc(e.workweekBegins)}</td></tr>
+    <tr><td>Basis of pay</td><td>${esc(e.basisOfPay)}</td></tr></tbody></table>${gaps}`;
+  if (!r.periods.length) return head + '<div class="muted" style="margin-top:8px">No approved pay runs for this employee in those dates.</div>';
+  return head + r.periods.map(flsaPeriod).join('');
+}
+function flsaPeriod(p) {
+  const daily = p.daily ? `<div style="font-size:12px;margin:6px 0">${p.daily.map((d) => `${esc(d.date)}: <b>${esc(d.hours)}</b> h`).join(' · ')}</div>` : '';
+  const weeks = p.workweeks.map((w) => `<tr><td>${esc(w.start)}</td><td class="num">${esc(w.hours)}</td><td class="num">${fmt$(w.straightTimeCents)}</td>
+    <td class="num">${fmt$(w.premiumCents)}</td><td class="num">${w.regularRateCents === null ? '—' : fmt$(w.regularRateCents)}</td></tr>`).join('');
+  const adds = p.additionsAndDeductions.map((a) => `${esc(a.nature)} ${fmt$(a.amountCents)}`).join(' · ');
+  return `<div class="panel" style="margin-top:12px"><h2 style="font-size:14px">Paid ${esc(p.payDate)} for ${esc(p.periodStart)} to ${esc(p.periodEnd)}${p.kind === 'void' ? ' (void)' : ''}</h2>
+    ${daily}<table><thead><tr><th>Week of</th><th class="num">Hours</th><th class="num">Straight</th><th class="num">Premium</th><th class="num" title="Regular rate in a week with overtime">Rate</th></tr></thead><tbody>${weeks}</tbody></table>
+    <div style="font-size:12px;margin-top:6px">Wages ${fmt$(p.totalWagesCents)} · paid ${fmt$(p.netPaidCents)}${adds ? ' · ' + adds : ''}</div>
+    ${p.excludedPayments.length ? `<div class="muted" style="font-size:12px">Left out of the regular rate: ${p.excludedPayments.map((x) => esc(x.nature) + ' ' + fmt$(x.amountCents)).join(' · ')}</div>` : ''}
+    ${p.gaps.map((g) => `<div class="err" style="font-size:12px">${esc(g)}</div>`).join('')}
+    <div class="muted" style="font-size:11px">Keep until at least ${esc(p.keepUntil)}.</div></div>`;
 }
 async function loadLiability() {
   $('liabilityOut').innerHTML = '';
@@ -1308,6 +1617,68 @@ function fillFilingSelectors() {
     : '<option value="">(no paid runs yet)</option>';
   $('w2DocEmp').innerHTML = state.employees.map((e) => `<option value="${e.employee_id}">${esc(e.first_name)} ${esc(e.last_name)}</option>`).join('');
   if (!$('fYear').value) $('fYear').value = $('taxYear').textContent;
+  if (!$('depYear').value) $('depYear').value = $('taxYear').textContent;
+}
+
+/* ── federal tax deposits ─────────────────────────────────────────────── */
+async function loadDeposits(btn) {
+  await once('deposits', btn, async () => {
+    $('depOut').innerHTML = '';
+    try { $('depOut').innerHTML = renderDeposits(await api('/reports/deposits?year=' + encodeURIComponent($('depYear').value))); }
+    catch (e) { msg(e.message, true); }
+  });
+}
+function depositRow(o) {
+  const small = (t, cls) => (t ? `<div class="${cls || 'muted'}" style="font-size:11px">${esc(t)}</div>` : '');
+  const extra = o.extraDaysForHolidays ? ` One extra day for ${o.extraDaysForHolidays === 1 ? 'a legal holiday' : o.extraDaysForHolidays + ' legal holidays'} after the period.` : '';
+  return `<tr><td>${esc(o.period)}${small('Paydays ' + o.paydays.join(', '))}</td>
+    <td class="num">${fmt$(o.amountDueCents)}</td>
+    <td>${o.dueDate ? `<b>${esc(o.dueDate)}</b>${small(o.rule + extra)}` : `<span class="err">No due date</span>${small(o.refusal, 'err')}`}
+      ${small(o.calendarNote, 'err')}${small(o.note)}</td></tr>`;
+}
+function renderDeposits(r) {
+  const head = `<div class="muted" style="font-size:12px">Depositor status in Settings: <b>${esc(r.depositorStatus)}</b>.</div>`;
+  if (!r.obligations.length) return head + '<div class="muted" style="margin-top:6px">No paid runs in that year, so no deposit is owed yet.</div>';
+  const change = r.statusChange ? `<div class="notice"><b class="err">${esc(r.statusChange.reason)}</b></div>` : '';
+  const quarters = r.quarters.map((q) => `<li>Q${q.quarter}: ${fmt$(q.totalCents)}. ${esc(q.note)}</li>`).join('');
+  return `${head}${change}<table style="margin-top:8px"><thead><tr><th>Deposit period</th><th class="num">Deposit</th><th>Due</th></tr></thead>
+    <tbody>${r.obligations.map(depositRow).join('')}</tbody></table>
+    <div class="notice"><b>Paying with Form 941 instead of depositing (the $2,500 rule)</b>
+      <ul style="margin:6px 0 0 18px;padding:0">${quarters}</ul></div>`;
+}
+
+/* ── depositor status from the lookback period ────────────────────────── */
+function lookbackQuery() {
+  return `?year=${encodeURIComponent($('lbYear').value)}&filed944=${$('lb944').checked ? 'true' : 'false'}`;
+}
+async function lookbackQuarters(btn) {
+  await once('lookbackq', btn, async () => {
+    $('lbOut').innerHTML = '';
+    try {
+      const r = await api('/deposits/lookback' + lookbackQuery());
+      $('lbFields').innerHTML = r.period.map((q, i) => `<label class="field"><span>${esc(q.label)} ($)</span>
+        <input id="lbQ${i + 1}" type="number" min="0" step="0.01" inputmode="decimal" /></label>`).join('')
+        + '<div class="row"><button class="btn primary" onclick="lookbackStatus(this)">Work it out</button></div>';
+    } catch (e) { $('lbFields').innerHTML = ''; $('lbOut').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  });
+}
+async function lookbackStatus(btn) {
+  await once('lookbacks', btn, async () => {
+    $('lbOut').innerHTML = '';
+    try {
+      const cents = [1, 2, 3, 4].map((i) => {
+        if (String($('lbQ' + i).value).trim() === '') throw new RangeError('Enter an amount for every quarter; enter 0 for a quarter before your business started.');
+        return toC($('lbQ' + i).value);
+      });
+      const r = await api('/deposits/lookback' + lookbackQuery() + cents.map((c, i) => `&q${i + 1}=${c}`).join(''));
+      $('lbOut').innerHTML = `<div><b class="ok">${esc(r.reason)}</b></div>
+        <div class="row" style="margin-top:6px"><button class="btn ghost" onclick="useLookbackStatus('${r.status}')">Use ${r.status === 'monthly' ? 'Monthly' : 'Semiweekly'}</button></div>`;
+    } catch (e) { $('lbOut').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  });
+}
+function useLookbackStatus(status) {
+  $('c_dep').value = status === 'semiweekly' ? 'semiweekly' : 'monthly';
+  msg('Depositor status set to ' + (status === 'semiweekly' ? 'Semiweekly' : 'Monthly') + '. Press Save settings to keep it.');
 }
 
 async function buildAch(prenote, btn) {
@@ -1565,12 +1936,14 @@ async function checkPayDate(btn) {
   await once('cal:' + date, btn, async () => {
     try {
       const r = await api(`/calendar/pay-date?date=${encodeURIComponent(date)}`);
+      const dep = r.deposit;
       $('calOut').innerHTML = `<div class="notice">${r.shifted
         ? `<b class="err">${esc(r.reason)}</b>`
         : `<b class="ok">${esc(r.payDate)} is a Federal Reserve banking day — payroll will fund.</b>`}
-        <br/>Federal deposit for this payday is due <b>${esc(r.deposit.dueDate)}</b> — ${esc(r.deposit.rule)}
-        ${r.deposit.extraDaysForHolidays ? ` (+${r.deposit.extraDaysForHolidays} day for a legal holiday in the window)` : ''}
-        ${r.deposit.verified ? '' : '<br/><span class="err">That year\'s IRS holiday list has not been verified.</span>'}</div>`;
+        ${dep ? `<br/>Federal deposit for this payday is due <b>${esc(dep.dueDate)}</b> — ${esc(dep.rule)}
+          ${dep.extraDaysForHolidays ? ` (+${dep.extraDaysForHolidays} day for a legal holiday in the window)` : ''}
+          ${dep.verified ? '' : '<br/><span class="err">' + esc(dep.calendarNote || 'That year\'s IRS holiday list has not been verified.') + '</span>'}`
+          : `<br/><span class="err">No deposit due date: ${esc(r.depositRefusal || '')}</span>`}</div>`;
     } catch (e) { msg(e.message, true); }
   });
 }
@@ -1581,14 +1954,22 @@ async function loadHolidays(btn) {
     try {
       const r = await api(`/calendar/holidays?year=${year}`);
       const irsOnly = r.irs.filter((h) => !r.federalReserve.some((f) => f.date === h.date));
+      const cov = r.coverage || { federalReserve: { years: [], source: '' }, irs: [] };
+      const held = `<div class="muted" style="margin-top:8px;font-size:12px">Held here: Federal Reserve ${esc(cov.federalReserve.years.join(', '))}
+        (${esc(cov.federalReserve.source)}); IRS ${cov.irs.map((y) => esc(y.year) + (y.verified ? '' : ' (draft, not yet the final publication)')).join(', ')}.
+        A year a calendar does not hold is refused, never guessed.</div>`;
+      const list = (rows, refusal, observed) => refusal
+        ? `<div class="err">${esc(refusal)}</div>`
+        : `<table><tbody>${rows.map((h) => `<tr><td>${esc(h.date)}</td><td>${esc(h.name)}${
+            observed && h.date !== h.statutoryDate ? ' <span class="small">(observed)</span>' : ''}</td></tr>`).join('')}</tbody></table>`;
       $('calOut').innerHTML = `<div class="notice">${esc(r.note)}
-        ${r.irsVerified ? '' : '<br/><span class="err">' + esc(r.irsNote) + '</span>'}</div>
+        ${r.irsRefusal || r.irsVerified ? '' : '<br/><span class="err">' + esc(r.irsNote) + '</span>'}${held}</div>
         <div class="row" style="margin-top:10px;align-items:flex-start">
-          <div class="panel" style="flex:1"><h2>Federal Reserve closed (${r.federalReserve.length})</h2>
-            <table><tbody>${r.federalReserve.map((h) => `<tr><td>${esc(h.date)}</td><td>${esc(h.name)}</td></tr>`).join('')}</tbody></table></div>
-          <div class="panel" style="flex:1"><h2>IRS legal holidays (${r.irs.length})</h2>
-            <table><tbody>${r.irs.map((h) => `<tr><td>${esc(h.date)}</td><td>${esc(h.name)}${
-              h.date !== h.statutoryDate ? ' <span class="small">(observed)</span>' : ''}</td></tr>`).join('')}</tbody></table></div>
+          <div class="panel" style="flex:1;min-width:240px"><h2>Federal Reserve closed (${r.federalReserve.length})</h2>
+            ${list(r.federalReserve, r.federalReserveRefusal, false)}</div>
+          <div class="panel" style="flex:1;min-width:240px"><h2>IRS legal holidays (${r.irs.length})</h2>
+            ${list(r.irs, r.irsRefusal, true)}
+            ${r.irsSource ? `<div class="muted" style="margin-top:6px;font-size:12px">Source: ${esc(r.irsSource)}</div>` : ''}</div>
         </div>
         ${irsOnly.length ? `<div class="notice" style="margin-top:10px"><b>Banks open, deposit deadline still moves:</b>
           ${irsOnly.map((h) => esc(h.date) + ' ' + esc(h.name)).join(' · ')}</div>` : ''}`;

@@ -24,6 +24,8 @@
  * DATE/TIME           | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-08-01 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — carved the schema/queries out of payroll-routes.ts and added v1.1 storage: prior-YTD onboarding columns (mid-year switch from another payroll system), birth_date for the 402(g) catch-up tier, hire/termination dates, explicit k401/health/roth/supplemental-FIT line columns (W-2 box 12 + honest stubs), per-line proration and bonus method, engine warnings persisted per line, and run kind/corrects_run_id/approved_by/approved_at for void runs and an approval audit trail.
+ * 2                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: an hours-and-rate line applies the employee's garnishment orders through payroll-garnish and records each order's deduction row; approval recomputes a line built from earning rows with the earning-row engine (it used to recompute every line from hours and rate, replacing the earning rows and the deduction elections), refuses a run whose garnishment facts are missing (GarnishmentRefusalError), and moves each election's balance after the run is marked paid.
+ * 3                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: an employee's occupation, the title that may stand for sex on payroll records (Mr., Mrs., Miss, Ms.) and home address are editable through the employee form (29 CFR 516.2(a)(2) and (4)), each written only when sent.
  *
  * @module payroll-store
  */
@@ -61,7 +63,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LINE_COLUMNS = exports.VOID_NEGATED_COLUMNS = exports.NegativeNetError = exports.ensurePayrollSchema = exports.RUN_PAID = exports.RUN_DRAFT = exports.KIND_VOID = exports.KIND_REGULAR = exports.KIND_FINAL = exports.KIND_OFFCYCLE = exports.EDITABLE_KINDS = void 0;
+exports.LINE_COLUMNS = exports.VOID_NEGATED_COLUMNS = exports.GarnishmentRefusalError = exports.NegativeNetError = exports.ensurePayrollSchema = exports.RUN_PAID = exports.RUN_DRAFT = exports.KIND_VOID = exports.KIND_REGULAR = exports.KIND_FINAL = exports.KIND_OFFCYCLE = exports.EDITABLE_KINDS = void 0;
 exports.money = money;
 exports.num = num;
 exports.fmtUtc = fmtUtc;
@@ -71,6 +73,7 @@ exports.normalizeDates = normalizeDates;
 exports.scrubSecrets = scrubSecrets;
 exports.normalizeRows = normalizeRows;
 exports.addDays = addDays;
+exports.companyDefaults = companyDefaults;
 exports.getCompany = getCompany;
 exports.updateCompany = updateCompany;
 exports.employeeCols = employeeCols;
@@ -93,6 +96,7 @@ Object.defineProperty(exports, "RUN_DRAFT", { enumerable: true, get: function ()
 Object.defineProperty(exports, "RUN_PAID", { enumerable: true, get: function () { return payroll_schema_1.RUN_PAID; } });
 Object.defineProperty(exports, "ensurePayrollSchema", { enumerable: true, get: function () { return payroll_schema_1.ensurePayrollSchema; } });
 const payroll_engine_1 = require("./payroll-engine");
+const payroll_garnish_1 = require("./payroll-garnish");
 const payroll_tax_tables_1 = require("./payroll-tax-tables");
 /** Thrown when approval is refused because a line cannot be paid. */
 class NegativeNetError extends Error {
@@ -104,6 +108,16 @@ class NegativeNetError extends Error {
     }
 }
 exports.NegativeNetError = NegativeNetError;
+/** Thrown when approval meets a check whose garnishment facts are missing. */
+class GarnishmentRefusalError extends Error {
+    refusals;
+    constructor(refusals) {
+        super('garnishment_facts_missing');
+        this.refusals = refusals;
+        this.name = 'GarnishmentRefusalError';
+    }
+}
+exports.GarnishmentRefusalError = GarnishmentRefusalError;
 /** Filing statuses accepted from input. */
 const FILING_STATUSES = ['single', 'married', 'hoh'];
 /**
@@ -133,6 +147,7 @@ const EMPLOYEE_COLUMNS = Object.freeze([
     'prior_ytd_year', 'prior_ytd_taxable_wages_cents', 'prior_ytd_ss_taxable_cents', 'prior_ytd_deferral_cents',
     'prior_ytd_supplemental_cents', 'prior_ytd_gross_cents', 'prior_ytd_fit_cents', 'prior_ytd_ss_cents',
     'prior_ytd_medicare_cents', 'prior_ytd_state_cents', 'status',
+    'occupation', 'name_prefix', 'address_line1', 'address_line2', 'city', 'postal_code',
 ]);
 /** Company columns writable through the API. FROZEN — same rule. */
 const COMPANY_COLUMNS = Object.freeze([
@@ -255,42 +270,42 @@ function addDays(iso, days) {
 /** The company settings a caller has before saving any: every column at its declared default. */
 function companyDefaults(sub) {
     return {
-    user_sub: sub,
-    company_name: 'My Company',
-    pay_frequency: 'biweekly',
-    state_code: 'FL',
-    suta_rate_pct: payroll_tax_tables_1.DEFAULT_SUTA_RATE_PCT,
-    suta_wage_base_cents: payroll_tax_tables_1.DEFAULT_SUTA_WAGE_BASE_CENTS,
-    shift_pay_date: true,
-    futa_credit_reduction_pct: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    legal_name: '',
-    trade_name: '',
-    ein_encrypted: null,
-    ein_last4: '',
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    postal_code: '',
-    state_account_number: '',
-    depositor_status: 'monthly',
-    workweek_start_day: 0,
-    ach_odfi_routing: '',
-    ach_odfi_name: '',
-    ach_company_id: '',
-    ach_entry_description: 'PAYROLL',
-    ach_next_trace: 1,
-    bank_name: '',
-    bso_user_id: '',
-    contact_name: '',
-    contact_phone: '',
-    contact_email: '',
-    kind_of_employer: 'N',
-    employment_code: 'R',
+        user_sub: sub,
+        company_name: 'My Company',
+        pay_frequency: 'biweekly',
+        state_code: 'FL',
+        suta_rate_pct: payroll_tax_tables_1.DEFAULT_SUTA_RATE_PCT,
+        suta_wage_base_cents: payroll_tax_tables_1.DEFAULT_SUTA_WAGE_BASE_CENTS,
+        shift_pay_date: true,
+        futa_credit_reduction_pct: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        legal_name: '',
+        trade_name: '',
+        ein_encrypted: null,
+        ein_last4: '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        postal_code: '',
+        state_account_number: '',
+        depositor_status: 'monthly',
+        workweek_start_day: 0,
+        ach_odfi_routing: '',
+        ach_odfi_name: '',
+        ach_company_id: '',
+        ach_entry_description: 'PAYROLL',
+        ach_next_trace: 1,
+        bank_name: '',
+        bso_user_id: '',
+        contact_name: '',
+        contact_phone: '',
+        contact_email: '',
+        kind_of_employer: 'N',
+        employment_code: 'R',
+        workweek_start_time: '00:00',
     };
 }
-exports.companyDefaults = companyDefaults;
 /**
  * Fetch the caller's company settings row, or its defaults when nothing was saved yet. A read never
  * writes: the row is created by the first update, so a reader-admitted request (the native kernel's
@@ -352,8 +367,11 @@ const EMPLOYEE_FIELD_OF_COLUMN = {
     prior_ytd_supplemental_cents: 'priorYtdSupplementalCents', prior_ytd_gross_cents: 'priorYtdGrossCents',
     prior_ytd_fit_cents: 'priorYtdFitCents', prior_ytd_ss_cents: 'priorYtdSsCents',
     prior_ytd_medicare_cents: 'priorYtdMedicareCents', prior_ytd_state_cents: 'priorYtdStateCents',
-    status: 'status',
+    status: 'status', occupation: 'occupation', name_prefix: 'namePrefix', address_line1: 'addressLine1',
+    address_line2: 'addressLine2', city: 'city', postal_code: 'postalCode',
 };
+/** 29 CFR 516.2(a)(4): "sex may be indicated by use of the prefixes Mr., Mrs., Miss., or Ms." */
+const NAME_PREFIXES = ['', 'Mr.', 'Mrs.', 'Miss', 'Ms.'];
 /** Full column map with create-time defaults for everything absent. */
 function employeeColsFull(b) {
     return {
@@ -394,6 +412,12 @@ function employeeColsFull(b) {
         prior_ytd_medicare_cents: money(b.priorYtdMedicareCents),
         prior_ytd_state_cents: money(b.priorYtdStateCents),
         status: b.status === 'terminated' ? 'terminated' : 'active',
+        occupation: String(b.occupation || '').trim().slice(0, 80),
+        name_prefix: NAME_PREFIXES.includes(String(b.namePrefix || '')) ? String(b.namePrefix || '') : '',
+        address_line1: String(b.addressLine1 || '').trim().slice(0, 200),
+        address_line2: String(b.addressLine2 || '').trim().slice(0, 200),
+        city: String(b.city || '').trim().slice(0, 100),
+        postal_code: String(b.postalCode || '').trim().slice(0, 20),
     };
 }
 /** Insert an employee from an allowlisted column map. */
@@ -540,19 +564,15 @@ function inputsFromLine(l) {
  * @param runId - The draft run.
  * @param approvedBy - Caller recorded on the audit trail.
  * @param acceptNegativeNet - Explicit override for an unpayable check.
+ * @param hooks - The earning-row recompute and the balance write-back, supplied by the routes.
  * @returns The paid run row, or null when nothing matched a draft.
  */
-async function approveRun(pool, sub, runId, approvedBy, acceptNegativeNet) {
+async function approveRun(pool, sub, runId, approvedBy, acceptNegativeNet, hooks = {}) {
     return withTransaction(pool, async (q) => {
         const run = (await q.query(`SELECT * FROM payroll_runs WHERE run_id = $1 AND user_sub = $2 AND status = '${payroll_schema_1.RUN_DRAFT}' FOR UPDATE`, [runId, sub])).rows[0];
         if (!run)
             return null;
-        const lines = (await q.query('SELECT * FROM payroll_run_lines WHERE run_id = $1 AND user_sub = $2', [runId, sub])).rows;
-        for (const line of lines) {
-            const emp = (await q.query('SELECT * FROM payroll_employees WHERE employee_id = $1 AND user_sub = $2', [line.employee_id, sub])).rows[0];
-            if (emp)
-                await recomputeLineOn(q, sub, run, emp, inputsFromLine(line));
-        }
+        await recomputeForApproval(q, sub, run, hooks);
         if (!acceptNegativeNet) {
             const bad = (await q.query(`SELECT l.employee_id, e.first_name, e.last_name, l.net_cents
            FROM payroll_run_lines l
@@ -563,8 +583,32 @@ async function approveRun(pool, sub, runId, approvedBy, acceptNegativeNet) {
         }
         const paid = await q.query(`UPDATE payroll_runs SET status = '${payroll_schema_1.RUN_PAID}', approved_by = $3, approved_at = now(), updated_at = now()
         WHERE run_id = $1 AND user_sub = $2 AND status = '${payroll_schema_1.RUN_DRAFT}' RETURNING *`, [runId, sub, approvedBy]);
+        if (paid.rows[0] && hooks.settleBalances)
+            await hooks.settleBalances(q, runId);
         return paid.rows[0] || null;
     });
+}
+/**
+ * Recompute every line of a run being approved, each on the engine that built
+ * it, and refuse the run when any check's garnishment facts are missing.
+ */
+async function recomputeForApproval(q, sub, run, hooks) {
+    const lines = (await q.query('SELECT * FROM payroll_run_lines WHERE run_id = $1 AND user_sub = $2', [run.run_id, sub])).rows;
+    const refused = [];
+    for (const line of lines) {
+        const emp = (await q.query('SELECT * FROM payroll_employees WHERE employee_id = $1 AND user_sub = $2', [line.employee_id, sub])).rows[0];
+        if (!emp)
+            continue;
+        const check = line.uses_earning_rows === true && hooks.recomputeRowsLine
+            ? await hooks.recomputeRowsLine(q, run, emp)
+            : await recomputeLineOn(q, sub, run, emp, inputsFromLine(line));
+        const reasons = check.garnishmentRefusals || [];
+        if (reasons.length) {
+            refused.push({ employeeId: String(emp.employee_id), name: `${emp.first_name || ''} ${emp.last_name || ''}`.trim(), reasons });
+        }
+    }
+    if (refused.length)
+        throw new GarnishmentRefusalError(refused);
 }
 /** Compute + upsert one run line against a pool; returns the stored breakdown. */
 async function recomputeLine(pool, sub, run, emp, inputs) {
@@ -591,6 +635,8 @@ async function recomputeLineOn(pool, sub, run, emp, inputs) {
         futaCreditReductionPct: num(company.futa_credit_reduction_pct),
         minimumWageCents: (0, payroll_tax_tables_1.minimumWageCents)(stateCode, payDate),
     });
+    const elections = await garnishmentElections(pool, sub, String(emp.employee_id), payDate);
+    const orders = (0, payroll_garnish_1.applyOrdersToHoursCheck)(check, elections, { periodsPerYear: periods, payDate, federalMinWageCents: payroll_tax_tables_1.FEDERAL_MIN_WAGE_CENTS });
     const cols = exports.LINE_COLUMNS.join(', ');
     const placeholders = exports.LINE_COLUMNS.map((_, i) => `$${i + 4}`).join(', ');
     const updates = exports.LINE_COLUMNS.map((k) => `${k} = EXCLUDED.${k}`).join(', ');
@@ -602,7 +648,33 @@ async function recomputeLineOn(pool, sub, run, emp, inputs) {
                      WHERE r.run_id = $1 AND r.user_sub = $3
                        AND (r.status = '${payroll_schema_1.RUN_DRAFT}' OR r.kind = '${payroll_schema_1.KIND_VOID}'))
      ON CONFLICT (run_id, employee_id) DO UPDATE SET ${updates}, updated_at = now()`, [run.run_id, emp.employee_id, sub, ...lineValues(inputs, check)]);
-    return check;
+    if (elections.length)
+        await storeGarnishmentRows(pool, sub, run, String(emp.employee_id), orders.applied);
+    return Object.assign(check, { garnishmentRefusals: orders.refusals });
+}
+/** The employee's garnishment orders active on a pay date. */
+async function garnishmentElections(q, sub, employeeId, payDate) {
+    const r = await q.query(`SELECT * FROM payroll_deduction_elections
+      WHERE user_sub = $1 AND employee_id = $2 AND active = true
+        AND code IN ('GARN_SUPPORT', 'GARN_LEVY', 'GARN_STUDENT', 'GARN_CREDITOR')
+        AND (effective_from IS NULL OR effective_from <= $3)
+        AND (effective_to IS NULL OR effective_to >= $3)`, [sub, employeeId, payDate]);
+    return r.rows.map((e) => (0, payroll_garnish_1.electionFromRow)(e)).filter((e) => (0, payroll_garnish_1.isGarnishmentCode)(e.code));
+}
+/**
+ * Record what each order took on this check, so approval can move its balance.
+ * Written only while the run is a draft, like the line itself.
+ */
+async function storeGarnishmentRows(q, sub, run, employeeId, rows) {
+    await q.query(`DELETE FROM payroll_line_deductions WHERE user_sub = $1 AND run_id = $2 AND employee_id = $3
+        AND EXISTS (SELECT 1 FROM payroll_runs r WHERE r.run_id = $2 AND r.user_sub = $1 AND r.status = '${payroll_schema_1.RUN_DRAFT}')`, [sub, run.run_id, employeeId]);
+    for (const a of rows) {
+        await q.query(`INSERT INTO payroll_line_deductions
+         (deduction_id, user_sub, run_id, employee_id, code, requested_cents, applied_cents, arrears_added_cents, reason, election_id)
+       SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+        WHERE EXISTS (SELECT 1 FROM payroll_runs r WHERE r.run_id = $3 AND r.user_sub = $2 AND r.status = '${payroll_schema_1.RUN_DRAFT}')`, [crypto.randomUUID(), sub, run.run_id, employeeId, a.code, a.requestedCents, a.appliedCents,
+            a.code === 'GARN_LEVY' ? 0 : a.shortfallCents, a.reason, a.electionId || '']);
+    }
 }
 /**
  * @description Create a VOID run: a linked, negated copy of a paid run. Every

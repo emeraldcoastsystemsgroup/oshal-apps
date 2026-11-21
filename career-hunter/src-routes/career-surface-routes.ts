@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | T63: the retired /board and /board/* addresses answer a hand-off page to the native board (src-routes/hand-off-page.ts) instead of a 308. On the native kernel a package cannot redirect: the response has no `redirect` and no Location header is relayed, so these answered HTTP 500 on the test slot (2026-11-11).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Serve .mjs module scripts from /static: 1.60.8 shipped career-concierge.mjs and this route refused it, so the shared concierge never loaded on a deployed kernel.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.61.0: serve the Work history page (GET /work-history, career-work-history.html), where a person enters and edits the jobs their résumé is built from.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: GET /mobile answers a hand-off page to the Job Board's New matches stage (/board-native?view=matches). The swipe deck that page carried is the phone layout of that stage now, so the old address opens it there; it used to serve career-mobile.html, a second deck over the application records with its own Ready and Status lists.
  */
 
 /**
@@ -67,6 +68,14 @@ function redirectClassicBoard(_req: Request, res: Response): void {
 }
 
 /**
+ * The address the Mobile page had. Its swipe deck is the phone layout of the Job Board's New matches stage, so the
+ * address hands the browser on to that stage (a hand-off page: a package cannot redirect on the native kernel).
+ */
+function openNewMatches(_req: Request, res: Response): void {
+  res.status(200).type('html').send(handOffPage('/api/career-hunter/board-native?view=matches', 'Open New matches'));
+}
+
+/**
  * @description Register package-owned HTML and static surfaces before feature data routes.
  * @param router authenticated Career Hunter router
  * @returns nothing
@@ -87,7 +96,7 @@ export function registerCareerSurfaceRoutes(router: Router): void {
   router.get('/home', createCareerToolFileHandler('career-home.html'));
   router.get('/resume-studio', createCareerToolFileHandler('career-resume-studio.html'));
   router.get('/work-history', createCareerToolFileHandler('career-work-history.html'));
-  router.get('/mobile', createCareerToolFileHandler('career-mobile.html'));
+  router.get('/mobile', openNewMatches);
   router.get('/submissions', createCareerToolFileHandler('career-submissions.html'));
   router.get('/static/:file', serveStatic);
 }

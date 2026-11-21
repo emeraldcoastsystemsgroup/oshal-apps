@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify flipX/flipY validation, canonical false omission, all paint/group types, duplicate, undo/redo, ungroup composition, hitTest on flipped shapes/paths, and locked/adjustment refusals.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -346,4 +347,57 @@ test('appearance v4 retains typed shadows/shapes, rejects malformed metadata and
  assert.equal(edited.version,4);assert.deepEqual(parseProject(serializeProject(edited)),edited);assert.throws(()=>validateProject({...edited,version:3}),/version 4/);assert.equal(original.version,1);
  for(const patch of [{shape:'unknown'},{radius:-1},{dash:[0]},{cap:'triangle'},{shadow:{color:'red',opacity:1,blur:0,offsetX:0,offsetY:0}},{shadow:{color:'#000000',opacity:1,blur:65,offsetX:0,offsetY:0}},{shadow:{color:'#000000',opacity:1,blur:0,offsetX:513,offsetY:0}}]){assert.throws(()=>applyOperation(edited,{type:'update',id:'shape',patch}));assert.equal(edited.layers[0].shape,'diamond');}
  let large=createProject({width:8192,height:4096});assert.throws(()=>applyOperation(large,{type:'add',layer:{id:'huge-shadow',type:'rect',shadow:{color:'#000000',opacity:.5,blur:64,offsetX:512,offsetY:512}}}),/pixel budget/);
+});
+
+test('flipX and flipY validate strictly on paint and group layers, omit false canonically and preserve through duplicate/ungroup/hitTest', () => {
+  let project = layersProject();
+  project = applyOperation(project, { type: 'add', layer: { id: 'vec', type: 'path', x: 10, y: 10, w: 60, h: 60,
+    contours: [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] }] } });
+  const before = serializeProject(project, { assetMode: 'reference' });
+  for (const layer of project.layers) {
+    const flipped = applyOperation(project, { type: 'update', id: layer.id, patch: { flipX: true, flipY: true } });
+    const entry = flipped.layers.find(item => item.id === layer.id);
+    assert.equal(entry.flipX, true); assert.equal(entry.flipY, true);
+    assert.deepEqual(parseProject(serializeProject(flipped, { assetMode: 'reference' }), { assetMode: 'reference' }), flipped);
+    const restored = applyOperation(flipped, { type: 'update', id: layer.id, patch: { flipX: false, flipY: false } });
+    assert.equal(serializeProject(restored, { assetMode: 'reference' }), before);
+    assert.equal('flipX' in restored.layers.find(item => item.id === layer.id), false);
+    assert.equal('flipY' in restored.layers.find(item => item.id === layer.id), false);
+  }
+  for (const bad of ['yes', 1, 0, null, {}]) {
+    assert.throws(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: { flipX: bad } }), /Flip horizontal/);
+    assert.throws(() => applyOperation(project, { type: 'update', id: 'photo-layer', patch: { flipY: bad } }), /Flip vertical/);
+  }
+  const withAdj = applyOperation(project, { type: 'add', layer: { id: 'grade', type: 'adjustment', scope: 'stack', exposure: 1 } });
+  assert.throws(() => applyOperation(withAdj, { type: 'update', id: 'grade', patch: { flipX: true } }), /Adjustment layers cannot be flipped/);
+  const locked = applyOperation(project, { type: 'update', id: 'photo-layer', patch: { locked: true } });
+  assert.throws(() => applyOperation(locked, { type: 'update', id: 'photo-layer', patch: { flipX: true } }), /Unlock/);
+  const dupBase = applyOperation(project, { type: 'update', id: 'photo-layer', patch: { flipX: true } });
+  const dup = applyOperation(dupBase, { type: 'duplicate', id: 'photo-layer', newId: 'photo-copy', offset: 10 });
+  assert.equal(dup.layers.find(item => item.id === 'photo-copy').flipX, true);
+  // Flipped group ungroup composes child position, rotation parity and flip flags.
+  let grouped = createProject({ width: 200, height: 200 });
+  grouped = applyOperation(grouped, { type: 'add', layer: { id: 'a', type: 'rect', x: 10, y: 10, w: 20, h: 20, rotation: 30 } });
+  grouped = applyOperation(grouped, { type: 'add', layer: { id: 'b', type: 'rect', x: 50, y: 10, w: 20, h: 20, flipX: true } });
+  grouped = applyOperation(grouped, { type: 'group', ids: ['a', 'b'], id: 'g' });
+  const flippedGroup = applyOperation(grouped, { type: 'update', id: 'g', patch: { flipX: true } });
+  const dupGroup = applyOperation(flippedGroup, { type: 'duplicate', id: 'g', newId: 'g-copy', offset: 20 });
+  assert.equal(dupGroup.layers.find(item => item.id === 'g-copy').flipX, true);
+  const groupLayer = flippedGroup.layers.find(item => item.id === 'g');
+  const groupCenterX = groupLayer.x + groupLayer.w / 2;
+  const ungrouped = applyOperation(flippedGroup, { type: 'ungroup', id: 'g' });
+  assert.equal(ungrouped.layers.find(item => item.id === 'a').rotation, -30);
+  assert.equal(ungrouped.layers.find(item => item.id === 'a').flipX, true);
+  assert.equal(ungrouped.layers.find(item => item.id === 'b').flipX, undefined);
+  assert.equal(ungrouped.layers.find(item => item.id === 'a').x + 10, 2 * groupCenterX - 20);
+  assert.equal(ungrouped.layers.find(item => item.id === 'b').x + 10, 2 * groupCenterX - 60);
+  // Hit-testing follows flipped triangle and flipped freehand stroke geometry.
+  const tri = applyOperation(createProject({ width: 100, height: 100 }), { type: 'add',
+    layer: { id: 'tri', type: 'rect', shape: 'triangle', x: 0, y: 0, w: 100, h: 100, fill: '#ff0000', flipY: true } });
+  assert.equal(hitTest(tri, { x: 10, y: 10 }).id, 'tri');
+  assert.equal(hitTest(tri, { x: 10, y: 90 }), null);
+  const stroke = applyOperation(createProject({ width: 100, height: 100 }), { type: 'add',
+    layer: { id: 'diag', type: 'freehand', x: 0, y: 0, w: 100, h: 100, strokeWidth: 4, flipX: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } });
+  assert.equal(hitTest(stroke, { x: 90, y: 10 }).id, 'diag');
+  assert.equal(hitTest(stroke, { x: 10, y: 10 }), null);
 });

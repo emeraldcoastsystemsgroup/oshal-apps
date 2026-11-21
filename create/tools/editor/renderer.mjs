@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: apply horizontal and vertical layer flips around local centers for preview and raster export.
  */
 import { demand, number, validateProject, IMAGE_FILTERS } from './model-validation.mjs';
 import { traceVector, traceShape } from './vector-geometry.mjs';
@@ -192,7 +193,9 @@ function drawLayer(ctx, layer, project, images) {
   ctx.save();
   try {
     ctx.globalAlpha = layer.opacity; ctx.translate(layer.x + layer.w / 2, layer.y + layer.h / 2);
-    ctx.rotate(layer.rotation * Math.PI / 180); ctx.translate(-layer.w / 2, -layer.h / 2);
+    ctx.rotate(layer.rotation * Math.PI / 180);
+    if (layer.flipX || layer.flipY) ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+    ctx.translate(-layer.w / 2, -layer.h / 2);
     if (layer.type === 'group') {
       const isolated = scratch(layer.baseWidth, layer.baseHeight); paintStack(isolated.ctx, project, images, layer);
       ctx.drawImage(isolated.canvas, 0, 0, layer.w, layer.h);

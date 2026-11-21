@@ -1422,6 +1422,21 @@ is refused (409) and read again. No route, permission or migration changed; stat
 Guarded by `tests/career-years-edit.test.mjs` and `tests/career-years-by-skill-page.test.mjs` (1440, 412); on an installed
 Career, `tests/career-years-by-skill-live-proof.mjs check` drives it as a test person on the test slot.
 
+**The swipe deck of New matches on a phone (1.69.0).** At 640px and under, the **New matches** stage of My jobs shows one job
+at a time: the employer, the title, the place, pay when the posting states it, the fit and the reason for it. **Save** (or a
+swipe right) saves the job and **Pass** (or a swipe left) removes it; both write what the board's own buttons write, `POST
+/jobs/:id/status` with `favorite: true` and with `status: dismissed`. **Undo** reverses the last action: it reads the job
+(`GET /jobs/:id`), sends a passed job back to `status: new` or a saved one to `favorite: false`, and puts the card back on
+top; a job that has moved to another stage since is left there and the line says which. **More** opens the job's details. The
+deck reads the first page again when it runs low (the jobs just saved or passed have left it), ends with how many were saved
+and passed and where to go next, and says so when the list cannot be read or a write does not go through (a Save whose
+result is unknown stays away until Undo has checked it). **Cards** and **List**
+are in Filters. At desktop width the stage is the list, as before. `GET /mobile`, the address the Mobile page had, answers a
+hand-off page to `/board-native?view=matches`; `tools/career-mobile.html` is served by no route. No route, permission or
+migration changed; staticFiles adds `career-match-deck.js`. Guarded by `tests/career-match-deck-routes.test.mjs` (the real
+routes over a real store) and `tests/career-match-deck-page.test.mjs` (412 and 1440); on an installed Career,
+`tests/career-match-deck-live-proof.mjs check` drives it as a test person on the test slot.
+
 **Letters and résumés say only what your records support (1.68.5).** Until 1.68.5 the rules that kept letters honest were
 instructions to the model: the person-specific ones moved in July 2026 into an optional `prompt_framing` block, the cover editor
 was told to "surface ... depth even when it lives in an EARLIER role", and nothing after the model call checked a claim, so a
@@ -1507,3 +1522,4 @@ kernel platform export).
 <!-- CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.6: the My jobs posting sheet reads a job's missing description through the kernel's egress and keeps it as the person's copy, says plainly why it cannot, and the one-employer description backfill for the shared corpus. -->
 <!-- CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.7: My résumé draws no chat of its own; a tailored résumé's chat is Career's concierge, the kernel's one chat window (Concierge on a computer, Edit with AI on a phone), in that résumé's own conversation, with the tools that read and change it on its context. -->
 <!-- CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Document 1.68.24: Years by skill on Work history, where a person gives their own years per skill and in total; what Used on résumés shows; the `years` section read and the `years` edit of the main-résumé edit, and their guards. -->
+<!-- CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Document 1.69.0: the swipe deck that is the phone layout of New matches (Pass, Save, a real Undo, More), the address /mobile handing off to it, and their guards. -->

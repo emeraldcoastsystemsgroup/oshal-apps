@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove current ESPN coach discovery, missing/stale staff refusal, shared cooldown and followed-owner isolation through actual compiled refresh code.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Item A (0.12.3): keep all ESPN coach parser, team-identity verification, malformed-name refusal, and follow-ownership isolation guards intact while verifying refreshWorld is retired and makes zero World ingest or roster calls.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -39,36 +40,18 @@ test('missing and malformed coach names never produce an empty or undefined pers
   }
   const f = coachFixture([team()]);
   f.state.payloads.set('501', { team: { id: '501', abbreviation: 'ALP' }, coach: [{ firstName: 'Missing' }] });
-  assert.deepEqual(await f.refresh(), { subjects: 2, newItems: 2 });
-  assert.equal(f.state.ingested.some(subject => subject.entity.startsWith('world:person:')), false);
+  assert.deepEqual(await f.refresh(), { subjects: 0, newItems: 0 });
+  assert.equal(f.state.ingested.length, 0);
 });
 
-test('the actual refresh reads its stored team ID and ingests coach through the same World service and feed set', async () => {
-  const f = coachFixture([team()]); f.state.payloads.set('501', coach());
-  assert.deepEqual(await f.refresh(), { subjects: 3, newItems: 3 });
-  assert.equal(f.state.reads.length, 1); assert.match(f.state.reads[0], /\/football\/nfl\/teams\/501\/roster$/);
-  const person = f.state.ingested.find(subject => subject.entity === 'world:person:morgan-example');
-  assert.equal(person.label, 'Morgan Example'); assert.match(person.query, /Morgan Example Fixture Alpine NFL/);
-  assert.deepEqual(person.sources, ['google-news', 'bing-news', 'reddit']); assert.deepEqual(person.options, { limit: 15 });
-  assert.equal(f.state.saved.find(row => row[0] === person.entity)[2], 'coach');
-});
-
-test('a changed head coach replaces future subjects only on the persistent team cooldown, including after reload', async () => {
-  const f = coachFixture([team()]); f.state.payloads.set('501', coach()); await f.refresh();
-  f.state.payloads.set('501', coach('501', 'Jordan Example')); f.restart();
-  assert.deepEqual(await f.refresh(), { subjects: 0, newItems: 0 }); assert.equal(f.state.reads.length, 1);
-  f.age(); f.state.ingested.length = 0;
-  assert.deepEqual(await f.refresh(), { subjects: 3, newItems: 3 });
-  assert.equal(f.state.reads.length, 2);
-  assert.deepEqual(f.state.ingested.filter(subject => subject.entity.startsWith('world:person:')).map(subject => subject.entity), ['world:person:jordan-example']);
-  assert.ok(f.state.pulls.has('world:person:morgan-example'), 'historical coach archive is preserved');
-});
-
-test('a missing coach can be discovered on the next team cycle without creating placeholder history', async () => {
-  const f = coachFixture([team()]); await f.refresh();
-  f.state.payloads.set('501', coach()); assert.equal((await f.refresh()).subjects, 0);
-  f.age(); assert.equal((await f.refresh()).subjects, 3);
-  assert.equal(f.state.pulls.has('world:person:'), false); assert.equal(f.state.pulls.has('world:person:undefined'), false);
+test('retired refreshWorld spends zero ESPN roster reads, zero World ingests, and zero pull writes', async () => {
+  const f = coachFixture([team(), team('owner-b', '502', 'BET')]);
+  f.state.payloads.set('501', coach());
+  f.state.payloads.set('502', coach('502', 'Taylor Example', 'BET'));
+  assert.deepEqual(await f.refresh(), { subjects: 0, newItems: 0 });
+  assert.equal(f.state.reads.length, 0, 'retired wire ingest makes no roster fetch');
+  assert.equal(f.state.ingested.length, 0, 'retired wire ingest pushes nothing to World');
+  assert.equal(f.state.saved.length, 0, 'retired wire ingest writes no sports_world_pulls rows');
 });
 
 test('team identity mismatch and caller-shaped paths are refused before any coach is attributed', async () => {
@@ -79,42 +62,20 @@ test('team identity mismatch and caller-shaped paths are refused before any coac
   assert.equal(requests, 1);
 });
 
-test('shared team discovery deduplicates owners while each person retains only their own follows', async () => {
+test('followed-team ownership remains isolated per owner and untouched by refreshWorld', async () => {
   const f = coachFixture([team(), team('owner-b'), team('owner-b', '502', 'BET')]);
-  f.state.payloads.set('501', coach()); f.state.payloads.set('502', coach('502', 'Taylor Example', 'BET'));
   assert.equal((await listFollowed(f.pool, 'owner-a')).length, 1);
   assert.equal((await listFollowed(f.pool, 'owner-b')).length, 2);
   assert.deepEqual(await listFollowed(f.pool, 'unrelated-owner'), []);
-  await f.refresh(); assert.equal(f.state.reads.length, 2);
-  const separate = coachFixture([]); await separate.refresh();
-  assert.equal(separate.state.reads.length, 0); assert.equal(separate.state.ingested.length, 0);
-  assert.equal(f.state.teams.length, 3, 'ingestion never creates, changes or borrows followed ownership');
+  await f.refresh();
+  assert.equal(f.state.teams.length, 3, 'refreshWorld never creates, changes or borrows followed ownership');
 });
 
-test('disabled World makes no provider request and the pass budget retains complete team-coach groups', async () => {
-  const f = coachFixture(Array.from({ length: 10 }, (_, index) => team('owner-a', String(501 + index), 'TEAM' + index)));
-  for (const row of f.state.teams) f.state.payloads.set(row.team_id, coach(row.team_id, `Coach ${String.fromCharCode(65 + Number(row.team_id) - 501)} Example`, row.team));
-  f.state.enabled = false; assert.deepEqual(await f.refresh(), { subjects: 0, newItems: 0 }); assert.equal(f.state.reads.length, 0);
-  f.state.enabled = true; assert.equal((await f.refresh()).subjects, 12); assert.equal(f.state.reads.length, 4);
-  assert.equal(f.state.ingested.filter(subject => subject.entity.startsWith('world:person:')).length, 4);
-  assert.equal((await f.refresh()).subjects, 12, 'next pass can serve the teams left outside the previous budget');
-});
-
-test('new coach attribution verifies the provider abbreviation and uses its team label instead of caller text', async () => {
-  const f = coachFixture([{ ...team(), display_name: 'Untrusted caller label' }]);
-  f.state.payloads.set('501', coach('501', 'Morgan Example', 'OTHER'));
-  assert.equal((await f.refresh()).subjects, 2);
-  f.age(); f.state.payloads.set('501', coach()); await f.refresh();
-  const person = f.state.ingested.find(subject => subject.entity === 'world:person:morgan-example');
-  assert.match(person.query, /Fixture Alpine/); assert.doesNotMatch(person.query, /Untrusted caller label/);
-});
-
-test('conflicting IDs for one shared team never choose an arbitrary owner row for coach attribution', async () => {
-  for (const rows of [[team(), team('owner-b', '999')], [team('owner-b', '999'), team()]]) {
-    const f = coachFixture(rows); f.state.payloads.set('501', coach()); f.state.payloads.set('999', coach('999', 'Wrong Example'));
-    assert.equal((await f.refresh()).subjects, 2);
-    assert.equal(f.state.reads.length, 0); assert.equal(f.state.ingested.some(subject => subject.entity.startsWith('world:person:')), false);
-  }
+test('provider abbreviation verification rejects mismatched teams and uses provider team label', async () => {
+  const mismatched = { fetchImpl: async () => ({ ok: true, json: async () => coach('501', 'Morgan Example', 'OTHER') }) };
+  assert.equal(await teamHeadCoach('nfl', '501', 'ALP', mismatched), null);
+  const matched = { fetchImpl: async () => ({ ok: true, json: async () => coach('501', 'Morgan Example', 'ALP') }) };
+  assert.deepEqual(await teamHeadCoach('nfl', '501', 'ALP', matched), { name: 'Morgan Example', teamName: 'Fixture Alpine' });
 });
 
 test('all supported leagues read the observed roster envelope and ignore the old nested-team assumption', async () => {

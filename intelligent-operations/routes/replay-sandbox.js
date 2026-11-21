@@ -9,6 +9,7 @@ exports.discardReplayRun = discardReplayRun;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Replay a recorded delivery window (RP-OPS-01) or bounded CloudEvents/OTLP batch (RP-OPS-02) in an isolated sandbox without touching live symptoms, evidence reservations or notifications, plus clean-up.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): map kubernetes-node alerts to ['kubernetes', 'node'] in isolated sandbox correlation previews.
  */
 // @ts-nocheck
 const intake_1 = require("./intake");
@@ -21,7 +22,7 @@ const validId = id => typeof id === 'string' && /^[a-f0-9]{64}$/.test(id);
 const requireOwner = owner => { if (typeof owner !== 'string' || !owner.trim())
     fail(401, 'A verified caller is required.'); };
 const SEV = { info: 0, warning: 1, error: 2, critical: 3 };
-const ASSET_KIND = { 'kubernetes-pod': ['kubernetes', 'pod'], container: ['kubernetes', 'container'], workload: ['kubernetes', 'workload'], host: ['import', 'host'] };
+const ASSET_KIND = { 'kubernetes-node': ['kubernetes', 'node'], 'kubernetes-pod': ['kubernetes', 'pod'], container: ['kubernetes', 'container'], workload: ['kubernetes', 'workload'], host: ['import', 'host'] };
 function matchDoc(n) {
     const d = n.data;
     return { source: n.source, environment: d.environment, alertType: d.alertType, severity: d.severity, status: d.status, resourceKind: d.resource.kind, resourceScope: d.resource.scope, resourceId: d.resource.id, time: n.time, ...(typeof d.message === 'string' ? { message: d.message.slice(0, 4096) } : {}) };

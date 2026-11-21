@@ -116,6 +116,8 @@
 # 106 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` (1.20.3) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: Device Concierge and Connection Concierge now mount the kernel's one chat window, and tests/phone-control-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
 # 107 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` names OSHAL_KERNEL_PLATFORM on its `intelligent-operations` step (1.9.4): Cloud & SSH commands, Console and Pod console now mount the kernel's one chat window, and tests/ops-one-chat-window.test.cjs (in the step's glob) serves that window and Today from the kernel platform the gate pins, refusing rather than skipping without it.
 # 108 | maintainer@emeraldcoastsystemsgroup.com | Job `little-monsters` (1.9.4) names OSHAL_KERNEL_PLATFORM on its `.test.cjs` suites step: tools/tutor-chat.html mounts the kernel's one chat window over the transport adapter, and tests/lm-shared-window-adapter.test.cjs (in the step's glob) serves that window from the kernel platform the gate pins, refusing rather than skipping without it.
+# 109 | maintainer@emeraldcoastsystemsgroup.com | Job `scan-to-print` (0.10.5, BACKLOG B6) provisions the pinned store toolchain (with sharp 0.35.5 alongside express and multer) and runs tests/routes.core.test.js with OSHAL_CORE_DIR pointing at scripts/toolchain, so a red HTTP route test fails every PR touching scan-to-print without needing the retired TypeScript platform checkout.
+# 110 | maintainer@emeraldcoastsystemsgroup.com | Job `design-studio` also runs engineering-shelf/tests/*.test.mjs (1.0.0, design-studio BACKLOG B12): the one Engineer role for the engineering applications. The declaration is held to what the kernel requires of a role across applications, read from the five manifests, and the role must give exactly what the calls of Design Studio's New product, a partner-built part, Simulate and Make the print set need. The job now provisions the pinned toolchain, which these suites read YAML and run the readiness route with.
 
 name: store-ci
 
@@ -1276,12 +1278,19 @@ jobs:
       # The deterministic engine (silhouette → visual hull → surface nets → STL/OBJ/SVG, the depth
       # carver and the .ply point-cloud lane, the printer adapters against a fake network) and the
       # surface's phone-camera module are pure JS with no framework import, so they run under plain
-      # node with no install — every hyphenated suite (engine-*, surface-*). The framework-coupled
-      # route suite (routes.core, express/multer/sharp) is registered in tests/test-lab.yaml with its
-      # checkout prerequisite and runs locally, not here.
+      # node with no install — every hyphenated suite (engine-*, surface-*). The HTTP route suite
+      # (tests/routes.core.test.js, BACKLOG B6) needs only express, multer and sharp from the pinned
+      # store toolchain (zero oshal/src imports), so it runs here on every PR touching scan-to-print.
       - name: Run scan-to-print engine and surface suites
         working-directory: scan-to-print
         run: node --test "tests/*-*.test.js"
+      - name: Provide the pinned Store toolchain
+        run: npm ci --prefix scripts/toolchain
+      - name: Run scan-to-print HTTP route suite
+        working-directory: scan-to-print
+        env:
+          OSHAL_CORE_DIR: ${{ github.workspace }}/scripts/toolchain
+        run: node --test tests/routes.core.test.js
 
   drone-relay:
     name: drone-relay package suites
@@ -1389,6 +1398,13 @@ jobs:
       - name: Run design-studio process-model suite
         working-directory: design-studio
         run: node --test "tests/*-*.test.js"
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      # One role for the engineering applications: the declaration against the kernel's rules for a role
+      # across applications, and the role against the calls Design Studio's four steps make.
+      - name: Run the engineering shelf role contract
+        working-directory: engineering-shelf
+        run: node --test "tests/*.test.mjs"
 
   scene-studio:
     name: scene-studio package suites

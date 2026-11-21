@@ -12,6 +12,7 @@
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express. Not part of the store-CI bare job (the glob is tests/*-*.test.js); run locally:
  * OSHAL_CORE_ROOT=$HOME/Documents/projects/oshal/src node --test tests/routes.core.test.js
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | 0.4.14 (BACKLOG B12): over HTTP, a cad-models bind without its list of parts answers 400 bad_artifact on artifact.modelIds, a bind under another kind with no list answers 409 while a part is bound, and the bound parts stand.
  */
 'use strict';
 const test = require('node:test');
@@ -120,6 +121,15 @@ test('a bind is a new revision of the phase\'s binding and refuses a phase outsi
   const badEngine = await call('POST', `/projects/${hangerId}/bind`, { phase: 'design', artifact: { engine: 'circuit-lab', kind: 'x' } });
   assert.equal(badEngine.status, 400); assert.equal(badEngine.json.field, 'artifact.engine');
   assert.equal((await call('POST', `/projects/${hangerId}/bind`, { phase: 'thermal', artifact: {} })).json.error, 'unknown_phase');
+  // A second bind that names the part another way and carries no list is refused, and the bound parts stand (0.4.14).
+  const stray = await call('POST', `/projects/${hangerId}/bind`, { phase: 'design', artifact: { engine: 'cad-studio', kind: 'cad-models', modelId: 'm1', partId: 'hook', read: { excerpt: 'massG: 12.5', revision: 1 } } });
+  assert.deepEqual([stray.status, stray.json.error, stray.json.field], [400, 'bad_artifact', 'artifact.modelIds']);
+  // The same bind under a kind of its own carries no list either: refused while a part is bound, and the bound part stands.
+  const renamed = await call('POST', `/projects/${hangerId}/bind`, { phase: 'design', artifact: { engine: 'cad-studio', kind: 'cad-part', partId: 'hook', read: { excerpt: 'massG: 12.5', revision: 1 } } });
+  assert.deepEqual([renamed.status, renamed.json.error, renamed.json.field], [409, 'bad_artifact', 'artifact.modelIds']);
+  assert.match(renamed.json.message, /would unbind the 1 CAD Studio part bound to Design/);
+  const kept = (await call('GET', `/projects/${hangerId}`)).json.bindings.design;
+  assert.deepEqual([kept.artifact.modelIds, kept.bindCount], [['m1'], 2]);
 });
 
 test('a close is refused as missing_evidence without the evidence line OR the revision, missing_step on build, and recorded otherwise', async () => {

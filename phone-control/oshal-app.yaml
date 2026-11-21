@@ -44,6 +44,7 @@
 # 37 | maintainer@emeraldcoastsystemsgroup.com | Release 1.20.1 (blue acceptance, 2026-11-14: POST /devices/<unknown>/apps, tool phone-control-tv-apps, answered 404 {"error":"device_not_found"} with no sentence, where every other refusal of the package and Smart Home's "No saved TV is called ..." carry one): every not-found answer says in words what is missing beside its code (lib/refusals.js): a device nobody saved, or another person's, on each device route ("No saved device is called "<id>". List your devices first (phone-control-list-devices)."), a capture, a transfer, a bridge file and a page file. The bridge says 1.20.1 with no verb changed. No tool, route, permission or egress changed. Guard: tests/phone-control-routes.test.cjs.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | Release 1.20.2 (Roger, his phone, 2026-11-16: "I can't scroll on this screen on my phone"): Your devices scrolls by finger and wheel again. Since 1.3.0 the page's html and body both clipped sideways with overflow-x: hidden, which made the body a scroll container of its own with nothing to scroll, and its overscroll-behavior-y: contain stopped every swipe from reaching the page's real scroller, so a list taller than the screen stayed where it was. They clip with overflow-x: clip now, and below 900 px the page ends 144 px lower so the last row's buttons scroll clear of the shell's floating Jarvis button. The desktop layout and the full-screen session view are unchanged. The bridge says 1.20.2 with no verb changed. No tool, route, permission or egress changed. Guard: tests/phone-control-phone-scroll.test.cjs.
 # 39 | maintainer@emeraldcoastsystemsgroup.com | Release 1.20.3 (Roger, 2026-11-16/17: one concierge chat window everywhere): Device Concierge (#phoneConciergeWindow) and Connection Concierge (#connectConciergeWindow) mount the kernel's one chat window (/shared/ui/js/jarvis-chat-frame.js) as phone-control / device-concierge with live screen_state, leaving PENDING_BESPOKE_CHAT_SURFACES (4 remaining). The bridge says 1.20.3 with no verb changed. No tool, route, permission or egress changed. Guard: tests/phone-control-one-chat-window.test.cjs.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | Release 1.20.4 (path planner, kernel ADR-219 decision 11; the owner, 2026-11-20: "next time it just happens without thought so long as the right devices are online"): Play a Show on a TV (phone-control-play-show) declares devicePath with how: computer-plan, so the kernel's device.path can offer it as a way to play a title by its name on a Fire TV this application saved in the person's device inventory: the computer the TV was saved through, then the TV by this tool. The kernel can then record a try of it and keep it once it worked, and a kept way is offered first. The declaration says what the tool's own plan does (bridge/oshal_phone_play.py): it reaches a Fire TV (it looks for Prime Video's Fire TV package and refuses in words on a TV without it), the saved TV goes in the input field id and the title in title, it opens the application and presses the remote's keys (it types nothing), it reads back what the TV says is playing, and it wakes the TV first. It grants nothing and runs nothing: the tool, its route, its plan and its permissions are unchanged, and a play still needs the person's computer to run the plan. The bridge says 1.20.4 with no verb changed. No route, permission, grant or egress changed. Guard: tests/phone-control-device-path.test.cjs. The kernel's own reading: tests/phone-control-play-way-live-proof.mjs, run on a throwaway kernel at 2816eff1 by tests/live/play-way-disposable.sh (the way is listed; with a declaration outside the shape it is not) and not yet on an installed package.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -70,7 +71,7 @@ description: >-
   person left off, opens a title's link in its streaming app, and says what the TV is playing.
   It also says which streaming apps a saved Android or Fire TV has, among Netflix, Prime Video,
   Disney+, Max, Hulu, YouTube and the oshal TV app, and keeps them in the person's device inventory.
-version: 1.20.3
+version: 1.20.4
 status: active
 scope: person
 chatBot: device-concierge
@@ -980,6 +981,7 @@ tools:
       executorType: api
       apiEndpoint: POST /api/phone-control/devices/{input.id}/play
     computerPlan: { program: phone-bridge, verbs: [lan-control], revalidate: true }
+    devicePath: { how: computer-plan, reaches: [fire-tv], jobs: [tv.play-title], target: id, slots: { title: title }, controls: [open-app, keys], observes: [media-session], wakes: true }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:

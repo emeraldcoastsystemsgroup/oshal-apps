@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: export the layer field lists for the agent boundary.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: validate optional boolean flipX and flipY on paint and group layers, omitting false values from normalized JSON and refusing adjustment flips.
  */
 
 /** @description Shared resource ceilings for browser edits and reference-only persistence.
@@ -28,7 +29,7 @@ export const IMAGE_FILTERS = Object.freeze({
   blur: Object.freeze({ min: 0, max: 64, neutral: 0, unit: 'px' }),
 });
 const TYPES = new Set(['image', 'text', 'rect', 'ellipse', 'freehand', 'adjustment', 'group', 'path']);
-export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked', 'shadow'];
+export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'flipX', 'flipY', 'opacity', 'visible', 'locked', 'shadow'];
 export const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
   rect: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], ellipse: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], freehand: ['points', 'stroke', 'strokeWidth', 'dash', 'cap', 'join'] };
 
@@ -264,10 +265,13 @@ export function normalizeLayer(layer) {
   demand(layer && TYPES.has(layer.type), 'Unsupported layer type');
   objectKeys(layer, [...COMMON, ...FIELDS[layer.type]], 'Layer');
   const rotation = number(layer.rotation ?? 0, -360000, 360000, 'Rotation');
+  const flipX = boolean(layer.flipX, false, 'Flip horizontal'), flipY = boolean(layer.flipY, false, 'Flip vertical');
+  demand(layer.type !== 'adjustment' || (!flipX && !flipY), 'Adjustment layers cannot be flipped');
   const result = { id: identifier(layer.id), type: layer.type, name: text(layer.name ?? layer.type, 120, 'Layer name'),
     x: number(layer.x ?? 0, -32768, 32768, 'Layer x'), y: number(layer.y ?? 0, -32768, 32768, 'Layer y'),
     w: number(layer.w ?? 100, 0.1, 32768, 'Layer width'), h: number(layer.h ?? 100, 0.1, 32768, 'Layer height'),
-    rotation: ((rotation % 360) + 540) % 360 - 180, opacity: number(layer.opacity ?? 1, 0, 1, 'Opacity'),
+    rotation: ((rotation % 360) + 540) % 360 - 180, ...(flipX ? { flipX: true } : {}), ...(flipY ? { flipY: true } : {}),
+    opacity: number(layer.opacity ?? 1, 0, 1, 'Opacity'),
     visible: boolean(layer.visible, true, 'Visibility'), locked: boolean(layer.locked, false, 'Lock'), ...(layer.shadow == null ? {} : {shadow:shadowFields(layer.shadow)}) };
   demand(layer.type !== 'adjustment' || layer.shadow == null,'Adjustment layers cannot have shadows');
   if (layer.type === 'image') return { ...result, assetId: identifier(layer.assetId), crop: cropRectangle(layer.crop),

@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: `options.ctx` adds the kernel's activation ports (`tools`, `authorization`) to the person's route factory context, so tools.core can capture the package tools and the resource adapter that factory registers; fakePool is exported for kernel.core, which activates the package through the real core runtime over this same SQL-dispatching store.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep historical SQL-dispatching lifecycle fixtures explicitly synthetic; new genuine calibration proofs use their isolated PostgreSQL fixture.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Support scan_print_share_link rows and revocation updates in the SQL-dispatching route fixture.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Forward optional slicerExchange seam to package route factories (BACKLOG B16 Option C).
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -199,7 +200,7 @@ async function startFixture(options = {}) {
   app.use('/shared/ui/js', express.static(path.join(process.env.OSHAL_PLATFORM_ROOT || CORE, 'src/shared/ui/js')));
   app.use('/cockpit', express.static(path.join(CORE, 'src/pages/cockpit')));
   app.get('/shared/ui-debug.js', (_req, res) => res.sendFile(path.join(CORE, 'src/pages/shared/ui-debug.js')));
-  const seams = { slicerConnect: options.slicerConnect, bambuIo: options.bambuIo };
+  const seams = { slicerConnect: options.slicerConnect, slicerExchange: options.slicerExchange, bambuIo: options.bambuIo };
   serviceIdentity.control = control;
   app.use((req, _res, next) => {
     if (req.headers['x-service-secret']) return next();

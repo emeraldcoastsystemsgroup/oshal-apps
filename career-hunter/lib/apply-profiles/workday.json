@@ -1,0 +1,63 @@
+{
+  "id": "workday",
+  "version": 1,
+  "document": "docx",
+  "steps": {
+    "Autofill with Resume": "upload",
+    "Quick Apply": "upload",
+    "My Information": "contact",
+    "My Experience": "experience",
+    "Application Questions": "questions",
+    "Voluntary Disclosures": "disclosures",
+    "Self Identify": "self-id",
+    "Review": "review"
+  },
+  "press": {
+    "open": ["Apply", "Apply Now", "Autofill with Resume", "Apply Manually"],
+    "continue": ["Continue", "Save and Continue", "Next"],
+    "back": ["Back"],
+    "add-entry": ["Add", "Add Another"],
+    "delete-entry": ["Delete"]
+  },
+  "fields": [
+    {"match": {"auto": ["legalNameSection_firstName"], "label": ["Given Name(s)", "First Name"]}, "slot": "name.first"},
+    {"match": {"auto": ["legalNameSection_middleName"], "label": ["Middle Name"]}, "slot": "name.middle"},
+    {"match": {"auto": ["legalNameSection_lastName"], "label": ["Family Name", "Last Name"]}, "slot": "name.last"},
+    {"match": {"auto": ["email"], "label": ["Email Address", "Email"]}, "slot": "email"},
+    {"match": {"auto": ["phone-number"], "label": ["Phone Number"]}, "slot": "phone"},
+    {"match": {"auto": ["phone-device-type"], "label": ["Phone Device Type"]}, "slot": "phone.type"},
+    {"match": {"auto": ["addressSection_addressLine1"], "label": ["Address Line 1"]}, "slot": "address.line1"},
+    {"match": {"auto": ["addressSection_addressLine2"], "label": ["Address Line 2"]}, "slot": "address.line2"},
+    {"match": {"auto": ["addressSection_city"], "label": ["City"]}, "slot": "address.city"},
+    {"match": {"auto": ["addressSection_countryRegion"], "label": ["State", "State or Province"]}, "slot": "address.state"},
+    {"match": {"auto": ["addressSection_postalCode"], "label": ["Postal Code", "ZIP Code"]}, "slot": "address.postal"},
+    {"match": {"auto": ["countryDropdown"], "label": ["Country"]}, "slot": "address.country"},
+    {"match": {"auto": ["sourceDropdown", "sourcePrompt"], "label": ["How Did You Hear About Us?"]}, "slot": "source.heard"},
+    {"match": {"auto": ["linkedinQuestion"], "label": ["LinkedIn", "LinkedIn Profile"]}, "slot": "links.linkedin"},
+    {"match": {"auto": [], "label": ["Website", "Portfolio"]}, "slot": "links.website"},
+    {"match": {"auto": [], "label": ["Are you legally authorized to work", "authorized to work"]}, "slot": "eligibility.authorized"},
+    {"match": {"auto": [], "label": ["require sponsorship", "visa sponsorship", "need sponsorship"]}, "slot": "eligibility.sponsorship"},
+    {"match": {"auto": ["agreementCheckbox"], "label": ["I have read and consent to the terms and conditions", "Yes, I have read and consent to the terms and conditions", "I agree to the terms and conditions"]}, "slot": "attest.terms"}
+  ],
+  "groups": [
+    {"page": "experience", "heading": "Work Experience", "facts": "roles", "keys": ["employer", "title"],
+     "fields": {"Job Title": "title", "Company": "employer", "I currently work here": "current",
+                "From": "start", "To": "end", "Role Description": "description"}},
+    {"page": "experience", "heading": "Education", "facts": "education", "keys": ["school", "degree"],
+     "fields": {"School or University": "school", "Degree": "degree", "Field of Study": "field",
+                "From": "start", "To": "end"}}
+  ],
+  "equivalents": {
+    "MBA": ["MBA", "Master of Business Administration", "Master's Degree"],
+    "MS": ["MS", "M.S.", "Master of Science", "Master's Degree"],
+    "MA": ["MA", "M.A.", "Master of Arts", "Master's Degree"],
+    "BS": ["BS", "B.S.", "Bachelor of Science", "Bachelor's Degree"],
+    "BA": ["BA", "B.A.", "Bachelor of Arts", "Bachelor's Degree"],
+    "PhD": ["PhD", "Ph.D.", "Doctor of Philosophy", "Doctorate"],
+    "Associate": ["Associate", "Associate's Degree", "Associate of Science", "Associate of Arts"]
+  },
+  "decline": ["I do not wish to answer", "I don't wish to answer", "I do not want to answer",
+              "Decline to self-identify", "Prefer not to say"],
+  "signature": {"page": "self-id", "name": ["Name"], "date": ["Date"]},
+  "upload": {"resume": ["resume", "cv", "autofill with resume"], "cover": ["cover letter"]}
+}

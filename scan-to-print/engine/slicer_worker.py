@@ -21,7 +21,12 @@
 #   |                                           | are resolved within the library, as OrcaSlicer does); the
 #   |                                           | slicer's timeout is shorter than the api client's so the worker
 #   |                                           | always answers (and cleans up) first.
-"""slicer_worker -- STL -> Bambu .gcode.3mf through OrcaSlicer (stdlib + Pillow)."""
+# 3 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B16 Option C: add the generic STL-to-G-code verb
+#   |                                           | (`slice_gcode`) reusing the container's OrcaSlicer CLI with
+#   |                                           | bounded print settings and OrcaSlicer's Custom generic profiles
+#   |                                           | (marlin/klipper), G-code validation + SHA-256 + estimate
+#   |                                           | parsing, and capability advertisement in `hello`.
+"""slicer_worker -- STL -> Bambu .gcode.3mf or generic .gcode through OrcaSlicer (stdlib + Pillow)."""
 import base64
 import glob
 import hashlib
@@ -40,12 +45,43 @@ import zipfile
 PROTOCOL = 1
 ORCA_DIR = os.environ.get("ORCA_SLICER_DIR", "/opt/orcaslicer")
 PROFILES = os.path.join(ORCA_DIR, "resources", "profiles", "BBL")
+CUSTOM_PROFILES = os.path.join(ORCA_DIR, "resources", "profiles", "Custom")
 LIBRARY = os.path.join(ORCA_DIR, "resources", "profiles", "OrcaFilamentLibrary")
 PLATES = ("Cool Plate", "Engineering Plate", "High Temp Plate", "Textured PEI Plate", "Textured Cool Plate", "Supertack Plate")
 NOZZLES = ("0.2", "0.4", "0.6", "0.8")
 MAX_STL_BYTES = 64 * 1024 * 1024
+MAX_GCODE_BYTES = int(os.environ.get("SCAN_TO_PRINT_MAX_GCODE_BYTES", str(16 * 1024 * 1024)))
 # Below the api client's 600 s ceiling, so a slow slice is answered (and cleaned up) by the worker.
 SLICE_TIMEOUT_S = int(os.environ.get("SCAN_TO_PRINT_SLICE_TIMEOUT_S", "540"))
+GENERIC_PROFILE_SPECS = {
+    "marlin": ("MyMarlin 0.4 nozzle", "0.20mm Standard @MyMarlin", "marlin"),
+    "klipper": ("MyKlipper 0.4 nozzle", "0.20mm Standard @MyKlipper", "klipper"),
+}
+GENERIC_PROFILE_ALIASES = {
+    "generic": "marlin",
+    "marlin": "marlin",
+    "octoprint": "marlin",
+    "prusalink": "marlin",
+    "klipper": "klipper",
+    "moonraker": "klipper",
+}
+GENERIC_FILAMENT = "Generic PLA @System"
+GCODE_DEFAULTS = {
+    "layerHeightMm": 0.2,
+    "infillPct": 15,
+    "wallLoops": 2,
+    "nozzleTempC": 210,
+    "bedTempC": 60,
+    "profile": "marlin",
+}
+GCODE_BOUNDS = {
+    "layerHeightMm": (0.05, 0.6),
+    "infillPct": (0, 100),
+    "wallLoops": (1, 10),
+    "nozzleTempC": (150, 320),
+    "bedTempC": (0, 120),
+}
+GCODE_CMD_RE = re.compile(r"^(?:G[0-3]|G28|G90|G91|G92|M[0-9]+)\b", re.MULTILINE)
 
 
 class Refused(Exception):
@@ -303,8 +339,182 @@ def cmd_profiles(_args, state):
     return {"printers": out, "plates": list(PLATES)}
 
 
+def _bounded_number(args, key, integer=False):
+    """@description Parse one optional numeric setting within GCODE_BOUNDS, rejecting booleans and NaN."""
+    raw = args.get(key)
+    if raw is None or raw == "":
+        return GCODE_DEFAULTS[key]
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        raise Refused(f"{key} must be a number")
+    val = float(raw)
+    if not math.isfinite(val):
+        raise Refused(f"{key} must be finite")
+    lo, hi = GCODE_BOUNDS[key]
+    if integer and val != int(val):
+        raise Refused(f"{key} must be an integer between {lo} and {hi}")
+    if val < lo or val > hi:
+        raise Refused(f"{key} must be between {lo} and {hi}")
+    return int(val) if integer else round(val, 4)
+
+
+def parse_gcode_settings(args):
+    """@description Validate bounded generic G-code slice settings with safe defaults."""
+    raw_profile = args.get("profile")
+    if raw_profile is None or raw_profile == "":
+        profile = GCODE_DEFAULTS["profile"]
+    elif not isinstance(raw_profile, str):
+        raise Refused("profile must be a string")
+    else:
+        key = raw_profile.strip().lower()
+        profile = GENERIC_PROFILE_ALIASES.get(key)
+        if profile is None:
+            valid = ", ".join(sorted(GENERIC_PROFILE_ALIASES))
+            raise Refused(f"unknown generic profile {raw_profile!r}; expected one of {valid}")
+    return {
+        "layerHeightMm": _bounded_number(args, "layerHeightMm", integer=False),
+        "infillPct": _bounded_number(args, "infillPct", integer=True),
+        "wallLoops": _bounded_number(args, "wallLoops", integer=True),
+        "nozzleTempC": _bounded_number(args, "nozzleTempC", integer=True),
+        "bedTempC": _bounded_number(args, "bedTempC", integer=True),
+        "profile": profile,
+    }
+
+
+def resolve_generic(state, settings):
+    """@description Resolve a generic machine, process, and PLA filament with validated overrides."""
+    machine_name, process_name, flavor = GENERIC_PROFILE_SPECS[settings["profile"]]
+    custom, library = state.get("custom") or {}, state.get("library") or {}
+    machine = flatten(custom, "machine", machine_name, library=library)
+    process = flatten(custom, "process", process_name, library=library)
+    filament = flatten(library, "filament", GENERIC_FILAMENT, library=library)
+    lh = settings["layerHeightMm"]
+    machine["max_layer_height"] = [f"{max(0.32, lh):g}"]
+    machine["min_layer_height"] = [f"{min(0.08, lh):g}"]
+    process["layer_height"] = f"{lh:g}"
+    process["initial_layer_print_height"] = f"{max(0.12, lh):g}"
+    process["sparse_infill_density"] = f"{settings['infillPct']}%"
+    process["wall_loops"] = str(settings["wallLoops"])
+    nozzle_str, bed_str = str(settings["nozzleTempC"]), str(settings["bedTempC"])
+    filament["nozzle_temperature"] = [nozzle_str]
+    filament["nozzle_temperature_initial_layer"] = [nozzle_str]
+    for k in ("hot_plate_temp", "hot_plate_temp_initial_layer", "textured_plate_temp",
+              "textured_plate_temp_initial_layer", "cool_plate_temp", "cool_plate_temp_initial_layer",
+              "eng_plate_temp", "eng_plate_temp_initial_layer"):
+        filament[k] = [bed_str]
+    return {"machine": machine, "process": process, "filament": filament, "profileName": settings["profile"],
+            "gcodeFlavor": flavor, "names": {"machine": machine_name, "process": process_name, "filament": GENERIC_FILAMENT}}
+
+
+def build_orca_gcode_cmd(stl_path, resolved, work):
+    """@description Build the argv-only OrcaSlicer command for plain .gcode export."""
+    machine, process, filament = write_profiles(resolved, work)
+    return [os.path.join(ORCA_DIR, "bin", "orca-slicer"), "--arrange", "1", "--orient", "0",
+            "--load-settings", f"{machine};{process}", "--load-filaments", filament,
+            "--slice", "0", "--outputdir", work, stl_path]
+
+
+def run_orca_gcode(stl_path, resolved, work):
+    """@description Slice one STL into standard plain .gcode with OrcaSlicer (argv, no shell)."""
+    cmd = build_orca_gcode_cmd(stl_path, resolved, work)
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "TMPDIR", "LANG") if k in os.environ}
+    env["LC_ALL"] = "C"
+    proc = subprocess.run(cmd, cwd=work, env=env, capture_output=True, timeout=SLICE_TIMEOUT_S)
+    result_path = os.path.join(work, "result.json")
+    result = {}
+    if os.path.exists(result_path):
+        with open(result_path, encoding="utf-8") as fh:
+            result = json.load(fh)
+    gcode_path = os.path.join(work, "plate_1.gcode")
+    if not os.path.exists(gcode_path):
+        candidates = sorted(glob.glob(os.path.join(work, "*.gcode")))
+        gcode_path = candidates[0] if candidates else gcode_path
+    if proc.returncode != 0 or result.get("return_code", 0) != 0 or not os.path.exists(gcode_path):
+        tail = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()[-6:]
+        raise RuntimeError(f"OrcaSlicer G-code slice failed (exit {proc.returncode}): {result.get('error_string') or ' | '.join(tail)}")
+    return gcode_path
+
+
+def validate_and_parse_gcode(raw):
+    """@description Check emitted G-code bytes for size, UTF-8 text, and real G/M commands; extract estimates."""
+    if not raw:
+        raise RuntimeError("slicer produced empty G-code")
+    if len(raw) > MAX_GCODE_BYTES:
+        raise RuntimeError(f"sliced G-code exceeds {MAX_GCODE_BYTES} byte limit ({len(raw)} bytes)")
+    if b"\x00" in raw:
+        raise RuntimeError("sliced G-code contains binary NUL bytes")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise RuntimeError("sliced G-code is not valid UTF-8 text") from None
+    if not GCODE_CMD_RE.search(text):
+        raise RuntimeError("sliced G-code contains no valid G/M printer commands")
+    time_m = re.search(r"(?:estimated printing time \(normal mode\)\s*=|total estimated time:)\s*([^\n;]+)", text)
+    grams_m = re.search(r"(?:total filament used \[g\]|filament used \[g\])\s*=\s*([0-9.]+)", text)
+    mm_m = re.search(r"filament used \[mm\]\s*=\s*([0-9.]+)", text)
+    layers_m = re.search(r"(?:total layer number:|total layers count\s*=)\s*(\d+)", text)
+    estimate = {
+        "printSeconds": _seconds(time_m.group(1)) if time_m else None,
+        "filamentGrams": float(grams_m.group(1)) if grams_m else None,
+        "filamentMm": float(mm_m.group(1)) if mm_m else None,
+        "layers": int(layers_m.group(1)) if layers_m else None,
+    }
+    return hashlib.sha256(raw).hexdigest(), estimate
+
+
+def _decode_stl(args):
+    """@description Decode and size-check a base64 STL payload."""
+    stl_b64 = args.get("stl")
+    if not isinstance(stl_b64, str) or not stl_b64.strip():
+        raise Refused(f"stl must be 1 byte .. {MAX_STL_BYTES} bytes")
+    try:
+        raw = base64.b64decode(stl_b64, validate=True)
+    except ValueError:
+        raise Refused("stl is not valid base64") from None
+    if not raw or len(raw) > MAX_STL_BYTES:
+        raise Refused(f"stl must be 1 byte .. {MAX_STL_BYTES} bytes")
+    return raw
+
+
+def cmd_slice_gcode(args, state):
+    """@description args {stl: base64, name?, layerHeightMm?, infillPct?, wallLoops?, nozzleTempC?, bedTempC?, profile?}."""
+    raw = _decode_stl(args)
+    settings = parse_gcode_settings(args)
+    resolved = resolve_generic(state, settings)
+    stem = _safe_stem(args.get("name"))
+    work = tempfile.mkdtemp(prefix="slice-gcode-")
+    try:
+        stl_path = os.path.join(work, f"{stem}.stl")
+        with open(stl_path, "wb") as fh:
+            fh.write(raw)
+        started = time.time()
+        gcode_path = run_orca_gcode(stl_path, resolved, work)
+        with open(gcode_path, "rb") as fh:
+            gcode_bytes = fh.read()
+        sha256, estimate = validate_and_parse_gcode(gcode_bytes)
+        return {
+            "ok": True,
+            "fileName": f"{stem}.gcode",
+            "gcodeBase64": base64.b64encode(gcode_bytes).decode("ascii"),
+            "bytes": len(gcode_bytes),
+            "sha256": sha256,
+            "slicer": "orca-slicer",
+            "ms": int((time.time() - started) * 1000),
+            "profile": {"name": resolved["profileName"], "gcodeFlavor": resolved["gcodeFlavor"], **resolved["names"]},
+            "settings": settings,
+            "estimate": estimate,
+        }
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def cmd_hello(_args, state):
-    return {"protocol": PROTOCOL, "orcaSlicer": state["version"], "printerModels": len(state["models"])}
+    return {
+        "protocol": PROTOCOL,
+        "orcaSlicer": state["version"],
+        "printerModels": len(state["models"]),
+        "capabilities": sorted(COMMANDS.keys()),
+        "gcodeProfiles": sorted(GENERIC_PROFILE_SPECS.keys()),
+    }
 
 
 def cmd_upload_bambu(args, _state):
@@ -320,7 +530,13 @@ def cmd_upload_bambu(args, _state):
         raise Refused(str(exc)) from None
 
 
-COMMANDS = {"hello": cmd_hello, "profiles": cmd_profiles, "slice": cmd_slice, "upload_bambu": cmd_upload_bambu}
+COMMANDS = {
+    "hello": cmd_hello,
+    "profiles": cmd_profiles,
+    "slice": cmd_slice,
+    "slice_gcode": cmd_slice_gcode,
+    "upload_bambu": cmd_upload_bambu,
+}
 
 
 def orca_version():
@@ -353,8 +569,9 @@ def handle(line, state):
 
 def main():
     index, models = load_index()
+    custom, _ = load_index(CUSTOM_PROFILES)
     library, _ = load_index(LIBRARY)
-    state = {"index": index, "models": models, "library": library, "version": orca_version()}
+    state = {"index": index, "models": models, "custom": custom, "library": library, "version": orca_version()}
     for line in sys.stdin:
         if line.strip():
             sys.stdout.write(json.dumps(handle(line, state)) + "\n")

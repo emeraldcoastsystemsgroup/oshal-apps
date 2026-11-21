@@ -1,5 +1,9 @@
 # Scan to Print
 
+0.10.6 adds generic STL-to-G-code slicing (`slice_gcode`) to the package's own OrcaSlicer engine (`engine/slicer_worker.py`, BACKLOG B16 Option C): without installing any host slicer package or changing `authorization.yaml`, HTTP printer hosts (OctoPrint, Klipper/Moonraker, PrusaLink) slice STL models into validated Marlin or Klipper `.gcode` over `engine.exchange` when `SCAN_TO_PRINT_SLICER_CMD` is unset, `/capabilities` and `/printers` report `slicerConfigured: true` with `slicerBackend: 'engine' | 'command' | 'none'`, and explicit `SCAN_TO_PRINT_SLICER_CMD` remains fully backward compatible. Rebuild the engine container (`engine/install-engine.sh`) to activate `slice_gcode` in the running engine. Proven by `engine/tests/test_slicer_gcode.py`, `tests/engine-gcode-slicer.test.js`, and `tests/routes.core.test.js`.
+
+0.10.5 closes BACKLOG B6: `tests/routes.core.test.js` (8 loopback HTTP route integration cases) now runs automatically in the `scan-to-print` store-CI / pre-push gate via the pinned store toolchain (`express`, `multer`, `sharp`), and its registration + fail-closed red propagation are pinned in `scripts/security/run-framework-coupled-tests.test.mjs`.
+
 0.8.0 adds the shared document workspace with editable axis measurements and reconstruction settings. Saving dimensions uses the existing owned operation and retires obsolete outputs; real drawing, mesh and report views remain open for review.
 
 0.7.3: **access code** on a Bambu printer in the Printers panel replaces its stored code in place. A code sealed by an earlier platform cannot be read on the native kernel, and the print route now says so instead of a bare failure. Adding a new Bambu printer still needs the network from the package, so on the native kernel it is backlog B22.

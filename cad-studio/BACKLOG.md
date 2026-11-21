@@ -40,19 +40,20 @@ small: `tools/cad-studio-gl.js` adapts it, the form pre-fills, and
 
 **Done (0.5.2):** CAD Studio now declares `artifacts.provides` (`GET /api/cad-studio/artifacts`, caller-scoped `{ items, folders, nextCursor }` with `Cache-Control: private, no-store` for built revision STL/3MF/OBJ/STEP files), loads `/api/artifacts/send-to.js`, and renders **"Print in Scan to Print"** with ADR-139 `data-artifact-source` / `data-artifact-type="model/stl"` / `data-artifact-name` attributes on every revision row in `#revisions`. Clicking **Print in Scan to Print** opens the Print sheet targeted to that revision and hands the STL to Scan to Print's `/api/scan-to-print/service/print` (`multipart` field `model`) behind explicit user confirmation (`app.ask(...)`), keeping auto-start governed by Scan to Print's printer settings. Guarded by `tests/b3-print-handoff.test.js`. (Note: Scan to Print's own `artifacts.accepts` remains `image/*` for photo-scan jobs; direct STL printing uses Scan to Print's `/api/scan-to-print/service/print` endpoint.)
 
-## B4 — Threads and text
+## B4 — Threads and text — DONE (CAD Studio 0.5.5)
 
 Done when: `thread` (ISO metric profile on a hole or boss, by nominal size and pitch) and `text`
 (embossed / debossed, a bundled font) are feature types with real-kernel tests and the STL of a
 threaded boss passes the mesh validator.
 
-**Status (2026-09-14): open, not started.** What it needs that B1 did not: a font file shipped in
-the engine tree (the image installs `libfontconfig1` / `libfreetype6` but no fonts — `engine/
-container/Dockerfile`), and a licence note for it; a helical sweep for the thread (B1's `sweep`
-takes polylines only); and "the mesh validator" is Scan to Print's
-`src-routes/engine/geometry/mesh-validate.ts` — decide whether CAD Studio's test imports it or
-the check is re-stated here. Every assertion is real-kernel, so none of it can be proven outside
-the engine image.
+**Done (0.5.5):** Implemented end-to-end across `engine/cad_worker.py`, `src-routes/feature-contract.ts` (+ compiled `routes/feature-contract.js`), `src-routes/engine-build-hash.ts`, `engine/container/cad_engine_bridge.py`, `tools/cad-studio.js`, `personas/cad-studio-designer.yaml`, and verified on the real OCCT kernel inside `oshal-cad-studio-engine:local`:
+- **Bundled open-licensed font:** Shipped `engine/fonts/LiberationSans-Regular.ttf` (SIL Open Font License 1.1) alongside `engine/fonts/LICENSE.txt`, hashed in `RUNTIME_FILES` by both `engine-build-hash.ts` and `cad_engine_bridge.py` and advertised as `bundledFont` in `hello()` and `/capabilities`.
+- **`thread` (ISO 68-1 metric helical thread on external boss or internal hole):** Validates `kind` (`external|internal`), `nominalDiameterMm` (`2..200`), `pitchMm` (`0.35..6.0`, `< nominalDiameterMm * 0.5`), `lengthMm` (`1..300`, `>= pitchMm`), `axis` (`x|y|z`), `x/y/z/from`, `handedness` (`right|left`), and `clearanceMm` (`0..0.5`). Sweeps a true 60° truncated ISO metric profile with an axial guide spine (`mode=aux_spine, isFrenet=False`), fuses onto the core before clipping to exact length for clean planar end caps.
+- **`text` (embossed / debossed):** Validates `text` (`1..64` printable trimmed chars), `sizeMm` (`2..200`), `depthMm` (`0.2..50`), `mode` (`emboss|deboss`), `face` (`top|bottom|front|back|left|right`), `x`, `y`, and `angleDeg` (`-360..360`), rendering with `Workplane.text(..., fontPath=BUNDLED_FONT_PATH)` and non-coplanar face overlap.
+- **Real-kernel & mesh-validator proof:**
+  - `engine/tests/test_cad_worker.py`: `34/34` PASS (`4.811s`) inside `oshal-cad-studio-engine:local` (CadQuery 2.8.0 / OCCT 7.9), including 6 new `ThreadAndTextFeatures` cases covering M10×1.5 external boss, M8×1.25 left-hand clearance boss on X, M10×1.5 internal hole, embossed top text (`vol > 32000`), debossed angled front text (`vol < 32000`), and per-feature refusals.
+  - Threaded M10×1.5 boss STL (40×40×20 base + 10 mm M10×1.5 external boss) cross-validated directly against `scan-to-print/routes/engine/geometry/mesh-validate.js` (`validateMesh`): `valid: true`, `watertight: true`, `boundaryEdges: 0`, `nonManifoldEdges: 0`, `openEdges: 0`, `consistentWinding: true`, `outwardFacing: true`, `degenerate: 0`, `eulerCharacteristic: 2`, `volumeMm3: 32651.233`, `8144` triangles.
+  - Node suites (`tests/*-*.test.js` + `tests/audience-view.test.cjs`): `72/72` PASS, including `tests/b4-thread-text-mesh.test.js`, expanded `tests/contract-features.test.js`, and pre-kernel refusal checks in `tests/worker-logic.test.js`.
 
 ## B5 — Per-feature timing budget and cancellation — DONE (CAD Studio 0.5.3)
 

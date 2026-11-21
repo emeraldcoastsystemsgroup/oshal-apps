@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the navigation pane is named Layers and automatic saving saves the duplicate without a Save press.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify 4-quadrant asymmetric photo rendering, PNG export, concierge flip-back, masked/grouped flips and SVG flip export in Chromium.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -405,4 +406,74 @@ test('native SVG text metadata retains editable text, wrapping dimensions and fo
   });
   for (const field of ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align', 'x', 'y', 'w', 'h']) assert.equal(result.after[field], result.before[field]);
   assert.ok(result.warnings.some(value => value.includes('fonts'))); clean(value);
+});
+
+test('flipped 4-quadrant photo, masked flip, flipped group ungroup and flipped SVG match exact pixels', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const svg = await import('/editor/vector-svg.mjs');
+    const quad = () => {
+      const source = document.createElement('canvas'); source.width = 40; source.height = 40; const paint = source.getContext('2d');
+      paint.fillStyle = '#ff0000'; paint.fillRect(0, 0, 20, 20);
+      paint.fillStyle = '#00ff00'; paint.fillRect(20, 0, 20, 20);
+      paint.fillStyle = '#0000ff'; paint.fillRect(0, 20, 20, 20);
+      paint.fillStyle = '#ffff00'; paint.fillRect(20, 20, 20, 20);
+      return source.toDataURL('image/png');
+    };
+    const exportedQuadrants = async (project, images) => {
+      const blob = await rendering.exportProjectImage(project, { type: 'image/png', images });
+      const bitmap = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+      const out = document.createElement('canvas'); out.width = bitmap.width; out.height = bitmap.height;
+      const paint = out.getContext('2d'); paint.drawImage(bitmap, 0, 0); bitmap.close();
+      const at = (x, y) => [...paint.getImageData(x, y, 1, 1).data];
+      return { tl: at(25, 25), tr: at(55, 25), bl: at(25, 55), br: at(55, 55), all: [...paint.getImageData(0, 0, 80, 80).data] };
+    };
+    const base = model.applyOperation(model.createProject({ width: 80, height: 80 }), { type: 'add',
+      images: { photo: { src: quad(), width: 40, height: 40 } },
+      layer: { id: 'photo', type: 'image', assetId: 'photo', x: 20, y: 20, w: 40, h: 40 } });
+    const images = await rendering.loadProjectImages(base);
+    const orig = await exportedQuadrants(base, images);
+    const fx = await exportedQuadrants(model.applyOperation(base, { type: 'update', id: 'photo', patch: { flipX: true } }), images);
+    const fy = await exportedQuadrants(model.applyOperation(base, { type: 'update', id: 'photo', patch: { flipY: true } }), images);
+    const both = model.applyOperation(base, { type: 'update', id: 'photo', patch: { flipX: true, flipY: true } });
+    const fxy = await exportedQuadrants(both, images);
+    const back = await exportedQuadrants(model.applyOperation(both, { type: 'update', id: 'photo', patch: { flipX: false, flipY: false } }), images);
+    // Masked image flipped horizontally: top-left source mask (red quadrant) moves to top-right on canvas.
+    const masked = model.applyOperation(base, { type: 'update', id: 'photo', patch: { flipX: true,
+      mask: { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 20 }, { x: 0, y: 20 }], enabled: true, inverted: false, feather: 0 } } });
+    const maskedOut = await exportedQuadrants(masked, images);
+    // Flipped group and ungrouped result render identically (axis-aligned 90° + flipX avoids resampling drift).
+    let grp = model.createProject({ width: 80, height: 80 });
+    grp = model.applyOperation(grp, { type: 'add', layer: { id: 'r1', type: 'rect', x: 10, y: 10, w: 20, h: 20, fill: '#ff0000' } });
+    grp = model.applyOperation(grp, { type: 'add', layer: { id: 'r2', type: 'rect', x: 40, y: 20, w: 20, h: 20, fill: '#0000ff' } });
+    grp = model.applyOperation(grp, { type: 'group', ids: ['r1', 'r2'], id: 'g' });
+    grp = model.applyOperation(grp, { type: 'update', id: 'g', patch: { flipX: true, rotation: 90 } });
+    rendering.renderProject(ctx, grp); const grpPixels = [...ctx.getImageData(0, 0, 80, 80).data];
+    rendering.renderProject(ctx, model.applyOperation(grp, { type: 'ungroup', id: 'g' }));
+    const ungrpPixels = [...ctx.getImageData(0, 0, 80, 80).data];
+    // Flipped asymmetric path SVG export round-trips to matching pixels.
+    const vec = model.applyOperation(model.createProject({ width: 80, height: 60 }), { type: 'add', layer: { id: 'arrow', type: 'path', x: 10, y: 10, w: 50, h: 40, flipX: true,
+      fill: '#ff0000', contours: [{ closed: true, nodes: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] }] } });
+    rendering.renderProject(ctx, vec); const vecExpected = [...ctx.getImageData(0, 0, 80, 60).data];
+    const svgText = svg.exportVectorSvg(vec), imported = svg.importVectorSvg(svgText).project;
+    rendering.renderProject(ctx, imported); const vecActual = [...ctx.getImageData(0, 0, 80, 60).data];
+    return { orig: { tl: orig.tl, tr: orig.tr, bl: orig.bl, br: orig.br },
+      fx: { tl: fx.tl, tr: fx.tr, bl: fx.bl, br: fx.br },
+      fy: { tl: fy.tl, tr: fy.tr, bl: fy.bl, br: fy.br },
+      fxy: { tl: fxy.tl, tr: fxy.tr, bl: fxy.bl, br: fxy.br },
+      backEqual: JSON.stringify(back.all) === JSON.stringify(orig.all),
+      maskedOut: { tl: maskedOut.tl, tr: maskedOut.tr, bl: maskedOut.bl, br: maskedOut.br },
+      groupEqual: JSON.stringify(grpPixels) === JSON.stringify(ungrpPixels),
+      svgHasScale: svgText.includes('scale(-1 1)'),
+      svgEqual: JSON.stringify(vecExpected) === JSON.stringify(vecActual) };
+  });
+  const R = [255, 0, 0, 255], G = [0, 255, 0, 255], B = [0, 0, 255, 255], Y = [255, 255, 0, 255];
+  assert.deepEqual(result.orig, { tl: R, tr: G, bl: B, br: Y });
+  assert.deepEqual(result.fx, { tl: G, tr: R, bl: Y, br: B });
+  assert.deepEqual(result.fy, { tl: B, tr: Y, bl: R, br: G });
+  assert.deepEqual(result.fxy, { tl: Y, tr: B, bl: G, br: R });
+  assert.equal(result.backEqual, true);
+  assert.equal(result.maskedOut.tl[3], 0); assert.deepEqual(result.maskedOut.tr, R);
+  assert.equal(result.maskedOut.bl[3], 0); assert.equal(result.maskedOut.br[3], 0);
+  assert.equal(result.groupEqual, true);
+  assert.equal(result.svgHasScale, true); assert.equal(result.svgEqual, true); clean(value);
 });

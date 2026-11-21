@@ -14,6 +14,8 @@
 #   |                                           | cross-implementation spec, `--selftest` rebuilds a
 #   |                                           | bracket with a hole and a fillet through the real
 #   |                                           | kernel and checks the numbers.
+# 2 | maintainer@emeraldcoastsystemsgroup.com   | Include bundled OFL-1.1 font in RUNTIME_FILES so
+#   |                                           | engine build hash tracks font changes (BACKLOG B4).
 """cad_engine_bridge -- TCP front for cad_worker.py (stdlib only)."""
 import argparse
 import hashlib
@@ -28,7 +30,13 @@ import threading
 PROTOCOL = 1
 #: Everything the Dockerfile bakes that changes the engine's answers (mirrored by
 #: src-routes/engine-build-hash.ts -- a spec keeps them in step).
-RUNTIME_FILES = ("cad_worker.py", "container/cad_engine_bridge.py", "requirements.txt", "requirements-lock.txt")
+RUNTIME_FILES = (
+    "cad_worker.py",
+    "container/cad_engine_bridge.py",
+    "requirements.txt",
+    "requirements-lock.txt",
+    "fonts/LiberationSans-Regular.ttf",
+)
 ENGINE_DIR = os.environ.get("CAD_STUDIO_ENGINE_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_LINE_BYTES = 96 * 1024 * 1024
 DEFAULT_PORT = 7412

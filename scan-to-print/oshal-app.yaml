@@ -17,6 +17,8 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.10.2: declare artifacts.provides (GET /api/scan-to-print/artifacts for STL/SVG/OBJ picker exchange, B4), expose printable orientation-cube markers (GET /markers + UI download, B9), depth-map upload UI for POST /jobs/:id/depth (B1), symmetry completion option (B11), and nozzle/layer-height/perimeter print-check settings (B13).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.10.3: print progress read-back across OctoPrint, Moonraker, PrusaLink, and Bambu attached to latest submissions on read and rendered as `printing 43 %` (B5), bed-contact band base sealing and LiDAR tab exposure for one-sided point-cloud scans (B7), and automatic square-on video frame suggestions on video ingest with one-click confirmation (B12).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.10.4 (BACKLOG B3): deterministic high-contrast square fiducial detector (zero ML model), per-view fiducial scale anchor in joint log-space registration emitting `fiducial` in `dimensionSources`, optional `fiducialMm` setting and `#fiducial-mm` UI input, and `engine-fiducial` test suite.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.10.5 (BACKLOG B6): wire tests/routes.core.test.js into the store-ci scan-to-print job and pre-push gate via the pinned store toolchain (express, multer, sharp) and verify discovery + fail-closed red propagation in scripts/security/run-framework-coupled-tests.mjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.10.6 (BACKLOG B16 Option C): add generic STL-to-G-code verb (`slice_gcode`) to `engine/slicer_worker.py` reusing container OrcaSlicer with Custom Marlin/Klipper profiles, wire `engine.exchange` G-code slicing fallback and `slicerBackend` capability reporting without touching `authorization.yaml`, and add Python, Node, and HTTP route tests.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
 #
@@ -100,7 +102,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.10.4
+version: 0.10.6
 status: active
 scope: person
 

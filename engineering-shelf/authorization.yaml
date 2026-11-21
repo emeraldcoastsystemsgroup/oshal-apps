@@ -1,0 +1,33 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The engineer role holds this package's one read and nothing else. What a person may do in Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print stays with those applications: the role template in oshal-app.yaml names each one's own role, and this catalog grants nothing in any of them.
+version: 1
+resources:
+  shelf:
+    scopes:
+      - own
+permissions:
+  app.open:
+    resource: shelf
+    effect: read
+    minimumTier: viewer
+roles:
+  engineer:
+    tier: viewer
+    grants:
+      - permission: app.open
+        scope: own
+bindings:
+  http:
+    - id: readiness
+      method: GET
+      path: /
+      allOf:
+        - app.open
+    - id: readiness-head
+      method: HEAD
+      path: /
+      allOf:
+        - app.open

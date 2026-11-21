@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove region selections land on the intended source pixels under zoom, crop, rotation and resize, stay put when the layer later moves, and that stale, ambiguous, locked, hidden, malformed and oversized selections are refused.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify canvasToSource, sourceToCanvas and selectionFromCanvas map exact source pixels on flipped images and flipped parent groups.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -150,4 +151,38 @@ test('group transforms preserve source-space region coordinates and ancestor loc
   assert.deepEqual(resolveSelection(project, selected).selection.points, selected.points);
   const locked = applyOperation(project, { type: 'update', id: 'group', patch: { locked: true } });
   assert.throws(() => resolveSelection(locked, selected), /Unlock/);
+});
+
+test('flipped images and flipped parent groups map canvas selections to exact flipped source pixels', () => {
+  for (const [flipX, flipY] of [[true, false], [false, true], [true, true]]) {
+    for (const rotation of [0, 37, -90, 180]) {
+      const project = photoProject({ flipX, flipY, rotation, w: 300, h: 260, crop: { x: .25, y: .1, w: .5, h: .8 } });
+      const layer = project.layers[0], asset = project.images.photo;
+      for (const source of [{ x: 100, y: 20 }, { x: 300, y: 180 }, { x: 222.5, y: 99.25 }]) {
+        closePoint(canvasToSource(layer, asset, sourceToCanvas(layer, asset, source)), source);
+      }
+    }
+  }
+  // Photo sits at x:100..500, y:50..250 (source 400x200). Selecting canvas top-left [100..300, 50..150]:
+  const box = [{ x: 100, y: 50 }, { x: 300, y: 150 }];
+  const fx = selectionFromCanvas(photoProject({ flipX: true }), 'photo', box, { kind: 'box' });
+  assert.deepEqual(selectionBounds(fx.points), { x: 200, y: 0, w: 200, h: 100 });
+  const fy = selectionFromCanvas(photoProject({ flipY: true }), 'photo', box, { kind: 'box' });
+  assert.deepEqual(selectionBounds(fy.points), { x: 0, y: 100, w: 200, h: 100 });
+  const fxy = selectionFromCanvas(photoProject({ flipX: true, flipY: true }), 'photo', box, { kind: 'box' });
+  assert.deepEqual(selectionBounds(fxy.points), { x: 200, y: 100, w: 200, h: 100 });
+  // Resolving a selection after flipping moves its canvas overlay to the mirrored quadrant while keeping source pixels fixed.
+  const unflipped = photoProject(), sel = selectionFromCanvas(unflipped, 'photo', box, { kind: 'box' });
+  assert.deepEqual(selectionBounds(sel.points), { x: 0, y: 0, w: 200, h: 100 });
+  const flipped = applyOperation(unflipped, { type: 'update', id: 'photo', patch: { flipX: true } });
+  const resolved = resolveSelection(flipped, sel);
+  assert.deepEqual(resolved.selection.points, sel.points);
+  assert.deepEqual(selectionBounds(resolved.canvasPoints), { x: 300, y: 50, w: 200, h: 100 });
+  // Flipped parent group mirrors child source-pixel selections too.
+  let grouped = photoProject();
+  grouped = applyOperation(grouped, { type: 'add', layer: { id: 'badge', type: 'rect', x: 100, y: 50, w: 400, h: 200 } });
+  grouped = applyOperation(grouped, { type: 'group', ids: ['photo', 'badge'], id: 'g' });
+  grouped = applyOperation(grouped, { type: 'update', id: 'g', patch: { flipX: true } });
+  const groupSel = selectionFromCanvas(grouped, 'photo', box, { kind: 'box' });
+  assert.deepEqual(selectionBounds(groupSel.points), { x: 200, y: 0, w: 200, h: 100 });
 });

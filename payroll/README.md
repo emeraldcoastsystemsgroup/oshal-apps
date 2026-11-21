@@ -4,6 +4,7 @@ SEQ | AUTHOR | DESCRIPTION
 2 | maintainer@emeraldcoastsystemsgroup.com | Point every backlog reference at the package-owned queue in BACKLOG.md, which core handed over, and name the guard that keeps the two honest.
 3 | maintainer@emeraldcoastsystemsgroup.com | Record the 2.3.5 schema-bootstrap advisory lock, why it exists and the guard that keeps it.
 4 | maintainer@emeraldcoastsystemsgroup.com | 2.3.8: person-facing text in Payroll names the product Open Swarm; technical identifiers keep their forms.
+5 | maintainer@emeraldcoastsystemsgroup.com | 2.4.0: the v2.4 section, one paragraph per backlog entry this release closed or advanced, each naming the primary documents its values were read from.
 -->
 # payroll — run payroll for your team, ADP-style
 
@@ -231,6 +232,52 @@ rejected by the bank's reader-sorter or posted to the wrong account, and the ban
 toner no software can supply. Checks therefore print onto your bank's pre-encoded stock. This is the
 same rule the state tax tables follow: **a wrong table is worse than an absent one, because the
 operator cannot tell it is wrong.**
+
+## v2.4 — tables with their years, and the backlog entries they closed
+
+Each paragraph below is one entry of [BACKLOG.md](BACKLOG.md); the entry itself says what is still
+open. Every value named here was read from the primary document cited beside it in the code.
+
+- **Bank-holiday calendars ([backlog item 14](BACKLOG.md)).** Both calendars are now transcribed tables that say
+  which years they hold. The Federal Reserve calendar is the Board's *K.8 — Holidays Observed by the
+  Federal Reserve System 2026-2030* (last update July 8, 2026), row for row with its Saturday and
+  Sunday footnote markers. The IRS calendar is the legal-holiday list in Publication 15 (2026),
+  section 11, plus the 2027 list from the IRS early-release draft of Publication 15 (2027); a draft is
+  "not for filing", so a due date that touches 2027 says so. A date in a year a table does not hold is
+  **refused in words** (which table, which year, which years it holds) instead of being computed.
+  Creating a pay run now checks the pay date against the Federal Reserve calendar rather than the
+  weekend only, so a pay date on a Reserve Bank holiday (Friday, December 25, 2026) moves to the
+  banking day before and the run screen says why. The rules in 5 U.S.C. § 6103(a) and D.C. Code
+  § 28-2701 are kept only as cross-checks the tests run against the tables.
+- **Deposit schedule and due dates ([backlog item 8](BACKLOG.md)).** **Pay & file → Federal tax
+  deposits** lists what each deposit period owes and the day it is due. Paydays are grouped the way 26
+  CFR 31.6302-1(c) groups them (the calendar month for a monthly depositor; Wednesday to Friday and
+  Saturday to Tuesday for a semiweekly one, split where a period spans two quarters), every due date
+  comes from the IRS legal-holiday calendar, and the $100,000 next-day rule is tested on taxes
+  accumulated in the period, as the regulation says, rather than on one payday. A monthly depositor who
+  reaches $100,000 is told it is semiweekly from the next day for the rest of the year and all of the
+  next. Each quarter says whether its taxes may be paid with Form 941 instead (the $2,500 rule,
+  §31.6302-1(f)(4)). **Settings → Monthly or semiweekly?** works out the depositor status from the four
+  Form 941 line 12 amounts of the lookback period (Publication 15 (2026), section 11, Table 1).
+
+- **Multiple garnishment orders ([backlog item 7](BACKLOG.md)).** **Employees → orders** holds each
+  garnishment order with the facts its limit and priority depend on. One allocator applies them under
+  the federal limits, each counting what was withheld before it (29 CFR 870.11): support up to its own
+  50 to 65 percent (it had been held to the 25 percent creditor limit), a creditor writ up to 25 percent
+  or the excess over 30 times the minimum wage, a federal agency order up to 15 percent of disposable
+  pay (31 CFR 285.11(i)), and a federal tax levy above the amount IRS Publication 1494 (2026) exempts.
+  Support entered before a levy goes ahead of it (26 U.S.C. 6334(a)(8)). Where the law that decides is a
+  state's, the person states it, and a run missing it is refused at approval with the reason. Approval
+  now keeps a line built from earning rows on that engine and moves each order's balance once paid.
+
+- **Hours by the workday and the FLSA payroll record ([backlog item 3](BACKLOG.md)).** On a draft run,
+  **Hours by day** (under an hourly employee's name in the register) records the hours worked on each
+  workday; overtime is then worked out per workweek from the employer's own workweek (Settings:
+  **Workweek begins on** and **at**), counting hours an earlier check paid in a workweek this period
+  splits (29 CFR 778.104). **Reports → FLSA payroll record** shows, for an employee and date range,
+  every item 29 CFR 516.2(a) asks an employer to keep, read from the stored pay runs, names anything not
+  on file, and gives each period's keep-until date (29 CFR 516.5, 516.6). The employee form asks for the
+  title, occupation and home address the record needs.
 
 ## AI Test Lab registration
 

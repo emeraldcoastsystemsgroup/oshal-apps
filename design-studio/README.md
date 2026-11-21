@@ -11,7 +11,9 @@ Everything ships in the packages. Design Studio has no engine of its own; each p
 | Mechanical, Sensors, Controller, Simulate | `embodied` | `embodied/engine/install-engine.sh` (the certified spider gait ships in its image) |
 | Send to printer, slicing | `scan-to-print` | a printer and a slicer registered in its Printers panel |
 
-Install what the products need; a phase whose package is absent says so on its poster and every other phase keeps working. A person who is not an administrator needs each package assigned to them, not Design Studio alone.
+Install what the products need; a phase whose package is absent says so on its poster and every other phase keeps working.
+
+**Who can use it.** A person needs a role in each of the five applications, not in Design Studio alone. The `engineering-shelf` package gives all five in one assignment: at Access an administrator chooses the person, the application **Engineering shelf** and the role **Engineer**, and the person holds Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print, each on their own work. Without that package each application's own role is assigned one by one; a person missing one reads on the poster which application refused them.
 
 **The design partner works in the engines** through `design-engine-order`. A package route cannot reach a sibling package, so the order waits in this package's table and the person's open product page runs it with their session (`tools/design-studio-orders.js`). The vocabulary is closed and carries no URL. Closing a phase, ticking the bench checklist and sending to a printer stay the person's.
 
@@ -255,6 +257,8 @@ OSHAL_CORE_ROOT=<core checkout> node --test tests/routes.core.test.js   # the ro
 OSHAL_CORE_ROOT=<core checkout> node --test tests/design-studio.spec.mjs # the four screens in Chromium
 OSHAL_CORE_ROOT=<core checkout> node --test tests/print-set.engine.spec.mjs # one part through the real CAD engine image
 OSHAL_CORE_ROOT=<core checkout> node --test tests/plant.engine.spec.mjs     # the lift end to end on the real CAD kernel and the real embodied engine image
+node tests/design-studio-nonadmin-live-proof.mjs person|check|remove ...       # a person who is not an administrator, on a test slot (usage in the file)
+OUT=<dir> OSHALD=<kernel binary> ... bash tests/live/nonadmin-disposable.sh run # the same check on a throwaway kernel (usage in the file)
 ```
 
 - `phase-model.test.js` — the vocabulary; a hanger's four phases and the spider's nine with the lines that
@@ -288,6 +292,19 @@ OSHAL_CORE_ROOT=<core checkout> node --test tests/plant.engine.spec.mjs     # th
   parts, Define the mechanism, Build the plant, Run the baselines, Train the policy (`PLANT_PROOF_TIMESTEPS`,
   default 20000), Certify, Close the phase and `GET /body`; results in `PLANT_PROOF_OUT`. Skips loudly naming
   the missing prerequisite.
+
+- `design-studio-nonadmin-live-proof.mjs` (with `helpers/nonadmin-proof.mjs` and `helpers/nonadmin-steps.mjs`) — Design
+  Studio as a person who is not an administrator, on a loopback kernel. `person` makes a made-up person, reads that each
+  of the five applications answers 403, gives them one assignment (the engineering shelf's Engineer role, preview then
+  apply) and reads that all five answer and that the person administers nothing. `check` signs in on the kernel's own
+  sign-in page at 1440 × 900 and 412 × 915 and runs New product, a part the design partner builds from the rail,
+  Simulate (the lift's other parts through the order route, the Mechanism screen, Build the plant, Run the baselines)
+  and Make the print set; a step whose engine is not running, or a partner that answered without building, is reported
+  as not run (exit 2), and any 401 or 403 from the five applications fails it (exit 1). `remove` deletes what the
+  person made, takes the assignment back and deactivates them. It refuses port 38788 and never sends to a printer.
+- `live/nonadmin-disposable.sh` — the same three modes against a throwaway kernel: a throwaway PostgreSQL and `oshald`
+  on a random loopback port with the six packages of this checkout, and a throwaway container per engine in `ENGINES`
+  from the images on this computer.
 
 Compile after a change to `src-routes/` with the store's usual `tsc -p src-routes/tsconfig.json` against a core checkout
 (its `node_modules` supplies types only), then delete the `.js.map` files.

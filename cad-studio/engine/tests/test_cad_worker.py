@@ -24,10 +24,18 @@
 #   |                                           | stays 32000 mm3) while the next feature still runs;
 #   |                                           | a generous budget accepts it; a malformed budget is
 #   |                                           | a request refusal; hello publishes the range.
+# 4 | maintainer@emeraldcoastsystemsgroup.com   | Threads and text (BACKLOG B4): ISO metric external
+#   |                                           | threaded boss (M10x1.5 + left-hand clearance),
+#   |                                           | internal threaded hole, embossed/debossed text with
+#   |                                           | the bundled OFL-1.1 font, per-feature refusals, and
+#   |                                           | full watertight/manifold/Euler=2 STL mesh validation
+#   |                                           | matching scan-to-print/mesh-validate.ts.
 """Real-kernel tests for cad_worker (need CadQuery; they run in the engine image)."""
+import base64
 import json
 import math
 import os
+import struct
 import subprocess
 import sys
 import unittest
@@ -275,6 +283,169 @@ class FeatureBudget(unittest.TestCase):
 
     def test_hello_publishes_the_budget_range(self):
         self.assertEqual(w.hello()["featureBudgetMs"], {"min": 1, "max": 600000})
+
+
+def _parse_binary_stl(data):
+    count = struct.unpack_from("<I", data, 80)[0]
+    verts, vlist, tris = {}, [], []
+    off = 84
+    for _ in range(count):
+        vals = struct.unpack_from("<12fH", data, off)
+        off += 50
+        tri = []
+        for k in range(3):
+            pt = (vals[3 + 3 * k], vals[4 + 3 * k], vals[5 + 3 * k])
+            idx = verts.get(pt)
+            if idx is None:
+                idx = len(vlist)
+                verts[pt] = idx
+                vlist.append(pt)
+            tri.append(idx)
+        tris.append(tuple(tri))
+    return vlist, tris
+
+
+def validate_binary_stl(data):
+    """Exact mirror of scan-to-print/src-routes/engine/geometry/mesh-validate.ts."""
+    vlist, tris = _parse_binary_stl(data)
+    xs = [v[0] for v in vlist]
+    ys = [v[1] for v in vlist]
+    zs = [v[2] for v in vlist]
+    diag = math.sqrt((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2 + (max(zs) - min(zs)) ** 2)
+    area_eps = diag * diag * 1e-12
+    census, degen, vol6, referenced = {}, 0, 0.0, set()
+    for a, b, c in tris:
+        referenced.update((a, b, c))
+        va, vb, vc = vlist[a], vlist[b], vlist[c]
+        ab = (vb[0] - va[0], vb[1] - va[1], vb[2] - va[2])
+        ac = (vc[0] - va[0], vc[1] - va[1], vc[2] - va[2])
+        cx, cy, cz = ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]
+        if 0.5 * math.sqrt(cx * cx + cy * cy + cz * cz) <= area_eps:
+            degen += 1
+        vol6 += (va[0] * (vb[1] * vc[2] - vb[2] * vc[1]) + va[1] * (vb[2] * vc[0] - vb[0] * vc[2])
+                 + va[2] * (vb[0] * vc[1] - vb[1] * vc[0]))
+        for e0, e1 in ((a, b), (b, c), (c, a)):
+            key = (e0, e1) if e0 < e1 else (e1, e0)
+            cnt, fwd = census.get(key, (0, 0))
+            census[key] = (cnt + 1, fwd + (1 if e0 <= e1 else 0))
+    boundary = sum(1 for c, _ in census.values() if c == 1)
+    non_man = sum(1 for c, _ in census.values() if c > 2)
+    winding = len(tris) > 0 and all(f == 1 for c, f in census.values() if c == 2)
+    watertight = len(tris) > 0 and (boundary + non_man) == 0
+    euler = len(referenced) - len(census) + len(tris)
+    vol = vol6 / 6.0
+    outward = watertight and winding and vol > 0
+    return {
+        "valid": watertight and winding and outward and degen == 0 and euler == 2,
+        "watertight": watertight, "boundaryEdges": boundary, "nonManifoldEdges": non_man,
+        "consistentWinding": winding, "outwardFacing": outward, "degenerate": degen,
+        "eulerCharacteristic": euler, "volumeMm3": round(vol, 3), "triangles": len(tris),
+    }
+
+
+class ThreadAndTextFeatures(unittest.TestCase):
+    """ISO metric thread and embossed/debossed text (BACKLOG B4) on the real OCCT kernel."""
+    BOX = {"kind": "box", "sizeX": 40, "sizeY": 40, "sizeZ": 20}
+
+    def assertValidMesh(self, res):
+        stl_bytes = base64.b64decode(res["exports"]["stl"])
+        mesh = validate_binary_stl(stl_bytes)
+        self.assertTrue(mesh["valid"], f"STL failed mesh validation: {mesh}")
+        self.assertEqual(mesh["boundaryEdges"], 0)
+        self.assertEqual(mesh["nonManifoldEdges"], 0)
+        self.assertEqual(mesh["degenerate"], 0)
+        self.assertEqual(mesh["eulerCharacteristic"], 2)
+        return mesh
+
+    def test_external_threaded_boss_passes_mesh_validator(self):
+        # M10x1.5, length 10 mm on top of a 40x40x20 box (base volume 32000 mm3).
+        # Minor r = 5 - 5/8 * sqrt(3)/2 * 1.5 = 4.1881 mm -> minor cyl = 551.0 mm3, major cyl = 785.4 mm3.
+        r = w.rebuild({
+            "base": self.BOX,
+            "features": [{"id": "m10-boss", "type": "thread", "params": {
+                "kind": "external", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 10}}],
+            "exports": ["stl"],
+        }, True)
+        self.assertTrue(r["features"][0]["ok"], r["features"])
+        self.assertTrue(r["report"]["valid"])
+        added = r["report"]["volumeMm3"] - 32000.0
+        self.assertGreater(added, 551.0)
+        self.assertLess(added, 785.4)
+        self.assertAlmostEqual(r["report"]["extentsMm"]["max"][2], 30.0, places=3)
+        self.assertValidMesh(r)
+
+    def test_external_lefthand_thread_with_clearance_on_x_axis(self):
+        r = w.rebuild({
+            "base": self.BOX,
+            "features": [{"id": "m8-lh", "type": "thread", "params": {
+                "kind": "external", "nominalDiameterMm": 8, "pitchMm": 1.25, "lengthMm": 8,
+                "axis": "x", "y": 0, "z": 10, "handedness": "left", "clearanceMm": 0.15}}],
+            "exports": ["stl"],
+        }, True)
+        self.assertTrue(r["features"][0]["ok"], r["features"])
+        self.assertTrue(r["report"]["valid"])
+        self.assertGreater(r["report"]["volumeMm3"], 32000.0)
+        self.assertAlmostEqual(r["report"]["extentsMm"]["max"][0], 28.0, places=3)
+        self.assertValidMesh(r)
+
+    def test_internal_threaded_hole_removes_material_and_is_watertight(self):
+        r = w.rebuild({
+            "base": self.BOX,
+            "features": [{"id": "m10-hole", "type": "thread", "params": {
+                "kind": "internal", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 10}}],
+            "exports": ["stl"],
+        }, True)
+        self.assertTrue(r["features"][0]["ok"], r["features"])
+        self.assertTrue(r["report"]["valid"])
+        removed = 32000.0 - r["report"]["volumeMm3"]
+        self.assertGreater(removed, 551.0)
+        self.assertLess(removed, 785.4)
+        self.assertValidMesh(r)
+
+    def test_embossed_text_increases_volume_and_is_watertight(self):
+        r = w.rebuild({
+            "base": self.BOX,
+            "features": [{"id": "lbl-emb", "type": "text", "params": {
+                "text": "OSHAL", "mode": "emboss", "sizeMm": 8, "depthMm": 1.0, "face": "top"}}],
+            "exports": ["stl"],
+        }, True)
+        self.assertTrue(r["features"][0]["ok"], r["features"])
+        self.assertTrue(r["report"]["valid"])
+        self.assertGreater(r["report"]["volumeMm3"], 32000.0)
+        self.assertAlmostEqual(r["report"]["extentsMm"]["max"][2], 21.0, places=3)
+        self.assertValidMesh(r)
+
+    def test_debossed_text_decreases_volume_and_is_watertight(self):
+        r = w.rebuild({
+            "base": self.BOX,
+            "features": [{"id": "lbl-deb", "type": "text", "params": {
+                "text": "OSHAL", "mode": "deboss", "sizeMm": 8, "depthMm": 1.0, "face": "front", "angleDeg": 5}}],
+            "exports": ["stl"],
+        }, True)
+        self.assertTrue(r["features"][0]["ok"], r["features"])
+        self.assertTrue(r["report"]["valid"])
+        self.assertLess(r["report"]["volumeMm3"], 32000.0)
+        self.assertValidMesh(r)
+
+    def test_thread_and_text_refusals_and_hello(self):
+        r = rebuild(self.BOX, [
+            {"id": "bad-kind", "type": "thread", "params": {"kind": "tapered", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 10}},
+            {"id": "bad-pitch", "type": "thread", "params": {"kind": "external", "nominalDiameterMm": 6, "pitchMm": 3.5, "lengthMm": 10}},
+            {"id": "bad-len", "type": "thread", "params": {"kind": "external", "nominalDiameterMm": 10, "pitchMm": 1.5, "lengthMm": 1.0}},
+            {"id": "empty-txt", "type": "text", "params": {"text": "   ", "sizeMm": 8, "depthMm": 1.0}},
+            {"id": "bad-mode", "type": "text", "params": {"text": "OK", "mode": "engrave", "sizeMm": 8, "depthMm": 1.0}},
+        ])
+        self.assertEqual([f["ok"] for f in r["features"]], [False] * 5)
+        self.assertIn("kind", r["features"][0]["error"])
+        self.assertIn("pitchMm", r["features"][1]["error"])
+        self.assertIn("lengthMm", r["features"][2]["error"])
+        self.assertIn("text", r["features"][3]["error"])
+        self.assertIn("mode", r["features"][4]["error"])
+        self.assertAlmostEqual(r["report"]["volumeMm3"], 32000.0, places=1)
+        h = w.hello()
+        self.assertIn("thread", h["features"])
+        self.assertIn("text", h["features"])
+        self.assertEqual(h["bundledFont"], "LiberationSans-Regular.ttf")
 
 
 class Exports(unittest.TestCase):

@@ -4,6 +4,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "it would leave out my active role 'Co-Founder / Principal ...' which is clearly labeled on my main resume"): the current-role guard on made-up candidates. (1) The engine contract (tests/career-resume-roles-contract.py): the prompt carries the whole profile past every suspected limit and lists the roles to carry, current first, and the real generate_for and prepare_job write that role first when a scripted model leaves it out, as production's did. (2) lib/career-resume-roles.js and the engine's role_plan.py give one answer on the same profiles (parity). (3) A résumé prepared before the check that leaves the current role out is not ready: the application draft names the role, asks for generation and refuses review and sending in words that name it; a résumé that carries it, and a submitted application, are left alone.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve recorded month/year precision in role plans and pure saved-packet date restoration without inventing dates or assigning ambiguous employers one period.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.69.1: the engine contract has 38 checks (a role or client engagement whose record has " - " is written once, through the reviewer's revision).
  */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +35,7 @@ const CARRIED={experience:[{title:CURRENT.title,org:'Harbor Light Systems, LLC',
 test('the engine contract: the prompt lists the roles to carry and every generated résumé carries the current role first',()=>{
  const run=spawnSync(PYTHON,[fileURLToPath(new URL('./career-resume-roles-contract.py',import.meta.url))],{encoding:'utf8',timeout:120000});
  assert.equal(run.status,0,run.stderr+run.stdout);
- assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()),{checks:34,failed:[]});
+ assert.deepEqual(JSON.parse(run.stdout.trim().split('\n').pop()),{checks:38,failed:[]});
 });
 
 test('which roles a résumé must carry: current first, ended within 20 years, most recent first',()=>{

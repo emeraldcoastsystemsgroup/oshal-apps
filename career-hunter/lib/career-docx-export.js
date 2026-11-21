@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: read-only helper for serving matched executive DOCX/RTF/PDF packet artifacts and zero-PII blank templates via engine/jobhunter/docx_resume.py without mutating owner packets.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: renderPacketArtifact takes kind 'parse', the job's parse résumé (Resume_Parse.docx, Word only, from docx_resume.py export-packet --kind parse), named <name>_<company>_Resume_For_Upload.docx; PARSE_FILE names the file generation writes beside the packet.
  */
 'use strict';
 
@@ -22,6 +23,9 @@ const FAMILIES = new Map([
   ['leadership', 'Leadership'],
   ['technical', 'Technical'],
 ]);
+
+/** The parse résumé generation writes beside a packet (engine/jobhunter/docx_parse.py FILE_NAME). */
+const PARSE_FILE = 'Resume_Parse.docx';
 
 const MIME_BY_FORMAT = Object.freeze({
   pdf: 'application/pdf',
@@ -99,7 +103,7 @@ async function renderPacketArtifact({ packetJsonPath, kind, format, family }) {
     const result = await runDocxCli(args);
     const bytes = await fsp.readFile(result.path);
     const meta = packetMeta(path.dirname(packetJsonPath));
-    const suffix = kind === 'cover' ? 'Cover_Letter' : `Resume_${result.family || 'Executive'}`;
+    const suffix = kind === 'cover' ? 'Cover_Letter' : kind === 'parse' ? 'Resume_For_Upload' : `Resume_${result.family || 'Executive'}`;
     const base = [meta.name, meta.company, suffix].filter(Boolean).join('_');
     return { bytes, mime: MIME_BY_FORMAT[format], filename: safeFilename(base, format), family: result.family || family || 'Professional' };
   } finally {
@@ -120,6 +124,7 @@ async function renderBlankTemplate({ family, format }) {
 }
 
 module.exports = {
+  PARSE_FILE,
   MIME_BY_FORMAT,
   normalizeFamily,
   normalizeFormat,

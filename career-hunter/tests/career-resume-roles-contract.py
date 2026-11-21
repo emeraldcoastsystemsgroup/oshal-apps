@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.67.3 (Roger, 2026-11-16: "the system isnt using my most recent expierence to generate the resume"): the engine half of the current-role guard, on a made-up candidate whose current role is first with no end date and whose profile is longer than every limit suspected (the guided editor's 32,000 characters, the kernel's 65,536-byte agentic turn). The input builder carries the complete profile and lists the roles to carry, current first; the REAL generate_for and prepare_job, with only the model, the PDF renderer and (for generate_for) the posting row replaced, write a résumé that carries the current role first when the scripted model leaves it out, exactly as production's model did. Red on store main 82d67aa7/d28c8c02 (no ROLES TO CARRY block, the packet starts at the older employer), green with role_plan.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Keep recorded month/year dates in generation prompts, restored entries and existing current entries while leaving ambiguous merged periods untouched.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.69.1: a linked client engagement and a role whose recorded employer or title has " - " are written once, through the reviewer's revision too (the dash cleanup made them ", " and the exact match restored a second copy).
 """Current-role contract: the prompt names the roles to carry and every generated résumé carries them, most recent first."""
 from __future__ import annotations
 
@@ -209,6 +210,68 @@ def generation_keeps_a_good_answer() -> None:
           and not record["generated"]["resume"].get("additional_experience"))
 
 
+DASHED = [
+    {"id": "hsg", "title": "Co-Founder / Principal", "org": "Harbor Systems Group (HSG)", "start": "2026-07", "end": None,
+     "deliverables": ["Founded the firm after a long enterprise career"]},
+    {"id": "bayline", "parent_role_id": "hsg", "title": "HSG Client Engagement", "org": "Bayline Funding - Commercial Finance",
+     "start": "2026-07", "end": None, "deliverables": ["Raw note: moving off the old ledger"]},
+    {"id": "qm", "title": "Quality Manager, Example Program - embedded at Example Energy", "org": "Example Corp",
+     "start": "2020-01", "end": "2025-12", "deliverables": ["Ran quality reviews for the program"]},
+]
+
+
+def _dashed_profile() -> dict:
+    prof = copy.deepcopy(sample_profile())
+    prof["roles"] = copy.deepcopy(DASHED)
+    return prof
+
+
+def _dashed_resume(dash: str) -> dict:
+    entry = lambda role, bullet: {"title": role["title"].replace(" - ", dash), "org": role["org"].replace(" - ", dash),
+                                  "span": "Jul 2026 to Present" if role["end"] is None else "Jan 2020 to Dec 2025",
+                                  "bullets": [bullet]}
+    return {"headline": "Engineering leader", "summary": "Builds enterprise platforms.", "competencies": ["Delivery"],
+            "skills": ["Python"], "certifications": [], "education": [], "clearance": "",
+            "experience": [entry(DASHED[0], "Leads the firm"), entry(DASHED[1], "Built the lender's CRM"),
+                           entry(DASHED[2], "Led quality reviews")]}
+
+
+def linked_roles_with_a_dash_are_written_once() -> None:
+    """@description Roger, 2026-11-20: one client engagement appeared twice, once under its employer and once on its
+    own, and so did a role whose title has " - ". The model copies the record (" - "), the dash cleanup makes it ", ",
+    and the reviewer's revision then reached role_plan.carry, whose exact match no longer recognised it."""
+    prof = _dashed_profile()
+    answer = {"resume": _dashed_resume(" - "), "cover": {"greeting": "Dear Hiring Manager,", "paragraphs": ["Hello."],
+                                                          "closing": "Sincerely,"}}
+    revised = _dashed_resume(", ")
+
+    def scripted(system, prompt, max_tokens=0, bot=None, **_kw):
+        if bot == "career-resume-reviewer":
+            return json.dumps({"passed": False, "issues": ["Tighten the summary."], "revised_resume": revised,
+                               "reviewer_notes": "tightened"})
+        if "DRAFT COVER" in prompt:
+            return json.dumps({"greeting": "Dear Hiring Manager,", "paragraphs": ["Polished."], "closing": "Sincerely,"})
+        return json.dumps(answer)
+
+    with patch.object(profile, "load", return_value=prof), patch.object(generate.enrich, "provider", return_value="scripted"), \
+            patch.object(generate.enrich, "complete", side_effect=scripted), patch.object(generate.db, "connect", _Conn), \
+            patch.object(generate.db, "set_status", lambda *a, **k: None), patch.object(generate.db, "user_set", lambda *a, **k: None), \
+            patch.object(generate, "_render_pdf", lambda html, pdf: pdf.write_bytes(b"%PDF-1.4 scripted")):
+        result = generate.generate_for(7)
+    record = json.loads((Path(result["dir"]) / "application.json").read_text(encoding="utf-8"))
+    experience = record["generated"]["resume"]["experience"]
+    titles = [entry.get("title") for entry in experience]
+    check("each recorded role is written exactly once after the reviewer's revision",
+          len(experience) == 3 and len(set(titles)) == 3)
+    child = [entry for entry in experience if "Client Engagement" in str(entry.get("title"))]
+    check("the client engagement stays under its employer", len(child) == 1 and child[0].get("parent_role_id") == "hsg")
+    check("the revision's own words are kept, not the record's raw notes",
+          [entry.get("bullets") for entry in experience] == [["Leads the firm"], ["Built the lender's CRM"], ["Led quality reviews"]])
+    html = (Path(result["dir"]) / "Resume_ATS.html").read_text(encoding="utf-8")
+    check("the rendered résumé names the engagement once", html.count("Built the lender") == 1
+          and html.count("Raw note") == 0)
+
+
 def prepare_restores() -> None:
     """@description Prepare application's engine path (prepare_job): real store, real scoring commit, scripted model."""
     with tempfile.TemporaryDirectory(prefix="career-roles-prepare-") as tmp:
@@ -297,7 +360,8 @@ def date_precision() -> None:
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="career-roles-") as packets:
         generate.APP_DIR = Path(packets) / "applications"
-        for section in (plan_rules, date_precision, input_builder, generation_restores, generation_keeps_a_good_answer, prepare_restores):
+        for section in (plan_rules, date_precision, input_builder, generation_restores, generation_keeps_a_good_answer, prepare_restores,
+                        linked_roles_with_a_dash_are_written_once):
             try:
                 section()
             except Exception as error:  # a section that cannot run is a failed check, never a silent pass

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exchange a bounded inert SVG subset while preserving cubic nodes, paint, transforms and explicit unsupported-feature refusals.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: emit accurate scale transforms for flipped layers in SVG export.
  */
 import { validateProject, demand } from './model-validation.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -19,7 +20,10 @@ function pathData(layer) {
   }).join(' ');
 }
 
-function transform(layer) { return `translate(${decimal(layer.x + layer.w / 2)} ${decimal(layer.y + layer.h / 2)}) rotate(${decimal(layer.rotation)}) translate(${decimal(-layer.w / 2)} ${decimal(-layer.h / 2)})`; }
+function transform(layer) {
+  const flip = layer.flipX || layer.flipY ? ` scale(${layer.flipX ? -1 : 1} ${layer.flipY ? -1 : 1})` : '';
+  return `translate(${decimal(layer.x + layer.w / 2)} ${decimal(layer.y + layer.h / 2)}) rotate(${decimal(layer.rotation)})${flip} translate(${decimal(-layer.w / 2)} ${decimal(-layer.h / 2)})`;
+}
 
 function svgText(layer, definitions) {
   const canvas = globalThis.document?.createElement('canvas'), ctx = canvas?.getContext('2d');

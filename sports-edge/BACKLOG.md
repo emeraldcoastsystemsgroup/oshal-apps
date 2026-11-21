@@ -3,40 +3,43 @@
 Open work on the packaged odds maker. Every entry has a done-when so scope does not have to be
 guessed later.
 
-**Posture (v0.7.1).** The package ships and runs. It follows a team, builds a line from Elo +
+**Posture (v0.12.3).** The package ships and runs. It follows a team, builds a line from Elo +
 schedule-adjusted power ratings + an offence-versus-defence unit matchup, adjusts for injuries by
 each player's real share of production, compares that line to DraftKings' moneyline and spread, and
 registers every call before kickoff. Line capture is live and change-only. The fantasy half moved to
 its own package, `fantasy-football`, in 0.11.0. There is **no order path**, by design.
 
-What is below is the honest remainder. Two of these are gaps a reader would otherwise assume are
-closed, because the machinery around them exists.
+What is below is the honest remainder.
 
 ---
 
-## A. The archived wires are written but never read
+## A. The archived wires are written but never read — DONE (0.12.3, negative result — unused wire ingest retired)
 
-`refreshWorld` (v0.5.0) feeds followed teams, their injury wire and their upcoming matchups into
-World Intelligence. That is the **ingest** half only. `buildPreview` does not read any of it back:
-the line is still made from the tape, the injury report and the unit matchup, exactly as it was in
-0.4.1.
+Walk-forward evaluation against the current ensemble as Control closed this entry with a clean
+negative result (`node sports-edge/tests/walk-forward-wire-signal.mjs`, frozen snapshot
+`tests/walk-forward-wire-signal-data.json`, guarded by `tests/sports-wire-walk-forward.test.js`):
 
-So the wires are being archived and classified, and they change no number. Anyone reading "news
-feeds" in the manifest would reasonably assume otherwise, which is why this is stated here rather
-than left to be inferred.
+- **Completed 2025 benchmark seasons:** `0 / 1,942` games (NFL 223, NBA 1,081, NCAAF 638) had
+  archived `world_items` because the World archive began `2026-08-18`.
+- **Live 2026 archive (`2026-08-18` to `2026-11-20`):** only followed teams were ingested —
+  `1/32` NFL (`SEA`), `0/30` NBA, `1` NCAAF (`ARK`) — leaving `0%` opponent coverage while
+  spending `2,598` feed pulls, `91,673` fetched items, `14,923` archived items, and `16,581` LLM
+  classifications.
+- **Strict pre-kickoff walk-forward (Combined 2026 `SEA` + `ARK`, n=20, UTC `[D-7, D-1]`):**
+  Control (`0.2417` Brier, `13.85` pts MAE, `70.0%` SU) beat de-biased 7d-vs-30d team sentiment
+  delta (`0.2418` Brier, `13.87` MAE, `t=+0.17`), injury-wire 7d volume burst (`0.2537` Brier,
+  `14.12` MAE, `65.0%` SU, `t=+1.94`), and their combination (`0.2519` Brier, `14.11` MAE,
+  `t=+1.81`). Uncentered raw 7d sentiment worsened MAE (`13.88` combined, `11.88` vs `11.81` NFL)
+  with no statistically meaningful Brier lift (`t=-0.94`) and injected a one-sided positive-mean
+  bias toward whichever team was followed.
 
-Reading them back is not a small wiring job, and it should not be done casually. Sentiment is the
-easiest signal in this package to fool yourself with: it is available, it moves, it correlates with
-outcomes in-sample, and it is very good at adding variance to a model that is already close to the
-market. Whatever is added has to be walk-forward tested against the current ensemble before it is
-allowed to move a line.
-
-**Done when:** a candidate signal is derived from `world_items` for a team (the shape is open — a
-sentiment delta over a window, or an injury-item count, or a classified-event flag); it is measured
-walk-forward on a completed season with the CURRENT ensemble as the control; the measured effect on
-Brier and MAE is written into the README beside the existing walk-forward table; and it enters the
-ensemble only if it improves the control. A negative result closes this entry just as well as a
-positive one — record it and remove the ingest cost.
+**Action taken in 0.12.3:** recorded the full Control vs Candidate table and reproducible command
+in `README.md`, retired unused World wire ingest in `refreshWorld` (`WORLD_WIRE_INGEST_RETIRED =
+true`, returning `{ subjects: 0, newItems: 0 }` with zero World service calls, feed pulls, LLM
+classifications, or `sports_world_pulls` writes), and removed the unused `team-news-classification`
+rating entry and `world-data` floor from `oshal-app.yaml`. Existing `sports_world_pulls` schema,
+`sports-world` naming helpers, ESPN coach/roster readers, team following, previews, line capture,
+and grading remain intact.
 
 ## B. Coach subjects from the followed team's ESPN response — implemented in 0.7.1
 

@@ -12,13 +12,75 @@ These come from the coordinator decisions in Roger's UX audit (2026-11-05). They
   `src-routes/career-browse-feed.ts` walks `idx_corpus_pay_usd` with zero temp B-tree sort (retaining `idx_corpus_pay`
   fallback on pre-index read-only corpora), and `src-routes/career-board-feed.ts` applies the same currency-aware order on
   My jobs. Guard: `tests/career-currency-salary-sort.test.mjs`.
-- **The Discover swipe deck as the Job Board's phone layout.** Mobile left the menu; its deck (Pass, Save, Undo, More) is not
-  yet the phone layout of the board's New matches stage. Done when: at 412 px the New matches stage offers the deck, its
-  actions reach the same approval routes, and `/api/career-hunter/mobile` opens the board stage.
-- **Screen aliases for merged tools.** A cockpit address naming a removed tool (`?screen=career-submissions`,
-  `career-application-status`, `career-approvals`, `career-mobile`) opens Career's default screen, because the shell answers
-  only registered views (`RibbonNav.requestedView`) and a manifest has no alias key. In-package links already open the board
-  stage. Done when: an old `?screen=` address opens the Job Board on its stage, through a kernel-supported alias.
+- **The Discover swipe deck as the Job Board's phone layout (built in 1.69.0; its check on the test slot is not run yet).**
+  At 640px and under, New matches is the deck (`tools/career-match-deck.js`): one job at a time, Pass and Save by button
+  or swipe, Undo and More. Its writes are the board's own (`POST /jobs/:id/status`: `favorite: true`, `status: dismissed`),
+  Undo reverses the last one on the same route (`status: new`, `favorite: false`) after reading the job, and
+  `GET /api/career-hunter/mobile` answers a hand-off page to the stage. Guards: `tests/career-match-deck-routes.test.mjs`,
+  `tests/career-match-deck-page.test.mjs`. Still open: `tests/career-match-deck-live-proof.mjs check` on the test slot once
+  1.69.0 is installed there.
+- **Remove the Mobile page that no route serves.** Since 1.69.0 `tools/career-mobile.html` is reached by no address (`/mobile`
+  hands off to New matches), but it is still in the package and these suites read it as a page (`career-mobile-screen`,
+  `career-mobile-score`, `board-surface`, `resume-preview`, `career-salary-parser`, `career-words`, `career-frame`, and the
+  Mobile case of `browser/career-swipe-deck-proof`). Its Ready and Status lists are the board's Getting ready and Applied
+  stages. Done when: the file is gone, each of those cases is removed or pointed at the page that took its part over, and
+  `tests/test-lab.yaml` no longer registers a Mobile case.
+- **Screen aliases for merged tools (needs a kernel change).** A cockpit address naming a removed tool
+  (`?screen=career-submissions`, `career-application-status`, `career-mobile`) opens Career's default screen, and
+  `?screen=career-approvals` opens the kernel's own Approvals screen where a person has it. Checked against the kernel at
+  `7a2f3f1e` and the pinned platform `2816eff1`: the shell answers only a registered view
+  (`requestedView` in `platform/src/pages/cockpit/js/components/RibbonNav.js`; its one alias, `career-approvals`, is written
+  into that function), and a manifest tile (`OshalAppRibbonTile` in `crates/packages/src/importer.rs`: `toolName`, `label`,
+  `icon`, `iframeUrl`, `section`, `group`, `visibilityToolName`) has no key for a former name, so nothing a package declares
+  reaches the shell. Registering the old names as tiles again would put four duplicate entries back in the menu, which is what
+  1.48.1 removed. The kernel change: a tile key naming its former tool names, each with the query of the stage it became
+  (for `career-board`: `career-submissions` with `view=queue`, `career-application-status` with `view=status`,
+  `career-approvals` with `view=approve`, `career-mobile` with `view=matches`); the profile carrying it to the shell; and
+  `requestedView` resolving `?screen=<former name>` to that registered view with the query handed to its frame the way an
+  `app-navigate` message's `query` already is (`sanitizeToolQuery`). In-package links and the addresses `/approvals` and
+  `/mobile` already open the board on its stage. Done when: an old `?screen=` address opens the Job Board on its stage,
+  through a kernel-supported alias.
+
+## 1.72.0 Résumé for upload forms — open items
+
+Built (lane APPLY-H): every generation writes `Resume_Parse.docx`, the job's résumé as labelled lines for an employer's
+parser; Step 3 · Send offers it as For upload forms (.docx); Fill it in on my Chrome uploads it on every site. Guards:
+`tests/career-parse-resume.test.mjs` (the real parse against the executive Word résumé), `career-parse-resume-route.test.mjs`,
+`career-apply-packet.test.mjs`, `career-apply-by-hand.test.mjs`.
+
+- **Live proof on the test slot.** Done when `node career-hunter/tests/career-parse-resume-live-proof.mjs check
+  http://127.0.0.1:38798 <person file> <out folder>` exits 0 with 1.72.0 installed: the download is named for the job, has
+  no tab, table or header, and the plain reader recovers every job on that job's résumé exactly at 1440x900 and 412x915.
+- **A role's location.** Career records no location on a role (Work history edits title, employer, start and end), so
+  `Location:` is printed only for a role whose record carries a `location`. Done when Work history and the concierge's
+  patch can set a role's location (revision-checked, with Undo) and the parse résumé prints it under `Company:`.
+
+## 1.70.0 Fill it in on my Chrome — open items
+
+Career's side is built (design APPLY-ORBIT, lane E): packet v2, approval, attempts and Go on, sync, receipt, kept answers
+and months, Saved answers, the Send step and Submission activity. Guards: `tests/career-apply-packet.test.mjs`,
+`career-apply-sync.test.mjs`, `career-apply-send-step.test.mjs`, `career-apply-receipt.test.mjs`,
+`career-apply-saved-answers.test.mjs`. It does nothing on an installation until the kernel runs executor `orbit-apply-v1`.
+
+- **The kernel reports browser-apply to Career.** Done when `GET /api/apply-operator/workers` lists `features` on each
+  Orbit computer (today it lists `tools` only), so Fill it in on my Chrome appears for a computer whose Orbit reports
+  `browser-apply`, and the kernel routes a `career-apply` ticket to the same computer (the chosen Job Apply device, else the
+  only connected Orbit computer that reports it).
+- **Show me.** Done when the kernel offers a route the person's page can call to focus the run's Chrome window, and Ready
+  for you to submit shows a Show me button that calls it. Today the line says to check the Chrome window.
+- **Live proof on the test slot** (lane F, `tests/live/career-apply-*`). Done when its variants a to d pass on blue with
+  the stand-in's log, the kernel's work record and Career's receipt agreeing.
+- **Any employer site and more engines** (1.71.0, lane APPLY-G). Built: the generic site for any host Career names no
+  engine for, embedded Greenhouse, Lever, Ashby and SmartRecruiters forms approved at their own address, and profiles for
+  SuccessFactors, BrassRing, Amazon, Eightfold, SmartRecruiters, iCIMS, Oracle Recruiting Cloud and Taleo, each with a
+  stand-in shape (`tests/live/career-apply-standin-forms.cjs`) proved through the real add-on in Chromium. Done when the
+  live proof's variants g, sf, br, am, ef, sr, ic, or and tl pass on blue (kernel apply-g delivered, blue's
+  CAREER_APPLY_SITE_HOSTS naming each engine's stand-in host). The engine profiles are written from each engine's known
+  page words, not read from a real employer's site; his first run on each real engine is its first proof there, and a
+  label that does not match is a card, not a guess.
+- **Attestations** (design open question 1): answered by the owner ("its configuration") and built in 1.70.0 as two
+  switches under Saved answers, off by default, carried as `task.attest`. Done when the live proof on the test slot shows
+  the terms box ticked and the signature typed only with the switch on, and handed back with it off.
 
 ## Nightly source review — next stages
 

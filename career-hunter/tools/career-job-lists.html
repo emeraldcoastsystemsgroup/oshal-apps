@@ -15,7 +15,8 @@
   13 | maintainer@emeraldcoastsystemsgroup.com | 1.67.0 (see career-job-lists.js 23): style the confirmed-sent company badge (.company-sent-badge) with semantic status tokens across desktop rows, phone match cards and the posting sheet.
   14 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (see career-job-lists.js 24): the place line of each job (tools/career-job-place.js, loaded before the page script), a Within filter (Any distance, 10, 25, 50, 100 miles, Remote only) and a Distance from home sort on the stages of My jobs, and one line under the search row when Career does not know the person's home, with Set your home (a 44px target on a phone).
   15 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (see career-job-lists.js 25): the List | Table switch under the stage row, the overall progress of bulk work above the jobs, the table's host and the selected-rows bar, their stylesheet (career-jobs-table.css) and scripts (career-bulk-queue.js, career-jobs-table.js).
-  16 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (see career-job-lists.js 26): the posting sheet's description states: a quiet line under a description Career read from the posting or the person pasted, the line while it is reading, and the box for a job it could not read (in the warning colour, with Open the posting and Paste it in Prepare application as 44px buttons that wrap on a phone). -->
+  16 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (see career-job-lists.js 26): the posting sheet's description states: a quiet line under a description Career read from the posting or the person pasted, the line while it is reading, and the box for a job it could not read (in the warning colour, with Open the posting and Paste it in Prepare application as 44px buttons that wrap on a phone).
+  17 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0 (see career-match-deck.js 1): the phone deck of New matches is its own script, loaded before the page script. Its card is larger and leads with the employer and the fit, the title is a 44px target, pay is a fact only when the posting states it; Pass and Save are the two wide buttons under the thumb with Undo and More beside them, at least 48px tall; the card under the lead one is not a tab stop; the end of the deck, a failed read and the wait for the first read each have their own state. Desktop and List are unchanged. -->
 <html lang="en" data-theme="midnight" data-career-surface="journey" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My jobs</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script><link rel="stylesheet" href="/api/career-hunter/static/career-journey.css"><link rel="stylesheet" href="/api/career-hunter/static/career-kit.css"><style>
 .details-needed-label{font-weight:700;color:var(--ds-warn-ink,var(--status-warning,#8a5a00))}
@@ -55,23 +56,34 @@ html.in-shell #pageTitle{display:none}
 #actionState:empty{display:none}
 #openBoardFilters,#matchesLayoutSwitch{display:none}
 .match-deck{display:flex;flex-direction:column;gap:12px}
-.match-deck-stage{position:relative;min-height:340px}
-.match-card{border:1px solid var(--ds-edge,var(--line));border-radius:var(--ds-radius-xl,20px);background:var(--ds-surface,var(--panel));padding:18px;display:flex;flex-direction:column;gap:10px;touch-action:pan-y;user-select:none}
-.match-card.peek{position:absolute;inset:0;transform:scale(.97) translateY(8px);z-index:0;pointer-events:none}
-.match-card.lead{position:relative;z-index:1;transition:transform .2s ease;will-change:transform}
+.match-deck-stage{position:relative;min-height:280px}
+.match-card{border:1px solid var(--ds-edge,var(--line));border-radius:var(--ds-radius-xl,20px);background:var(--ds-surface,var(--panel));padding:20px 18px;display:flex;flex-direction:column;gap:12px;touch-action:pan-y;user-select:none;min-width:0}
+.match-card.peek{position:absolute;inset:0;transform:scale(.97) translateY(8px);z-index:0;pointer-events:none;overflow:hidden}
+.match-card.lead{position:relative;z-index:1;min-height:280px;transition:transform .2s ease;will-change:transform;box-shadow:var(--ds-elev-float,0 2px 6px rgb(0 0 0 / .16))}
 .match-card.lead.dragging{transition:none}
 .match-card.lead.flung{transition:transform .17s ease-in,opacity .17s ease-in;opacity:0}
-.match-card :is(h2,p,div,span,button){touch-action:pan-y}
-.match-card.lead::before,.match-card.lead::after{position:absolute;top:14px;padding:4px 12px;border-radius:var(--ds-radius-m,10px);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:0;transition:opacity .1s ease;pointer-events:none;background:var(--ds-surface,var(--panel))}
+.match-card :is(h2,p,div,span,button,b){touch-action:pan-y}
+.match-card.lead::before,.match-card.lead::after{position:absolute;top:14px;padding:4px 12px;border-radius:var(--ds-radius-m,10px);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:0;transition:opacity .1s ease;pointer-events:none;background:var(--ds-surface,var(--panel));z-index:2}
 .match-card.lead::before{content:'Save';left:14px;color:var(--ds-ok,var(--status-success));border:2px solid var(--ds-ok,var(--status-success))}
 .match-card.lead::after{content:'Pass';right:14px;color:var(--ds-bad,var(--status-error));border:2px solid var(--ds-bad,var(--status-error))}
 .match-card.lead[data-swipe="save"]::before,.match-card.lead[data-swipe="pass"]::after{opacity:1}
-.match-card h2{font-size:18px;line-height:24px;margin:0}
-.match-card .co{font-size:14px;color:var(--ds-ink-2,var(--muted));margin:0;font-weight:600}
-.match-card .why{font-size:14px;line-height:20px;color:var(--ds-ink-2,var(--muted));margin:0;max-height:140px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:7;line-clamp:7}
+.match-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.match-card h2{font-size:22px;line-height:28px;margin:0;overflow-wrap:anywhere}
+.match-card .job-title{font-size:inherit;line-height:inherit;font-weight:700;min-height:44px;display:inline-flex;align-items:center;text-align:left;font-family:inherit;cursor:pointer}
+.match-card .co{font-size:15px;line-height:22px;color:var(--ds-ink-2,var(--muted));margin:0;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.match-card .match-fit{flex:none;margin:0;padding:4px 10px;border-radius:var(--ds-radius-m,10px);background:color-mix(in srgb,var(--accent) 12%,var(--ds-surface,var(--panel)));color:var(--ds-ink,var(--text));font-size:13px;line-height:20px;font-weight:600;white-space:nowrap}
+.match-card .match-fit b{font-size:17px;color:var(--ds-accent-ink,var(--accent))}
+.match-card .meta{font-size:14px;line-height:20px;gap:4px 14px}
+.match-card .match-pay{color:var(--ds-ink,var(--text));font-weight:600}
+.match-card .why{font-size:15px;line-height:22px;color:var(--ds-ink-2,var(--muted));margin:0;max-height:154px;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:7;line-clamp:7}
+.match-deck-state.match-card{min-height:220px;align-items:center;justify-content:center;border-style:dashed;user-select:auto}
+.match-deck-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 #matchActionDock{display:contents}
 #deckActionButtons:empty{display:none}
-.match-deck-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.match-deck-actions{display:grid;grid-template-columns:minmax(64px,auto) minmax(0,1fr) minmax(0,1fr) minmax(64px,auto);gap:8px}
+.match-deck-actions :is(.ck-btn,.ck-primary){min-height:48px;padding:0 12px}
+.match-deck-actions [data-deck-act="pass"]{color:var(--ds-bad,var(--status-error));border-color:color-mix(in srgb,var(--ds-bad,var(--status-error)) 45%,var(--ds-line-control,var(--line)))}
+.match-deck-actions :is(.ck-btn,.ck-primary):disabled{color:var(--ds-ink-disabled,var(--muted));border-color:var(--ds-line-control,var(--line))}
 @media(max-width:640px){
   #pageDescription,#filters{display:none}
   #careerStages{flex-wrap:wrap;overflow:visible}
@@ -118,5 +130,5 @@ html.in-shell #pageTitle{display:none}
   <header><h2 id="boardFilterSheetTitle">Filters</h2><span><button type="button" class="ck-tertiary" id="boardSheetClear">Clear filters</button><button type="button" class="ck-tertiary" id="boardSheetDone">Done</button></span></header>
   <div class="ck-sheet-body" id="boardFilterSheetBody"></div>
 </dialog>
-<script src="/api/career-hunter/static/career-job-place.js"></script><script src="/api/career-hunter/static/career-job-actions.js"></script><script src="/api/career-hunter/static/career-navigation.js"></script><script src="/api/career-hunter/static/career-job-feedback.js"></script><script src="/api/career-hunter/static/career-stages.js"></script><script src="/api/career-hunter/static/career-status-line.js"></script><script src="/api/career-hunter/static/career-submit.js"></script><script src="/api/career-hunter/static/career-bulk-queue.js"></script><script src="/api/career-hunter/static/career-jobs-table.js"></script><script src="/api/career-hunter/static/career-job-lists.js"></script>
+<script src="/api/career-hunter/static/career-job-place.js"></script><script src="/api/career-hunter/static/career-job-actions.js"></script><script src="/api/career-hunter/static/career-navigation.js"></script><script src="/api/career-hunter/static/career-job-feedback.js"></script><script src="/api/career-hunter/static/career-stages.js"></script><script src="/api/career-hunter/static/career-status-line.js"></script><script src="/api/career-hunter/static/career-submit.js"></script><script src="/api/career-hunter/static/career-bulk-queue.js"></script><script src="/api/career-hunter/static/career-jobs-table.js"></script><script src="/api/career-hunter/static/career-match-deck.js"></script><script src="/api/career-hunter/static/career-job-lists.js"></script>
 </body></html>

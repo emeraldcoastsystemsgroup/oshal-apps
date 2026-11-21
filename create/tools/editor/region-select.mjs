@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Map lasso, box and whole-image selections onto one image layer's SOURCE pixels, so zoom, move, resize, rotation and crop never shift the requested region; clip it to the visible crop and refuse stale, ambiguous, locked, hidden or too-small selections before use.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: apply flipX and flipY in sourceToCanvas so source-pixel selections and overlays stay exact on flipped images and groups.
  */
 import { demand, number, identifier, objectKeys, validateProject } from './model-validation.mjs';
 import { worldLayer } from './group-geometry.mjs';
@@ -44,8 +45,9 @@ export function canvasToSource(layer, asset, point) {
  * @returns {{x:number,y:number}} Canvas-space point. */
 export function sourceToCanvas(layer, asset, point) {
   const crop = layer.crop, angle = layer.rotation * Math.PI / 180;
-  const dx = (point.x / asset.width - crop.x) / crop.w * layer.w - layer.w / 2;
-  const dy = (point.y / asset.height - crop.y) / crop.h * layer.h - layer.h / 2;
+  const fx = layer.flipX ? -1 : 1, fy = layer.flipY ? -1 : 1;
+  const dx = ((point.x / asset.width - crop.x) / crop.w * layer.w - layer.w / 2) * fx;
+  const dy = ((point.y / asset.height - crop.y) / crop.h * layer.h - layer.h / 2) * fy;
   return { x: layer.x + layer.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle),
     y: layer.y + layer.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) };
 }

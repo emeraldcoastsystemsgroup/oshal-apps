@@ -1,0 +1,196 @@
+{
+  "id": "lever",
+  "version": 1,
+  "document": "docx",
+  "steps": {},
+  "press": {
+    "open": [
+      "Apply for this job",
+      "Apply"
+    ],
+    "continue": [],
+    "back": [],
+    "add-entry": [],
+    "delete-entry": []
+  },
+  "fields": [
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Full name",
+          "Name"
+        ]
+      },
+      "slot": "name.full"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Current location",
+          "Location"
+        ]
+      },
+      "slot": "address.city"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Email"
+        ]
+      },
+      "slot": "email"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Phone"
+        ]
+      },
+      "slot": "phone"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "LinkedIn Profile",
+          "LinkedIn",
+          "LinkedIn URL"
+        ]
+      },
+      "slot": "links.linkedin"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "Website",
+          "Portfolio",
+          "Portfolio URL",
+          "Other website"
+        ]
+      },
+      "slot": "links.website"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "GitHub",
+          "GitHub URL"
+        ]
+      },
+      "slot": "links.github"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "legally authorized to work",
+          "authorized to work"
+        ]
+      },
+      "slot": "eligibility.authorized"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "require sponsorship",
+          "visa sponsorship",
+          "need sponsorship"
+        ]
+      },
+      "slot": "eligibility.sponsorship"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "How did you hear about this job?",
+          "How did you hear about us?"
+        ]
+      },
+      "slot": "source.heard"
+    },
+    {
+      "match": {
+        "auto": [],
+        "label": [
+          "I agree to the terms and conditions",
+          "I have read and agree to the terms and conditions"
+        ]
+      },
+      "slot": "attest.terms"
+    }
+  ],
+  "groups": [],
+  "equivalents": {
+    "MBA": [
+      "MBA",
+      "Master of Business Administration",
+      "Master's Degree"
+    ],
+    "MS": [
+      "MS",
+      "M.S.",
+      "Master of Science",
+      "Master's Degree"
+    ],
+    "MA": [
+      "MA",
+      "M.A.",
+      "Master of Arts",
+      "Master's Degree"
+    ],
+    "BS": [
+      "BS",
+      "B.S.",
+      "Bachelor of Science",
+      "Bachelor's Degree"
+    ],
+    "BA": [
+      "BA",
+      "B.A.",
+      "Bachelor of Arts",
+      "Bachelor's Degree"
+    ],
+    "PhD": [
+      "PhD",
+      "Ph.D.",
+      "Doctor of Philosophy",
+      "Doctorate"
+    ],
+    "Associate": [
+      "Associate",
+      "Associate's Degree",
+      "Associate of Science",
+      "Associate of Arts"
+    ]
+  },
+  "decline": [
+    "I do not wish to answer",
+    "I don't wish to answer",
+    "I do not want to answer",
+    "Decline to self-identify",
+    "Prefer not to say"
+  ],
+  "signature": {
+    "page": "questions",
+    "name": [],
+    "date": []
+  },
+  "upload": {
+    "resume": [
+      "resume",
+      "cv",
+      "resume/cv"
+    ],
+    "cover": [
+      "cover letter"
+    ]
+  }
+}

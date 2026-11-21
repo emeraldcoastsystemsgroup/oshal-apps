@@ -1177,3 +1177,21 @@ cases:
     isolation: { mode: disposable }
     limits: { timeoutMs: 10000, maxMemoryMb: 256 }
     installation: never
+
+  - id: editor-flip-browser
+    name: Horizontal and vertical layer flip by button and concierge tool
+    purpose: Prove CREATE-TOOL-CREATE-03 end-to-end in real Chromium — flip an asymmetric photo via Format controls, verify reload/undo/redo and exported PNG pixels, flip back via concierge operations, and verify desktop and phone layout cleanliness.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/browser/create-flip-proof.mjs]
+    expected:
+      - On-screen Flip horizontal and Flip vertical buttons mirror exported PNG pixels accurately, persist across reload, and obey undo/redo and layer locks.
+      - Concierge update patch { flipX: false, flipY: false } flips the photo back to pixel-identical original PNG output and rejects invalid or locked flips.
+      - Controls meet touch-target sizing with zero horizontal overflow at 1440x900 and 412x915.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1536 }
+    installation: never

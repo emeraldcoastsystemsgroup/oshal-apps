@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 89 packages, 89 rated, 0 unrated.
+Coverage: 90 packages, 90 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -73,6 +73,7 @@ Coverage: 89 packages, 89 rated, 0 unrated.
 | email-summarizer | 64 / 256 (declared) | reply-draft | reply draft | T2 | none | disable | not yet measured | none recorded |
 | email-summarizer | 64 / 256 (declared) | comms-ticket | communications ticket | T3 | none | disable | not yet measured | none recorded |
 | embodied | 544 / 2176 (declared) | embodied-concierge-chat | concierge chat turn | T3 | none | disable | not yet measured | none recorded |
+| engineering-shelf | 16 / 64 (declared) | none (T0, no model in the loop) | | | | | | |
 | fantasy-football | 32 / 128 (declared) | fantasy-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 | feeds | 32 / 128 (declared) | feeds-curation-ticket | feeds ticket | T3 | none | disable | not yet measured | none recorded |
 | finance | 64 / 256 (declared) | money-brief | money brief | T3 | none | disable | not yet measured | none recorded |
@@ -140,7 +141,6 @@ Coverage: 89 packages, 89 rated, 0 unrated.
 | social | 128 / 512 (declared) | daily-social-digest | daily digest | T3 | none | disable | not yet measured | none recorded |
 | social | 128 / 512 (declared) | linkedin-content-post | LinkedIn post ticket | T2 | none | disable | not yet measured | none recorded |
 | spaces | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
-| sports-edge | 32 / 128 (declared) | team-news-classification | news item | T1 | none | template | not yet measured | none recorded |
 | sports-edge | 32 / 128 (declared) | sports-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 | spotify | 64 / 256 (declared) | music-concierge-chat | concierge chat turn | T2 | none | disable | not yet measured | none recorded |
 | spotify | 64 / 256 (declared) | spotify-ticket | music request ticket | T4 | none | disable | not yet measured | none recorded |

@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.68.25",
+      "version": "1.73.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1276,7 +1276,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace.",
-      "version": "1.20.2",
+      "version": "1.20.3",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -2012,7 +2012,7 @@
       "suite": "ai-finance",
       "displayName": "Payroll",
       "description": "Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. Earnings codes with FLSA overtime computed per workweek; typed deductions with garnishment priority; encrypted SSN/EIN; gross-up; void corrections. Produces the NACHA ACH file your own bank executes, printable checks, Form 941/940 and Florida RT-6 worksheets, issuable W-2s and the SSA EFW2 submission, then reads your bank's returns and notifications of change back in so a failed deposit is visible instead of silent. Deterministic: no LLM computes a dollar, and every tax constant cites the primary IRS/SSA document it was verified against. Open Swarm computes and produces; your bank and the agencies execute. It transmits nothing.",
-      "version": "2.3.8",
+      "version": "2.4.0",
       "theme": "ocean",
       "dependencies": {
         "apps": [],
@@ -2117,7 +2117,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.5.11",
+      "version": "0.6.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2409,7 +2409,7 @@
       "suite": "ai-finance",
       "displayName": "Sports Edge",
       "description": "Follow a team and really know its next game. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. Every call is registered before kickoff and graded on closing-line value, so the model has to beat the market before it is allowed to stake anything. No order path. Fantasy leagues moved to their own app, Fantasy Football, grouped with this one as Intelligent Sports.",
-      "version": "0.12.2",
+      "version": "0.12.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2516,7 +2516,7 @@
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
       "description": "Scans and 3D-prints objects. 3D printers only; it cannot print paper documents. Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
-      "version": "0.10.4",
+      "version": "0.10.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2587,7 +2587,7 @@
       "suite": "ai-engineering",
       "displayName": "Design Studio",
       "description": "The design-to-build process as one application, for anything. A product is a brief plus a chain of phases (brief, design, mechanical, electrical, sensors, controller, simulate, fabricate, build), each bound to the engine that produces its artifact (CAD Studio, Circuit Lab, embodied's plant and gate, the print service) or marked reasoned when no engine here solves it. Every phase is a poster whose stage is read from the engine when the page opens and never stored, with one button; a phase closes on a measured verdict recorded with the engine's evidence line and the artifact revision. The design partner on the right rail works through the chain with you. The spider is the first product.",
-      "version": "0.4.13",
+      "version": "0.4.14",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2621,11 +2621,56 @@
       "status": "ready"
     },
     {
+      "name": "engineering-shelf",
+      "suite": "ai-engineering",
+      "displayName": "Engineering shelf",
+      "description": "One role for the engineering applications. Assigning its Engineer role at Access gives a person Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print together, each on the person's own work. It has no screen of its own.",
+      "version": "1.0.0",
+      "dependencies": {
+        "apps": [
+          "design-studio",
+          "cad-studio",
+          "circuit-lab",
+          "embodied",
+          "scan-to-print"
+        ],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [
+            "design-studio",
+            "cad-studio",
+            "circuit-lab",
+            "embodied",
+            "scan-to-print"
+          ],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "engineering-shelf",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/engineering-shelf.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
       "name": "cad-studio",
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
       "description": "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports.",
-      "version": "0.5.4",
+      "version": "0.5.5",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3617,7 +3662,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.5",
+      "version": "1.9.6",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3902,7 +3947,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.20.3",
+      "version": "1.20.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],

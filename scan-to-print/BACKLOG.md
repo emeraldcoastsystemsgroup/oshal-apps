@@ -175,6 +175,24 @@ Done when: the suite is registered with the store's framework-coupled runner
 (`scripts/security/run-framework-coupled-tests.mjs`) or an equivalent gate, and a red route test
 fails a PR.
 
+**Done in 0.10.5.**
+- **Automatic PR / pre-push store gate (`.github/workflows/store-ci.yml`, `scripts/store-ci-local.mjs`,
+  `scripts/security/store-test-command-inventory.json`, `scripts/toolchain/package.json`):** The
+  pinned store toolchain now carries `sharp@0.35.5` alongside `express` and `multer` (zero
+  dependency on the retired `oshal/src` tree), and the `scan-to-print` job runs
+  `node --test tests/routes.core.test.js` with `OSHAL_CORE_DIR` pointed at `scripts/toolchain`.
+  `scripts/store-ci-local.mjs` fails closed if `express`, `multer`, or `sharp` is absent from the
+  toolchain, so every PR touching `scan-to-print` executes all 8 HTTP route integration cases via
+  `.githooks/pre-push` / `scripts/store-push.sh` and the scheduled full run.
+- **Framework-coupled runner (`scripts/security/run-framework-coupled-tests.mjs`,
+  `scripts/security/run-framework-coupled-tests.test.mjs`):** `discoverCoreSuites` automatically
+  discovers `scan-to-print/tests/routes.core.test.js` (now explicitly pinned by regression test) and
+  supports fail-closed `--suite <pkg/tests/file>` execution.
+- **Evidence:** Both `node scripts/security/run-framework-coupled-tests.mjs --store . --framework scripts/toolchain --suite scan-to-print/tests/routes.core.test.js`
+  and `scripts/store-ci-local.mjs` (`scan-to-print · scan-to-print/Run scan-to-print HTTP route suite`)
+  pass 8/8 cases and were red-verified to exit non-zero on a failing assertion in
+  `tests/routes.core.test.js`.
+
 ## B7 — Base sealing for one-sided point-cloud scans
 
 A phone LiDAR scan of an object on a table has no underside, so the flood fill leaks and the lane
@@ -452,6 +470,29 @@ Done when: the swarm env sets the slicer command for a slicer present in the api
 `/capabilities` reports `slicerConfigured: true` and `video.configured: true`, one job's G-code
 submission reaches an OctoPrint host (or a recorded fake) with `state: printing`, and one real
 phone clip yields frames that reconstruct.
+
+**0.10.6 update (Option C — engine STL-to-G-code verb ready pending engine image rebuild):**
+- **Engine (`engine/slicer_worker.py`, `engine/container/slicer_engine_bridge.py`):** Added the generic
+  `slice_gcode` verb reusing `/opt/orcaslicer/bin/orca-slicer` inside `oshal-scan-to-print-engine`
+  with OrcaSlicer's bundled `Custom` generic profiles (`marlin` / `klipper`, aliases for `octoprint`,
+  `prusalink`, `moonraker`), bounded settings (`layerHeightMm`, `infillPct`, `wallLoops`,
+  `nozzleTempC`, `bedTempC`), UTF-8/G-M sanity checks, SHA-256 verification, estimate extraction,
+  and capability advertisement in `hello` + `--selftest`. Zero host package installs required.
+- **Package routes (`src-routes/engine/print/slicer.ts`, `src-routes/printing/slicer-engine.ts`,
+  `src-routes/print-routes.ts`, `src-routes/service-routes.ts`, `src-routes/scan-to-print-routes.ts`):**
+  When `SCAN_TO_PRINT_SLICER_CMD` is unset and the package engine is configured (native
+  `engine.exchange`, injected socket, or valid `SCAN_TO_PRINT_ENGINE_ADDR`), `/capabilities` and
+  `/printers` report `slicerConfigured: true` and `slicerBackend: 'engine'`, and `POST /jobs/:id/print`
+  / `POST /service/jobs/:id/print` / `POST /service/print` slice STL → G-code through `slice_gcode`.
+  Explicit `SCAN_TO_PRINT_SLICER_CMD` retains priority (`slicerBackend: 'command'`) and unconfigured
+  environments still return `409 needs_gcode`.
+- **Evidence:** `engine/tests/test_slicer_gcode.py` (7 cases, `python3 -m unittest` 12/12 across
+  `engine/tests/`), `tests/engine-gcode-slicer.test.js` (6 cases, registered as `engine-gcode-slicer`
+  in `tests/test-lab.yaml`), and `tests/routes.core.test.js` (B16 Option C loopback OctoPrint &
+  Moonraker `state: printing` proof).
+- **Remaining:** Operator rebuild & restart of `oshal-scan-to-print-engine:local` (`install-engine.sh`
+  + `ops/shared_services.py apply --execute`) to activate `slice_gcode` in the running container, plus
+  exercising the video lane on one real phone clip.
 
 ## B17 — Run the surface-freshness browser case in the Test Lab
 

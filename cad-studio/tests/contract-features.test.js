@@ -23,6 +23,9 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The per-feature budget (BACKLOG B5): the setting is refused
  *                     |                             | by field outside the range, the range is published, and it
  *                     |                             | equals the worker's FEATURE_BUDGET_MS read from source.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Threads and text (BACKLOG B4): 18 feature types including
+ *                     |                             | ISO metric `thread` and embossed/debossed `text`, field-named
+ *                     |                             | refusals, bundled OFL-1.1 font in RUNTIME_FILES and engine/fonts/.
  */
 'use strict';
 const test = require('node:test');
@@ -37,7 +40,7 @@ const ENGINE_DIR = path.resolve(__dirname, '..', 'engine');
 
 test('the contract names exactly the engine\'s bases, features and selectors', () => {
   assert.deepEqual([...c.BASE_KINDS], ['box', 'cylinder', 'sketch', 'contours', 'mesh']);
-  assert.deepEqual([...c.FEATURE_TYPES], ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate']);
+  assert.deepEqual([...c.FEATURE_TYPES], ['hole', 'boss', 'box-add', 'box-cut', 'sketch-extrude', 'revolve', 'sweep', 'loft', 'fillet', 'chamfer', 'shell', 'cut-plane', 'scale', 'mirror', 'rotate', 'translate', 'thread', 'text']);
   assert.deepEqual([...c.EDGE_SELECTORS], ['all', 'vertical', 'horizontal', 'top', 'bottom', 'parallel-x', 'parallel-y', 'parallel-z']);
   assert.deepEqual([...c.FACE_SELECTORS], ['none', 'top', 'bottom', 'front', 'back', 'left', 'right']);
   const published = c.describeContract();
@@ -45,6 +48,7 @@ test('the contract names exactly the engine\'s bases, features and selectors', (
   assert.match(published.worldFrame, /Z up/);
   assert.deepEqual(JSON.parse(JSON.stringify(published.planeAxes)), { XY: ['x', 'y'], XZ: ['x', 'z'], YZ: ['y', 'z'] });
   assert.equal(published.limits.maxSections, 32);
+  assert.equal(published.bundledFont, 'LiberationSans-Regular.ttf');
   assert.equal(c.FEATURE_INPUT_SCHEMA.required.join(','), 'type,params');
 });
 
@@ -57,6 +61,8 @@ test('every feature type normalises a valid example and refuses a bad one with t
     'revolve': { points: [[10, 0], [20, 0], [20, 30], [10, 30]], plane: 'XZ', axis: 'z', degrees: 90, mode: 'cut' },
     'sweep': { points: [[-5, -5], [5, -5], [5, 5], [-5, 5]], path: [[0, 0], [0, 40], [30, 40]], plane: 'XY', pathPlane: 'XZ' },
     'loft': { sections: [{ points: [[-10, -10], [10, -10], [10, 10], [-10, 10]], offset: 20 }, { points: [[-5, -5], [5, -5], [5, 5], [-5, 5]], offset: 50 }], ruled: false, plane: 'XY' },
+    'thread': { kind: 'external', nominalDiameterMm: 10, pitchMm: 1.5, lengthMm: 10, axis: 'z', handedness: 'right', clearanceMm: 0.1 },
+    'text': { text: 'OSHAL', mode: 'emboss', sizeMm: 8, depthMm: 1, face: 'top', x: 0, y: 0, angleDeg: 0 },
   };
   for (const [type, params] of Object.entries(ok)) {
     const f = c.validateFeature({ type, params, label: 'x' });
@@ -90,6 +96,21 @@ test('every feature type normalises a valid example and refuses a bad one with t
     [{ type: 'loft', params: { sections: [{ points: [[0, 0], [1, 0], [0, 1]], offset: 5 }, { points: [[0, 0], [2, 0], [0, 2]], offset: 5 }] } }, 'params.sections[1].offset'],
     [{ type: 'loft', params: { sections: [{ points: [[0, 0], [1, 0], [0, 1]] }, { points: [[0, 0], [2, 0], [0, 2]], offset: 5 }], ruled: 'yes' } }, 'loft.params.ruled'],
     [{ type: 'loft', params: { sections: Array.from({ length: 33 }, (_, i) => ({ points: [[0, 0], [1, 0], [0, 1]], offset: i })) } }, 'loft.params.sections'],
+    [{ type: 'thread', params: { nominalDiameterMm: 10, pitchMm: 1.5, lengthMm: 10 } }, 'params.kind'],
+    [{ type: 'thread', params: { kind: 'taper', nominalDiameterMm: 10, pitchMm: 1.5, lengthMm: 10 } }, 'thread.params.kind'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 1, pitchMm: 0.4, lengthMm: 5 } }, 'thread.params.nominalDiameterMm'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 10, pitchMm: 0.2, lengthMm: 5 } }, 'thread.params.pitchMm'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 6, pitchMm: 3.5, lengthMm: 10 } }, 'params.pitchMm'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 10, pitchMm: 2.0, lengthMm: 1.5 } }, 'params.lengthMm'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 10, pitchMm: 1.5, lengthMm: 10, handedness: 'ambidextrous' } }, 'thread.params.handedness'],
+    [{ type: 'thread', params: { kind: 'external', nominalDiameterMm: 10, pitchMm: 1.5, lengthMm: 10, clearanceMm: 0.8 } }, 'thread.params.clearanceMm'],
+    [{ type: 'text', params: { text: '   ', sizeMm: 8, depthMm: 1 } }, 'text.params.text'],
+    [{ type: 'text', params: { text: 'A'.repeat(65), sizeMm: 8, depthMm: 1 } }, 'text.params.text'],
+    [{ type: 'text', params: { text: 'BAD\nLINE', sizeMm: 8, depthMm: 1 } }, 'text.params.text'],
+    [{ type: 'text', params: { text: 'OK', mode: 'engrave', sizeMm: 8, depthMm: 1 } }, 'text.params.mode'],
+    [{ type: 'text', params: { text: 'OK', sizeMm: 1, depthMm: 1 } }, 'text.params.sizeMm'],
+    [{ type: 'text', params: { text: 'OK', sizeMm: 8, depthMm: 0.1 } }, 'text.params.depthMm'],
+    [{ type: 'text', params: { text: 'OK', sizeMm: 8, depthMm: 1, face: 'none' } }, 'text.params.face'],
     [{ type: 'holes', params: {} }, 'type'],
     [{ type: 'hole', params: { diameter: 6 }, enabled: 'yes' }, 'enabled'],
     ['not an object', 'feature'],
@@ -175,7 +196,9 @@ test('the Node build hash equals the bridge\'s Python build hash for the shipped
   const node = engineBuildHash(ENGINE_DIR);
   assert.match(node, /^[0-9a-f]{64}$/);
   assert.equal(engineBuildHash(path.join(ENGINE_DIR, 'does-not-exist')), null);
-  assert.deepEqual([...RUNTIME_FILES], ['cad_worker.py', 'container/cad_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt']);
+  assert.deepEqual([...RUNTIME_FILES], ['cad_worker.py', 'container/cad_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt', 'fonts/LiberationSans-Regular.ttf']);
+  assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'fonts', 'LiberationSans-Regular.ttf')), 'bundled OFL font must ship in engine/fonts/');
+  assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'fonts', 'LICENSE.txt')), 'bundled font LICENSE.txt must ship in engine/fonts/');
   const bridge = path.join(ENGINE_DIR, 'container', 'cad_engine_bridge.py');
   let result = null;
   for (const bin of ['python3', 'python']) {

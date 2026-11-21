@@ -2,11 +2,11 @@
 
 # Marketing Engine (`marketing-engine`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 8 tables in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 13 tables in the reference database.
 
-**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-marketing-core.sql`, `migrations/002-marketing-metrics.sql`
+**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-marketing-core.sql`, `migrations/002-marketing-metrics.sql`, `migrations/003-marketing-audience.sql`
 
-**Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/marketing-ops-routes.js`, `routes/marketing-routes.js`, `src-routes/marketing-ops-routes.ts`, `src-routes/marketing-routes.ts`
+**Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/marketing-audience.js`, `routes/marketing-ops-routes.js`, `routes/marketing-routes.js`, `src-routes/marketing-audience.ts`, `src-routes/marketing-ops-routes.ts`, `src-routes/marketing-routes.ts`
 
 Platform conventions (ownership, RLS, how migrations run): [core data model](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/data-model/README.md).
 
@@ -49,7 +49,32 @@ erDiagram
     text user_sub PK "owner"
     date week_start PK
   }
+  oshal_marketing_contacts {
+    uuid contact_id PK
+    text owner_sub "owner"
+  }
+  oshal_marketing_consents {
+    uuid consent_id PK
+    text owner_sub "owner"
+    uuid contact_id FK
+  }
+  oshal_marketing_lists {
+    uuid list_id PK
+    text owner_sub "owner"
+  }
+  oshal_marketing_list_members {
+    text owner_sub "owner"
+    uuid list_id PK,FK
+    uuid contact_id PK,FK
+  }
+  oshal_marketing_suppressions {
+    uuid suppression_id PK
+    text owner_sub "owner"
+  }
   oshal_marketing_campaigns |o--o{ oshal_marketing_content : "campaign_id"
+  oshal_marketing_contacts ||--o{ oshal_marketing_consents : "contact_id"
+  oshal_marketing_contacts ||--o{ oshal_marketing_list_members : "contact_id"
+  oshal_marketing_lists ||--o{ oshal_marketing_list_members : "list_id"
 ```
 
 ## Tables
@@ -189,3 +214,76 @@ Defined in `migrations/002-marketing-metrics.sql`, `routes/marketing-ops-routes.
 | `data` | jsonb | no |  |  |
 | `sources` | jsonb | no | '{}' |  |
 | `computed_at` | timestamp with time zone | no | now() |  |
+
+
+### `oshal_marketing_contacts`
+
+Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.js`, `src-routes/marketing-audience.ts` · RLS **forced** - exact owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `contact_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `email` | text | no |  |  |
+| `email_hash` | text | no |  | unique with `owner_sub` |
+| `display_name` | text | no | '' |  |
+| `tags` | jsonb | no | '[]' |  |
+| `status` | text | no | 'active' |  |
+| `metadata` | jsonb | no | '{}' |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_marketing_consents`
+
+Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.js`, `src-routes/marketing-audience.ts` · RLS **forced** - exact owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `consent_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `contact_id` | uuid | no |  | FK → [`oshal_marketing_contacts.contact_id`](#oshal_marketing_contacts) (ON DELETE CASCADE) |
+| `channel` | text | no |  |  |
+| `purpose` | text | no | 'marketing' |  |
+| `status` | text | no | 'pending' |  |
+| `evidence` | jsonb | no | '{}' | `{ formText, recordedAt, ip, userAgent, utm, tokenHash }` |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_marketing_lists`
+
+Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.js`, `src-routes/marketing-audience.ts` · RLS **forced** - exact owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `list_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `slug` | text | no |  | unique with `owner_sub` |
+| `name` | text | no |  |  |
+| `description` | text | no | '' |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_marketing_list_members`
+
+Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.js`, `src-routes/marketing-audience.ts` · RLS **forced** - exact owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `owner_sub` | text | no |  | owner |
+| `list_id` | uuid | no |  | PK · FK → [`oshal_marketing_lists.list_id`](#oshal_marketing_lists) (ON DELETE CASCADE) |
+| `contact_id` | uuid | no |  | PK · FK → [`oshal_marketing_contacts.contact_id`](#oshal_marketing_contacts) (ON DELETE CASCADE) |
+| `added_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_marketing_suppressions`
+
+Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.js`, `src-routes/marketing-audience.ts` · RLS **forced** - exact owner `owner_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `suppression_id` | uuid | no | gen_random_uuid() | PK |
+| `owner_sub` | text | no |  | owner |
+| `channel` | text | no | 'email' | unique with `owner_sub`, `address_hash` |
+| `address_hash` | text | no |  | normalized SHA-256 hex |
+| `reason` | text | no |  |  |
+| `source` | text | no | 'manual' |  |
+| `created_at` | timestamp with time zone | no | now() |  |

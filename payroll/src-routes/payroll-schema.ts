@@ -36,6 +36,8 @@
  * 2026-08-01 17:45:00 | maintainer@emeraldcoastsystemsgroup.com | Initial — carved the DDL out of payroll-store.ts and added the v2 entities: employer + employee legal identity (encrypted EIN/SSN with last-4 for display), worker classification and org placement, direct-deposit accounts, effective-dated deduction elections, per-check earning and deduction ROWS, payment records, and an append-only change audit log.
  * 2026-08-02 04:30:00 | maintainer@emeraldcoastsystemsgroup.com | v2.2 settlement: payroll_ach_events (imported returns and notifications of change) and payroll_filings (which artifact was produced when, and for what period). Payments gain the bank's answer — return code, reason, date, NOC change code — plus an index on ach_trace, because the trace is the ONLY handle a return gives back and matching one is a lookup on it. A unique index on the return trace stops the same return file, imported twice, counting anyone as unpaid twice. Company gains the check-number sequence and the EFW2 submitter identity (BSO User ID, contact, kind of employer, employment code).
  * 3                   | maintainer@emeraldcoastsystemsgroup.com | The bootstrap runs under a package-owned advisory lock (PAYROLL_SCHEMA_LOCK_KEY). Every guarded request calls ensurePayrollSchema, so the company view's parallel first reads on a fresh database ran the same CREATE TABLE IF NOT EXISTS concurrently, which Postgres does not make race-safe: the loser raised 23505 on pg_type_typname_nsp_index and its request failed (seen twice in the acceptance sandbox). With lockKey the kernel applies the statements in one transaction behind pg_advisory_xact_lock, so concurrent bootstraps run one at a time.
+ * 4                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 7: deduction elections carry a garnishment order's facts (served_on, entered_on, priority_rank, order_pct and a levy's statement: filing status, dependents, additional standard deductions, statement date), and each check's deduction row records the election it came from (election_id). Declared in their final shape here; migrations/002-payroll-garnishment-orders.sql adds them to an existing install.
+ * 5                   | maintainer@emeraldcoastsystemsgroup.com | Backlog item 3: payroll_line_earnings.work_date (hours per workday), payroll_company.workweek_start_time, and payroll_employees.occupation and name_prefix, the 29 CFR 516.2(a) items not held before; migrations/003-payroll-flsa-records.sql adds them to an existing install.
  *
  * @module payroll-schema
  */
@@ -131,7 +133,8 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
         contact_phone TEXT NOT NULL DEFAULT '',
         contact_email TEXT NOT NULL DEFAULT '',
         kind_of_employer TEXT NOT NULL DEFAULT 'N',
-        employment_code TEXT NOT NULL DEFAULT 'R'
+        employment_code TEXT NOT NULL DEFAULT 'R',
+        workweek_start_time TEXT NOT NULL DEFAULT '00:00'
       )`,
       // Legal identity — without these a W-2 cannot be issued, only previewed.
       // Monthly vs semiweekly decides WHEN a deposit is due — see the deposits report.
@@ -204,7 +207,9 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
         work_location TEXT NOT NULL DEFAULT '',
         pay_method TEXT NOT NULL DEFAULT 'check',
         pto_balance_hours NUMERIC NOT NULL DEFAULT 0,
-        sick_balance_hours NUMERIC NOT NULL DEFAULT 0
+        sick_balance_hours NUMERIC NOT NULL DEFAULT 0,
+        occupation TEXT NOT NULL DEFAULT '',
+        name_prefix TEXT NOT NULL DEFAULT ''
       )`,
       // Identity + classification + org placement (v2).
       // W-2 employee vs 1099 contractor — different forms, different taxes.
@@ -249,7 +254,15 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
         effective_to DATE,
         active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        served_on DATE,
+        entered_on DATE,
+        priority_rank INTEGER,
+        order_pct NUMERIC,
+        levy_filing_status TEXT NOT NULL DEFAULT '',
+        levy_dependents INTEGER NOT NULL DEFAULT 0,
+        levy_additional_std INTEGER NOT NULL DEFAULT 0,
+        levy_statement_on DATE
       )`,
 
       /* ── runs ────────────────────────────────────────────────────────── */
@@ -341,7 +354,8 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
         gross_cents BIGINT NOT NULL DEFAULT 0,
         derived BOOLEAN NOT NULL DEFAULT false,
         memo TEXT NOT NULL DEFAULT '',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        work_date DATE
       )`,
 
       /* ── per-check deduction rows ────────────────────────────────────── */
@@ -355,7 +369,8 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
         applied_cents BIGINT NOT NULL DEFAULT 0,
         arrears_added_cents BIGINT NOT NULL DEFAULT 0,
         reason TEXT NOT NULL DEFAULT '',
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        election_id TEXT NOT NULL DEFAULT ''
       )`,
 
       /* ── payment records ─────────────────────────────────────────────── */
@@ -451,11 +466,11 @@ export async function ensurePayrollSchema(pool: Pool): Promise<void> {
       { table: 'payroll_company', columns: ['user_sub', 'pay_frequency', 'legal_name', 'ein_encrypted', 'depositor_status', 'workweek_start_day', 'ach_odfi_routing', 'ach_company_id'] },
       { table: 'payroll_employees', columns: ['employee_id', 'user_sub', 'ssn_encrypted', 'ssn_last4', 'worker_type', 'flsa_exempt', 'department', 'pay_method'] },
       { table: 'payroll_bank_accounts', columns: ['account_id', 'user_sub', 'employee_id', 'routing_encrypted', 'split_order'] },
-      { table: 'payroll_deduction_elections', columns: ['election_id', 'user_sub', 'employee_id', 'code', 'arrears_cents'] },
+      { table: 'payroll_deduction_elections', columns: ['election_id', 'user_sub', 'employee_id', 'code', 'arrears_cents', 'served_on', 'priority_rank', 'levy_filing_status'] },
       { table: 'payroll_runs', columns: ['run_id', 'user_sub', 'kind', 'corrects_run_id', 'approved_by', 'suppress_voluntary'] },
       { table: 'payroll_run_lines', columns: ['run_id', 'employee_id', 'user_sub', 'net_cents', 'uses_earning_rows', 'workweek_hours', 'bonus_is_discretionary'] },
-      { table: 'payroll_line_earnings', columns: ['earning_id', 'user_sub', 'run_id', 'employee_id', 'code', 'workweek'] },
-      { table: 'payroll_line_deductions', columns: ['deduction_id', 'user_sub', 'run_id', 'employee_id', 'code', 'arrears_added_cents'] },
+      { table: 'payroll_line_earnings', columns: ['earning_id', 'user_sub', 'run_id', 'employee_id', 'code', 'workweek', 'work_date'] },
+      { table: 'payroll_line_deductions', columns: ['deduction_id', 'user_sub', 'run_id', 'employee_id', 'code', 'arrears_added_cents', 'election_id'] },
       { table: 'payroll_payments', columns: ['payment_id', 'user_sub', 'run_id', 'employee_id', 'method', 'status', 'ach_trace', 'return_code', 'returned_on'] },
       { table: 'payroll_audit', columns: ['user_sub', 'entity', 'entity_id', 'action', 'actor', 'before_json', 'after_json'] },
       { table: 'payroll_ach_events', columns: ['event_id', 'user_sub', 'kind', 'code', 'original_trace', 'payment_id', 'applied'] },

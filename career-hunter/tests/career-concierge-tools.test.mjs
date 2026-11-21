@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: the persona says each of two cards is its own call, the second written after the first's answer (the kernel runs the first tool call of a model reply).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.62.1: what the kernel shows a turn of career_resume_patch (its description and input schema; usageInstructions is never read) says a month is written YYYY-MM. On blue, Jarvis's hand-off on Gemini wrote "January 2025" and the card was refused at Approve.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.68.15: include dynamically-loaded inline career-resume-reviewer among the non-conversational workers marked conversation: false.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the new form planner of Fill it in on my Chrome, career-apply-assist, is non-conversational too and is listed with the other marked workers.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -94,7 +95,8 @@ test('the non-conversational workers are marked conversation: false and the conc
   assert.equal(reviewer.conversation, false, 'the resume reviewer worker is not offered for conversation');
   assert.equal(front.conversation, undefined, 'the chatBot carries no mark');
   assert.deepEqual(manifest.bots.filter(bot => 'conversation' in bot).map(bot => [bot.name, bot.conversation]),
-    [['career-hunter', false], ['career-submission-browser', false], ['career-resume-reviewer', false]], 'no other bot is marked, and the mark is the boolean false');
+    [['career-hunter', false], ['career-submission-browser', false], ['career-apply-assist', false], ['career-resume-reviewer', false]], 'no other bot is marked, and the mark is the boolean false');
+  assert.equal(manifest.bots.find(bot => bot.name === 'career-apply-assist').conversation, false, 'the form planner is not offered for conversation');
 });
 
 test('the worker\'s persona text is unchanged to the byte: it is part of the scoring model identity', () => {

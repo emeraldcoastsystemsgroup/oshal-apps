@@ -29,6 +29,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: stamp and return honest reasoned-only metadata on
  *                     |                             | closures without a verifying engine read, and publish named Pi bay
  *                     |                             | thermal solve options on GET /capabilities.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.14 (found by the non-administrator proof, BACKLOG B12): POST /bind
+ *                     |                             | on Design refuses an artifact that would unbind the bound CAD Studio
+ *                     |                             | parts by carrying no list (409 bad_artifact, artifact.modelIds). The
+ *                     |                             | design partner's own second bind had dropped the part its order built.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -40,7 +44,7 @@ import { taskFromBrief } from './mechanism-model';
 import { registerMechanism } from './mechanism-routes';
 import { registerOrders } from './order-routes';
 import { getMechanism, saveMechanism } from './mechanism-store';
-import { closureHonesty, ENGINES, honestEvidence, ModelError, PHASE_BRIEFS, PHASE_KINDS, proposePhases, THERMAL_SOLVE_MODES, validateArtifact, validateBrief, validateClosure, validatePhases, type PhaseEntry, type PhaseKind } from './phase-model';
+import { closureHonesty, ENGINES, honestEvidence, ModelError, PHASE_BRIEFS, PHASE_KINDS, proposePhases, refuseDroppedParts, THERMAL_SOLVE_MODES, validateArtifact, validateBrief, validateClosure, validatePhases, type PhaseEntry, type PhaseKind } from './phase-model';
 import { registerPrintSet } from './print-set-routes';
 import { resolveDataRoot } from './print-set-store';
 import { bindArtifact, closePhase, createProject, deleteProject, getProject, latestBindings, listBindings, listClosures, listOwnerClosures, listProjects, updateProject, type BindingRow, type ClosureRow, type ProjectRow } from './project-store';
@@ -224,7 +228,9 @@ function registerPhases(router: Router, pool: Pool): void {
     const body = (req.body ?? {}) as Record<string, unknown>;
     try {
       const phase = phaseInChain(c.project, body.phase);
-      const binding = await bindArtifact(pool, c.sub, c.project.id, phase.kind, validateArtifact(phase.kind, body.artifact));
+      const artifact = validateArtifact(phase.kind, body.artifact);
+      if (phase.kind === 'design') refuseDroppedParts(latestBindings(await listBindings(pool, c.sub, c.project.id)).design?.artifact, artifact);
+      const binding = await bindArtifact(pool, c.sub, c.project.id, phase.kind, artifact);
       logger.info({ sub: c.sub, projectId: c.project.id, phase: phase.kind, revision: binding.revision }, 'Artifact bound');
       res.status(201).json({ binding, ...(await projectView(pool, c.sub, c.project)) });
     } catch (error) { refuse(res, error, 'bind artifact'); }

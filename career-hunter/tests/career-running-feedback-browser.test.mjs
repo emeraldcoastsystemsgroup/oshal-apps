@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise native writer-busy feedback on actual Career pages with synthetic same-origin responses, preserved inputs and explicit retries; no live jobs, runs or submissions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retain every busy/refusal control under Save-only behavior, with separate explicit fit-refusal checks and unchanged acknowledged favorites.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.69.0: the two phone Cards cases of a Save whose result is unknown wait for what the deck now says ("Could not confirm the save: … Press Undo to check it.", a 503's text in plain words) instead of the bare error. What they guard is unchanged and checked as before: the card stays away, the result is not called a busy refusal, and nothing is retried. Added: Undo reads the job, finds it was not saved and brings the card back without a write.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -148,11 +149,17 @@ test('phone Cards preserve an acknowledged favorite after a separate explicit sc
   assert.equal(await f.page.locator('[data-deck-id="18"]').count(),1);await noAutomatic(f,s,2);
  }finally{await f.context.close();}
 });
-for(const patch of [{status:503,error:'Synthetic uncertain refusal'},{error:'Synthetic other conflict',code:BUSY}]){
+for(const patch of [{status:503,error:'Synthetic uncertain refusal',said:'Career could not do that just now.'},{error:'Synthetic other conflict',code:BUSY,said:'Synthetic other conflict.'}]){
  test('phone Cards do not reinterpret an unknown result as a proven busy refusal '+patch.error,async()=>{
   const s=twoCards(patch),f=await screen('cards',s);try{
-   await f.page.getByRole('button',{name:'Save',exact:true}).click();await f.page.locator('#actionState').getByText(patch.error,{exact:true}).waitFor();
+   await f.page.getByRole('button',{name:'Save',exact:true}).click();
+   await f.page.locator('#actionState').getByText('Could not confirm the save: '+patch.said+' Press Undo to check it.',{exact:true}).waitFor();
+   assert.doesNotMatch(await f.page.locator('#actionState').innerText(),/Career is working on your account|career_run_in_progress/);
    assert.equal(await f.page.locator('[data-deck-id="17"]').count(),0);await noAutomatic(f,s,1);
+   // Undo is how the person finds out: it reads the job, finds it was not saved, and brings the card back without a write.
+   await f.page.getByRole('button',{name:'Undo',exact:true}).click();await f.page.locator('.match-card.lead[data-deck-id="17"]').waitFor();
+   await f.page.locator('#actionState').getByText('Brought back: Synthetic fixture role at Fixture company. It had not been saved.',{exact:true}).waitFor();
+   assert.equal(s.job.favorite,false);await noAutomatic(f,s,1);
   }finally{await f.context.close();}
  });
 }

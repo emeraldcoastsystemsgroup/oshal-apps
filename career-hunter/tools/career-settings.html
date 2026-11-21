@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  30 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the Settings home lists Saved answers (tools/career-saved-answers.html, GET /saved-answers-ui): the answers Career may give on an employer's form when it fills it in on the person's Chrome, and the ones kept from application cards.
   29 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Job preparation & submission points to Job Apply to choose which connected computer sends approved applications, keeping the four guarded workflow button names intact.
   28 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): the Saved-job preparation card says what a background preparation does with other experience: each job is prepared with its own choice, or with the one the person prepared their last application with, and until they have chosen once, Career asks first and the job waits (career-workflow-settings.js says how many wait). Words only. Guard: tests/career-prepare-other-experience-route.test.mjs.
   27 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4: the address /settings?section=<name> opens that section as #<name> does. Today passes a page only its query, never its hash, so My jobs' Set your home link (?section=matching) lands on What I'm looking for, where Matching area is, inside Today too; ‹ Settings clears both.
@@ -92,6 +93,7 @@ input[type=checkbox]{width:22px;height:22px}
     <li><a href="#keys" data-open="keys">Email updates<small>Replies about your applications<span data-administrator>, and the AI and web search Career uses</span></small></a></li>
     <li><a href="#accounts" data-open="accounts">Accounts<small>Gmail for application replies and how LinkedIn uses your browser</small></a></li>
     <li><a href="#materials" data-open="materials">Résumé and materials<small>Your résumé, work samples and other materials</small></a></li>
+    <li><a href="/api/career-hunter/saved-answers-ui" data-career-tool="career-settings" id="savedAnswersLink">Saved answers<small>Answers Career may give on an employer’s form, and the ones you kept</small></a></li>
   </ul>
   <button type="button" class="ck-tertiary" id="sectionBack">‹ Settings</button>
 

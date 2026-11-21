@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 46 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): register kubernetes-node-alerts (tests/node-alerts.test.cjs: kubernetes-node alert schema/intake, Alertmanager ingest mapping, OTLP telemetry & evidence inventory facts, temporal graph RUNS_ON correlation, historical as-of fidelity, automatic tick correlation, sandbox replay, and Systems/Explorer UI projection).
 # 45 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 (Option 1 — Ticket + Per-User Workspace + Workflow): register ops-specialist-workflow (tests/ops-specialist-workflow.test.cjs: untrimmed >4,000-char packets up to 64 KiB on ops-specialist tickets, getAcceptedWork digest verification, confirmed Stop ticket cancellation, access-clear safety, and ops-concierge chat window) replacing ops-chat-turn-contract, and update ops-one-chat-window for ops-concierge.
 # 44 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4 review fix: register ops-chat-turn-contract (tests/ops-chat-turn-contract.test.cjs: whole marked packets within the window limit, correlated Ask settlement, shared Stop ends the console request, no staging after an access clear).
 # 43 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: register ops-one-chat-window (tests/ops-one-chat-window.test.cjs: Cloud & SSH commands, Console and Pod console mount jarvis-chat-frame.js as ops-rca-specialist, and Today opens ops-concierge, at 1440x900 and 412x915 touch).
@@ -1004,6 +1005,22 @@ cases:
       - Late ticket completions after an access clear stage nothing, and credential-shaped proposals are discarded.
       - Foreign tickets, non-ops-specialist tickets, oversized packets and tampered answerSha256 digests are refused.
     prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:express, dependency:js-yaml, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: kubernetes-node-alerts
+    name: Kubernetes node-level alert identity, telemetry and temporal graph correlation (R14)
+    purpose: "Guard 1.9.6 (R14) over real SQL and shipped Explorer/Tree modules: verify kubernetes-node is accepted across the alert schema, source contract, adapter mapping, Alertmanager ingest mapping, OTLP telemetry streams, evidence packet inventory facts, temporal graph correlation, automatic tick correlation, isolated sandbox batch replay, and Systems Explorer while invalid kinds remain refused."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/node-alerts.test.cjs] }
+    expected:
+      - Schema, source contract and adapter mapping accept kubernetes-node and still reject bare node and bogus kinds.
+      - Alertmanager ingest mapping accepts kubernetes-node, deduplicates moving-text retries, quarantines missing node IDs and rejects invalid kinds.
+      - OTLP telemetry streams accept kubernetes-node and pinned evidence packets resolve recorded node inventory facts.
+      - Temporal graph correlation resolves firing kubernetes-node alerts to discovered node assets with complete status, groups affected node and pod/container alerts over RUNS_ON edges, keeps pods on healthy nodes separate, and preserves historical as-of correlation after node replacement.
+      - Automatic tick correlation, isolated sandbox batch replay and Systems Explorer/resource tree resolve kubernetes-node alerts without matching pods that share a native ID.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }

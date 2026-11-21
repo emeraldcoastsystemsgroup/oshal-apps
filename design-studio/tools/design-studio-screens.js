@@ -26,6 +26,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B14: render pre-click engine container liveness diagnostics on the Product banner (#engine-liveness) and Settings status list (#settings-liveness).
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B9: render joint fit clearance line (#design-fit-note) and honest strength estimate line (#design-strength-note) on posters that carry them.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | BACKLOG B15: collect/fill the named Pi bay thermal solve brief option, display unmeasured/reasoned-only banners and closure lines so reasoned phases never read as engine-verified, and mark reasoned closures distinctly on the stepper.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.14: the Settings status pill of an engine nobody has asked yet says "not asked yet" (the state the stages module now reads as waiting), not a stopped engine.
  */
 window.DesignStudioScreens = (function screens() {
   'use strict';
@@ -283,7 +284,7 @@ window.DesignStudioScreens = (function screens() {
     host.textContent = '';
     if (!liveness) return;
     for (const entry of Object.values(liveness)) {
-      const pill = el('span', { class: 'liveness-pill', dataset: { engine: entry.engine, state: entry.state } }, `${entry.name}: ${entry.state === 'up' ? entry.reason : entry.state === 'stopped' ? entry.reason : entry.state}`);
+      const pill = el('span', { class: 'liveness-pill', dataset: { engine: entry.engine, state: entry.state } }, `${entry.name}: ${entry.state === 'up' || entry.state === 'stopped' ? entry.reason : entry.state === 'waiting' ? 'not asked yet' : entry.state}`);
       host.append(pill);
     }
   }

@@ -1,0 +1,87 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0: one role for the engineering applications (design-studio BACKLOG B12). A person needed Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print each assigned, five assignments an administrator could leave one out of, and the person then met a refused poster in the middle of a product. A role that spans applications has to be declared by an application with an access catalog (oshal-kernel crates/packages/src/experience.rs), and Design Studio, CAD Studio, Circuit Lab and Embodied must stay without one: every person who holds them today holds the catalog-free "@app-admin" assignment, which stops resolving the moment the application gains a catalog. So this small package declares the role. It owns no screen, no data, no bot and no tool; it is kept out of the application lists (hidden) and an administrator meets it only at Access, where its Engineer role is one assignment that gives a person all five.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.0, before its first release: readiness is answered by the store's one reviewed package-smoke pair, declared first at /api/engineering-shelf/_smoke exactly as the store's security contract requires of every routed package (scripts/security/security-ci-contract.test.mjs assertReadinessSmoke); the store gate refused readiness answered from the package's own factory. routes/shelf-routes.js is declared second at the same mount and now only registers the adapter of the catalog's `shelf` resource, which the kernel needs before it serves a package with a catalog; it serves no path of its own.
+# -----------------------------------------------------------------------------
+name: engineering-shelf
+displayName: Engineering shelf
+description: One role for the engineering applications. Assigning its Engineer role at Access gives a person Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print together, each on the person's own work. It has no screen of its own.
+version: 1.0.0
+status: active
+suite: ai-engineering   # ADR-097: primary catalog shelf
+# No screen, no bot and no tool: nothing for a person to open, so the application lists leave it out. Its role and its
+# required applications stay in force (oshal-kernel crates/api/src/ui_applications.rs, `hidden: true`).
+hidden: true
+rating:
+  memoryMb: { low: 16, high: 64, basis: declared }
+  features: []   # no model in the loop (T0)
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: engineering-shelf
+  ref: main
+uses:
+  - application-authorization
+  - experience-roles
+  - app-dependencies
+  - test-catalog
+# The five applications of the engineering shelf. All five are required, so the Engineer role can never be given
+# with one left out: one assignment expands to every one of them, and where one of the five is not installed the
+# role is not offered and each application is assigned on its own as before.
+dependencies:
+  required:
+    apps: [design-studio, cad-studio, circuit-lab, embodied, scan-to-print]
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: engineer
+      version: 1
+      label: 'Engineer: Design Studio, CAD Studio, Circuit Lab, Embodied Swarm and Scan to Print, each on the person''s own work'
+      members:
+        - { app: engineering-shelf, role: engineer }
+        # Each application's own role, as every person who holds it today holds it. The four without an access
+        # catalog have exactly one role; Scan to Print's maker is the role its own Maker template gives.
+        - { app: design-studio, role: '@app-admin' }
+        - { app: cad-studio, role: '@app-admin' }
+        - { app: circuit-lab, role: '@app-admin' }
+        - { app: embodied, role: '@app-admin' }
+        - { app: scan-to-print, role: maker }
+routes:
+  # Install readiness: the store's one reviewed package-smoke pair, declared as every routed package declares it.
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/engineering-shelf/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  # The adapter of the catalog's one resource, registered while the package activates: the kernel refuses a package
+  # with a catalog whose resource has none. Same mount and no path of its own, so the package answers one address.
+  - module: routes/shelf-routes.js
+    factory: createShelfRoutes
+    mountPath: /api/engineering-shelf/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/engineering-shelf/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+connectors: []

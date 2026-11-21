@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Multi-user executive resume & cover-letter DOCX/DOTX/RTF/PDF pipeline built on pure-stdlib docx_ooxml with automatic family selection, LibreOffice headless conversion, progressive 2-page compaction guard, blank zero-PII template generator, and CLI helper for read-only packet/template export.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.21: route shell-wrapper soffice binaries through /usr/bin/sh when /bin/sh is absent (as inside oshald's bwrap sandbox where /usr is mounted without /bin), keeping direct invocation when /bin/sh exists or for non-script binaries.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: export-packet --kind parse --format docx renders the job's parse résumé (docx_parse, Resume_Parse.docx) from application.json, for a packet made before 1.72.0; it is Word only and needs no LibreOffice.
 """Multi-user ATS-safe and RTF-safe executive resume & cover-letter pipeline.
 
 Zero hardcoded candidate PII, zero python-docx runtime dependency. Produces matched
@@ -592,8 +593,23 @@ def build_packet_docx_artifacts(
     }
 
 
+def _export_parse_cli(app_data: dict[str, Any], out_dir: Path, fmt: str) -> int:
+    """Render the parse résumé from a packet's application.json: Word only, no LibreOffice."""
+    from . import docx_parse  # docx_parse imports this module, so it is read here, when asked for
+    if fmt != "docx":
+        print(json.dumps({"ok": False, "error": "the résumé for upload forms is a Word file only"}))
+        return 1
+    snapshot = app_data.get("profile_snapshot") or {}
+    path = docx_parse.render_parse_resume(snapshot.get("profile") or {}, (app_data.get("generated") or {}).get("resume") or {},
+                                          out_dir / docx_parse.FILE_NAME, roles=snapshot.get("roles") or [])
+    print(json.dumps({"ok": True, "path": str(path), "family": "Parse", "pages": 0}))
+    return 0
+
+
 def _export_packet_cli(args: argparse.Namespace) -> int:
     app_data = json.loads(Path(args.packet_json).read_text(encoding="utf-8"))
+    if args.kind == "parse":
+        return _export_parse_cli(app_data, Path(args.out_dir), args.format)
     gen = app_data.get("generated") or {}
     snap = (app_data.get("profile_snapshot") or {}).get("profile") or {}
     out_dir = Path(args.out_dir)
@@ -632,7 +648,7 @@ def main(argv: list[str] | None = None) -> int:
     p1 = sub.add_parser("export-packet")
     p1.add_argument("--packet-json", required=True)
     p1.add_argument("--out-dir", required=True)
-    p1.add_argument("--kind", choices=("resume", "cover"), default="resume")
+    p1.add_argument("--kind", choices=("resume", "cover", "parse"), default="resume")
     p1.add_argument("--format", choices=("docx", "rtf", "pdf"), default="docx")
     p1.add_argument("--family", default="")
     p2 = sub.add_parser("export-template")

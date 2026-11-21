@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (design-studio--design-studio): a product page showed four primary buttons at once, offered 'Close the phase' on phases with no engine, and printed a raw route ('/api/embodied/physics/reports: the physics engine is unavailable') in a card. The shipped stages and screens modules in a sandbox: failures read in words with what to do and no route; a reasoned phase is closed with Mark done by hand; onePrimary keeps btn-primary only on the next open phase.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B10/B13/B14: guard batched cad-edit execution in design-studio-orders.js, clear actionable 403 missing-access/role guidance without leaking routes, and pre-click engine container liveness diagnostics.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG B3/B15: guard sensors/controller rateHz & tickHz extraction in DesignStudioStages, reasoned-only unmeasured banners & closure lines in DesignStudioScreens, and Pi bay thermal solve brief collection/rendering.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.14 (BACKLOG B12, found by the non-administrator proof): an engine nobody has asked yet reads waiting and raises no banner, with the answers CAD Studio and Circuit Lab gave on a kernel; a failed or missing engine still reads stopped.
  */
 'use strict';
 const test = require('node:test');
@@ -86,6 +87,35 @@ test('B14: engineLiveness detects stopped containers before any button is presse
   const issues = S.engineBannerIssues({ phases: [{ kind: 'design', engine: 'cad-studio' }, { kind: 'fabricate', engine: 'scan-to-print' }] }, E);
   assert.equal(issues.length, 2);
   assert.deepEqual(Array.from(issues, (x) => x.engine), ['cad-studio', 'scan-to-print']);
+});
+
+test('an engine nobody has asked yet is waiting, not stopped, and raises no banner; a failed or missing one still does', () => {
+  // The answers CAD Studio 0.5.4 and Circuit Lab 0.9.5 gave on a kernel: a pinned engine before its first request, and no engine at all.
+  const pinned = { address: 'native://engine.exchange', buildHash: null, connected: false, contacted: false, expectedBuildHash: null, installHint: 'This application prepares its engine automatically when opened or used.', lastError: null, lifecycle: { state: 'pinned' } };
+  const none = { ...pinned, lifecycle: { state: 'none' } };
+  const reads = (cad, circuit) => ({ reads: { cadCaps: { ok: true, status: 200, body: { engine: cad } }, circuitCaps: { ok: true, status: 200, body: { engine: circuit } } } });
+  const project = { phases: [{ kind: 'design', engine: 'cad-studio' }, { kind: 'electrical', engine: 'circuit-lab' }] };
+  const fresh = S.engineLiveness(reads(pinned, none));
+  assert.equal(fresh['cad-studio'].state, 'waiting');
+  assert.doesNotMatch(fresh['cad-studio'].reason, /stopped/i);
+  assert.equal(fresh['circuit-lab'].state, 'stopped', 'an installation with no engine for the application still says so');
+  assert.deepEqual(Array.from(S.engineBannerIssues(project, reads(pinned, none)), (x) => x.engine), ['circuit-lab']);
+  for (const state of ['ready', 'running', 'preparing', 'not-prepared']) assert.equal(S.engineLiveness(reads({ ...pinned, lifecycle: { state } }, none))['cad-studio'].state, 'waiting', state);
+  // Once a request has failed, or the kernel says the engine failed, it is stopped again.
+  const failed = { ...pinned, contacted: true, lastError: 'the kernel could not reach the engine container' };
+  assert.equal(S.engineLiveness(reads(failed, none))['cad-studio'].state, 'stopped');
+  assert.match(S.engineLiveness(reads(failed, none))['cad-studio'].reason, /stopped/i);
+  assert.equal(S.engineLiveness(reads({ ...pinned, lifecycle: { state: 'failed' } }, none))['cad-studio'].state, 'stopped');
+  assert.equal(S.engineLiveness(reads({ connected: false }, none))['cad-studio'].state, 'stopped', 'an answer that says only connected false is read as before');
+  // After the first build CAD Studio answers connected true.
+  assert.equal(S.engineLiveness(reads({ ...pinned, connected: true, contacted: true }, none))['cad-studio'].state, 'up');
+  const pills = [];
+  const fake = { textContent: '', append: (pill) => pills.push(pill) };
+  const sandbox = { window: {}, document: { getElementById: () => null, createElement: () => { const node = { dataset: {}, className: '', textContent: '', setAttribute() {}, append() {} }; return node; } } };
+  vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(TOOLS, 'design-studio-screens.js'), 'utf8'), sandbox, { filename: 'design-studio-screens.js' });
+  sandbox.window.DesignStudioScreens.renderSettingsLiveness(fake, { 'cad-studio': fresh['cad-studio'] });
+  assert.equal(pills[0].textContent, 'CAD Studio: not asked yet');
 });
 
 test('B10: DesignStudioOrders executes batched cad-edit features in sequence and stops honestly on failure', async () => {

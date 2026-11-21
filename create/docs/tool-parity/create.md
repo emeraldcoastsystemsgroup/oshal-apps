@@ -35,7 +35,7 @@ How to read it:
 | 21 | Combine paths: union, subtract, intersect, exclude | pro | n/c | Photoshop: yes [K] | `#applyVectorBoolean`, `editor.html` | `apply-edits`: `boolean` (one per batch, 256 nodes) | both |
 | 22 | Gradients | basic | n/c | yes [K] | `#applyVectorGradient`, paths only, two colors, `editor.html` | `apply-edits`: `update` gradient, paths only, several stops | both |
 | 23 | Move, resize, rotate | basic | n/c | yes [K] | drag and one corner handle, `editor-interactions.mjs`; `#layerRotation` is a number field, no rotate handle | `apply-edits`: `update` | both |
-| 24 | Flip, skew, perspective, warp | basic (flip), pro (rest) | n/c | yes [K] | none | none (no such field in `model-validation.mjs`) | missing |
+| 24 | Flip, skew, perspective, warp | basic (flip), pro (rest) | n/c | yes [K] | `#flipHorizontal`, `#flipVertical` in Format (`editor.html`, `editor-view.mjs`, 1.20.3); skew/perspective/warp none | `apply-edits`: `update` patch `flipX`, `flipY` (1.20.3); skew/perspective/warp none | flip: both (1.20.3); rest: missing |
 | 25 | Layer stack: order, hide, lock | basic | Photoshop phone: free [A][B] | yes [K] | `#raiseLayer`, `#lowerLayer`, hide and lock buttons in `editor-view.mjs` | `apply-edits`: `reorder`, `update` | both |
 | 26 | Group, ungroup, duplicate | basic | Photoshop phone: layer actions [B] | yes [K] | `#groupBelow`, `#ungroupLayer`, `#duplicateLayer`, `editor.html` | `apply-edits`: `group`, `ungroup`, `duplicate` | both |
 | 27 | Align and distribute | basic | n/c | yes [K] | `#arrangeLayers`, `#arrangeMode`, `editor.html` | `apply-edits`: `arrange` | both |
@@ -71,7 +71,7 @@ Ordered by what people hit first.
   Done when: a person uploads a photo, says "put my last photo on this canvas", approves the card, and the photo appears as a layer after the editor refreshes.
 - **CREATE-TOOL-CREATE-02: Text alignment control on screen.** Add left, center, right to the text properties.
   Done when: pressing Center moves the text, and a reload keeps it, with the same result as the concierge's `align` patch.
-- **CREATE-TOOL-CREATE-03: Flip horizontally and vertically, by button and by tool.**
+- **CREATE-TOOL-CREATE-03: Flip horizontally and vertically, by button and by tool.** *(Delivered in `create` `1.20.3`: optional boolean `flipX`/`flipY` on paint and group layers, omitted when `false`, rendered in Canvas2D, PNG/JPEG and SVG exports, inverted accurately in hit-testing, region selection and group transforms; `#flipHorizontal` and `#flipVertical` toggle buttons in the Format inspector; concierge `create-apply-edits` `update` patch `{ flipX, flipY }` and read-only editor context.)*
   Done when: a person flips a photo with a button and asks the concierge to flip it back, and the exported PNG matches each state.
 - **CREATE-TOOL-CREATE-04: Text styling and typing on the canvas.** Italic, underline, line and letter spacing, outline, shadow; double-click to type in place.
   Done when: each style can be set on screen and by `apply-edits`, survives save and reopen, and appears in PNG and SVG exports.

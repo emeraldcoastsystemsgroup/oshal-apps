@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                  | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Pure-stdlib OOXML (.docx / .dotx) writer implementing the 4 verified executive resume template families (Standard, Professional, Leadership, Technical) with zero Word theme-font leaks, Quick Styles, native bullets, right-tabbed dates, borders/shading, and styled PAGE footers.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: every archive member is written with one fixed time (1980-01-01, the zip minimum) instead of the clock, so the same résumé renders to the same bytes. Fill it in on my Chrome approves a Word résumé by its SHA-256; a render that differed by its timestamp changed that digest between the approval screen and the approval.
 """Pure-stdlib OOXML writer for ATS-safe, RTF-safe executive resumes and cover letters.
 
 Emits valid WordprocessingML packages using only the Python standard library so the
@@ -13,7 +14,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
+
+# One fixed member time, so identical content is identical bytes (see change 2).
+FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -467,6 +471,14 @@ def _core_props_xml(author: str, title: str, subject: str) -> bytes:
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
+def _member(name: str) -> ZipInfo:
+    """A deflated archive member with the fixed time and the permissions zipfile gives a named string."""
+    info = ZipInfo(name, date_time=FIXED_ZIP_TIME)
+    info.compress_type = ZIP_DEFLATED
+    info.external_attr = 0o600 << 16
+    return info
+
+
 def write_docx_zip(
     output_path: Path | str,
     paragraphs: list[ET.Element],
@@ -493,7 +505,7 @@ def write_docx_zip(
     }
     with ZipFile(out, "w", ZIP_DEFLATED) as zf:
         for name, data in parts.items():
-            zf.writestr(name, data)
+            zf.writestr(_member(name), data)
     return out
 
 
@@ -506,5 +518,5 @@ def save_as_dotx(docx_path: Path | str, dotx_path: Path | str) -> Path:
             data = zin.read(item)
             if item == "[Content_Types].xml":
                 data = data.replace(DOC_MIME.encode("ascii"), DOTX_MIME.encode("ascii"))
-            zout.writestr(item, data)
+            zout.writestr(_member(item), data)
     return dst
