@@ -36,6 +36,12 @@
  *                     |                             | and KV, with noLoadRpm = KV x this lab's operating point. The
  *                     |                             | brushless noLoadRpm check moved into it, because installed
  *                     |                             | alone that row is withheld, not loaded.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Read-through equality for ALL five animatronics servo rows
+ *                     |                             | (SG90, MG90S, MG996R, DS3218, STS3215 7.4 V): each resolves
+ *                     |                             | against animatronics/catalog/servos.json, agrees with
+ *                     |                             | animatronics' own loader on identity, mass, price, source,
+ *                     |                             | pulse/travel, speed, torque and currents, and validates
+ *                     |                             | against the part contract.
  */
 'use strict';
 const test = require('node:test');
@@ -50,6 +56,9 @@ const c = require(path.resolve(__dirname, '..', 'routes', 'circuit-contract.js')
 const FILE = path.resolve(__dirname, '..', 'catalog', 'drivers.json');
 const EMBODIED_PARTS = path.resolve(__dirname, '..', '..', 'embodied', 'routes', 'engine', 'design', 'parts-model.js');
 const EMBODIED_ROWS = path.resolve(__dirname, '..', '..', 'embodied', 'routes', 'engine', 'design', 'parts-catalog.js');
+const ANIMATRONICS_LOADER = path.resolve(__dirname, '..', '..', 'animatronics', 'routes', 'engine', 'catalog.js');
+const ANIMATRONICS_CATALOG = path.resolve(__dirname, '..', '..', 'animatronics', 'catalog', 'servos.json');
+const KGCM_TO_MNM = 98.0665;
 
 test('every catalog row validates against the part contract and carries its provenance', () => {
   // THE CONTRACT HAS TWO HALVES, so this reads the environment instead of assuming one of them.
@@ -61,7 +70,7 @@ test('every catalog row validates against the part contract and carries its prov
   const declared = declaredDrivers(FILE);
   const missing = missingSharedOwners(FILE);
   const { drivers: rows, unresolved } = loadDriverCatalog(FILE);
-  assert.ok(declared.length >= 5, 'the catalog declares at least the five shipped rows');
+  assert.ok(declared.length >= 10, 'the catalog declares all ten shipped rows');
   assert.equal(rows.length, declared.length - missing.length, 'every declared row loads except the ones whose owner is not installed');
   assert.deepEqual(unresolved.map((u) => u.id).sort(), missing.map((m) => m.id).sort(), 'exactly the rows whose owner is absent are withheld');
   for (const withheld of unresolved) {
@@ -122,4 +131,34 @@ test('the motors embodied\'s fits fly are READ from embodied\'s own rows: the la
   }
   const brushless = c.validatePart({ id: 'M1', type: 'motor', props: rows.find((r) => r.id === 'bl-2306-1800kv').nameplate });
   assert.equal(brushless.props.noLoadRpm, 26640, '1800 KV x 14.8 V');
+});
+
+test('all five animatronics servo rows are READ from animatronics/catalog/servos.json and validate against the part contract', { skip: !(fs.existsSync(ANIMATRONICS_LOADER) && fs.existsSync(ANIMATRONICS_CATALOG)) && 'animatronics is not checked out beside this package' }, () => {
+  const { loadServoCatalog, maxDegPerSOf } = require(ANIMATRONICS_LOADER);
+  const owners = loadServoCatalog(ANIMATRONICS_CATALOG).servos;
+  const { drivers: rows } = loadDriverCatalog(FILE);
+  const shared = declaredDrivers(FILE).filter((r) => r.type === 'servo' && r.sharedPart && r.sharedPart.owner === 'animatronics');
+  assert.equal(shared.length, owners.length, 'every servo row animatronics publishes is offered by this lab');
+  assert.deepEqual(shared.map((r) => r.id), ['servo-micro-9g', 'servo-mg90s', 'servo-mg996r', 'servo-ds3218', 'servo-sts3215-7v4']);
+  for (const owner of owners) {
+    const declared = shared.find((r) => r.sharedPart.id === owner.id);
+    assert.ok(declared, `animatronics servo ${owner.id} is declared as a sharedPart row`);
+    const row = rows.find((r) => r.id === declared.id);
+    assert.ok(row, `${declared.id} resolves against the real packages root`);
+    assert.equal(row.name, owner.name);
+    assert.equal(row.massG, owner.massG);
+    assert.equal(row.approxUsd, owner.approxUsd);
+    assert.ok(row.source.includes(owner.source), `${row.id}: owner source travels with the row`);
+    assert.equal(row.nameplate.minPulseMs, owner.pulseMinUs / 1000);
+    assert.equal(row.nameplate.maxPulseMs, owner.pulseMaxUs / 1000);
+    assert.equal(row.nameplate.travelDeg, owner.travelDeg);
+    assert.equal(row.nameplate.noLoadDegPerS, maxDegPerSOf(owner));
+    assert.equal(row.nameplate.stallTorqueMnm, Math.round(owner.stallKgCm * KGCM_TO_MNM * 10) / 10);
+    assert.equal(row.nameplate.idleAmps, owner.idleMa / 1000);
+    assert.equal(row.nameplate.runAmps, owner.movingMa / 1000);
+    assert.equal(row.nameplate.stallAmps, owner.stallMa / 1000);
+    assert.deepEqual(row.sharedFrom, declared.sharedPart);
+    const part = c.validatePart({ id: 'SV1', type: 'servo', props: row.nameplate });
+    assert.deepEqual(part.props, row.nameplate, `${row.id}: resolved nameplate is accepted by validatePart`);
+  }
 });

@@ -2,9 +2,9 @@
 
 # Sports Edge (`sports-edge`) - database schema
 
-Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 11 tables in the reference database.
+Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 12 tables in the reference database.
 
-**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-sports-edge.sql`, `migrations/002-sports-fantasy.sql`, `migrations/003-sports-line-history.sql`, `migrations/004-sports-world-subjects.sql`, `migrations/005-sports-fantasy-player-weeks.sql`
+**Migrations** (declared in `oshal-app.yaml`, applied on activation, recorded in `app_package_migrations`): `migrations/001-sports-edge.sql`, `migrations/002-sports-fantasy.sql`, `migrations/003-sports-line-history.sql`, `migrations/004-sports-world-subjects.sql`, `migrations/005-sports-fantasy-player-weeks.sql`, `migrations/006-sports-line-open-windows.sql`
 
 **Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/sports-line-store.js`, `routes/sports-store.js`, `src-routes/sports-line-store.ts`, `src-routes/sports-store.ts`
 
@@ -36,6 +36,10 @@ erDiagram
   }
   sports_line_history {
     bigint id PK
+  }
+  sports_line_poll_state {
+    text event_id PK
+    text book PK
   }
   sports_predictions {
     bigint id PK
@@ -140,7 +144,7 @@ Defined in `migrations/001-sports-edge.sql`, `routes/sports-store.js`, `src-rout
 
 ### `sports_line_history`
 
-Defined in `migrations/003-sports-line-history.sql`, `routes/sports-line-store.js`, `src-routes/sports-line-store.ts` · RLS **off**
+Defined in `migrations/003-sports-line-history.sql`, `migrations/006-sports-line-open-windows.sql`, `routes/sports-line-store.js`, `src-routes/sports-line-store.ts` · RLS **off**
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -160,6 +164,21 @@ Defined in `migrations/003-sports-line-history.sql`, `routes/sports-line-store.j
 | `first_seen` | timestamp with time zone | no | now() |  |
 | `last_seen` | timestamp with time zone | no | now() |  |
 | `observations` | integer | no | 1 |  |
+| `in_open_window` | boolean | no | false |  |
+| `prior_poll_absent` | boolean | no | false |  |
+
+### `sports_line_poll_state`
+
+Defined in `migrations/006-sports-line-open-windows.sql`, `routes/sports-line-store.js`, `src-routes/sports-line-store.ts` · RLS **off**
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `event_id` | text | no |  | PK |
+| `book` | text | no |  | PK |
+| `league` | text | no |  |  |
+| `game_date` | timestamp with time zone | yes |  |  |
+| `had_price` | boolean | no | false |  |
+| `polled_at` | timestamp with time zone | no | now() |  |
 
 ### `sports_predictions`
 

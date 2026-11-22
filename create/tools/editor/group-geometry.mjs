@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Map isolated, uniformly scaled groups to world-space geometry without changing child source coordinates.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: propagate group flipX and flipY transforms into child world geometry, rotation parity, shadows and path bounds.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: scale text letterSpacing proportionally through uniform group transforms.
  */
 import { demand } from './model-validation.mjs';
 
@@ -25,7 +26,7 @@ export function throughGroup(layer, group) {
   const next = { ...layer, x: group.x + group.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle) - w / 2,
     y: group.y + group.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) - h / 2,
     w, h, rotation: group.rotation + fgx * fgy * layer.rotation,
-    ...(layer.strokeWidth===undefined?{}:{strokeWidth:layer.strokeWidth*scale}),...(layer.fontSize===undefined?{}:{fontSize:layer.fontSize*scale}),...(layer.radius===undefined?{}:{radius:layer.radius*scale}),...(layer.dash===undefined?{}:{dash:layer.dash.map(value=>value*scale)}),...(layer.blur===undefined?{}:{blur:layer.blur*scale}),
+    ...(layer.strokeWidth===undefined?{}:{strokeWidth:layer.strokeWidth*scale}),...(layer.fontSize===undefined?{}:{fontSize:layer.fontSize*scale}),...(layer.letterSpacing===undefined?{}:{letterSpacing:layer.letterSpacing*scale}),...(layer.radius===undefined?{}:{radius:layer.radius*scale}),...(layer.dash===undefined?{}:{dash:layer.dash.map(value=>value*scale)}),...(layer.blur===undefined?{}:{blur:layer.blur*scale}),
     ...(layer.shadow?{shadow:{...layer.shadow,blur:layer.shadow.blur*scale,offsetX:scale*(fgx*layer.shadow.offsetX*Math.cos(angle)-fgy*layer.shadow.offsetY*Math.sin(angle)),offsetY:scale*(fgx*layer.shadow.offsetX*Math.sin(angle)+fgy*layer.shadow.offsetY*Math.cos(angle))}}:{}) };
   if (layer.type !== 'adjustment') {
     if (flipX) next.flipX = true; else delete next.flipX;

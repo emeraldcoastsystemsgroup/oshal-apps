@@ -6,14 +6,20 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Immutable manual timeline operations: add/remove sources, append, trim, split, reorder and remove non-destructive segments, per-segment volume, one title track, one audio bed. Every operation returns a freshly validated document and never edits its input; structural edits refit titles to the new length instead of leaving them past the end.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Speed-aware v1 layout/split/playhead mapping and immutable segment-effect, caption and sticker helpers.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support optional aspectRatio on createTimeline plus immutable setAspectRatio and patchProject operations across v1 and v2 timelines.
  */
-import { LIMITS, PROFILE, TITLE_POSITIONS, TITLE_SIZES, demand, integer, plainText, timelineFrames, validateTimeline } from './timeline-validation.mjs';
+import { ASPECT_RATIOS, LIMITS, PROFILE, TITLE_POSITIONS, TITLE_SIZES, demand, exactObject, integer, plainText, timelineFrames, validateTimeline } from './timeline-validation.mjs';
 import { clipDurationFrames } from './editor-effects.mjs';
 
-/** @description A new empty project in the one supported profile.
- * @param {string} name Project name. @returns {object} Validated empty document. */
-export function createTimeline(name = 'Untitled video') {
-  return validateTimeline({ version: 1, name, profile: PROFILE.id, sources: {}, segments: [], titles: [], audioBed: null });
+/** @description A new empty project in the one supported profile and optional aspect ratio.
+ * @param {string} name Project name. @param {{aspectRatio?:string}} [options] Optional format settings. @returns {object} Validated empty document. */
+export function createTimeline(name = 'Untitled video', options = {}) {
+  const aspectRatio = options && typeof options === 'object' ? options.aspectRatio : undefined;
+  return validateTimeline({
+    version: 1, name, profile: PROFILE.id,
+    ...(aspectRatio !== undefined ? { aspectRatio } : {}),
+    sources: {}, segments: [], titles: [], audioBed: null,
+  });
 }
 
 /** @description Serialize a validated document as the persisted JSON text.
@@ -200,6 +206,26 @@ export function setAudioBed(document, key, volume = 40) {
 
 /** @description Rename the project. @param {object} document Document. @param {string} name New name. @returns {object} New document. */
 export function renameTimeline(document, name) { return validateTimeline({ ...document, name }); }
+
+/** @description Update the project aspect ratio (16:9, 9:16, or 1:1) on a v1 or v2 timeline. */
+export function setAspectRatio(document, aspectRatio) {
+  demand(typeof aspectRatio === 'string' && ASPECT_RATIOS.includes(aspectRatio), 'Project aspectRatio must be 16:9, 9:16, or 1:1');
+  return validateTimeline({ ...document, aspectRatio });
+}
+
+/** @description Patch project-level fields (name, profile, aspectRatio) on a v1 or v2 timeline. */
+export function patchProject(document, patch) {
+  exactObject(patch, ['name', 'profile', 'aspectRatio'], 'Project patch');
+  demand(Object.keys(patch).length > 0, 'Project patch must include at least one field');
+  const next = { ...document };
+  if (Object.hasOwn(patch, 'name')) next.name = patch.name;
+  if (Object.hasOwn(patch, 'profile')) next.profile = patch.profile;
+  if (Object.hasOwn(patch, 'aspectRatio')) {
+    demand(typeof patch.aspectRatio === 'string' && ASPECT_RATIOS.includes(patch.aspectRatio), 'Project aspectRatio must be 16:9, 9:16, or 1:1');
+    next.aspectRatio = patch.aspectRatio;
+  }
+  return validateTimeline(next);
+}
 
 /** @description Patch a v1 segment's speed, look, stabilize, chromaKey, removeBg, volume or trim range. */
 export function patchSegment(document, id, patch) {

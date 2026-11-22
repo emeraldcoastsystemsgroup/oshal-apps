@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: apply horizontal and vertical layer flips around local centers for preview and raster export.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: render text italic, underline, lineHeight, letterSpacing and stroke outline cleanly in Canvas2D preview and raster export.
  */
 import { demand, number, validateProject, IMAGE_FILTERS } from './model-validation.mjs';
 import { traceVector, traceShape } from './vector-geometry.mjs';
@@ -42,13 +43,22 @@ function vectorLayer(ctx, layer) {
   if (layer.strokeWidth > 0) ctx.stroke();
 }
 
-function wordsToLines(ctx, text, width) {
+function measureTextWidth(ctx, text, spacing) {
+  if (!spacing) return ctx.measureText(text).width;
+  const chars = [...text];
+  if (!chars.length) return 0;
+  let total = 0;
+  for (let index = 0; index < chars.length; index++) total += ctx.measureText(chars[index]).width + (index < chars.length - 1 ? spacing : 0);
+  return Math.max(0, total);
+}
+
+function wordsToLines(ctx, text, width, spacing = 0) {
   const lines = [];
   for (const paragraph of text.split('\n')) {
     let line = '';
     for (const word of paragraph.split(/\s+/)) {
       const candidate = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(candidate).width > width) { lines.push(line); line = word; }
+      if (line && measureTextWidth(ctx, candidate, spacing) > width) { lines.push(line); line = word; }
       else line = candidate;
     }
     lines.push(line);
@@ -56,13 +66,51 @@ function wordsToLines(ctx, text, width) {
   return lines;
 }
 
+function drawSpacedLine(ctx, line, y, width, align, spacing, hasStroke) {
+  const measured = measureTextWidth(ctx, line, spacing);
+  const scale = measured > width && measured > 0 ? width / measured : 1, drawWidth = measured * scale;
+  const start = align === 'center' ? (width - drawWidth) / 2 : align === 'right' ? width - drawWidth : 0;
+  const chars = [...line];
+  ctx.save();
+  try {
+    ctx.translate(start, y);
+    if (scale < 1) ctx.scale(scale, 1);
+    ctx.textAlign = 'left';
+    for (const pass of hasStroke ? ['stroke', 'fill'] : ['fill']) {
+      let cursor = 0;
+      for (const char of chars) {
+        if (pass === 'stroke') ctx.strokeText(char, cursor, 0); else ctx.fillText(char, cursor, 0);
+        cursor += ctx.measureText(char).width + spacing;
+      }
+    }
+  } finally { ctx.restore(); }
+  return { start, drawWidth };
+}
+
 function textLayer(ctx, layer) {
   ctx.beginPath(); ctx.rect(0, 0, layer.w, layer.h); ctx.clip();
-  ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
+  ctx.font = `${layer.italic ? 'italic ' : ''}${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
   ctx.textBaseline = 'top'; ctx.textAlign = layer.align; ctx.fillStyle = layer.fill;
+  const spacing = layer.letterSpacing ?? 0, lineStep = layer.fontSize * (layer.lineHeight ?? 1.2);
+  const hasStroke = Boolean(layer.stroke && layer.strokeWidth > 0);
+  if (hasStroke) { ctx.strokeStyle = layer.stroke; ctx.lineWidth = layer.strokeWidth; ctx.lineJoin = 'round'; ctx.miterLimit = 2; }
   const x = layer.align === 'center' ? layer.w / 2 : layer.align === 'right' ? layer.w : 0;
-  wordsToLines(ctx, layer.text, layer.w).forEach((line, index) => {
-    const y = index * layer.fontSize * 1.2; if (y < layer.h) ctx.fillText(line, x, y, layer.w);
+  wordsToLines(ctx, layer.text, layer.w, spacing).forEach((line, index) => {
+    const y = index * lineStep;
+    if (y >= layer.h) return;
+    let start = 0, drawWidth = 0;
+    if (spacing) ({ start, drawWidth } = drawSpacedLine(ctx, line, y, layer.w, layer.align, spacing, hasStroke));
+    else {
+      if (hasStroke) ctx.strokeText(line, x, y, layer.w);
+      ctx.fillText(line, x, y, layer.w);
+      drawWidth = Math.min(layer.w, ctx.measureText(line).width);
+      start = layer.align === 'center' ? (layer.w - drawWidth) / 2 : layer.align === 'right' ? layer.w - drawWidth : 0;
+    }
+    if (layer.underline && line.length && drawWidth > 0) {
+      const uy = y + layer.fontSize * 0.98, thickness = Math.max(1, layer.fontSize * 0.07);
+      if (hasStroke) ctx.strokeRect(start, uy, drawWidth, thickness);
+      ctx.fillRect(start, uy, drawWidth, thickness);
+    }
   });
 }
 

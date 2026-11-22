@@ -5,6 +5,7 @@
  * 41 | maintainer@emeraldcoastsystemsgroup.com | 1.68.20: extend GET /resume and GET /resume/:id to serve matched executive DOCX/RTF/PDF artifacts with optional template family selection via lib/career-docx-export.js, and expose GET /resume/template for zero-PII reusable DOCX/DOTX/RTF templates under the existing career.read binding.
  * 42 | maintainer@emeraldcoastsystemsgroup.com | 1.68.25 (store gate, 2026-11-19: tests/career-letter-truth-route.test.mjs failed once with "Cannot read properties of null (reading 'needsReview')"): GET /jobs/:id reads the saved job state (the preparation receipt) once, BEFORE the job's row, and answers `board` and `application` from that one read. It read the row first and the receipt last, so a read the engine finished during answered a completed receipt over a row from before the documents were saved: no cover letter, no claims check, needsGeneration true. Prepare application stops waiting on that answer (tools/career-job-actions.js poll) and showed step 1 again after a preparation that had worked. The engine saves the documents and the row first and the completed receipt last, so a receipt read first always has its documents. GET /jobs already read in this order. Guard: tests/career-ready-with-documents.test.mjs.
  * 43 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: GET /resume?id=<job>&kind=parse&format=docx serves the job's parse résumé (the Send step's Résumé for upload forms): the packet's own Resume_Parse.docx, else rendered from its application.json by docx_resume.py, Word only (400 otherwise), from the signed-in person's own packet.
+ * 44 | maintainer@emeraldcoastsystemsgroup.com | Generate again (lane CAREER-REGEN, 2026-11-21: "200 applications by Monday", and his open applications were made before this week's fixes): POST /jobs/:id/generate's work is generateFor(), and startGeneration() runs exactly it for one job of the caller's and answers {status, body}, so Generate again (lib/career-regenerate-routes.js, mounted here) starts each queued job's documents through the same draft writer and engine start as the job page's Generate, never a path of its own. careerRunInFlight() says whether a Career run of the caller's holds their store (the kernel's in-flight runs on the native kernel, else the runner's own user-store lease), so the queue never starts a second. The route's answers are unchanged. Guard: tests/career-regenerate-route.test.mjs.
  * 39 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: "the popup says that there is no information about the job", Torch Technologies on My jobs): POST /jobs/:id/details (lib/career-job-details.js) reads a job's missing description through the kernel's egress at the address the engine's readers use and keeps it as the person's copy; GET /jobs/:id?details=read reads it for that one view when the job has none, for the sheet while Career is preparing the person's applications and cannot keep it (a read keeps nothing), and says why in details_read when it cannot. A plain GET /jobs/:id reads nothing, as before. Guard: tests/career-job-details.test.mjs.
  * 38 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): POST /jobs/:id/generate hands experienceChosen (true only when Prepare application or bulk Prepare sends it, after the person saw the Other experience boxes) to the draft writer, which keeps the choice on the job's tailoring and as the person's last choice. Nothing else in the route changed. Guard: tests/career-prepare-other-experience-route.test.mjs.
  * 37 | maintainer@emeraldcoastsystemsgroup.com | 1.67.4 (Roger, 2026-11-16: "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"): GET /jobs answers `home` (the person's saved Matching area as the page shows it: known, label, radiusMiles, line, settingsUrl) and refuses a distance filter or sort it cannot honour with 400 and the closed code (home_location_required, invalid_within, places_unavailable) plus `home`; GET /jobs/:id carries the same place fields as every card (location, workplaceType, lat, lon, distanceMiles). An unreadable Matching area gives a job detail without distance, never a failed read.
@@ -75,6 +76,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.startGeneration = startGeneration;
+exports.careerRunInFlight = careerRunInFlight;
 exports.registerCareerBoardRoutes = registerCareerBoardRoutes;
 exports.registerCareerResumeAlias = registerCareerResumeAlias;
 const logger_1 = require("@/shared/logger");
@@ -93,6 +96,7 @@ const career_engine_runner_1 = require("./career-engine-runner");
 const boardState = require('../lib/career-board-state');
 const applicationDraft = require('../lib/career-application-draft');
 const workflowRoutes = require('../lib/career-workflow-routes');
+const regenerateRoutes = require('../lib/career-regenerate-routes');
 const applicationWorkflow = require('../lib/career-application-workflow');
 const manualSubmission = require('../lib/career-manual-submission');
 const feedback = require('../lib/career-job-feedback');
@@ -757,6 +761,10 @@ async function generatePacket(ctx, req, res) {
         res.status(400).json({ error: 'bad id' });
         return;
     }
+    await generateFor(ctx, userSub, postingId, { body: req.body }, res);
+}
+/** POST /jobs/:id/generate for one job of an authenticated caller: the draft writer, then the engine's prepare-job. */
+async function generateFor(ctx, userSub, postingId, req, res) {
     const includeOshal = req.body?.oshal === true || req.body?.oshal === 'true';
     const experienceIds = req.body?.experienceIds ?? (includeOshal ? [experienceBank.LEGACY] : []);
     let bank;
@@ -820,6 +828,42 @@ async function generatePacket(ctx, req, res) {
     if ((0, career_engine_response_1.rejectEngineStart)(res, started, 'tailor'))
         return;
     res.status(202).json({ ok: true, status: req.body?.documents === false ? 'scoring' : 'generating', requestId });
+}
+/**
+ * @description The job page's Generate for one job of the caller's, answered as a status and body instead of over HTTP:
+ * exactly POST /jobs/:id/generate's draft writer and engine start (generateFor). Generate again starts each queued job
+ * through it, so a regenerated packet gets the job's own tailoring and today's engine, with no generation path of its own.
+ * @param ctx Kernel context for the engine start. @param userSub The authenticated caller. @param postingId The job.
+ * @param body What the job page's Generate sends (documents, requestId, guidance, experience choice, draftRevision).
+ * @returns The status and body POST /jobs/:id/generate would answer (202 when the documents are being written).
+ */
+async function startGeneration(ctx, userSub, postingId, body) {
+    const out = { status: 200, body: {} };
+    const res = { status(code) { out.status = code; return res; }, json(value) { out.body = value; return res; } };
+    await generateFor(ctx, userSub, postingId, { body }, res);
+    return out;
+}
+/**
+ * @description Whether a Career run of the caller's holds their store now: on the native kernel its in-flight runs, else
+ * the runner's own user-store lease (taken and given straight back). An unreadable status counts as a run, so nothing starts.
+ * @param userSub The authenticated caller. @returns True while a run holds the store.
+ */
+async function careerRunInFlight(userSub) {
+    let status;
+    try {
+        status = await (0, career_engine_runner_1.nativeEngineRunStatus)();
+    }
+    catch (err) {
+        logger.error({ err }, 'career run status unavailable');
+        return true;
+    }
+    if (status)
+        return status.runs.length > 0;
+    const lease = (0, career_engine_runner_1.tryAcquireRun)(userSub, 'user-store');
+    if (lease.status !== 'ok')
+        return true;
+    (0, career_engine_runner_1.releaseRun)(lease);
+    return false;
 }
 /** HTTP status for each refusal code the engine's packets.remove returns. */
 const PACKET_REFUSAL_STATUS = { 'not-found': 404, conflict: 409 };
@@ -1013,6 +1057,7 @@ async function checkJobUpdates(ctx, req, res) {
 function registerCareerBoardRoutes(router, ctx) {
     (0, career_progress_1.registerCareerProgressRoutes)(router);
     workflowRoutes.register(router, ctx, career_engine_dispatch_1.runCareerCliAsync);
+    regenerateRoutes.register(router, { generate: (sub, id, body) => startGeneration(ctx, sub, id, body), runInFlight: careerRunInFlight });
     router.get('/experience-library', (0, career_surface_routes_1.createCareerToolFileHandler)('career-experience-bank.html'));
     router.get('/experience-bank', (req, res) => { const sub = (0, career_user_store_1.callerSub)(req); if (!sub) {
         res.status(401).json({ error: 'unauthorized' });

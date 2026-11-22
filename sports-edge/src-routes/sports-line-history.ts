@@ -36,6 +36,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Item C (0.12.4): track inOpenWindow and priorPollAbsent on LineObservation and add the third, strongest openerConfidence level ('confirmed-open'), assigned strictly when the earliest row was captured inside its league's expected open window AND the immediately preceding poll of the same game and book returned no price.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — quote normalisation and equality, change-only capture semantics, movement summary over an observation series, and honest opener labelling with a confidence window rather than an asserted opening line.
  *
  * @module sports-line-history
@@ -50,6 +51,8 @@ export interface LineObservation {
   id?: number;
   eventId: string;
   book: string;
+  /** Scheduled kickoff/tipoff instant when present on the stored row. */
+  gameDate?: string | null;
   homeSpread: number | null;
   homeSpreadOdds: number | null;
   awaySpreadOdds: number | null;
@@ -62,6 +65,10 @@ export interface LineObservation {
   lastSeen: string;
   /** How many polls saw it. */
   observations: number;
+  /** Whether this observation landed inside its league's expected open window. */
+  inOpenWindow?: boolean;
+  /** Whether the immediately preceding poll of the same game and book returned no price. */
+  priorPollAbsent?: boolean;
 }
 
 /** The comparable numbers in a quote. Two quotes are "the same line" iff all of these match. */
@@ -149,9 +156,19 @@ export function describeMove(from: LineObservation, to: LineObservation): LineMo
 /** Formats a signed number the way a line is written. */
 function fmt(n: number): string { return `${n > 0 ? '+' : ''}${n}`; }
 
+/**
+ * Confidence level on whether the earliest observed row is the book's true opening line:
+ *   - `confirmed-open`: captured inside the league's expected open window AND the immediately
+ *     preceding poll of the exact same game and book returned no price.
+ *   - `observed-early`: captured 72+ hours before kickoff without confirmed open-window proof.
+ *   - `late-pickup`: first seen under 72 hours before kickoff without confirmed open-window proof.
+ *   - `unknown`: kickoff time absent and not a confirmed open.
+ */
+export type OpenerConfidence = 'confirmed-open' | 'observed-early' | 'late-pickup' | 'unknown';
+
 /** Everything worth knowing about how one game's line behaved. */
 export interface MovementSummary {
-  /** The earliest quote we ever saw. NOT necessarily the book's opener — see `openerConfidence`. */
+  /** The earliest quote we ever saw. Only a confirmed opener when `openerConfidence === 'confirmed-open'`. */
   firstSeen: LineObservation | null;
   /** The latest quote we have. Before kickoff this is "current"; after, it is the close. */
   latest: LineObservation | null;
@@ -161,12 +178,12 @@ export interface MovementSummary {
   netSpreadMove: number | null;
   /** Hours before kickoff that the first observation landed, or null when the date is unknown. */
   openerLeadHours: number | null;
-  /**
-   * How much the first observation deserves to be called an opener. `observed-early` means we were
-   * watching well before kickoff; `late-pickup` means we started looking when the market was
-   * already mature and the number had a chance to move before we ever saw it.
-   */
-  openerConfidence: 'observed-early' | 'late-pickup' | 'unknown';
+  /** How much the first observation deserves to be called an opener. */
+  openerConfidence: OpenerConfidence;
+  /** Whether the earliest captured row landed inside its league's expected open window. */
+  firstInOpenWindow: boolean;
+  /** Whether the poll immediately preceding the earliest row returned no price for that game and book. */
+  firstPriorPollAbsent: boolean;
 }
 
 /** Lead time beyond which a first observation is genuinely likely to be at or near the opener. */
@@ -175,10 +192,10 @@ export const OPENER_EARLY_HOURS = 72;
 /**
  * @description Fold a game's observation series into its movement story.
  *
- * The honesty is in `openerConfidence`. Calling the earliest row "the opening line" would be a
- * claim this module cannot support — it only knows when IT first looked. A first observation three
- * days out is plausibly the opener; one taken four hours before kickoff certainly is not, and every
- * closing-line-value number computed against it would be quietly wrong.
+ * The honesty is in `openerConfidence`. `'confirmed-open'` is assigned IF AND ONLY IF the earliest
+ * captured row landed inside the league's expected open window AND the previous poll of the same
+ * game and book returned no price — the only condition under which "this is the opener" is a claim
+ * rather than a guess. Otherwise it falls back to lead time (`observed-early` / `late-pickup`).
  * @param rows - Observations for one game and book, any order.
  * @param kickoff - ISO kickoff time, when known.
  * @returns The summary.
@@ -197,14 +214,25 @@ export function summariseMovement(rows: LineObservation[], kickoff?: string | nu
       && latest?.homeSpread !== null && latest?.homeSpread !== undefined) {
     netSpreadMove = Math.round((first.homeSpread - latest.homeSpread) * 100) / 100;
   }
+  const firstInOpenWindow = Boolean(first?.inOpenWindow);
+  const firstPriorPollAbsent = Boolean(first?.priorPollAbsent);
   let openerLeadHours: number | null = null;
-  let openerConfidence: MovementSummary['openerConfidence'] = 'unknown';
+  let openerConfidence: OpenerConfidence = 'unknown';
   const kick = kickoff ? Date.parse(kickoff) : NaN;
   if (first && Number.isFinite(kick)) {
     openerLeadHours = Math.round(((kick - Date.parse(first.firstSeen)) / 3600000) * 10) / 10;
-    openerConfidence = openerLeadHours >= OPENER_EARLY_HOURS ? 'observed-early' : 'late-pickup';
   }
-  return { firstSeen: first, latest, moves, netSpreadMove, openerLeadHours, openerConfidence };
+  if (first) {
+    if (firstInOpenWindow && firstPriorPollAbsent) {
+      openerConfidence = 'confirmed-open';
+    } else if (openerLeadHours !== null) {
+      openerConfidence = openerLeadHours >= OPENER_EARLY_HOURS ? 'observed-early' : 'late-pickup';
+    }
+  }
+  return {
+    firstSeen: first, latest, moves, netSpreadMove, openerLeadHours, openerConfidence,
+    firstInOpenWindow, firstPriorPollAbsent,
+  };
 }
 
 /**

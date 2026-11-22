@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: register product-name guard (tests/product-name.test.mjs) in the plain-Node marketing-engine job.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10: register phone-first-screen (lane mobilesweep1).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: register marketing-audience (unit + route-table parity) and marketing-audience-rls (enforcing-role disposable PostgreSQL RLS proof).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1: register marketing-audience-csv (RFC-4180 CSV import with consent attestation) and update marketing-audience (12 audience routes) and marketing-audience-rls (end-to-end PG 16 CSV import RLS proof).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -274,7 +275,30 @@ cases:
     expected:
       - Email normalization and SHA-256 hashing are case- and whitespace-invariant; consent evidence preserves formText, recordedAt, ip, userAgent, utm, and tokenHash.
       - Segmentation filters contacts deterministically by list, tag, consentState, channel, purpose, suppressed, and search query.
-      - All 20 legacy routes remain registered alongside all 11 /audience/* routes; handlers enforce auth, refuse re-confirming suppressed addresses, export evidence before delete, and validate inputs.
+      - All 20 legacy routes remain registered alongside all 12 /audience/* routes; handlers enforce auth, refuse re-confirming suppressed addresses, export evidence before delete, and validate inputs.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: All fixture records are synthetic in-memory objects; nothing is written to disk.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: marketing-audience-csv
+    name: Audience CSV import with consent attestation and suppression protection
+    purpose: Exercise compiled marketing-audience-csv and POST /audience/contacts/import-csv with RFC-4180 fixtures and synthetic pools.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/marketing-audience-csv.test.mjs
+    expected:
+      - RFC-4180 parser handles UTF-8 BOM, CRLF, quoted commas, escaped quotes, embedded newlines, blank lines, malformed quotes, 1 MiB byte cap, and 5,000-row cap.
+      - Imports lacking a consent source on any row refuse atomically (400 consent_source_required) with zero writes; plain and undocumented confirmed rows import as pending while documented prior consent imports as confirmed with full evidence.
+      - Suppressed addresses (including case/whitespace variants) are never re-subscribed or written, duplicates within a CSV are deduplicated, invalid emails are reported cleanly, foreign listIds are refused, and unauthenticated requests answer 401.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -286,8 +310,8 @@ cases:
       maxMemoryMb: 256
     installation: never
   - id: marketing-audience-rls
-    name: Audience store enforcing-role PostgreSQL FORCE RLS and deletion proof
-    purpose: Apply migrations 001-003 as a NOSUPERUSER NOBYPASSRLS table-owning role in a disposable PostgreSQL 16 instance and prove cross-owner isolation, consent evidence export, and zero-row deletion.
+    name: Audience store enforcing-role PostgreSQL FORCE RLS, CSV import, and deletion proof
+    purpose: Apply migrations 001-003 as a NOSUPERUSER NOBYPASSRLS table-owning role in a disposable PostgreSQL 16 instance and prove cross-owner isolation, consent evidence export, CSV import consent attestation & suppression immunity, and zero-row deletion.
     level: integration
     runner:
       kind: node-test
@@ -297,7 +321,7 @@ cases:
     expected:
       - All five audience tables are owned by the enforcing role with ENABLE and FORCE ROW LEVEL SECURITY and an exact-owner policy carrying no operator bypass.
       - A second owner, an unstamped connection, and a system/operator stamp read zero rows from every one of the five tables and cannot mutate another owner's rows.
-      - Consent export returns the exact evidence JSON recorded at sign-up, and deleting a contact exports that evidence first and leaves zero rows behind.
+      - Consent export returns the exact evidence JSON recorded at sign-up, CSV import enforces consent attestation and suppression immunity under FORCE RLS with cross-owner isolation, and deleting a contact exports that evidence first and leaves zero rows behind.
     prerequisites:
       - runner:node-test
     sideEffects: none

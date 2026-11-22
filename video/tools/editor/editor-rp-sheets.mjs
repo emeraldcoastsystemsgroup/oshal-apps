@@ -5,10 +5,11 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Reference-product tool sheets and controls for Video 1.14.0 (RP-VID-01..10): clip speed, auto captions, stickers, color looks, chroma key, background matting, voice synthesis, stabilization, export resolution/fps and CC0 sound library.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: Stickers sheet help text names Open Swarm Original SVG stickers.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: pass project aspectRatio into export dimension estimates and add New project / Aspect ratio sheet helpers.
  */
 import * as timeline from './timeline-model.mjs';
 import { applyMultitrack, migrateMultitrack } from './multitrack-model.mjs';
-import { timelineFrames, validateTimeline } from './timeline-validation.mjs';
+import { ASPECT_RATIOS, resolveAspectRatio, timelineFrames, validateTimeline } from './timeline-validation.mjs';
 import { BASE, call, describe } from './editor-api.mjs';
 import { optionsFromProfile } from './editor-export.mjs';
 import {
@@ -397,6 +398,48 @@ function buildAudioActionsNode(env) {
   return box;
 }
 
+const ASPECT_OPTIONS = Object.freeze([
+  ['16:9', '16:9 Landscape'],
+  ['9:16', '9:16 Vertical'],
+  ['1:1', '1:1 Square'],
+]);
+
+function openNewProjectSheet(env) {
+  const { adapter, layers, make, act } = env, layer = layers.create('New project', 'ds-sheet'), wrap = make('div', 'rp-section');
+  const titleField = make('label', 'rp-field', 'Project name'), titleInput = make('input', '');
+  titleInput.type = 'text'; titleInput.maxLength = 160; titleInput.value = 'Untitled video'; titleInput.dataset.newProjectTitle = '';
+  const ratioHeading = make('p', 'video-help', 'Aspect ratio'), ratioGroup = make('div', 'rp-pill-group');
+  let chosen = resolveAspectRatio(adapter.doc());
+  const sync = () => { for (const b of ratioGroup.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.newAspectRatio === chosen)); };
+  for (const [value, label] of ASPECT_OPTIONS) {
+    const b = make('button', 'rp-pill', label); b.type = 'button'; b.dataset.newAspectRatio = value;
+    b.onclick = () => { chosen = value; sync(); };
+    ratioGroup.append(b);
+  }
+  const createBtn = make('button', 'primary', 'Create project'); createBtn.type = 'button'; createBtn.dataset.newProjectCreate = '';
+  createBtn.onclick = act(async () => {
+    await layers.close(layer.dialog);
+    adapter.startNew({ title: titleInput.value.trim() || 'Untitled video', aspectRatio: chosen });
+  });
+  sync(); titleField.append(titleInput); wrap.append(titleField, ratioHeading, ratioGroup, createBtn); layer.body.append(wrap);
+  return layers.open(layer);
+}
+
+function openAspectRatioSheet(env) {
+  const { adapter, layers, make, act } = env, layer = layers.create('Aspect ratio', 'ds-sheet'), wrap = make('div', 'rp-section');
+  const help = make('p', 'video-help', 'Choose the canvas shape for preview and MP4 export.');
+  const group = make('div', 'rp-pill-group');
+  const sync = ratio => { for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.aspectRatioPick === ratio)); };
+  for (const [value, label] of ASPECT_OPTIONS) {
+    if (!ASPECT_RATIOS.includes(value)) continue;
+    const b = make('button', 'rp-pill', label); b.type = 'button'; b.dataset.aspectRatioPick = value;
+    b.onclick = act(() => { if (adapter.apply(cur => timeline.setAspectRatio(cur, value))) sync(value); });
+    group.append(b);
+  }
+  sync(resolveAspectRatio(adapter.doc())); wrap.append(help, group); layer.body.append(wrap);
+  return layers.open(layer);
+}
+
 function buildExportProfileNode(env, exportMp4Button) {
   const { adapter, exporter, make, act } = env, rows = make('div', 'video-export-rows'), resGroup = make('div', 'rp-pill-group'), fpsGroup = make('div', 'rp-pill-group');
   const estimate = make('p', 'video-help', ''), working = make('div', 'video-export-row');
@@ -405,15 +448,17 @@ function buildExportProfileNode(env, exportMp4Button) {
   let chosen = optionsFromProfile(adapter.doc().profile);
   exporter.setOptions(chosen);
   const updateSummary = () => {
-    const spec = resolveExportSpec({ variant: 'export', resolution: chosen.resolution, fps: chosen.fps, timelineFrames30: Math.max(30, timelineFrames(adapter.doc())) });
-    summaryLabel.textContent = `${EXPORT_RESOLUTIONS[chosen.resolution].label} (${spec.width}×${spec.height}) · ${spec.fps} fps`;
+    const aspectRatio = resolveAspectRatio(adapter.doc());
+    const spec = resolveExportSpec({ variant: 'export', resolution: chosen.resolution, fps: chosen.fps, aspectRatio, timelineFrames30: Math.max(30, timelineFrames(adapter.doc())) });
+    summaryLabel.textContent = `${EXPORT_RESOLUTIONS[chosen.resolution].label} · ${aspectRatio} (${spec.width}×${spec.height}) · ${spec.fps} fps`;
     estimate.textContent = `Estimated output: ~${(spec.estimatedBytes / 1048576).toFixed(1)} MB · ~${spec.estimatedSeconds}s render`;
     for (const b of resGroup.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.exportRes === chosen.resolution));
     for (const b of fpsGroup.querySelectorAll('button')) b.setAttribute('aria-pressed', String(Number(b.dataset.exportFps) === chosen.fps));
   };
   const choose = async patch => {
     chosen = { ...chosen, ...patch }; exporter.setOptions(chosen);
-    const spec = resolveExportSpec({ variant: 'export', resolution: chosen.resolution, fps: chosen.fps, timelineFrames30: Math.max(30, timelineFrames(adapter.doc())) });
+    const aspectRatio = resolveAspectRatio(adapter.doc());
+    const spec = resolveExportSpec({ variant: 'export', resolution: chosen.resolution, fps: chosen.fps, aspectRatio, timelineFrames30: Math.max(30, timelineFrames(adapter.doc())) });
     updateSummary();
     if (adapter.editable() && adapter.doc().profile !== spec.profile) { adapter.apply(cur => validateTimeline({ ...cur, profile: spec.profile })); await adapter.save(); }
   };
@@ -438,6 +483,8 @@ export function createRpSheets({ doc: domDoc, adapter, exporter, layers, make, a
   });
   const env = { domDoc, adapter, exporter, layers, make, act, setStatus, patchClip };
   return {
+    openNewProjectSheet: () => openNewProjectSheet(env),
+    openAspectRatioSheet: () => openAspectRatioSheet(env),
     openSpeedSheet: () => openSpeedSheet(env),
     buildAutoCaptionsNode: () => buildAutoCaptionsNode(env),
     openStickersSheet: () => openStickersSheet(env),

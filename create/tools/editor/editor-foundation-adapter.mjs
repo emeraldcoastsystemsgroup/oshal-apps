@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Connect the shared editor shell and typed properties to Create's existing validated edits, history and document saves.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): the shared inspector is the one Format inspector. With nothing selected it shows the canvas (width, height, background, transparent) and edits it through the same project operation Canvas settings used; the Font field offers the brand, basic and Office faces the deleted duplicate form listed. The navigation pane is named Layers, the status strip is gone (the Saved caption lives in the app row), the concierge says image and starts closed so the canvas keeps a third column.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: mount Flip horizontal and Flip vertical controls directly in the Format inspector and restore them on teardown.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: expose text italic, underline, line height, letter spacing, outline width and outline color in the Format inspector.
  */
 import { $, state, canEdit, dirty, edit, notify, subscribe } from './editor-state.mjs';
 import { saveProject } from './editor-projects.mjs';
@@ -34,6 +35,22 @@ function applyCanvasProperty(key, value, expected) {
   edit({ type: 'project', patch });
 }
 
+function textProperties(layer) {
+  return [
+    text('text', 'Text', layer.text, 'textarea'),
+    { ...number('fontSize', 'Font size', layer.fontSize, 1, 1024), group: 'Text' },
+    { key: 'fontFamily', label: 'Font', type: 'select', value: layer.fontFamily, group: 'Text', options: fontChoices(layer.fontFamily) },
+    { key: 'fontWeight', label: 'Weight', type: 'select', value: String(layer.fontWeight), group: 'Text', options: Array.from({ length: 9 }, (_, index) => ({ value: String((index + 1) * 100), label: ({ 400: 'Regular', 700: 'Bold' })[(index + 1) * 100] ?? String((index + 1) * 100) })) },
+    { key: 'align', label: 'Alignment', type: 'select', value: layer.align, group: 'Text', options: ['left', 'center', 'right'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })) },
+    { key: 'italic', label: 'Italic', type: 'checkbox', value: Boolean(layer.italic), group: 'Text' },
+    { key: 'underline', label: 'Underline', type: 'checkbox', value: Boolean(layer.underline), group: 'Text' },
+    { ...number('lineHeight', 'Line height', layer.lineHeight ?? 1.2, 0.8, 3, ''), group: 'Text', step: 0.05 },
+    { ...number('letterSpacing', 'Letter spacing', layer.letterSpacing ?? 0, -10, 100, 'px'), group: 'Text', step: 0.5 },
+    { ...number('strokeWidth', 'Outline width', layer.strokeWidth ?? 0, 0, 32, 'px'), group: 'Text', step: 0.5 },
+    { key: 'stroke', label: 'Outline color', type: 'color', value: layer.stroke ?? '#000000', group: 'Text' },
+  ];
+}
+
 /** Expose only properties the current renderer and immutable model actually support. */
 export function createLayerProperties() {
   const layer = selected(); if (!layer) return canvasProperties();
@@ -64,11 +81,7 @@ export function createLayerProperties() {
       {...number('shadowX','Shadow X',layer.shadow.offsetX,-512,512),group:'Shadow'},
       {...number('shadowY','Shadow Y',layer.shadow.offsetY,-512,512),group:'Shadow'});
   }
-  if (layer.type === 'text') fields.push(text('text', 'Text', layer.text, 'textarea'),
-    { ...number('fontSize', 'Font size', layer.fontSize, 1, 1024), group: 'Text' },
-    { key: 'fontFamily', label: 'Font', type: 'select', value: layer.fontFamily, group: 'Text', options: fontChoices(layer.fontFamily) },
-    { key: 'fontWeight', label: 'Weight', type: 'select', value: String(layer.fontWeight), group: 'Text', options: Array.from({ length: 9 }, (_, index) => ({ value: String((index + 1) * 100), label: ({ 400: 'Regular', 700: 'Bold' })[(index + 1) * 100] ?? String((index + 1) * 100) })) },
-    { key: 'align', label: 'Alignment', type: 'select', value: layer.align, group: 'Text', options: ['left', 'center', 'right'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })) });
+  if (layer.type === 'text') fields.push(...textProperties(layer));
   const locked = worldLayer(state.project, layer).locked;
   return fields.map(field => ({ ...field, disabled: locked }));
 }
@@ -82,6 +95,8 @@ export function applyLayerProperty(key, value, expected) {
   const field = createLayerProperties().find(property => property.key === key);
   if (!field || field.disabled) throw new Error('This property cannot be changed on the selected layer.');
   let patch = { [key]: key === 'opacity' ? value / 100 : key === 'fontWeight' ? Number(value) : value };
+  if (layer.type === 'text' && key === 'stroke') patch = { stroke: value, ...(layer.strokeWidth > 0 ? {} : { strokeWidth: 2 }) };
+  if (layer.type === 'text' && key === 'strokeWidth') patch = value > 0 ? { strokeWidth: value, ...(layer.stroke ? {} : { stroke: '#000000' }) } : { strokeWidth: 0 };
   if(key==='dash'){if(typeof value!=='string'||value.length>160)throw Error('Use at most 16 positive dash lengths separated by commas.');patch={dash:value.trim()?value.trim().split(/[\s,]+/).map(Number):[]};}
   if(key==='shadowEnabled'){if(typeof value!=='boolean')throw Error('Choose whether to show a shadow.');patch={shadow:value?{color:'#000000',opacity:.3,blur:12,offsetX:4,offsetY:4}:null};}
   const shadowKey={shadowColor:'color',shadowOpacity:'opacity',shadowBlur:'blur',shadowX:'offsetX',shadowY:'offsetY'}[key];

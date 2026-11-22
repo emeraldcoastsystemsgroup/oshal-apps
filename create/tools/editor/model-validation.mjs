@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: export the layer field lists for the agent boundary.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: validate optional boolean flipX and flipY on paint and group layers, omitting false values from normalized JSON and refusing adjustment flips.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: validate optional text styling fields (italic, underline, lineHeight, letterSpacing, stroke, strokeWidth), omitting canonical defaults from normalized JSON.
  */
 
 /** @description Shared resource ceilings for browser edits and reference-only persistence.
@@ -30,7 +31,7 @@ export const IMAGE_FILTERS = Object.freeze({
 });
 const TYPES = new Set(['image', 'text', 'rect', 'ellipse', 'freehand', 'adjustment', 'group', 'path']);
 export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'flipX', 'flipY', 'opacity', 'visible', 'locked', 'shadow'];
-export const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
+export const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align', 'italic', 'underline', 'lineHeight', 'letterSpacing', 'stroke', 'strokeWidth'],
   rect: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], ellipse: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], freehand: ['points', 'stroke', 'strokeWidth', 'dash', 'cap', 'join'] };
 
 /** @description Reject invalid input with a stable, user-readable boundary error.
@@ -112,8 +113,21 @@ function textFields(layer) {
   demand(typeof family === 'string' && /^[a-zA-Z][a-zA-Z0-9 -]{0,63}$/.test(family), 'Unsupported font family');
   demand(Number.isInteger(weight) && weight >= 100 && weight <= 900 && weight % 100 === 0, 'Unsupported font weight');
   demand(['left', 'center', 'right'].includes(align), 'Unsupported text alignment');
+  const italic = boolean(layer.italic, false, 'Text italic'), underline = boolean(layer.underline, false, 'Text underline');
+  const lineHeight = layer.lineHeight === undefined ? 1.2 : number(layer.lineHeight, 0.8, 3, 'Line height');
+  const letterSpacing = layer.letterSpacing === undefined ? 0 : number(layer.letterSpacing, -10, 100, 'Letter spacing');
+  let stroke = null;
+  if (layer.stroke !== undefined && layer.stroke !== null) {
+    demand(typeof layer.stroke === 'string' && /^#[a-f0-9]{6}$/i.test(layer.stroke), 'Text outline needs a six-digit hex color');
+    stroke = layer.stroke.toLowerCase();
+  }
+  const rawWidth = layer.strokeWidth === undefined ? undefined : number(layer.strokeWidth, 0, 32, 'Text outline width');
+  const strokeWidth = layer.stroke === null ? 0 : rawWidth ?? (stroke ? 1 : 0);
+  const outline = strokeWidth > 0 ? { stroke: stroke ?? '#000000', strokeWidth } : {};
   return { text: text(layer.text ?? 'Text', LIMITS.text, 'Layer text'), fontFamily: family,
-    fontSize: number(layer.fontSize ?? 32, 1, 1024, 'Font size'), fontWeight: weight, align, fill: color(layer.fill, '#111827') };
+    fontSize: number(layer.fontSize ?? 32, 1, 1024, 'Font size'), fontWeight: weight, align, fill: color(layer.fill, '#111827'),
+    ...(italic ? { italic: true } : {}), ...(underline ? { underline: true } : {}),
+    ...(lineHeight !== 1.2 ? { lineHeight } : {}), ...(letterSpacing !== 0 ? { letterSpacing } : {}), ...outline };
 }
 
 function freehandFields(layer) {

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compile a validated manual timeline into one fixed FFmpeg argument array and filter graph. The only document values that reach the graph are range-checked integers; title text is written to server-named files read with drawtext expansion off, media are server-resolved local files forced through the file protocol and an explicit demuxer, and nothing is ever run through a shell.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed with pitch-preserving atempo, named color looks, stabilization, chroma key, background matting, captions, procedural RGBA stickers and 720p/1080p/4K 30/60fps export profiles.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Derive even-pixel output width and height from document.aspectRatio (16:9, 9:16, 1:1) across preview, 720p, 1080p and 4K.
  */
 
 import { compileMultitrack, type TimelineTrack } from './video-edit-multitrack-compiler';
@@ -15,12 +16,15 @@ export interface ClipChromaKey { enabled: boolean; color: string; similarity: nu
 export interface ClipRemoveBg { enabled: boolean; strength: number }
 export interface StickerKey { frame: number; x: number; y: number; scale: number }
 export interface TimelineSticker { id: string; stickerId: string; start: number; end: number; x: number; y: number; scale: number; keys?: StickerKey[] }
+export type AspectRatio = '16:9' | '9:16' | '1:1';
+export const ASPECT_RATIOS: readonly AspectRatio[] = Object.freeze(['16:9', '9:16', '1:1']);
+export const DEFAULT_ASPECT_RATIO: AspectRatio = '16:9';
 export type ExportResolution = '720p' | '1080p' | '4k';
 export type ExportFps = 30 | 60;
 export type ExportProfileId = 'hd720p30' | 'hd720p60' | 'hd1080p30' | 'hd1080p60' | 'uhd4k30' | 'uhd4k60';
 
 export interface ResolvedCompileSpec {
-  variant: 'export' | 'preview'; profileId: ExportProfileId; width: number; height: number;
+  variant: 'export' | 'preview'; profileId: ExportProfileId; aspectRatio: AspectRatio; width: number; height: number;
   fps: ExportFps; fpsScale: 1 | 2; preset: string; crf: number; audioBitrate: string;
 }
 
@@ -33,7 +37,7 @@ export interface TimelineSegment {
 export interface TimelineTitle { id: string; text: string; start: number; end: number; position: 'top' | 'center' | 'bottom'; size: 'small' | 'medium' | 'large' }
 export interface TimelineDocument {
   version: 1 | 2; tracks?: TimelineTrack[]; captions?: TimelineTitle[]; stickers?: TimelineSticker[];
-  name: string; profile: ExportProfileId; sources: Record<string, TimelineSource>;
+  name: string; profile: ExportProfileId; aspectRatio?: AspectRatio; sources: Record<string, TimelineSource>;
   segments: TimelineSegment[]; titles: TimelineTitle[]; audioBed: { source: string; volume: number } | null;
 }
 
@@ -45,7 +49,7 @@ export interface CompileInput {
 export interface CompiledTimeline {
   args: string[]; filterGraph: string; files: Array<{ name: string; text: string }>;
   output: string; frames: number; samples: number; width: number; height: number; fps: number;
-  profileId?: ExportProfileId;
+  profileId?: ExportProfileId; aspectRatio?: AspectRatio;
 }
 
 export class TimelineCompileError extends Error {
@@ -100,9 +104,22 @@ const PROFILE_DEFAULTS: Readonly<Record<ExportProfileId, { resolution: ExportRes
   uhd4k30: { resolution: '4k', fps: 30 }, uhd4k60: { resolution: '4k', fps: 60 },
 });
 
-export function resolveCompileSpec(variant: unknown, resolution: unknown, fps: unknown, fail: () => never = failInvalid, profileId?: unknown): ResolvedCompileSpec {
+const ASPECT_DIMENSIONS: Readonly<Record<'preview' | ExportResolution, Readonly<Record<AspectRatio, { width: number; height: number }>>>> = Object.freeze({
+  preview: Object.freeze({ '16:9': { width: 640, height: 360 }, '9:16': { width: 360, height: 640 }, '1:1': { width: 360, height: 360 } }),
+  '720p': Object.freeze({ '16:9': { width: 1280, height: 720 }, '9:16': { width: 720, height: 1280 }, '1:1': { width: 720, height: 720 } }),
+  '1080p': Object.freeze({ '16:9': { width: 1920, height: 1080 }, '9:16': { width: 1080, height: 1920 }, '1:1': { width: 1080, height: 1080 } }),
+  '4k': Object.freeze({ '16:9': { width: 3840, height: 2160 }, '9:16': { width: 2160, height: 3840 }, '1:1': { width: 2160, height: 2160 } }),
+});
+
+export function resolveCompileSpec(variant: unknown, resolution: unknown, fps: unknown, fail: () => never = failInvalid, profileId?: unknown, aspectRatio?: unknown): ResolvedCompileSpec {
+  let ratio: AspectRatio = DEFAULT_ASPECT_RATIO;
+  if (aspectRatio !== undefined) {
+    if (typeof aspectRatio !== 'string' || !ASPECT_RATIOS.includes(aspectRatio as AspectRatio)) fail();
+    ratio = aspectRatio as AspectRatio;
+  }
   if (variant === 'preview') {
-    return { variant: 'preview', profileId: 'hd720p30', width: 640, height: 360, fps: 30, fpsScale: 1, preset: 'ultrafast', crf: 32, audioBitrate: '96k' };
+    const dims = ASPECT_DIMENSIONS.preview[ratio];
+    return { variant: 'preview', profileId: 'hd720p30', aspectRatio: ratio, width: dims.width, height: dims.height, fps: 30, fpsScale: 1, preset: 'ultrafast', crf: 32, audioBitrate: '96k' };
   }
   if (variant !== 'export') fail();
   const base = profileId && typeof profileId === 'string' && Object.prototype.hasOwnProperty.call(PROFILE_DEFAULTS, profileId)
@@ -111,8 +128,8 @@ export function resolveCompileSpec(variant: unknown, resolution: unknown, fps: u
   if (!Object.prototype.hasOwnProperty.call(RESOLUTIONS, resKey)) fail();
   const fpsVal = (fps ?? base.fps) as ExportFps;
   if (fpsVal !== 30 && fpsVal !== 60) fail();
-  const res = RESOLUTIONS[resKey];
-  return { variant: 'export', profileId: `${res.prefix}${fpsVal}` as ExportProfileId, width: res.width, height: res.height,
+  const res = RESOLUTIONS[resKey], dims = ASPECT_DIMENSIONS[resKey][ratio];
+  return { variant: 'export', profileId: `${res.prefix}${fpsVal}` as ExportProfileId, aspectRatio: ratio, width: dims.width, height: dims.height,
     fps: fpsVal, fpsScale: fpsVal === 60 ? 2 : 1, preset: 'veryfast', crf: 23, audioBitrate: '128k' };
 }
 
@@ -195,7 +212,7 @@ export function appendStickerGraph(parts: string[], stickers: TimelineSticker[] 
   for (const [idx, st] of stickers.entries()) {
     if (!st || typeof st !== 'object' || typeof st.stickerId !== 'string' || !Object.prototype.hasOwnProperty.call(STICKER_GEQ, st.stickerId)) failInvalid();
     const start30 = checkInt(st.start, 0, total30 - 1), end30 = checkInt(st.end, start30 + 1, total30);
-    const scale = checkInt(st.scale, 25, 300), side = Math.max(24, Math.round((spec.height * 0.18 * scale) / 100 / 2) * 2);
+    const scale = checkInt(st.scale, 25, 300), side = Math.max(24, Math.round((Math.min(spec.width, spec.height) * 0.18 * scale) / 100 / 2) * 2);
     const shape = STICKER_GEQ[st.stickerId], sStart = start30 * spec.fpsScale, sEnd = end30 * spec.fpsScale;
     const xExpr = stickerCoordExpr(st, 'x', spec.width, sStart, spec.fpsScale), yExpr = stickerCoordExpr(st, 'y', spec.height, sStart, spec.fpsScale);
     const next = `vst${idx}`;
@@ -289,7 +306,7 @@ function titleChain(graph: Graph, input: CompileInput, total30: number, spec: Re
   const filters = entries.map((title, index) => {
     const start30 = checkInt(title.start, 0, total30 - 1), end30 = checkInt(title.end, start30 + 1, total30);
     if (typeof title.text !== 'string' || title.text.length > 240 || /[\u0000-\u001f]/.test(title.text)) failInvalid();
-    const size = Math.round(spec.height / TITLE_DIVISORS[title.size]);
+    const size = Math.round(Math.min(spec.width, spec.height) / TITLE_DIVISORS[title.size]);
     if (!size || !['top', 'center', 'bottom'].includes(title.position)) failInvalid();
     const y = title.position === 'top' ? `${margin}` : title.position === 'center' ? '(h-text_h)/2' : `h-text_h-${margin}`;
     const name = `title-${index}.txt`;
@@ -320,7 +337,7 @@ export function compileTimeline(input: CompileInput): CompiledTimeline {
   if (document.version === 2) return compileMultitrack(input);
   if (document.version !== 1 || !Array.isArray(document.segments)) failInvalid();
   if (!document.segments.length) throw new TimelineCompileError('timeline_empty');
-  const spec = resolveCompileSpec(input.variant, input.resolution, input.fps, failInvalid, document.profile);
+  const spec = resolveCompileSpec(input.variant, input.resolution, input.fps, failInvalid, document.profile, document.aspectRatio);
   const threads = checkInt(input.threads ?? 2, 1, 4);
   const graph: Graph = { parts: [], inputs: [], count: 0 };
   const total30 = segmentChains(graph, input, spec);
@@ -335,5 +352,5 @@ export function compileTimeline(input: CompileInput): CompiledTimeline {
     '-frames:v', String(outFrames), '-threads', String(threads), '-c:a', 'aac', '-b:a', spec.audioBitrate, '-ar', String(SAMPLE_RATE),
     '-ac', '2', '-movflags', '+faststart', '-f', 'mp4', `file:${OUTPUT_NAME}`];
   return { args, filterGraph, files, output: OUTPUT_NAME, frames: outFrames, samples: total30 * SAMPLES_PER_FRAME,
-    width: spec.width, height: spec.height, fps: spec.fps, profileId: spec.profileId };
+    width: spec.width, height: spec.height, fps: spec.fps, profileId: spec.profileId, aspectRatio: spec.aspectRatio };
 }

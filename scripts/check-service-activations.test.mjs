@@ -17,6 +17,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com  | Pin Intelligent Communication's mail-watches (runsAs: user, 1.8.0): the person's own 5-minute deterministic Gmail watch check that reports only unseen security/priority alert arrivals (such as TotalConnect).
  * 13 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's career-source-maintenance (runsAs: user, 1.54.0): a Career administrator's own morning job that reports what last night's source maintenance newly left for a person. Its route reads the shared corpus only and answers 403 for anyone who is not a Career administrator.
  * 14 | maintainer@emeraldcoastsystemsgroup.com  | Pin Program Instructions' write-instructions (runsAs: system, 0.1.0): the installation's writer of per-program instruction text, activated once by a swarm administrator; it serves no person and reads no person's data.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's career-regenerate (runsAs: user, lane CAREER-REGEN): the person's own every-minute job that moves their Generate again queue on one step, so new documents keep coming with no Career page open; it does nothing when no job waits and submits nothing.
  */
 
 import test from 'node:test';
@@ -35,6 +36,7 @@ const DECLARED = [
   ['career-hunter', 'career-application-updates', 'user'],
   ['career-hunter', 'career-nightly-matches', 'user'],
   ['career-hunter', 'career-source-maintenance', 'user'],
+  ['career-hunter', 'career-regenerate', 'user'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
   ['email-summarizer', 'mail-copy', 'user'],
   ['email-summarizer', 'social-publish', 'user'],

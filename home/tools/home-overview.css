@@ -1,6 +1,7 @@
 /* CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the Smart Home surface stylesheet and add a searchable catalogue with a responsive selected-device workspace.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the available overview width, size groups by catalogue space, and reserve a detail column only while selected.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Add Roku and Samsung TV application controls, front-app status line, picker and bounded app chips with 44px touch targets.
  */
 /* This surface keeps its own short alias names, but DERIVES them from the framework theme rather
      than hardcoding hex — so all eleven themes work, not just the dark ones. The "on"/success teal
@@ -91,6 +92,16 @@
   .tv-result .lnk { min-height:44px; }
   .tv-card .tv-now { margin:0; font-size:13px; line-height:18px; color:var(--text); overflow-wrap:anywhere; }
   .tv-media .btn { min-width:44px; min-height:44px; }
+  .tv-apps { display:flex; flex-direction:column; gap:8px; padding-top:8px; border-top:1px solid var(--line); min-width:0; }
+  .tv-card .tv-front { margin:0; font-size:13px; line-height:18px; font-weight:600; color:var(--text); overflow-wrap:anywhere; }
+  .tv-apps-actions .btn { min-width:44px; min-height:44px; }
+  .tv-app-picker { width:100%; }
+  .tv-app-picker .sel { width:100%; min-height:44px; }
+  .tv-apps-filter { width:100%; min-height:44px; }
+  .tv-app-list { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+  .tv-app-btn { flex:0 1 auto; min-width:44px; min-height:44px; max-width:100%; white-space:normal; text-align:center; overflow-wrap:anywhere; }
+  .tv-app-btn.is-front { border-color:var(--accent2); }
+  .tv-apps-empty { margin:0; font-size:13px; line-height:18px; color:var(--muted); }
   .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--ds-surface, var(--panel2)); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:10px; font-size:14px; line-height:20px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
   .more-wrap { position:relative; }

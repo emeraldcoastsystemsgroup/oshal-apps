@@ -4,6 +4,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a slip in an approved new layer no longer refuses the batch: fields its type lacks are dropped and a colour that is not one falls to the default; a bad type and an update stay refused.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: the three batches the local model drew were refused only after approval. The schema the kernel checks before holding a card states each rule the validator refuses, and the worked drawing in the contract is itself valid.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify create-apply-edits flipX/flipY update patches, flip-back restoration, locked/invalid/adjustment refusals and editingContract flip guidance.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: verify create-apply-edits text styling (italic, underline, lineHeight, letterSpacing, stroke, strokeWidth, shadow) add/update/clear and locked/invalid refusals.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -105,4 +106,23 @@ test('agent update patches flip layers horizontally/vertically, flip back cleanl
  const withAdj=applyAgentOperations(original,[{type:'add',layer:{id:'adj',type:'adjustment',scope:'stack',exposure:.5}}]);
  assert.throws(()=>applyAgentOperations(withAdj,[{type:'update',id:'adj',patch:{flipX:true}}]),/Adjustment layers cannot be flipped/);
  assert.match(editingContract().conventions.flip,/flipX.*flipY/);
+});
+
+test('agent add/update patches set and clear text styling fields and reject invalid or locked styling edits', () => {
+ const original=applyAgentOperations(blankProject({title:'Text styling'}),[{type:'add',layer:{id:'headline',type:'text',text:'Line one\nLine two',x:20,y:20,w:320,h:140,fontSize:32,fill:'#111827'}}]);
+ const before=JSON.stringify(original);
+ const styled=applyAgentOperations(original,[{type:'update',id:'headline',patch:{italic:true,underline:true,lineHeight:1.8,letterSpacing:5,stroke:'navy',strokeWidth:3,shadow:{color:'black',opacity:.5,blur:6,offsetX:3,offsetY:4}}}]);
+ assert.equal(styled.version,4);
+ const layer=styled.layers[0];
+ assert.equal(layer.italic,true);assert.equal(layer.underline,true);assert.equal(layer.lineHeight,1.8);assert.equal(layer.letterSpacing,5);
+ assert.equal(layer.stroke,'#000080');assert.equal(layer.strokeWidth,3);assert.deepEqual(layer.shadow,{color:'#000000',opacity:.5,blur:6,offsetX:3,offsetY:4});
+ const cleared=applyAgentOperations(styled,[{type:'update',id:'headline',patch:{italic:false,underline:false,lineHeight:1.2,letterSpacing:0,stroke:null,shadow:null}}]);
+ assert.equal(JSON.stringify(cleared.layers),JSON.stringify(original.layers));
+ for(const patch of [{italic:'yes'},{underline:1},{lineHeight:.5},{lineHeight:3.5},{letterSpacing:-11},{letterSpacing:101},{stroke:'not-a-color'},{strokeWidth:-1},{strokeWidth:33}]){
+  assert.throws(()=>applyAgentOperations(original,[{type:'update',id:'headline',patch}]));
+ }
+ const locked=applyAgentOperations(original,[{type:'update',id:'headline',patch:{locked:true}}]);
+ assert.throws(()=>applyAgentOperations(locked,[{type:'update',id:'headline',patch:{italic:true}}]),/Unlock/);
+ assert.equal(JSON.stringify(original),before);
+ assert.match(editingContract().conventions.textStyling,/italic.*underline.*lineHeight.*letterSpacing/);
 });

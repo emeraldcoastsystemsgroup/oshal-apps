@@ -13,6 +13,7 @@
 # 0.12.1 | maintainer@emeraldcoastsystemsgroup.com | Jarvis routing words (backlog P4-16o): sports-quant adds 'tonight' (not 'edge', a word of this application's name that would take Kalshi's "Which prediction markets have an edge tonight?"). "Is there an edge on the Lakers game tonight?" now reaches Sports Edge; "What should I watch tonight?" stays with Marquee. No route, tool or permission changed.
 # 0.12.2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-16 ("for the last time": every concierge is the core Jarvis chat window, with its model menu): the Concierge rail no longer draws a chat of its own. It holds the kernel's one chat window as Sports Quant's concierge (/shared/ui/js/jarvis-chat-frame.js), with its model menu, New conversation, Recent conversations, Files, Tap to talk, Keep trying and the kernel's own approval cards. The board the rail sent as context keys the kernel never read now rides on every turn as screen_state: the tab, the followed teams, the game in the Preview tab with its event id and the games the Games tab lists. An approved card still reloads the Games or Record tab on screen. Needs a kernel with jarvis-chat-frame.js (00c62f98 or later). No route, tool or permission changed.
 # 0.12.3 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG Item A closed (negative result): walk-forward benchmark of pre-kickoff archived world_items candidate signals against the current ensemble found 0/1,942 coverage on completed 2025 seasons and no Brier/MAE improvement on the 2026 archived wire series (SEA + ARK, n=20; de-biased sentiment delta and injury-wire burst both worsened Control despite 16,581 classifications). Retired unused World wire ingest in refreshWorld ({subjects:0,newItems:0}), removed unused world-data floor and team-news-classification rating feature, and kept all team/coach/roster/game/line functionality intact.
+# 0.12.4 | maintainer@emeraldcoastsystemsgroup.com | BACKLOG Item C: per-league expected line-open windows (NFL, NCAAF, NBA), adaptive 15-minute tight polling inside active open windows with 180-minute slow cadence outside (zero wasted pulls), per-row in_open_window and prior_poll_absent persistence (migration 006), and the third openerConfidence level ('confirmed-open') assigned strictly when captured inside the window after a prior no-price poll of the same game and book.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -103,7 +104,7 @@ description: >-
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
   allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
-version: 0.12.3
+version: 0.12.4
 status: active
 chatBot: sports-quant
 
@@ -176,21 +177,22 @@ egress:
   - host: sports.core.api.espn.com
 
 # The refresh pass (line capture, grading, previews) runs only inside an admitted request: this
-# schedule fires POST /refresh/run as the person who activated it, over that person's own followed
-# teams. It replaces the in-process timer the route factory used to start, whose passes ran outside
-# any request and were refused by the native kernel. Every three hours, the shipped refresh cadence.
+# schedule fires POST /refresh/run every 15 minutes as the person who activated it. Inside a
+# league's expected open window, runRefreshPass captures lines on the 15-minute tight cadence for
+# active-window leagues; outside all open windows it answers not_due with zero ESPN calls until
+# refreshIntervalMinutes (180m) has elapsed for the full pass.
 schedules:
   - id: refresh-pass
     startsItself: true
-    cron: "17 */3 * * *"
+    cron: "*/15 * * * *"
     runsAs: user
     target: service-route
     route: /api/sports-edge/refresh/run
     method: POST
     body: {}
     timeoutSeconds: 600
-    description: Capture the book's lines, grade finished calls and rebuild previews for the teams you follow.
-    offer: Keep my followed teams' previews, lines and graded calls fresh every three hours.
+    description: Capture book lines (every 15m inside league open windows, 180m outside), grade finished calls and rebuild previews for the teams you follow.
+    offer: Keep my followed teams' previews, lines and graded calls fresh (tight 15m capture in open windows, every three hours outside).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TOOLS — route-backed specialist tools for sports-quant and main Jarvis.
@@ -377,6 +379,7 @@ migrations:
   - migrations/003-sports-line-history.sql
   - migrations/004-sports-world-subjects.sql
   - migrations/005-sports-fantasy-player-weeks.sql
+  - migrations/006-sports-line-open-windows.sql
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — one ribbon icon opens the followed-teams page: your teams, their next

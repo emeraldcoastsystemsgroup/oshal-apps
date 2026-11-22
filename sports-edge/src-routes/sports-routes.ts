@@ -28,6 +28,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /preview/:eventId only reads: it answers the stored preview with its calls, or 200 {built:false} when none is stored, and never calls ESPN or writes (the native kernel admits a GET as a reader and refused the build's INSERT with 'SQL mutation requires original writer admission', so every preview answered 502). Building and rebuilding moved to POST /preview/:eventId/build, which runs under writer admission. Guard: tests/sports-preview-readonly.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /games names its window (horizonDays) and, when the window holds no game for the followed teams but the schedule read succeeded, the next game within 35 days (nextGame). After following the Dolphins in their bye week the Games screen said only "No games ... inside the horizon", which read as a broken schedule.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount Sports Quant read-only and confirm-gated routes (/quant/*) and serve the collapsible right-rail Concierge assets (/concierge.css, /concierge.js).
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Item C (0.12.4): expose per-league open windows, adaptive line-capture cadence, and confirmed-opener counts on GET /lines/status and GET /status; pass stored gameDate as fallback kickoff on GET /lines/:eventId.
  *
  * @module sports-routes
  */
@@ -48,11 +49,13 @@ import {
 } from './sports-store';
 import { listTeams } from './sports-espn';
 import {
-  currentSeason, followedGames, FOLLOWED_GAMES_HORIZON_DAYS, lastPassAt, previewFor, refreshRatings, runRefreshPass, refreshStatus,
+  currentCaptureCadence, currentSeason, followedGames, FOLLOWED_GAMES_HORIZON_DAYS, lastPassAt,
+  previewFor, refreshRatings, runRefreshPass, refreshStatus,
 } from './sports-refresh';
 import { registerFantasyMoved } from './sports-fantasy-moved';
 import { summariseMovement } from './sports-line-history';
 import { captureStats, ensureLineSchema, observationsFor } from './sports-line-store';
+import { LEAGUE_OPEN_WINDOWS } from './open-windows';
 import { registerQuantRoutes } from './sports-quant';
 
 const log = createChildLogger({ module: 'sports-routes' });
@@ -144,10 +147,18 @@ function registerLineRoutes(router: Router, pool: Pool): void {
   router.get('/lines/status', async (req: Request, res: Response) => {
     if (!requireSub(req, res)) return;
     try {
-      const stats = await captureStats(pool);
-      // "since" is the honest headline: this dataset's whole value is how long we have been
-      // watching, and it cannot be improved retroactively.
-      res.json({ ...stats, note: 'Opening lines cannot be backfilled — this history starts when capture started.' });
+      const [stats, deployment] = await Promise.all([
+        captureStats(pool),
+        readSettings(pool, DEPLOYMENT_SCOPE).catch(() => ({} as Record<string, unknown>)),
+      ]);
+      const slowMinutes = Number(deployment.refreshIntervalMinutes) || 180;
+      const cadence = await currentCaptureCadence(pool, slowMinutes);
+      res.json({
+        ...stats,
+        openWindows: LEAGUE_OPEN_WINDOWS,
+        cadence,
+        note: 'Opening lines cannot be backfilled — confirmed-open requires capturing inside the league open window right after a no-price poll.',
+      });
     } catch (err) {
       log.error({ err }, 'line status failed');
       res.status(500).json({ error: 'could not read the capture status' });
@@ -160,10 +171,12 @@ function registerLineRoutes(router: Router, pool: Pool): void {
       const book = typeof req.query.book === 'string' && req.query.book ? req.query.book : undefined;
       const rows = await observationsFor(pool, String(req.params.eventId), book);
       if (!rows.length) { res.status(404).json({ error: 'no line history captured for that game' }); return; }
+      const kickoff = typeof req.query.kickoff === 'string' && req.query.kickoff
+        ? req.query.kickoff : (rows[0]?.gameDate ?? null);
       res.json({
         eventId: String(req.params.eventId),
         observations: rows,
-        movement: summariseMovement(rows, typeof req.query.kickoff === 'string' ? req.query.kickoff : null),
+        movement: summariseMovement(rows, kickoff),
       });
     } catch (err) {
       log.error({ err, eventId: req.params.eventId }, 'line history failed');
@@ -317,9 +330,10 @@ function registerGameRoutes(router: Router, pool: Pool): void {
     const last = await lastPassAt(pool, sub).catch(() => null);
     const deployment = await readSettings(pool, DEPLOYMENT_SCOPE).catch(() => ({} as Record<string, unknown>));
     const intervalMinutes = Number(deployment.refreshIntervalMinutes) || 180;
+    const lineCaptureCadence = await currentCaptureCadence(pool, intervalMinutes).catch(() => null);
     res.json({
       season: { nfl: currentSeason('nfl'), nba: currentSeason('nba') },
-      refresh: { ...refreshStatus(), lastPassAt: last, intervalMinutes },
+      refresh: { ...refreshStatus(), lastPassAt: last, intervalMinutes, lineCaptureCadence, openWindows: LEAGUE_OPEN_WINDOWS },
     });
   });
 

@@ -838,3 +838,7 @@ Create opens the editable Office and Video workspaces. Blank Word, PowerPoint an
 ## Flip horizontally and vertically — 1.20.3
 
 Every paint layer (`image`, `text`, `rect`, `ellipse`, `freehand`, `path`) and `group` accepts optional boolean `flipX` and `flipY` transforms (omitted when `false` in canonical JSON). **Flip horizontal** (`#flipHorizontal`) and **Flip vertical** (`#flipVertical`) toggles in the Format inspector and concierge `create-apply-edits` `update` patches (`{ flipX, flipY }`) share the same validated undo/save/export path across Canvas preview, PNG/JPEG export, SVG export, hit-testing, source-pixel region selection, and group transforms. See [EDITOR.md](EDITOR.md#flip-horizontally-and-vertically-1203). No route, permission, migration, or `authorization.yaml` change.
+
+## Text styling and in-place canvas typing — 1.20.4
+
+Text layers accept optional `italic`, `underline`, `lineHeight` (`0.8..3`, default `1.2`), `letterSpacing` (`-10..100` px, default `0`), and outline `stroke`/`strokeWidth` (`0..32` px) alongside layer `shadow`, omitting defaults from canonical JSON. Format inspector controls, double-click in-place canvas typing (`#inlineTextEditor`), and concierge `create-apply-edits` share the same validated undo/save/export path across Canvas preview, PNG/JPEG export, and SVG export. See [EDITOR.md](EDITOR.md#text-styling-and-in-place-canvas-typing-1204). No route, permission, migration, or `authorization.yaml` change.

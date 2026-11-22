@@ -9,6 +9,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 2.20.6 (Roger, 2026-11-16, Career's My résumé on his phone: "Half of this page on mobile is taken by the header"). A page that frames this editor and draws the document's one bar itself passes ?header=host (or ?header=editor while this editor keeps its own row) and moves the app row between the two with an office-header message (bindHostRow). While the host has it, this row is not drawn (office.css); the host is told the row's state (office-header-state: reading, Edit, Undo, Redo, Export, unsaved), presses the row's own buttons here by name (office-command: edit, undo, redo, export, document, documents) and hears the canvas's scroll (office-scroll) so it can give the document more of the screen. The direct parent on this origin only. Without the option nothing changes.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3; Roger, 2026-11-16: every concierge is the core Jarvis chat window): the kernel's concierge pane frames that window now (kernel 00c62f98), and AI Office lays itself out around it. Generate a draft is a row above the window instead of under it, where it left the window's composer ending 64 px above the desktop rail's bottom and took the phone sheet's room; what it does is unchanged (its starter sentence goes into the window's message box through the pane's stand-in box). The phone's Concierge sheet is a chat sheet (ds-chat): as tall as a sheet may be, so the window has the room a conversation needs (it had a 308 px frame, and its composer covered its own Summarize starter, so a tap there landed on the composer). The window's own Close closes that sheet: the editor shell that hears it on a desktop is not around the sheet, so the Close did nothing there.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Offer genuine RTF in the Word Export sheet through the existing permission-guarded saved-revision download.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Keep `#slide-notes-panel` synchronized with home/document view switches and count slide speaker notes as presentation content.
  */
 import{clone,uid,plain}from'./model.mjs';
 /** @description Whether the page that frames this editor owns the screen's one assistant (?assistant=host). @returns {boolean} */
@@ -79,7 +80,7 @@ function buildMenuList(items,planned,runRow){
 function bindHomeAndHeader({root,layers,act,menu,sheet}){
  const click=id=>()=>{const node=$(id);if(node.disabled)throw new Error('That action is not available right now.');node.click();};
  const inertNode=id=>$(id)?.disabled;
- const setView=view=>{root.dataset.officeView=view;document.documentElement.dataset.officeView=view;$('office-home').hidden=view!=='home';$('document-canvas').hidden=view==='home';};
+ const setView=view=>{root.dataset.officeView=view;document.documentElement.dataset.officeView=view;$('office-home').hidden=view!=='home';$('document-canvas').hidden=view==='home';if($('slide-notes-panel'))$('slide-notes-panel').hidden=view==='home'||state.model.kind!=='pptx';};
  const focusFirstLine=()=>requestAnimationFrame(()=>{if(root.dataset.officeView!=='document'||!editable())return;$('document-canvas').querySelector('.office-word-page [contenteditable=true]')?.focus({preventScroll:true});});
  const newMenu=anchor=>menu('New',[{label:'Blank document',id:'new-docx',run:()=>startNew('docx')},{label:'Presentation',id:'new-pptx',run:()=>startNew('pptx')},{label:'Spreadsheet',id:'new-xlsx',run:()=>startNew('xlsx')}],anchor);
  async function startNew(kind){if(!await newDocument(kind))return;state.reading=false;setView('document');invalidate();notify();if(kind==='docx')focusFirstLine();}
@@ -239,7 +240,7 @@ function bindToolbarsAndMenus({layers,act,planned,menu,sheet,click,inertNode,ins
 function hasContent(){
  const model=state.model;
  if(model.kind==='xlsx')return model.sheets.some(s=>Object.values(s.cells).some(c=>String(c?.value??'')!==''));
- if(model.kind==='pptx')return model.pages.some(p=>p.objects.length>0);
+ if(model.kind==='pptx')return model.pages.some(p=>p.objects.length>0||Boolean(p.notes));
  return model.pages.some(p=>p.blocks.some(b=>b.type!=='paragraph'||plain(b.runs).trim()!==''));
 }
 

@@ -123,6 +123,10 @@ AI Office 2.20.9 preserves optional paragraph indentation and keep-with-next for
 
 Career 1.68.12 uses these shared document fields for employer and client-engagement formatting. Install this Office release before that Career release.
 
+## Speaker notes on screen (2.20.12)
+
+Presentation slides include a **Speaker notes** editor directly beneath the active slide canvas on both desktop and mobile viewports (hidden for Word documents and Excel workbooks). Notes are bounded to 4,000 characters per slide, travel through undo/redo and revision saves, export to real PowerPoint notes pages (`ppt/notesSlides/notesSlideN.xml`), and survive `.pptx` import/open, saved reopen and **Edit & regenerate**. Concierge edits update speaker notes via `page` (`patch: { notes }`) in the structured editor and via `notes` on `update_slide`, `add_slide` and `set_outline` in the outline Guide.
+
 <!-- oshal-rating:start -->
 ## Models and requirements
 

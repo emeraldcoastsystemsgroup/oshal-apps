@@ -41,6 +41,22 @@ These come from the coordinator decisions in Roger's UX audit (2026-11-05). They
   `/mobile` already open the board on its stage. Done when: an old `?screen=` address opens the Job Board on its stage,
   through a kernel-supported alias.
 
+## Generate again — open items
+
+- **Proven on the native kernel (met on the test slot 2026-11-22, Career 1.75.0; the scheduler firing it is not shown
+  there).** Done when `tests/career-regenerate-live-proof.mjs check` exits 0 on the test slot with this release installed:
+  each row starts with no queue (a queue a failed row left is stopped and cleared first); at 1440x900 both
+  jobs reach done with the page closed and neither still counts as older; at 412x915 Pause, a reload, Go on, Stop and Clear
+  pass from the panel; the only writes are the sign-in, the Generate again routes, the activation of his background job and the
+  cockpit's own `POST /api/cockpit/recents`. The test slot runs no schedules (its `/readyz` says `schedulerEnabled:false`), so
+  there the check makes the `career-regenerate` schedule's own call itself once the page is closed (`POST
+  /api/career-hunter/regenerate/advance` as the person, every 20 s, empty body) and the receipt says "this slot runs no
+  schedules; the check made the schedule's own call"; on a slot that runs schedules it relies on his schedule. The test slot
+  therefore proves the queue on the native kernel, not the scheduler firing it. Met: `check` exited 0 on the test slot
+  (`schedulerEnabled:false`) at 2026-11-22T05:46Z: both jobs done 223 s after the page closed, neither older, and the
+  412x915 row passed. Off the native kernel the queue is also proven over the compiled routes and the real engine
+  (`tests/career-regenerate-route.test.mjs`) and on the page (`tests/career-regenerate-browser.test.mjs`).
+
 ## 1.72.0 Résumé for upload forms — open items
 
 Built (lane APPLY-H): every generation writes `Resume_Parse.docx`, the job's résumé as labelled lines for an employer's
@@ -78,6 +94,14 @@ and months, Saved answers, the Send step and Submission activity. Guards: `tests
   CAREER_APPLY_SITE_HOSTS naming each engine's stand-in host). The engine profiles are written from each engine's known
   page words, not read from a real employer's site; his first run on each real engine is its first proof there, and a
   label that does not match is a card, not a guess.
+- **Fill in several on my Chrome** (lane APPLY-BATCH; Roger, 2026-11-21: "i really need to be able to post 200 resumes
+  by monday"). Built: selection in My jobs' List and Table, one approval sheet for up to 50 jobs (each its own packet and
+  digest), the queue in his store (`apply-batch.json`) run one job at a time on his computer, the panel on My jobs and the
+  job page with Next job, Skip this job, Pause the queue, Go on and Stop the queue, and re-approval of an expired job.
+  Guards: `tests/career-apply-batch.test.mjs`, `tests/career-apply-batch-browser.test.mjs`. The queue moves on only while
+  My jobs or a job page is open (each panel moves it every four seconds); with the page closed the job on the computer
+  goes on and the next starts when a page opens again. Done when lane F's variant q passes on blue (three stand-in jobs in
+  one batch reach Next job, Submitted, Submitted in that order).
 - **Attestations** (design open question 1): answered by the owner ("its configuration") and built in 1.70.0 as two
   switches under Saved answers, off by default, carried as `task.attest`. Done when the live proof on the test slot shows
   the terms box ticked and the signature typed only with the switch on, and handed back with it off.

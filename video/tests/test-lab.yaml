@@ -20,6 +20,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.14.2: register product-name guard (tests/product-name.test.js) in the plain-Node video job.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3 (Roger, 2026-11-17, in production: the video editor's concierge did not work): register one-chat-window, Video's editor inside the shipped Today page where every concierge entry a person sees opens the one chat window as video's concierge and, on a phone, the window's own Close closes the Concierge sheet so the editor takes the next tap.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: extend one-chat-window to Create's Video screen (/cockpit/?app=create&screen=create-video) and cold-load early Concierge presses while Video's editor modules are still loading.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): register editor-aspect-ratio (tests/editor-aspect-ratio.test.mjs) proving 9:16, 1:1 and 16:9 projects on screen, through concierge routes, in real FFmpeg/ffprobe MP4 exports and in Chromium at 1440x900 and 412x915.
 version: 1
 cases:
   - id: package-readiness
@@ -702,4 +703,39 @@ cases:
       mode: disposable
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: editor-aspect-ratio
+    name: Vertical (9:16), square (1:1) and landscape (16:9) projects on screen, concierge and FFmpeg export
+    purpose: >-
+      Prove CREATE-TOOL-VIDEO-02 end to end: optional aspectRatio on v1/v2 timelines, FFmpeg compiler dimension table across preview/720p/1080p/4K, concierge new-project and project patch routes, real /usr/bin/ffmpeg + /usr/bin/ffprobe MP4 exports measuring exact 720x1280, 720x720 and 1280x720 frames, and Chromium UI at 1440x900 and 412x915.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/editor-aspect-ratio.test.mjs
+    expected:
+      - Sequential and multitrack timelines accept 16:9, 9:16 and 1:1, default omitted aspectRatio to 16:9, reject invalid values naming aspectRatio, and preserve aspectRatio across migration, undo/redo and saves.
+      - Concierge POST /editor/agent-projects accepts optional aspectRatio, GET /editor/capabilities advertises aspectRatios, and project patch updates aspectRatio while refusing invalid ratios with 400.
+      - Real FFmpeg MP4 exports measure 720x1280 (9:16), 720x720 (1:1), 1280x720 (16:9) and v2 multitrack 720x1280 in ffprobe.
+      - On-screen New project sheet and #projectAspectRatio picker update the live preview canvas aspect ratio with zero horizontal overflow at 412x915 and persist across save, reload and concierge edits.
+    prerequisites:
+      - runner:node-test
+      - runner:playwright
+      - browser:chromium
+      - engine:ffmpeg
+      - engine:ffprobe
+      - harness:oshal-core-root
+      - service:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/video-editor.fixture.mjs
+        - tests/video-editor-browser.fixture.mjs
+        - tests/video-editor-postgres.fixture.mjs
+      cleanup: Close browsers, loopback servers and temporary media directories; remove only the run's uniquely owned fixture PostgreSQL database and role.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
     installation: never

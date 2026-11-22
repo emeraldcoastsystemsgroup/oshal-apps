@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN (Roger, 2026-11-21: 200 applications by Monday; his open jobs need new documents): Generate again (N), a bulk action of Saved and Getting ready in the Table and the List, where N counts the selected jobs that have documents and are not applied or removed; it hands them to tools/career-regenerate.js, which asks once and queues them in his store. The List's rows of those stages can now always be selected (Generate again needs no computer); its bar offers Fill in several on my Chrome (while offered) and Generate again. Guard: tests/career-regenerate-browser.test.mjs.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH (Roger, 2026-11-21: "i really need to be able to post 200 resumes by monday"): Fill in several on my Chrome, the bulk action of Saved and Getting ready when his Job Apply computer reports browser-apply (the filled button of Getting ready). It hands every selected job to tools/career-apply-batch.js, whose approval sheet says which still need documents and offers Prepare them (this table's own Prepare applications for those jobs). The List can select too: while the action is offered, each List row of those stages has the same checkbox (the page draws it, CareerJobsTable.picks), the selection is this module's, and the List's bar offers only Fill in several on my Chrome.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.68.9: Bulk Send names the person's chosen Job Apply connected device when asking to send approved applications.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "when i click prepare application i still need the option of 'Other experience · optional — Agentic Federal | oshal (open-source)' to be selectable. this is not a choice in bulk edit"): Prepare applications asks first. One step lists the person's Other experience as the application page does ("Other experience · optional", each entry with its organization), under "Include in every selected application", with the count in its title and its button ("Prepare 4 applications") and the jobs left out; the entries the person prepared their last application with are ticked (GET /experience-bank?summary=1 last). Nothing is queued until Prepare is pressed; Cancel, Escape or a failed read queue nothing and say so. Each queued preparation carries exactly the ticked entries (CareerBulkQueue saves them on the job's tailoring before it is prepared), and the line after says which. Guard: tests/career-prepare-other-experience-browser.test.mjs.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.68.0 (Roger, 2026-11-16, 194 saved jobs on My jobs: "a consolidated job view where i can select multiple rows on a table and push all the applications to prepare application that i select ... bulk select for all of the subsequent screens as well"; and "the job location doesnt transfer to the my jobs page and i cant look at jobs near me"). A Table view beside the List on Saved, Getting ready, Removed, Applied, Interviewing, Offer and Closed, remembered per person in their own browser storage. One row per job with Company, Title, Location, Match, Stage, Saved and Résumé; every column sorts; filters for distance (within 10, 25, 50 or 100 miles, or Remote), résumé and stage. A checkbox on each row, select all of what the filters show (indeterminate when part is chosen, Shift for a range) and a running count. A bar with the stage's bulk actions: Saved prepares applications, removes, or moves to Getting ready; Getting ready sends from the person's computer, prepares again or removes; Removed puts back or prepares; Applications move between Interviewing, Offer and Closed. Prepare and every move run through CareerBulkQueue (each job's own writes, at most two preparations at a time), with progress on each row and overall, Cancel for what is queued, Resume after a pause and Clear. Send reads each job's exact packet, then asks once with the count and the companies and sends nothing until the person ticks the approval and presses Send. At phone width the table is a selectable list with the same actions. Guard: tests/career-jobs-table-browser.test.mjs.
@@ -20,18 +22,20 @@
   };
   /** Each stage's bulk actions; the first named is the stage's filled button. */
   const STAGE_ACTIONS = {
-    saved: { buttons: ['prepare', 'remove'], moves: ['queue'] }, queue: { buttons: ['send', 'prepare', 'remove'], moves: [] },
+    saved: { buttons: ['prepare', 'fill', 'regenerate', 'remove'], moves: ['queue'] }, queue: { buttons: ['fill', 'send', 'prepare', 'regenerate', 'remove'], moves: [] },
     dismissed: { buttons: ['putback', 'prepare'], moves: [] }, status: { buttons: [], moves: ['interview', 'offer', 'rejected'] },
     interview: { buttons: [], moves: ['offer', 'rejected'] }, offer: { buttons: [], moves: ['interview', 'rejected'] },
     closed: { buttons: [], moves: ['interview', 'offer'] },
   };
-  const LABELS = { prepare: 'Prepare applications', remove: 'Remove', putback: 'Put back in Saved', send: 'Send from my computer' };
+  const LABELS = { prepare: 'Prepare applications', remove: 'Remove', putback: 'Put back in Saved', send: 'Send from my computer', fill: 'Fill in several on my Chrome', regenerate: 'Generate again' };
+  /** The stages whose List rows can be selected, for Fill in several on my Chrome and Generate again. */
+  const LIST_PICKS = new Set(['saved', 'queue']);
   const MILES = [10, 25, 50, 100], PER = 300, MOST = 2000;
   const COLUMNS = [['company', 'Company'], ['title', 'Title'], ['location', 'Location'], ['match', 'Match'], ['stage', 'Stage'], ['saved', 'Saved'], ['resume', 'Résumé']];
   const esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (id) => root.document.getElementById(id);
   const S = { deps: null, layout: 'list', rows: [], selected: new Set(), anchor: null, sort: { key: 'match', dir: -1 },
-    filter: { within: '', resume: '', stage: '' }, home: null, epoch: 0, queue: null, error: '', loading: false, reloadTimer: null, ended: new Set(), computer: null, shift: false, busy: false };
+    filter: { within: '', resume: '', stage: '' }, home: null, epoch: 0, queue: null, error: '', loading: false, reloadTimer: null, ended: new Set(), computer: null, fill: false, availability: null, shift: false, busy: false };
   const phone = typeof root.matchMedia === 'function' ? root.matchMedia('(max-width: 640px)') : { matches: false, addEventListener() {} };
 
   /** @description Read a remembered value from the person's own storage; '' when the browser refuses. */
@@ -125,6 +129,7 @@
   }
   /** @description The rows the filters show, in the chosen order. @returns {object[]} */
   function visible() {
+    if (S.layout !== 'table') return S.deps && S.deps.rows ? S.deps.rows() : [];
     const { key, dir } = S.sort;
     return S.rows.filter(passes).sort((a, b) => {
       const x = sortValue(a, key), y = sortValue(b, key);
@@ -236,7 +241,7 @@
   function prune() { const shown = new Set(visible().map((job) => job.id)); for (const id of [...S.selected]) if (!shown.has(id)) S.selected.delete(id); }
   /** @description Bring every checkbox, the select-all box, the count and the bar in line with the selection. @returns {void} */
   function syncChecks() {
-    const host = $('jobsTable');
+    const host = S.layout === 'table' ? $('jobsTable') : $('list');
     if (!host) return;
     const rows = visible(), chosen = rows.filter((job) => S.selected.has(job.id)).length;
     for (const box of host.querySelectorAll('[data-select]')) {
@@ -275,13 +280,16 @@
   function renderBar() {
     const bar = $('bulkBar');
     if (!bar) return;
-    const chosen = S.deps && S.layout === 'table' ? selectedRows() : [];
+    const chosen = S.deps && (S.layout === 'table' || picks()) ? selectedRows() : [];
     bar.hidden = !chosen.length;
     root.document.documentElement.toggleAttribute('data-bulk-bar', !bar.hidden);
     if (bar.hidden) { bar.innerHTML = ''; return; }
-    const plan = STAGE_ACTIONS[S.deps.stage], names = plan.buttons.filter((name) => name !== 'send' || S.computer === true);
-    const buttons = names.map((name, index) => `<button type="button" class="${index === 0 ? 'ck-primary' : 'ck-btn'}" data-bulk="${name}">${esc(LABELS[name])}</button>`).join('');
-    const moves = plan.moves.length ? `<select class="jt-move" data-bulk-move aria-label="Move the selected jobs to"><option value="">Move to…</option>${plan.moves.map((name) => `<option value="${name}">${esc(MOVES[name].label)}</option>`).join('')}</select>` : '';
+    const plan = STAGE_ACTIONS[S.deps.stage], list = S.layout !== 'table';
+    const again = chosen.filter((job) => !leftOut('regenerate', job)).length;
+    const names = plan.buttons.filter((name) => (name !== 'send' || S.computer === true) && (name !== 'fill' || S.fill === true) && (name !== 'regenerate' || (again > 0 && Boolean(root.CareerRegenerate))) && (!list || name === 'fill' || name === 'regenerate'));
+    const label = (name) => (name === 'regenerate' ? `${LABELS.regenerate} (${again})` : LABELS[name]);
+    const buttons = names.map((name, index) => `<button type="button" class="${index === 0 ? 'ck-primary' : 'ck-btn'}" data-bulk="${name}">${esc(label(name))}</button>`).join('');
+    const moves = plan.moves.length && !list ? `<select class="jt-move" data-bulk-move aria-label="Move the selected jobs to"><option value="">Move to…</option>${plan.moves.map((name) => `<option value="${name}">${esc(MOVES[name].label)}</option>`).join('')}</select>` : '';
     bar.innerHTML = `<button type="button" class="ck-icon" data-bulk="clear" aria-label="Clear the selection">✕</button><span class="jt-selected" role="status">${chosen.length} selected</span><div class="jt-actions">${buttons}${moves}</div>`;
   }
 
@@ -297,6 +305,8 @@
     if (name === 'prepare') return applied ? 'already applied' : job.has_resume ? 'already prepared' : unread(job) ? 'needs the job description pasted' : resumeOf(job).kind === 'running' || pending(job.id, 'prepare') ? 'already being prepared' : '';
     if (name === 'remove') return applied ? 'applied jobs stay in Applications' : job.status === 'dismissed' ? 'already removed' : '';
     if (name === 'putback') return job.status === 'dismissed' ? '' : 'not removed';
+    if (name === 'fill') return applied ? 'already applied' : '';
+    if (name === 'regenerate') return applied ? 'already applied' : job.status === 'dismissed' ? 'removed' : !job.has_resume ? 'no documents yet' : '';
     if (name === 'send') return applied ? 'already applied' : !(job.has_resume && job.has_cover) ? 'no résumé and cover letter yet' : pending(job.id, 'send') ? 'already being sent' : '';
     if (name === 'queue') return applied ? 'already applied' : READY.has(job.status) ? 'already in Getting ready' : '';
     if (MOVES[name]) return !applied ? 'not applied yet' : job.status === MOVES[name].body.status ? 'already there' : '';
@@ -332,6 +342,8 @@
    */
   function act(name) {
     const chosen = selectedRows(), take = [], left = [];
+    if (name === 'fill') { void fillChosen(chosen); return; }
+    if (name === 'regenerate') { void regenerateChosen(chosen); return; }
     for (const job of chosen) { const why = leftOut(name, job); if (why) left.push({ job, why }); else take.push(job); }
     if (!take.length) { S.deps.say(`None of the ${chosen.length} selected can do that.` + leftWords(left)); return; }
     if (name === 'send') { void confirmSend(take, left); return; }
@@ -344,6 +356,38 @@
   }
 
   /** @description The person's Other experience (no facts): entries, revision and the choice they prepared their last application with. */
+  /**
+   * @description Fill in several on my Chrome: the batch's own sheet reads each job's exact packet, asks once and queues
+   * each approval; jobs still needing documents can be prepared from it with this table's Prepare applications.
+   * @param {object[]} chosen The selected rows. @returns {Promise<void>}
+   */
+  async function fillChosen(chosen) {
+    const prepare = (jobs) => {
+      const take = [], left = [];
+      for (const job of jobs) { const why = leftOut('prepare', job); if (why) left.push({ job, why }); else take.push(job); }
+      if (take.length) void confirmPrepare(take, left); else S.deps.say('None of them can be prepared now.' + leftWords(left));
+    };
+    try {
+      const queue = await root.CareerApplyBatch.confirm(chosen, { say: S.deps.say, availability: S.availability, prepare });
+      if (queue) { S.selected.clear(); syncChecks(); }
+    } catch (error) { S.deps.say(error.message); }
+  }
+  /**
+   * @description Generate again for the chosen jobs that have documents: tools/career-regenerate.js asks once and queues them.
+   * @param {object[]} chosen The selected rows. @returns {Promise<void>}
+   */
+  async function regenerateChosen(chosen) {
+    const take = [], left = [];
+    for (const job of chosen) { const why = leftOut('regenerate', job); if (why) left.push({ job, why }); else take.push(job); }
+    try {
+      const queue = await root.CareerRegenerate.confirm(take.map((job) => ({ id: job.id, company: job.company, title: job.title })), { say: S.deps.say, left: leftWords(left) });
+      if (queue) { S.selected.clear(); syncChecks(); }
+    } catch (error) { S.deps.say(error.message); }
+  }
+  /** @description Whether the List draws a checkbox on each row: a bulk action of the List is offered on this stage. @returns {boolean} */
+  function picks() { return Boolean(S.deps && (S.fill === true || Boolean(root.CareerRegenerate)) && LIST_PICKS.has(S.deps.stage) && S.layout !== 'table'); }
+  /** @description Whether a job is selected, for the List's own row checkbox. @param {number} id @returns {boolean} */
+  function isSelected(id) { return S.selected.has(id); }
   async function readExperience() {
     const response = await root.fetch(API + '/experience-bank?summary=1', { cache: 'no-store' }), data = await response.json().catch(() => ({}));
     if (!response.ok) throw Error(data.error || 'HTTP ' + response.status);
@@ -628,8 +672,15 @@
   }
   /** @description Whether a computer is connected to send from; Send is offered only then, as on one application's page. */
   async function readComputer() {
-    try { S.computer = (await root.CareerSubmit.workers()).available === true; } catch (_) { S.computer = false; }
+    const before = S.fill;
+    try {
+      S.availability = await root.CareerSubmit.workers();
+      S.computer = S.availability.available === true;
+      S.fill = Boolean(root.CareerApplyBatch && root.CareerApplyBatch.device(S.availability).ready);
+    } catch (_) { S.computer = false; S.fill = false; }
     renderBar();
+    // The List draws its checkboxes only while Fill in several on my Chrome is offered.
+    if (S.fill !== before && S.layout !== 'table' && S.deps.redraw) S.deps.redraw();
   }
   function localStore() { try { return root.localStorage; } catch (_) { return null; } }
   let wired = false;
@@ -658,7 +709,7 @@
       if (phone.addEventListener) phone.addEventListener('change', () => renderTable());
     }
     setLayout(recall(viewKey()) === 'table' ? 'table' : 'list', true);
-    if (deps.stage === 'queue') void readComputer();
+    if (deps.stage === 'queue' || LIST_PICKS.has(deps.stage)) void readComputer();
     renderProgress();
   }
   /**
@@ -673,5 +724,5 @@
     return item.state === 'queued' ? 'Queued: ' + (item.label || said.word) : said.word + (said.reason ? ': ' + said.reason : '');
   }
 
-  root.CareerJobsTable = { attach, load, words, active: () => S.layout === 'table', queue: () => S.queue };
+  root.CareerJobsTable = { attach, load, words, picks, isSelected, active: () => S.layout === 'table', queue: () => S.queue };
 })(window);

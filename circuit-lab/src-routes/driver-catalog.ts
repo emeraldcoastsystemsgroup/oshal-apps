@@ -58,6 +58,15 @@
  *                     |                             | solver's servo decodes a pulse width, which stands in for the
  *                     |                             | bus position command. Same data-not-runtime rule, same
  *                     |                             | fail-closed withholding when embodied is absent.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Add the stepper sharedPart reader (BACKLOG B4): reads
+ *                     |                             | identity (name, massG, approxUsd, source) and core stepper
+ *                     |                             | nameplate specs (stepsPerRev, phaseOhms, phaseMh, ratedAmps,
+ *                     |                             | holdingTorqueMnm) from either flat owner fields or an owner
+ *                     |                             | `stepper` block, keeping this lab's modelling defaults
+ *                     |                             | (detentTorqueMnm, rotorInertiaGcm2, dampingRatio) local.
+ *                     |                             | Refuses restating any owned field, withholds fail-closed on
+ *                     |                             | absent or malformed owners, and keeps fail-closed refusal
+ *                     |                             | for any type without a registered reader.
  */
 
 import fs from 'node:fs';
@@ -118,6 +127,8 @@ const OWNED_FIELDS = ['name', 'massG', 'approxUsd', 'source'] as const;
 const OWNED_SERVO_PROPS = ['minPulseMs', 'maxPulseMs', 'travelDeg', 'noLoadDegPerS', 'stallTorqueMnm', 'idleAmps', 'runAmps', 'stallAmps'] as const;
 /** Nameplate fields a serial-bus servo's owner supplies through its jointDrive block: the rated stall torque and the rated no-load speed. */
 const OWNED_BUS_SERVO_PROPS = ['stallTorqueMnm', 'noLoadDegPerS'] as const;
+/** Nameplate fields a shared stepper's owner supplies: step geometry, winding impedance, rated phase current and holding torque. */
+const OWNED_STEPPER_PROPS = ['stepsPerRev', 'phaseOhms', 'phaseMh', 'ratedAmps', 'holdingTorqueMnm'] as const;
 
 type Obj = Record<string, unknown>;
 
@@ -291,6 +302,29 @@ function readMotorPart(row: Obj, local: Obj): SharedReading | { reason: string }
 }
 
 /**
+ * @description Read a stepper motor an owner publishes, either as flat fields on the owner row or
+ * inside a `stepper` block. The owner gives identity (name, mass, price, source) and the core
+ * datasheet specs (stepsPerRev, phaseOhms, phaseMh, ratedAmps, holdingTorqueMnm); this lab keeps
+ * its own modelling defaults (detentTorqueMnm, rotorInertiaGcm2, dampingRatio).
+ * @param row - The owner's raw row.
+ * @returns The owner's identity block and stepper nameplate fields, or the reason it cannot be used.
+ */
+function readStepperPart(row: Obj): SharedReading | { reason: string } {
+  const shared = readIdentity(row);
+  if ('reason' in shared) return shared;
+  if (row.stepper !== undefined && !isObj(row.stepper)) return { reason: 'the owner row has an invalid stepper block' };
+  const spec = isObj(row.stepper) ? row.stepper : row;
+  const prefix = isObj(row.stepper) ? 'stepper.' : '';
+  const props: Record<string, number> = {};
+  for (const key of OWNED_STEPPER_PROPS) {
+    const v = ownerNumber(spec, key);
+    if (typeof v !== 'number') return { reason: `the owner row is missing a usable ${prefix}${v.bad}` };
+    props[key] = v;
+  }
+  return { shared, props };
+}
+
+/**
  * The part types this lab knows how to read from another package's catalog, and what each one owns.
  * A key is the type, or `type/kind` for a kind whose owner publishes a different block: a `servo` of
  * kind `bus-servo` is read from a jointDrive block, every other servo from the hobby pulse block.
@@ -299,6 +333,7 @@ const SHARED_READERS: Record<string, SharedReader> = {
   servo: { ownedRow: [], ownedProps: OWNED_SERVO_PROPS, localRequired: [], read: (row) => readServoPart(row) },
   'servo/bus-servo': { ownedRow: [], ownedProps: OWNED_BUS_SERVO_PROPS, localRequired: ['nominalVolts', 'stallAmps', 'runAmps', 'idleAmps', 'rotorInertiaGcm2'], read: (row) => readBusServoPart(row) },
   motor: { ownedRow: ['kv'], ownedProps: ['noLoadRpm'], localRequired: ['nominalVolts'], read: readMotorPart },
+  stepper: { ownedRow: [], ownedProps: OWNED_STEPPER_PROPS, localRequired: [], read: (row) => readStepperPart(row) },
 };
 
 /**
@@ -308,7 +343,7 @@ const SHARED_READERS: Record<string, SharedReader> = {
  * @param kind - The row's kind.
  * @returns The reader, or undefined when this lab cannot read that type from another package.
  */
-function sharedReaderFor(type: string, kind: string): SharedReader | undefined {
+export function sharedReaderFor(type: string, kind: string): SharedReader | undefined {
   return SHARED_READERS[`${type}/${kind}`] ?? SHARED_READERS[type];
 }
 

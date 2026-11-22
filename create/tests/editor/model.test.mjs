@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify flipX/flipY validation, canonical false omission, all paint/group types, duplicate, undo/redo, ungroup composition, hitTest on flipped shapes/paths, and locked/adjustment refusals.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: verify text styling (italic, underline, lineHeight, letterSpacing, stroke, strokeWidth, shadow) validation, canonical default omission, JSON round-trip, group scaling, outlined hitTest and locked/invalid refusals.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -400,4 +401,54 @@ test('flipX and flipY validate strictly on paint and group layers, omit false ca
     layer: { id: 'diag', type: 'freehand', x: 0, y: 0, w: 100, h: 100, strokeWidth: 4, flipX: true, points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] } });
   assert.equal(hitTest(stroke, { x: 90, y: 10 }).id, 'diag');
   assert.equal(hitTest(stroke, { x: 10, y: 10 }), null);
+});
+
+test('text styling validates bounds, omits canonical defaults, survives round-trips/grouping and refuses invalid or locked edits', () => {
+  const base = layersProject(), before = serializeProject(base, { assetMode: 'reference' });
+  const styled = applyOperation(base, { type: 'update', id: 'text', patch: {
+    italic: true, underline: true, lineHeight: 1.75, letterSpacing: 4.5, stroke: '#1234AB', strokeWidth: 3,
+  } });
+  assert.equal(styled.version, 1);
+  const entry = styled.layers.find(layer => layer.id === 'text');
+  assert.equal(entry.italic, true); assert.equal(entry.underline, true);
+  assert.equal(entry.lineHeight, 1.75); assert.equal(entry.letterSpacing, 4.5);
+  assert.equal(entry.stroke, '#1234ab'); assert.equal(entry.strokeWidth, 3);
+  for (const mode of ['reference', 'portable']) {
+    assert.deepEqual(parseProject(serializeProject(styled, { assetMode: mode }), { assetMode: mode }), styled);
+  }
+  const clearedByNull = applyOperation(styled, { type: 'update', id: 'text', patch: {
+    italic: false, underline: false, lineHeight: 1.2, letterSpacing: 0, stroke: null,
+  } });
+  assert.equal(serializeProject(clearedByNull, { assetMode: 'reference' }), before);
+  const clearedByZero = applyOperation(styled, { type: 'update', id: 'text', patch: { strokeWidth: 0 } });
+  assert.equal('stroke' in clearedByZero.layers.find(l => l.id === 'text'), false);
+  assert.equal('strokeWidth' in clearedByZero.layers.find(l => l.id === 'text'), false);
+  const widthOnly = applyOperation(base, { type: 'update', id: 'text', patch: { strokeWidth: 2 } });
+  assert.equal(widthOnly.layers.find(l => l.id === 'text').stroke, '#000000');
+  const withShadow = applyOperation(styled, { type: 'update', id: 'text', patch: {
+    shadow: { color: '#000000', opacity: 0.4, blur: 8, offsetX: 3, offsetY: 5 },
+  } });
+  assert.equal(withShadow.version, 4);
+  assert.deepEqual(parseProject(serializeProject(withShadow, { assetMode: 'reference' }), { assetMode: 'reference' }), withShadow);
+  for (const bad of [
+    { italic: 'yes' }, { underline: 1 }, { lineHeight: 0.7 }, { lineHeight: 3.1 }, { lineHeight: NaN },
+    { letterSpacing: -11 }, { letterSpacing: 101 }, { stroke: '#fff' }, { stroke: 'transparent' },
+    { stroke: 'red' }, { strokeWidth: -1 }, { strokeWidth: 33 }, { strokeWidth: '4' },
+  ]) assert.throws(() => applyOperation(base, { type: 'update', id: 'text', patch: bad }));
+  for (const field of ['italic', 'underline', 'lineHeight', 'letterSpacing']) {
+    assert.throws(() => applyOperation(base, { type: 'update', id: 'rect', patch: { [field]: 1 } }), /unsupported fields/);
+  }
+  const locked = applyOperation(base, { type: 'update', id: 'text', patch: { locked: true } });
+  assert.throws(() => applyOperation(locked, { type: 'update', id: 'text', patch: { italic: true } }), /Unlock/);
+  // Outlined transparent-fill text remains hit-testable, and group scaling scales letterSpacing & strokeWidth.
+  const outlined = applyOperation(createProject({ width: 200, height: 100 }), { type: 'add',
+    layer: { id: 't', type: 'text', x: 10, y: 10, w: 80, h: 40, text: 'Outline', fill: 'transparent', stroke: '#ff0000', strokeWidth: 2, letterSpacing: 4 } });
+  assert.equal(hitTest(outlined, { x: 30, y: 20 }).id, 't');
+  let grouped = applyOperation(outlined, { type: 'add', layer: { id: 'r', type: 'rect', x: 10, y: 60, w: 20, h: 20 } });
+  grouped = applyOperation(grouped, { type: 'group', ids: ['t', 'r'], id: 'g' });
+  const grp = grouped.layers.find(l => l.id === 'g');
+  grouped = applyOperation(grouped, { type: 'update', id: 'g', patch: { w: grp.w * 2, h: grp.h * 2 } });
+  const ungrouped = applyOperation(grouped, { type: 'ungroup', id: 'g' });
+  assert.equal(ungrouped.layers.find(l => l.id === 't').letterSpacing, 8);
+  assert.equal(ungrouped.layers.find(l => l.id === 't').strokeWidth, 4);
 });

@@ -48,6 +48,13 @@
  *                     |                             | withholds its three rows, and installed alone the package
  *                     |                             | withholds four. The row's own read-through, fixture-moves and
  *                     |                             | withheld-by-name cases live in tests/hexapod-power.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Cover all five animatronics servo rows (SG90, MG90S, MG996R,
+ *                     |                             | DS3218, STS3215 7.4 V) and add the full stepper sharedPart
+ *                     |                             | reader suite: fixture owner (flat and nested `stepper` block)
+ *                     |                             | moves the answer, absent owner withholds naming it, malformed
+ *                     |                             | owner or missing stepper field withholds with reason,
+ *                     |                             | restating any owned stepper field is refused naming the field,
+ *                     |                             | and an unknown type with no reader stays refused at load.
  */
 'use strict';
 const test = require('node:test');
@@ -57,13 +64,14 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const { loadDriverCatalog, listDrivers } = require(path.resolve(__dirname, '..', 'routes', 'driver-catalog.js'));
+const { loadDriverCatalog, listDrivers, sharedReaderFor } = require(path.resolve(__dirname, '..', 'routes', 'driver-catalog.js'));
 const { ContractError } = require(path.resolve(__dirname, '..', 'routes', 'circuit-contract.js'));
 const { missingSharedOwners } = require(path.resolve(__dirname, 'shared-part-owners.js'));
 
 const PACKAGES_ROOT = path.resolve(__dirname, '..', '..');
 const FILE = path.resolve(__dirname, '..', 'catalog', 'drivers.json');
 const SHARED_ID = 'servo-micro-9g';
+const ANIMATRONICS_IDS = ['servo-micro-9g', 'servo-mg90s', 'servo-mg996r', 'servo-ds3218', 'servo-sts3215-7v4'];
 const OWNER_LOADER = path.join(PACKAGES_ROOT, 'animatronics', 'routes', 'engine', 'catalog.js');
 const OWNER_CATALOG = path.join(PACKAGES_ROOT, 'animatronics', 'catalog', 'servos.json');
 const MOTOR_OWNER_FILE = ['routes', 'engine', 'design', 'parts-catalog.json'];
@@ -100,17 +108,24 @@ function fixtureRoot(ownerJson, motorOwnerJson = MOTOR_OWNER) {
   return { root, file: path.join(root, 'circuit-lab', 'catalog', 'drivers.json') };
 }
 
-/** A minimal owner catalog carrying one servo row. */
-function ownerCatalogWith(row) {
-  return { servos: [row], controllers: [] };
-}
-
 const OWNER_ROW = {
   id: 'sg90', name: 'A DIFFERENT SERVO', kind: 'hobby', massG: 11.5, approxUsd: 7,
   voltsMin: 4.5, voltsMax: 6.5, pulseMinUs: 600, pulseMaxUs: 2300, travelDeg: 170,
   secondsPer60: 0.15, stallKgCm: 2.5, idleMa: 12, movingMa: 260, stallMa: 820,
   source: 'a fixture row, so that a read can be told from a copy', usedBy: [],
 };
+
+const EXTRA_OWNER_SERVOS = [
+  { ...OWNER_ROW, id: 'mg90s', name: 'FIXTURE MG90S', massG: 15, approxUsd: 5, voltsMin: 4.8, voltsMax: 6.2 },
+  { ...OWNER_ROW, id: 'mg996r', name: 'FIXTURE MG996R', massG: 58, approxUsd: 8, voltsMin: 4.8, voltsMax: 7.2, stallKgCm: 12, stallMa: 2400 },
+  { ...OWNER_ROW, id: 'ds3218', name: 'FIXTURE DS3218', massG: 62, approxUsd: 14, voltsMin: 4.8, voltsMax: 7.0, travelDeg: 270, stallKgCm: 21, stallMa: 3100 },
+  { ...OWNER_ROW, id: 'feetech-sts3215', name: 'FIXTURE STS3215 7V4', kind: 'bus', massG: 66, approxUsd: 17, voltsMin: 6, voltsMax: 8.4, travelDeg: 360, stallKgCm: 19.5, stallMa: 2800 },
+];
+
+/** A fixture owner catalog carrying all five animatronics servo rows, with `sg90Row` substituted for sg90. */
+function ownerCatalogWith(sg90Row) {
+  return { servos: [sg90Row, ...EXTRA_OWNER_SERVOS], controllers: [] };
+}
 
 test('the shared row is READ from its owner: identity, mass, price, source and the pulse-and-speed block all move with the owner', () => {
   const { root, file } = fixtureRoot(ownerCatalogWith(OWNER_ROW));
@@ -151,34 +166,37 @@ test('the lab keeps only the block it understands: the operating point and the r
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('with the owner absent the row is WITHHELD naming the owner, and the rest of the catalog still loads', () => {
+test('with the owner absent the rows are WITHHELD naming the owner, and the rest of the catalog still loads', () => {
   const { root, file } = fixtureRoot(null);
   const { drivers, unresolved } = loadDriverCatalog(file);
-  assert.equal(drivers.find((r) => r.id === SHARED_ID), undefined, 'nothing is invented in the owner place');
+  for (const id of ANIMATRONICS_IDS) assert.equal(drivers.find((r) => r.id === id), undefined, `${id}: nothing is invented in the owner place`);
   assert.deepEqual(listDrivers(drivers, 'servo').map((r) => r.id), ['servo-bus-sts3215-12v'], 'the only servo that still loads is the one embodied owns');
   const outright = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.filter((r) => !r.sharedPart).map((r) => r.id);
   for (const id of [...outright, ...EMBODIED_IDS]) assert.ok(drivers.some((r) => r.id === id), `${id} still loads: its owner is not the one missing`);
-  assert.equal(unresolved.length, 1);
-  assert.equal(unresolved[0].id, SHARED_ID);
-  assert.equal(unresolved[0].owner, 'animatronics');
-  assert.match(unresolved[0].reason, /animatronics/);
+  assert.deepEqual(unresolved.map((u) => u.id).sort(), [...ANIMATRONICS_IDS].sort());
+  for (const u of unresolved) {
+    assert.equal(u.owner, 'animatronics');
+    assert.match(u.reason, /animatronics/);
+  }
   fs.rmSync(root, { recursive: true, force: true });
 });
 
 test('an owner that is installed but cannot answer withholds the row with the reason, never a guess', () => {
   const cases = [
-    [ownerCatalogWith({ ...OWNER_ROW, id: 'something-else' }), /no row .*sg90/i],
-    [{ controllers: [] }, /servos/i],
-    ['{ not json', /could not be read|parse/i],
-    [ownerCatalogWith({ ...OWNER_ROW, stallKgCm: 'heavy' }), /stallKgCm/],
+    [ownerCatalogWith({ ...OWNER_ROW, id: 'something-else' }), /no row .*sg90/i, 1],
+    [{ controllers: [] }, /servos/i, ANIMATRONICS_IDS.length],
+    ['{ not json', /could not be read|parse/i, ANIMATRONICS_IDS.length],
+    [ownerCatalogWith({ ...OWNER_ROW, stallKgCm: 'heavy' }), /stallKgCm/, 1],
   ];
-  for (const [ownerJson, reason] of cases) {
+  for (const [ownerJson, reason, expectedCount] of cases) {
     const { root, file } = fixtureRoot(ownerJson);
     const { drivers, unresolved } = loadDriverCatalog(file);
     assert.equal(drivers.find((r) => r.id === SHARED_ID), undefined);
-    assert.equal(unresolved.length, 1);
-    assert.match(unresolved[0].reason, reason);
-    assert.equal(unresolved[0].owner, 'animatronics');
+    assert.equal(unresolved.length, expectedCount);
+    const sg90 = unresolved.find((u) => u.id === SHARED_ID);
+    assert.ok(sg90, `${reason}: sg90 is named as withheld`);
+    assert.match(sg90.reason, reason);
+    assert.equal(sg90.owner, 'animatronics');
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -212,21 +230,29 @@ test('an operating point outside the voltage window the owner publishes is refus
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('against the real tree the lab and the owner describe the SAME servo', { skip: !fs.existsSync(OWNER_LOADER) && 'animatronics is not checked out beside this package' }, () => {
+test('against the real tree the lab and the owner describe the SAME servos (all five animatronics rows)', { skip: !fs.existsSync(OWNER_LOADER) && 'animatronics is not checked out beside this package' }, () => {
   const { loadServoCatalog, maxDegPerSOf } = require(OWNER_LOADER);
-  const owner = loadServoCatalog(OWNER_CATALOG).servos.find((s) => s.id === 'sg90');
-  assert.ok(owner, 'animatronics owns the sg90 row');
-  const row = loadDriverCatalog(FILE).drivers.find((r) => r.id === SHARED_ID);
-  assert.ok(row, 'the shared row resolves against the real packages root');
-  assert.equal(row.name, owner.name);
-  assert.equal(row.massG, owner.massG);
-  assert.equal(row.approxUsd, owner.approxUsd);
-  assert.ok(row.source.includes(owner.source), 'the provenance the owner wrote travels with the row');
-  assert.equal(row.nameplate.minPulseMs, owner.pulseMinUs / 1000);
-  assert.equal(row.nameplate.maxPulseMs, owner.pulseMaxUs / 1000);
-  assert.equal(row.nameplate.travelDeg, owner.travelDeg);
-  assert.equal(row.nameplate.noLoadDegPerS, maxDegPerSOf(owner));
-  assert.equal(row.nameplate.stallAmps, owner.stallMa / 1000);
+  const owners = loadServoCatalog(OWNER_CATALOG).servos;
+  const declared = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.filter((r) => r.sharedPart && r.sharedPart.owner === 'animatronics');
+  assert.equal(declared.length, owners.length, 'every animatronics servo row is shared into this lab');
+  const { drivers } = loadDriverCatalog(FILE);
+  for (const owner of owners) {
+    const decl = declared.find((d) => d.sharedPart.id === owner.id);
+    assert.ok(decl, `animatronics owns ${owner.id}`);
+    const row = drivers.find((r) => r.id === decl.id);
+    assert.ok(row, `${decl.id} resolves against the real packages root`);
+    assert.equal(row.name, owner.name);
+    assert.equal(row.massG, owner.massG);
+    assert.equal(row.approxUsd, owner.approxUsd);
+    assert.ok(row.source.includes(owner.source), `${decl.id}: the provenance the owner wrote travels with the row`);
+    assert.equal(row.nameplate.minPulseMs, owner.pulseMinUs / 1000);
+    assert.equal(row.nameplate.maxPulseMs, owner.pulseMaxUs / 1000);
+    assert.equal(row.nameplate.travelDeg, owner.travelDeg);
+    assert.equal(row.nameplate.noLoadDegPerS, maxDegPerSOf(owner));
+    assert.equal(row.nameplate.idleAmps, owner.idleMa / 1000);
+    assert.equal(row.nameplate.runAmps, owner.movingMa / 1000);
+    assert.equal(row.nameplate.stallAmps, owner.stallMa / 1000);
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -320,11 +346,141 @@ test('restating a field embodied publishes, or dropping the operating point the 
     assert.throws(() => loadDriverCatalog(made.file), (e) => e instanceof ContractError && e.field === field, field);
     fs.rmSync(made.root, { recursive: true, force: true });
   }
-  const stepper = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.type === 'stepper');
-  const made = fixtureRoot(ownerCatalogWith(OWNER_ROW));
-  fs.writeFileSync(made.file, JSON.stringify({ version: 1, drivers: [{ ...stepper, name: undefined, massG: undefined, approxUsd: undefined, source: undefined, note: 'n', sharedPart: { owner: 'embodied', file: 'routes/engine/design/parts-catalog.json', list: 'steppers', id: 'x1' } }] }));
-  assert.throws(() => loadDriverCatalog(made.file), (e) => e instanceof ContractError && e.field === 'drivers[0].sharedPart', 'a stepper still has no reader, and is refused rather than half-resolved');
-  fs.rmSync(made.root, { recursive: true, force: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The stepper reader: reads identity plus core datasheet specs (stepsPerRev,
+// phaseOhms, phaseMh, ratedAmps, holdingTorqueMnm) from either flat owner fields
+// or a nested `stepper` block, keeping this lab's modelling defaults local.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STEPPER_REF = { owner: 'fixture-motion', file: 'catalog/steppers.json', list: 'steppers', id: 'nema17-42' };
+const SHARED_STEPPER_ROW = {
+  id: 'stepper-shared-nema17',
+  type: 'stepper',
+  kind: 'stepper',
+  sharedPart: STEPPER_REF,
+  nameplate: { detentTorqueMnm: 18, rotorInertiaGcm2: 68, dampingRatio: 0.2 },
+  note: 'detent torque, rotor inertia and damping ratio are this lab modelling defaults',
+  usedBy: [],
+};
+const FIXTURE_STEPPER_FLAT = {
+  id: 'nema17-42', name: 'Fixture NEMA 17 0.9 deg', massG: 310, approxUsd: 19,
+  stepsPerRev: 400, phaseOhms: 2.1, phaseMh: 4.2, ratedAmps: 1.5, holdingTorqueMnm: 460,
+  source: 'fixture stepper datasheet (400 steps/rev, 2.1 ohm, 4.2 mH, 1.5 A, 460 mN m)',
+};
+
+function stepperFixture(ownerJson, drivers = [SHARED_STEPPER_ROW]) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-stepper-'));
+  const file = path.join(root, 'circuit-lab', 'catalog', 'drivers.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ version: 1, drivers }));
+  if (ownerJson !== null) {
+    const ownerFile = path.join(root, STEPPER_REF.owner, ...STEPPER_REF.file.split('/'));
+    fs.mkdirSync(path.dirname(ownerFile), { recursive: true });
+    fs.writeFileSync(ownerFile, typeof ownerJson === 'string' ? ownerJson : JSON.stringify(ownerJson));
+  }
+  return { root, file };
+}
+
+test('a shared STEPPER is READ from its owner (flat or nested stepper block) and moves when the owner changes numbers', () => {
+  const first = stepperFixture({ steppers: [FIXTURE_STEPPER_FLAT] });
+  const r1 = loadDriverCatalog(first.file);
+  assert.deepEqual(r1.unresolved, []);
+  const row1 = r1.drivers[0];
+  assert.equal(row1.name, FIXTURE_STEPPER_FLAT.name);
+  assert.equal(row1.massG, 310);
+  assert.equal(row1.approxUsd, 19);
+  assert.match(row1.source, /fixture stepper datasheet/);
+  assert.match(row1.source, /fixture-motion\/catalog\/steppers\.json#nema17-42/);
+  assert.deepEqual(row1.sharedFrom, STEPPER_REF);
+  assert.equal(row1.nameplate.stepsPerRev, 400);
+  assert.equal(row1.nameplate.phaseOhms, 2.1);
+  assert.equal(row1.nameplate.phaseMh, 4.2);
+  assert.equal(row1.nameplate.ratedAmps, 1.5);
+  assert.equal(row1.nameplate.holdingTorqueMnm, 460);
+  assert.equal(row1.nameplate.detentTorqueMnm, 18);
+  assert.equal(row1.nameplate.rotorInertiaGcm2, 68);
+  assert.equal(row1.nameplate.dampingRatio, 0.2);
+  fs.rmSync(first.root, { recursive: true, force: true });
+
+  const nestedOwner = {
+    steppers: [{
+      id: 'nema17-42', name: 'Fixture NEMA 23 High-Torque', massG: 650, approxUsd: 34,
+      source: 'nested stepper block datasheet',
+      stepper: { stepsPerRev: 200, phaseOhms: 0.9, phaseMh: 2.5, ratedAmps: 2.8, holdingTorqueMnm: 1260 },
+    }],
+  };
+  const second = stepperFixture(nestedOwner);
+  const r2 = loadDriverCatalog(second.file);
+  assert.deepEqual(r2.unresolved, []);
+  assert.equal(r2.drivers[0].name, 'Fixture NEMA 23 High-Torque');
+  assert.equal(r2.drivers[0].massG, 650);
+  assert.equal(r2.drivers[0].nameplate.stepsPerRev, 200);
+  assert.equal(r2.drivers[0].nameplate.holdingTorqueMnm, 1260);
+  assert.equal(r2.drivers[0].nameplate.dampingRatio, 0.2, 'local modelling defaults still apply');
+  fs.rmSync(second.root, { recursive: true, force: true });
+});
+
+test('with a stepper owner absent the shared stepper is WITHHELD naming the owner while owned rows still load', () => {
+  const owned = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.find((r) => r.id === 'stepper-nema17-17hs4401');
+  const { root, file } = stepperFixture(null, [owned, SHARED_STEPPER_ROW]);
+  const { drivers, unresolved } = loadDriverCatalog(file);
+  assert.deepEqual(drivers.map((r) => r.id), ['stepper-nema17-17hs4401'], 'owned stepper still loads');
+  assert.equal(unresolved.length, 1);
+  assert.equal(unresolved[0].id, SHARED_STEPPER_ROW.id);
+  assert.equal(unresolved[0].type, 'stepper');
+  assert.equal(unresolved[0].owner, STEPPER_REF.owner);
+  assert.match(unresolved[0].reason, /fixture-motion owns this part and is not installed/);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test('a stepper owner that cannot answer or omits a required stepper field withholds the row with the reason', () => {
+  const cases = [
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, id: 'other' }] }, /no row nema17-42/],
+    [{ motors: [] }, /has no steppers list/],
+    ['{ not json', /could not be read/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, stepper: 'bad' }] }, /invalid stepper block/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, stepsPerRev: 0 }] }, /stepsPerRev/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, phaseOhms: 'low' }] }, /phaseOhms/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, phaseMh: undefined }] }, /phaseMh/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, ratedAmps: -1 }] }, /ratedAmps/],
+    [{ steppers: [{ ...FIXTURE_STEPPER_FLAT, holdingTorqueMnm: null }] }, /holdingTorqueMnm/],
+    [{ steppers: [{ id: 'nema17-42', name: 'Nested', massG: 300, approxUsd: 15, source: 's', stepper: { stepsPerRev: 200, phaseOhms: 1.5, phaseMh: 2.8, ratedAmps: 1.7 } }] }, /stepper\.holdingTorqueMnm/],
+  ];
+  for (const [ownerJson, reason] of cases) {
+    const { root, file } = stepperFixture(ownerJson);
+    const { drivers, unresolved } = loadDriverCatalog(file);
+    assert.equal(drivers.length, 0, `${reason}: withheld`);
+    assert.equal(unresolved.length, 1);
+    assert.equal(unresolved[0].owner, STEPPER_REF.owner);
+    assert.match(unresolved[0].reason, reason);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('restating an owner-owned stepper field is refused at load naming the field, and unknown types with no reader stay refused', () => {
+  const cases = [
+    [{ ...SHARED_STEPPER_ROW, name: 'my stepper' }, 'drivers[0].name'],
+    [{ ...SHARED_STEPPER_ROW, massG: 280 }, 'drivers[0].massG'],
+    [{ ...SHARED_STEPPER_ROW, approxUsd: 12 }, 'drivers[0].approxUsd'],
+    [{ ...SHARED_STEPPER_ROW, source: 'local copy' }, 'drivers[0].source'],
+    [{ ...SHARED_STEPPER_ROW, nameplate: { ...SHARED_STEPPER_ROW.nameplate, stepsPerRev: 200 } }, 'drivers[0].nameplate.stepsPerRev'],
+    [{ ...SHARED_STEPPER_ROW, nameplate: { ...SHARED_STEPPER_ROW.nameplate, phaseOhms: 1.5 } }, 'drivers[0].nameplate.phaseOhms'],
+    [{ ...SHARED_STEPPER_ROW, nameplate: { ...SHARED_STEPPER_ROW.nameplate, phaseMh: 2.8 } }, 'drivers[0].nameplate.phaseMh'],
+    [{ ...SHARED_STEPPER_ROW, nameplate: { ...SHARED_STEPPER_ROW.nameplate, ratedAmps: 1.7 } }, 'drivers[0].nameplate.ratedAmps'],
+    [{ ...SHARED_STEPPER_ROW, nameplate: { ...SHARED_STEPPER_ROW.nameplate, holdingTorqueMnm: 400 } }, 'drivers[0].nameplate.holdingTorqueMnm'],
+    [{ ...SHARED_STEPPER_ROW, note: '' }, 'drivers[0].note'],
+  ];
+  for (const [row, field] of cases) {
+    const { root, file } = stepperFixture({ steppers: [FIXTURE_STEPPER_FLAT] }, [row]);
+    assert.throws(() => loadDriverCatalog(file), (e) => e instanceof ContractError && e.field === field, field);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  assert.equal(sharedReaderFor('linear-actuator', 'linear'), undefined, 'an unknown type has no sharedPart reader');
+  const badType = stepperFixture({ steppers: [FIXTURE_STEPPER_FLAT] }, [{ ...SHARED_STEPPER_ROW, type: 'linear-actuator' }]);
+  assert.throws(() => loadDriverCatalog(badType.file), (e) => e instanceof ContractError && e.field === 'drivers[0].type', 'an unknown type with sharedPart is refused at load rather than half-resolved');
+  fs.rmSync(badType.root, { recursive: true, force: true });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -362,9 +518,9 @@ function runInstalledAlone(files, mutate) {
 }
 
 test('installed ALONE, with no owner beside it, this package\u2019s own catalog suite still passes', () => {
-  // Alone, the SG90 (animatronics), both motors and the bus servo (embodied) are withheld, and the suite must agree.
+  // Alone, all five animatronics servos plus both embodied motors and the 12 V bus servo are withheld, and the suite must agree.
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-empty-'));
-  assert.deepEqual(missingSharedOwners(FILE, empty).map((m) => m.id).sort(), [...EMBODIED_IDS, SHARED_ID].sort());
+  assert.deepEqual(missingSharedOwners(FILE, empty).map((m) => m.id).sort(), [...EMBODIED_IDS, ...ANIMATRONICS_IDS].sort());
   fs.rmSync(empty, { recursive: true, force: true });
   const run = runInstalledAlone(['tests/driver-catalog.test.js']);
   assert.equal(run.status, 0, `the catalog suite must pass against a single-package install:\n${run.output}`);

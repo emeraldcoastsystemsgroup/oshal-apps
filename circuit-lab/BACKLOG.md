@@ -101,12 +101,11 @@ checks read-through equality against embodied's own compiled row reader and part
 `tests/shared-parts.test.js` covers the motor's fixture-owner, absent, unanswerable and restated
 cases. Every resolved number is what the rows carried before (name, mass, price, KV, nameplate).
 
-Still open, done when: embodied's MJCF generator reads what it needs for the actuator from the same
-motor row (thrust per rpm, once aero-lab's propeller curves exist) — embodied's B27.
+0.9.6 closed the remaining Circuit Lab half of B4:
+- **All five `animatronics` servo rows offered via `sharedPart`:** `catalog/drivers.json` now carries `servo-mg90s` (`mg90s`, 6 V), `servo-mg996r` (`mg996r`, 6 V), `servo-ds3218` (`ds3218`, 6.8 V), and `servo-sts3215-7v4` (`feetech-sts3215`, 7.4 V, distinct from embodied's 12 V `servo-bus-sts3215-12v`) beside `servo-micro-9g` (`sg90`), each declaring only this lab's operating point and reflected rotor inertia and reading all owner fields from `animatronics/catalog/servos.json`. `tests/driver-catalog.test.js` and `tests/shared-parts.test.js` verify read-through equality against `animatronics`'s own loader for all five rows and fail-closed withholding naming `animatronics` when absent.
+- **`stepper` `sharedPart` reader (`src-routes/driver-catalog.ts`):** reads identity (`name`, `massG`, `approxUsd`, `source`) and core datasheet specs (`stepsPerRev`, `phaseOhms`, `phaseMh`, `ratedAmps`, `holdingTorqueMnm`) from either flat owner fields or a nested `stepper` block while keeping this lab's modelling defaults (`detentTorqueMnm`, `rotorInertiaGcm2`, `dampingRatio`) local; refuses restating any owned field naming the field, withholds fail-closed on absent or malformed owners, and keeps fail-closed refusal for any unknown `type` without a reader (`tests/shared-parts.test.js`).
 
-Also still open here: the rest of animatronics' servo rows (MG90S, MG996R, DS3218, STS3215) are
-not offered by this lab at all, and a stepper `sharedPart` has no reader yet — a row of a type with
-no reader is refused at load rather than half-resolved.
+Still open (embodied's work, not this lab's): embodied's MJCF generator reads what it needs for the actuator from the same motor row (thrust per rpm, once aero-lab's propeller curves exist) — embodied's B27.
 
 ## B5 — Non-rigid mechanics — DONE in 0.5.0, inside the single solve
 

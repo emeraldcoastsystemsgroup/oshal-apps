@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z, in production: "video editor's concierge doesnt open". The tool-row case now always presses the row's Concierge the way a person does (the editor opens with it closed, which is asserted first; it was pressed only when no window showed), checks the window is Video's own (concierge=video&bot=video-editor), closes it with the window's own Close and opens it again from the row. Red at 412x743 on the production build of 2026-11-17 (kernel 18d03d06): on a phone the concierge opens as a sheet and the window's Close leaves the sheet open, with the row's Concierge behind it.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.14.3: the manifest case names the release this change ships (it still named 1.14.1, so it failed on 1.14.2 as well).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: update the manifest version check to 1.14.4.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: update the manifest version check to 1.14.5.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -161,10 +162,10 @@ test('Delete project asks in the page, never in a native dialog', async t => {
   assert.deepEqual(errors, []);
 });
 
-test('the manifest declares graphite and version 1.14.4', async () => {
+test('the manifest declares graphite and version 1.14.5', async () => {
   const manifest = await readFile(new URL('../oshal-app.yaml', import.meta.url), 'utf8');
   assert.match(manifest, /^theme: graphite$/m);
-  assert.match(manifest, /^version: 1\.14\.4$/m);
+  assert.match(manifest, /^version: 1\.14\.5$/m);
 });
 
 test('Add media withholds Generate a clip when no Vids worker is online and offers it when one is online', async t => {

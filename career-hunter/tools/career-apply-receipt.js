@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-REPLAY: each attempt says how many values came from what Career remembered from an earlier start (the kernel's `from: replay:<start>`), and such a value's source reads remembered from start <n>.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0 (Fill it in on my Chrome, design APPLY-ORBIT 5.2): the receipt of an assisted application as a person reads it, on the job page and in Submission activity: the files Career uploaded (name, where, version), every change on each page (the field, its group, what the site had, what Career entered and where that came from: your record, a saved answer, your answer on the card, chosen by the model, the decline wording, today's date), the questions and how each was answered, when Career handed the form to you, the pictures it kept, and how it ended. Read from GET /apply-runs/:id/receipt; pictures from /picture/:attempt/:n, each checked against its digest by the route.
  */
 (()=>{'use strict';
@@ -17,6 +18,7 @@
   if(kind==='fact')return 'your record: '+rest.replace(/\./g,' ');
   if(kind==='role'||kind==='education'){const [n,field]=rest.split('.');return 'your record: '+(kind==='role'?'role ':'school ')+n+(field?' '+(FIELDS[field]||field):'');}
   if(kind==='answer')return 'saved answer';if(kind==='card')return 'your answer on the card';if(kind==='model')return 'chosen by the model'+(rest?': '+rest:'');
+  if(kind==='replay')return 'remembered from start '+rest;
   if(kind==='decline')return 'the site’s decline wording';if(kind==='today')return 'today’s date';if(kind==='document')return DOCUMENTS[rest]||'a document you approved';
   return text||'not recorded';
  }
@@ -29,6 +31,11 @@
   if(!attempt.changes?.length)return '<p class="hint">Career changed no field in this attempt.</p>';
   const pages=[...new Set(attempt.changes.map(item=>item.page||'The form'))];
   return pages.map(page=>`<h4>${esc(page)}</h4><ul class="receipt-changes">${attempt.changes.filter(item=>(item.page||'The form')===page).map(item=>`<li><b>${esc(item.label)}</b>${item.group?` <span class="hint">(${esc(item.group)})</span>`:''}: ${item.before?`“${esc(item.before)}” → `:''}“${esc(item.after)}” <span class="hint">· ${esc(source(item.from))}</span></li>`).join('')}</ul>`).join('');
+ }
+ /** @description How many values this attempt played back from what Career remembered of an earlier start, as one line. @param {object} attempt @returns {string} */
+ function remembered(attempt){
+  const count=(attempt.changes||[]).filter(item=>/^replay:/.test(String(item.from||''))).length;
+  return count?`<p class="hint receipt-remembered">${count} ${count===1?'value':'values'} came from what Career remembered from an earlier start.</p>`:'';
  }
  function questions(attempt){
   if(!attempt.questions?.length)return '';
@@ -48,7 +55,7 @@
  function render(receipt){
   const attempts=Array.isArray(receipt?.attempts)?receipt.attempts:[];
   if(!attempts.length)return '<p class="hint">Nothing is recorded for this application yet.</p>';
-  return `<section class="apply-receipt" id="applyReceipt" aria-labelledby="applyReceiptTitle"><h3 id="applyReceiptTitle">What Career did on the employer’s form</h3>${attempts.map(attempt=>`<details class="receipt-attempt"${attempt===attempts.at(-1)?' open':''}><summary>${attempts.length>1?'Attempt '+esc(attempt.n)+' · ':''}${esc(ENDED[attempt.outcome]||attempt.outcome)}${attempt.endedAt?' · '+esc(when(attempt.endedAt)):''}</summary>${attempt.reason?`<p>${esc(attempt.reason)}</p>`:''}<h4>Files uploaded</h4>${uploads(attempt)}${changes(attempt)}${questions(attempt)}${handBacks(attempt)}${pictures(receipt.runId,attempt)}</details>`).join('')}</section>`;
+  return `<section class="apply-receipt" id="applyReceipt" aria-labelledby="applyReceiptTitle"><h3 id="applyReceiptTitle">What Career did on the employer’s form</h3>${attempts.map(attempt=>`<details class="receipt-attempt"${attempt===attempts.at(-1)?' open':''}><summary>${attempts.length>1?'Attempt '+esc(attempt.n)+' · ':''}${esc(ENDED[attempt.outcome]||attempt.outcome)}${attempt.endedAt?' · '+esc(when(attempt.endedAt)):''}</summary>${attempt.reason?`<p>${esc(attempt.reason)}</p>`:''}${remembered(attempt)}<h4>Files uploaded</h4>${uploads(attempt)}${changes(attempt)}${questions(attempt)}${handBacks(attempt)}${pictures(receipt.runId,attempt)}</details>`).join('')}</section>`;
  }
  /**
   * @description Read one run's receipt and draw it into `host`; a run with nothing recorded yet draws nothing.

@@ -1,4 +1,7 @@
-/** Guide edits are proposals against the exact draft the model read. */
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Guide edits are proposals against the exact draft the model read.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Display speaker notes updates in `update_slide` proposal reviews.
+ */
 export function draftSnapshot({kind, title, outline, theme}) {
   return JSON.stringify([kind, title, outline, theme]);
 }
@@ -18,7 +21,7 @@ export function createProposalReview({host, readDraft, applyActions, onMessage})
       const item = document.createElement('li');
       item.textContent = action.op === 'set_outline' ? `Replace outline with ${action.slides?.length || 0} sections:\n${(action.slides || []).map(s => [s.title,...(s.bullets || [])].join('\n')).join('\n\n')}` :
         action.op === 'update_cell' ? `Sheet ${action.index}, cell ${action.cell}: ${action.value}` :
-        action.op === 'update_slide' ? `${action.bullets ? 'Replace body of' : 'Update heading of'} section ${action.index}: ${action.title || ''} ${(action.bullets || []).join(' · ')}` :
+        action.op === 'update_slide' ? `${action.bullets ? 'Replace body of' : action.notes !== undefined && action.title == null ? 'Update speaker notes on' : 'Update heading of'} section ${action.index}: ${action.title || ''} ${(action.bullets || []).join(' · ')}${typeof action.notes === 'string' ? (action.notes ? ' · Notes: ' + action.notes : ' · Clear speaker notes') : ''}` :
         action.op === 'add_slide' ? `Add section: ${action.title || ''}\n${(action.bullets || []).join('\n')}` :
         action.op === 'set_title' ? `Title: ${action.title}` : `Theme: ${action.theme}`;
       list.append(item);

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Queue original-owner saved-job preparation only after explicit consent, using the existing draft and background engine writers; refuse automatic retries and submission.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.68.1 (Roger, 2026-11-16: "it fully generated my resume without asking me about adding in my optional addendum"): saved-job preparation never picks a person's Other experience for them. A job is prepared with its own choice, else with the choice the person prepared their last application with (lib/career-experience-choice.js); a person who has other experience and never chose is asked first: the job waits, untouched, and prepareSaved counts it as waiting (Settings says how many). A person with no other experience is prepared as before. Guard: tests/career-prepare-other-experience-route.test.mjs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN: export tailoringFor, so Generate again (lib/career-regenerate-routes.js) prepares a job with the same Other experience rule as saved-job preparation: the job's own choice, else the person's last choice; a person with other experience who never chose is asked first. No behaviour change.
  */
 'use strict';
 const {randomUUID}=require('node:crypto');
@@ -69,4 +70,4 @@ function decorate(db,dir,row){
  const paths=db.prepare('SELECT resume_path,cover_path FROM user_signals WHERE posting_id=?').get(row.id)||{};
  return {...row,preparation:drafts.view(dir,row.id,{...row,...paths}).workflow};
 }
-module.exports={register,prepareSaved,decorate};
+module.exports={register,prepareSaved,decorate,tailoringFor};

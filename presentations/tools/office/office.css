@@ -6,6 +6,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: pin the AI Office Concierge composer flush to the bottom of the docked right rail and phone sheet with flex layout so 5-child prompt strips never overflow and only the message log scrolls.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 2.20.6: while a framing page draws the document's one bar itself (?header=host, design.mjs bindHostRow), this editor draws no app row of its own, so the page starts at the top of the frame.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 2.20.8 (lane CHATCORE3): the concierge is the kernel's one chat window. Generate a draft is a padded row above the window (design.mjs puts it there), so on a desktop the window's composer reaches the rail's bottom; the phone's Concierge sheet (ds-chat) is as tall as a sheet may be and gives the window its whole body, edge to edge (it gave the window 308 px, from the old pane's 360 px minimum); and the screen reader's status line is pinned to the page's top corner, so it no longer makes the page 1 px taller than the screen from where it sat at the bottom edge.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): style the Speaker notes panel docked below the active slide canvas for desktop and phone with zero horizontal overflow.
  */
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:contain;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
@@ -65,6 +66,11 @@ html[data-office-header=host] #office-root .ef-header-slot{display:none!importan
 /* The document keeps its own type: the chrome's fixed 24px line height would clip a 40pt slide title inside its box. */
 #document-canvas{font:13px/1.45 system-ui,sans-serif}
 #document-canvas:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:-2px}
+.office-slide-notes{flex:0 0 auto;display:flex;flex-direction:column;gap:4px;padding:8px 16px 10px;border-top:1px solid var(--ds-hairline,var(--border-color));background:var(--ds-surface,var(--bg-primary))}
+.office-slide-notes-label{font:600 12px/16px var(--ds-font,system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+#slide-notes{width:100%;min-height:52px;max-height:120px;padding:6px 10px;resize:vertical;font:400 14px/20px var(--ds-font,system-ui);border:1px solid var(--ds-line-control,var(--border-color));border-radius:10px;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary))}
+#slide-notes:disabled{color:var(--ds-ink-disabled,#8a94a6);background:var(--ds-surface-2,var(--bg-secondary));cursor:not-allowed}
+#office-root[data-office-view=home] #slide-notes-panel{display:none!important}
 .office-slide{position:relative;flex:none;margin:8px auto;overflow:hidden;border:1px solid var(--ds-hairline,var(--border-color));border-radius:6px;color:#172033}
 .office-object{position:absolute;touch-action:none;box-sizing:border-box;cursor:move;outline:0 solid transparent}
 .office-object.selected{outline:2px solid var(--ds-accent,var(--accent-primary));outline-offset:3px}
@@ -240,6 +246,8 @@ dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;fon
  .office-finish{gap:4px}
  .office-finish>button{padding:0 12px}
  #document-canvas{padding:16px 12px}
+ .office-slide-notes{padding:6px 12px 8px}
+ #slide-notes{font-size:16px;min-height:48px;max-height:96px}
  .office-slide,.office-word-page{margin:0 auto}
  #office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs{display:none!important}
  .ds-layer.ds-sheet{margin:auto 0 0;width:100%;max-width:none;max-height:calc(100dvh - 56px);border-radius:20px 20px 0 0;border-bottom:0}
@@ -277,7 +285,7 @@ dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;fon
 }
 @media print{
  html,body,#office-root{height:auto;overflow:visible}
- #office-root .ef-header-slot,#office-root .ef-status-slot,#office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs,.office-bottom-bar,.office-selection-bar{display:none!important}
+ #office-root .ef-header-slot,#office-root .ef-status-slot,#office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs,.office-bottom-bar,.office-selection-bar,#slide-notes-panel{display:none!important}
  #office-root .ef-shell{height:auto;padding:0}#office-root .ef-body{display:block!important}#document-canvas{overflow:visible;padding:0;background:#fff}
 }
 

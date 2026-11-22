@@ -569,7 +569,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose any other experience to include, generate and review its résumé and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts. One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo. The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.",
-      "version": "1.73.0",
+      "version": "1.75.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -616,7 +616,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.11",
+      "version": "2.20.12",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -750,7 +750,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Control your smart home by chat. Connect a hub at /utilities (SmartThings or Google Nest); the home-bot reads your real devices + scenes via your connector token, inspects SmartThings appliances and Samsung Family Hub refrigerators (interior camera ViewInside / samsungce.viewInside snapshots, cooler/freezer temperatures, door sensors and live component capabilities), keeps the meals you plan and the items you say you bought beside the refrigerator's weekly check (what is inside the refrigerator is not read yet; your grocery list is kept by Shopping, not here), keeps a persistent Smart Home Operations Guide & Runbook, and turns \"turn off the living room lights\" into the right commands. Destructive actions (locks, garage, thermostat) are confirmed first. It also gives the weather forecast for any US city, address or ZIP code from the National Weather Service (weather.gov): today, tonight and the coming days. It finds the TVs and streaming sticks on your home network through your own computer (Samsung, Roku, Android, Google and Fire TV) and presses their buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening Open Swarm on the TV. On a Roku or a Samsung TV it also opens an application, lists the applications and says which one is in front (on a Roku a title too, by the application's own id for it). It cannot see a Roku's or a Samsung TV's screen: no screenshot and no on-screen text.",
-      "version": "1.9.3",
+      "version": "1.9.4",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -1276,7 +1276,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace.",
-      "version": "1.20.3",
+      "version": "1.20.4",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1373,7 +1373,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.14.4",
+      "version": "1.14.5",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -2117,7 +2117,7 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built Open Swarm product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2409,7 +2409,7 @@
       "suite": "ai-finance",
       "displayName": "Sports Edge",
       "description": "Follow a team and really know its next game. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. Every call is registered before kickoff and graded on closing-line value, so the model has to beat the market before it is allowed to stake anything. No order path. Fantasy leagues moved to their own app, Fantasy Football, grouped with this one as Intelligent Sports.",
-      "version": "0.12.3",
+      "version": "0.12.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2738,7 +2738,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.9.5",
+      "version": "0.9.6",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3662,7 +3662,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Four monitoring desks over the same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert topic and role. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.9.6",
+      "version": "1.9.7",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],

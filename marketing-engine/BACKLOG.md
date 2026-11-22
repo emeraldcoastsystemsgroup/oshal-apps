@@ -187,12 +187,20 @@ and `scripts/oshal-up.sh` is the ordered bring-up.
   and `tests/marketing-audience-rls.test.mjs` (disposable PostgreSQL 16 enforcing-role RLS proof
   across all five tables, sign-up evidence export, and zero-row delete verification).
 
-### CSV import with consent attestation
-- **Remaining:** import that requires the owner to state the consent source, stores it per contact,
-  imports every row as `pending` unless the file carries documented prior consent, and never
-  re-subscribes a suppressed address.
-- **Done when:** a test import proves suppressed addresses stay suppressed, rows without a consent
-  source are refused, and every imported contact carries its source.
+### ~~CSV import with consent attestation~~ — DONE in `0.6.1`
+- **Delivered (`0.6.1`):** pure RFC-4180 CSV parser and consent-attestation normalizer
+  (`routes/marketing-audience-csv.js`, bounded to `1 MiB` and `5,000` rows) behind
+  `POST /api/marketing/audience/contacts/import-csv`; requires a non-empty consent source (import-level
+  `consentSource` or per-row `consent_source`) with atomic `400 consent_source_required` refusal and
+  zero writes if any row omits it; stores per-contact consent source and attestation evidence in
+  `oshal_marketing_consents.evidence` (surfaced verbatim by `GET /audience/contacts/:id/consent-export`);
+  imports every row as `pending` unless it carries documented prior consent (`confirmed` + non-empty
+  evidence text + valid ISO-8601 timestamp, downgrading undocumented `confirmed` claims to `pending`);
+  and never re-subscribes a suppressed address.
+- **Proven by:** `tests/marketing-audience-csv.test.mjs` (RFC-4180 parser, consent-source refusal,
+  pending downgrade, documented prior consent, suppression protection, dedupe, invalid rows, list
+  ownership, and session auth) and `tests/marketing-audience-rls.test.mjs` (enforcing-role disposable
+  PostgreSQL 16 FORCE RLS end-to-end CSV import and cross-owner suppression/list isolation).
 
 ### Public sign-up form with double opt-in
 - **Remaining:** an `auth: public` POST route per form slug with per-IP and per-form rate limits, a

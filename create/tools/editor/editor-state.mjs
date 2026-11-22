@@ -8,6 +8,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Track unsaved document identity and pending shared properties without changing stored project data.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: track active inline canvas text editing layer identity cleanly across document resets.
  */
 import { createProject, applyOperation, serializeProject } from './model.mjs';
 import { createHistory } from './history.mjs';
@@ -15,7 +16,7 @@ import { createHistory } from './history.mjs';
 export const $ = id => document.getElementById(id);
 export const state = { project: createProject(), history: null, selected: null, id: null, revision: 0, documentSession: crypto.randomUUID(),
   saved: '', permissions: {}, loading: true, saving: false, conflict: false, saveFailed: false, draw: false, images: new Map(),
-  region: null, regionMode: false, maskBrush: '', vectorMode: false, vectorDraft: [], arrangeIds: [], foundation: null };
+  region: null, regionMode: false, maskBrush: '', vectorMode: false, vectorDraft: [], arrangeIds: [], foundation: null, inlineTextId: null };
 state.history = createHistory(state.project);
 const listeners = new Set();
 export const dirty = () => serializeProject(state.project) !== state.saved || Boolean(state.foundation?.hasPending());
@@ -63,7 +64,7 @@ export function openDocument(project, record = null) {
   state.history = replacement; state.project = document; state.id = record?.id ?? null;
   state.revision = record?.revision ?? 0; state.saved = record ? serializeProject(state.project) : '';
   state.selected = null; state.conflict = false; state.saveFailed = false; state.draw = false;
-  state.region = null; state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; state.vectorDraft = []; state.arrangeIds = []; error(''); notify();
+  state.region = null; state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; state.vectorDraft = []; state.arrangeIds = []; state.inlineTextId = null; error(''); notify();
 }
 
 /** Keep event-handler failures visible without leaking a rejected promise. */

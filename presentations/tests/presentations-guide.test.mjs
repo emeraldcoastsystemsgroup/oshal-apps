@@ -9,6 +9,7 @@
  * 2026-09-24 21:20:00 | maintainer@emeraldcoastsystemsgroup.com   | Prove the deck-builder guide reaches the editor through the validated action contract and denies anonymous callers.
  * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin protected direct, non-agentic reasoning for the tool-less Guide turn.
  * 2026-11-03 21:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Image bytes never cross the Guide boundary (2.16.0): a data-URI #image: bullet in the draft state reaches the prompt as "#image: (attached)" beside the design-directive teaching, and a returned #image: bullet without a real https URL is normalized to the same marker, never the bytes.
+ * 2026-11-21 08:40:00 | maintainer@emeraldcoastsystemsgroup.com   | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): verify Guide prompt exposes existing slide speaker notes and `update_slide` / `add_slide` accept bounded string `notes` (including `""` to clear) while rejecting non-string `notes`.
  */
 
 import { test } from 'node:test';
@@ -191,4 +192,30 @@ test('Guide cell proposals are bounded and cannot insert ambiguous outline delim
     const res=response();await guideHandler()({oidc:{user:{sub:'owner'}},body:{message:'Change cost',kind:'xlsx',slides:[{title:'Budget',bullets:['| Item | Cost |','| Rent | 100 |']}]}},res);
     assert.deepEqual(res.body.actions.filter(a=>a.op==='update_cell'),[{op:'update_cell',index:1,cell:'B2',value:'250'}]);
   }finally{cellProposals=[];}
+});
+
+test('Guide update_slide and add_slide accept bounded string notes, allow clearing with empty string, and reject non-string notes', async () => {
+  calls.length = 0;
+  cellProposals = [
+    { op: 'update_slide', index: 1, notes: 'Highlight customer retention.' },
+    { op: 'update_slide', index: 2, notes: '' },
+    { op: 'update_slide', index: 3, notes: 42 },
+    { op: 'add_slide', title: 'Wrap up', bullets: ['Action item'], notes: 'Close with Q&A.' },
+    { op: 'add_slide', title: 'Bad notes slide', bullets: ['Nope'], notes: { bad: true } },
+  ];
+  try {
+    const res = response();
+    await guideHandler()({
+      oidc: { user: { sub: 'owner' } },
+      body: { message: 'Update presenter notes', kind: 'pptx', slides: [{ title: 'Intro', bullets: ['A'], notes: 'Existing presenter note' }] },
+    }, res);
+    assert.match(calls[0][3].text, /Notes: Existing presenter note/);
+    const noteUpdates = res.body.actions.filter((a) => a.op === 'update_slide' && a.notes !== undefined);
+    assert.deepEqual(noteUpdates, [
+      { op: 'update_slide', index: 1, notes: 'Highlight customer retention.' },
+      { op: 'update_slide', index: 2, notes: '' },
+    ]);
+    const added = res.body.actions.filter((a) => a.op === 'add_slide' && a.title !== 'Next steps');
+    assert.deepEqual(added, [{ op: 'add_slide', title: 'Wrap up', bullets: ['Action item'], notes: 'Close with Q&A.' }]);
+  } finally { cellProposals = []; }
 });

@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise the generated overview asset handlers with exact contained paths and actual MIME/cache headers; retain every device-plan, ownership and result assertion.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.1 (Lane TV1): every plan carries bridge 1.20.0, the one that has every press (launch_app, list_apps and active_app came with it), and the old-bridge hint names it. The grammar check also plans the three on a Samsung TV and a Roku, the Roku launch with the longest content id a plan can carry, so 56 presses fit the kernel grammar (18 on the Samsung, 16 on the Roku, 22 on the Android TV, which refuses the three).
  * 6 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.2: routingKeyword assertion updated from open oshal on to open open swarm on.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.4: assert supportsApps, frontAppLine, samsungCheckApp, and Roku/Samsung vs Android TV button selection in home-tvs.js.
  */
 'use strict';
 const test = require('node:test');
@@ -376,6 +377,21 @@ test('the page section chooses the buttons, the computer and the words', async (
   assert.equal(page.nowPlayingLine({ app: 'YouTube', title: 'Big Buck Bunny', state: 'paused', inFront: false }), 'Now playing · YouTube: Big Buck Bunny · paused · behind another app');
   assert.equal(page.nowPlayingLine({ app: 'Netflix', title: null, state: 'playing', inFront: true }), 'Now playing · Netflix · playing');
   assert.equal(page.nowPlayingLine(null), '');
+  assert.equal(page.supportsApps({ kind: 'roku', controllable: true }), true);
+  assert.equal(page.supportsApps({ kind: 'samsung-tizen', controllable: true }), true);
+  assert.equal(page.supportsApps({ kind: 'android-tv', controllable: true }), false);
+  assert.equal(page.supportsApps({ kind: 'cast', controllable: false }), false);
+  assert.ok(roku.includes('active_app') && roku.includes('list_apps'));
+  assert.ok(actions({ kind: 'samsung-tizen', controllable: true }).includes('active_app'));
+  assert.ok(!android.includes('active_app') && !android.includes('list_apps'));
+  assert.equal(page.frontAppLine(null), 'In front: not checked yet');
+  assert.equal(page.frontAppLine({ id: '12', name: 'Netflix', inFront: true, running: true, player: 'pause', screensaver: 'Clock' }), 'In front: Netflix · paused · screensaver Clock');
+  assert.equal(page.frontAppLine({ id: null, name: 'Home screen', inFront: true, running: true, player: 'close', screensaver: null }), 'In front: Home screen');
+  assert.equal(page.frontAppLine({ id: '11101200001', name: 'Netflix', inFront: false, running: true }), 'Last checked: Netflix · running, not in front');
+  assert.equal(page.frontAppLine({ id: '11101200001', name: 'Netflix', inFront: false, running: false }), 'Last checked: Netflix · not running');
+  assert.equal(page.samsungCheckApp({ kind: 'samsung-tizen', apps: [{ id: '11101200001', name: 'Netflix' }, { id: '111299001912', name: 'YouTube' }] }, '111299001912'), '111299001912');
+  assert.equal(page.samsungCheckApp({ kind: 'samsung-tizen', apps: [{ id: '11101200001', name: 'Netflix' }] }, ''), '11101200001');
+  assert.equal(page.samsungCheckApp({ kind: 'samsung-tizen', apps: null, front: null }, ''), '');
   assert.ok(!actions({ kind: 'android-tv', controllable: true, adb: { state: 'off' } }).includes('install_app'), 'install only on a TV this computer may use');
   assert.deepEqual(actions({ kind: 'cast', controllable: false }), []);
   const standing = (c) => ({ usable: c.connected && c.can_control });

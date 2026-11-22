@@ -10,6 +10,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enable validated group duplication through the existing human Duplicate control.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a short Saved caption replaces the Save button and the Unsaved changes footer (Save returns only when automatic saving is off or a save failed), the document menu's title and Delete follow the open image, Export takes the primary look once the canvas has content, the Select tool shows its shape, Whole image and Clear only while it is on or a region exists, and the deleted duplicate layer form is no longer rendered.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: sync Flip horizontal and Flip vertical toggle pressed and disabled states with the selected layer.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: align the inline canvas text editor with the active text layer and hide ghost text on preview while typing.
  */
 import { $, state, canEdit, dirty, edit, notify, error } from './editor-state.mjs';
 import { autosaveReady, hasContent } from './editor-projects.mjs';
@@ -48,6 +49,30 @@ function paintRegion(ctx, project) {
   try { outline(ctx, resolveSelection(project, state.region).canvasPoints, true); } catch { /* A stale region is reported in words by render(); it is not drawn. */ }
 }
 
+/** Keep the in-place text editor aligned with the active unlocked text layer across zoom and viewport resizes. */
+export function syncInlineTextEditor() {
+  const input = $('inlineTextEditor');
+  if (!input) return;
+  const raw = state.inlineTextId ? state.project.layers.find(layer => layer.id === state.inlineTextId) : null;
+  const layer = raw ? worldLayer(state.project, raw) : null;
+  if (!layer || layer.type !== 'text' || !layer.visible || layer.locked || !canEdit()) {
+    state.inlineTextId = null; input.hidden = true; return;
+  }
+  const scale = $('artboard').getBoundingClientRect().width / state.project.width || 1;
+  Object.assign(input.style, {
+    left: `${layer.x * scale}px`, top: `${layer.y * scale}px`,
+    width: `${Math.max(24, layer.w * scale)}px`, height: `${Math.max(24, layer.h * scale)}px`,
+    transform: layer.rotation ? `rotate(${layer.rotation}deg)` : '',
+    fontFamily: layer.fontFamily, fontSize: `${layer.fontSize * scale}px`,
+    fontWeight: String(layer.fontWeight), fontStyle: layer.italic ? 'italic' : 'normal',
+    textDecoration: layer.underline ? 'underline' : 'none',
+    lineHeight: String(layer.lineHeight ?? 1.2), letterSpacing: `${(layer.letterSpacing ?? 0) * scale}px`,
+    textAlign: layer.align, color: layer.fill === 'transparent' ? 'var(--text-primary)' : layer.fill,
+    opacity: String(layer.opacity),
+  });
+  input.hidden = false;
+}
+
 /** Paint only from validated state; selection handles never enter exported image pixels. */
 export function paint(project = state.project) {
   const canvas = $('artboard'), overlay = $('selection');
@@ -55,6 +80,7 @@ export function paint(project = state.project) {
     canvas.width = overlay.width = project.width; canvas.height = overlay.height = project.height;
   }
   let layers = project.layers.filter(layer => layer.type !== 'image' || state.images.has(layer.assetId));
+  if (project === state.project && state.inlineTextId) layers = layers.filter(layer => layer.id !== state.inlineTextId);
   for (let pass = 0; pass < 6; pass++) {
     const present = new Set(layers.map(layer => layer.id));
     layers = layers.filter(layer => layer.type !== 'adjustment' || layer.scope !== 'layer' || present.has(layer.targetId));
@@ -65,6 +91,7 @@ export function paint(project = state.project) {
   const preview = { ...project, layers };
   renderProject(canvas.getContext('2d'), preview, { images: state.images });
   const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height); paintRegion(ctx, project);
+  syncInlineTextEditor();
   const selected = project.layers.find(item => item.id === state.selected);
   const layer = selected ? worldLayer(project, selected) : null;
   if (!layer?.visible || layer.type === 'adjustment') return;

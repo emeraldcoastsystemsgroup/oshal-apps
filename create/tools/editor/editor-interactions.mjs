@@ -5,6 +5,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: add double-click in-place canvas text editing with Escape cancel, Cmd/Ctrl+Enter or blur single-step undoable commit and locked/read-only refusal.
  */
 import { $, state, canEdit, edit, notify, error, handle } from './editor-state.mjs';
 import { parentGroup, worldLayer } from './group-geometry.mjs';
@@ -12,7 +13,7 @@ import { applyOperation } from './model.mjs';
 import { hitTest } from './renderer.mjs';
 import { paint, paintRegionDraft, selectedLayer } from './editor-view.mjs';
 import { canvasToSource, clientToCanvas, targetImageLayer, selectionFromCanvas, selectionFromLayer } from './region-select.mjs';
-let gesture = null;
+let gesture = null, inlineOriginal = '', closingInline = false;
 
 function point(event) {
   return clientToCanvas({ x: event.clientX, y: event.clientY }, $('artboard').getBoundingClientRect(), state.project);
@@ -86,7 +87,53 @@ function beginBrush(event, at) {
   $('artboard').setPointerCapture(event.pointerId); $('artboard').focus(); event.preventDefault();
 }
 
+function openInlineText(layer) {
+  const input = $('inlineTextEditor');
+  if (!input) return;
+  state.selected = layer.id; state.inlineTextId = layer.id;
+  inlineOriginal = layer.text; closingInline = false;
+  input.value = layer.text; input.hidden = false;
+  notify();
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function commitInlineText() {
+  if (closingInline || !state.inlineTextId) return;
+  const input = $('inlineTextEditor');
+  const id = state.inlineTextId, original = inlineOriginal, nextText = input ? input.value : original;
+  closingInline = true; state.inlineTextId = null;
+  if (input) input.hidden = true;
+  try {
+    const layer = state.project.layers.find(item => item.id === id);
+    if (canEdit() && layer?.type === 'text' && !worldLayer(state.project, layer).locked && nextText !== original) {
+      edit({ type: 'update', id, patch: { text: nextText } });
+    } else notify();
+  } catch (failure) { error(failure.message); notify(); }
+  finally { closingInline = false; }
+}
+
+function cancelInlineText() {
+  if (closingInline || !state.inlineTextId) return;
+  const input = $('inlineTextEditor');
+  closingInline = true; state.inlineTextId = null;
+  try {
+    if (input) { input.value = inlineOriginal; input.hidden = true; }
+    notify();
+    $('artboard').focus();
+  } finally { closingInline = false; }
+}
+
+function doubleClick(event) {
+  if (!canEdit() || state.draw || state.regionMode || state.maskBrush || state.vectorMode) return;
+  const top = hitTest(state.project, point(event), { tolerance: 5, includeLocked: true });
+  if (!top || top.type !== 'text' || worldLayer(state.project, top).locked) return;
+  event.preventDefault();
+  openInlineText(top);
+}
+
 function begin(event) {
+  if (state.inlineTextId) commitInlineText();
   if (event.button !== 0 || gesture || !canEdit()) return;
   if (state.maskBrush) { beginBrush(event, point(event)); return; }
   if (state.regionMode) { beginRegion(event, point(event)); return; }
@@ -164,5 +211,14 @@ export function bindInteractions() {
   $('artboard').addEventListener('pointerup', event => finish(event));
   $('artboard').addEventListener('pointercancel', event => finish(event, true));
   $('artboard').addEventListener('lostpointercapture', event => finish(event, true));
+  $('artboard').addEventListener('dblclick', doubleClick);
+  const inline = $('inlineTextEditor');
+  if (inline) {
+    inline.addEventListener('blur', () => commitInlineText());
+    inline.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancelInlineText(); }
+      else if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); commitInlineText(); $('artboard').focus(); }
+    });
+  }
   document.addEventListener('keydown', handle(keyboard));
 }

@@ -8,6 +8,8 @@
  *     hashing, sign-up consent evidence normalization, segmentation by list/tag/consentState/
  *     channel/purpose/suppressed/q, route-table parity (20 legacy + 11 audience routes),
  *     auth gate, suppression consent revocation & re-confirm refusal, and export-first delete.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.1: update route-table parity to 20 legacy
+ *     + 12 audience routes (including POST /audience/contacts/import-csv).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -161,7 +163,7 @@ test('segmentContacts filters by list, tag, consentState, channel, purpose, supp
   assert.equal(model.parseAudienceFilters({ suppressed: 'maybe' }).error, 'invalid_suppressed_filter');
 });
 
-test('route-table parity: marketing-routes preserves all 20 legacy routes and adds all 11 audience routes', () => {
+test('route-table parity: marketing-routes preserves all 20 legacy routes and adds all 12 audience routes', () => {
   const routesMod = loadCompiledModule('routes/marketing-routes.js');
   const router = routesMod.createMarketingRoutes({ pool: { query: async () => ({ rows: [], rowCount: 0 }) }, appPackageDir: pkgDir });
   const table = router.routes.map((r) => `${r.method} ${r.path}`);
@@ -188,6 +190,7 @@ test('route-table parity: marketing-routes preserves all 20 legacy routes and ad
     'POST /budget/proposals/:id/decide',
     'GET /audience/contacts',
     'POST /audience/contacts',
+    'POST /audience/contacts/import-csv',
     'GET /audience/contacts/:id/consent-export',
     'DELETE /audience/contacts/:id',
     'GET /audience/lists',

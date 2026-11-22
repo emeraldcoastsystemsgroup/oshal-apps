@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Atomic structured Office edits shared by manual controls, persistence and approved assistant tools.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-02..03): anchored comment thread operations (`add-comment`, `reply-comment`, `resolve-comment`, `remove-comment`), tracked Word changes (`propose-change`, `accept-change`, `reject-change`, `accept-all-changes`, `reject-all-changes`) and automatic anchor maintenance across text/block/page edits.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Allow bounded speaker notes (`notes`) in `page` patch operations on presentations while keeping non-presentation pages unchanged.
  */
 import{validate,clone,fail,exact,uid,paragraph,style,runs,plain,address,coordinates,LIMITS,integer,array}from'./model.mjs';
 import{diffText,shiftAnchors,prunePageAnchors,pruneItemAnchors,styleAt}from'./collab.mjs';
@@ -161,7 +162,7 @@ function apply(model,op){
  if(op.op==='add-page'){const at=op.after?model.pages.findIndex(page=>page.id===op.after)+1:model.pages.length;if(op.after&&at===0)fail('office_selection_changed','The page changed.');const page={id:uid(),name:model.kind==='pptx'?'New slide':'New page',background:'#ffffff',[model.kind==='pptx'?'objects':'blocks']:model.kind==='pptx'?[]:[paragraph('',{fontSize:12})]};model.pages.splice(at,0,page);return;}
  if(op.op==='remove-page'){find(model.pages,op.id);model.pages=model.pages.filter(page=>page.id!==op.id);prunePageAnchors(model,op.id);return;}
  if(op.op==='move-page'){const page=find(model.pages,op.id);integer(op.index,0,model.pages.length-1);model.pages.splice(model.pages.indexOf(page),1);model.pages.splice(op.index,0,page);return;}
- if(op.op==='page'){const page=find(model.pages,op.id);exact(op.patch,model.kind==='pptx'?['name','background']:['name']);Object.assign(page,clone(op.patch));return;}
+ if(op.op==='page'){const page=find(model.pages,op.id);exact(op.patch,model.kind==='pptx'?['name','background','notes']:['name']);Object.assign(page,clone(op.patch));return;}
  if(['add-object','add-block','update-object','update-block','remove-object','remove-block','move-object','move-block','text-range','table-cell'].includes(op.op)){applyPageItem(model,op);return;}
  if(op.op==='add-sheet'){model.sheets.push({id:uid(),name:op.name,cells:{},rowCount:30,columnCount:12});return;}
  if(op.op==='move-sheet'){const sheet=find(model.sheets,op.id);integer(op.index,0,model.sheets.length-1);model.sheets.splice(model.sheets.indexOf(sheet),1);model.sheets.splice(op.index,0,sheet);return;}

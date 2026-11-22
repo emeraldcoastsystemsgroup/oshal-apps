@@ -14,6 +14,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Item C (0.12.4): update the priceless-quote SQL contract — a priceless quote never reads or writes sports_line_history, and records the absent poll (had_price = false) in sports_line_poll_state for opener confirmation.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — quote normalisation and equality incl. the null-vs-null and NaN cases, the refusal to store a priceless quote, movement summarisation, opener confidence rather than an asserted opening line, and spread-based closing-line value.
  */
 
@@ -187,8 +188,15 @@ test('the first sighting of a game inserts and reports first-capture', async () 
   assert.ok(pool.queries.some((q) => /^INSERT/i.test(q.sql)));
 });
 
-test('a priceless quote touches the database at ALL — not even a SELECT', async () => {
+test('a priceless quote never touches sports_line_history and records an absent poll in sports_line_poll_state', async () => {
   const pool = fakePool(STORED);
   assert.equal(await captureQuote(pool, GAME, { book: 'DraftKings' }), 'no-price');
-  assert.equal(pool.queries.length, 0, 'no price means nothing to compare and nothing to store');
+  assert.equal(
+    pool.queries.filter((q) => /sports_line_history/i.test(q.sql)).length,
+    0,
+    'no price means nothing is read or stored in sports_line_history',
+  );
+  const pollWrite = pool.queries.find((q) => /INSERT INTO sports_line_poll_state/i.test(q.sql));
+  assert.ok(pollWrite, 'absent poll is recorded in sports_line_poll_state for confirmed-open tracking');
+  assert.equal(pollWrite.params[4], false, 'had_price is recorded as false');
 });

@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: invert horizontal and vertical layer flips in worldToLayer so picking and source-pixel lookups follow flipped geometry.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: treat outlined text layers with transparent fill as painted in hitTest.
  */
 import { traceVector, traceShape } from './vector-geometry.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -77,7 +78,7 @@ function contains(layer, point, tolerance) {
   if (layer.type === 'path') return vectorHit(layer, point, tolerance);
   if (layer.type === 'group') return rectangle(point, layer.w, layer.h, tolerance);
   if (layer.type === 'image') return rectangle(point, layer.w, layer.h, tolerance);
-  if (layer.type === 'text') return painted(layer.fill) && rectangle(point, layer.w, layer.h, tolerance);
+  if (layer.type === 'text') return (painted(layer.fill) || (Boolean(layer.stroke) && layer.strokeWidth > 0)) && rectangle(point, layer.w, layer.h, tolerance);
   return primitiveHit(layer,point,tolerance);
 }
 

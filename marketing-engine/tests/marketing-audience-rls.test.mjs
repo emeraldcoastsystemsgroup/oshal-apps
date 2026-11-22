@@ -10,6 +10,11 @@
  *     suppressions), proves FORCE RLS blocks table-owner bypass, proves consent export returns
  *     exact sign-up evidence JSON, and proves contact deletion exports evidence first and
  *     leaves zero rows behind.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 0.6.1: add enforcing-role PG 16 end-to-end
+ *     CSV import proof (`POST /audience/contacts/import-csv`) verifying missing-source refusal
+ *     writes zero rows, suppressed addresses stay suppressed, pending-by-default and documented
+ *     prior consent evidence appear verbatim in consent-export, and Owner B's import is
+ *     strictly isolated from Owner A's suppressions, contacts, consents, and lists.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -409,4 +414,111 @@ test('suppression revokes active consent, refuses re-confirm, and purgeSuppressi
     (await db.admin.query('SELECT 1 FROM oshal_marketing_suppressions WHERE address_hash = $1', [bobRes.body.contact.email_hash])).rows.length,
     0,
   );
+});
+
+test('CSV import enforces consent attestation, suppression immunity, documented prior consent, and cross-owner FORCE RLS isolation', async () => {
+  const csvListRes = await invokeHandler(audience.createList, db.appPool, OWNER_A, {
+    body: { name: 'CSV Launch List', description: 'Imported contacts' },
+  });
+  assert.equal(csvListRes.statusCode, 201);
+  const csvListId = csvListRes.body.list.list_id;
+
+  const suppBlocked = await invokeHandler(audience.createSuppression, db.appPool, OWNER_A, {
+    body: { email: 'blocked@example.com', channel: 'email', reason: 'unsubscribe', source: 'one_click' },
+  });
+  assert.equal(suppBlocked.statusCode, 201);
+  const blockedHash = suppBlocked.body.suppression.address_hash;
+
+  // Missing consent source refuses 400 and writes ZERO rows.
+  const refused = await invokeHandler(audience.importContactsCsv, db.appPool, OWNER_A, {
+    body: { csv: 'email,consent_source\nfirst@example.com,Booth\nsecond@example.com,' },
+  });
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.body.error, 'consent_source_required');
+  assert.deepEqual(refused.body.missingConsentSourceRows, [3]);
+  assert.equal((await db.admin.query("SELECT 1 FROM oshal_marketing_contacts WHERE email IN ('first@example.com','second@example.com')")).rows.length, 0);
+
+  // Owner A imports suppressed (padded uppercase), plain, unproven confirmed, documented confirmed, and invalid email.
+  const csvPayload = [
+    'email,display_name,tags,consent_source,consent_status,consent_recorded_at,consent_evidence,utm_source,utm_campaign',
+    '"  BLOCKED@Example.COM ",Blocked User,vip,,confirmed,2026-11-18T10:00:00Z,"Prior card",event,launch',
+    'plain@example.com,Plain User,"beta;early",,pending,,,,',
+    'unproven@example.com,Unproven User,beta,,confirmed,,,"",',
+    'proven@example.com,Proven User,founder,Double opt-in archive,confirmed,2026-11-19T15:45:00Z,"Verified double opt-in form",site,fall-2026',
+    'bad-address,Invalid Row,,,,,,,',
+  ].join('\r\n');
+
+  const impA = await invokeHandler(audience.importContactsCsv, db.appPool, OWNER_A, {
+    body: {
+      csv: csvPayload,
+      consentSource: 'Owner A event signup sheet',
+      attestation: 'Collected at launch booth with visible opt-in notice.',
+      listIds: [csvListId],
+    },
+  });
+  assert.equal(impA.statusCode, 200);
+  assert.equal(impA.body.totalRows, 5);
+  assert.equal(impA.body.imported, 3);
+  assert.equal(impA.body.updated, 0);
+  assert.equal(impA.body.pending, 2);
+  assert.equal(impA.body.confirmedWithPriorConsent, 1);
+  assert.equal(impA.body.downgradedToPending, 1);
+  assert.equal(impA.body.skippedSuppressed, 1);
+  assert.equal(impA.body.invalidRows, 1);
+
+  // blocked@example.com stays suppressed under Owner A with zero contact or consent rows added.
+  assert.equal((await db.admin.query('SELECT 1 FROM oshal_marketing_contacts WHERE owner_sub = $1 AND email_hash = $2', [OWNER_A, blockedHash])).rows.length, 0);
+  const suppCheck = await db.admin.query('SELECT reason, source FROM oshal_marketing_suppressions WHERE owner_sub = $1 AND address_hash = $2', [OWNER_A, blockedHash]);
+  assert.deepEqual(suppCheck.rows, [{ reason: 'unsubscribe', source: 'one_click' }]);
+
+  // Verify consent evidence via GET /audience/contacts/:id/consent-export for plain, unproven, and proven.
+  const byEmail = new Map(impA.body.contacts.map((c) => [c.email, c]));
+  const plainExp = await invokeHandler(audience.exportContactConsent, db.appPool, OWNER_A, { params: { id: byEmail.get('plain@example.com').contact_id } });
+  assert.equal(plainExp.statusCode, 200);
+  assert.equal(plainExp.body.consentExport.consents[0].status, 'pending');
+  assert.equal(plainExp.body.consentExport.consents[0].evidence.consentSource, 'Owner A event signup sheet');
+  assert.equal(plainExp.body.consentExport.consents[0].evidence.priorConsentDocumented, false);
+
+  const unprovenExp = await invokeHandler(audience.exportContactConsent, db.appPool, OWNER_A, { params: { id: byEmail.get('unproven@example.com').contact_id } });
+  assert.equal(unprovenExp.statusCode, 200);
+  assert.equal(unprovenExp.body.consentExport.consents[0].status, 'pending');
+  assert.equal(unprovenExp.body.consentExport.consents[0].evidence.priorConsentDocumented, false);
+  assert.equal(unprovenExp.body.consentExport.consents[0].evidence.requestedStatus, 'confirmed');
+  assert.equal(unprovenExp.body.consentExport.consents[0].evidence.consentSource, 'Owner A event signup sheet');
+
+  const provenExp = await invokeHandler(audience.exportContactConsent, db.appPool, OWNER_A, { params: { id: byEmail.get('proven@example.com').contact_id } });
+  assert.equal(provenExp.statusCode, 200);
+  assert.equal(provenExp.body.consentExport.consents[0].status, 'confirmed');
+  assert.equal(provenExp.body.consentExport.consents[0].evidence.consentSource, 'Double opt-in archive');
+  assert.equal(provenExp.body.consentExport.consents[0].evidence.priorConsentDocumented, true);
+  assert.equal(provenExp.body.consentExport.consents[0].evidence.formText, 'Verified double opt-in form');
+  assert.equal(provenExp.body.consentExport.consents[0].evidence.recordedAt, '2026-11-19T15:45:00.000Z');
+  assert.deepEqual(provenExp.body.consentExport.consents[0].evidence.utm, { source: 'site', campaign: 'fall-2026' });
+
+  // Owner B cannot attach to Owner A's list (FORCE RLS isolation).
+  const crossList = await invokeHandler(audience.importContactsCsv, db.appPool, OWNER_B, {
+    body: { csv: 'email\nblocked@example.com', consentSource: 'Owner B webinar', listIds: [csvListId] },
+  });
+  assert.equal(crossList.statusCode, 404);
+  assert.equal(crossList.body.error, 'list_not_found');
+
+  // Owner B imports blocked@example.com under Owner B's own scope; Owner A's suppression stays isolated and intact.
+  const impB = await invokeHandler(audience.importContactsCsv, db.appPool, OWNER_B, {
+    body: { csv: 'email,display_name\nblocked@example.com,Owner B Contact', consentSource: 'Owner B webinar' },
+  });
+  assert.equal(impB.statusCode, 200);
+  assert.equal(impB.body.imported, 1);
+  assert.equal(impB.body.pending, 1);
+  assert.equal(impB.body.skippedSuppressed, 0);
+
+  const listB = await invokeHandler(audience.listContacts, db.appPool, OWNER_B, {});
+  assert.equal(listB.body.contacts.length, 1);
+  assert.equal(listB.body.contacts[0].email, 'blocked@example.com');
+  const suppB = await invokeHandler(audience.listSuppressions, db.appPool, OWNER_B, {});
+  assert.equal(suppB.body.suppressions.length, 0);
+
+  // Owner A still has blocked@example.com suppressed and invisible in Owner A's contacts.
+  const suppAAfter = await invokeHandler(audience.listSuppressions, db.appPool, OWNER_A, {});
+  assert.ok(suppAAfter.body.suppressions.some((s) => s.address_hash === blockedHash));
+  assert.equal((await db.admin.query('SELECT 1 FROM oshal_marketing_contacts WHERE owner_sub = $1 AND email_hash = $2', [OWNER_A, blockedHash])).rows.length, 0);
 });

@@ -29,11 +29,14 @@ configured" today, and no setting assigns a model to it).
 
 ## A title opened directly on a Samsung TV, and application buttons on the TV cards
 
-**As built (1.9.1):** on a Samsung TV `launch_app` opens the application only. A request that names a title
+**As built (1.9.4):** on a Samsung TV `launch_app` opens the application only. A request that names a title
 (`contentId`) is refused in words by the plan (`title_not_on_samsung`) and by the bridge (`samsung_title_not_built`),
-so nothing is sent. On a Roku a title opens by the application's own content id. The three actions (`launch_app`,
-`list_apps`, `active_app`) are Jarvis tools only: a TV's card on the Smart Home screen has no button for them. They
-are tested against stand-in TVs on `127.0.0.1` and have not been run against a real Roku or Samsung TV.
+so nothing is sent. On a Roku a title opens by the application's own content id. Since 1.9.4, a Roku or Samsung
+TV's card on the Smart Home screen shows the application in front from its last answer and offers **What's in front**
+(with a listed-application picker on Samsung TVs), **List apps**, and bounded touch-friendly buttons for its listed
+applications (`tests/browser/tv-apps-card.test.cjs`, verified in Chromium at `412 x 915` and `1440 x 900` against
+stand-in answers). The three actions (`launch_app`, `list_apps`, `active_app`) are still tested against stand-in TVs
+on `127.0.0.1` only and have not been run against a real Roku or Samsung TV.
 
 **Why a Samsung title is not built:** the TV's remote channel carries a title to an application as free text
 (`ed.apps.launch`, `action_type` `DEEP_LINK`, `metaTag`), and what each application expects in it could not be
@@ -48,5 +51,5 @@ ignored it, and neither the bridge nor Smart Home can see the screen to tell.
   test for the exact message sent;
 - a Samsung launch with a title answers what the TV reported (running and in front) and says that the TV does not
   report which title is showing;
-- a Roku or Samsung TV's card shows the application in front from its last answer and offers **What's in front**
+- (done in 1.9.4) a Roku or Samsung TV's card shows the application in front from its last answer and offers **What's in front**
   and its listed applications, with a browser test at 412 x 915.

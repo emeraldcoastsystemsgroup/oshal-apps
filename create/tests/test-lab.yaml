@@ -34,6 +34,7 @@
 # 29 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): register the editor's app row, autosave, Insert, bar-only tool options, one Format inspector and 16 px offset browser proof at 412x915 touch and 1440x900.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New merges into Home as a sheet; register the Home cards unit case (meta in words, match counts, planned controls, Blank starts, skeletons) and restate the workspace and New expectations for the merged Home.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-17 02:22Z (production): register create-concierge-entry, Create's Image editor and Portrait screens inside the shipped Today page, where every concierge entry a person sees is pressed for real and must open the one chat window as that screen's own application's concierge.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: register editor-text-styling-browser (CREATE-TOOL-CREATE-04) covering text styling controls, double-click in-place canvas typing, PNG/SVG export, and concierge apply-edits.
 version: 1
 cases:
   - id: editor-foundation-adapter
@@ -1190,6 +1191,24 @@ cases:
       - On-screen Flip horizontal and Flip vertical buttons mirror exported PNG pixels accurately, persist across reload, and obey undo/redo and layer locks.
       - Concierge update patch { flipX: false, flipY: false } flips the photo back to pixel-identical original PNG output and rejects invalid or locked flips.
       - Controls meet touch-target sizing with zero horizontal overflow at 1440x900 and 412x915.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 1536 }
+    installation: never
+
+  - id: editor-text-styling-browser
+    name: Text styling and double-click in-place canvas typing
+    purpose: Prove CREATE-TOOL-CREATE-04 end-to-end in real Chromium — double-click to type in place on the canvas (with Escape cancel, Backspace text editing, blur/shortcut commit, locked refusal), set italic/underline/lineHeight/letterSpacing/outline/shadow via Format controls and concierge apply-edits, and verify save/reload, PNG pixels, SVG export, and desktop/phone layout cleanliness.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/browser/create-text-styling-proof.mjs]
+    expected:
+      - Double-clicking an unlocked text layer opens the aligned inline canvas editor; Backspace edits text rather than deleting the layer; Escape cancels without dirtying history; blur and Ctrl/Cmd+Enter commit one undoable edit; locked text refuses inline editing.
+      - Italic, underline, line height, letter spacing, outline color/width, and shadow work from Format controls and concierge apply-edits, survive autosave and reload, and appear in exported PNG pixels and SVG markup.
+      - Desktop 1440x900 and phone 412x915 layouts have zero horizontal overflow and zero page errors.
     prerequisites: [runner:node, browser:chromium, source:core-dependencies]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only. }

@@ -4,6 +4,7 @@ SEQ | AUTHOR | DESCRIPTION
 2 | maintainer@emeraldcoastsystemsgroup.com | Point to the marketing suite spec, its market scan, and this package's BACKLOG.md (the end-to-end suite work with done-when criteria).
 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.9: person-facing product references and brand rule name Open Swarm.
 4 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0: document P1 audience store (migration 003, /api/marketing/audience/* routes, and RLS tests).
+5 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1: document P1 CSV import with consent attestation (`POST /api/marketing/audience/contacts/import-csv`).
 -->
 # Marketing Engine (marketing-engine) — Open Swarm app package
 
@@ -112,6 +113,7 @@ page. Errors render honestly: `not_connected` → "Connect *channel* in Connecto
 | `GET /budget/proposals` · `POST /budget/proposals/:id/decide` | Approve (requires `confirm: true`, then applies) or reject |
 | `GET /utm?url&source&medium&campaign&content` | UTM-tagged link |
 | `GET /audience/contacts` · `POST /audience/contacts` | List/segment contacts (`list`, `tag`, `consentState`, `channel`, `purpose`, `suppressed`, `q`) and upsert contacts with sign-up consent evidence (refuses re-confirming suppressed addresses) |
+| `POST /audience/contacts/import-csv` | RFC-4180 CSV import with mandatory consent source attestation (atomic 400 refusal if any row lacks a source), `pending` by default unless documented prior consent (`confirmed` + evidence + ISO-8601 timestamp) is present, never re-subscribes suppressed addresses, and stores full consent evidence per contact |
 | `GET /audience/contacts/:id/consent-export` · `DELETE /audience/contacts/:id` | Export recorded consent evidence JSON (`formText`, `recordedAt`, `ip`, `userAgent`, `utm`, `tokenHash`), lists, and suppressions; delete exports evidence first and removes contact, consents, and memberships (plus matching suppression with `?purgeSuppression=true`) |
 | `GET /audience/lists` · `POST /audience/lists` · `POST /audience/lists/:id/members` · `DELETE /audience/lists/:id/members/:contactId` | Manage owner-scoped audience lists and memberships |
 | `GET /audience/suppressions` · `POST /audience/suppressions` · `DELETE /audience/suppressions/:id` | Manage normalized SHA-256 hash suppressions; adding a suppression revokes active consents for that contact and channel |

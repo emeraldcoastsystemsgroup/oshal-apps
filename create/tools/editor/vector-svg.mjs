@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exchange a bounded inert SVG subset while preserving cubic nodes, paint, transforms and explicit unsupported-feature refusals.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: emit accurate scale transforms for flipped layers in SVG export.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: export and round-trip text italic, underline, lineHeight, letterSpacing and stroke outline in SVG.
  */
 import { validateProject, demand } from './model-validation.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -25,24 +26,40 @@ function transform(layer) {
   return `translate(${decimal(layer.x + layer.w / 2)} ${decimal(layer.y + layer.h / 2)}) rotate(${decimal(layer.rotation)})${flip} translate(${decimal(-layer.w / 2)} ${decimal(-layer.h / 2)})`;
 }
 
+function measureSvgText(ctx, text, spacing) {
+  if (!spacing) return ctx.measureText(text).width;
+  const chars = [...text];
+  if (!chars.length) return 0;
+  let total = 0;
+  for (let index = 0; index < chars.length; index++) total += ctx.measureText(chars[index]).width + (index < chars.length - 1 ? spacing : 0);
+  return Math.max(0, total);
+}
+
 function svgText(layer, definitions) {
   const canvas = globalThis.document?.createElement('canvas'), ctx = canvas?.getContext('2d');
-  demand(ctx, 'SVG text export requires browser font metrics'); ctx.font = `${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
-  const lines = [];
+  demand(ctx, 'SVG text export requires browser font metrics');
+  ctx.font = `${layer.italic ? 'italic ' : ''}${layer.fontWeight} ${layer.fontSize}px ${layer.fontFamily}`;
+  const spacing = layer.letterSpacing ?? 0, lineHeight = layer.lineHeight ?? 1.2, lines = [];
   for (const paragraph of layer.text.split('\n')) {
     let line = ''; for (const word of paragraph.split(/\s+/)) {
       const next = line ? `${line} ${word}` : word;
-      if (line && ctx.measureText(next).width > layer.w) { lines.push(line); line = word; } else line = next;
+      if (line && measureSvgText(ctx, next, spacing) > layer.w) { lines.push(line); line = word; } else line = next;
     } lines.push(line);
   }
   const id = `text-clip-${definitions.length}`;
   definitions.push(`<clipPath id="${id}"><rect width="${layer.w}" height="${layer.h}"/></clipPath>`);
+  const hasStroke = Boolean(layer.stroke && layer.strokeWidth > 0);
   const metadata = encodeURIComponent(JSON.stringify({ text: layer.text, w: layer.w, h: layer.h, fontFamily: layer.fontFamily,
-    fontSize: layer.fontSize, fontWeight: layer.fontWeight, fill: layer.fill, align: layer.align }));
+    fontSize: layer.fontSize, fontWeight: layer.fontWeight, fill: layer.fill, align: layer.align,
+    ...(layer.italic ? { italic: true } : {}), ...(layer.underline ? { underline: true } : {}),
+    ...(layer.lineHeight !== undefined ? { lineHeight: layer.lineHeight } : {}),
+    ...(layer.letterSpacing !== undefined ? { letterSpacing: layer.letterSpacing } : {}),
+    ...(hasStroke ? { stroke: layer.stroke, strokeWidth: layer.strokeWidth } : {}) }));
   const x = layer.align === 'center' ? layer.w / 2 : layer.align === 'right' ? layer.w : 0;
   const anchor = layer.align === 'center' ? 'middle' : layer.align === 'right' ? 'end' : 'start';
-  const tspans = lines.map((line, index) => `<tspan x="${x}" y="${index * layer.fontSize * 1.2}"${ctx.measureText(line).width > layer.w ? ` textLength="${layer.w}" lengthAdjust="spacingAndGlyphs"` : ''}>${escape(line)}</tspan>`).join('');
-  return `<text transform="${transform(layer)}" opacity="${layer.opacity}" fill="${escape(layer.fill)}" font-family="${escape(layer.fontFamily)}" font-size="${layer.fontSize}" font-weight="${layer.fontWeight}" text-anchor="${anchor}" dominant-baseline="text-before-edge" clip-path="url(#${id})" data-oshal-text="${escape(metadata)}">${tspans}</text>`;
+  const styleAttrs = `${layer.italic ? ' font-style="italic"' : ''}${layer.underline ? ' text-decoration="underline"' : ''}${spacing ? ` letter-spacing="${decimal(spacing)}px"` : ''}${hasStroke ? ` stroke="${escape(layer.stroke)}" stroke-width="${decimal(layer.strokeWidth)}" stroke-linejoin="round" paint-order="stroke fill"` : ''}`;
+  const tspans = lines.map((line, index) => `<tspan x="${x}" y="${decimal(index * layer.fontSize * lineHeight)}"${measureSvgText(ctx, line, spacing) > layer.w ? ` textLength="${layer.w}" lengthAdjust="spacingAndGlyphs"` : ''}>${escape(line)}</tspan>`).join('');
+  return `<text transform="${transform(layer)}" opacity="${layer.opacity}" fill="${escape(layer.fill)}" font-family="${escape(layer.fontFamily)}" font-size="${layer.fontSize}" font-weight="${layer.fontWeight}"${styleAttrs} text-anchor="${anchor}" dominant-baseline="text-before-edge" clip-path="url(#${id})" data-oshal-text="${escape(metadata)}">${tspans}</text>`;
 }
 
 function svgLayer(layer, project, definitions) {
@@ -222,16 +239,18 @@ function pathLayer(contours, transform, paint, definitions) {
 }
 
 function textLayer(element, transform, paint, opacity) {
-  attributes(element, ['x', 'y', 'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline', 'data-oshal-text']);
+  attributes(element, ['x', 'y', 'font-family', 'font-size', 'font-weight', 'font-style', 'text-decoration', 'letter-spacing', 'paint-order', 'text-anchor', 'dominant-baseline', 'data-oshal-text']);
   const sx = Math.hypot(transform[0], transform[1]), sy = Math.hypot(transform[2], transform[3]);
   demand(Math.abs(sx - sy) < .000001 && transform[0] * transform[3] - transform[1] * transform[2] > 0, 'SVG text requires uniform non-reflected scaling');
   const raw = element.getAttribute('data-oshal-text');
   if (raw) {
     const data = JSON.parse(decodeURIComponent(raw));
-    demand(data && Object.keys(data).every(key => ['text', 'w', 'h', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'].includes(key)), 'Unsupported SVG text metadata');
+    demand(data && Object.keys(data).every(key => ['text', 'w', 'h', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align', 'italic', 'underline', 'lineHeight', 'letterSpacing', 'stroke', 'strokeWidth'].includes(key)), 'Unsupported SVG text metadata');
     const center = mapped(transform, { x: data.w / 2, y: data.h / 2 });
     return { id: crypto.randomUUID(), type: 'text', name: 'Imported text', ...data, x: center.x - data.w * sx / 2,
       y: center.y - data.h * sy / 2, w: data.w * sx, h: data.h * sy, fontSize: data.fontSize * sx,
+      ...(data.letterSpacing === undefined ? {} : { letterSpacing: data.letterSpacing * sx }),
+      ...(data.strokeWidth === undefined ? {} : { strokeWidth: data.strokeWidth * sx }),
       rotation: Math.atan2(transform[1], transform[0]) * 180 / Math.PI, opacity };
   }
   demand(element.children.length === 0 && !element.getAttribute('clip-path'), 'External SVG text supports plain unclipped text only');

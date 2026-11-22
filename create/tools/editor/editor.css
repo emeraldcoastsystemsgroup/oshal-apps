@@ -9,6 +9,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Adapt the existing canvas and tools to shared editor panes and narrow-screen drawers.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): one app row of at most 48px (document menu, Undo, Redo, the Saved caption and one primary: Add on a phone, Export once the canvas has content on a desktop); the Insert tools as a 48px icon rail beside the Layers list on a desktop and a sheet of labelled tiles on a phone; tool options in the canvas bar; panes of 240px and 320px while the concierge is closed. Colours come from the portal's tokens.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: style Flip horizontal and Flip vertical toggle buttons with 44px touch targets and active pressed state.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: style the inline canvas text editor overlay.
  */
 :root{color-scheme:light dark;--editor-paper:var(--bg-secondary);--editor-line:var(--border-color)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg-primary);color:var(--text-primary);font:14px/1.5 var(--font-family,system-ui,sans-serif)}
@@ -146,3 +147,4 @@ button.primary:hover:not(:disabled){background:var(--accent-primary);color:var(-
 .flip-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
 .flip-controls button{min-height:44px;padding:8px 10px;font-size:13px;min-width:0}
 .flip-controls button[aria-pressed=true]{border-color:var(--accent-primary);background:var(--bg-hover,var(--bg-primary));color:var(--accent-primary);font-weight:650}
+.inline-text-editor{position:absolute;z-index:4;margin:0;padding:0;border:2px dashed var(--accent-primary);border-radius:2px;background:color-mix(in srgb,var(--bg-primary) 16%,transparent);resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;transform-origin:center center;outline:none}

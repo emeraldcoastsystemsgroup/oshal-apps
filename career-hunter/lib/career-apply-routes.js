@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: Fill in several on my Chrome. The approval answers the form's site too ({site}), approve, bind, start, Go on, Career's writers and the job's row are exported, and the queue's routes (lib/career-apply-batch-routes.js: GET/POST /apply-batch, /advance, /pause, /go-on, /stop, /skip, /next, /clear) are mounted on this router with its signed-in wrapper, so each queued job is approved and started exactly as a single one.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: POST /saved-answers also changes How Career fills in a form ({revision, flags}: input, window, submit), with Undo; the packet reads the settings into task.flags.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the packet's Word résumé is the parse résumé, the one laid out for an employer's résumé parser: the packet's own Resume_Parse.docx when generation wrote it, else rendered from its application.json by docx_resume.py export-packet --kind parse (the same bytes every time). The executive Resume_ATS.docx stays a download and is no longer uploaded.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): the job's row carries its company's engine and token and the posting's engine id, as Career's source recorded them, so a company page that embeds an engine's form is filled at that engine's own address.
@@ -11,6 +12,7 @@ const {Router}=require('express'),fs=require('node:fs'),path=require('node:path'
 const {createChildLogger}=require('@/shared/logger');
 const queue=require('./career-submission-queue'),drafts=require('./career-application-draft'),docx=require('./career-docx-export');
 const packet=require('./career-apply-packet'),runs=require('./career-apply-runs'),answers=require('./career-apply-answers'),applySync=require('./career-apply-sync');
+const batchRoutes=require('./career-apply-batch-routes');
 const {callerSub,userPaths,openUserDb}=require('../routes/career-user-store');
 const {loadAutofillProfile}=require('../routes/career-autofill-routes');
 const {resolveContainedRegularFile}=require('../routes/career-resume-preview');
@@ -89,7 +91,7 @@ async function approve(dir,sub,body){
  if(body.approved!==true||body.packetDigest!==built.packetDigest)fail('packet_review_required','Review this job, its documents and the facts Career may type before approving.',428);
  const {run,deduped}=runs.approve(dir,built,found.posting);
  if(!run.attempts.length)runs.publish(dir,run.id,packet.input({id:run.id,attempt:1,expiresAt:Date.parse(run.expiresAt),task:built.task}));
- return {ok:true,deduped,run:runs.publicRun(runs.get(dir,run.id))};
+ return {ok:true,deduped,run:runs.publicRun(runs.get(dir,run.id)),site:{id:built.site.id,name:built.site.name}};
 }
 /** @description Bind the run's own career-apply ticket; making it starts nothing. @returns {Promise<object>} */
 async function bind(dir,id,tickets,sub){
@@ -202,6 +204,7 @@ function createCareerApplyRoutes(ctx){
   res.json({ok:true,run:runs.publicRun(runs.update(dir,saved.id,{keptCards}))});
  }));
  registerEvidence(router,run);registerAnswers(router,run);
+ batchRoutes.register(router,run,{ctx,approve,bind,start,goOn,writers,postingRow});
  return router;
 }
-module.exports={createCareerApplyRoutes,material};
+module.exports={createCareerApplyRoutes,material,approve,bind,start,goOn,writers,postingRow};

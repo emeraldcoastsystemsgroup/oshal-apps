@@ -42,6 +42,7 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Release 0.9.3 (concierge audit batch 1, store PR of 2026-11-12): the side-chat bot runs inline and its persona follows Create's create-editor (plain-prose rule, ```tool_call fence, runtime harness claude-code). This entry was missing from that release.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 0.9.4: add explicit object inputSchema on circuit-capabilities and circuit-list-designs, list circuit-restore-run and circuit-gear-to-cad in personas/circuit-lab-engineer.yaml, and guard the inline bot-tool contract for oshald.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 0.9.5 (BACKLOG B7): verify solver convergence knobs against real ngspice 39 in oshal-circuit-lab-engine:local — replace the untested HardSwitching circuit (which solved at defaults) with a cross-coupled H-bridge + Zener feedback latch that refuses explicit defaults, auto-retries with relaxed_tolerances at implicit defaults, and solves directly with gear/reltol 0.01/gmin 1e-9 (53/53 pass).
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 0.9.6 (BACKLOG B4): add the remaining animatronics servo sharedPart rows (MG90S, MG996R, DS3218, STS3215 7.4 V) to catalog/drivers.json and implement the stepper sharedPart reader in driver-catalog.ts with full read-through, fail-closed, restated-field, and unknown-type tests.
 name: circuit-lab
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -62,7 +63,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.9.5
+version: 0.9.6
 status: active
 scope: person
 
@@ -92,9 +93,9 @@ smoke:
 # No connector allow-list: the inputs are the person's own numbers; the engine is a container
 # on the stack network that nothing outside the box can reach.
 # ── Cross-package prerequisites: what this package actually reaches ─────────
-# ALL OPTIONAL. animatronics: owns the SG90 row this catalog reads; absent, that one row is withheld
-# rather than substituted. embodied: owns the two brushless motor rows (its parts-catalog.json, read as
-# data); absent, those two rows are withheld the same way. cad-studio: src-routes/design-routes.ts:335 answers a gear with
+# ALL OPTIONAL. animatronics: owns all five servo rows (SG90, MG90S, MG996R, DS3218, STS3215 7.4 V) this catalog reads; absent, those rows are withheld
+# rather than substituted. embodied: owns the two brushless motor rows and the 12 V STS3215 bus-servo row (its parts-catalog.json, read as
+# data); absent, those three rows are withheld the same way. cad-studio: src-routes/design-routes.ts:335 answers a gear with
 # { path: '/api/cad-studio/models' } and tools/circuit-lab.js:147 POSTs it there — a 404 toasts
 # "CAD Studio is not installed on this box" and the schematic, the solver and the breadboard are unaffected.
 dependencies:
@@ -103,7 +104,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [animatronics, cad-studio, embodied]   # animatronics owns the SG90 catalog row and embodied the two brushless motor rows this lab READS; cad-studio receives the gear hand-off
+    apps: [animatronics, cad-studio, embodied]   # animatronics owns the five hobby/7.4 V servo rows and embodied the two brushless motor rows + 12 V bus-servo row this lab READS; cad-studio receives the gear hand-off
     tools: []
     connectors: []
 

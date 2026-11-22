@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. A row with `sharedPart` does not describe the part at all: another package OWNS that real part, and this catalog READS its name, mass, price, source and per-domain block out of the owner's catalog file (animatronics' servo rows; embodied's motor rows, whose KV sets noLoadRpm at this lab's operating point; embodied's bus-servo row, whose jointDrive block sets stallTorqueMnm and noLoadDegPerS), declaring only the block this lab adds (`note` says what that is). Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers equal (tests/shared-parts.test.js).",
+  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. A row with `sharedPart` does not describe the part at all: another package OWNS that real part, and this catalog READS its name, mass, price, source and per-domain block out of the owner's catalog file (animatronics' servo rows; embodied's motor rows, whose KV sets noLoadRpm at this lab's operating point; embodied's bus-servo row, whose jointDrive block sets stallTorqueMnm and noLoadDegPerS; and any owner's stepper row, whose steps/winding/current/holding-torque block sets the stepper nameplate), declaring only the block this lab adds (`note` says what that is). Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers equal (tests/shared-parts.test.js).",
   "drivers": [
     {
       "id": "brushed-12v-generic",
@@ -40,6 +40,42 @@
       "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "sg90" },
       "nameplate": { "nominalVolts": 5, "rotorInertiaGcm2": 500 },
       "note": "the 5 V operating point the solver runs it at and the 500 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
+      "usedBy": []
+    },
+    {
+      "id": "servo-mg90s",
+      "type": "servo",
+      "kind": "servo",
+      "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "mg90s" },
+      "nameplate": { "nominalVolts": 6, "rotorInertiaGcm2": 750 },
+      "note": "the 6 V operating point the solver runs it at (matching the owner's 2.2 kg cm figure) and the 750 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
+      "usedBy": []
+    },
+    {
+      "id": "servo-mg996r",
+      "type": "servo",
+      "kind": "servo",
+      "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "mg996r" },
+      "nameplate": { "nominalVolts": 6, "rotorInertiaGcm2": 8000 },
+      "note": "the 6 V operating point the solver runs it at (matching the owner's 6 V rating) and the 8000 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
+      "usedBy": []
+    },
+    {
+      "id": "servo-ds3218",
+      "type": "servo",
+      "kind": "servo",
+      "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "ds3218" },
+      "nameplate": { "nominalVolts": 6.8, "rotorInertiaGcm2": 15000 },
+      "note": "the 6.8 V operating point the solver runs it at (matching the owner's 20 kg cm rating) and the 15000 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
+      "usedBy": []
+    },
+    {
+      "id": "servo-sts3215-7v4",
+      "type": "servo",
+      "kind": "bus",
+      "sharedPart": { "owner": "animatronics", "file": "catalog/servos.json", "list": "servos", "id": "feetech-sts3215" },
+      "nameplate": { "nominalVolts": 7.4, "rotorInertiaGcm2": 70000 },
+      "note": "the 7.4 V operating point the solver runs it at (matching the owner's 7.4 V rating, distinct from embodied's 12 V STS3215 row) and the 70000 g cm2 reflected rotor inertia (class estimate for the 1:345 gearbox) are this lab's modelling defaults, not datasheet figures",
       "usedBy": []
     },
     {

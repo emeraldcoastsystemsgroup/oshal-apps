@@ -26,6 +26,7 @@
     Sports Quant's concierge (mounted by concierge.js), with its model menu, New conversation, Recent conversations,
     Files, Tap to talk and Keep trying; the board on screen rides on every turn. The header's Concierge button still
     opens and closes the rail; the window's own Close hides it.
+  4 | maintainer@emeraldcoastsystemsgroup.com | 0.12.4 (BACKLOG Item C): render line-movement history, open-window status, and the three-tier openerConfidence badge (confirmed-open, observed-early, late-pickup) on the Preview tab, and surface active tight open-window polling cadence in the status bar.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -527,10 +528,14 @@ function renderPreview(d) {
       }).join('') + '</table></div>');
   }
 
+  parts.push('<div class="card" id="previewLineCard"><h2>Line movement &amp; opener confidence</h2>' +
+    '<div id="previewLineHistory" class="muted">checking captured lines…</div></div>');
+
   parts.push('<div class="row" style="margin-bottom:20px"><button class="ghost" id="rebuild">Rebuild this preview</button>' +
     '<span class="muted">built ' + esc(new Date(d.generatedAt).toLocaleString()) + '</span></div>');
 
   el('previewBody').innerHTML = parts.join('');
+  loadPreviewLineHistory(p);
   var rb = el('rebuild');
   if (rb) {
     rb.addEventListener('click', function () {
@@ -539,6 +544,42 @@ function renderPreview(d) {
         .then(renderPreview).catch(function (e) { rb.disabled = false; rb.textContent = 'Rebuild this preview'; alert(e.message); });
     });
   }
+}
+
+function openerBadge(conf) {
+  if (conf === 'confirmed-open') return '<span class="pill proven">Confirmed open</span>';
+  if (conf === 'observed-early') return '<span class="pill unproven">Observed early</span>';
+  if (conf === 'late-pickup') return '<span class="pill">Late pickup</span>';
+  return '<span class="pill muted">Unknown opener</span>';
+}
+
+function loadPreviewLineHistory(p) {
+  var boxEl = el('previewLineHistory');
+  if (!boxEl || !p || !p.eventId) return;
+  var url = API + '/lines/' + encodeURIComponent(p.eventId) + (p.date ? '?kickoff=' + encodeURIComponent(p.date) : '');
+  fetch(url, { credentials: 'same-origin' }).then(function (r) {
+    if (!r.ok) return null;
+    return r.json();
+  }).then(function (data) {
+    if (!data || !data.movement || !data.movement.firstSeen) {
+      boxEl.innerHTML = '<span class="muted">No captured line history for this game yet.</span>';
+      return;
+    }
+    var m = data.movement, first = m.firstSeen, latest = m.latest || first;
+    var winTag = m.firstInOpenWindow ? 'in open window' : 'outside open window';
+    var priorTag = m.firstPriorPollAbsent ? 'prior poll had no price' : 'no prior empty poll';
+    var lead = Number.isFinite(m.openerLeadHours) ? ' &middot; ' + m.openerLeadHours + 'h before kickoff' : '';
+    var moveTxt = m.netSpreadMove === null ? 'no spread move recorded' : 'net move ' + signed(m.netSpreadMove) + ' pts';
+    boxEl.innerHTML = '<div class="row" style="margin-bottom:8px">' + openerBadge(m.openerConfidence) +
+      '<span class="pill">' + esc(winTag) + '</span>' +
+      '<span class="pill">' + esc(priorTag) + '</span>' +
+      '<span class="muted">' + esc(first.book || 'book') + lead + '</span></div>' +
+      '<div class="muted">First seen: ' + esc(first.homeSpread === null ? '—' : p.homeTeam + ' ' + signed(first.homeSpread)) +
+      ' &rarr; Latest: ' + esc(latest.homeSpread === null ? '—' : p.homeTeam + ' ' + signed(latest.homeSpread)) +
+      ' &middot; ' + esc(moveTxt) + ' &middot; ' + esc((data.observations || []).length) + ' quote step(s)</div>';
+  }).catch(function () {
+    boxEl.innerHTML = '<span class="muted">Line history unavailable.</span>';
+  });
 }
 
 function box(k, v) { return '<div class="linebox"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
@@ -674,8 +715,12 @@ el('refreshNow').addEventListener('click', function () {
 jget(API + '/status').then(function (d) {
   var r = d.refresh || {}, last = r.lastPassAt || r.lastRun;
   el('updatedLine').textContent = last ? 'Updated ' + new Date(last).toLocaleString() : 'Not refreshed yet';
+  var cad = r.lineCaptureCadence;
+  var winNote = cad && cad.activeWindowLeagues && cad.activeWindowLeagues.length
+    ? ' · open window (' + cad.activeWindowLeagues.join('/').toUpperCase() + ' ' + cad.currentMinutes + 'm poll)'
+    : '';
   var head = 'NFL ' + d.season.nfl + ' · NBA ' + d.season.nba +
-    (last ? ' · refreshed ' + new Date(last).toLocaleString() : ' · not refreshed yet');
+    (last ? ' · refreshed ' + new Date(last).toLocaleString() : ' · not refreshed yet') + winNote;
   el('statusline').textContent = head;
   if (!r.schedule) return;
   var hours = Math.round((Number(r.intervalMinutes) || 180) / 6) / 10;

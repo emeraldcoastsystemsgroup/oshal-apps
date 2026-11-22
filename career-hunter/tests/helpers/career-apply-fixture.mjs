@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: `job(sub, id, {company, title, url})` adds another prepared job to a made-up person already in the harness (its own company, posting, packet folder with both PDFs and the parse résumé, its row and its preparation receipt, the way job 7 is stored), and `mark(id, status)` sets a job's row as I applied does, so a batch of several jobs runs over the same real routes and store.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the made-up Word file beside the packet is the parse résumé, Resume_Parse.docx, which generation now writes and the packet uploads; `executive` also writes an executive Resume_ATS.docx, so a case can show it is not the one uploaded. The packet's profile snapshot carries the recorded roles, as generation saves it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): a made-up person's job may name its company's engine and token and the posting's engine id ({company: {atsType, atsToken}, atsJobId}), as Career's sources record them, for a company page that embeds an engine's form.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: the made-up person's address is held as a person's record holds it, in profile.application_contact (address1, city, state, state_abbrev, postal_code, country), beside profile.phone.
@@ -103,7 +104,7 @@ export async function applyHarness() {
   const origin = 'http://127.0.0.1:' + server.address().port;
   const raw = (method, route, body, sub) => fetch(origin + '/api/career-hunter' + route, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(sub ? { 'x-test-person': sub } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const call = async (method, route, body, sub) => { const response = await raw(method, route, body, sub); return { code: response.status, body: await response.json().catch(() => null) }; };
-  return { root, origin, port, engineCalls, call, raw, person: (sub, options) => person(modules, sub, options),
+  return { root, origin, port, engineCalls, call, raw, person: (sub, options) => person(modules, sub, options), job: (sub, id, options) => addJob(modules, sub, id, options),
     async stop() { await new Promise((done) => server.close(done)); if (previous === undefined) delete process.env.JOBHUNTER_STORE_ROOT; else process.env.JOBHUNTER_STORE_ROOT = previous; fs.rmSync(root, { recursive: true, force: true }); } };
 }
 
@@ -138,6 +139,32 @@ function person(modules, sub, { url = WORKDAY, word = WORD, executive = null, co
   draft.begin(dir, 7, job, { revision: 0, guidance: '', experienceIds: [], experienceRevision: bank.read(dir).revision, experienceChosen: true }, 'req-7', true);
   board.updateBoardState(dir, 7, { requestId: 'req-7', phase: 'ready', completedAt: new Date().toISOString() });
   const signal = () => { const d = new Database(paths.userDb); try { return d.prepare('SELECT * FROM user_signals WHERE posting_id=7').get(); } finally { d.close(); } };
+  const mark = (id, status) => { const d = new Database(paths.userDb); try { d.prepare('UPDATE user_signals SET status=? WHERE posting_id=?').run(status, id); } finally { d.close(); } };
   assert.ok(dir.startsWith(fs.realpathSync(os.tmpdir())) || dir.startsWith(os.tmpdir()), 'the made-up person stays inside the disposable root');
-  return { sub, dir, folder, signal };
+  return { sub, dir, folder, signal, mark };
+}
+
+/**
+ * @description Another prepared job for a made-up person already made by person(): its own company and posting in the
+ * corpus, its packet folder (both PDFs and the parse résumé), its row and its preparation receipt, stored as job 7 is.
+ * @param {object} modules The loaded modules. @param {string} sub The person. @param {number} id The posting.
+ * @param {{company?:string,title?:string,url?:string}} [options] @returns {{id:number,folder:string}}
+ */
+function addJob(modules, sub, id, { company = 'Sample Company ' + id, title = 'Office Manager', url = `https://example${id}.wd1.myworkdayjobs.com/en-US/External/job/Office-Manager_R${id}` } = {}) {
+  const paths = modules.store.userPaths(sub), dir = paths.userDir, corpus = new Database(paths.corpusDb);
+  corpus.prepare('INSERT OR REPLACE INTO companies(id,name)VALUES(?,?)').run(id + 100, company);
+  corpus.prepare('INSERT OR REPLACE INTO postings_corpus(id,company_id,ats_job_id,title,url,active)VALUES(?,?,?,?,?,1)').run(id, id + 100, 'fiction-' + id, title, url); corpus.close();
+  const folder = path.join(dir, 'applications', company.replace(/\W+/g, '_') + '__' + id); fs.mkdirSync(folder, { recursive: true });
+  fs.writeFileSync(path.join(folder, 'application.json'), JSON.stringify({ company, title, template_family: 'Professional',
+    generated: { resume: resume(), cover: { greeting: 'Dear team,', paragraphs: ['I run offices well.'], closing: 'Sincerely,' } }, profile_snapshot: { profile: record().profile, roles: record().roles } }, null, 2));
+  fs.writeFileSync(path.join(folder, 'Resume_ATS.pdf'), `%PDF-1.7\nDana Example resume for job ${id}\n%%EOF`);
+  fs.writeFileSync(path.join(folder, 'CoverLetter.pdf'), `%PDF-1.7\nDana Example cover for job ${id}\n%%EOF`);
+  fs.writeFileSync(path.join(folder, 'Resume_Parse.docx'), Buffer.concat([WORD.subarray(0, 4), Buffer.from('made-up Word résumé of job ' + id)]));
+  const db = new Database(paths.userDb);
+  db.prepare("INSERT OR REPLACE INTO user_signals(posting_id,status,resume_path,cover_path)VALUES(?,'generated',?,?)").run(id, path.join(folder, 'Resume_ATS.pdf'), path.join(folder, 'CoverLetter.pdf')); db.close();
+  const draft = require('../../lib/career-application-draft'), board = require('../../lib/career-board-state'), bank = require('../../lib/career-experience-bank');
+  const row = { id, status: 'generated', has_resume: true, has_cover: true, resume_path: path.join(folder, 'Resume_ATS.pdf'), cover_path: path.join(folder, 'CoverLetter.pdf') };
+  draft.begin(dir, id, row, { revision: 0, guidance: '', experienceIds: [], experienceRevision: bank.read(dir).revision, experienceChosen: true }, 'req-' + id, true);
+  board.updateBoardState(dir, id, { requestId: 'req-' + id, phase: 'ready', completedAt: new Date().toISOString() });
+  return { id, folder };
 }

@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: admit editor-concierge-early.js in EDITOR_ASSETS so Video's editor screen claims Today's concierge entry synchronously before its ES module graph finishes loading.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: accept optional aspectRatio (16:9, 9:16, 1:1) on POST /editor/agent-projects and advertise aspectRatios in GET /editor/capabilities.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -126,7 +127,7 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
     res.json((await agent).editingContract());
   }));
   router.post('/editor/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
-    exactFields(req.body, ['title']);
+    exactFields(req.body, ['title', 'aspectRatio']);
     let document; try { document = (await agent).blankProject(req.body); } catch { throw new EditorError(400, 'invalid_video_edit_document'); }
     const project = await env.store.create(owner, projectInput({ title: req.body.title, document }, await env.validator), confirm(env, 'create', owner));
     res.status(201).json({ project });
@@ -173,6 +174,7 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
 /** What this installation actually accepts; the browser reads it instead of assuming. */
 function capabilities() {
   return { profile: { id: 'hd720p30', width: 1280, height: 720, fps: 30, video: 'h264', audio: 'aac', sampleRate: 48000 },
+    aspectRatios: ['16:9', '9:16', '1:1'],
     exportProfiles: ['hd720p30', 'hd720p60', 'hd1080p30', 'hd1080p60', 'uhd4k30', 'uhd4k60'],
     uploads: { video: { container: 'mp4', videoCodecs: ['h264'], audioCodecs: ['aac'], maxBytes: EDITOR_LIMITS.clipBytes, maxSeconds: EDITOR_LIMITS.clipSeconds,
       maxDimension: EDITOR_LIMITS.maxDimension, maxPixels: EDITOR_LIMITS.maxPixels, maxFps: EDITOR_LIMITS.maxFps },

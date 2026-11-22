@@ -3,11 +3,13 @@
 Open work on the packaged odds maker. Every entry has a done-when so scope does not have to be
 guessed later.
 
-**Posture (v0.12.3).** The package ships and runs. It follows a team, builds a line from Elo +
+**Posture (v0.12.4).** The package ships and runs. It follows a team, builds a line from Elo +
 schedule-adjusted power ratings + an offence-versus-defence unit matchup, adjusts for injuries by
 each player's real share of production, compares that line to DraftKings' moneyline and spread, and
-registers every call before kickoff. Line capture is live and change-only. The fantasy half moved to
-its own package, `fantasy-football`, in 0.11.0. There is **no order path**, by design.
+registers every call before kickoff. Line capture is live, change-only, and adapts to per-league
+expected open windows (15-minute tight polling inside active windows, 180-minute slow cadence
+outside) with `confirmed-open` opener confidence. The fantasy half moved to its own package,
+`fantasy-football`, in 0.11.0. There is **no order path**, by design.
 
 What is below is the honest remainder.
 
@@ -70,25 +72,30 @@ are registered in `tests/test-lab.yaml`; these fixture results are separate from
 check and do not claim live World ingestion or deployed acceptance. The separate wire-to-model
 work in A remains open.
 
-## C. "The day the lines come out" is approximated, not known
+## C. "The day the lines come out" is approximated, not known — DONE (0.12.4)
 
-The operator's ask was specific: know when a line opens, check for an edge that day, then track the
-move. What ships is the second half. Capture runs on the refresh cadence (180 min, 21-day horizon)
-and `summariseMovement` labels the earliest row honestly — `observed-early` when we saw it 72+ hours
-before kickoff, `late-pickup` otherwise — precisely because the first row we saw is **not** the
-opening line and treating it as one would corrupt every closing-line-value number computed on top of
-it.
+Implemented in `0.12.4` across `src-routes/open-windows.ts`, `sports-line-history.ts`,
+`sports-line-store.ts`, `sports-refresh.ts`, `sports-routes.ts`, `sports-quant.ts`,
+`migrations/006-sports-line-open-windows.sql`, and `tools/sports-edge.html`:
 
-What is missing is knowing when a book actually posts. Books open a slate on a schedule (US college
-football lines typically post Sunday for the following Saturday), and a three-hour poll can miss the
-open by up to three hours — which is exactly the window where a stale opener is most exploitable.
-
-**Done when:** the package knows a per-league expected open window; capture polls tighter inside it
-(minutes, not hours) and stays on the slow cadence outside it; a captured row records whether it
-landed inside that window; and `openerConfidence` gains a third, stronger level that is only
-assigned when the row was captured inside the window AND the previous poll of the same game and book
-returned no price. The third level is the point: it is the only condition under which "this is the
-opener" is a claim rather than a guess.
+- **Per-league expected open windows (`open-windows.ts`):** explicit DST-aware Eastern (`America/New_York`)
+  open windows for all three supported leagues — NCAAF (Sun 12:00–22:00 ET, 24–192h pre-kickoff),
+  NFL (Sun 19:00–Mon 18:00 ET, 48–216h pre-kickoff), and NBA (prior evening 17:00–24:00 ET, 14–30h
+  pre-tipoff, and game-day morning 08:00–13:00 ET, 4–16h pre-tipoff). Fails closed without kickoff.
+- **Adaptive cadence (`sports-refresh.ts` + `oshal-app.yaml`):** `refresh-pass` ticks every 15 minutes
+  (`*/15 * * * *`). While any tracked upcoming game is inside its league's expected open window,
+  `runRefreshPass` polls line capture every 15 minutes (`TIGHT_CADENCE_MINUTES`) for only the
+  active-window leagues without rebuilding previews or grading. Outside all open windows it stays on
+  the 180-minute slow cadence and answers `skipped: 'not_due'` with zero ESPN reads on intermediate ticks.
+- **Open-window & absent-poll persistence (`migrations/006-sports-line-open-windows.sql` + `sports-line-store.ts`):**
+  every captured row in `sports_line_history` records `in_open_window` and `prior_poll_absent`;
+  `sports_line_poll_state` tracks per-`(event_id, book)` poll outcomes (including empty-odds polls
+  with `had_price = FALSE`) without ever writing priceless rows into `sports_line_history`.
+- **Third `openerConfidence` level (`confirmed-open`):** `summariseMovement` assigns `'confirmed-open'`
+  strictly when the earliest captured row landed inside the league's expected open window AND the
+  immediately preceding poll of the same game and book returned no price; otherwise it falls back to
+  `'observed-early'` (72h+ lead) or `'late-pickup'`. Guarded by `tests/open-window-capture.test.js`
+  (registered in `tests/test-lab.yaml`).
 
 ## D. The staking gate has no evidence behind it yet
 

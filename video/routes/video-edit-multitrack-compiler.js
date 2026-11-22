@@ -4,6 +4,7 @@ exports.compileMultitrack = compileMultitrack;
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Compile bounded v2 video/audio tracks with overlays, color, fades, integer keyframes and sample-aligned mixing through fixed FFmpeg filters.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed/atempo, named color looks, stabilization, chroma key, background matting, keyframed stickers and 720p/1080p/4K 30/60fps export profiles.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Derive multitrack output width and height from document.aspectRatio (16:9, 9:16, 1:1) and size drawtext proportionally to the shorter canvas side.
  */
 const video_edit_compiler_1 = require("./video-edit-compiler");
 const SAMPLES = 1600;
@@ -141,7 +142,7 @@ function titlesAndStickers(graph, input, video, total30, spec) {
             const margin = Math.round(spec.height / 12), y = title.position === 'top' ? String(margin) : title.position === 'center' ? '(h-text_h)/2' : `h-text_h-${margin}`;
             const name = `title-${index}.txt`;
             files.push({ name, text: title.text });
-            filters.push(`drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${Math.round(spec.height / divisor)}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`);
+            filters.push(`drawtext=textfile=${name}:expansion=none:fontfile=${input.fontFile}:fontsize=${Math.round(Math.min(spec.width, spec.height) / divisor)}:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=${y}:enable='between(n,${start30 * spec.fpsScale},${end30 * spec.fpsScale - 1})'`);
         }
         if (!hasStickers) {
             graph.parts.push(`[${stage}]${filters.join(',')},format=yuv420p[vout]`);
@@ -163,7 +164,7 @@ function compileMultitrack(input) {
         throw new video_edit_compiler_1.TimelineCompileError('timeline_empty');
     if (all.length > 32 || tracks.filter(track => track.kind === 'video').length > 4 || tracks.filter(track => track.kind === 'audio').length > 8)
         failInvalid();
-    const spec = (0, video_edit_compiler_1.resolveCompileSpec)(input.variant, input.resolution, input.fps, failInvalid, input.document.profile);
+    const spec = (0, video_edit_compiler_1.resolveCompileSpec)(input.variant, input.resolution, input.fps, failInvalid, input.document.profile, input.document.aspectRatio);
     const total30 = int(Math.max(...all.map(clip => {
         const first = int(clip.in, 0, 1799), last = int(clip.out, first + 1, input.document.sources[clip.source]?.frames ?? 0);
         return int(clip.start, 0, 1799) + (0, video_edit_compiler_1.clipDuration30)(first, last, clip.speed, failInvalid).dur30;
@@ -193,5 +194,5 @@ function compileMultitrack(input) {
         '-crf', String(spec.crf), '-pix_fmt', 'yuv420p', '-r', String(spec.fps), '-frames:v', String(outFrames), '-threads', String(threads),
         '-c:a', 'aac', '-b:a', spec.audioBitrate, '-ar', '48000', '-ac', '2', '-movflags', '+faststart', '-f', 'mp4', 'file:output.mp4'];
     return { args, filterGraph, files, output: 'output.mp4', frames: outFrames,
-        samples: total30 * SAMPLES, width: spec.width, height: spec.height, fps: spec.fps, profileId: spec.profileId };
+        samples: total30 * SAMPLES, width: spec.width, height: spec.height, fps: spec.fps, profileId: spec.profileId, aspectRatio: spec.aspectRatio };
 }

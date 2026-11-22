@@ -245,7 +245,7 @@ Defined in `migrations/003-marketing-audience.sql`, `routes/marketing-audience.j
 | `channel` | text | no |  |  |
 | `purpose` | text | no | 'marketing' |  |
 | `status` | text | no | 'pending' |  |
-| `evidence` | jsonb | no | '{}' | `{ formText, recordedAt, ip, userAgent, utm, tokenHash }` |
+| `evidence` | jsonb | no | '{}' | `{ formText, recordedAt, ip, userAgent, utm, tokenHash }` plus CSV attestation fields (`consentSource`, `attestation`, `importBatchId`, `rowNumber`, `priorConsentDocumented`) when imported via `POST /audience/contacts/import-csv` |
 | `created_at` | timestamp with time zone | no | now() |  |
 | `updated_at` | timestamp with time zone | no | now() |  |
 

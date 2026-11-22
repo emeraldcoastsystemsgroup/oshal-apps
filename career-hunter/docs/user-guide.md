@@ -167,6 +167,20 @@ stops future preparations; work already started may finish. Changing the choice
 applies to new preparation attempts; existing attempts keep their recorded choice.
 A job removed before preparation is queued is left alone.
 
+## Make documents again for many jobs
+
+Documents Career made with an earlier version do not have its later fixes. Open **My jobs**
+(Saved, Getting ready or New matches). The **Generate again** panel above the jobs says how
+many of your open jobs have older documents. Press **Select all with older documents**, then
+**Generate again (N)**; or select jobs in the list or the table and press **Generate again (N)**
+in the bar under them. Career asks once, then makes new documents for those jobs one after
+another in the background, about a minute each, with each job's own notes and Other experience
+choice. It goes on when you close Career. The panel shows how many are done, left and failed
+(with the reason), and the job Career is writing; **Pause**, **Go on** and **Stop** control it,
+and **Clear** removes it once it has ended. A job that fails is tried once more. Applied jobs
+are never changed, and if you press **Generate résumé & cover letter** on a job yourself, yours
+goes first and Career skips that job.
+
 ## Prepare one application
 
 Open a saved job and choose **Prepare application**, or use **Open

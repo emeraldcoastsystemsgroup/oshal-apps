@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Automatically save and refresh the concierge's current editable timeline; fence delayed saves to their original project.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §4.4, §5.1): Delete project asks in the page (the Project menu's confirm sheet) instead of a native confirm (DS-30); selecting a clip on a phone turns the bottom tool row into the clip's tools instead of opening a drawer over the work, and Done in that row clears the selection; the first screen's status line is short (DS-31).
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): pass composite preview overlays to player, export profile state to exporter, and support titles on both v1 and v2 timelines.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): wire #projectAspectRatio selector and startNew aspect-ratio options with undoable edits, autosave and preview sync.
  */
 import {readVideoArtifact} from './artifact-import.mjs';
 import {bindVideoFoundation} from './editor-foundation-adapter.mjs';
@@ -18,7 +19,7 @@ import { motionSourceUrl } from './motion-source.mjs';
 import { createMultitrackEditor } from './multitrack-editor.mjs';
 import { applyMultitrack } from './multitrack-model.mjs';
 import * as model from './timeline-model.mjs';
-import { timelineFrames } from './timeline-validation.mjs';
+import { resolveAspectRatio, timelineFrames } from './timeline-validation.mjs';
 import { createTimelineHistory } from './timeline-history.mjs';
 import { call, describe, upload, configureMediaTransport } from './editor-api.mjs';
 import { remainingFrames, renderBed, renderInspector, renderSources, renderTitles, renderTrack } from './timeline-view.mjs';
@@ -78,6 +79,8 @@ function render() {
     volumeValue: $('segmentVolumeValue'), buttons: [$('split'), $('moveLeft'), $('moveRight'), $('removeSegment')] }, current, state.selected, canEdit);
   renderBed($('bedSource'), $('bedVolume'), $('bedVolumeValue'), current, canEdit);
   $('projectName').value = current.name; $('projectName').disabled = !canEdit;
+  const aspectSelect = $('projectAspectRatio');
+  if (aspectSelect) { aspectSelect.value = resolveAspectRatio(current); aspectSelect.disabled = !canEdit; }
   const canUpload = !!(state.permissions.create || state.permissions.change) && canEdit;
   $('addClip').disabled = !canUpload; $('addBed').disabled = !canUpload;
   $('undo').disabled = !state.history.canUndo(); $('redo').disabled = !state.history.canRedo();
@@ -201,14 +204,22 @@ async function deleteProject() {
   finally { state.busy = false; render(); await loadProjects(); }
 }
 
-function startNew() {
+function startNew(options) {
+  const explicit = Boolean(options && typeof options === 'object' && ('aspectRatio' in options || 'title' in options));
+  const title = explicit && typeof options.title === 'string' && options.title.trim() ? options.title.trim() : 'Untitled video';
+  const createOpts = explicit && options.aspectRatio ? { aspectRatio: options.aspectRatio } : {};
   state.draftEpoch += 1;
   hideError(); state.projectId = null; state.revision = null; state.selected = null;
-  state.history.reset(model.createTimeline('Untitled video')); state.savedText = JSON.stringify(doc());
+  state.history.reset(model.createTimeline(title, createOpts)); state.savedText = JSON.stringify(doc());
   try { history.replaceState(null, '', location.pathname); } catch { /* embedded without history access */ }
-  const draft = readDraft();
-  if (draft && draft.baseRevision === null && commit(draft.document)) setStatus('Restored your unsaved edits.');
-  else setStatus('New project.');
+  if (explicit) {
+    try { localStorage.removeItem(draftKey()); } catch { /* storage unavailable */ }
+    setStatus(`New ${resolveAspectRatio(doc())} project.`);
+  } else {
+    const draft = readDraft();
+    if (draft && draft.baseRevision === null && commit(draft.document)) setStatus('Restored your unsaved edits.');
+    else setStatus('New project.');
+  }
   render();
 }
 
@@ -288,6 +299,10 @@ function wireInspector() {
   $('bedVolume').addEventListener('input', () => { $('bedVolumeValue').value = `${$('bedVolume').value}%`; });
   $('bedVolume').addEventListener('change', () => apply(current => model.setAudioBed(current, current.audioBed.source, Number($('bedVolume').value))));
   $('projectName').addEventListener('change', () => { if (!apply(current => model.renameTimeline(current, $('projectName').value))) $('projectName').value = doc().name; });
+  $('projectAspectRatio')?.addEventListener('change', () => {
+    const ratio = $('projectAspectRatio').value;
+    if (!apply(current => model.setAspectRatio(current, ratio))) $('projectAspectRatio').value = resolveAspectRatio(doc());
+  });
 }
 
 
@@ -335,7 +350,7 @@ function wireProject() {
   $('saveAsNew').addEventListener('click', () => save(true));
   $('deleteProject').addEventListener('click', deleteProject);
   $('reloadSaved').addEventListener('click', () => { try { localStorage.removeItem(draftKey()); } catch { /* unavailable */ } open(state.projectId); });
-  $('newProject').addEventListener('click', startNew);
+  $('newProject').addEventListener('click', () => startNew());
   $('projectList').addEventListener('change', () => { if ($('projectList').value) open($('projectList').value); });
   document.addEventListener('keydown', onKey);
 }
@@ -351,7 +366,7 @@ async function init() {
     status: $('exportStatus'), hint: $('exportHint'), download: $('downloadExport'), watch: $('watchExport') },
   () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export, profile: doc().profile }));
   wireTimeline(); wireInspector(); wireProject();
-  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,exporter,setStatus,
+  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,startNew,exporter,setStatus,
     permissions:()=>state.permissions,clearSelection:()=>{textSelection=null;state.selected=null;multitrack?.deselect();render();},confirmNext:()=>{state.deleteConfirmed=true;}});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
   try { const current = await call('/permissions'); state.permissions = current.permissions; configureMediaTransport(current.nativeMedia); }
   catch (error) {

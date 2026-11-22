@@ -17,6 +17,7 @@
 # 49 | maintainer@emeraldcoastsystemsgroup.com | Enforce person-confirmed skill/career year figures (years_truth.enforce) and restore miswritten recorded terms (term_fidelity.restore) as final deterministic passes in _tailored_packet, persisting years_truth and term_fidelity receipts in application.json.
 # 50 | maintainer@emeraldcoastsystemsgroup.com | 1.68.23: the years pass is given the additional experience chosen for the packet, so the career total it holds a low claim to is the one the receipt records.
 # 51 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: _packet_files also writes Resume_Parse.docx (docx_parse), the job's résumé as labelled lines for an employer's résumé parser, from the same résumé and the recorded roles of the packet's profile; generate_for and rerender_packet hand those roles over.
+# 52 | maintainer@emeraldcoastsystemsgroup.com | Generate again (lane CAREER-REGEN): application.json records the Career version that made the packet ("career_version", career_version.current(), second key so a reader finds it in the first bytes); rerender_packet keeps the recorded one, since it writes no new content. My jobs reads it to tell which jobs have documents from an earlier Career.
 """Generate a powerful, tailored resume + cover letter for one job, as PDF.
 
 Pipeline: pull the job + the candidate's full career_db -> ask the LLM to select and sharpen
@@ -33,6 +34,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import (
+    career_version,
     claims_check,
     claims_fix,
     config,
@@ -827,7 +829,7 @@ def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '
         paths = _packet_files(outdir, data, ctx, family=template_family, roles=prof_doc.get("roles"))
 
         (outdir / "application.json").write_text(
-            json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
+            json.dumps({"posting_id": posting_id, "career_version": career_version.current(), "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
                         "template_family": paths["template_family"],
                         "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],

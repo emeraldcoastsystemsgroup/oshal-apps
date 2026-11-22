@@ -47,6 +47,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.5.10 (lane mobilesweep1, the phone first-screen sweep of 2026-11-16): on a phone the campaign list starts at 176 px (19%) instead of 357 px (39%): the page's title and tagline step aside (Today's bar names the page), and the Board's controls are two rows, search with Import (its icon) and + New, then the four status chips. Desktop unchanged. Presentation only (tools/marketing-engine.html, CSS in its 760 px phone block).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.5.11: declare `approvals:` (`/api/marketing/budget/proposals`, `/approvals`) so proposed budget changes appear in the cross-application Approvals screen (`/cockpit/?screen=approvals`) and execute through the existing confirmed `/decide` route.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.6.0, P1 audience store: add migration 003-marketing-audience.sql (`oshal_marketing_contacts`, `oshal_marketing_consents`, `oshal_marketing_lists`, `oshal_marketing_list_members`, `oshal_marketing_suppressions`, all exact-owner FORCE RLS), owner-scoped `/api/marketing/audience/*` routes (contacts list & segmentation, consent evidence capture/export, export-first contact delete, lists & memberships, normalized-hash suppressions), pure model unit tests, and enforcing-role PostgreSQL RLS proof.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 0.6.1, P1 CSV import with consent attestation: add pure RFC-4180 CSV parser (`marketing-audience-csv`) and `POST /api/marketing/audience/contacts/import-csv` enforcing mandatory consent source per contact (atomic 400 refusal when missing), pending-by-default unless documented prior consent (`confirmed` + non-empty evidence + valid ISO-8601 timestamp) is present, strict refusal to re-subscribe suppressed addresses, and owner-scoped list attachment; proven by `tests/marketing-audience-csv.test.mjs` and extended enforcing-role PostgreSQL 16 FORCE RLS tests.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -55,7 +56,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.6.0
+version: 0.6.1
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.

@@ -4,6 +4,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | On a phone the app bar is one row: the project name takes the free width and the actions (Save, Export, More) never wrap (Roger, trial.oswarm.ai, 2026-11-06, F4/F9).
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every colour, line, radius, size and space from the --ds-* tokens; solid controls with a 3:1 edge (no translucent fill, gradient, lift or fade), one 2px focus ring, radii 10/14/20, the type scale with nothing under 12px, 44px targets on touch, opaque sheets and menus in the top layer, the tool row as the phone's bottom bar, the preview and timeline in the dark category look the manifest declares, and the canvas wide on a desktop (the media rail leaves for the Add sheet).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): composite preview layers (underlay video, chroma/matte canvas, sticker layer, caption overlay) and solid --ds-* controls for speed, looks, stickers, voice, sound effects, captions and export profile sheets.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5 (CREATE-TOOL-VIDEO-02): render preview stage at the project's exact aspectRatio (16:9, 9:16, 1:1) and size #projectAspectRatio cleanly across desktop and phone widths.
  */
 :root {
   --bg: var(--ds-page, var(--bg-primary)); --panel: var(--ds-surface, var(--bg-card)); --panel-2: var(--ds-surface-2, var(--bg-secondary)); --text: var(--ds-ink, var(--text-primary)); --muted: var(--ds-ink-2, var(--text-secondary));
@@ -42,7 +43,11 @@ a { color: var(--ds-accent-ink, var(--accent)); text-decoration: underline; }
 .list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
 .source-name { font-weight: 600; overflow-wrap: anywhere; }
-.screen { position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+.screen-stage { flex: 1 1 auto; min-height: 160px; min-width: 0; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.screen { position: relative; aspect-ratio: 16 / 9; width: 100%; max-width: 100%; background: #000; overflow: hidden; }
+.screen[data-aspect-ratio="16:9"] { aspect-ratio: 16 / 9; }
+.screen[data-aspect-ratio="9:16"] { aspect-ratio: 9 / 16; }
+.screen[data-aspect-ratio="1:1"] { aspect-ratio: 1 / 1; }
 .screen[data-matte-backdrop] { background-color: var(--ds-surface); background-image: conic-gradient(var(--ds-surface-2) 90deg, var(--ds-surface) 90deg 180deg, var(--ds-surface-2) 180deg 270deg, var(--ds-surface) 270deg); background-size: 24px 24px; }
 .screen video { width: 100%; height: 100%; object-fit: contain; position: relative; z-index: 1; }
 .screen .underlay-video { position: absolute; inset: 0; z-index: 0; }
@@ -107,7 +112,11 @@ progress { width: 100%; }
 .video-foundation .ef-navigation > .panel, .video-foundation .ef-viewport > .panel, .video-foundation .ef-more-tools .panel { border: 0; border-radius: 0; padding: 12px 16px; min-width: 0; background: transparent; }
 .video-foundation .ef-viewport > .preview { display: flex; flex-direction: column; }
 .video-foundation .preview > h2, .video-foundation .timeline > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
-.video-foundation .screen { flex: 1; min-height: 180px; max-height: 100%; }
+.video-foundation .screen { flex: 0 1 auto; width: auto; height: auto; min-height: 0; max-width: 100%; max-height: 100%; }
+.video-foundation .screen[data-aspect-ratio="16:9"] { width: min(100%, calc(min(48dvh, 420px) * 16 / 9)); }
+.video-foundation .screen[data-aspect-ratio="9:16"] { height: min(48dvh, 420px); width: auto; }
+.video-foundation .screen[data-aspect-ratio="1:1"] { height: min(48dvh, 420px); width: auto; }
+.video-aspect-select { flex: 0 1 auto; min-width: 0; max-width: 160px; padding: 0 10px; font: 600 13px/20px var(--ds-font, system-ui); }
 .video-foundation .transport { flex: none; }
 .video-foundation .video-timeline { padding: 8px 16px; max-height: 30dvh; overflow: auto; }
 .video-foundation .video-timeline .panel { padding: 0; border: 0; background: transparent; }
@@ -187,15 +196,19 @@ progress { width: 100%; }
   .video-foundation .ef-navigation { display: none !important; }
   .video-foundation.ef-has-concierge[data-editor-concierge=open] .ef-body { grid-template-columns: minmax(0, 1fr) 320px 360px !important; }
   .video-foundation .video-phone-only { display: none !important; }
-  .video-foundation .bar button, .video-foundation .bar input { min-height: 36px; }
+  .video-foundation .bar button, .video-foundation .bar input, .video-foundation .bar select { min-height: 36px; }
   .video-foundation .video-icon { min-width: 36px; }
   .video-toolrow .video-tool, .video-toolrow [data-ds-not-yet] { min-height: 36px; }
 }
 /* Phone (§3.1): one app row, the tool row as the bottom bar, sheets from the bottom. */
 @media (max-width: 800px) {
   .video-foundation .bar { padding: 4px 8px; min-height: 52px; gap: 4px; }
+  .video-foundation .bar .video-aspect-select { max-width: 82px; padding: 0 6px; font-size: 12px; }
   .video-foundation .identity { display: none; }
-  .video-foundation .screen { min-height: 140px; }
+  .video-foundation .screen-stage { min-height: 140px; }
+  .video-foundation .screen[data-aspect-ratio="16:9"] { width: 100%; height: auto; }
+  .video-foundation .screen[data-aspect-ratio="9:16"] { height: min(36dvh, 320px); width: auto; }
+  .video-foundation .screen[data-aspect-ratio="1:1"] { height: min(36dvh, 320px); width: auto; }
   .video-foundation #stepBack, .video-foundation #stepForward { display: none; }
   .video-foundation .transport { gap: 4px; }
   .video-foundation .video-timeline, .video-foundation .ef-timeline-slot { max-height: 28dvh; }

@@ -2,6 +2,8 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
+# 204 | maintainer@emeraldcoastsystemsgroup.com | 1.75.0: Generate again for many jobs, with Select all with older documents (CHANGELOG.md 204)
+# 203 | maintainer@emeraldcoastsystemsgroup.com | 1.74.0: fill in several in a row; Go on fills in again from memory (CHANGELOG.md 203)
 # 202 | maintainer@emeraldcoastsystemsgroup.com | 1.73.0: how Career fills in a form, and Submit after approval (CHANGELOG.md 202)
 # 201 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: a résumé for upload forms, labelled for parsers (CHANGELOG.md 201)
 # 200 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0: Fill it in on my Chrome on any employer site and engine (CHANGELOG.md 200)
@@ -103,7 +105,7 @@ description: >-
   Your main résumé is one record: edit it as a Word document on the My résumé page or job by job on Work history, and each shows what the other saved. Work history also holds your expanded experience: the client engagements you did under each job, and your client accounts.
   One concierge on every page, and through Jarvis, reads and changes anything in Career for you: your saved jobs and applications, your résumé and work history, your settings, the companies you want and your recruiters. A change to your résumé, and anything that spends or sends, waits for your approval, with Undo.
   The Download my data page lists every role, bullet, skill and history record Career keeps for you, with Download and Print.
-version: 1.73.0
+version: 1.75.0
 
 localEditing:
   itemId: master
@@ -1621,6 +1623,15 @@ schedules:
     report: true
     # The original activated source administrator receives owner-bound decision tickets; no schedule is activated here.
     description: For Career administrators. Each morning, tell you what last night's source maintenance newly left for a person. Prepare or reconcile your own human approval tickets for current source decisions, and tell you what last night left for a person or developer. A confirmed decision waits for the next pull; this job never writes the shared corpus or approves a ticket.
+  - id: career-regenerate
+    cron: "* * * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/regenerate/advance
+    method: POST
+    timeoutSeconds: 60
+    description: While Generate again has jobs in line, write the next job's résumé and cover letter with that job's own notes and choices, one job at a time. Does nothing when none wait. Submits nothing.
 
 surface:
   ops: [context, custom, notify]
@@ -1936,8 +1947,11 @@ staticFiles:
       - career-accounts.js
       - career-application.js
       - career-apply-assist.js
+      - career-apply-batch.css
+      - career-apply-batch.js
       - career-apply-receipt.js
       - career-bulk-queue.js
+      - career-regenerate.js
       - career-change-bar.js
       - career-concierge.css
       - career-concierge.mjs

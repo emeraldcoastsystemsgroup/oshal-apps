@@ -81,6 +81,14 @@ draft stays in the current canvas. Reopen the saved project or use **Save a copy
 Network failures stop automatic retries until another edit or an explicit Save
 (the Save button returns beside the caption after a failed save).
 
+## Text styling and in-place canvas typing (1.20.4)
+
+Text layers support optional bounded styling properties alongside `shadow` (from version 4 appearance):
+
+- `italic` (boolean, default `false`), `underline` (boolean, default `false`), `lineHeight` (`0.8..3`, default `1.2`), `letterSpacing` (`-10..100` px, default `0`), and text outline `stroke` (six-digit hex or `null` to clear) with `strokeWidth` (`0..32` px, default `0`). Defaults are omitted from canonical normalized JSON so existing unstyled documents keep their exact shape.
+- **On screen:** Select any unlocked text layer to set **Italic**, **Underline**, **Line height**, **Letter spacing**, **Outline width**, **Outline color**, and **Shadow** in the Format inspector, all routed through the validated undo/redo and autosave history path. Double-clicking an unlocked text layer on the canvas opens an aligned in-place text editor directly over its bounding box: `Escape` cancels without dirtying history, `Cmd/Ctrl+Enter` or clicking outside commits one undoable edit if text changed, and typing keys (`Backspace`, `Delete`, `Ctrl+Z`) stay inside the text draft instead of deleting the layer. Locked text layers and read-only roles refuse inline editing cleanly.
+- **By concierge tool and exports:** `create-apply-edits` (`POST /projects/:id/operations`) accepts every text styling property in `add` and `update` patches and rejects out-of-range, wrong-type, or locked edits cleanly. Canvas preview, PNG/JPEG export, and SVG export render italic, underline, line height, letter spacing, outline (`stroke` + `stroke-width` + `paint-order="stroke fill"`), and isolated drop shadows consistently, and read-only editor context exposes active text styles. No route, permission, migration, or `authorization.yaml` change is introduced.
+
 ## Flip horizontally and vertically (1.20.3)
 
 Every paint layer (`image`, `text`, `rect`, `ellipse`, `freehand`, `path`) and

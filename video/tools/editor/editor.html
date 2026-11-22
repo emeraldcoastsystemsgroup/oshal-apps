@@ -4,6 +4,7 @@
 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §5.0, §5.1): the page declares its contract (an editor whose first action is adding a video), the package stylesheet loads after the shared editor's so the standard's tokens win, and the keyboard list leaves the timeline for More > Keyboard shortcuts.
 3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): add live preview composite canvas, underlay video element, SVG sticker overlay layer and timed caption overlay inside the preview screen.
 4 | maintainer@emeraldcoastsystemsgroup.com | 1.14.4: run editor-concierge-early.js synchronously before the editor module graph so Today steps its floating ball aside at first paint and preserves any Concierge press that arrives while modules load.
+5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.5: add #projectAspectRatio selector (16:9 Landscape, 9:16 Vertical, 1:1 Square) and .screen-stage aspect-ratio preview wrapper.
 -->
 <html lang="en" data-theme="graphite" data-ds-category="editor" data-ds-first-action="file:video">
 <head>
@@ -20,6 +21,11 @@
   <header class="bar">
     <div class="identity"><span class="eyebrow">VIDEO STUDIO</span><h1>Video editor</h1></div>
     <label class="title-field"><span class="sr-only">Project name</span><input id="projectName" maxlength="160" value="Untitled video" autocomplete="off" disabled></label>
+    <select id="projectAspectRatio" class="video-aspect-select" aria-label="Aspect ratio" title="Project aspect ratio" disabled>
+      <option value="16:9">16:9 Landscape</option>
+      <option value="9:16">9:16 Vertical</option>
+      <option value="1:1">1:1 Square</option>
+    </select>
     <div class="actions">
       <select id="projectList" aria-label="Open a saved project" disabled><option value="">Open a saved project…</option></select>
       <button id="newProject" type="button" disabled>New</button>
@@ -56,14 +62,16 @@
     </section>
     <section class="panel preview" aria-labelledby="previewHeading">
       <h2 id="previewHeading">Preview</h2>
-      <div class="screen" id="previewScreen">
-        <video id="underlayViewer" class="underlay-video" playsinline preload="auto" muted hidden></video>
-        <video id="viewer" playsinline preload="auto"></video>
-        <canvas id="compositeCanvas" class="composite-canvas" width="640" height="360" hidden></canvas>
-        <div id="stickerLayer" class="sticker-layer" hidden></div>
-        <div id="captionOverlay" class="title-overlay caption-overlay" hidden></div>
-        <div id="titleOverlay" class="title-overlay" hidden></div>
-        <p id="noPicture" class="no-picture" hidden>This browser cannot show this clip. Timing and titles still work, and the export includes it.</p>
+      <div class="screen-stage">
+        <div class="screen" id="previewScreen" data-aspect-ratio="16:9">
+          <video id="underlayViewer" class="underlay-video" playsinline preload="auto" muted hidden></video>
+          <video id="viewer" playsinline preload="auto"></video>
+          <canvas id="compositeCanvas" class="composite-canvas" width="640" height="360" hidden></canvas>
+          <div id="stickerLayer" class="sticker-layer" hidden></div>
+          <div id="captionOverlay" class="title-overlay caption-overlay" hidden></div>
+          <div id="titleOverlay" class="title-overlay" hidden></div>
+          <p id="noPicture" class="no-picture" hidden>This browser cannot show this clip. Timing and titles still work, and the export includes it.</p>
+        </div>
       </div>
       <audio id="bedAudio" preload="auto"></audio>
       <div class="transport">

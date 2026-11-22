@@ -1,5 +1,7 @@
 # Smart Home (home) — Open Swarm app package
 
+1.9.4: **Roku and Samsung TV card application controls.** A Roku or Samsung TV card on the TVs and streaming page now displays the last-reported application in front (`In front: …`), offers **What's in front** (with a listed-application picker on Samsung TVs, which check one application at a time) and **List apps**, and renders bounded touch-friendly launch buttons for the TV's listed applications (`launch_app`, without sending any `contentId`). Android/Fire TV and Google Cast cards omit these controls. Browser regression coverage at `412 x 915` and `1440 x 900`: `tests/browser/tv-apps-card.test.cjs`. Real Roku and Samsung TV hardware verification and Samsung `metaTag` title-launch templates remain open in `BACKLOG.md`.
+
 1.9.3: **A roomier Smart Home overview.** Device groups use the available workspace width, with readable cards on desktop and phone. Device details open after you select a device, so the initial overview keeps its space for your devices. Existing device controls, reported state and permissions are unchanged. Layout regression coverage: `tests/browser/home-layout.test.cjs`.
 
 1.9.0: **Smart Home keeps no grocery list.** It kept one of its own beside Shopping's and could not order from it, so "add eggs to my grocery list" and "order the groceries" went to two places and nothing was ordered. Shopping keeps a person's one grocery list and makes the order from it. The refrigerator page's **Grocery list** card shows that list, adds to it and ticks an item off through Shopping's own routes in the person's session, and has **Open Shopping**; items a person had put on the refrigerator's own list are moved to Shopping when the page opens (and stay, shown, when Shopping does not answer for that account). `home-fridge-meal-cart` takes no grocery action: it adds a meal, notes an item the person says they already bought, or sets the weekly check; a grocery action from an older caller answers 409 `kept_by_shopping`. The description says the grocery list is kept by Shopping, which is what Jarvis reads to choose an application.
@@ -127,9 +129,9 @@ Neither a Roku nor a Samsung TV runs the oshal TV app, so Jarvis reaches them wi
   computer tools, not through Smart Home, and refuses these three actions in words.
 - **An older bridge** on the computer answers `bad_action`; the recorded answer then says to open Smart Home, TVs
   and streaming sticks, and press **Scan for TVs** once, which updates it.
-- **Tests**: `tests/home-lan-direct.test.cjs`, and the bridge's stand-in suite
+- **Tests**: `tests/home-lan-direct.test.cjs`, `tests/browser/tv-apps-card.test.cjs`, and the bridge's stand-in suite
   `phone-control/tests/phone-control-front.test.mjs`. Locally tested against stand-ins only: these actions have not
-  been run against a real Roku or Samsung TV, and the Smart Home screen has no button for them yet (see BACKLOG).
+  been run against a real Roku or Samsung TV, and Samsung `metaTag` title launches are not built yet (see BACKLOG).
 
 <!-- oshal-rating:start -->
 ## Models and requirements

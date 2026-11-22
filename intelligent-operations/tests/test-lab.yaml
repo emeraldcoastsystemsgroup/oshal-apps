@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 47 | maintainer@emeraldcoastsystemsgroup.com | 1.9.7 (R21): register response-manifest-diff (tests/response-manifest.test.cjs: deterministic response-plan manifest builder, bounded line-by-line unified diff, plan-to-plan comparison, explicit non-authorization notice, XSS-safe textContent diff rendering, stale-response guard, 403 refusal clearing, and 1440x900/412x915 layout fit).
 # 46 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 (R14): register kubernetes-node-alerts (tests/node-alerts.test.cjs: kubernetes-node alert schema/intake, Alertmanager ingest mapping, OTLP telemetry & evidence inventory facts, temporal graph RUNS_ON correlation, historical as-of fidelity, automatic tick correlation, sandbox replay, and Systems/Explorer UI projection).
 # 45 | maintainer@emeraldcoastsystemsgroup.com | 1.9.5 (Option 1 — Ticket + Per-User Workspace + Workflow): register ops-specialist-workflow (tests/ops-specialist-workflow.test.cjs: untrimmed >4,000-char packets up to 64 KiB on ops-specialist tickets, getAcceptedWork digest verification, confirmed Stop ticket cancellation, access-clear safety, and ops-concierge chat window) replacing ops-chat-turn-contract, and update ops-one-chat-window for ops-concierge.
 # 44 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4 review fix: register ops-chat-turn-contract (tests/ops-chat-turn-contract.test.cjs: whole marked packets within the window limit, correlated Ask settlement, shared Stop ends the console request, no staging after an access clear).
@@ -1023,5 +1024,20 @@ cases:
     prerequisites: [runner:node-test, service:postgres-disposable-35689]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: response-manifest-diff
+    name: Response plan manifest and unified diff review (R21)
+    purpose: "Guard 1.9.7 (R21) across unit checks and real Chromium: verify deterministic response-plan manifest building (SHA-256 digests, bundle digest, byte counts, byte ranges, provenance and explicit non-authorization notice), bounded line-by-line unified diffing (CRLF/no-trailing-newline and maxLines truncation), plan-to-plan comparison, strict textContent XSS escaping, stale out-of-order response dropping, 403 refusal clearing, zero approve/execute side effects, and zero horizontal overflow at 1440x900 and 412x915."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/response-manifest.test.cjs] }
+    expected:
+      - Opening Manifest & diff shows every generated file's name, SHA-256 digest, byte count, byte range, server-verified provenance badge, authenticated download link and explicit non-authorization notice with zero approval or execution requests.
+      - Comparing two plans fetches authenticated file bytes, classifies unchanged, modified, added and removed files accurately, and renders unified diff hunks strictly through textContent so embedded script/HTML tags never execute.
+      - Stale out-of-order artifact responses never overwrite a newer comparison selection, and a 401/403 refusal clears manifest and diff DOM cleanly.
+      - Both 1440x900 and 412x915 viewports render the open manifest and diff with zero horizontal overflow and zero page errors.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:express, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and close the browser and loopback server. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never

@@ -25,6 +25,7 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Remove unsupported regressionTests keys from TV/storage/tile cases and quote the comma-containing cleanup string on home-tv-direct.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: register product-name guard (tests/product-name.test.cjs) and align Show Open Swarm wording on home-lan-devices and home-tvs.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Register available-width Home layout, explicit details selection, close focus and responsive overflow regressions against the shipped page.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.9.4: register tv-apps-card (tests/browser/tv-apps-card.test.cjs) for Roku and Samsung TV card application controls and in-front status display at 412 x 915 and 1440 x 900.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -223,6 +224,21 @@ cases:
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Each case closes its browser context and the temporary data folder is removed; nothing leaves the browser. }
+    limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
+    installation: never
+  - id: tv-apps-card
+    name: Roku and Samsung TV card application buttons and active-app display
+    purpose: Drive the real Smart Home TVs page and compiled lan-devices routes in Chromium at 412 x 915 and 1440 x 900 with stand-in computer answers.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/tv-apps-card.test.cjs] }
+    expected:
+      - A Roku TV card shows its last-reported in-front application, offers What's in front, List apps and listed application buttons, updates the in-front line on What's in front, and launches a listed app with launch_app and no contentId.
+      - A Samsung TV card refuses to send an empty active_app before applications are listed, loads listed apps via List apps, checks a chosen application with active_app, and launches a listed application without contentId.
+      - Android/Fire TV and Google Cast cards omit What's in front, List apps and listed application launch buttons.
+      - Hostile application names render strictly as textContent with zero script execution; a 40-application list stays bounded with filter and expand toggle; touch targets are at least 44 x 44 with zero horizontal overflow at 412 x 915 and 1440 x 900.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Each case closes its browser context and removes the temporary data folder; no real TV or network is contacted. }
     limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
     installation: never
   - id: home-per-person-storage

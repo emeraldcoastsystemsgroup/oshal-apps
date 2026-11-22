@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-REPLAY (Roger, 2026-11-21: "can remember and play back quickly in case of timeout"): a paused run, or one whose computer stopped, offers Go on — fill in again from where it was, with one line saying Career remembers what it entered and his answers, so it fills in again from where it was without asking again (the kernel plays back the approval's memory on the next attempt).
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: the approval screen says How Career fills it in, one sentence each for Typing, Window and Submit as the person set them in Saved answers (packet flagLines), and its last line is Career presses Submit once when he chose Submit after I approve. The job page says Submitted by Career after your approval when Career pressed Submit, what the run said when it was ready (why Career did not press Submit), and for Not seen yet after Career's own press, its words.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: the packet's Word file is the parse résumé, so the approval screen calls it Résumé for upload forms (Word) and says Career uploads the résumé for upload forms (Word).
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.71.0 (lane APPLY-G): under Site the approval screen says how the form is filled: where a company page's embedded engine form really opens, and for an employer site Career has no rules for, that Career types his record only into fields whose words say exactly what they are, asks him the rest, moves pages only with Next or Continue and stops before any button that sends the application.
@@ -76,11 +77,12 @@
    :run.status==='approved'?'Career has not started on your computer yet. Press Go on to start it.':run.status==='waiting'?live.reason?.text:run.status==='submitted'?'The employer’s confirmation was seen.'
    :run.status==='not_seen'?(run.pressedByCareer?run.reason:'Mark it applied when you have.'):run.reason;
   const pages=live.pages?.length?`<ul class="assist-pages">${live.pages.map(page=>`<li>${esc(page)}</li>`).join('')}</ul>`:'';
-  const moving=['approved','queued','running','waiting','ready'].includes(run.status);
-  const actions=[moving?btn('Stop','assist-stop'):'',['approved','paused','failed'].includes(run.status)&&!run.expired?btn('Go on','assist-go-on',true):'',run.status==='not_seen'?btn('I applied','applied',true):'',
+  const moving=['approved','queued','running','waiting','ready'].includes(run.status),again=['paused','failed'].includes(run.status)&&!run.expired;
+  const remembered=again?'<p class="hint" id="assistRemembered">Career remembers what it already entered and your answers, so it fills in again from where it was without asking you again.</p>':'';
+  const actions=[moving?btn('Stop','assist-stop'):'',run.status==='approved'&&!run.expired?btn('Go on','assist-go-on',true):again?btn('Go on — fill in again from where it was','assist-go-on',true):'',run.status==='not_seen'?btn('I applied','applied',true):'',
    ['stopped','failed','not_seen'].includes(run.status)||run.expired?btn('← Other ways to send','assist-other'):''].join('');
   const picture=run.status==='submitted'&&run.confirmationFile?`<figure><img style="max-width:100%" src="${API}/apply-runs/${encodeURIComponent(run.id)}/confirmation" alt="The employer’s confirmation"><figcaption>The employer’s confirmation, kept by Career.</figcaption></figure>`:'';
-  return `<section class="assist-run" id="assistRun" aria-live="polite"><h2 id="assistState">${esc(heading)}</h2>${line?`<p id="assistLine">${esc(line)}</p>`:''}${pages}${cards.map(cardView).join('')}${picture}<div class="actions">${actions}</div><div id="applyReceiptHost"></div></section>`;
+  return `<section class="assist-run" id="assistRun" aria-live="polite"><h2 id="assistState">${esc(heading)}</h2>${line?`<p id="assistLine">${esc(line)}</p>`:''}${remembered}${pages}${cards.map(cardView).join('')}${picture}<div class="actions">${actions}</div><div id="applyReceiptHost"></div></section>`;
  }
  async function request(path,body){return window.CareerSubmit.request(path,body);}
  /** @description The job's latest run, or null. @param {number} postingId @returns {Promise<object|null>} */

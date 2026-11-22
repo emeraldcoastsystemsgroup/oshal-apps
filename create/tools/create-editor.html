@@ -10,6 +10,7 @@
 8 | maintainer@emeraldcoastsystemsgroup.com | Load shared editor styles and retain opaque disclosures above the canvas.
 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor, grade D): one app row (the image's document menu with New, Open, My projects, Save a copy, Export, autosave and Delete last; Undo, Redo, a Saved caption and one primary Add that opens the Insert tools); the save footer goes; the Insert tools (Image, Text, Rectangle, Ellipse, Draw, Vector pen, Adjustment layer, OSHAL files, Templates) are one group that is a sheet on a phone and a tool rail on a desktop; the pen's Closed path, Finish and Cancel and the Select tool's shape, Whole image and Clear appear in the canvas bar only while their tool is on; the duplicate Selected layer form is deleted (the shared Format inspector edits those fields); Canvas settings move into Format when nothing is selected; the brand swatches sit with the other Format tools.
 10 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: add accessible Flip horizontal and Flip vertical toggle controls in the Format inspector.
+11 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: add inline canvas text editor overlay for double-click in-place text typing.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -83,6 +84,7 @@
       <div id="canvasViewport" class="canvas-viewport"><div id="canvasFrame" class="canvas-frame">
         <canvas id="artboard" width="1200" height="800" aria-label="Editable image canvas" tabindex="0"></canvas>
         <canvas id="selection" width="1200" height="800" aria-hidden="true"></canvas>
+        <textarea id="inlineTextEditor" class="inline-text-editor" aria-label="Edit text on canvas" spellcheck="false" hidden></textarea>
       </div></div>
       <footer class="canvas-footer"><span id="canvasDimensions">1200 × 800</span><span id="regionStatus" role="status" aria-live="polite"></span><span id="selectionHint">Select a layer to move or resize it.</span></footer>
     </section>

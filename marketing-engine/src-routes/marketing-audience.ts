@@ -9,10 +9,16 @@
  *     and export, contact deletion with pre-delete consent export leaving zero rows behind,
  *     audience lists & memberships, and normalized-hash suppressions. Mirrors migration
  *     003-marketing-audience.sql at the lazy-DDL chokepoint.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Marketing Engine 0.6.1 P1 CSV import with
+ *     consent attestation (`POST /audience/contacts/import-csv`): atomic refusal when any row
+ *     lacks a consent source, pending-by-default unless documented prior consent is present,
+ *     strict refusal to re-subscribe suppressed addresses, list ownership validation, and
+ *     per-contact consent evidence persistence.
  *
  * @module marketing-audience
  */
 
+import * as crypto from 'crypto';
 import type { Request, Response, Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { runRuntimeSchemaBootstrap, buildOwnerRlsPolicyStatements } from '@/shared/services/database';
@@ -21,6 +27,9 @@ import {
   normalizeConsentEvidence, normalizeEmail, normalizeTags, parseAudienceFilters, segmentContacts,
   type ConsentExportBundle, type HydratedContact,
 } from './marketing-audience-model';
+import {
+  parseAudienceCsv, type CsvInvalidRow, type PreparedCsvContact,
+} from './marketing-audience-csv';
 import {
   UUID_RE, authed, logger, rows, slugify, tooLarge, type QueryablePool,
 } from './marketing-support';
@@ -518,6 +527,203 @@ export async function deleteSuppression(ctx: AppContext, sub: string, req: Reque
   res.json({ deleted: true, suppressionId: id });
 }
 
+/** Parsed, validated CSV import payload ready for transactional execution. */
+interface ParsedCsvImportRequest {
+  importBatchId: string;
+  channel: string;
+  purpose: string;
+  listIds: string[];
+  consentSource: string | null;
+  totalRows: number;
+  rows: PreparedCsvContact[];
+  invalidRows: CsvInvalidRow[];
+}
+
+/** Validate and normalize the JSON body of POST /audience/contacts/import-csv. */
+function parseImportRequestBody(
+  body: Record<string, unknown>, req: Request,
+): { parsed?: ParsedCsvImportRequest; error?: string; missingConsentSourceRows?: number[] } {
+  const channel = String(body.channel || 'email').trim();
+  if (!(AUDIENCE_CHANNELS as readonly string[]).includes(channel)) return { error: 'invalid_channel' };
+  const purpose = typeof body.purpose === 'string' && body.purpose.trim() ? body.purpose.trim().slice(0, 120) : 'marketing';
+  let listIds: string[] = [];
+  if (body.listIds !== undefined && body.listIds !== null) {
+    if (!Array.isArray(body.listIds) || body.listIds.length > 25) return { error: 'invalid_list_id' };
+    if (body.listIds.some((id) => typeof id !== 'string' || !UUID_RE.test(id))) return { error: 'invalid_list_id' };
+    listIds = [...new Set(body.listIds as string[])];
+  }
+  const importBatchId = crypto.randomUUID();
+  const uaHeader = typeof req.headers?.['user-agent'] === 'string' ? req.headers['user-agent'] : undefined;
+  const csvResult = parseAudienceCsv(body.csv, {
+    consentSource: body.consentSource ?? body.consent_source,
+    attestation: body.attestation,
+    importBatchId,
+    defaultTags: normalizeTags(body.tags),
+    fallbackIp: req.ip,
+    fallbackUserAgent: uaHeader,
+  });
+  if (!csvResult.ok) {
+    return { error: csvResult.error ?? 'invalid_csv_format', missingConsentSourceRows: csvResult.missingConsentSourceRows };
+  }
+  return {
+    parsed: {
+      importBatchId,
+      channel,
+      purpose,
+      listIds,
+      consentSource: csvResult.consentSource ?? null,
+      totalRows: csvResult.totalRows ?? 0,
+      rows: csvResult.rows ?? [],
+      invalidRows: csvResult.invalidRows ?? [],
+    },
+  };
+}
+
+/** Verify every requested list id exists under the caller's owner scope; returns missing id or null. */
+async function verifyOwnedLists(q: QueryablePool, sub: string, listIds: string[]): Promise<string | null> {
+  for (const listId of listIds) {
+    const found = await rows(q, 'SELECT list_id FROM oshal_marketing_lists WHERE list_id = $1 AND owner_sub = $2', [listId, sub]);
+    if (!found.length) return listId;
+  }
+  return null;
+}
+
+/** Build the per-contact summary item returned by POST /audience/contacts/import-csv. */
+function buildImportedContactSummary(
+  contact: any, consent: any, row: PreparedCsvContact, mergedTags: string[], updated: boolean,
+): Record<string, unknown> {
+  return {
+    contact_id: contact.contact_id,
+    email: contact.email,
+    email_hash: contact.email_hash,
+    display_name: contact.display_name ?? '',
+    tags: Array.isArray(contact.tags) ? contact.tags : mergedTags,
+    status: contact.status ?? 'active',
+    consent_id: consent?.consent_id ?? null,
+    consentStatus: row.status,
+    consentSource: row.consentSource,
+    priorConsentDocumented: row.priorConsentDocumented,
+    downgradedToPending: row.downgradedToPending,
+    action: updated ? 'updated' : 'imported',
+    rowNumber: row.rowNumber,
+  };
+}
+
+/** Persist one unsuppressed CSV row (contact upsert, consent evidence row, and validated list links). */
+async function persistImportedContact(
+  q: QueryablePool,
+  sub: string,
+  row: PreparedCsvContact,
+  opts: { importBatchId: string; channel: string; purpose: string; listIds: string[] },
+): Promise<{ suppressed: boolean; updated?: boolean; contactSummary?: Record<string, unknown> }> {
+  const existing = (await rows(
+    q, 'SELECT contact_id, tags, status, metadata FROM oshal_marketing_contacts WHERE owner_sub = $1 AND email_hash = $2',
+    [sub, row.emailHash],
+  ))[0];
+  if (existing && String(existing.status) === 'suppressed') return { suppressed: true };
+  const mergedTags = normalizeTags([...(Array.isArray(existing?.tags) ? existing.tags : []), ...row.tags]);
+  const baseMeta = existing?.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+    ? (existing.metadata as Record<string, unknown>) : {};
+  const mergedMeta = { ...baseMeta, lastConsentSource: row.consentSource, lastImportBatchId: opts.importBatchId };
+  const contact = (await rows(
+    q,
+    `INSERT INTO oshal_marketing_contacts (owner_sub, email, email_hash, display_name, tags, status, metadata)
+     VALUES ($1,$2,$3,$4,$5::jsonb,'active',$6::jsonb)
+     ON CONFLICT (owner_sub, email_hash) DO UPDATE SET
+       email = EXCLUDED.email,
+       display_name = CASE WHEN EXCLUDED.display_name <> '' THEN EXCLUDED.display_name ELSE oshal_marketing_contacts.display_name END,
+       tags = EXCLUDED.tags, metadata = EXCLUDED.metadata,
+       status = CASE WHEN oshal_marketing_contacts.status = 'suppressed' THEN 'suppressed' ELSE EXCLUDED.status END,
+       updated_at = now()
+     RETURNING *`,
+    [sub, row.email, row.emailHash, row.displayName, JSON.stringify(mergedTags), JSON.stringify(mergedMeta)],
+  ))[0];
+  const consent = (await rows(
+    q,
+    `INSERT INTO oshal_marketing_consents (owner_sub, contact_id, channel, purpose, status, evidence)
+     VALUES ($1,$2,$3,$4,$5,$6::jsonb) RETURNING *`,
+    [sub, String(contact.contact_id), opts.channel, opts.purpose, row.status, JSON.stringify(row.evidence)],
+  ))[0];
+  for (const listId of opts.listIds) {
+    await q.query(
+      `INSERT INTO oshal_marketing_list_members (owner_sub, list_id, contact_id)
+       VALUES ($1,$2,$3) ON CONFLICT (list_id, contact_id) DO NOTHING`,
+      [sub, listId, String(contact.contact_id)],
+    );
+  }
+  const updated = Boolean(existing);
+  return { suppressed: false, updated, contactSummary: buildImportedContactSummary(contact, consent, row, mergedTags, updated) };
+}
+
+/** Execute the owner-scoped CSV import transaction without ever re-subscribing suppressed addresses. */
+async function runCsvImportTx(
+  q: QueryablePool, sub: string, parsed: ParsedCsvImportRequest,
+): Promise<{ notFoundListId?: string; summary?: Record<string, unknown> }> {
+  const missingList = await verifyOwnedLists(q, sub, parsed.listIds);
+  if (missingList) return { notFoundListId: missingList };
+  const suppRows = await rows(
+    q, 'SELECT address_hash FROM oshal_marketing_suppressions WHERE owner_sub = $1 AND channel = $2',
+    [sub, parsed.channel],
+  );
+  const suppressedHashes = new Set<string>(suppRows.map((r) => String(r.address_hash || '').toLowerCase()));
+  const seenHashes = new Set<string>();
+  const contacts: Array<Record<string, unknown>> = [];
+  const skipped: Array<Record<string, unknown>> = parsed.invalidRows.map((r) => ({ ...r }));
+  const counts = { imported: 0, updated: 0, pending: 0, confirmedWithPriorConsent: 0, downgradedToPending: 0, skippedSuppressed: 0 };
+  for (const row of parsed.rows) {
+    if (suppressedHashes.has(row.emailHash)) {
+      counts.skippedSuppressed += 1;
+      skipped.push({ rowNumber: row.rowNumber, email: row.email, emailHash: row.emailHash, reason: 'suppressed' });
+      continue;
+    }
+    if (seenHashes.has(row.emailHash)) {
+      skipped.push({ rowNumber: row.rowNumber, email: row.email, emailHash: row.emailHash, reason: 'duplicate_in_csv' });
+      continue;
+    }
+    seenHashes.add(row.emailHash);
+    const saved = await persistImportedContact(q, sub, row, parsed);
+    if (saved.suppressed) {
+      suppressedHashes.add(row.emailHash);
+      counts.skippedSuppressed += 1;
+      skipped.push({ rowNumber: row.rowNumber, email: row.email, emailHash: row.emailHash, reason: 'suppressed' });
+      continue;
+    }
+    if (saved.updated) counts.updated += 1; else counts.imported += 1;
+    if (row.status === 'confirmed') counts.confirmedWithPriorConsent += 1; else counts.pending += 1;
+    if (row.downgradedToPending) counts.downgradedToPending += 1;
+    if (saved.contactSummary) contacts.push(saved.contactSummary);
+  }
+  return {
+    summary: {
+      importBatchId: parsed.importBatchId, consentSource: parsed.consentSource, channel: parsed.channel,
+      purpose: parsed.purpose, totalRows: parsed.totalRows, ...counts,
+      invalidRows: parsed.invalidRows.length, contacts, skipped,
+    },
+  };
+}
+
+/**
+ * @description POST /audience/contacts/import-csv — import RFC-4180 CSV contacts with mandatory
+ * consent-source attestation, pending-by-default unless documented prior consent is present, and
+ * strict non-resubscription of suppressed addresses.
+ */
+export async function importContactsCsv(ctx: AppContext, sub: string, req: Request, res: Response): Promise<void> {
+  const checked = parseImportRequestBody((req.body ?? {}) as Record<string, unknown>, req);
+  if (checked.error || !checked.parsed) {
+    res.status(400).json({
+      error: checked.error ?? 'invalid_csv_format',
+      ...(checked.missingConsentSourceRows ? { missingConsentSourceRows: checked.missingConsentSourceRows } : {}),
+    });
+    return;
+  }
+  const result = await withOptionalTransaction(ctx.pool, (q) => runCsvImportTx(q, sub, checked.parsed!));
+  if (result.notFoundListId) {
+    res.status(404).json({ error: 'list_not_found', listId: result.notFoundListId });
+    return;
+  }
+  res.status(200).json(result.summary);
+}
+
 /**
  * @description Register all P1 audience store routes under /api/marketing/audience/*.
  * @param router - The marketing Express router.
@@ -527,6 +733,7 @@ export function registerAudienceRoutes(router: Router, ctx: AppContext): void {
   ensureAudienceSchema(ctx.pool).catch((err) => logger.error({ err }, 'Failed to ensure marketing-engine audience schema'));
   router.get('/audience/contacts', authed(ctx, listContacts));
   router.post('/audience/contacts', authed(ctx, upsertContact));
+  router.post('/audience/contacts/import-csv', authed(ctx, importContactsCsv));
   router.get('/audience/contacts/:id/consent-export', authed(ctx, exportContactConsent));
   router.delete('/audience/contacts/:id', authed(ctx, deleteContact));
   router.get('/audience/lists', authed(ctx, listLists));

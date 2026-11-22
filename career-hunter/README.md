@@ -1383,6 +1383,32 @@ Guarded by `tests/career-prepare-other-experience-browser.test.mjs` (1440x900 an
 `tests/career-prepare-other-experience-route.test.mjs` (with `career-prepare-other-experience-contract.py`); on an installed
 Career, `tests/career-prepare-other-experience-live-proof.mjs check` drives it as a test person on the test slot.
 
+**Generate again (lane CAREER-REGEN).** Documents made by an earlier Career lack what later releases fixed (one copy of each
+role, the years truth, the résumé for upload forms), and making them again one job at a time is one press per job. My jobs
+(Saved, Getting ready and New matches) has a **Generate again** panel above the jobs: "N of your open jobs have a résumé and
+cover letter made before this version of Career (x.y.z), or without the résumé for upload forms." with **Select all with older
+documents**, then **Generate again (N)**; jobs selected in the List or the Table give **Generate again (N)** in the bar too.
+Either asks once: "Career makes new documents for N jobs, one after another, in the background. Each takes about a minute.
+Your notes and choices for each job are kept." A job has older documents when its packet's `application.json` records an
+earlier `career_version` (or none: packets made before this change record none; `engine/jobhunter/career_version.py` reads the
+manifest) or the packet has no `Resume_Parse.docx`; applied, removed, closed and approved-or-submitted jobs never count.
+The queue is `regenerate-queue.json` in the person's own store (at most 300 jobs in one run, one lock file), so a reload or a
+kernel restart keeps it. `POST /regenerate/advance` moves it on one step: it settles the job being written (done, or failed
+with its reason and tried once more), takes the next job, and in the following step starts it through the job page's own
+Generate (`startGeneration` in `src-routes/career-board-routes.ts`: the job's tailoring notes, its Other experience choice,
+else the last one, its draft), never while a Career run of the person holds the store. A job is taken in one step and started
+in the next because a native background run's writes are kept only when it succeeds, so the take is saved first and a lost run
+still counts as a try. A job the person generated themselves after the queue took it is skipped. The page moves the queue on
+every five seconds while My jobs is open; the confirmation also turns on the person's `career-regenerate` schedule (every
+minute, `runsAs: user`), which calls the same route, so the queue goes on with no Career page open. The panel shows the counts
+(done, left, failed), the failed jobs with their reasons, the job being written, **Pause**, **Go on**, **Stop** and, once
+ended, **Clear**; a press Career cannot take while it writes a job is sent again after that job. Routes: `GET /regenerate`,
+`GET /regenerate/older`, `POST /regenerate`, `/regenerate/advance`, `/pause`, `/go-on`, `/stop`, `/clear`
+(`lib/career-regenerate-routes.js`), bound like their single-job neighbours. Guarded by
+`tests/career-regenerate-route.test.mjs` (the compiled routes and the real engine) and `tests/career-regenerate-browser.test.mjs`
+(1440x900 and 412x915); on an installed Career, `tests/career-regenerate-live-proof.mjs check` runs it as a test person on the
+test slot, closing the page and following the queue to its end.
+
 **Expanded experience on Work history (1.68.4).** A person's client engagements and client accounts were always in their
 main résumé (`career_db.json`: `project_ledger`, each `{project, role, industry, duration_months, tech, public}`, and
 `named_accounts`, `{group: [names]}`), and no screen but Download my data's Evidence lines read them. Work history now shows

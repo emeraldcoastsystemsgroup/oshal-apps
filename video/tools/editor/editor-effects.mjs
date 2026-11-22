@@ -4,7 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Shared per-clip speed (0.25x-4.0x with pitch preserved), named color looks, chroma key, foreground subject matting, stabilization and export resolution/frame-rate profiles for browser preview and FFmpeg compilation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve aspect-ratio-aware dimensions (16:9, 9:16, 1:1) in resolveExportSpec across preview, 720p, 1080p and 4K.
  */
+import { ASPECT_DIMENSIONS, ASPECT_RATIOS, DEFAULT_ASPECT_RATIO } from './timeline-validation.mjs';
 
 export const SPEED_BOUNDS = Object.freeze({ min: 25, max: 400, default: 100 });
 export const SPEED_PRESETS = Object.freeze([25, 50, 75, 100, 125, 150, 200, 300, 400]);
@@ -166,25 +168,27 @@ export function ffmpegRemoveBgFilters(removeBg) {
   return ['format=rgba', `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='clip((${diff}-${threshold})*6,0,255)'`];
 }
 
-/** @description Resolve export resolution + fps options into validated profile dimensions and estimated output metrics. */
-export function resolveExportSpec({ variant = 'export', resolution = '720p', fps = 30, timelineFrames30 = 30 } = {}) {
+/** @description Resolve export resolution + fps + aspectRatio options into validated profile dimensions and estimated output metrics. */
+export function resolveExportSpec({ variant = 'export', resolution = '720p', fps = 30, aspectRatio = DEFAULT_ASPECT_RATIO, timelineFrames30 = 30 } = {}) {
   if (variant !== 'export' && variant !== 'preview') throw new Error('invalid_video_edit_export_variant');
+  if (!ASPECT_RATIOS.includes(aspectRatio)) throw new Error('invalid_video_edit_aspect_ratio');
   if (variant === 'preview') {
-    const outFrames = Math.max(1, timelineFrames30);
-    return { variant: 'preview', profile: 'hd720p30', resolution: '360p', width: 640, height: 360, fps: 30, fpsScale: 1,
+    const outFrames = Math.max(1, timelineFrames30), dims = ASPECT_DIMENSIONS.preview[aspectRatio];
+    return { variant: 'preview', profile: 'hd720p30', resolution: '360p', aspectRatio, width: dims.width, height: dims.height, fps: 30, fpsScale: 1,
       totalFrames: outFrames, estimatedBytes: Math.max(65536, Math.round((outFrames / 30) * 140000)), estimatedSeconds: Math.max(1, Math.ceil(outFrames / 90)) };
   }
   const res = EXPORT_RESOLUTIONS[resolution];
   if (!res) throw new Error('invalid_video_edit_export_resolution');
   if (!EXPORT_FPS_VALUES.includes(fps)) throw new Error('invalid_video_edit_export_fps');
+  const dims = ASPECT_DIMENSIONS[resolution][aspectRatio];
   const fpsScale = fps === 60 ? 2 : 1;
   const totalFrames = Math.max(1, timelineFrames30 * fpsScale);
   const seconds = timelineFrames30 / 30;
   const fpsFactor = fps === 60 ? 1.65 : 1;
-  const estimatedBytes = Math.max(131072, Math.round((seconds / 60) * res.mbPerMin30 * 1048576 * fpsFactor));
-  const pixelFactor = (res.width * res.height) / (1280 * 720);
+  const pixelFactor = (dims.width * dims.height) / (1280 * 720);
+  const estimatedBytes = Math.max(131072, Math.round((seconds / 60) * res.mbPerMin30 * 1048576 * fpsFactor * Math.sqrt(pixelFactor / ((res.width * res.height) / (1280 * 720)))));
   const estimatedSeconds = Math.max(1, Math.ceil(seconds * 0.45 * pixelFactor * (fps === 60 ? 1.8 : 1)));
-  return { variant: 'export', profile: `${res.prefix}${fps}`, resolution: res.id, width: res.width, height: res.height,
+  return { variant: 'export', profile: `${res.prefix}${fps}`, resolution: res.id, aspectRatio, width: dims.width, height: dims.height,
     fps, fpsScale, totalFrames, estimatedBytes, estimatedSeconds };
 }
 

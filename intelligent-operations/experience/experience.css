@@ -1,3 +1,4 @@
+/* CHANGE LOG: 24 | maintainer@emeraldcoastsystemsgroup.com | 1.9.7 (R21): responsive theme-token styles for the response plan Manifest & diff review section (.response-manifest, .response-auth-notice, .response-manifest-meta, .response-manifest-table, .response-diff-controls, .response-diff-pill, .response-diff-view, .diff-line) readable at 1440x900 and 412x915 with zero horizontal page overflow. */
 /* CHANGE LOG: 23 | maintainer@emeraldcoastsystemsgroup.com | 1.9.3 (lane mobilesweep2, the phone first-screen sweep of 2026-11-16: in Today on a phone the Systems list started under the Updated row, List / Graph, the heading and two paragraphs, 252 px down a 915 px phone, and Cloud clusters ended under the floating Jarvis button): on a phone in Today the Updated row and List / Graph sit closer, the general lead steps aside while no installation has reported (the empty line says what to do), and the page ends 120 px higher so its last row clears the button. The desktop is unchanged. */
 /* CHANGE LOG: 22 | maintainer@emeraldcoastsystemsgroup.com | Systems tab (1.8.2): responsive .stack-tree styles for the collapsible + / − Server -> Cluster/VM -> Node -> Workloads infrastructure tree and workload detail drawer inside monitored installation cards, using theme variables only. */
 /* CHANGE LOG: 21 | maintainer@emeraldcoastsystemsgroup.com | Monitoring Trust M2 (1.8.0): responsive styles for headless/config-pack install lines (.monitor-packs, .monitor-pack-line), pending device approval list (.monitor-pending), and installation card device trust / allowed IP controls (.installation-trust, .installation-addresses) with 44px touch targets. */
@@ -207,3 +208,40 @@ textarea[rows][maxlength]{min-height:0;height:auto;font:14px/1.5 system-ui,sans-
 .stack-workload-actions{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
 /* 1.9.3, the phone first screen (lane mobilesweep2): in Today on a phone the list or its empty line starts near the top, and the last row clears the floating Jarvis button. */
 @media(max-width:620px){.operations-embedded main{padding-top:8px;padding-bottom:120px}.operations-embedded .page-heading{margin-bottom:6px}#systems>.systems-views{margin-bottom:10px}.installations:has(>.installations-empty:not(:empty)) .installations-title .operator-note{display:none}}
+/* 1.9.7 (R21): response plan manifest & unified diff review panel; theme variables only, bounded scroll on desktop and phone. */
+#response-plans .card{min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+.response-manifest{margin:12px 0;padding:10px 12px;border:1px solid var(--ops-border);border-radius:10px;background:var(--ops-bg);min-width:0;max-width:100%;box-sizing:border-box}
+.response-manifest>summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center}
+.response-auth-notice{margin:8px 0 12px;padding:8px 12px;border:1px solid var(--ops-border);border-left:3px solid var(--ops-warn);border-radius:6px;background:color-mix(in srgb,var(--ops-warn) 10%,var(--ops-card));color:var(--ops-text);font-size:12.5px;line-height:1.45;overflow-wrap:anywhere}
+.response-manifest-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:6px 12px;margin:8px 0 12px;font-size:12px;min-width:0}
+.response-manifest-meta dt{color:var(--ops-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+.response-manifest-meta dd{margin:2px 0 6px;overflow-wrap:anywhere}
+.response-provenance-badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--ops-border);font-size:11px;font-weight:600}
+.response-provenance-badge.verified{color:var(--ops-good);border-color:var(--ops-good)}
+.response-provenance-badge.legacy{color:var(--ops-warn);border-color:var(--ops-warn)}
+.response-manifest-table{font-size:12px;min-width:0}
+.response-manifest-sha{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.response-digest{font:11.5px/1.4 ui-monospace,monospace;padding:2px 5px;border:1px solid var(--ops-border);border-radius:4px;background:var(--ops-card);color:var(--ops-text)}
+.response-copy-sha{font-size:11px;padding:3px 7px;min-height:28px}
+.response-diff-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 12px;margin:12px 0 8px;min-width:0}
+.response-diff-controls label{display:grid;gap:4px;flex:1 1 220px;min-width:0;font-size:12px;font-weight:600}
+.response-diff-controls select{width:100%;max-width:100%;min-height:44px;box-sizing:border-box}
+.response-diff-controls button{min-height:44px}
+.response-diff-summary{margin:8px 0;font-size:12.5px;font-weight:600;color:var(--ops-text);overflow-wrap:anywhere}
+.response-diff-file{margin:10px 0;padding:10px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-card);min-width:0;max-width:100%;box-sizing:border-box}
+.response-diff-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:6px}
+.response-diff-pill{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--ops-border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.35px}
+.response-diff-pill.status-unchanged{color:var(--ops-muted);border-color:var(--ops-border)}
+.response-diff-pill.status-modified{color:var(--ops-warn);border-color:var(--ops-warn)}
+.response-diff-pill.status-added{color:var(--ops-good);border-color:var(--ops-good)}
+.response-diff-pill.status-removed{color:var(--ops-bad);border-color:var(--ops-bad)}
+.response-diff-counts{font-size:11.5px;color:var(--ops-muted)}
+.response-diff-view{overflow-x:auto;overflow-y:auto;max-width:100%;max-height:360px;border:1px solid var(--ops-border);border-radius:6px;background:var(--ops-bg)}
+.response-diff-code{margin:0;padding:6px 0;background:transparent;border-radius:0;font:12px/1.5 ui-monospace,monospace;white-space:pre;overflow-wrap:normal;min-width:max-content}
+.diff-line{display:block;padding:0 10px;color:var(--ops-text)}
+.diff-line.diff-meta{color:var(--ops-muted);font-weight:600}
+.diff-line.diff-hunk{color:var(--ops-accent);background:color-mix(in srgb,var(--ops-accent) 10%,transparent);font-weight:600}
+.diff-line.diff-add{background:color-mix(in srgb,var(--ops-good) 14%,transparent)}
+.diff-line.diff-remove{background:color-mix(in srgb,var(--ops-bad) 14%,transparent)}
+.diff-line.diff-note{color:var(--ops-muted);font-style:italic}
+@media(max-width:620px){.response-manifest{padding:8px 10px}.response-diff-controls{flex-direction:column;align-items:stretch}.response-diff-controls button{width:100%}}

@@ -11,6 +11,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.12.0 (F22): register sports-quant (outlier-trimmed robustness and read-only quant routes) and sports-quant-browser (collapsible Sports Quant Concierge rail across 1440x900 and 412x915).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.12.2 (Roger, 2026-11-16: every concierge is the core Jarvis chat window): the Concierge rail is the kernel's one chat window. Register sports-edge-one-chat-window (the window in the rail at 1440x900 and 412x915 touch, the model pick on the turn, the board on context.screen_state, an approved card reloading the Record) in place of sports-quant-browser, whose suite is retired with the rail's own chat it tested; sports-quant also expects the mount.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.12.3 (BACKLOG Item A): register sports-wire-walk-forward (zero-lookahead walk-forward benchmark of archived world_items candidate signals vs Control and verification that unused refreshWorld wire ingest is retired at zero cost).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.12.4 (BACKLOG Item C): register open-window-capture (per-league open windows, adaptive 15m/180m capture cadence, absent-poll persistence, and confirmed-open openerConfidence).
 version: 1
 cases:
   - id: package-readiness
@@ -418,6 +419,31 @@ cases:
       fixtures:
         - tests/walk-forward-wire-signal.mjs
         - tests/walk-forward-wire-signal-data.json
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: open-window-capture
+    name: Per-league open windows, adaptive cadence, and confirmed-open confidence (Item C)
+    purpose: >-
+      Verify per-league expected line-open windows (NFL, NCAAF, NBA across EDT/EST), adaptive 15-minute
+      in-window vs 180-minute out-of-window capture cadence, absent-poll persistence, and the strict
+      confirmed-open openerConfidence rule.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/open-window-capture.test.js
+    expected:
+      - NFL, NCAAF, and NBA open windows resolve accurately across DST boundaries and fail closed without kickoff.
+      - Capture polls active-window leagues every 15 minutes and skips intermediate ticks outside windows with zero ESPN reads.
+      - openerConfidence assigns confirmed-open only when captured inside the window after a prior no-price poll of the same game and book.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256

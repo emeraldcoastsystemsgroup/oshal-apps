@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): serve collaboration and find UI modules, expose highlight/comment/tracked-change operations in CONTRACT, and mount sharing and collaborator routes.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Declare genuine saved Word RTF export without changing revision or original-actor authorization.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Mount bounded supplied Word model export through the same existing original-person export permissions without creating records.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Document per-slide speaker notes (`page` patch `{notes}`) in CONTRACT examples.
  */
 import{createRequire}from'node:module';
 import{randomUUID}from'node:crypto';
@@ -29,6 +30,7 @@ export const CONTRACT=Object.freeze({
   {op:'add-comment',comment:{page:'actual page ID',targetId:'actual text ID',start:0,end:5,author:'Reviewer',text:'Check wording'}},
   {op:'propose-change',page:'actual page ID',id:'actual block ID',start:0,end:5,text:'Suggested words',author:'Reviewer'},
   {op:'update-object',page:'actual page ID',id:'actual selected object ID',patch:{fill:'#2563eb',stroke:'#172033',strokeWidth:2}},
+  {op:'page',id:'actual page ID',patch:{notes:'Speaker talking points'}},
   {op:'cell',sheet:'actual sheet ID',from:'B3',value:'=SUM(B1:B2)'}
  ],
  rules:[

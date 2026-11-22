@@ -6,8 +6,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Immediate in-browser preview for the manual video editor (CREATE-EDIT-05d): a frame-exact playhead over the timeline that shows each segment's own source frame in a media element, the title overlay on its frames and the music bed under everything. A browser that cannot decode a clip says so and keeps the playhead, timing and titles working; the FFmpeg preview render stays the authoritative comparison with export.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Live browser preview for v1 and v2 timelines: pitch-preserved speed, color looks, stabilization margin, chroma-key/remove-bg RGBA compositing over lower video tracks, SVG sticker overlays, timed captions and multitrack audio clips.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Sync #previewScreen aspect ratio and #compositeCanvas dimensions with the project's aspectRatio (16:9, 9:16, 1:1).
  */
-import { PROFILE, timelineFrames } from './timeline-validation.mjs';
+import { PROFILE, aspectDimensions, resolveAspectRatio, timelineFrames } from './timeline-validation.mjs';
 import { locateFrame } from './timeline-model.mjs';
 import { mediaUrl } from './editor-api.mjs';
 import { clock } from './timeline-view.mjs';
@@ -122,7 +123,12 @@ export function createPlayer(nodes, documentOf, onFrame) {
   }
 
   function show(at) {
-    const doc = documentOf(), len = total();
+    const doc = documentOf(), len = total(), ratio = resolveAspectRatio(doc);
+    if (nodes.screen && nodes.screen.dataset.aspectRatio !== ratio) nodes.screen.dataset.aspectRatio = ratio;
+    if (nodes.canvas) {
+      const dims = aspectDimensions('preview', ratio);
+      if (nodes.canvas.width !== dims.width || nodes.canvas.height !== dims.height) { nodes.canvas.width = dims.width; nodes.canvas.height = dims.height; }
+    }
     renderOverlays(nodes, doc, at);
     nodes.clock.value = `${clock(at)} / ${clock(len)}`;
     nodes.playhead.max = String(Math.max(0, len)); nodes.playhead.value = String(at);

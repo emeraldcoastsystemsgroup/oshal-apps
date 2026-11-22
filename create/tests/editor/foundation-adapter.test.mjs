@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the real foundation adapter against Create validation/history, including stale drafts, group scaling and inherited locks.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: verify text styling properties (italic, underline, lineHeight, letterSpacing, outline width/color, shadow) through the shared Format inspector adapter.
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -71,4 +72,30 @@ test('native shape, outline and shadow controls edit real versioned properties w
  assert.equal(state.project.version,4);assert.equal(state.project.layers[0].shape,'rounded-rectangle');assert.deepEqual(state.project.layers[0].dash,[8,4]);assert.equal(state.project.layers[0].shadow.offsetX,10);
  const before=state.project;assert.throws(()=>applyLayerProperty('dash','0, bad',context()),/range/);assert.equal(state.project,before);assert.throws(()=>applyLayerProperty('shadowBlur',65,context()),/range/);assert.equal(state.project,before);
  applyLayerProperty('shadowEnabled',false,context());assert.equal(state.project.layers[0].shadow,undefined);assert.equal(state.history.undo().layers[0].shadow.offsetX,10);
+});
+
+test('text styling properties edit italic, underline, spacing, outline and shadow with history and lock enforcement', () => {
+  add('text');
+  const keys = createLayerProperties().map(field => field.key);
+  for (const key of ['italic', 'underline', 'lineHeight', 'letterSpacing', 'strokeWidth', 'stroke', 'shadowEnabled']) assert.ok(keys.includes(key), `missing ${key}`);
+  applyLayerProperty('italic', true, context());
+  applyLayerProperty('underline', true, context());
+  applyLayerProperty('lineHeight', 1.75, context());
+  applyLayerProperty('letterSpacing', 4, context());
+  applyLayerProperty('stroke', '#ff0000', context());
+  assert.equal(state.project.layers[0].stroke, '#ff0000');
+  assert.equal(state.project.layers[0].strokeWidth, 2);
+  applyLayerProperty('strokeWidth', 4, context());
+  applyLayerProperty('shadowEnabled', true, context());
+  const styled = state.project.layers[0];
+  assert.equal(styled.italic, true); assert.equal(styled.underline, true);
+  assert.equal(styled.lineHeight, 1.75); assert.equal(styled.letterSpacing, 4);
+  assert.equal(styled.strokeWidth, 4); assert.ok(styled.shadow);
+  applyLayerProperty('strokeWidth', 0, context());
+  assert.equal('stroke' in state.project.layers[0], false);
+  assert.equal('strokeWidth' in state.project.layers[0], false);
+  assert.equal(state.history.undo().layers[0].strokeWidth, 4);
+  state.project = applyOperation(state.project, { type: 'update', id: 'shape', patch: { locked: true } });
+  assert.ok(createLayerProperties().every(field => field.disabled));
+  assert.throws(() => applyLayerProperty('italic', false, context()), /cannot be changed/);
 });

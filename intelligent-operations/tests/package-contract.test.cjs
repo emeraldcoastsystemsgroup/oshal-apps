@@ -1,3 +1,4 @@
+/* CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.7 (R21): response plan manifest & unified diff view with explicit non-authorization boundary. */
 /* CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.6 (R14): kubernetes-node alert identity across schema, ingest, telemetry, temporal graph correlation, sandbox replay and Systems Explorer. */
 /* CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.5: Cloud & SSH commands, Console and Pod console dispatch specialist packets onto ops-specialist tickets and mount the kernel's one chat window as ops-concierge. */
 /* CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.9.4: Cloud & SSH commands, Console and Pod console mount the kernel's one chat window (ops-rca-specialist). */
@@ -112,7 +113,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.9.6');
+  assert.equal(manifest.version, '1.9.7');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

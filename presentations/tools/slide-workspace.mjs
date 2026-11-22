@@ -2,21 +2,26 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Edit selected slides through the existing outline model with keyboard thumbnails and local draft history.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A design row with the controls the renderer really honours (Roger, 2026-11-03, on the demo: "no controls... can't import an image"): a layout picker over the engine's #layout: directive, an image file that lands as the #image: data URI the renderer embeds (downscaled to stay sendable), its #caption:, and Remove. Every change rides the one outline model, so undo/redo and the export payload stay authoritative.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Share the design machinery with the document editor and the AI partner: readImageFile is exported (document mode adds images too), splitDesign separates the directives from a section's prose, and mergeDesign lets helper-proposed section text keep the person's #image:/#caption:/#layout: lines — the helper never sees image bytes, so without the merge an applied proposal silently deleted the person's image.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): add the on-screen Speaker notes editor under the active slide canvas and preserve optional bounded per-slide `notes` (up to 4000 characters) across edits, duplicate, reorder, undo/redo and serialization.
  */
+const MAX_NOTES_LEN = 4000;
 function sectionsCopy(sections) {
   if (!Array.isArray(sections)) throw new TypeError('Slide sections must be an array.');
   return sections.map(section => {
     if (!section || typeof section.title !== 'string' || typeof section.content !== 'string') throw new TypeError('Slides require title and raw content strings.');
-    return {title: section.title, content: section.content};
+    if (section.notes !== undefined && (typeof section.notes !== 'string' || section.notes.length > MAX_NOTES_LEN)) throw new TypeError('Slide notes must be a string up to 4000 characters.');
+    return section.notes ? {title: section.title, content: section.content, notes: section.notes} : {title: section.title, content: section.content};
   });
 }
-/** Preserve the original outline delimiter and every existing raw content line. */
+/** Preserve the original outline delimiter and every existing raw content line; use structured JSON when any slide carries speaker notes. */
 export function serializeSections(sections) {
-  return sectionsCopy(sections).map(section => {
+  const copied = sectionsCopy(sections);
+  const plain = copied.map(section => {
     if (!section.title.trim() || /[\r\n]/.test(section.title)) throw new TypeError('Each slide needs a single-line title.');
     if (/\n\s*\n/.test(section.content)) throw new TypeError('A blank line separates slides; use one line per text item.');
     return section.title + (section.content ? '\n' + section.content : '');
   }).join('\n\n');
+  return copied.some(section => section.notes) ? JSON.stringify({format: 'oshal-office-outline/1', sections: copied}) : plain;
 }
 function color(value) { return typeof value === 'string' && /^#?[a-f0-9]{6}$/i.test(value) ? '#' + value.replace(/^#/, '') : ''; }
 /** Read one `#name: value` directive from a slide's raw content ('' when absent). */
@@ -87,7 +92,7 @@ function bulletLineIndexes(content) {
 export function createSlideWorkspace({host, readSections, writeSections, getTheme, renderDraft, getLayouts = () => [], onChange = () => {}}) {
   if (!host?.ownerDocument || [readSections, writeSections, getTheme, renderDraft, getLayouts, onChange].some(fn => typeof fn !== 'function')) throw new TypeError('Complete slide workspace adapters are required.');
   const document = host.ownerDocument;
-  let sections = [], selected = -1, signature = '', initialized = false, writing = false, destroyed = false;
+  let sections = [], selected = -1, lastSelected = -1, signature = '', initialized = false, writing = false, destroyed = false;
   let undo = [], redo = [], themeSignature = '';
   const removers = [];
   const element = (tag, className, text) => {const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node;};
@@ -108,6 +113,11 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
   const counter = element('span', 'office-slide-counter'); counter.setAttribute('aria-live', 'polite');
   const note = element('span', 'office-slide-note', 'Themed draft · Generate creates the Office file'); heading.append(counter, note);
   const draft = element('div', 'office-slide-canvas'); draft.setAttribute('aria-label', 'Selected slide draft');
+  const notesBox = element('div', 'office-slide-notes-box');
+  const notesLabel = element('label', 'office-slide-notes-label', 'Speaker notes');
+  const notesInput = element('textarea', 'office-slide-notes-input');
+  notesInput.rows = 3; notesInput.maxLength = MAX_NOTES_LEN; notesInput.setAttribute('aria-label', 'Speaker notes'); notesInput.placeholder = 'Add speaker notes for this slide...';
+  notesLabel.append(notesInput); notesBox.append(notesLabel);
   const textEditor = element('details', 'office-slide-text-editor');
   const summary = element('summary', '', 'Edit selected slide text');
   const titleLabel = element('label', '', 'Slide title'), titleInput = element('input', 'office-slide-title-input'); titleInput.type = 'text'; titleInput.setAttribute('aria-label', 'Slide title'); titleLabel.append(titleInput);
@@ -123,7 +133,7 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
   const captionInput = element('input', 'office-slide-caption-input'); captionInput.type = 'text'; captionInput.placeholder = 'Shown with the image'; captionInput.setAttribute('aria-label', 'Image caption'); captionLabel.append(captionInput);
   const imageRemove = element('button', 'office-slide-button', 'Remove image'); imageRemove.type = 'button';
   design.append(layoutLabel, imageButton, imageInput, captionLabel, imageRemove);
-  center.append(heading, draft, textEditor); layout.append(rail, center); root.append(toolbar, design, layout, status); host.replaceChildren(root);
+  center.append(heading, draft, notesBox, textEditor); layout.append(rail, center); root.append(toolbar, design, layout, status); host.replaceChildren(root);
   const snapshot = () => ({sections: sectionsCopy(sections), selected});
   const selection = () => selected < 0 || !sections[selected] ? null : {kind: 'pptx', index: selected + 1, title: sections[selected].title};
   function adopt(incoming) {
@@ -172,12 +182,15 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
   listen(imageRemove, 'click', () => {try {if (selected < 0) return; mutate('Removed the image', next => {next[selected].content = writeDirective(writeDirective(next[selected].content, 'caption', ''), 'image', '');});} catch (error) {announce(error.message);}});
   function edit(field, value) {
     if (selected < 0) return;
-    const next = sectionsCopy(sections); next[selected][field] = value;
+    const next = sectionsCopy(sections);
+    if (field === 'notes' && !value) delete next[selected].notes;
+    else next[selected][field] = value;
     if (JSON.stringify(next) === signature) return;
     publish(next, selected, 'Edited slide ' + (selected + 1));
   }
   listen(titleInput, 'input', () => {try {edit('title', titleInput.value);} catch (error) {announce(error.message + ' Your last valid text is retained.');}});
   listen(contentInput, 'input', () => {try {edit('content', contentInput.value);} catch (error) {announce(error.message + ' Your last valid text is retained.');}});
+  listen(notesInput, 'input', () => {try {edit('notes', notesInput.value);} catch (error) {announce(error.message + ' Your last valid text is retained.');}});
   function choose(index, focus = false) {selected = index; paint(); announce('Selected slide ' + (index + 1)); onChange({reason: 'selection', selection: selection()}); if (focus) rail.querySelector('[aria-current="true"]')?.focus();}
   listen(rail, 'click', event => {const item = event.target.closest?.('[data-slide-index]'); if (item && rail.contains(item)) choose(Number(item.dataset.slideIndex));});
   listen(rail, 'keydown', event => {
@@ -217,10 +230,12 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
     for (const name of ['duplicate', 'delete', 'text']) buttons[name].disabled = !current;
     buttons.earlier.disabled = selected <= 0; buttons.later.disabled = selected < 0 || selected >= sections.length - 1;
     buttons.undo.disabled = !undo.length; buttons.redo.disabled = !redo.length;
-    titleInput.disabled = contentInput.disabled = !current;
+    const switched = selected !== lastSelected; lastSelected = selected;
+    titleInput.disabled = contentInput.disabled = notesInput.disabled = !current;
     paintDesign(current, preserveEditing);
-    if (!preserveEditing || document.activeElement !== titleInput) titleInput.value = current?.title ?? '';
-    if (!preserveEditing || document.activeElement !== contentInput) contentInput.value = current?.content ?? '';
+    if (switched || !preserveEditing || document.activeElement !== titleInput) titleInput.value = current?.title ?? '';
+    if (switched || !preserveEditing || document.activeElement !== contentInput) contentInput.value = current?.content ?? '';
+    if (switched || !preserveEditing || document.activeElement !== notesInput) notesInput.value = current?.notes ?? '';
     paintDraft(current, preserveEditing);
   }
   /** The design row mirrors the selected slide's directives; the catalog rebuilds only when it changes. */

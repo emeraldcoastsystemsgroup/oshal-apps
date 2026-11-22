@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the navigation pane is named Layers and automatic saving saves the duplicate without a Save press.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.20.3: verify 4-quadrant asymmetric photo rendering, PNG export, concierge flip-back, masked/grouped flips and SVG flip export in Chromium.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.20.4: verify italic, underline, lineHeight, letterSpacing, outline stroke and shadow each change exported PNG pixels and appear in exported SVG markup.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -476,4 +477,76 @@ test('flipped 4-quadrant photo, masked flip, flipped group ungroup and flipped S
   assert.equal(result.maskedOut.bl[3], 0); assert.equal(result.maskedOut.br[3], 0);
   assert.equal(result.groupEqual, true);
   assert.equal(result.svgHasScale, true); assert.equal(result.svgEqual, true); clean(value);
+});
+
+test('every text style (italic, underline, lineHeight, letterSpacing, outline, shadow) changes exported PNG pixels and appears in SVG export', async t => {
+  const value = await open(t), result = await value.page.evaluate(async () => {
+    const svg = await import('/editor/vector-svg.mjs');
+    const base = model.applyOperation(model.createProject({ width: 280, height: 160 }), {
+      type: 'add',
+      layer: { id: 'title', type: 'text', x: 12, y: 12, w: 256, h: 136, text: 'AB\nCD', fontFamily: 'sans-serif', fontSize: 32, fontWeight: 700, fill: '#111827', align: 'left' },
+    });
+    const exportPngPixels = async project => {
+      const blob = await rendering.exportProjectImage(project, { type: 'image/png' });
+      const bitmap = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+      const out = document.createElement('canvas'); out.width = bitmap.width; out.height = bitmap.height;
+      const paint = out.getContext('2d'); paint.drawImage(bitmap, 0, 0); bitmap.close();
+      return [...paint.getImageData(0, 0, out.width, out.height).data];
+    };
+    const countDiff = (a, b) => { let n = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) + Math.abs(a[i + 3] - b[i + 3]) > 8) n++; return n; };
+    const maxInkX = (pixels, width, height) => {
+      let max = -1;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (pixels[(y * width + x) * 4 + 3] > 20 && x > max) max = x;
+      return max;
+    };
+    const maxInkY = (pixels, width, height) => {
+      let max = -1;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (pixels[(y * width + x) * 4 + 3] > 20 && y > max) max = y;
+      return max;
+    };
+    const plainPixels = await exportPngPixels(base);
+    const italicProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { italic: true } });
+    const underlineProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { underline: true } });
+    const lineHeightProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { lineHeight: 2.2 } });
+    const spacingProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { letterSpacing: 16 } });
+    const strokeProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { stroke: '#ef4444', strokeWidth: 4 } });
+    const shadowProj = model.applyOperation(base, { type: 'update', id: 'title', patch: { shadow: { color: '#2563eb', opacity: 0.8, blur: 0, offsetX: 18, offsetY: 12 } } });
+    const allStyledNoShadow = model.applyOperation(base, { type: 'update', id: 'title', patch: { italic: true, underline: true, lineHeight: 1.8, letterSpacing: 6, stroke: '#ef4444', strokeWidth: 3 } });
+    const [italicPx, underlinePx, lineHeightPx, spacingPx, strokePx, shadowPx] = await Promise.all([
+      exportPngPixels(italicProj), exportPngPixels(underlineProj), exportPngPixels(lineHeightProj),
+      exportPngPixels(spacingProj), exportPngPixels(strokeProj), exportPngPixels(shadowProj),
+    ]);
+    const redOutlinePixels = (() => { let n = 0; for (let i = 0; i < strokePx.length; i += 4) if (strokePx[i + 3] > 100 && strokePx[i] > 180 && strokePx[i + 1] < 100) n++; return n; })();
+    const blueShadowPixels = (() => { let n = 0; for (let i = 0; i < shadowPx.length; i += 4) if (shadowPx[i + 3] > 100 && shadowPx[i + 2] > 160 && shadowPx[i] < 100) n++; return n; })();
+    const styledSvg = svg.exportVectorSvg(allStyledNoShadow);
+    const roundTripped = svg.importVectorSvg(styledSvg).project.layers[0];
+    const shadowSvg = svg.exportVectorSvg(shadowProj);
+    return {
+      italicDiff: countDiff(plainPixels, italicPx),
+      underlineDiff: countDiff(plainPixels, underlinePx),
+      plainMaxY: maxInkY(plainPixels, 280, 160), lineHeightMaxY: maxInkY(lineHeightPx, 280, 160),
+      plainMaxX: maxInkX(plainPixels, 280, 160), spacingMaxX: maxInkX(spacingPx, 280, 160),
+      redOutlinePixels, blueShadowPixels,
+      styledSvg, shadowSvg, roundTripped,
+    };
+  });
+  assert.ok(result.italicDiff > 20, `italicDiff=${result.italicDiff}`);
+  assert.ok(result.underlineDiff > 20, `underlineDiff=${result.underlineDiff}`);
+  assert.ok(result.lineHeightMaxY > result.plainMaxY + 20, `lineHeightMaxY=${result.lineHeightMaxY} plainMaxY=${result.plainMaxY}`);
+  assert.ok(result.spacingMaxX > result.plainMaxX + 10, `spacingMaxX=${result.spacingMaxX} plainMaxX=${result.plainMaxX}`);
+  assert.ok(result.redOutlinePixels > 30, `redOutlinePixels=${result.redOutlinePixels}`);
+  assert.ok(result.blueShadowPixels > 30, `blueShadowPixels=${result.blueShadowPixels}`);
+  assert.match(result.styledSvg, /font-style="italic"/);
+  assert.match(result.styledSvg, /text-decoration="underline"/);
+  assert.match(result.styledSvg, /letter-spacing="6px"/);
+  assert.match(result.styledSvg, /stroke="#ef4444" stroke-width="3" stroke-linejoin="round" paint-order="stroke fill"/);
+  assert.match(result.styledSvg, /y="57\.6"/);
+  assert.match(result.shadowSvg, /<feDropShadow dx="18" dy="12" stdDeviation="0" flood-color="#2563eb" flood-opacity="0.8"\/>/);
+  assert.equal(result.roundTripped.italic, true);
+  assert.equal(result.roundTripped.underline, true);
+  assert.equal(result.roundTripped.lineHeight, 1.8);
+  assert.equal(result.roundTripped.letterSpacing, 6);
+  assert.equal(result.roundTripped.stroke, '#ef4444');
+  assert.equal(result.roundTripped.strokeWidth, 3);
+  clean(value);
 });

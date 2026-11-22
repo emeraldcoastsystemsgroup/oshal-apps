@@ -28,6 +28,7 @@
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.1 (Lane TV1; Roger, 2026-11-13, asked that Jarvis open an application such as Netflix on his Roku and Samsung TVs and know where it is; neither TV can run the Android app): on a Roku or a Samsung TV, home-lan-control also plans launch_app (open one application by its id, or by its name once the TV's applications were read; on a Roku a title too, by the application's own content id and media type, never a web address), list_apps (the TV's applications with their ids, which the TV's record then keeps and home-lan-devices shows) and active_app (a Roku names the application in front, a screensaver over it and its player's state; a Samsung TV says whether the one application named is running and in front). They run through the same closed lan-control verb on the person's own computer (Phone & Device Control's bridge 1.20.0), so no computerPlan, route, permission or egress changed. The recorded answer says only what the TV reported in front after the press. The description, the tool and the persona say what each kind of TV can do: a Roku and a Samsung TV are buttons only, with no screenshot and no on-screen text, and an Android or Fire TV that runs Orbit shows its screen through the person's computer tools, not through Smart Home. A title on a Samsung TV is refused in words (see BACKLOG); an Android or Fire TV refuses the three in words. No routing word was added. Guards: tests/home-lan-direct.test.cjs, tests/home-lan-devices.test.cjs.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.2: person-facing and model-facing product references name Open Swarm; technical identifiers and component names (oshal TV app, oshal Node) remain unchanged. Guard: tests/product-name.test.cjs.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.3: Smart Home uses the available workspace width, keeps device cards readable across desktop and phone layouts, and opens details only after a person selects a device. No route, permission or dependency changed. Guard: tests/browser/home-layout.test.cjs.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Release 1.9.4: Roku and Samsung TV cards show the last-reported application in front and offer What's in front, List apps, a checked-application picker for Samsung TVs, and bounded touch-friendly launch buttons for the TV's listed applications; Android/Fire TV and Cast cards keep no app-launch buttons. No route, permission, tool or dependency changed. Guard: tests/browser/tv-apps-card.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -87,7 +88,7 @@ description: >-
   which one is in front (on a Roku a title too, by the application's own id for
   it). It cannot see a Roku's or a Samsung TV's screen: no screenshot and no
   on-screen text.
-version: 1.9.3
+version: 1.9.4
 testing:
   version: 1
   catalog: tests/test-lab.yaml

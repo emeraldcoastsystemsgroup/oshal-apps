@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video timeline's one document contract, shared by the browser editor and the server: the EDITOR-PLAN first-slice bounds (two clips of at most 30 s, one WAV bed, 20 segments, 60 s total, one title track, one 1280x720/30 fps H.264/AAC profile), integer frame positions in the 30 fps project time base, and refusal of unknown fields, unsafe keys, paths, URLs and control text.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add backward-compatible per-clip speed, color looks, stabilization, chroma key, background matting, captions and keyframed stickers without external helper dependencies.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support optional project aspectRatio (16:9, 9:16, 1:1; defaults to 16:9) and canonical even-pixel dimensions across preview, 720p, 1080p and 4K.
  */
 
 import { validateMotionSource } from './motion-source.mjs';
@@ -14,6 +15,14 @@ import { validateMultitrack } from './multitrack-validation.mjs';
 export const PROFILE = Object.freeze({ id: 'hd720p30', width: 1280, height: 720, fps: 30, sampleRate: 48000,
   samplesPerFrame: 1600, videoCodec: 'h264', audioCodec: 'aac' });
 export const EXPORT_PROFILES = Object.freeze(['hd720p30', 'hd720p60', 'hd1080p30', 'hd1080p60', 'uhd4k30', 'uhd4k60']);
+export const ASPECT_RATIOS = Object.freeze(['16:9', '9:16', '1:1']);
+export const DEFAULT_ASPECT_RATIO = '16:9';
+export const ASPECT_DIMENSIONS = Object.freeze({
+  preview: Object.freeze({ '16:9': Object.freeze({ width: 640, height: 360 }), '9:16': Object.freeze({ width: 360, height: 640 }), '1:1': Object.freeze({ width: 360, height: 360 }) }),
+  '720p': Object.freeze({ '16:9': Object.freeze({ width: 1280, height: 720 }), '9:16': Object.freeze({ width: 720, height: 1280 }), '1:1': Object.freeze({ width: 720, height: 720 }) }),
+  '1080p': Object.freeze({ '16:9': Object.freeze({ width: 1920, height: 1080 }), '9:16': Object.freeze({ width: 1080, height: 1920 }), '1:1': Object.freeze({ width: 1080, height: 1080 }) }),
+  '4k': Object.freeze({ '16:9': Object.freeze({ width: 3840, height: 2160 }), '9:16': Object.freeze({ width: 2160, height: 3840 }), '1:1': Object.freeze({ width: 2160, height: 2160 }) }),
+});
 
 export const LIMITS = Object.freeze({ videoSources: 2, audioSources: 1, sourceFrames: 900, bedFrames: 1800,
   segments: 20, totalFrames: 1800, titles: 10, titleText: 120, sourceName: 120, name: 160,
@@ -225,16 +234,35 @@ function validateBed(value, sources) {
   return { source: value.source, volume: integer(value.volume, 0, LIMITS.bedVolume, 'Audio bed volume') };
 }
 
+export function validateAspectRatio(value) {
+  if (value === undefined) return undefined;
+  demand(typeof value === 'string' && ASPECT_RATIOS.includes(value), 'Project aspectRatio must be 16:9, 9:16, or 1:1');
+  return value;
+}
+
+export function resolveAspectRatio(document) {
+  return document?.aspectRatio ?? DEFAULT_ASPECT_RATIO;
+}
+
+export function aspectDimensions(resolution, aspectRatio = DEFAULT_ASPECT_RATIO) {
+  const ratio = validateAspectRatio(aspectRatio) ?? DEFAULT_ASPECT_RATIO;
+  const row = ASPECT_DIMENSIONS[resolution];
+  demand(Boolean(row), 'This output resolution is not supported');
+  return row[ratio];
+}
+
 export function validateTimeline(value) {
   if (value?.version === 2) return validateMultitrack(value);
-  exactObject(value, ['version', 'name', 'profile', 'sources', 'segments', 'titles', 'audioBed', 'captions', 'stickers'], 'Project');
+  exactObject(value, ['version', 'name', 'profile', 'aspectRatio', 'sources', 'segments', 'titles', 'audioBed', 'captions', 'stickers'], 'Project');
   demand(value.version === 1, 'This project version is not supported');
   demand(EXPORT_PROFILES.includes(value.profile), 'This output profile is not supported');
+  const aspectRatio = validateAspectRatio(value.aspectRatio);
   const sources = validateTimelineSources(value.sources);
   const { segments, total } = validateSegments(value.segments, sources);
   const captions = validateCaptions(value.captions, total), stickers = validateStickers(value.stickers, total);
   const document = {
     version: 1, name: plainText(value.name, LIMITS.name, 'Project name'), profile: value.profile,
+    ...(aspectRatio ? { aspectRatio } : {}),
     sources: { ...sources }, segments, titles: validateTitles(value.titles, total), audioBed: validateBed(value.audioBed, sources),
     ...(captions?.length ? { captions } : {}), ...(stickers?.length ? { stickers } : {}),
   };

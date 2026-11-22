@@ -32,6 +32,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | A requested pass is bounded by the deployment's refreshIntervalMinutes: runRefreshPass reads the caller's last pass start (sports_settings scope `__refresh_pass__:<sub>`) and answers skipped 'not_due' with nextDueAt until the interval (less a 10-minute slack for the schedule's own jitter) has passed; only an operator's {force:true} skips the check. POST /refresh/run had no brake but the in-process `running` flag, so any signed-in caller could run back-to-back passes, each a full line capture, grading, preview and World ingest, and a stale-ratings rebuild (~30 ESPN reads) on every call while ratings stayed stale. The pass also reads only the caller's own followed teams (WHERE user_sub = $1), which is what the schedule offer says and what the native kernel's per-person SQL scope already gave it. Guard: tests/sports-refresh-schedule.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Export FOLLOWED_GAMES_HORIZON_DAYS so GET /games can name the window an empty Games list covers.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Item A (0.12.3): retire unused World wire ingest in refreshWorld after walk-forward evaluation against the current ensemble found zero historical coverage on completed 2025 seasons (0/1,942 games) and no Brier/MAE improvement on the 2026 SEA+ARK archived wire series (de-biased sentiment delta and injury-wire burst both worsened Brier and MAE despite 16,581 classifications). refreshWorld now returns {subjects:0,newItems:0} at zero ingest/roster/DB cost.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Item C (0.12.4): adaptive open-window capture cadence. Inside any league's expected open window, runRefreshPass polls line capture every 15 minutes (only for the active-window leagues, without rebuilding previews or grading); outside all open windows it stays on the slow refreshIntervalMinutes (180m) cadence with zero ESPN reads between intervals.
  *
  * @module sports-refresh
  */
@@ -50,7 +51,13 @@ import {
   writeRatings, writeSettings,
   type FollowedTeam,
 } from './sports-store';
-import { captureQuote, ensureLineSchema, type CaptureResult } from './sports-line-store';
+import {
+  captureQuote, ensureLineSchema, knownUpcomingGames, type CaptureResult,
+} from './sports-line-store';
+import {
+  activeOpenWindowLeagues, nextCaptureCadenceMinutes, nextLinePollDueAt, shouldPollLinesNow,
+  TIGHT_CADENCE_MINUTES,
+} from './open-windows';
 
 const log = createChildLogger({ module: 'sports-refresh' });
 
@@ -172,9 +179,9 @@ export function monthsCovering(from: Date, to: Date): string[] {
  * @returns Scheduled games inside the window, earliest first, with whatever prices the scoreboard carried.
  */
 export async function upcomingGames(
-  league: League, days: number, opts: EspnOptions = espn,
+  league: League, days: number, opts: EspnOptions = espn, now: Date = new Date(),
 ): Promise<ScheduledGame[]> {
-  const from = new Date();
+  const from = now;
   const to = new Date(from.getTime() + days * 86400000);
   const byEvent = new Map<string, ScheduledGame>();
   for (const month of monthsCovering(from, to)) {
@@ -349,11 +356,37 @@ export async function gradeDue(pool: Pool, now: Date = new Date()): Promise<numb
  * @param pool - Postgres pool.
  * @returns Counts by outcome, for the log line.
  */
-export async function captureLines(pool: Pool): Promise<Record<CaptureResult, number> & { games: number }> {
+/** Optional overrides for scoped or deterministic line capture passes. */
+export interface CaptureLinesOptions {
+  /** Restrict capture to specific leagues (e.g. only leagues currently in an open window). */
+  leagues?: League[];
+  /** Current instant for window checks and stored capture timestamps. */
+  now?: Date;
+  /** ESPN client options override (used in tests). */
+  espnOpts?: EspnOptions;
+}
+
+/**
+ * @description Capture the current line for every upcoming game in the requested leagues (all
+ * leagues by default), whether or not anyone follows the teams.
+ *
+ * PREVIEWS ARE SELECTIVE; CAPTURE IS NOT, and the asymmetry is deliberate. A preview costs several
+ * external reads per game, so it is built only for followed teams. Capture costs ONE scoreboard
+ * call per league for the entire slate — and the data it collects cannot be backfilled.
+ * @param pool - Postgres pool.
+ * @param opts - Optional league subset, clock instant, and ESPN options.
+ * @returns Counts by outcome, for the log line.
+ */
+export async function captureLines(
+  pool: Pool, opts: CaptureLinesOptions = {},
+): Promise<Record<CaptureResult, number> & { games: number }> {
   const tally = { 'no-price': 0, unchanged: 0, 'first-capture': 0, moved: 0, games: 0 } as
     Record<CaptureResult, number> & { games: number };
-  for (const league of CAPTURE_LEAGUES) {
-    for (const game of await upcomingGames(league, CAPTURE_HORIZON_DAYS, espn)) {
+  const leagues = opts.leagues && opts.leagues.length ? opts.leagues : CAPTURE_LEAGUES;
+  const now = opts.now ?? new Date();
+  const clientOpts = opts.espnOpts ?? espn;
+  for (const league of leagues) {
+    for (const game of await upcomingGames(league, CAPTURE_HORIZON_DAYS, clientOpts, now)) {
       tally.games += 1;
       try {
         const result = await captureQuote(pool, {
@@ -362,7 +395,7 @@ export async function captureLines(pool: Pool): Promise<Record<CaptureResult, nu
           gameDate: game.date || null,
           homeTeam: game.homeTeam,
           awayTeam: game.awayTeam,
-        }, game.quote);
+        }, game.quote, { capturedAt: now });
         tally[result] += 1;
         if (result === 'moved' || result === 'first-capture') {
           log.info({ league, eventId: game.eventId, game: `${game.awayTeam}@${game.homeTeam}`, result, quote: game.quote }, 'line captured');
@@ -419,13 +452,15 @@ export function refreshStatus(): {
  * @returns Counts, for the log line.
  */
 export async function refreshPass(
-  pool: Pool, sub: string,
+  pool: Pool, sub: string, opts: { now?: Date; espnOpts?: EspnOptions } = {},
 ): Promise<{ graded: number; previews: number; lines: Record<string, number>; world: { subjects: number; newItems: number } }> {
   const settings = { ...DEFAULTS, ...(await readSettings(pool, DEPLOYMENT_SCOPE)) } as typeof DEFAULTS;
+  const now = opts.now ?? new Date();
+  const clientOpts = opts.espnOpts ?? espn;
   // Capture FIRST. It is the cheapest thing in the pass and the only thing whose data cannot be
   // recovered if the pass later fails on something else.
-  const lines = await captureLines(pool);
-  const graded = await gradeDue(pool);
+  const lines = await captureLines(pool, { now, espnOpts: clientOpts });
+  const graded = await gradeDue(pool, now);
   let previews = 0;
   // Only the caller's followed teams are previewed; this package never sweeps a whole board.
   const followedRows = await pool.query('SELECT DISTINCT league, team FROM sports_followed_teams WHERE user_sub = $1', [sub]);
@@ -436,16 +471,13 @@ export async function refreshPass(
     (byLeague.get(league) as Set<string>).add(r.team);
   }
   for (const [league, teams] of byLeague) {
-    for (const game of await upcomingGames(league, settings.previewHorizonDays, espn)) {
+    for (const game of await upcomingGames(league, settings.previewHorizonDays, clientOpts, now)) {
       if (previews >= MAX_PREVIEWS_PER_PASS) break;
       if (!teams.has(game.homeTeam) && !teams.has(game.awayTeam)) continue;
       await buildAndRecord(pool, league, game);
       previews += 1;
     }
   }
-  // Last in the pass, and deliberately so: it is the only step whose work can be caught up later.
-  // A missed line capture is gone forever and an ungraded call is evidence not yet recorded, but a
-  // news pull deferred by three hours is a news pull three hours late.
   const world = await refreshWorld(pool, sub).catch((err) => {
     log.warn({ err }, 'world refresh failed');
     return { subjects: 0, newItems: 0 };
@@ -455,9 +487,22 @@ export async function refreshPass(
 
 /** What one requested pass did. */
 export type RefreshRun =
-  | { ran: true; result: Awaited<ReturnType<typeof refreshPass>> }
+  | {
+    ran: true;
+    mode: 'full' | 'line-capture';
+    cadenceMinutes: number;
+    activeWindowLeagues: League[];
+    result: Awaited<ReturnType<typeof refreshPass>>;
+  }
   | { ran: false; skipped: 'already_running' | 'refresh_disabled' }
-  | { ran: false; skipped: 'not_due'; lastPassAt: string; nextDueAt: string };
+  | {
+    ran: false;
+    skipped: 'not_due';
+    lastPassAt: string;
+    nextDueAt: string;
+    cadenceMinutes: number;
+    activeWindowLeagues: League[];
+  };
 
 /**
  * Slack under the interval before a pass is due. The schedule fires on its cron and a pass is stamped
@@ -469,6 +514,11 @@ const DUE_SLACK_MS = 10 * 60000;
 /** @description The sports_settings scope that holds one person's last pass start. @param sub - Caller. @returns The key. */
 export function passKey(sub: string): string {
   return `__refresh_pass__:${sub}`;
+}
+
+/** @description The deployment-wide sports_settings scope that holds the last line-capture poll start. */
+export function linePollKey(): string {
+  return '__line_capture_poll__';
 }
 
 /**
@@ -484,6 +534,42 @@ export async function lastPassAt(pool: Pool, sub: string): Promise<string | null
 }
 
 /**
+ * @description When the last line-capture poll ran, from the store.
+ * @param pool - The request's Postgres pool.
+ * @returns The ISO start of the last line capture poll, or null when none is recorded.
+ */
+export async function lastLinePollAt(pool: Pool): Promise<string | null> {
+  const stamp = (await readSettings(pool, linePollKey())).lastPollAt;
+  return typeof stamp === 'string' && Number.isFinite(Date.parse(stamp)) ? stamp : null;
+}
+
+/**
+ * @description Current adaptive line-capture cadence given the tracked upcoming games in storage.
+ * @param pool - The request's Postgres pool.
+ * @param slowMinutes - Slow cadence outside all open windows.
+ * @param now - Current instant.
+ * @returns Tight cadence, slow cadence, active cadence, and active open-window leagues.
+ */
+export async function currentCaptureCadence(
+  pool: Pool, slowMinutes = DEFAULTS.refreshIntervalMinutes, now: Date = new Date(),
+): Promise<{
+  tightMinutes: number;
+  slowMinutes: number;
+  currentMinutes: number;
+  activeWindowLeagues: League[];
+  lastPollAt: string | null;
+}> {
+  const slow = Math.max(30, Number(slowMinutes) || DEFAULTS.refreshIntervalMinutes);
+  const [known, lastPoll] = await Promise.all([
+    knownUpcomingGames(pool, now).catch(() => []),
+    lastLinePollAt(pool).catch(() => null),
+  ]);
+  const activeWindowLeagues = activeOpenWindowLeagues(now, known);
+  const currentMinutes = nextCaptureCadenceMinutes(now, known, slow);
+  return { tightMinutes: TIGHT_CADENCE_MINUTES, slowMinutes: slow, currentMinutes, activeWindowLeagues, lastPollAt: lastPoll };
+}
+
+/**
  * @description Whether a pass is due for this person under the deployment's refresh interval.
  * @param last - The last pass start, or null.
  * @param intervalMinutes - The resolved refreshIntervalMinutes.
@@ -496,23 +582,34 @@ export function nextDueAt(last: string | null, intervalMinutes: number, nowMs: n
   return nowMs >= due ? null : new Date(due).toISOString();
 }
 
+/** Returns the earlier of two optional ISO timestamps. */
+function earlierIso(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return Date.parse(a) <= Date.parse(b) ? a : b;
+}
+
 /** Options for one requested pass. */
 export interface RefreshRunOptions {
   /** Skip the interval check. The route honours it only for an operator. */
   force?: boolean;
+  /** Override current instant (for deterministic adaptive-cadence tests). */
+  now?: Date;
+  /** Override ESPN options (for deterministic capture-loop tests). */
+  espnOpts?: EspnOptions;
 }
 
 /**
- * @description Run one refresh pass inside the caller's admitted request (POST /refresh/run, fired by the
- * `refresh-pass` schedule). A pass already running in this process is not started twice; a deployment
- * that switched refreshing off records the visit and does nothing; a pass inside the configured interval
- * since the caller's last one answers not_due, so a caller cannot loop full passes (and the ratings
- * rebuild a stale cache triggers). A failure is recorded for the status panel and rethrown, so the
- * schedule's run receipt shows it.
+ * @description Run one refresh pass inside the caller's admitted request (POST /refresh/run, fired by
+ * the `refresh-pass` 15-minute schedule). Enforces adaptive cadence:
+ *   - Full pass (all-league capture, grading, followed-team previews) runs on refreshIntervalMinutes (180m).
+ *   - Inside any league's expected open window, line capture alone polls every 15 minutes for the
+ *     active-window leagues without rebuilding previews or grading.
+ *   - Outside all open windows and inside the slow interval, answers not_due with zero ESPN reads.
  * @param pool - The request's Postgres pool.
  * @param sub - The caller, whose followed teams the pass covers.
- * @param opts - force (operator only, enforced by the route).
- * @returns Whether a pass ran, and its counts.
+ * @param opts - force (operator only, enforced by the route), plus optional test clock/client overrides.
+ * @returns Whether a pass ran, its mode, adaptive cadence info, and counts.
  */
 export async function runRefreshPass(pool: Pool, sub: string, opts: RefreshRunOptions = {}): Promise<RefreshRun> {
   if (running) return { ran: false, skipped: 'already_running' };
@@ -520,17 +617,42 @@ export async function runRefreshPass(pool: Pool, sub: string, opts: RefreshRunOp
   try {
     await ensureSchema(pool);
     await ensureLineSchema(pool);
+    const now = opts.now ?? new Date();
+    const nowIso = now.toISOString();
     const settings = { ...DEFAULTS, ...(await readSettings(pool, DEPLOYMENT_SCOPE)) } as typeof DEFAULTS;
-    if (!settings.refreshEnabled) { lastRun = new Date().toISOString(); return { ran: false, skipped: 'refresh_disabled' }; }
-    const last = await lastPassAt(pool, sub);
-    const next = opts.force ? null : nextDueAt(last, settings.refreshIntervalMinutes);
-    if (last && next) return { ran: false, skipped: 'not_due', lastPassAt: last, nextDueAt: next };
-    await writeSettings(pool, passKey(sub), { lastPassAt: new Date().toISOString() });
-    const result = await refreshPass(pool, sub);
-    lastRun = new Date().toISOString();
-    lastError = null;
-    log.info({ ...result }, 'refresh pass complete');
-    return { ran: true, result };
+    if (!settings.refreshEnabled) { lastRun = nowIso; return { ran: false, skipped: 'refresh_disabled' }; }
+    const [last, lastPoll, known] = await Promise.all([
+      lastPassAt(pool, sub), lastLinePollAt(pool), knownUpcomingGames(pool, now).catch(() => []),
+    ]);
+    const activeWindowLeagues = activeOpenWindowLeagues(now, known);
+    const cadenceMinutes = nextCaptureCadenceMinutes(now, known, settings.refreshIntervalMinutes);
+    const fullNext = opts.force ? null : nextDueAt(last, settings.refreshIntervalMinutes, now.getTime());
+    if (!fullNext) {
+      await writeSettings(pool, passKey(sub), { lastPassAt: nowIso });
+      await writeSettings(pool, linePollKey(), { lastPollAt: nowIso });
+      const result = await refreshPass(pool, sub, { now, espnOpts: opts.espnOpts });
+      lastRun = nowIso;
+      lastError = null;
+      log.info({ mode: 'full', cadenceMinutes, activeWindowLeagues, ...result }, 'refresh pass complete');
+      return { ran: true, mode: 'full', cadenceMinutes, activeWindowLeagues, result };
+    }
+    const linePollDue = activeWindowLeagues.length > 0
+      && shouldPollLinesNow(now, lastPoll || last, known, settings.refreshIntervalMinutes);
+    if (linePollDue) {
+      await writeSettings(pool, linePollKey(), { lastPollAt: nowIso });
+      const lines = await captureLines(pool, { leagues: activeWindowLeagues, now, espnOpts: opts.espnOpts });
+      const result = { graded: 0, previews: 0, lines, world: { subjects: 0, newItems: 0 } };
+      lastRun = nowIso;
+      lastError = null;
+      log.info({ mode: 'line-capture', cadenceMinutes, activeWindowLeagues, lines }, 'open-window line capture complete');
+      return { ran: true, mode: 'line-capture', cadenceMinutes, activeWindowLeagues, result };
+    }
+    const lineNext = activeWindowLeagues.length > 0
+      ? nextLinePollDueAt(now, lastPoll || last, known, settings.refreshIntervalMinutes) : null;
+    return {
+      ran: false, skipped: 'not_due', lastPassAt: last as string,
+      nextDueAt: earlierIso(fullNext, lineNext) || fullNext, cadenceMinutes, activeWindowLeagues,
+    };
   } catch (err) {
     lastError = (err as Error).message;
     log.error({ err }, 'refresh pass failed');

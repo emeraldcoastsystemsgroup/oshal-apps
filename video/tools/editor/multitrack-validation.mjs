@@ -1,9 +1,10 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate private version 2 multitrack documents with integer timing, bounded effects/keyframes and explicit linked audio/video pairs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Support per-clip speed, named color looks, stabilization, chroma key, background matting and keyframed stickers in v2 multitrack documents.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Support optional project aspectRatio (16:9, 9:16, 1:1) in v2 multitrack documents.
  */
 import {
-  demand, exactObject, integer, plainText, EXPORT_PROFILES, LIMITS, validateTimelineSources,
+  demand, exactObject, integer, plainText, EXPORT_PROFILES, LIMITS, validateTimelineSources, validateAspectRatio,
   clipDurationFrames, validateSpeed, validateLook, validateStabilize, validateChromaKey, validateRemoveBg, validateStickers,
 } from './timeline-validation.mjs';
 const ID = /^[a-z][a-z0-9-]{0,31}$/;
@@ -74,8 +75,9 @@ function validateLinks(tracks) {
  * @param {object} value Candidate v2 project.
  * @returns {object} Independent validated document. */
 export function validateMultitrack(value) {
-  exactObject(value, ['version', 'name', 'profile', 'sources', 'segments', 'titles', 'audioBed', 'tracks', 'captions', 'stickers'], 'Multitrack project');
+  exactObject(value, ['version', 'name', 'profile', 'aspectRatio', 'sources', 'segments', 'titles', 'audioBed', 'tracks', 'captions', 'stickers'], 'Multitrack project');
   demand(value.version === 2 && EXPORT_PROFILES.includes(value.profile), 'Unsupported multitrack profile');
+  const aspectRatio = validateAspectRatio(value.aspectRatio);
   demand(Array.isArray(value.segments) && !value.segments.length && value.audioBed === null, 'V2 uses tracks instead of sequential segments or a bed');
   const sources = validateTimelineSources(value.sources, { ...LIMITS, videoSources: 8, audioSources: 8 });
   demand(Array.isArray(value.tracks) && value.tracks.length <= 12, 'Use at most four video and eight audio tracks');
@@ -97,7 +99,8 @@ export function validateMultitrack(value) {
   });
   demand(counts.video <= 4 && counts.audio <= 8 && clips.size <= 32, 'Track or clip budget exceeded'); validateLinks(tracks);
   const stickers = validateStickers(value.stickers, total);
-  const result = { version: 2, name: plainText(value.name, LIMITS.name, 'Project name'), profile: value.profile, sources,
+  const result = { version: 2, name: plainText(value.name, LIMITS.name, 'Project name'), profile: value.profile,
+    ...(aspectRatio ? { aspectRatio } : {}), sources,
     segments: [], titles: textTrack(value.titles, total, 20), audioBed: null, tracks, captions: textTrack(value.captions ?? [], total, 50),
     ...(stickers?.length ? { stickers } : {}) };
   demand(new TextEncoder().encode(JSON.stringify(result)).length <= LIMITS.documentBytes, 'Project is too large'); return result;

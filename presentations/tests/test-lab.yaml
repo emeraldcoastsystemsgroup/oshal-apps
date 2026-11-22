@@ -26,6 +26,7 @@
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: existing model and format cases prove bounded paragraph indentation and heading continuity in actual editor, DOCX, PDF and text output.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register supplied Word export lifecycle tests and saved-revision RTF format, authority and phone/desktop download coverage.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: extend transient-export.test.mjs to verify optional paragraph borderBottom, tabRight and native OOXML tab runs across DOCX, PDF and RTF exports.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): register speaker-notes covering on-screen speaker notes under each slide, native PPTX notesSlide export/import, Edit & regenerate / reopen persistence, `page` patch and Guide `update_slide` contracts, and Chromium 1440x900 + 412x915 verification.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -767,4 +768,34 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 256
+    installation: never
+  - id: speaker-notes
+    name: Speaker notes on screen, PPTX notes page round-trip and concierge updates
+    purpose: >-
+      Verify per-slide speaker notes (CREATE-TOOL-PRESENTATIONS-08) across the structured Office editor and slide workspace:
+      bounded model and outline serialization, native PPTX notesSlide XML export and external PPTX import, Edit & regenerate
+      and reopen persistence, structured `page` patch and Guide `update_slide` / `add_slide` contracts, and Chromium desktop
+      (1440x900) and phone (412x915) UI flows.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/speaker-notes.test.mjs
+    expected:
+      - Presentation pages accept bounded string speaker notes (up to 4000 chars), clear cleanly with empty string, and reject non-string, oversized or Word-page notes.
+      - Exported PPTX archives carry ppt/notesSlides/notesSlideN.xml with exact typed speaker notes and external PPTX import restores them without placeholder chrome.
+      - Speaker notes survive slide switch, undo/redo, save/reopen, Open a file, and Edit & regenerate; Guide update_slide and structured page patch update on-screen notes and export payloads.
+      - Both desktop (1440x900) and phone (412x915) viewports render Speaker notes below the active slide with zero horizontal overflow, hidden for Word and Excel, and zero page errors.
+    prerequisites:
+      - runner:node-test
+      - runtime:office-pinned-node-dependencies
+      - browser:chromium
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close owned Chromium contexts and loopback HTTP servers; retain no installed records or external traffic.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

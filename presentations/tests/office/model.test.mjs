@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove bounded optional paragraph indentation, keep-with-next and unchanged omitted defaults through validated atomic edits.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): verify bounded per-slide speaker notes (`notes`) on presentations and rejection of non-string, oversized or Word-page notes.
  */
 import{test}from'node:test';import assert from'node:assert/strict';
 import{initial,validate,style,paragraph,plain}from'../../tools/office/model.mjs';
@@ -96,4 +97,14 @@ test('captured invalid request identities never reach persistence or the edit ca
 test('Office create and edit declarations require the native supported UUID format before a proposal can be held',()=>{
  const yaml=createRequire(new URL('../../../scripts/toolchain/package.json',import.meta.url))('js-yaml'),manifest=yaml.load(readFileSync(new URL('../../oshal-app.yaml',import.meta.url),'utf8'));
  for(const name of['office-create-document','office-apply-edits']){const tool=manifest.tools.find(tool=>tool.name===name),key=tool.inputSchema.properties.requestKey;assert.equal(key.format,'uuid');assert.equal(key.minLength,36);assert.equal(key.maxLength,36);const pattern=new RegExp(key.pattern);assert.ok(pattern.test(crypto.randomUUID()));assert.ok(!pattern.test('a1b2c3d4-e5f6-4g7h-8i9j-k0l1m2n3o4p5'));assert.ok(!pattern.test('00000000-0000-1000-8000-000000000000'));assert.ok(tool.inputSchema.required.includes('requestKey'));assert.equal(tool.requiresApproval,true);assert.equal(tool.defaultAuthMode,'ask');}
+});
+test('presentation page patch accepts bounded string speaker notes, clears with empty string, and rejects invalid or Word notes',()=>{
+ const deck=initial('pptx','Notes'),page=deck.pages[0];
+ assert.equal(Object.hasOwn(page,'notes'),false);
+ const updated=applyOperations(deck,[{op:'page',id:page.id,patch:{notes:'Key talking point'}}]);
+ assert.equal(updated.pages[0].notes,'Key talking point');
+ assert.equal(applyOperations(updated,[{op:'page',id:page.id,patch:{notes:''}}]).pages[0].notes,'');
+ for(const bad of[123,null,{},'n'.repeat(4001)])assert.throws(()=>applyOperations(deck,[{op:'page',id:page.id,patch:{notes:bad}}]));
+ const doc=initial('docx','Word');
+ assert.throws(()=>applyOperations(doc,[{op:'page',id:doc.pages[0].id,patch:{notes:'Nope'}}]));
 });

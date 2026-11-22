@@ -1,3 +1,7 @@
+# 131 | maintainer@emeraldcoastsystemsgroup.com | Lane REGEN-PROOF: regenerate-live matches its check. On a slot whose /readyz says schedulerEnabled:false (the test slot) the check makes his career-regenerate job's own call (POST /regenerate/advance as him, every 20 s) with the page closed and says so; each row starts with no queue; a reload reopens Getting ready without signing in again; the cockpit's recents write is permitted.
+# 130 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN: register regenerate-routes (Generate again over the real routes and engine: older documents, order, one at a time, retry once, Pause, Go on, Stop, a reload, his own Generate wins, applied refused), regenerate-page (My jobs in Chromium at 1440x900 and 412x915) and regenerate-live (the queue finishing with no Career page open on the test slot; its install prerequisite names this release when the lead versions it).
+# 129 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-REPLAY: register assisted-application-replay (a paused run's Go on — fill in again from where it was with the line saying entries are remembered, and the receipt's count of values played back from the kernel's memory, from replay:1 as remembered from start 1, in Chromium at 1440x900 and 412x915 over the real routes).
+# 128 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH: register assisted-application-batch-pages (Fill in several on my Chrome on My jobs' List and the job page in Chromium at 1440x900 and 412x915 over the real routes) and assisted-application-batch (Fill in several on my Chrome over the real routes and store: one approval and digest per job, one job on his computer at a time, Next job, Submitted, Failed with the next started, Pause, Go on, Stop, a kernel restart, an expired approval asked again, and the refusals).
 # 127 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-I: register assisted-application-flags (How Career fills in a form: Typing, Window and Submit on Roger's defaults with Undo, the flags in the packet under its digest and on the approval in words, veteran and disability standing answers as selfid facts, Career's one Submit recorded only with its confirmation, and the job page's line when he used the mouse).
 # 126 | maintainer@emeraldcoastsystemsgroup.com | 1.72.0: register parse-resume (the parse résumé's format, structure and real parse against the executive Word résumé), parse-resume-download (Résumé for upload forms on Send over the real compiled route) and parse-resume-live; the packet's Word résumé is now the parse résumé, and a generation writes Resume_Parse.docx.
 # 125 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0: register assisted-application (the approval packet, sync, write-back and receipt over the real routes, store, engine and docx_resume.py) and assisted-application-pages (Fill it in on my Chrome on Step 3 · Send, the receipt in Submission activity and on the job page, and Saved answers, in Chromium at 1440x900 and 412x915 over the real routes).
@@ -4289,6 +4293,50 @@ cases:
     isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
     limits: {timeoutMs: 240000, maxMemoryMb: 1536}
     installation: never
+  - id: assisted-application-batch-pages
+    name: Fill in several on my Chrome on My jobs and the job page
+    purpose: Prove Fill in several on my Chrome on the shipped My jobs page and job page in Chromium at 1440x900 and 412x915, every batch, queue and run call going to Career's real routes on a made-up person's real store; the job list and the kernel's routes are stood in.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-batch-browser.test.mjs]}
+    expected:
+      - In the List of Getting ready each row has a Select checkbox once his Job Apply computer reports browser-apply, and the bar offers Fill in several on my Chrome.
+      - Its sheet lists each job with company, title, files and site, says how Career fills them in once, and says how many selected jobs still need documents with Prepare them; Approve and start queues them and starts the first.
+      - The panel follows the queue (Filling in, Ready for you with Next job, which stops that run through the kernel's confirmed cancel and starts the next), keeps it over a reload, reports a failed job, pauses and goes on, and ends Finished with Submitted and the counts and Clear.
+      - The job page shows the same panel, where Stop the queue stops the job on his computer first and ends the rest; nothing is wider than the screen.
+      - In the Table, Fill in several on my Chrome is the bar's filled button; a job whose approval ended while it waited says so, never starts, and Approve again approves it on its own sheet and puts it back in the queue.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 240000, maxMemoryMb: 1536}
+    installation: never
+  - id: assisted-application-batch
+    name: Fill in several on my Chrome, the queue of assisted applications
+    purpose: Prove the person's queue of assisted applications through Career's real routes on a made-up person's real store, with the kernel's ticket port stood in at the harness boundary as a work record per ticket.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-batch.test.mjs]}
+    expected:
+      - Each queued job is approved with its own exact packet and digest, as a single approval; approving starts nothing, and a job sent before, already queued, past the 50 waiting at once, or changed since review is refused with its reason while the others go in.
+      - One job is on his computer at a time, also when three advances overlap and while a run from a job's own page is on it; the next starts only when that one ended.
+      - Ready at Review waits for him; Next job is refused while its run is on his computer and, once the page stopped it, leaves it open and starts the next; a submitted job is recorded with the employer's confirmation; a failed or paused job is reported and the next starts.
+      - Pause starts nothing new while the job on the computer goes on, Go on starts the next, Stop waits for the job on the computer and ends the rest; a computer that is not connected pauses the queue with the reason.
+      - The queue is in his store, so a reload or a kernel restart reads it and goes on; an expired approval asks again instead of running and is approved again in place; a job applied while it waited is never started; another person sees and changes nothing.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+  - id: assisted-application-replay
+    name: Go on after a timeout fills in again from where it was, and the receipt counts what came from memory
+    purpose: Prove the job page of a paused assisted application and its receipt through Career's real routes on a made-up person's real store, in Chromium at 1440x900 and 412x915, when the kernel played back what an earlier attempt entered.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-apply-replay.test.mjs]}
+    expected:
+      - A paused run reads Paused and offers one Go on, in the words Go on — fill in again from where it was, with one line saying Career remembers what it already entered and his answers, so it fills in again from where it was without asking again.
+      - The receipt of an attempt that played values back says how many came from what Career remembered from an earlier start, and names each one's source remembered from start 1; an attempt that played nothing back says nothing of it.
+      - Go on starts the next attempt of the same approval.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the kernel's ticket port is a scripted stand-in."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
   - id: assisted-application-pages
     name: Fill it in on my Chrome on Step 3 · Send, its receipt, and Saved answers in Chromium
     purpose: Drive the shipped career-application.html, career-submissions.html and career-saved-answers.html at 1440x900 and 412x915 with every Career call going to the real routes on a made-up person's store and the kernel's own routes stood in.
@@ -4368,6 +4416,68 @@ cases:
         Writes only the test person's own store on the test slot, never production: one prepared job, whose documents the
         check discards at the end. Every other request that is not GET or HEAD is stopped and listed. `remove` takes the
         test person's role back and deactivates it.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: regenerate-routes
+    name: Generate again for many jobs, one at a time in the background, through the job page's own Generate
+    purpose: Prove Generate again over the compiled board routes, the engine dispatch, runner and launcher and the real Python engine (prepare_job, generate_for, the parse résumé) on made-up people's real stores; only the model (a scripted answer on the package's rail path), Chromium (a one-line PDF) and the kernel leaves of tests/helpers/career-route-harness.mjs are doubled.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/career-regenerate-route.test.mjs]}
+    expected:
+      - GET /regenerate/older lists exactly the open jobs whose packet records an earlier Career version (or none) or lacks Resume_Parse.docx, best match first; a current packet, an applied job and a job with no documents are left out.
+      - POST /regenerate queues his jobs in his order after the confirmation only, at most 300 in one run, and refuses an applied job with its reason while the others go in.
+      - Three jobs are regenerated in order, never two at once, each with its own tailoring notes; each new packet records this Career's version and carries Resume_Parse.docx, so they no longer count as older.
+      - A failed job is tried once more and then left with its reason; Pause lets the job being written finish and starts nothing, Go on takes the next, Stop skips the rest; a fresh router reads the same queue and a run lost mid-way counts as one try and is made again.
+      - His own Generate on a job the queue took wins and the queue skips it; a job applied while waiting is skipped; another person sees and changes nothing, and nobody signed out is answered.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the disposable store root; the model and Chromium are scripted stand-ins."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 1024}
+    installation: never
+  - id: regenerate-page
+    name: Generate again on My jobs at 1440x900 and 412x915
+    purpose: Prove Generate again on the shipped My jobs page in Chromium at 1440x900 and 412x915, every Generate again call going to Career's real routes and engine on a made-up person's real store; the job list, the person and the platform's schedules are stood in.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/career-regenerate-browser.test.mjs]}
+    expected:
+      - The panel says how many open jobs have documents from an earlier Career; jobs selected in the List give Generate again (N) in the bar, and its one confirmation says "Career makes new documents for N jobs, one after another, in the background. Each takes about a minute. Your notes and choices for each job are kept."; Cancel queues nothing.
+      - Select all with older documents selects exactly those jobs; Generate again (N) queues them and turns on his career-regenerate background job.
+      - The panel shows done, left and failed and the job being written, with Pause and Stop, then Go on; a reload keeps the queue; Stop lets the job being written finish; Clear brings back the older-documents line; nothing is wider than the screen.
+    prerequisites: [runner:node-test, browser:chromium, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the disposable store root; the model, Chromium and the platform's schedules are stand-ins."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+  - id: regenerate-live
+    name: On the installed package a test person generates two jobs again and the queue finishes with no Career page open
+    purpose: >-
+      On a test slot with this Career installed, as a test person with a made-up résumé and two prepared jobs, signed in on
+      /login: at 1440x900 select both in My jobs' List, press Generate again (2), confirm, close the page and follow the
+      queue until both have new documents (on a slot that runs no schedules the check makes his background job's own call,
+      POST /regenerate/advance, every 20 s); at 412x915 queue one, Pause, reload, Go on, Stop and Clear. Make the person
+      once with `person`; run node career-hunter/tests/career-regenerate-live-proof.mjs check http://127.0.0.1:38798
+      <person file> <out folder>.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/career-regenerate-live-proof.mjs
+    expected:
+      - The confirmation says the words exactly; with the page closed both jobs reach done and neither then counts as older, and his career-regenerate background job is active. Where /readyz says schedulerEnabled:false the check made that job's own call (POST /regenerate/advance as him, every 20 s) and the receipt says so in words; elsewhere his job moved it on.
+      - Each row starts with no queue (one left by a failed row is stopped and cleared first). At 412x915 Pause, a reload (no second sign-in), Go on and Stop act from the panel and Clear empties it; nothing scrolls sideways; the only writes are the sign-in, the Generate again routes, his background job's activation and the cockpit's recents; the check exits 0.
+    prerequisites:
+      - runner:node
+      - credential:test-person
+      - install:career-hunter-1.75.0
+    sideEffects: external-write
+    isolation:
+      mode: live
+      cleanup: >-
+        Writes only the test person's own store on the test slot, never production: its two prepared jobs' new documents
+        and its Generate again queue, which the check clears. Every other write is stopped and listed. `remove` turns the
+        person's background job off, takes the role back and deactivates the person.
     limits:
       timeoutMs: 300000
     installation: never

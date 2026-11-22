@@ -2,11 +2,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded agent timeline operations retain linked timing, lock checks and immutable revisions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Describe automatic document saves and refreshes in the shared editing contract.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose clip speed/effects and sticker operations in the agent timeline editing contract.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support optional aspectRatio (16:9, 9:16, 1:1) on blankProject and project patch operation, and advertise aspectRatios in editingContract (1.14.5).
  */
-import { createTimeline, addSource, removeSource, renameTimeline, replaceMotionSource } from './timeline-model.mjs';
-import { validateTimeline } from './timeline-validation.mjs';
+import { createTimeline, addSource, removeSource, renameTimeline, replaceMotionSource, patchProject } from './timeline-model.mjs';
+import { ASPECT_RATIOS, validateTimeline } from './timeline-validation.mjs';
 import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
-const forms = { migrate: [], rename: ['name'], addSource: ['source'], removeSource: ['key'], replaceMotionSource: ['key','source'],
+const forms = { migrate: [], rename: ['name'], project: ['patch'], addSource: ['source'], removeSource: ['key'], replaceMotionSource: ['key','source'],
   addTrack: ['name','kind'], track: ['id','patch'], addClip: ['track','source','start','in','out'], clip: ['id','patch'],
   moveClip: ['id','track','start'], removeClip: ['id','ripple'], split: ['id','frame'], extractAudio: ['id','track'], unlink: ['id'],
   text: ['track','entry'], updateText: ['track','id','patch'], removeText: ['track','id'],
@@ -23,7 +24,10 @@ export const operationSchema = { type: 'object', additionalProperties: false, re
 // Kernel schema has no union types. Use separate sourceKey/sourceMetadata tool fields, normalize here.
 operationSchema.properties.sourceKey = { type: 'string', maxLength: 32 };
 operationSchema.properties.sourceMetadata = { type: 'object' };
-export function blankProject(input) { return migrateMultitrack(createTimeline(input.title)); }
+export function blankProject(input) {
+  const options = input && input.aspectRatio !== undefined ? { aspectRatio: input.aspectRatio } : {};
+  return migrateMultitrack(createTimeline(input.title, options));
+}
 export function applyAgentOperations(value, operations) {
   if (!Array.isArray(operations) || operations.length < 1 || operations.length > 16 || JSON.stringify(operations).length > 15000) throw new TypeError('Use 1–16 bounded timeline operations');
   let next = validateTimeline(value);
@@ -36,6 +40,7 @@ export function applyAgentOperations(value, operations) {
     if (!allowed || Object.keys(operation).some(key => key !== 'type' && !allowed.includes(key))) throw new TypeError('Unsupported editing fields');
     if (operation.type === 'migrate') next = migrateMultitrack(next);
     else if (operation.type === 'rename') next = renameTimeline(next, operation.name);
+    else if (operation.type === 'project') next = patchProject(next, operation.patch);
     else if (operation.type === 'setProfile') next = validateTimeline({ ...next, profile: operation.name });
     else if (operation.type === 'addSource') next = addSource(next, operation.source).document;
     else if (operation.type === 'replaceMotionSource') next = replaceMotionSource(next, operation.key, operation.source);
@@ -45,8 +50,9 @@ export function applyAgentOperations(value, operations) {
   return validateTimeline(next);
 }
 export function editingContract() {
-  return { editor: 'video', version: 1, sourceVersion: '1.12.0', maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
+  return { editor: 'video', version: 1, sourceVersion: '1.14.5', aspectRatios: [...ASPECT_RATIOS], maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
     conventions: { timing: 'All timing in integer frames at 30fps. Clip in/out are source frames (out exclusive); start/split frame are timeline frames. Keys are clip-local.',
+      project: 'New projects accept optional aspectRatio (16:9 landscape, 9:16 vertical, 1:1 square; defaults to 16:9). Use project operation with patch {aspectRatio,name,profile} to change project format.',
       clips: 'clip patch allows in/out/start/volume/x/y/scale/opacity/keys/transition/fadeIn/fadeOut/brightness/contrast/saturation/audioEnabled.',
       bounds: '4 video + 8 audio tracks, 32 clips, 60 seconds, 8 video + 8 audio sources; x/y -100..100 percent, scale10..200, opacity0..100, volume0..200.',
       keyframes: 'keys [{frame,property:x|y|scale|opacity|volume,value,interpolation:linear|hold}], max64 per clip. Fades in frames; transition dissolve or black.',
@@ -56,7 +62,7 @@ export function editingContract() {
       motion: 'Import a verified Motion render handle with video-import-motion-render (approval). Returned sourceMetadata includes sealed motion lineage. Add it or replaceMotionSource with actual source key; refresh same project/comp/range/rate with equal/newer revision, no locked track. Open graph using sourceUrl returned by import. Full native graph stays editable in Motion; Video stores an immutable linked render cache. Existing cache survives source deletion but graph editing requires current Motion access.',
       saves: 'Read project id/revision first. Explicit migrate upgrades v1. One batch saves one revision, stale conflicts require re-read. The editor automatically saves the current draft before concierge reading, then refreshes the same project on return. Concurrent browser drafts are preserved with a conflict message.',
       renders: 'Single-source browser preview is unavailable in v2. Use render preview/export job tools; report actual returned state. Never promise codecs or native support without a successful job.', },
-    examples: [ {type:'migrate'}, {type:'addClip',track:'video1',sourceKey:'v1',start:30,in:0,out:90},
+    examples: [ {type:'migrate'}, {type:'project',patch:{aspectRatio:'9:16'}}, {type:'addClip',track:'video1',sourceKey:'v1',start:30,in:0,out:90},
       {type:'clip',id:'clip-id',patch:{opacity:80,fadeIn:15,transition:'dissolve'}},
       {type:'text',track:'captions',entry:{text:'Hello',start:0,end:60,position:'bottom',size:'small'}},
       {type:'updateText',track:'captions',id:'text-id',patch:{text:'Updated caption'}},

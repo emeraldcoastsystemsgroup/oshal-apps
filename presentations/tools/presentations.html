@@ -14,6 +14,7 @@
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | The studio lands on the latest saved work when nothing was asked of it and nothing is typed (resumeLatest: the file explorer reopen, run for the person; ?kind= narrows to that format), instead of an empty editor (Roger, 2026-11-02, on the demo). -->
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a failed generate left every generate button disabled until a reload (the error path returned before the re-enable); the buttons now come back on every way out, and a draft whose outline was cut off says so beside the saved file. -->
 <!-- 2.15.0 | maintainer@emeraldcoastsystemsgroup.com | The slide canvas gets a real design row (Roger, 2026-11-03, on the demo: "no controls... can't add an image"): a layout picker, an image file with its caption, all over the renderer's own #layout:/#image:/#caption: directives, drawn in the draft and the My-files quick look. The AI-partner box takes the rail's width and grows as you type, with Dictate and Send under it. The phantom empty "making" bar is gone (.making's display:flex defeated the hidden attribute). Where Create is installed, the studio names its suite (✦ Create suite). -->
+<!-- 2.20.12 | maintainer@emeraldcoastsystemsgroup.com | Speaker notes on screen (CREATE-TOOL-PRESENTATIONS-08): preserve bounded per-slide `notes` across the slide workspace, outline serialization, `.pptx` export/import, Edit & regenerate, reopen, and Guide `update_slide`/`add_slide`/`set_outline` actions. -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
@@ -1043,7 +1044,7 @@ function pickTemplate(id, applyTheme){
 }
 $('clearTpl').onclick = () => { SEL = null; renderTemplates(); $('outline').value = ''; };
 
-/** Parse the outline textarea into [{title, content}]. */
+/** Parse the outline textarea into [{title, content, notes?}]. */
 function parseOutline(text){
   text = String(text || '');
   // This is local UI source, not a layout directive sent to an Office renderer.
@@ -1054,11 +1055,13 @@ function parseOutline(text){
       const valid = stored && text.length <= 1048576 && Object.keys(stored).length === 2 &&
         stored.format === 'oshal-office-outline/1' && Array.isArray(stored.sections) && stored.sections.length <= 100 &&
         stored.sections.every(section => section && typeof section === 'object' && !Array.isArray(section) &&
-          Object.keys(section).length === 2 && typeof section.title === 'string' && section.title.trim() &&
+          Object.keys(section).every(k => k === 'title' || k === 'content' || k === 'notes') &&
+          typeof section.title === 'string' && section.title.trim() &&
           section.title.length <= 200 && !/[\r\n]/.test(section.title) &&
-          typeof section.content === 'string' && section.content.length <= 262144);
+          typeof section.content === 'string' && section.content.length <= 262144 &&
+          (section.notes === undefined || (typeof section.notes === 'string' && section.notes.length <= 4000)));
       if (typeof document !== 'undefined') document.getElementById('outline')?.setCustomValidity(valid ? '' : 'The structured document source is invalid. Restore its format, title and content fields before exporting.');
-      return valid ? stored.sections.map(section => ({title:section.title,content:section.content})) : [];
+      return valid ? stored.sections.map(section => section.notes ? ({title:section.title,content:section.content,notes:section.notes}) : ({title:section.title,content:section.content})) : [];
     }
   }
   if (typeof document !== 'undefined') document.getElementById('outline')?.setCustomValidity('');
@@ -1068,12 +1071,15 @@ function parseOutline(text){
     return { title: lines[0].trim(), content: lines.slice(1).join('\n') };
   }).filter(Boolean);
 }
-/** One serializer: retain ordinary outline text when it round-trips exactly. */
+/** One serializer: retain ordinary outline text when it round-trips exactly; preserve speaker notes via structured JSON. */
 function serializeOfficeSections(sections){
-  const plain = sections.map(section => section.title + (section.content ? '\n' + section.content : '')).join('\n\n');
-  if (JSON.stringify(parseOutline(plain)) === JSON.stringify(sections)) return plain;
-  const stored = JSON.stringify({format:'oshal-office-outline/1',sections});
-  if (JSON.stringify(parseOutline(stored)) !== JSON.stringify(sections)) throw new Error('This draft exceeds the supported document source bounds (100 sections, 200-character headings, 256 KiB per section, 1 MiB total).');
+  const normalized = sections.map(section => section.notes ? ({title:section.title,content:section.content,notes:section.notes}) : ({title:section.title,content:section.content}));
+  if (!normalized.some(section => section.notes)) {
+    const plain = normalized.map(section => section.title + (section.content ? '\n' + section.content : '')).join('\n\n');
+    if (JSON.stringify(parseOutline(plain)) === JSON.stringify(normalized)) return plain;
+  }
+  const stored = JSON.stringify({format:'oshal-office-outline/1',sections:normalized});
+  if (JSON.stringify(parseOutline(stored)) !== JSON.stringify(normalized)) throw new Error('This draft exceeds the supported document source bounds (100 sections, 200-character headings, 256 KiB per section, 4000-character notes, 1 MiB total).');
   return stored;
 }
 
@@ -1162,7 +1168,7 @@ function fillDrafted(j){
   if (!j || !Array.isArray(j.outline) || !j.outline.length) return;
   const set = (id, value) => { const el = $(id); if (el && !el.value.trim()) { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); } };
   set('title', String(j.title || ''));
-  set('outline', serializeOfficeSections(j.outline.map(sl => ({title:String(sl.title || '').trim(),content:String(sl.content || '')}))));
+  set('outline', serializeOfficeSections(j.outline.map(sl => ({title:String(sl.title || '').trim(),content:String(sl.content || ''),...(typeof sl.notes === 'string' && sl.notes ? {notes:sl.notes.slice(0,4000)} : {})}))));
 }
 
 /** Shared click path for the format buttons — same outline, different projection. */
@@ -1285,7 +1291,7 @@ function openFileView(d){
     if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
     const saved = savedLook(d.theme); if (saved) pickTheme(saved);
     $('title').value = d.title || '';
-    writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
+    writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [], ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
     SEL = null; renderTemplates(); showTab('preview'); landOnPreview();
     res('✓ Loaded <b>' + esc(d.title || d.fileName) + '</b> into the editor — tweak, then regenerate in any format.', true);
   };
@@ -1411,7 +1417,7 @@ async function importOfficeBlob(blob, name){
     if (!r.ok || j.error){ res('Couldn’t open it: ' + esc(j.error || ('HTTP ' + r.status)), false); }
     else {
       if (j.title) $('title').value = j.title;
-      writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n') })));
+      writeOutline((j.sections||[]).map(s => ({ title: s.title, bullets: String(s.content||'').split('\n'), ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
       if (j.format && KINDS.some(k => k.id === j.format)) pickKind(j.format);
       SEL = null; renderTemplates();
       res('✓ Opened <b>' + esc(name) + '</b> — ' + (j.sections||[]).length + ' sections loaded. Edit here or ask the Guide, preview it, then Generate in any format.', true);
@@ -1441,17 +1447,17 @@ function addMsg(role, text, skipHistory){
   return d;
 }
 
-/** Read the outline editor into [{title, bullets[]}] — the live state we send the bot. */
+/** Read the outline editor into [{title, bullets[], notes?}] — the live state we send the bot. */
 function readEditorSlides(){
   return parseOutline($('outline').value || '').map(b => ({
-    title: b.title, bullets: String(b.content || '').split('\n'),
+    title: b.title, bullets: String(b.content || '').split('\n'), ...(b.notes ? { notes: b.notes } : {}),
   }));
 }
 /** What the AI partner may see of the draft: never image bytes, only that an image is attached. */
 function guideSlides(){
   return readEditorSlides().map(s => ({ ...s, bullets: s.bullets.map(b => /^#\s*image\s*:\s*data:/i.test(String(b).trim()) ? '#image: (attached)' : b) }));
 }
-/** Write [{title, bullets[]}] back into the outline editor's block format. */
+/** Write [{title, bullets[], notes?}] back into the outline editor's block format. */
 function writeOutline(slides){
   $('outline').value = serializeSlides(slides);
   pvKick();
@@ -1467,8 +1473,8 @@ function toBridgeEvents(a){
   if (a.op === 'set_theme')    return [{ op: 'set_field', field: 'theme', value: String(a.theme ?? '') }];
   if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeHelperSlides(a.slides) }];
   if (a.op === 'update_cell') return [{op:'custom',name:'update_cell',data:{index:a.index,cell:a.cell,value:a.value}}];
-  if (a.op === 'add_slide')    return [{ op: 'custom', name: 'add_slide', data: { title: a.title, bullets: a.bullets || [] } }];
-  if (a.op === 'update_slide') return [{ op: 'custom', name: 'update_slide', data: { index: a.index, title: a.title, bullets: a.bullets } }];
+  if (a.op === 'add_slide')    return [{ op: 'custom', name: 'add_slide', data: { title: a.title, bullets: a.bullets || [], ...(a.notes !== undefined ? { notes: a.notes } : {}) } }];
+  if (a.op === 'update_slide') return [{ op: 'custom', name: 'update_slide', data: { index: a.index, title: a.title, bullets: a.bullets, ...(a.notes !== undefined ? { notes: a.notes } : {}) } }];
   if (a.op === 'set_field' || a.op === 'set_content' || a.op === 'custom') return [a];
   return [];
 }
@@ -1476,18 +1482,21 @@ function toBridgeEvents(a){
 function mergeSectionLines(oldContent, lines){
   return window.officeDesign ? window.officeDesign.mergeDesign(oldContent, lines) : (lines || []).join('\n');
 }
-/** Serialize [{title,bullets[]}] into the outline editor's block format (writeOutline's text).
+/** Serialize [{title,bullets[],notes?}] into the outline editor's block format (writeOutline's text).
  *  Internal writes (reopening a saved file above all) keep every line verbatim — stored data-URI
  *  images included. Helper proposals go through serializeHelperSlides instead. */
 function serializeSlides(slides){
-  return serializeOfficeSections((slides || []).map(s => ({title:s.title || '',content:(s.bullets || []).join('\n')})));
+  return serializeOfficeSections((slides || []).map(s => ({title:s.title || '',content:(s.bullets || []).join('\n'),...(typeof s.notes === 'string' && s.notes ? {notes:s.notes.slice(0,4000)} : {})})));
 }
 /** A full-outline proposal from the AI partner: each section merges onto the matching existing
- *  section, so the person's design directives (the attached image above all) survive the rewrite —
+ *  section, so the person's design directives (the attached image above all) and speaker notes survive the rewrite —
  *  the helper never sees image bytes and must not silently delete them (mergeDesign rules). */
 function serializeHelperSlides(slides){
   const current = readEditorSlides();
-  return serializeOfficeSections((slides || []).map((s, i) => ({title:s.title || '',content: mergeSectionLines(current[i] ? current[i].bullets.join('\n') : '', s.bullets || [])})));
+  return serializeOfficeSections((slides || []).map((s, i) => {
+    const notes = typeof s.notes === 'string' ? s.notes.slice(0, 4000) : (current[i]?.notes || '');
+    return {title:s.title || '',content: mergeSectionLines(current[i] ? current[i].bullets.join('\n') : '', s.bullets || []),...(notes ? {notes} : {})};
+  }));
 }
 /** Apply ONE contract event to the editor; return a short note of what changed, or null. */
 function applyBridgeEvent(ev){
@@ -1503,13 +1512,16 @@ function applyBridgeEvent(ev){
   if (ev.op === 'custom' && ev.name === 'update_cell') return window.officeCellEdit?.(ev.data || {}) || null;
   if (ev.op === 'custom' && ev.name === 'add_slide'){
     const d = ev.data || {}; const s = readEditorSlides();
-    s.push({ title: d.title, bullets: mergeSectionLines('', d.bullets || []).split('\n').filter(l => l.trim()) }); writeOutline(s); return 'added a slide';
+    if (d.notes !== undefined && (typeof d.notes !== 'string' || d.notes.length > 4000)) return null;
+    s.push({ title: d.title, bullets: mergeSectionLines('', d.bullets || []).split('\n').filter(l => l.trim()), ...(typeof d.notes === 'string' && d.notes ? { notes: d.notes } : {}) }); writeOutline(s); return 'added a slide';
   }
   if (ev.op === 'custom' && ev.name === 'update_slide'){
     const d = ev.data || {}; const s = readEditorSlides(); const i = (d.index | 0) - 1;
     if (i < 0 || !s[i]) return null;
+    if (d.notes !== undefined && (typeof d.notes !== 'string' || d.notes.length > 4000)) return null;
     if (d.title != null) s[i].title = d.title;
     if (d.bullets) s[i].bullets = mergeSectionLines(s[i].bullets.join('\n'), d.bullets).split('\n').filter(l => l.trim());
+    if (typeof d.notes === 'string') { if (d.notes) s[i].notes = d.notes; else delete s[i].notes; }
     writeOutline(s); return 'updated slide ' + d.index;
   }
   if (ev.op === 'custom' && ev.name === 'set_theme'){
@@ -1743,7 +1755,7 @@ function reopenDeck(d){
   if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
   const saved = savedLook(d.theme); if (saved) pickTheme(saved);
   $('title').value = d.title || '';
-  writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [] })));
+  writeOutline((d.outline || []).map(s => ({ title: s.title, bullets: s.bullets || [], ...(typeof s.notes === 'string' && s.notes ? { notes: s.notes } : {}) })));
   SEL = null; renderTemplates();
   closeWiz(true); showTab('preview'); landOnPreview();
   res('✓ Reopened <b>' + esc(d.title || 'your file') + '</b> — tweak anything, then regenerate in any format.', true);

@@ -10,6 +10,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Item C (0.12.4): surface firstInOpenWindow and firstPriorPollAbsent alongside openerConfidence on quant lineMovement summaries.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — read-only tonight edge scan, outlier-trimmed ROI and CLV robustness check (WINNERS_REMOVED = 0.2), single-game quant breakdown, and confirm-gated forward-test pick/follow endpoint.
  *
  * @module sports-quant
@@ -225,6 +226,8 @@ async function enrichStoredPreview(
       netSpreadMove: move.netSpreadMove,
       openerConfidence: move.openerConfidence,
       openerLeadHours: move.openerLeadHours,
+      firstInOpenWindow: move.firstInOpenWindow,
+      firstPriorPollAbsent: move.firstPriorPollAbsent,
     } : null,
   };
 }

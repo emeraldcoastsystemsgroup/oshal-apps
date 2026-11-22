@@ -6,13 +6,15 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: the TVs and streaming sticks section of the Smart Home screen. The person picks one of their own computers (the kernel's /api/computers, an online one first) and presses Scan for TVs: the page installs or updates Phone & Device Control's bridge on that computer when it is not 1.5.0 (the same verified install that page runs), asks Smart Home for the closed scan command, runs it on that computer, and records the answer; Android TVs found are also added to Phone & Device Control. Each TV card's buttons run one planned press the same way and say what the computer answered ("Press Allow on the TV, then Retry." while a Samsung waits). Installing the oshal TV app is one explicit press for one Android TV this computer already has permission to use. Nothing is scanned or installed when the page opens. When the person's app list says they cannot open Phone & Device Control (not installed, not theirs, or changed and waiting for re-approval), the section says which, requests nothing from it, and still lists the saved TVs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | home 1.7.0 (T45 part 4): an Android or Fire TV's card gains a row for the app playing on it, in front or not: Previous, Pause, Play, Next and What's playing (Phone & Device Control's bridge 1.8.0), and a Now playing line with the app, the title, its state and whether it is behind another app, from the TV's last answer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.2: Open on this TV button labels and launch_url action word name the product Open Swarm; oshal TV app and oshal Node component wording stay unchanged.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | home 1.9.4: Roku and Samsung TV cards show the last-reported application in front, offer What's in front and List apps, and render bounded touch-friendly launch buttons for the TV's listed applications (with a checked-application picker for Samsung active_app). Android/Fire TV and Cast cards keep no app-launch controls.
  */
 
 const LINK = '/api/phone-control/ui/computer-link.js';
 const RDP = '/api/phone-control/ui/phone-rdp.js';
 const RUN_MS = 45000;
 const PAIR_MS = 60000;
-const OLD_BRIDGE = new Set(['unknown_verb', 'bridge_not_installed']);
+const OLD_BRIDGE = new Set(['unknown_verb', 'bridge_not_installed', 'bad_action']);
+const APP_PREVIEW_LIMIT = 8;
 
 /** @description What each kind of device is called on its card. */
 export const KIND_WORDS = Object.freeze({ 'android-tv': 'Android TV', 'samsung-tizen': 'Samsung TV', roku: 'Roku', cast: 'Google Cast' });
@@ -25,19 +27,39 @@ export const WAITING_WORDS = Object.freeze({
   tv_not_answering: 'The TV did not answer. Turn it on with its remote, or press Wake, then Retry.'
 });
 
+const ERROR_WORDS = Object.freeze({
+  not_authenticated: 'Sign in again to control this TV.',
+  forbidden: 'Your account does not have permission to control this TV.',
+  bad_action: 'The helper on your computer needs an update. Press Scan for TVs once, then try again.'
+});
+
+const PLAYER_WORDS = Object.freeze({
+  play: 'playing', pause: 'paused', buffer: 'buffering', stop: 'stopped', startup: 'starting', open: 'opening'
+});
+
 const PRESS_WORDS = Object.freeze({ wake: 'Wake', off: 'Turn off', volume_up: 'Volume up', volume_down: 'Volume down', mute: 'Mute',
   up: 'Up', down: 'Down', left: 'Left', right: 'Right', select: 'OK', home: 'Home', back: 'Back', play_pause: 'Play or pause',
   launch_url: 'Show Open Swarm', open_app: 'Open the oshal TV app', pair: 'Pair',
-  now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop' });
+  now_playing: 'What\'s playing', play: 'Play', pause: 'Pause', next: 'Next', previous: 'Previous', stop: 'Stop',
+  launch_app: 'Open an application', list_apps: 'List apps', active_app: 'What\'s in front' });
 const MOVES = [['up', '▲', 'Up'], ['left', '◀', 'Left'], ['select', 'OK', 'OK'], ['right', '▶', 'Right'], ['down', '▼', 'Down']];
+
+/**
+ * @description Whether a saved TV supports direct application actions (list_apps, active_app, launch_app). Pure.
+ * @param {object|null} tv A saved TV from /api/home/lan/devices.
+ * @returns {boolean} True for controllable Roku and Samsung TVs only.
+ */
+export function supportsApps(tv) {
+  return Boolean(tv && tv.controllable && (tv.kind === 'roku' || tv.kind === 'samsung-tizen'));
+}
 
 /**
  * @description The buttons one TV's card shows, by its kind and what the computer said about it. Pure.
  * @param {object} tv A saved TV from /api/home/lan/devices.
- * @returns {{power:Array<object>, volume:Array<object>, moves:Array<object>, nav:Array<object>, media:Array<object>, extra:Array<object>}} Button rows.
+ * @returns {{power:Array<object>, volume:Array<object>, moves:Array<object>, nav:Array<object>, media:Array<object>, apps:Array<object>, extra:Array<object>}} Button rows.
  */
 export function tvButtons(tv) {
-  const empty = { power: [], volume: [], moves: [], nav: [], media: [], extra: [] };
+  const empty = { power: [], volume: [], moves: [], nav: [], media: [], apps: [], extra: [] };
   if (!tv || !tv.controllable || tv.kind === 'cast') return empty;
   const b = (action, label, aria) => ({ action, label, aria: aria || label });
   const rows = {
@@ -46,8 +68,12 @@ export function tvButtons(tv) {
     moves: MOVES.map(([action, label, aria]) => b(action, label, aria)),
     nav: [b('home', 'Home'), b('back', 'Back'), b('play_pause', 'Play/Pause', 'Play or pause')],
     media: [],
+    apps: [],
     extra: []
   };
+  if (supportsApps(tv)) {
+    rows.apps.push(b('active_app', 'What\'s in front', 'What is in front'), b('list_apps', 'List apps', 'List apps'));
+  }
   if (tv.kind === 'samsung-tizen') {
     rows.extra.push(b('launch_url', 'Show Open Swarm on this TV'));
     if (!tv.samsung?.paired) rows.extra.push(b('pair', 'Pair'));
@@ -61,6 +87,45 @@ export function tvButtons(tv) {
     if (adb === 'not-connected' || adb === 'unauthorized') rows.extra.push(b('pair', 'Connect'));
   }
   return rows;
+}
+
+/**
+ * @description The In front status line for a Roku or Samsung TV card from what the TV last reported. Pure.
+ * @param {object|null|undefined} front The TV's front record.
+ * @returns {string} One honest status line, never claiming more than the TV reported.
+ */
+export function frontAppLine(front) {
+  if (!front || typeof front !== 'object') return 'In front: not checked yet';
+  const name = String(front.name || front.id || 'An application').trim() || 'An application';
+  if (front.inFront === true) {
+    const player = name === 'Home screen' ? '' : (PLAYER_WORDS[front.player] || '');
+    const saver = front.screensaver ? `screensaver ${front.screensaver}` : '';
+    return [`In front: ${name}`, player, saver].filter(Boolean).join(' · ');
+  }
+  if (front.running === true) return `Last checked: ${name} · running, not in front`;
+  if (front.running === false) return `Last checked: ${name} · not running`;
+  if (front.inFront === false) return `Last checked: ${name} · not in front`;
+  return `Last checked: ${name} · status not reported`;
+}
+
+/**
+ * @description The application id Samsung active_app checks: the chosen listed app, last-checked app, or first listed app. Pure.
+ * @param {object|null} tv A saved Samsung TV.
+ * @param {string} [selectedId] The app id currently selected on the card.
+ * @returns {string} The application id to check, or '' when none is known yet.
+ */
+export function samsungCheckApp(tv, selectedId = '') {
+  const apps = Array.isArray(tv?.apps) ? tv.apps : [];
+  if (selectedId && (!apps.length || apps.some((item) => item.id === selectedId))) return selectedId;
+  if (tv?.front?.id && (!apps.length || apps.some((item) => item.id === tv.front.id))) return tv.front.id;
+  return apps[0]?.id || tv?.front?.id || '';
+}
+
+function checkedTimeSuffix(at) {
+  if (!at || !Number.isFinite(Date.parse(at))) return '';
+  try {
+    return ` (checked ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })})`;
+  } catch { return ''; }
 }
 
 /**
@@ -96,7 +161,7 @@ export function resultWords(result) {
   if (!result) return { text: '', retry: false };
   if (result.ok) return { text: result.message, retry: false };
   const waiting = WAITING_WORDS[result.error];
-  return { text: waiting || result.message || 'The computer did not do it.', retry: Boolean(waiting) };
+  return { text: waiting || result.message || ERROR_WORDS[result.error] || 'The computer did not do it.', retry: Boolean(waiting) };
 }
 
 async function call(fetchImpl, path, body) {
@@ -125,7 +190,8 @@ function el(tag, attrs = {}, text) {
  */
 export function createTvSection({ root, fetchImpl = globalThis.fetch.bind(globalThis), origin = globalThis.location?.origin || '', link, rdp = null }) {
   const $ = (id) => root.querySelector(`#${id}`);
-  const state = { computers: [], computer: null, tvs: [], ready: new Map(), busy: false };
+  const state = { computers: [], computer: null, tvs: [], ready: new Map(), busy: false,
+    selectedApp: new Map(), lastApp: new Map(), expandedApps: new Set(), appFilter: new Map() };
   const client = link.createComputerClient({ fetchImpl });
   const pkg = link.createPackageClient({ fetchImpl });
   const say = (text) => { $('tvStatus').textContent = text; };
@@ -165,7 +231,7 @@ export function createTvSection({ root, fetchImpl = globalThis.fetch.bind(global
       }
     },
     scan() { return scan(this, state, { api, pkg, say }); },
-    press(tv, action) { return press(this, state, tv, action, { api, say, origin, root }); },
+    press(tv, action, extra = {}) { return press(this, state, tv, action, { api, say, origin, root, ...extra }); },
     install(tv) { return installApp(this, state, tv, { api, say, origin, rdp, client, root }); },
     render() { renderTvs(root, state, this); }
   };
@@ -236,23 +302,42 @@ function computerFor(state, tv) {
   return own && own.connected ? own : state.computer;
 }
 
-async function press(section, state, tv, action, { api, say, origin, root }) {
+function pressBusyText(tv, action, appName) {
+  if (action === 'pair' && tv.kind === 'samsung-tizen') return 'Look at the TV: press Allow with its remote.';
+  if (action === 'launch_app' && appName) return `Opening ${appName} on ${tv.name}…`;
+  if (action === 'active_app' && appName) return `Checking ${appName} on ${tv.name}…`;
+  return `Sending ${PRESS_WORDS[action] || action} to ${tv.name}…`;
+}
+
+async function press(section, state, tv, action, { api, say, origin, root, app = '', appName = '' }) {
   if (action === 'install_app') return section.install(tv);
   const computer = computerFor(state, tv);
   const card = root.querySelector(`[data-tv="${CSS.escape(tv.id)}"]`);
   if (!computer) { say('Choose one of your computers first.'); return null; }
-  cardBusy(card, action === 'pair' && tv.kind === 'samsung-tizen' ? 'Look at the TV: press Allow with its remote.' : `Sending ${PRESS_WORDS[action] || action} to ${tv.name}…`);
+  const needsApp = action === 'launch_app' || (action === 'active_app' && tv.kind === 'samsung-tizen');
+  const chosenApp = needsApp ? (app || samsungCheckApp(tv, state.selectedApp.get(tv.id))) : '';
+  if (needsApp && !chosenApp) {
+    const message = action === 'active_app'
+      ? `Press List apps first so you can pick which application to check on ${tv.name}.`
+      : `Choose an application to open on ${tv.name}.`;
+    return finishCard(section, tv, { ok: false, error: 'app_required', message }, false, root);
+  }
+  if (chosenApp) { state.selectedApp.set(tv.id, chosenApp); state.lastApp.set(tv.id, chosenApp); }
+  cardBusy(card, pressBusyText(tv, action, appName));
   try {
-    const plan = await api('/lan/control-plan', { device: tv.id, action, ...(action === 'launch_url' ? { url: new URL('/', origin || 'https://invalid').href } : {}) });
-    if (!plan.ok) return finishCard(section, tv, { ok: false, error: plan.error, message: plan.message });
-    if (!(await section.ensureBridge(computer))) return finishCard(section, tv, { ok: false, error: 'no_helper', message: `The helper is not set up on ${computer.name}.` });
+    const payload = { device: tv.id, action, ...(action === 'launch_url' ? { url: new URL('/', origin || 'https://invalid').href } : {}), ...(chosenApp ? { app: chosenApp } : {}) };
+    const plan = await api('/lan/control-plan', payload);
+    if (!plan.ok) return finishCard(section, tv, { ok: false, error: plan.error, message: plan.message }, false, root);
+    if (!(await section.ensureBridge(computer))) return finishCard(section, tv, { ok: false, error: 'no_helper', message: `The helper is not set up on ${computer.name}.` }, false, root);
     let reply = await section.run(computer, plan.command, action === 'pair' ? PAIR_MS : RUN_MS);
     if (!reply.ok && OLD_BRIDGE.has(reply.error) && await section.ensureBridge(computer, true)) reply = await section.run(computer, plan.command, RUN_MS);
     const recorded = await api('/lan/record', { op: 'control', device: tv.id, action, reply });
     if (recorded.device) state.tvs = state.tvs.map((item) => (item.id === tv.id ? recorded.device : item));
-    return finishCard(section, recorded.device || tv, recorded.result || { ok: false, error: recorded.error, message: recorded.message }, Boolean(recorded.device));
+    const result = recorded.result || { ok: false, error: recorded.error, message: recorded.message };
+    const shown = !result.ok && recorded.hint ? { ...result, message: [result.message, recorded.hint].filter(Boolean).join(' ') } : result;
+    return finishCard(section, recorded.device || tv, shown, Boolean(recorded.device) && !recorded.hint, root);
   } catch (error) {
-    return finishCard(section, tv, { ok: false, error: 'failed', message: error.message });
+    return finishCard(section, tv, { ok: false, error: 'failed', message: error.message }, false, root);
   }
 }
 
@@ -289,13 +374,14 @@ function askInstall(card, tv) {
 
 function cardBusy(card, text) {
   if (!card) return;
-  card.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+  card.querySelectorAll('button, select, input').forEach((node) => { node.disabled = true; });
   card.querySelector('.tv-result').textContent = text;
 }
 
-function finishCard(section, tv, result, recorded = false) {
+function finishCard(section, tv, result, recorded = false, root = null) {
   section.render();
-  const card = document.querySelector(`[data-tv="${CSS.escape(tv.id)}"]`);
+  const scope = root || document;
+  const card = scope.querySelector(`[data-tv="${CSS.escape(tv.id)}"]`);
   // A recorded answer is already the card's last result; one that never reached Smart Home is said here.
   if (card && result && !recorded) card.querySelector('.tv-result').textContent = resultWords(result).text;
   return result;
@@ -305,6 +391,91 @@ function renderTvs(root, state, section) {
   const list = root.querySelector('#tvList');
   root.querySelector('#tvEmpty').hidden = state.tvs.length > 0;
   list.replaceChildren(...state.tvs.map((tv) => tvCard(tv, section)));
+}
+
+function renderSamsungPicker(tv, section) {
+  const apps = Array.isArray(tv.apps) ? tv.apps : [];
+  if (tv.kind !== 'samsung-tizen' || !apps.length) return null;
+  const selected = samsungCheckApp(tv, section.state.selectedApp.get(tv.id));
+  section.state.selectedApp.set(tv.id, selected);
+  const label = el('label', { className: 'schf tv-app-picker' });
+  const select = el('select', { className: 'sel tv-app-select', 'aria-label': `Application to check on ${tv.name}` });
+  select.replaceChildren(...apps.map((app) => {
+    const option = el('option', { value: app.id }, app.name);
+    option.selected = app.id === selected;
+    return option;
+  }));
+  select.addEventListener('change', (event) => { section.state.selectedApp.set(tv.id, event.target.value); });
+  label.append(el('span', {}, 'Application to check'), select);
+  return label;
+}
+
+function renderAppList(tv, section, box) {
+  const apps = Array.isArray(tv.apps) ? tv.apps : [];
+  if (!apps.length) {
+    box.append(el('p', { className: 'tv-apps-empty' }, 'No applications listed yet. Press List apps to read them from this TV.'));
+    return;
+  }
+  const query = (section.state.appFilter.get(tv.id) || '').trim().toLowerCase();
+  const filtered = query ? apps.filter((app) => app.name.toLowerCase().includes(query) || app.id.toLowerCase().includes(query)) : apps;
+  const expanded = section.state.expandedApps.has(tv.id);
+  const shown = query || expanded ? filtered : filtered.slice(0, APP_PREVIEW_LIMIT);
+  if (apps.length > APP_PREVIEW_LIMIT) {
+    const input = el('input', { type: 'search', className: 'tin tv-apps-filter', value: section.state.appFilter.get(tv.id) || '',
+      placeholder: `Filter ${apps.length} apps`, 'aria-label': `Filter applications on ${tv.name}` });
+    input.addEventListener('input', (event) => {
+      section.state.appFilter.set(tv.id, event.target.value);
+      const pos = event.target.selectionStart;
+      section.render();
+      const restored = document.querySelector(`[data-tv="${CSS.escape(tv.id)}"] .tv-apps-filter`);
+      if (restored) { restored.focus(); if (pos !== null) restored.setSelectionRange(pos, pos); }
+    });
+    box.append(input);
+  }
+  const list = el('div', { className: 'tv-app-list', role: 'group', 'aria-label': `Applications on ${tv.name}` });
+  const frontId = tv.front?.inFront === true ? tv.front.id : null;
+  list.append(...shown.map((app) => {
+    const cls = `btn tv-btn tv-app-btn${frontId && frontId === app.id ? ' is-front' : ''}`;
+    const btn = el('button', { type: 'button', className: cls, 'data-action': 'launch_app', 'data-app-id': app.id, 'aria-label': `Open ${app.name} on ${tv.name}` }, app.name);
+    btn.addEventListener('click', () => section.press(tv, 'launch_app', { app: app.id, appName: app.name }));
+    return btn;
+  }));
+  box.append(shown.length ? list : el('p', { className: 'tv-apps-empty' }, 'No listed application matches that filter.'));
+  if (!query && apps.length > APP_PREVIEW_LIMIT) {
+    const toggle = el('button', { type: 'button', className: 'lnk tv-apps-toggle' }, expanded ? 'Show fewer apps' : `Show all ${apps.length} apps`);
+    toggle.addEventListener('click', () => {
+      if (expanded) section.state.expandedApps.delete(tv.id);
+      else section.state.expandedApps.add(tv.id);
+      section.render();
+    });
+    box.append(toggle);
+  }
+}
+
+function renderTvApps(tv, rows, section, makeButton) {
+  if (!supportsApps(tv)) return null;
+  if (!section && !tv.front) return null;
+  const box = el('div', { className: 'tv-apps', 'data-tv-apps': 'true' });
+  const frontText = `${frontAppLine(tv.front)}${tv.front ? checkedTimeSuffix(tv.front.at) : ''}`;
+  box.append(el('p', { className: 'tv-front' }, frontText));
+  if (!section) return box;
+  const picker = renderSamsungPicker(tv, section);
+  if (picker) box.append(picker);
+  if (rows.apps.length) {
+    const buttons = rows.apps.map((item) => {
+      if (item.action !== 'active_app' || tv.kind !== 'samsung-tizen') return makeButton(item);
+      const node = el('button', { type: 'button', className: 'btn tv-btn', 'data-action': item.action, 'aria-label': `${item.aria} on ${tv.name}` }, item.label);
+      node.addEventListener('click', () => {
+        const appId = samsungCheckApp(tv, section.state.selectedApp.get(tv.id));
+        const match = (tv.apps || []).find((entry) => entry.id === appId);
+        section.press(tv, 'active_app', { app: appId, appName: match?.name || tv.front?.name || '' });
+      });
+      return node;
+    });
+    box.append(rowOf('tv-row tv-apps-actions', buttons));
+  }
+  renderAppList(tv, section, box);
+  return box;
 }
 
 function tvCard(tv, section) {
@@ -325,13 +496,15 @@ function tvCard(tv, section) {
   for (const [key, cls] of [['power', 'tv-row'], ['volume', 'tv-row'], ['moves', 'tv-pad'], ['nav', 'tv-row'], ['media', 'tv-row tv-media'], ['extra', 'tv-row']]) {
     if (rows[key].length) card.append(rowOf(cls, rows[key].map(button)));
   }
+  const appsBox = renderTvApps(tv, rows, section, button);
+  if (appsBox) card.append(appsBox);
   const playing = nowPlayingLine(tv.nowPlaying);
   if (playing) card.append(el('p', { className: 'tv-now' }, playing));
   const words = resultWords(tv.lastResult);
   const line = el('p', { className: 'tv-result', role: 'status' }, words.text);
   if (words.retry && section) {
     const retry = el('button', { type: 'button', className: 'lnk' }, 'Retry');
-    retry.addEventListener('click', () => section.press(tv, tv.lastResult.action));
+    retry.addEventListener('click', () => section.press(tv, tv.lastResult.action, { app: section.state.lastApp.get(tv.id) || '' }));
     line.append(' ', retry);
   }
   card.append(line);

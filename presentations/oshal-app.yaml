@@ -61,6 +61,7 @@
 # 29 | maintainer@emeraldcoastsystemsgroup.com | 2.20.9: preserve bounded paragraph indentation and heading continuity in the editor and actual DOCX, PDF and text exports.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | Export current visible saved Word revisions as genuine bounded Unicode RTF, using the existing original-person export authority and immutable revision routes.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 2.20.11: support optional Word paragraph bottom border (`borderBottom`), right tab stop (`tabRight`), and native OOXML `<w:tab/>` runs across DOCX, PDF, and RTF exports without altering existing documents.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 2.20.12 (CREATE-TOOL-PRESENTATIONS-08): add on-screen Speaker notes under each presentation slide in AI Office and the slide workspace, export/import `.pptx` notes pages, preserve notes across save/reopen/open and Edit & regenerate, and accept `notes` in `page` patch and Guide `update_slide` operations.
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -80,7 +81,7 @@ rating:
       degrade: disable
 displayName: AI Office
 description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
-version: 2.20.11
+version: 2.20.12
 chatBot: deck-builder
 lastingStorage: true
 testing:
@@ -507,6 +508,7 @@ tools:
       END_WORKBOOK_CELL_OPERATION_JSON
       Only supported closed operations/fields are accepted. Never invent replace_text, set_text, text or update_slide ops.
       Text run highlighting uses text-range with style:{"highlight":"#fef08a"} (or "transparent" to clear).
+      Presentation speaker notes use {"op":"page","id":"actual-page-id","patch":{"notes":"Speaker talking points"}} ("" clears notes).
       Anchored comments use add-comment, reply-comment, resolve-comment and remove-comment; Word tracked changes use propose-change, accept-change, reject-change, accept-all-changes and reject-all-changes.
       Use real IDs from the saved selection and preserve unrelated content. Read the contract for other edits.
     executor:

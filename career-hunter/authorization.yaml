@@ -1,4 +1,6 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner per-press evidence reads to career.read.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Lane CAREER-REGEN, Generate again (lib/career-regenerate-routes.js): each new route bound once to the permission its single-job neighbour has. Reading the queue and the jobs with older documents (GET /regenerate, /regenerate/older) needs career.read; queueing jobs (POST /regenerate) needs career.change and career.execute, as saving a job's tailoring and generating it do; moving it on and Go on (POST /regenerate/advance, /go-on), which start the next job's generation, need career.execute, as POST /jobs/:id/generate does; Pause, Stop and Clear (POST /regenerate/pause, /stop, /clear) need career.change. No new permission and no role change.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Lane APPLY-BATCH, Fill in several on my Chrome (lib/career-apply-batch-routes.js): each new route bound once to the permission its single-job neighbour has. Reading the queue (GET /apply-batch) needs career.read; approving jobs into it (POST /apply-batch) needs career.change and career.execute, as approving and starting one job do; moving it on and Go on (POST /apply-batch/advance, /go-on), which start the next job, need career.execute; Pause, Stop, Skip, Next job and Clear (POST /apply-batch/pause, /stop, /skip, /next, /clear) need career.change. No new permission and no role change.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 1.70.0, Fill it in on my Chrome (lib/career-apply-routes.js): bind each new route once to the permission its neighbour of the same kind has. Reads (GET /apply-review/:postingId, /apply-runs, /apply-runs/:id/receipt, /picture/:attempt/:n, /confirmation, /saved-answers) need career.read; the page GET /saved-answers-ui needs app.open; approving a packet, binding its ticket, reading the kernel's record back, keeping card answers and changing Saved answers (POST /apply-runs, /bind, /sync, /kept, /saved-answers) need career.change, as the submission queue's do; starting a run and Go on (POST /apply-runs/:id/start, /go-on) need career.execute, as submission-start does. The new planner bot career-apply-assist (cb000000-0000-0000-0000-000000000007) is bound like the browser worker. No new permission and no role change, so every assignment grants what it did.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | 1.68.6 (Roger, 2026-11-16: the My jobs posting sheet said there was no information about his Torch Technologies jobs): bind POST /jobs/:id/details (lib/career-job-details.js) to career.change, an existing permission: it reads one job's missing description from the employer's posting through the kernel's egress and keeps it in the caller's own store (a state write that spends nothing). The GET /jobs/:id?details=read view read rides the existing job binding on career.read. No new permission and no role change, so every assignment grants what it did.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.62.0, one concierge (Roger, 2026-11-14: "one concierge for the entire app that can do everything that needs to be done in the app"): bind 29 new concierge tools, each to exactly the permission of the route it calls (the kernel withholds a tool bound differently from its route; tests/career-concierge-tools.test.mjs checks each one by the kernel's rule). No permission, role, grant or route binding changed, so every assignment grants what it granted before. The five job-source tools carry career.administer, as their routes do.
@@ -106,6 +108,23 @@ bindings:
     - { id: apply-receipt, method: GET, path: /apply-runs/:id/receipt, allOf: [career.read] }
     - { id: apply-picture, method: GET, path: /apply-runs/:id/picture/:attempt/:n, allOf: [career.read] }
     - { id: apply-confirmation, method: GET, path: /apply-runs/:id/confirmation, allOf: [career.read] }
+    - { id: apply-batch-read, method: GET, path: /apply-batch, allOf: [career.read] }
+    - { id: apply-batch-approve, method: POST, path: /apply-batch, allOf: [career.change, career.execute] }
+    - { id: apply-batch-advance, method: POST, path: /apply-batch/advance, allOf: [career.execute] }
+    - { id: apply-batch-go-on, method: POST, path: /apply-batch/go-on, allOf: [career.execute] }
+    - { id: apply-batch-pause, method: POST, path: /apply-batch/pause, allOf: [career.change] }
+    - { id: apply-batch-stop, method: POST, path: /apply-batch/stop, allOf: [career.change] }
+    - { id: apply-batch-skip, method: POST, path: /apply-batch/skip, allOf: [career.change] }
+    - { id: apply-batch-next, method: POST, path: /apply-batch/next, allOf: [career.change] }
+    - { id: apply-batch-clear, method: POST, path: /apply-batch/clear, allOf: [career.change] }
+    - { id: regenerate-read, method: GET, path: /regenerate, allOf: [career.read] }
+    - { id: regenerate-older, method: GET, path: /regenerate/older, allOf: [career.read] }
+    - { id: regenerate-start, method: POST, path: /regenerate, allOf: [career.change, career.execute] }
+    - { id: regenerate-advance, method: POST, path: /regenerate/advance, allOf: [career.execute] }
+    - { id: regenerate-go-on, method: POST, path: /regenerate/go-on, allOf: [career.execute] }
+    - { id: regenerate-pause, method: POST, path: /regenerate/pause, allOf: [career.change] }
+    - { id: regenerate-stop, method: POST, path: /regenerate/stop, allOf: [career.change] }
+    - { id: regenerate-clear, method: POST, path: /regenerate/clear, allOf: [career.change] }
     - { id: saved-answers-ui, method: GET, path: /saved-answers-ui, allOf: [app.open] }
     - { id: saved-answers-read, method: GET, path: /saved-answers, allOf: [career.read] }
     - { id: saved-answers-write, method: POST, path: /saved-answers, allOf: [career.change] }

@@ -37,6 +37,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Item C (0.12.4): track inOpenWindow and priorPollAbsent on LineObservation and add the third, strongest openerConfidence level ('confirmed-open'), assigned strictly when the earliest row was captured inside its league's expected open window AND the immediately preceding poll of the same game and book returned no price.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — quote normalisation and equality, change-only capture semantics, movement summary over an observation series, and honest opener labelling with a confidence window rather than an asserted opening line.
  *
  * @module sports-line-history
@@ -123,10 +124,10 @@ exports.OPENER_EARLY_HOURS = 72;
 /**
  * @description Fold a game's observation series into its movement story.
  *
- * The honesty is in `openerConfidence`. Calling the earliest row "the opening line" would be a
- * claim this module cannot support — it only knows when IT first looked. A first observation three
- * days out is plausibly the opener; one taken four hours before kickoff certainly is not, and every
- * closing-line-value number computed against it would be quietly wrong.
+ * The honesty is in `openerConfidence`. `'confirmed-open'` is assigned IF AND ONLY IF the earliest
+ * captured row landed inside the league's expected open window AND the previous poll of the same
+ * game and book returned no price — the only condition under which "this is the opener" is a claim
+ * rather than a guess. Otherwise it falls back to lead time (`observed-early` / `late-pickup`).
  * @param rows - Observations for one game and book, any order.
  * @param kickoff - ISO kickoff time, when known.
  * @returns The summary.
@@ -146,14 +147,26 @@ function summariseMovement(rows, kickoff) {
         && latest?.homeSpread !== null && latest?.homeSpread !== undefined) {
         netSpreadMove = Math.round((first.homeSpread - latest.homeSpread) * 100) / 100;
     }
+    const firstInOpenWindow = Boolean(first?.inOpenWindow);
+    const firstPriorPollAbsent = Boolean(first?.priorPollAbsent);
     let openerLeadHours = null;
     let openerConfidence = 'unknown';
     const kick = kickoff ? Date.parse(kickoff) : NaN;
     if (first && Number.isFinite(kick)) {
         openerLeadHours = Math.round(((kick - Date.parse(first.firstSeen)) / 3600000) * 10) / 10;
-        openerConfidence = openerLeadHours >= exports.OPENER_EARLY_HOURS ? 'observed-early' : 'late-pickup';
     }
-    return { firstSeen: first, latest, moves, netSpreadMove, openerLeadHours, openerConfidence };
+    if (first) {
+        if (firstInOpenWindow && firstPriorPollAbsent) {
+            openerConfidence = 'confirmed-open';
+        }
+        else if (openerLeadHours !== null) {
+            openerConfidence = openerLeadHours >= exports.OPENER_EARLY_HOURS ? 'observed-early' : 'late-pickup';
+        }
+    }
+    return {
+        firstSeen: first, latest, moves, netSpreadMove, openerLeadHours, openerConfidence,
+        firstInOpenWindow, firstPriorPollAbsent,
+    };
 }
 /**
  * @description Whether our recorded pick beat the way the line subsequently moved — the fast,
@@ -171,4 +184,3 @@ function spreadClv(side, spreadAtPick, closingSpread) {
     const towardHome = spreadAtPick - closingSpread;
     return Math.round((side === 'home' ? towardHome : -towardHome) * 100) / 100;
 }
-//# sourceMappingURL=sports-line-history.js.map
